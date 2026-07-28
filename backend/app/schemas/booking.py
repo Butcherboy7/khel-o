@@ -13,17 +13,37 @@ class BookingBase(BaseModel):
     hardware_tier_id: UUID
     session_date: date
     start_time: time
-    duration_hours: float = Field(..., ge=1.0, le=6.0)
+    duration_hours: float = Field(..., ge=0.5, le=8.0)
     notes: Optional[str] = None
     promotion_id: Optional[UUID] = None
 
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 class BookingCreate(BookingBase):
     pass
+
+BookingCreateRequest = BookingCreate
+
+class BookingCancelRequest(BaseModel):
+    reason: Optional[str] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
 
 class BookingUpdate(BaseModel):
     status: Optional[BookingStatus] = None
     notes: Optional[str] = None
     cancellation_reason: Optional[str] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
 
 class BookingResponse(BookingBase):
     id: UUID
@@ -52,6 +72,7 @@ class BookingListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+    total_pages: int
 
     model_config = ConfigDict(
         from_attributes=True,

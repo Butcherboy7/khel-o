@@ -29,7 +29,11 @@ class Booking(Base):
     discount_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
     gateway_fee: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
     total_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    status: Mapped[BookingStatus] = mapped_column(Enum(BookingStatus), default=BookingStatus.PENDING_PAYMENT, nullable=False)
+    status: Mapped[BookingStatus] = mapped_column(
+        Enum(BookingStatus, values_callable=lambda x: [e.value for e in x]),
+        default=BookingStatus.PENDING_PAYMENT,
+        nullable=False
+    )
     promotion_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("promotions.id"), nullable=True)
     qr_code_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
