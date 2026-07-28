@@ -8,7 +8,9 @@ from app.schemas.booking import BookingCreateRequest, BookingCancelRequest
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
+from app.repositories.promotion_repository import PromotionRepository
 from app.services.booking_service import BookingService
+from app.services.promotion_service import PromotionService
 from app.api.deps import require_gamer, get_current_active_user
 from app.models.user import User
 
@@ -23,7 +25,10 @@ async def create_booking(
     booking_repo = BookingRepository(db)
     cafe_repo = CafeRepository(db)
     tier_repo = HardwareTierRepository(db)
-    service = BookingService(booking_repo, cafe_repo, tier_repo)
+    promo_repo = PromotionRepository(db)
+    promo_service = PromotionService(promo_repo, cafe_repo, tier_repo)
+
+    service = BookingService(booking_repo, cafe_repo, tier_repo, promo_service=promo_service)
     result = await service.create_booking(current_gamer.id, payload)
     return {
         "success": True,

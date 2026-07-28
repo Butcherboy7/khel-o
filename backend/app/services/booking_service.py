@@ -9,6 +9,7 @@ from datetime import datetime, timezone, timedelta, date, time
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
+from app.services.promotion_service import PromotionService
 from app.schemas.booking import BookingCreateRequest, BookingResponse, BookingCancelRequest
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User, UserRole
@@ -20,11 +21,13 @@ class BookingService:
         self,
         booking_repo: BookingRepository,
         cafe_repo: Optional[CafeRepository] = None,
-        tier_repo: Optional[HardwareTierRepository] = None
+        tier_repo: Optional[HardwareTierRepository] = None,
+        promo_service: Optional[PromotionService] = None
     ):
         self.booking_repo = booking_repo
         self.cafe_repo = cafe_repo
         self.tier_repo = tier_repo
+        self.promo_service = promo_service
 
     def _generate_reference(self) -> str:
         year = datetime.now(timezone.utc).year
@@ -46,7 +49,7 @@ class BookingService:
         if not tier or str(tier.cafe_id) != str(booking_in.cafe_id) or not tier.is_active:
             raise ValidationException(message="Selected hardware tier is not available", error_code="TIER_NOT_AVAILABLE")
 
-        # Task 2 — Time Validation
+        # Time Validation
         now_utc = datetime.now(timezone.utc)
         start_datetime = datetime.combine(booking_in.session_date, booking_in.start_time).replace(tzinfo=timezone.utc)
 
@@ -65,7 +68,7 @@ class BookingService:
         end_datetime = start_datetime + timedelta(hours=booking_in.duration_hours)
         end_time = end_datetime.time()
 
-        # Task 1 — Seat Availability Checking
+        # Seat Availability Checking
         overlapping_count = await self.booking_repo.get_overlapping_bookings_count(
             tier_id=tier.id,
             session_date=booking_in.session_date,
@@ -79,17 +82,26 @@ class BookingService:
                 error_code="TIER_FULLY_BOOKED"
             )
 
-        # Task 3 — Financial Math (Decimal)
+        # Financial Math (Decimal) & Promotion Application
         price_per_hour = Decimal(str(tier.price_per_hour))
         duration = Decimal(str(booking_in.duration_hours))
-        
         base_amount = price_per_hour * duration
+
         discount_amount = Decimal('0.00')
+        if booking_in.promotion_id:
+            if not self.promo_service:
+                raise ValidationException(message="Promotion service missing", error_code="INTERNAL_ERROR")
+            discount_amount = await self.promo_service.apply_promotion_to_booking(
+                promotion_id=booking_in.promotion_id,
+                cafe_id=booking_in.cafe_id,
+                tier_id=booking_in.hardware_tier_id,
+                base_amount=base_amount
+            )
+
         subtotal = base_amount - discount_amount
         gateway_fee = (subtotal * Decimal('0.02')).quantize(Decimal('0.01'))
         total_amount = subtotal + gateway_fee
 
-        # Task 4 — Booking Reference Generation
         booking_ref = self._generate_reference()
 
         booking_dict = {
@@ -112,6 +124,11 @@ class BookingService:
         }
 
         created = await self.booking_repo.create(booking_dict)
+
+        # Atomic increment of promotion current_uses after booking is saved
+        if booking_in.promotion_id and self.promo_service:
+            await self.promo_service.increment_promotion_uses(booking_in.promotion_id)
+
         return BookingResponse.model_validate(created)
 
     async def get_booking(self, booking_id: UUID, current_user: User) -> BookingResponse:
@@ -119,7 +136,6 @@ class BookingService:
         if not booking:
             raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
 
-        # Check permissions: Gamer who owns booking OR Owner of the cafe OR Admin
         is_owner = False
         if current_user.role == UserRole.ADMIN or str(booking.gamer_id) == str(current_user.id):
             is_owner = True
@@ -159,7 +175,6 @@ class BookingService:
                 error_code="INVALID_BOOKING_STATUS"
             )
 
-        # Task 5 — Cancellation Window Check (2 hours)
         now_utc = datetime.now(timezone.utc)
         start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=timezone.utc)
 

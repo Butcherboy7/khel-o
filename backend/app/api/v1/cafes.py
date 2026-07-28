@@ -8,6 +8,7 @@ from app.schemas.cafe import CafeCreateRequest, CafeUpdateRequest
 from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpdateRequest
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
+from app.repositories.promotion_repository import PromotionRepository
 from app.services.cafe_service import CafeService
 from app.services.hardware_tier_service import HardwareTierService
 from app.api.deps import require_cafe_owner, get_optional_user
@@ -52,7 +53,8 @@ async def get_cafe(
 ):
     cafe_repo = CafeRepository(db)
     tier_repo = HardwareTierRepository(db)
-    service = CafeService(cafe_repo, tier_repo)
+    promo_repo = PromotionRepository(db)
+    service = CafeService(cafe_repo, tier_repo, promo_repo)
     result = await service.get_cafe(cafe_id, current_user=current_user)
     return {
         "success": True,
@@ -116,7 +118,8 @@ async def add_hardware_tier(
 @router.get("/{cafe_id}/tiers", status_code=status.HTTP_200_OK)
 async def list_hardware_tiers(cafe_id: UUID, db: AsyncSession = Depends(get_db)):
     tier_repo = HardwareTierRepository(db)
-    service = HardwareTierService(tier_repo)
+    promo_repo = PromotionRepository(db)
+    service = HardwareTierService(tier_repo, promo_repo=promo_repo)
     result = await service.get_cafe_tiers(cafe_id)
     return {
         "success": True,

@@ -1,15 +1,23 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.repositories.cafe_repository import CafeRepository
+from app.repositories.promotion_repository import PromotionRepository
+from app.services.promotion_service import PromotionService
 from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpdateRequest, HardwareTierResponse
 from app.models.hardware_tier import HardwareTier
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 
 class HardwareTierService:
-    def __init__(self, tier_repo: HardwareTierRepository, cafe_repo: Optional[CafeRepository] = None):
+    def __init__(
+        self,
+        tier_repo: HardwareTierRepository,
+        cafe_repo: Optional[CafeRepository] = None,
+        promo_repo: Optional[PromotionRepository] = None
+    ):
         self.tier_repo = tier_repo
         self.cafe_repo = cafe_repo
+        self.promo_repo = promo_repo
 
     async def add_hardware_tier(self, cafe_id: UUID, owner_id: UUID, tier_in: HardwareTierCreateRequest) -> HardwareTierResponse:
         if self.cafe_repo:
@@ -69,11 +77,24 @@ class HardwareTierService:
 
     async def get_cafe_tiers(self, cafe_id: UUID) -> List[HardwareTierResponse]:
         tiers = await self.tier_repo.get_by_cafe(cafe_id, active_only=True)
+
+        active_promos = []
+        if self.promo_repo:
+            promo_service = PromotionService(self.promo_repo, tier_repo=self.tier_repo)
+            active_promos = await promo_service.get_active_promotions_for_cafe(cafe_id)
+
         result: List[HardwareTierResponse] = []
         for t in tiers:
             r = HardwareTierResponse.model_validate(t)
-            r.active_promotion = None
+            matching_promo = None
+            for p in active_promos:
+                # Active promotion match check
+                if p.applicable_tier_name is None or p.applicable_tier_name == t.name:
+                    matching_promo = p.model_dump(by_alias=True)
+                    break
+            r.active_promotion = matching_promo
             result.append(r)
+
         return result
 
     list_cafe_tiers = get_cafe_tiers

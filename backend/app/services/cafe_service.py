@@ -3,6 +3,8 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
+from app.repositories.promotion_repository import PromotionRepository
+from app.services.promotion_service import PromotionService
 from app.schemas.cafe import CafeCreateRequest, CafeUpdateRequest, CafeResponse, CafeListItem, CafeListResponse
 from app.schemas.hardware_tier import HardwareTierResponse
 from app.models.cafe import Cafe, VerificationStatus
@@ -10,9 +12,15 @@ from app.models.user import User, UserRole
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 
 class CafeService:
-    def __init__(self, cafe_repo: CafeRepository, tier_repo: Optional[HardwareTierRepository] = None):
+    def __init__(
+        self,
+        cafe_repo: CafeRepository,
+        tier_repo: Optional[HardwareTierRepository] = None,
+        promo_repo: Optional[PromotionRepository] = None
+    ):
         self.cafe_repo = cafe_repo
         self.tier_repo = tier_repo
+        self.promo_repo = promo_repo
 
     async def create_cafe(self, owner_id: UUID, cafe_in: CafeCreateRequest) -> CafeResponse:
         cafe_dict = cafe_in.model_dump()
@@ -46,9 +54,14 @@ class CafeService:
             active_tiers = await self.tier_repo.get_by_cafe_id(cafe.id, active_only=True)
             tiers_res = [HardwareTierResponse.model_validate(t) for t in active_tiers]
 
+        active_promos = []
+        if self.promo_repo:
+            promo_service = PromotionService(self.promo_repo, tier_repo=self.tier_repo)
+            active_promos = await promo_service.get_active_promotions_for_cafe(cafe.id)
+
         resp = CafeResponse.model_validate(cafe)
         resp.tiers = tiers_res
-        resp.active_promotions = []
+        resp.active_promotions = active_promos
         resp.recent_reviews = []
         resp.average_rating = 0.0
         resp.total_reviews = 0
