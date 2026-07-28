@@ -32,7 +32,11 @@ class Cafe(Base):
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     opening_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     closing_time: Mapped[time | None] = mapped_column(Time, nullable=True)
-    verification_status: Mapped[VerificationStatus] = mapped_column(Enum(VerificationStatus), default=VerificationStatus.PENDING, nullable=False)
+    verification_status: Mapped[VerificationStatus] = mapped_column(
+        Enum(VerificationStatus, values_callable=lambda x: [e.value for e in x]),
+        default=VerificationStatus.PENDING,
+        nullable=False
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     total_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
     amenities: Mapped[dict[str, Any]] = mapped_column(JSONB, default=list, nullable=False)

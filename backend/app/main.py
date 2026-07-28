@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
 from app.core.logging import setup_logging, logger
@@ -35,7 +36,7 @@ app.add_middleware(
 # Register API Router
 app.include_router(api_router, prefix="/api/v1")
 
-# Custom Exception Handler
+# Custom Exception Handlers
 @app.exception_handler(BaseAppException)
 async def custom_app_exception_handler(request: Request, exc: BaseAppException):
     return JSONResponse(
@@ -47,6 +48,40 @@ async def custom_app_exception_handler(request: Request, exc: BaseAppException):
                 "code": exc.error_code,
                 "message": exc.message,
                 "details": exc.details
+            },
+            "meta": {
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={
+                "success": False,
+                "data": None,
+                "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "Authentication required",
+                    "details": []
+                },
+                "meta": {
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "data": None,
+            "error": {
+                "code": "HTTP_ERROR",
+                "message": exc.detail if isinstance(exc.detail, str) else str(exc.detail),
+                "details": []
             },
             "meta": {
                 "timestamp": datetime.now(timezone.utc).isoformat()

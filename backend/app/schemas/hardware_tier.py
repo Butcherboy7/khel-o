@@ -11,19 +11,33 @@ class HardwareTierBase(BaseModel):
     name: str = Field(..., max_length=100)
     description: Optional[str] = None
     specs: Dict[str, Any] = Field(default_factory=dict)
-    seats_in_tier: int = Field(..., ge=1)
-    price_per_hour: float = Field(..., ge=0.0)
+    seats_in_tier: int = Field(..., gt=0)
+    price_per_hour: float = Field(..., gt=0.0)
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
 
 class HardwareTierCreate(HardwareTierBase):
-    cafe_id: UUID
+    pass
+
+HardwareTierCreateRequest = HardwareTierCreate
 
 class HardwareTierUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
     specs: Optional[Dict[str, Any]] = None
-    seats_in_tier: Optional[int] = Field(None, ge=1)
-    price_per_hour: Optional[float] = Field(None, ge=0.0)
+    seats_in_tier: Optional[int] = Field(None, gt=0)
+    price_per_hour: Optional[float] = Field(None, gt=0.0)
     is_active: Optional[bool] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+HardwareTierUpdateRequest = HardwareTierUpdate
 
 class HardwareTierResponse(HardwareTierBase):
     id: UUID

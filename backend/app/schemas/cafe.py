@@ -26,8 +26,15 @@ class CafeBase(BaseModel):
     amenities: List[str] = Field(default_factory=list)
     photos: List[str] = Field(default_factory=list)
 
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 class CafeCreate(CafeBase):
     pass
+
+CafeCreateRequest = CafeCreate
 
 class CafeUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=255)
@@ -47,6 +54,21 @@ class CafeUpdate(BaseModel):
     amenities: Optional[List[str]] = None
     photos: Optional[List[str]] = None
     is_active: Optional[bool] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+CafeUpdateRequest = CafeUpdate
+
+class CafeVerifyRequest(BaseModel):
+    status: VerificationStatus
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
 
 class CafeResponse(CafeBase):
     id: UUID
