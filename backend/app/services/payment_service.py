@@ -12,6 +12,7 @@ from app.models.payment import Payment, PaymentStatus
 from app.models.booking import BookingStatus
 from app.models.user import User, UserRole
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
+from app.background.qr_generator import generate_and_save_qr_code
 
 class PaymentService:
     def __init__(self, payment_repo: PaymentRepository, booking_repo: BookingRepository):
@@ -92,8 +93,12 @@ class PaymentService:
             signature=payload.razorpay_signature
         )
 
-        # Confirm Booking & Populate QR code URL
-        qr_url = f"/api/v1/bookings/{booking.id}/qr"
+        # Generate & save QR code file, update booking status
+        qr_url = generate_and_save_qr_code(
+            booking_id=str(booking.id),
+            booking_reference=booking.booking_reference,
+            cafe_id=str(booking.cafe_id)
+        )
         await self.booking_repo.update(booking.id, {
             "status": BookingStatus.CONFIRMED,
             "qr_code_url": qr_url
@@ -113,11 +118,17 @@ class PaymentService:
                 payment = await self.payment_repo.get_by_razorpay_order_id(order_id)
                 if payment:
                     await self.payment_repo.update_status(payment.id, PaymentStatus.CAPTURED, razorpay_payment_id=payment_id)
-                    qr_url = f"/api/v1/bookings/{payment.booking_id}/qr"
-                    await self.booking_repo.update(payment.booking_id, {
-                        "status": BookingStatus.CONFIRMED,
-                        "qr_code_url": qr_url
-                    })
+                    booking = await self.booking_repo.get_by_id(payment.booking_id)
+                    if booking:
+                        qr_url = generate_and_save_qr_code(
+                            booking_id=str(booking.id),
+                            booking_reference=booking.booking_reference,
+                            cafe_id=str(booking.cafe_id)
+                        )
+                        await self.booking_repo.update(booking.id, {
+                            "status": BookingStatus.CONFIRMED,
+                            "qr_code_url": qr_url
+                        })
 
         elif event == "payment.failed":
             entity = payload_data.get("payment", {}).get("entity", {})
@@ -130,15 +141,6 @@ class PaymentService:
                         "status": PaymentStatus.FAILED,
                         "failure_reason": error_reason
                     })
-
-        elif event == "refund.processed":
-            entity = payload_data.get("refund", {}).get("entity", {})
-            payment_id = entity.get("payment_id")
-            refund_id = entity.get("id")
-            if payment_id:
-                result = await self.payment_repo.db.execute(
-                    PaymentRepository.get_by_id.__tablename__  # fetch by payment_id
-                ) if hasattr(PaymentRepository, 'get_by_id') else None
 
         return {"status": "ok"}
 

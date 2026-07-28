@@ -1,8 +1,10 @@
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
@@ -13,6 +15,7 @@ from app.api.v1.router import api_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    os.makedirs("static/qr", exist_ok=True)
     logger.info("starting_khel_o_backend", environment=settings.ENVIRONMENT)
     yield
     logger.info("stopping_khel_o_backend")
@@ -32,6 +35,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files directory
+os.makedirs("static/qr", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Register API Router
 app.include_router(api_router, prefix="/api/v1")
