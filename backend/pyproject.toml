@@ -22,6 +22,7 @@ dependencies = [
     "qrcode[pil]>=7.4.2",
     "Pillow>=10.2.0",
     "structlog>=24.1.0",
+    "email-validator>=2.1.0",
 ]
 
 [project.optional-dependencies]

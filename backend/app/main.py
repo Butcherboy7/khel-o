@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.core.logging import setup_logging, logger
 from app.core.exceptions import BaseAppException
+from app.api.v1.router import api_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +31,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register API Router
+app.include_router(api_router, prefix="/api/v1")
 
 # Custom Exception Handler
 @app.exception_handler(BaseAppException)

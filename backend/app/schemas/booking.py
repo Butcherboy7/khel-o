@@ -1,0 +1,60 @@
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, List
+from uuid import UUID
+from datetime import datetime, date, time
+from app.models.booking import BookingStatus
+
+def to_camel(string: str) -> str:
+    components = string.split('_')
+    return components[0] + ''.join(x.title() for x in components[1:])
+
+class BookingBase(BaseModel):
+    cafe_id: UUID
+    hardware_tier_id: UUID
+    session_date: date
+    start_time: time
+    duration_hours: float = Field(..., ge=1.0, le=6.0)
+    notes: Optional[str] = None
+    promotion_id: Optional[UUID] = None
+
+class BookingCreate(BookingBase):
+    pass
+
+class BookingUpdate(BaseModel):
+    status: Optional[BookingStatus] = None
+    notes: Optional[str] = None
+    cancellation_reason: Optional[str] = None
+
+class BookingResponse(BookingBase):
+    id: UUID
+    booking_reference: str
+    gamer_id: UUID
+    end_time: time
+    base_amount: float
+    discount_amount: float
+    gateway_fee: float
+    total_amount: float
+    status: BookingStatus
+    qr_code_url: Optional[str] = None
+    cancelled_at: Optional[datetime] = None
+    cancellation_reason: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+class BookingListResponse(BaseModel):
+    items: List[BookingResponse]
+    total: int
+    page: int
+    page_size: int
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        alias_generator=to_camel,
+        populate_by_name=True
+    )

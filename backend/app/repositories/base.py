@@ -1,7 +1,7 @@
 from typing import Generic, TypeVar, Type, Optional, List, Any
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update, delete
 from app.database import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
@@ -24,3 +24,19 @@ class BaseRepository(Generic[ModelType]):
         await self.db.commit()
         await self.db.refresh(obj_in)
         return obj_in
+
+    async def update(self, db_obj: ModelType, obj_in: dict[str, Any]) -> ModelType:
+        for field, value in obj_in.items():
+            if hasattr(db_obj, field) and value is not None:
+                setattr(db_obj, field, value)
+        await self.db.commit()
+        await self.db.refresh(db_obj)
+        return db_obj
+
+    async def delete(self, id: UUID) -> bool:
+        obj = await self.get_by_id(id)
+        if obj:
+            await self.db.delete(obj)
+            await self.db.commit()
+            return True
+        return False
