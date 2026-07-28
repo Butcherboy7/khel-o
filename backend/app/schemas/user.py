@@ -14,22 +14,62 @@ class UserBase(BaseModel):
     phone_number: Optional[str] = Field(None, max_length=20)
     avatar_url: Optional[str] = Field(None, max_length=500)
 
-class UserCreate(UserBase):
-    password: Optional[str] = Field(None, min_length=6)
-    google_id: Optional[str] = None
-    role: UserRole = UserRole.GAMER
+class UserCreateRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    full_name: str = Field(..., min_length=2, max_length=255)
+    phone_number: Optional[str] = Field(None, max_length=20)
 
-class UserUpdate(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+UserCreate = UserCreateRequest
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str = Field(..., alias="idToken")
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(..., alias="refreshToken")
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+class UserUpdateRequest(BaseModel):
     full_name: Optional[str] = Field(None, min_length=2, max_length=255)
     phone_number: Optional[str] = Field(None, max_length=20)
     avatar_url: Optional[str] = Field(None, max_length=500)
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+UserUpdate = UserUpdateRequest
 
 class UserResponse(UserBase):
     id: UUID
     role: UserRole
     is_active: bool
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(
         from_attributes=True,

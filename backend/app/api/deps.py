@@ -1,34 +1,52 @@
 from fastapi import Depends
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from app.database import get_db
-from app.core.security import decode_token
-from app.core.exceptions import AuthException, ForbiddenException
+from app.core.exceptions import ForbiddenException
 from app.models.user import User, UserRole
-from fastapi.security import OAuth2PasswordBearer
+from app.repositories.user_repository import UserRepository
+from app.services.auth_service import AuthService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 async def get_current_user(
-    db: AsyncSession = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
 ) -> User:
-    payload = decode_token(token)
-    user_id = payload.get("sub")
-    if not user_id:
-        raise AuthException(message="Invalid token payload")
-        
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalars().first()
-    if not user or not user.is_active:
-        raise AuthException(message="User not found or inactive")
-        
-    return user
+    repo = UserRepository(db)
+    service = AuthService(repo)
+    return await service.get_current_user(token)
 
-async def get_current_cafe_owner(
+async def get_current_active_user(
     current_user: User = Depends(get_current_user)
 ) -> User:
-    if current_user.role not in [UserRole.CAFE_OWNER, UserRole.ADMIN]:
-        raise ForbiddenException(message="Only café owners can perform this action")
+    if not current_user.is_active:
+        raise ForbiddenException("Your account has been deactivated")
     return current_user
+
+async def require_gamer(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if role_val != "gamer":
+        raise ForbiddenException("This action requires a gamer account")
+    return current_user
+
+async def require_cafe_owner(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if role_val != "cafe_owner":
+        raise ForbiddenException("This action requires a café owner account")
+    return current_user
+
+async def require_admin(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if role_val != "admin":
+        raise ForbiddenException("This action requires an admin account")
+    return current_user
+
+get_current_cafe_owner = require_cafe_owner

@@ -1,18 +1,22 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 from jose import jwt, JWTError
-from passlib.context import CryptContext
+import bcrypt
 from app.config import settings
 from app.core.exceptions import AuthException
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALGORITHM = "HS256"
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except Exception:
+        return False
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    pwd_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
 def create_access_token(subject: str, role: str, expires_delta: Optional[timedelta] = None) -> str:
     if expires_delta:
@@ -33,4 +37,4 @@ def decode_token(token: str) -> dict[str, Any]:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         return payload
     except JWTError:
-        raise AuthException(message="Invalid or expired token", error_code="INVALID_TOKEN")
+        raise AuthException(message="Invalid or expired token", error_code="UNAUTHORIZED")
