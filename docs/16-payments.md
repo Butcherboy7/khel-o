@@ -1,48 +1,31 @@
-# Payment Integration Design — KHEL-O
+# Payment Integration Architecture — KHEL-O
 
 ## Overview
 
-This document details the payment gateway integration for KHEL-O, utilizing **Razorpay** as the primary payment processor in India.
+KHEL-O integrates **Razorpay** as its sole payment gateway.
 
 ---
 
-## 1. Sequence Diagram (Text-based)
+## 1. Zero-Fee Pass-Through Model
 
-```
-Gamer           Frontend            Backend            Razorpay API
-  │                 │                  │                    │
-  │── Create Booking──►                │                    │
-  │                 │── POST /bookings─►                    │
-  │                 │                  │── Create Order ───►│
-  │                 │                  │◄── Order Payload ──│
-  │                 │◄── Order & ID ───│                    │
-  │                 │                  │                    │
-  │── Pay via Modal ───────────────────────────────────────►│
-  │                                                         │
-  │◄── Payment Success Callback ────────────────────────────│
-  │                 │                  │                    │
-  │                 │                  │◄── Webhook ────────│
-  │                 │                  │ (payment.captured) │
-  │                 │                  │── Verify Signature │
-  │                 │                  │── Confirm Booking  │
-```
+- Platform Convenience Fee = **₹0** (100% of session base price goes to café owner).
+- Customer pays the exact Razorpay processing fee (~2% for UPI/Cards) passed through transparently at checkout.
+- Clear checkout display: `"Payment processing fee: ₹X"` with explanatory tooltip.
 
 ---
 
-## 2. Calculation Breakdown Example
+## 2. Cancellation & Refund Policy
 
-For a 2-hour session on Premium Tier (Base Rate: ₹120/hr = 12000 paisa) with a 30% Off promotion:
-
-- `baseAmount`: ₹120 × 2 = ₹240 (24000 paisa)
-- `discountAmount`: 30% of ₹240 = ₹72 (7200 paisa)
-- `netAmount`: ₹240 − ₹72 = ₹168 (16800 paisa)
-- `convenienceFee` (5% platform fee): 5% of ₹168 = ₹8.40 → ₹8.40 (840 paisa)
-- `gstAmount` (18% on convenience fee): 18% of ₹8.40 = ₹1.51 (151 paisa)
-- **`totalAmount`**: ₹168 + ₹8.40 + ₹1.51 = **₹177.91** (17791 paisa)
+- **> 2 Hours Before Session:** 100% Full Refund.
+- **< 2 Hours Before Session:** 0% Refund (No partial refunds).
 
 ---
 
-## 3. Webhook Verification & Idempotency
+## 3. Razorpay Privacy & Compliance Requirements
 
-- Webhook signature header `X-Razorpay-Signature` must be validated against HMAC SHA256 using the webhook secret.
-- Idempotency key pattern: `razorpay_event_id` stored in database to prevent double processing of captured events.
+To comply with Razorpay onboarding requirements:
+1. **Privacy Policy Link:** Explicitly state Razorpay as the payment processor and detail data shared (Name, Email, Phone, Amount).
+2. **Terms of Service:** Direct references to Razorpay terms.
+3. **Branding:** Display official Razorpay logos and security badges on checkout modals.
+4. **Signature Verification:** All incoming webhooks (`payment.captured`) MUST validate the HMAC-SHA256 signature against the configured `RAZORPAY_KEY_SECRET`.
+5. **PCI-DSS:** No card data touches KHEL-O servers; all card interactions occur within Razorpay checkout frames.

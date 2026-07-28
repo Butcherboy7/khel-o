@@ -1,46 +1,32 @@
-# Authentication & Authorization — KHEL-O
+# Authentication & Authorization Architecture — KHEL-O
 
 ## Overview
 
-This document details the authentication and authorization (RBAC) architecture for KHEL-O, specifically tailored for the Indian market preference for OTP-based login via mobile numbers.
+KHEL-O utilizes **Google OAuth 2.0** as the primary authentication method, supplemented by **Email & Password** authentication. OTP and SMS verifications are completely removed to reduce operational costs and friction.
 
 ---
 
-## 1. Authentication Strategy
+## 1. Authentication Methods
 
-- **Primary Identity:** Indian Mobile Phone Number (`+91XXXXXXXXXX`).
-- **Secondary Identity (Admin):** Email + Password + Mandatory TOTP MFA.
-- **Tokens:** Short-lived JWT Access Tokens (15 min validity) and Long-lived Refresh Tokens (30 days validity).
-
----
-
-## 2. Role-Based Access Control (RBAC) Matrix
-
-| Endpoint Group / Action | Gamer | CaféOwner | Admin | Public |
-|-------------------------|-------|-----------|-------|--------|
-| Browse / Search Cafés | ✅ | ✅ | ✅ | ✅ |
-| View Café Profile & Hardware Tiers | ✅ | ✅ | ✅ | ✅ |
-| Create / Manage Bookings | ✅ | ❌ | ❌ | ❌ |
-| Initiate Payment / Pay | ✅ | ❌ | ❌ | ❌ |
-| Submit Review | ✅ | ❌ | ❌ | ❌ |
-| Manage Café Profile / Hardware Tiers | ❌ | ✅ (Own café) | ✅ | ❌ |
-| Create / Manage Promotions | ❌ | ✅ (Own café) | ✅ | ❌ |
-| Check-in Gamer / Manage Today's Bookings | ❌ | ✅ (Own café) | ✅ | ❌ |
-| Approve / Reject / Suspend Café | ❌ | ❌ | ✅ | ❌ |
-| View Platform Analytics | ❌ | ❌ | ✅ | ❌ |
+1. **Google OAuth 2.0 (Primary):** One-tap social sign-in for Gamers and Café Owners.
+2. **Email + Password (Secondary):** Standard signup/login with email verification via Resend.
+3. **Optional Phone Number:** Phone numbers are voluntarily collected on profile setup or checkout for marketing/promotional purposes (never verified via OTP).
+4. **Admin Access:** Email + Password + TOTP MFA.
 
 ---
 
-## 3. JWT Token Payload Structure
+## 2. JWT Token Flow
 
-### Access Token
-```json
-{
-  "sub": "user-uuid-1234",
-  "role": "gamer",
-  "phoneNumber": "+919876543210",
-  "iat": 1769587200,
-  "exp": 1769588100,
-  "type": "access"
-}
-```
+Upon successful OAuth or Email validation, the backend issues:
+- **Access Token:** Short-lived JWT (15 mins) passed in `Authorization: Bearer <token>` headers.
+- **Refresh Token:** Long-lived JWT (30 days) stored in Secure, HttpOnly cookies.
+
+---
+
+## 3. RBAC Matrix
+
+| Role | Access Permissions |
+|------|-------------------|
+| **Gamer** | Search cafés, book sessions, pay via Razorpay, view QR codes, write reviews. |
+| **CaféOwner** | Create/manage café profile, manage hardware tiers, publish flash promotions, check-in gamers. |
+| **Admin** | Manually create cafés (Pilot Track A), approve/verify cafés (Track B), manage promotions/users, view platform metrics. |

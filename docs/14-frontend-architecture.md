@@ -1,58 +1,23 @@
-# Frontend Architecture — KHEL-O
+# Frontend Architecture — KHEL-O PWA
 
 ## Overview
 
-The KHEL-O frontend application is a modern, responsive single-page/SSR web application built with **React**, **Next.js 14+ (App Router)**, **TypeScript**, and **Tailwind CSS**.
+KHEL-O is built as a **Mobile-First Progressive Web App (PWA)** using **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**, and `next-pwa`.
 
 ---
 
-## 1. Directory Tree
+## 1. PWA & Mobile-First Strategy
 
-```
-khel_o_frontend/
-├── src/
-│   ├── app/                      # Next.js App Router structure
-│   │   ├── (auth)/               # Shared auth layout group
-│   │   │   ├── login/
-│   │   │   └── register/
-│   │   ├── (gamer)/              # Gamer role route group
-│   │   │   ├── page.tsx          # Gamer home (Discovery)
-│   │   │   ├── cafes/[id]/       # Café details & profile
-│   │   │   ├── bookings/         # Booking history
-│   │   │   └── checkout/         # Payment checkout
-│   │   ├── (owner)/              # Owner role route group
-│   │   │   └── owner/
-│   │   │       ├── dashboard/    # Analytics & today's bookings
-│   │   │       ├── tiers/        # Hardware tier manager
-│   │   │       └── promotions/   # Promotion manager
-│   │   └── (admin)/              # Admin route group
-│   │       └── admin/
-│   │           └── verifications/
-│   ├── components/               # UI components
-│   │   ├── ui/                   # Core atomic design primitives (Buttons, Inputs, Cards)
-│   │   ├── gamer/                # Gamer specific components (CafeCard, TierSelector)
-│   │   ├── owner/                # Owner specific components (BookingTable, PromoForm)
-│   │   └── shared/               # Shared components (Navbar, Header, Footer)
-│   ├── lib/                      # Core libraries
-│   │   ├── api_client.ts         # Axios/Fetch API client with auth interceptors
-│   │   └── constants.ts
-│   ├── store/                    # State management (Zustand)
-│   │   ├── use_auth_store.ts
-│   │   └── use_booking_store.ts
-│   └── types/                    # TypeScript definitions
-│       ├── api.ts
-│       └── domain.ts
-├── public/                       # Static assets & icons
-├── tailwind.config.js
-├── tsconfig.json
-└── package.json
-```
+- **Mobile First Design:** All layouts are designed for a 375px base width (common mobile viewport size in India).
+- **Android Support:** Full web app installability on Android home screens via `manifest.json`.
+- **Web Push Notifications:** Service Workers (`public/sw.js`) handle background Web Push events via FCM.
+- **Fast & Responsive:** Zero heavy native dependencies. Instant loading over 4G networks.
 
 ---
 
-## 2. Key Architecture Pillars
+## 2. Gamified Promotions UI
 
-- **State Management:** Zustand for client-side state (Auth state, active search filters), React Query / TanStack Query for server-state caching and async data fetching.
-- **API Client Layer:** Axios instance with request/response interceptors to automatically attach Bearer JWT tokens and handle token refresh on `401 Unauthorized`.
-- **Authentication Flow:** OTP input screens with client-side countdown timers, JWT storage in secure `httpOnly` cookies or memory store.
-- **Design System:** Dark-mode friendly, vibrant gamer aesthetic using Vanilla CSS/TailwindCSS utility combinations and responsive layouts.
+Promotions feature excitement styling:
+- **Countdown Timers:** Live ticking timers showing time remaining ("🔥 Flash Deal — Ends in 02h 14m 10s").
+- **Limited Slot Badges:** Urgency indicators ("⚡ Only 3 seats left at this price!").
+- **Gamified Badges:** Eye-catching tags like `🎮 Off-Peak Power Hour` and `🔥 Fill the Café Special`.

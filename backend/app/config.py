@@ -1,0 +1,34 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Optional
+
+class Settings(BaseSettings):
+    # App Config
+    ENVIRONMENT: str = "development"
+    SECRET_KEY: str = "super-secret-key-change-in-production-at-least-32-chars"
+    FRONTEND_URL: str = "http://localhost:3000"
+    
+    # Database Config
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgrespassword@localhost:5432/khel_o_db"
+    
+    # Security Expiry
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    
+    # Google OAuth 2.0
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    
+    # Razorpay Payment Gateway
+    RAZORPAY_KEY_ID: Optional[str] = None
+    RAZORPAY_KEY_SECRET: Optional[str] = None
+    
+    # Resend Email Service
+    RESEND_API_KEY: Optional[str] = None
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
+settings = Settings()
