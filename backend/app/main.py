@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
@@ -44,6 +45,31 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(api_router, prefix="/api/v1")
 
 # Custom Exception Handlers
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = []
+    for error in exc.errors():
+        field = " -> ".join(str(loc) for loc in error["loc"] if loc != "body")
+        errors.append({
+            "field": field,
+            "message": error["msg"]
+        })
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "data": None,
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Request validation failed",
+                "details": errors
+            },
+            "meta": {
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+
 @app.exception_handler(BaseAppException)
 async def custom_app_exception_handler(request: Request, exc: BaseAppException):
     return JSONResponse(

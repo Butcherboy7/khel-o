@@ -6,6 +6,7 @@ from app.api.v1.hardware_tiers import router as hardware_tiers_router
 from app.api.v1.bookings import router as bookings_router
 from app.api.v1.payments import router as payments_router
 from app.api.v1.promotions import router as promotions_router
+from app.api.v1.owner import router as owner_router
 from app.api.v1.reviews import router as reviews_router
 from app.api.v1.admin import router as admin_router
 
@@ -17,6 +18,7 @@ api_router.include_router(hardware_tiers_router, prefix="/hardware-tiers", tags=
 api_router.include_router(bookings_router, prefix="/bookings", tags=["Bookings"])
 api_router.include_router(payments_router, prefix="/payments", tags=["Payments"])
 api_router.include_router(promotions_router, prefix="/promotions", tags=["Promotions"])
+api_router.include_router(owner_router, prefix="/owner", tags=["Owner Dashboard"])
 api_router.include_router(reviews_router, prefix="/reviews", tags=["Reviews"])
 api_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 
@@ -26,4 +28,3 @@ async def get_v1_status():
 
 # Alias for consistent module importing
 router = api_router
-

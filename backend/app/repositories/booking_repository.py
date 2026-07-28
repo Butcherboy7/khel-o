@@ -1,9 +1,14 @@
 from typing import List, Optional, Tuple, Any
 from uuid import UUID
-from datetime import date, time
+from decimal import Decimal
+from datetime import date, time, datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
+
 from app.models.booking import Booking, BookingStatus
+from app.models.user import User
+from app.models.cafe import Cafe
+from app.models.hardware_tier import HardwareTier
 from app.repositories.base import BaseRepository
 
 class BookingRepository(BaseRepository[Booking]):
@@ -57,10 +62,6 @@ class BookingRepository(BaseRepository[Booking]):
         start_time: time,
         end_time: time
     ) -> int:
-        """
-        Count active/pending bookings for tier_id on session_date where
-        existing_start < new_end AND existing_end > new_start
-        """
         stmt = select(func.count()).select_from(Booking).where(
             Booking.hardware_tier_id == tier_id,
             Booking.session_date == session_date,
@@ -72,6 +73,157 @@ class BookingRepository(BaseRepository[Booking]):
         )
         result = await self.db.execute(stmt)
         return result.scalar() or 0
+
+    async def get_owner_bookings_joined(
+        self,
+        cafe_ids: List[UUID],
+        cafe_id_filter: Optional[UUID] = None,
+        status_filter: Optional[str] = None,
+        date_filter: Optional[date] = None,
+        page: int = 1,
+        limit: int = 20
+    ) -> Tuple[List[Tuple[Booking, str, str, str]], int]:
+        if not cafe_ids:
+            return [], 0
+
+        stmt = select(
+            Booking,
+            User.full_name.label("gamer_full_name"),
+            HardwareTier.name.label("tier_name"),
+            Cafe.name.label("cafe_name")
+        ).join(
+            User, Booking.gamer_id == User.id
+        ).join(
+            HardwareTier, Booking.hardware_tier_id == HardwareTier.id
+        ).join(
+            Cafe, Booking.cafe_id == Cafe.id
+        )
+
+        filters = [Booking.cafe_id.in_(cafe_ids)]
+        if cafe_id_filter:
+            filters.append(Booking.cafe_id == cafe_id_filter)
+        if status_filter:
+            filters.append(Booking.status == status_filter)
+        if date_filter:
+            filters.append(Booking.session_date == date_filter)
+
+        stmt = stmt.where(and_(*filters)).order_by(Booking.session_date.desc(), Booking.start_time.desc())
+
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_result = await self.db.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        offset = (page - 1) * limit
+        paginated_stmt = stmt.offset(offset).limit(limit)
+        result = await self.db.execute(paginated_stmt)
+        rows = result.all()
+
+        items = []
+        for row in rows:
+            booking_obj = row[0]
+            full_name = row[1] or "Gamer"
+            first_name = full_name.split()[0]
+            tier_name = row[2] or "Hardware Tier"
+            cafe_name = row[3] or "Café"
+            items.append((booking_obj, first_name, tier_name, cafe_name))
+
+        return items, total
+
+    async def count_bookings_this_month(self, cafe_ids: List[UUID]) -> int:
+        if not cafe_ids:
+            return 0
+        now = datetime.now(timezone.utc)
+        first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        stmt = select(func.count()).select_from(Booking).where(
+            Booking.cafe_id.in_(cafe_ids),
+            Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            Booking.created_at >= first_day
+        )
+        res = await self.db.execute(stmt)
+        return res.scalar() or 0
+
+    async def sum_revenue_this_month(self, cafe_ids: List[UUID]) -> float:
+        if not cafe_ids:
+            return 0.0
+        now = datetime.now(timezone.utc)
+        first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        stmt = select(func.sum(Booking.total_amount)).select_from(Booking).where(
+            Booking.cafe_id.in_(cafe_ids),
+            Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            Booking.created_at >= first_day
+        )
+        res = await self.db.execute(stmt)
+        return float(res.scalar() or 0.0)
+
+    async def count_upcoming_today(self, cafe_ids: List[UUID]) -> int:
+        if not cafe_ids:
+            return 0
+        now = datetime.now(timezone.utc)
+        today = now.date()
+        current_time = now.time()
+
+        stmt = select(func.count()).select_from(Booking).where(
+            Booking.cafe_id.in_(cafe_ids),
+            Booking.status == BookingStatus.CONFIRMED,
+            Booking.session_date == today,
+            Booking.start_time > current_time
+        )
+        res = await self.db.execute(stmt)
+        return res.scalar() or 0
+
+    async def get_booked_hours_this_week(self, cafe_ids: List[UUID]) -> float:
+        if not cafe_ids:
+            return 0.0
+        now = datetime.now(timezone.utc)
+        start_of_week = (now - timedelta(days=now.weekday())).date()
+        end_of_week = start_of_week + timedelta(days=6)
+
+        stmt = select(func.sum(Booking.duration_hours)).select_from(Booking).where(
+            Booking.cafe_id.in_(cafe_ids),
+            Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            Booking.session_date >= start_of_week,
+            Booking.session_date <= end_of_week
+        )
+        res = await self.db.execute(stmt)
+        return float(res.scalar() or 0.0)
+
+    async def get_total_possible_hours_this_week(self, cafe_ids: List[UUID]) -> float:
+        if not cafe_ids:
+            return 0.0
+        stmt = select(func.sum(HardwareTier.seats_in_tier)).where(
+            HardwareTier.cafe_id.in_(cafe_ids),
+            HardwareTier.is_active == True
+        )
+        res = await self.db.execute(stmt)
+        total_seats = res.scalar() or 0
+        # 12 operating hours per day * 7 days * total seats
+        return float(total_seats * 12 * 7)
+
+    async def get_most_popular_tier_this_month(self, cafe_ids: List[UUID]) -> Optional[str]:
+        if not cafe_ids:
+            return None
+        now = datetime.now(timezone.utc)
+        first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        stmt = select(
+            HardwareTier.name,
+            func.count(Booking.id).label("booking_count")
+        ).join(
+            Booking, Booking.hardware_tier_id == HardwareTier.id
+        ).where(
+            Booking.cafe_id.in_(cafe_ids),
+            Booking.created_at >= first_day
+        ).group_by(
+            HardwareTier.name
+        ).order_by(
+            func.count(Booking.id).desc()
+        )
+
+        res = await self.db.execute(stmt)
+        row = res.first()
+        return row[0] if row else None
 
     async def create(self, booking_data: dict[str, Any] | Booking) -> Booking:
         if isinstance(booking_data, Booking):
