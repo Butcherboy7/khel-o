@@ -4,9 +4,11 @@ from uuid import UUID, uuid4
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.repositories.promotion_repository import PromotionRepository
+from app.repositories.review_repository import ReviewRepository
 from app.services.promotion_service import PromotionService
 from app.schemas.cafe import CafeCreateRequest, CafeUpdateRequest, CafeResponse, CafeListItem, CafeListResponse
 from app.schemas.hardware_tier import HardwareTierResponse
+from app.schemas.review import ReviewResponse
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.user import User, UserRole
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
@@ -16,11 +18,13 @@ class CafeService:
         self,
         cafe_repo: CafeRepository,
         tier_repo: Optional[HardwareTierRepository] = None,
-        promo_repo: Optional[PromotionRepository] = None
+        promo_repo: Optional[PromotionRepository] = None,
+        review_repo: Optional[ReviewRepository] = None
     ):
         self.cafe_repo = cafe_repo
         self.tier_repo = tier_repo
         self.promo_repo = promo_repo
+        self.review_repo = review_repo
 
     async def create_cafe(self, owner_id: UUID, cafe_in: CafeCreateRequest) -> CafeResponse:
         cafe_dict = cafe_in.model_dump()
@@ -59,12 +63,32 @@ class CafeService:
             promo_service = PromotionService(self.promo_repo, tier_repo=self.tier_repo)
             active_promos = await promo_service.get_active_promotions_for_cafe(cafe.id)
 
+        avg_rating, total_revs = 0.0, 0
+        recent_revs: List[ReviewResponse] = []
+        if self.review_repo:
+            avg_rating, total_revs = await self.review_repo.get_average_rating_and_count(cafe.id)
+            items_tuples, _ = await self.review_repo.get_by_cafe_id(cafe.id, page=1, limit=5, include_hidden=False)
+            for r, fn in items_tuples:
+                rd = {
+                    "id": r.id,
+                    "cafe_id": r.cafe_id,
+                    "gamer_id": r.gamer_id,
+                    "booking_id": r.booking_id,
+                    "rating": r.rating,
+                    "comment": r.comment,
+                    "is_visible": r.is_visible,
+                    "gamer_name": fn,
+                    "created_at": r.created_at,
+                    "updated_at": r.updated_at
+                }
+                recent_revs.append(ReviewResponse.model_validate(rd))
+
         resp = CafeResponse.model_validate(cafe)
         resp.tiers = tiers_res
         resp.active_promotions = active_promos
-        resp.recent_reviews = []
-        resp.average_rating = 0.0
-        resp.total_reviews = 0
+        resp.recent_reviews = recent_revs
+        resp.average_rating = avg_rating
+        resp.total_reviews = total_revs
         return resp
 
     async def update_cafe(self, cafe_id: UUID, owner_id: UUID, update_data: CafeUpdateRequest) -> CafeResponse:
@@ -100,7 +124,15 @@ class CafeService:
             limit=limit
         )
 
-        items = [CafeListItem.model_validate(item) for item in items_dict]
+        items: List[CafeListItem] = []
+        for item in items_dict:
+            c_id = item.get("id")
+            if c_id and self.review_repo:
+                avg_r, tot_r = await self.review_repo.get_average_rating_and_count(c_id)
+                item["average_rating"] = avg_r
+                item["total_reviews"] = tot_r
+            items.append(CafeListItem.model_validate(item))
+
         total_pages = math.ceil(total / limit) if total > 0 else 0
 
         return {

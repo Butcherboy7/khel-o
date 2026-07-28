@@ -13,11 +13,18 @@ from app.models.booking import BookingStatus
 from app.models.user import User, UserRole
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 from app.background.qr_generator import generate_and_save_qr_code
+from app.services.notification_service import NotificationService
 
 class PaymentService:
-    def __init__(self, payment_repo: PaymentRepository, booking_repo: BookingRepository):
+    def __init__(
+        self,
+        payment_repo: PaymentRepository,
+        booking_repo: BookingRepository,
+        db_session: Optional[Any] = None
+    ):
         self.payment_repo = payment_repo
         self.booking_repo = booking_repo
+        self.db = db_session
 
     async def create_razorpay_order(self, booking_id: UUID, gamer_id: UUID) -> PaymentCreateResponse:
         booking = await self.booking_repo.get_by_id(booking_id)
@@ -104,11 +111,16 @@ class PaymentService:
             "qr_code_url": qr_url
         })
 
+        # Trigger confirmation email
+        notifier = NotificationService()
+        await notifier.send_booking_confirmation(self.payment_repo.db, booking.id)
+
         return PaymentResponse.model_validate(updated_payment)
 
     async def handle_webhook(self, payload: Dict[str, Any], signature: Optional[str] = None) -> Dict[str, str]:
         event = payload.get("event")
         payload_data = payload.get("payload", {})
+        notifier = NotificationService()
 
         if event == "payment.captured":
             entity = payload_data.get("payment", {}).get("entity", {})
@@ -129,6 +141,7 @@ class PaymentService:
                             "status": BookingStatus.CONFIRMED,
                             "qr_code_url": qr_url
                         })
+                        await notifier.send_booking_confirmation(self.payment_repo.db, booking.id)
 
         elif event == "payment.failed":
             entity = payload_data.get("payment", {}).get("entity", {})
@@ -141,6 +154,7 @@ class PaymentService:
                         "status": PaymentStatus.FAILED,
                         "failure_reason": error_reason
                     })
+                    await notifier.send_payment_failure(self.payment_repo.db, payment.booking_id)
 
         return {"status": "ok"}
 
@@ -152,6 +166,9 @@ class PaymentService:
         dummy_refund_id = f"rfnd_{uuid4().hex[:8]}"
         updated = await self.payment_repo.mark_refunded(payment.id, dummy_refund_id)
         await self.booking_repo.update(booking_id, {"status": BookingStatus.CANCELLED})
+
+        notifier = NotificationService()
+        await notifier.send_refund_confirmation(self.payment_repo.db, booking_id)
 
         return {
             "refundId": dummy_refund_id,

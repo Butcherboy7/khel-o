@@ -9,6 +9,7 @@ from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpd
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.repositories.promotion_repository import PromotionRepository
+from app.repositories.review_repository import ReviewRepository
 from app.services.cafe_service import CafeService
 from app.services.hardware_tier_service import HardwareTierService
 from app.api.deps import require_cafe_owner, get_optional_user
@@ -30,7 +31,8 @@ async def list_cafes(
 ):
     search_query = query if query is not None else q
     repo = CafeRepository(db)
-    service = CafeService(repo)
+    review_repo = ReviewRepository(db)
+    service = CafeService(repo, review_repo=review_repo)
     result = await service.list_cafes(
         city=city,
         query=search_query,
@@ -54,7 +56,8 @@ async def get_cafe(
     cafe_repo = CafeRepository(db)
     tier_repo = HardwareTierRepository(db)
     promo_repo = PromotionRepository(db)
-    service = CafeService(cafe_repo, tier_repo, promo_repo)
+    review_repo = ReviewRepository(db)
+    service = CafeService(cafe_repo, tier_repo, promo_repo, review_repo)
     result = await service.get_cafe(cafe_id, current_user=current_user)
     return {
         "success": True,
