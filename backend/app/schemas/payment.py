@@ -11,6 +11,24 @@ def to_camel(string: str) -> str:
 class PaymentCreate(BaseModel):
     booking_id: UUID
 
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+PaymentCreateRequest = PaymentCreate
+
+class PaymentCreateResponse(BaseModel):
+    razorpay_order_id: str
+    amount: float
+    currency: str
+    key_id: str
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 class PaymentUpdate(BaseModel):
     status: Optional[PaymentStatus] = None
     razorpay_payment_id: Optional[str] = None
@@ -19,10 +37,22 @@ class PaymentUpdate(BaseModel):
     refund_id: Optional[str] = None
     refunded_at: Optional[datetime] = None
 
-class RazorpayVerifyRequest(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+class PaymentVerifyRequest(BaseModel):
     razorpay_order_id: str
     razorpay_payment_id: str
     razorpay_signature: str
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+RazorpayVerifyRequest = PaymentVerifyRequest
 
 class PaymentResponse(BaseModel):
     id: UUID

@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: Optional[str] = None
     
     # Razorpay Payment Gateway
-    RAZORPAY_KEY_ID: Optional[str] = None
-    RAZORPAY_KEY_SECRET: Optional[str] = None
+    RAZORPAY_KEY_ID: str = "rzp_test_placeholder_key_id"
+    RAZORPAY_KEY_SECRET: str = "rzp_test_placeholder_key_secret"
+    RAZORPAY_WEBHOOK_SECRET: str = "rzp_test_webhook_secret"
     
     # Resend Email Service
     RESEND_API_KEY: Optional[str] = None
