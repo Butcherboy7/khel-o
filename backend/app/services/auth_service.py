@@ -93,7 +93,7 @@ class AuthService:
             raise AuthException(message="Invalid email or password", error_code="UNAUTHORIZED")
 
         if not user.is_active:
-            raise ForbiddenException(message="Your account has been deactivated", error_code="FORBIDDEN")
+            raise ForbiddenException(message="Your account has been deactivated", error_code="ACCOUNT_DEACTIVATED")
 
         access_token, refresh_token = self.create_tokens(user)
 
@@ -128,7 +128,7 @@ class AuthService:
         user = await self.user_repo.get_by_google_id(google_id)
         if user:
             if not user.is_active:
-                raise ForbiddenException(message="Your account has been deactivated", error_code="FORBIDDEN")
+                raise ForbiddenException(message="Your account has been deactivated", error_code="ACCOUNT_DEACTIVATED")
             access_token, refresh_token = self.create_tokens(user)
             return {
                 "accessToken": access_token,
@@ -140,7 +140,7 @@ class AuthService:
         user_by_email = await self.user_repo.get_by_email(email)
         if user_by_email:
             if not user_by_email.is_active:
-                raise ForbiddenException(message="Your account has been deactivated", error_code="FORBIDDEN")
+                raise ForbiddenException(message="Your account has been deactivated", error_code="ACCOUNT_DEACTIVATED")
             # Link Google ID and avatar
             updated_data = {"google_id": google_id}
             if avatar_url and not user_by_email.avatar_url:
@@ -232,6 +232,6 @@ class AuthService:
             raise AuthException(message="Invalid authentication token", error_code="UNAUTHORIZED")
 
         if not user.is_active:
-            raise ForbiddenException(message="Your account has been deactivated", error_code="FORBIDDEN")
+            raise ForbiddenException(message="Your account has been deactivated", error_code="ACCOUNT_DEACTIVATED")
 
         return user

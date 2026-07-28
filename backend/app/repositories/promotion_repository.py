@@ -21,10 +21,6 @@ class PromotionRepository(BaseRepository[Promotion]):
         return list(result.scalars().all())
 
     async def get_active_for_cafe(self, cafe_id: UUID, now: datetime) -> List[Promotion]:
-        """
-        Database filter for is_active=True, valid_from <= now <= valid_until.
-        Python filtering will be applied for day_of_week, hour range, and max_uses.
-        """
         stmt = select(Promotion).where(
             Promotion.cafe_id == cafe_id,
             Promotion.is_active == True,
@@ -70,16 +66,17 @@ class PromotionRepository(BaseRepository[Promotion]):
         return promo
 
     async def increment_uses(self, promotion_id: UUID) -> None:
-        """
-        Atomic increment: UPDATE promotions SET current_uses = current_uses + 1
-        """
         stmt = update(Promotion).where(Promotion.id == promotion_id).values(
             current_uses=Promotion.current_uses + 1
         )
         await self.db.execute(stmt)
         await self.db.commit()
 
-    async def deactivate(self, promotion_id: UUID) -> None:
-        stmt = update(Promotion).where(Promotion.id == promotion_id).values(is_active=False)
-        await self.db.execute(stmt)
+    async def deactivate(self, promotion_id: UUID) -> Optional[Promotion]:
+        promo = await self.get_by_id(promotion_id)
+        if not promo:
+            return None
+        promo.is_active = False
         await self.db.commit()
+        await self.db.refresh(promo)
+        return promo

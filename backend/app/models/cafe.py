@@ -37,6 +37,7 @@ class Cafe(Base):
         default=VerificationStatus.PENDING,
         nullable=False
     )
+    rejection_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     total_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
     amenities: Mapped[dict[str, Any]] = mapped_column(JSONB, default=list, nullable=False)

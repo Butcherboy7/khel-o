@@ -5,6 +5,7 @@ from sqlalchemy import select, func, or_, and_, cast, Float
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.models.cafe import Cafe, VerificationStatus
+from app.models.user import User
 from app.models.hardware_tier import HardwareTier
 from app.repositories.base import BaseRepository
 
@@ -21,6 +22,51 @@ class CafeRepository(BaseRepository[Cafe]):
         return list(result.scalars().all())
 
     get_by_owner = get_by_owner_id
+
+    async def get_all_admin(
+        self,
+        verification_status: Optional[str] = None,
+        city: Optional[str] = None,
+        is_active: Optional[bool] = None,
+        page: int = 1,
+        limit: int = 20
+    ) -> Tuple[List[Tuple[Cafe, str]], int]:
+        stmt = select(Cafe, User.email).join(User, Cafe.owner_id == User.id)
+        filters = []
+
+        if verification_status:
+            filters.append(Cafe.verification_status == verification_status)
+        if city and city.strip():
+            filters.append(func.lower(Cafe.city) == city.strip().lower())
+        if is_active is not None:
+            filters.append(Cafe.is_active == is_active)
+
+        if filters:
+            stmt = stmt.where(and_(*filters))
+
+        stmt = stmt.order_by(Cafe.created_at.desc())
+
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_result = await self.db.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        offset = (page - 1) * limit
+        paginated_stmt = stmt.offset(offset).limit(limit)
+        result = await self.db.execute(paginated_stmt)
+        rows = result.all()
+
+        items = [(row[0], row[1] or "") for row in rows]
+        return items, total
+
+    async def count_by_verification_status(self) -> Dict[str, int]:
+        stmt = select(Cafe.verification_status, func.count(Cafe.id)).group_by(Cafe.verification_status)
+        res = await self.db.execute(stmt)
+        rows = res.all()
+        counts = {"pending": 0, "verified": 0, "rejected": 0, "suspended": 0}
+        for s, cnt in rows:
+            s_str = s.value if hasattr(s, "value") else str(s)
+            counts[s_str] = cnt
+        return counts
 
     async def search_verified(
         self,
@@ -54,7 +100,6 @@ class CafeRepository(BaseRepository[Cafe]):
                 if amenity.strip():
                     stmt = stmt.where(Cafe.amenities.contains([amenity.strip()]))
 
-        # Subquery or join for hardware tiers price filtering
         if min_price is not None or max_price is not None:
             tier_subquery = select(HardwareTier.cafe_id).where(HardwareTier.is_active == True)
             if min_price is not None:
@@ -63,10 +108,8 @@ class CafeRepository(BaseRepository[Cafe]):
                 tier_subquery = tier_subquery.where(HardwareTier.price_per_hour <= max_price)
             stmt = stmt.where(Cafe.id.in_(tier_subquery))
 
-        # Order by created_at desc
         stmt = stmt.order_by(Cafe.created_at.desc())
 
-        # Total count
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self.db.execute(count_stmt)
         total = total_result.scalar() or 0
@@ -79,7 +122,6 @@ class CafeRepository(BaseRepository[Cafe]):
         if not cafes:
             return [], total
 
-        # Batch fetch active hardware tiers for these cafes
         cafe_ids = [c.id for c in cafes]
         tiers_stmt = select(HardwareTier).where(
             HardwareTier.cafe_id.in_(cafe_ids),
@@ -88,7 +130,6 @@ class CafeRepository(BaseRepository[Cafe]):
         tiers_result = await self.db.execute(tiers_stmt)
         tiers = list(tiers_result.scalars().all())
 
-        # Group tiers by cafe_id
         tiers_by_cafe: Dict[UUID, List[HardwareTier]] = {}
         for t in tiers:
             tiers_by_cafe.setdefault(t.cafe_id, []).append(t)
@@ -100,7 +141,6 @@ class CafeRepository(BaseRepository[Cafe]):
             starting_price = min(prices) if prices else None
             tier_names = [t.name for t in cafe_tiers]
             
-            # Photos - first photo URL only, empty list if none
             photo_list = list(c.photos) if isinstance(c.photos, list) and c.photos else []
             photos_summary = [photo_list[0]] if photo_list else []
 
@@ -142,12 +182,20 @@ class CafeRepository(BaseRepository[Cafe]):
         await self.db.refresh(cafe)
         return cafe
 
-    async def update_verification_status(self, cafe_id: UUID, status: VerificationStatus) -> Optional[Cafe]:
+    async def update_verification_status(
+        self,
+        cafe_id: UUID,
+        status: VerificationStatus,
+        reason: Optional[str] = None
+    ) -> Optional[Cafe]:
         is_active = (status == VerificationStatus.VERIFIED)
-        return await self.update(cafe_id, {
+        update_fields: Dict[str, Any] = {
             "verification_status": status,
             "is_active": is_active
-        })
+        }
+        if reason is not None:
+            update_fields["rejection_reason"] = reason
+        return await self.update(cafe_id, update_fields)
 
     async def get_pending_verification(self, page: int = 1, limit: int = 20) -> Tuple[List[Cafe], int]:
         stmt = select(Cafe).where(Cafe.verification_status == VerificationStatus.PENDING)
