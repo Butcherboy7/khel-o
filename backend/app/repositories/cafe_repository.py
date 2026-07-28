@@ -1,8 +1,11 @@
-from typing import List, Optional, Tuple, Any
+from typing import List, Optional, Tuple, Any, Dict
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, and_, cast, Float
+from sqlalchemy.dialects.postgresql import JSONB
+
 from app.models.cafe import Cafe, VerificationStatus
+from app.models.hardware_tier import HardwareTier
 from app.repositories.base import BaseRepository
 
 class CafeRepository(BaseRepository[Cafe]):
@@ -19,52 +22,102 @@ class CafeRepository(BaseRepository[Cafe]):
 
     get_by_owner = get_by_owner_id
 
-    async def get_all_verified(self, city: Optional[str] = None, page: int = 1, limit: int = 20) -> Tuple[List[Cafe], int]:
-        query = select(Cafe).where(
-            Cafe.verification_status == VerificationStatus.VERIFIED,
-            Cafe.is_active == True
-        )
-        if city:
-            query = query.where(func.lower(Cafe.city) == city.strip().lower())
-
-        count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
-        total = total_result.scalar() or 0
-
-        offset = (page - 1) * limit
-        paginated_query = query.offset(offset).limit(limit)
-        result = await self.db.execute(paginated_query)
-        items = list(result.scalars().all())
-
-        return items, total
-
-    get_verified_cafes = get_all_verified
-
-    async def search(self, query: Optional[str] = None, city: Optional[str] = None, page: int = 1, limit: int = 20) -> Tuple[List[Cafe], int]:
+    async def search_verified(
+        self,
+        city: Optional[str] = None,
+        query: Optional[str] = None,
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
+        amenities: Optional[List[str]] = None,
+        page: int = 1,
+        limit: int = 20
+    ) -> Tuple[List[Dict[str, Any]], int]:
         stmt = select(Cafe).where(
             Cafe.verification_status == VerificationStatus.VERIFIED,
             Cafe.is_active == True
         )
-        if city:
+
+        if city and city.strip():
             stmt = stmt.where(func.lower(Cafe.city) == city.strip().lower())
-        if query:
+
+        if query and query.strip():
             search_pattern = f"%{query.strip().lower()}%"
             stmt = stmt.where(
                 or_(
                     func.lower(Cafe.name).like(search_pattern),
-                    func.lower(Cafe.description).like(search_pattern),
-                    func.lower(Cafe.address_line1).like(search_pattern)
+                    func.lower(Cafe.description).like(search_pattern)
                 )
             )
 
+        if amenities:
+            for amenity in amenities:
+                if amenity.strip():
+                    stmt = stmt.where(Cafe.amenities.contains([amenity.strip()]))
+
+        # Subquery or join for hardware tiers price filtering
+        if min_price is not None or max_price is not None:
+            tier_subquery = select(HardwareTier.cafe_id).where(HardwareTier.is_active == True)
+            if min_price is not None:
+                tier_subquery = tier_subquery.where(HardwareTier.price_per_hour >= min_price)
+            if max_price is not None:
+                tier_subquery = tier_subquery.where(HardwareTier.price_per_hour <= max_price)
+            stmt = stmt.where(Cafe.id.in_(tier_subquery))
+
+        # Order by created_at desc
+        stmt = stmt.order_by(Cafe.created_at.desc())
+
+        # Total count
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self.db.execute(count_stmt)
         total = total_result.scalar() or 0
 
         offset = (page - 1) * limit
         paginated_stmt = stmt.offset(offset).limit(limit)
-        result = await self.db.execute(paginated_stmt)
-        items = list(result.scalars().all())
+        cafes_result = await self.db.execute(paginated_stmt)
+        cafes = list(cafes_result.scalars().all())
+
+        if not cafes:
+            return [], total
+
+        # Batch fetch active hardware tiers for these cafes
+        cafe_ids = [c.id for c in cafes]
+        tiers_stmt = select(HardwareTier).where(
+            HardwareTier.cafe_id.in_(cafe_ids),
+            HardwareTier.is_active == True
+        )
+        tiers_result = await self.db.execute(tiers_stmt)
+        tiers = list(tiers_result.scalars().all())
+
+        # Group tiers by cafe_id
+        tiers_by_cafe: Dict[UUID, List[HardwareTier]] = {}
+        for t in tiers:
+            tiers_by_cafe.setdefault(t.cafe_id, []).append(t)
+
+        items: List[Dict[str, Any]] = []
+        for c in cafes:
+            cafe_tiers = tiers_by_cafe.get(c.id, [])
+            prices = [float(t.price_per_hour) for t in cafe_tiers]
+            starting_price = min(prices) if prices else None
+            tier_names = [t.name for t in cafe_tiers]
+            
+            # Photos - first photo URL only, empty list if none
+            photo_list = list(c.photos) if isinstance(c.photos, list) and c.photos else []
+            photos_summary = [photo_list[0]] if photo_list else []
+
+            items.append({
+                "id": c.id,
+                "name": c.name,
+                "city": c.city,
+                "state": c.state,
+                "average_rating": 0.0,
+                "total_reviews": 0,
+                "starting_price": starting_price,
+                "tier_names": tier_names,
+                "photos": photos_summary,
+                "has_active_promotion": False,
+                "verification_status": c.verification_status,
+                "is_active": c.is_active
+            })
 
         return items, total
 

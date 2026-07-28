@@ -43,6 +43,7 @@ class HardwareTierResponse(HardwareTierBase):
     id: UUID
     cafe_id: UUID
     is_active: bool
+    active_promotion: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
 

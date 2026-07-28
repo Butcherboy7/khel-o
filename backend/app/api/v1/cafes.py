@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status, Query
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,7 @@ from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.services.cafe_service import CafeService
 from app.services.hardware_tier_service import HardwareTierService
-from app.api.deps import require_cafe_owner
+from app.api.deps import require_cafe_owner, get_optional_user
 from app.models.user import User
 
 router = APIRouter()
@@ -18,27 +18,42 @@ router = APIRouter()
 @router.get("", status_code=status.HTTP_200_OK)
 async def list_cafes(
     city: Optional[str] = Query(None),
+    query: Optional[str] = Query(None),
     q: Optional[str] = Query(None),
+    minPrice: Optional[float] = Query(None, alias="minPrice"),
+    maxPrice: Optional[float] = Query(None, alias="maxPrice"),
+    amenities: Optional[List[str]] = Query(None),
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=50),
     db: AsyncSession = Depends(get_db)
 ):
+    search_query = query if query is not None else q
     repo = CafeRepository(db)
     service = CafeService(repo)
-    if q:
-        result = await service.search_cafes(query=q, city=city, page=page, limit=limit)
-    else:
-        result = await service.list_cafes(city=city, page=page, limit=limit)
+    result = await service.list_cafes(
+        city=city,
+        query=search_query,
+        min_price=minPrice,
+        max_price=maxPrice,
+        amenities=amenities,
+        page=page,
+        limit=limit
+    )
     return {
         "success": True,
         "data": result
     }
 
 @router.get("/{cafe_id}", status_code=status.HTTP_200_OK)
-async def get_cafe(cafe_id: UUID, db: AsyncSession = Depends(get_db)):
-    repo = CafeRepository(db)
-    service = CafeService(repo)
-    result = await service.get_cafe(cafe_id)
+async def get_cafe(
+    cafe_id: UUID,
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db)
+):
+    cafe_repo = CafeRepository(db)
+    tier_repo = HardwareTierRepository(db)
+    service = CafeService(cafe_repo, tier_repo)
+    result = await service.get_cafe(cafe_id, current_user=current_user)
     return {
         "success": True,
         "data": {
@@ -106,7 +121,7 @@ async def list_hardware_tiers(cafe_id: UUID, db: AsyncSession = Depends(get_db))
     return {
         "success": True,
         "data": {
-            "hardwareTiers": result
+            "tiers": result
         }
     }
 

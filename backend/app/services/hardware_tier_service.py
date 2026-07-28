@@ -30,7 +30,9 @@ class HardwareTierService:
         tier_dict["is_active"] = True
 
         created = await self.tier_repo.create(tier_dict)
-        return HardwareTierResponse.model_validate(created)
+        res = HardwareTierResponse.model_validate(created)
+        res.active_promotion = None
+        return res
 
     create_tier = add_hardware_tier
 
@@ -53,16 +55,25 @@ class HardwareTierService:
 
         update_dict = update_data.model_dump(exclude_unset=True)
         updated = await self.tier_repo.update(tier_id, update_dict)
-        return HardwareTierResponse.model_validate(updated)
+        res = HardwareTierResponse.model_validate(updated)
+        res.active_promotion = None
+        return res
 
     async def get_tier(self, tier_id: UUID) -> HardwareTierResponse:
         tier = await self.tier_repo.get_by_id(tier_id)
         if not tier:
             raise NotFoundException(message="Hardware tier not found", error_code="TIER_NOT_FOUND")
-        return HardwareTierResponse.model_validate(tier)
+        res = HardwareTierResponse.model_validate(tier)
+        res.active_promotion = None
+        return res
 
     async def get_cafe_tiers(self, cafe_id: UUID) -> List[HardwareTierResponse]:
-        tiers = await self.tier_repo.get_by_cafe(cafe_id)
-        return [HardwareTierResponse.model_validate(t) for t in tiers]
+        tiers = await self.tier_repo.get_by_cafe(cafe_id, active_only=True)
+        result: List[HardwareTierResponse] = []
+        for t in tiers:
+            r = HardwareTierResponse.model_validate(t)
+            r.active_promotion = None
+            result.append(r)
+        return result
 
     list_cafe_tiers = get_cafe_tiers

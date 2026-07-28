@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,7 @@ from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -17,6 +19,19 @@ async def get_current_user(
     repo = UserRepository(db)
     service = AuthService(repo)
     return await service.get_current_user(token)
+
+async def get_optional_user(
+    token: Optional[str] = Depends(oauth2_scheme_optional),
+    db: AsyncSession = Depends(get_db)
+) -> Optional[User]:
+    if not token:
+        return None
+    try:
+        repo = UserRepository(db)
+        service = AuthService(repo)
+        return await service.get_current_user(token)
+    except Exception:
+        return None
 
 async def get_current_active_user(
     current_user: User = Depends(get_current_user)

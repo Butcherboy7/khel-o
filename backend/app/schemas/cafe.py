@@ -1,8 +1,9 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, time
 from app.models.cafe import VerificationStatus
+from app.schemas.hardware_tier import HardwareTierResponse
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -70,11 +71,36 @@ class CafeVerifyRequest(BaseModel):
         populate_by_name=True
     )
 
+class CafeListItem(BaseModel):
+    id: UUID
+    name: str
+    city: str
+    state: str
+    average_rating: float = 0.0
+    total_reviews: int = 0
+    starting_price: Optional[float] = None
+    tier_names: List[str] = Field(default_factory=list)
+    photos: List[str] = Field(default_factory=list)
+    has_active_promotion: bool = False
+    verification_status: VerificationStatus
+    is_active: bool
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 class CafeResponse(CafeBase):
     id: UUID
     owner_id: UUID
     verification_status: VerificationStatus
     is_active: bool
+    average_rating: float = 0.0
+    total_reviews: int = 0
+    tiers: List[HardwareTierResponse] = Field(default_factory=list)
+    active_promotions: List[Dict[str, Any]] = Field(default_factory=list)
+    recent_reviews: List[Dict[str, Any]] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -85,10 +111,11 @@ class CafeResponse(CafeBase):
     )
 
 class CafeListResponse(BaseModel):
-    items: List[CafeResponse]
+    items: List[CafeListItem]
     total: int
     page: int
     page_size: int
+    total_pages: int
 
     model_config = ConfigDict(
         from_attributes=True,
