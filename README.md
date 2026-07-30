@@ -4,69 +4,83 @@ KHEL-O is a marketplace and demand-generation platform for gaming cafés in Indi
 
 ---
 
-## 🚀 Getting Started
+## ⚡ Quick Start: Clone & Run Locally
 
-### Prerequisites
-
-- **Python:** 3.11+
-- **Node.js:** 18+
-- **Docker & Docker Compose:** Installed and running
-- **PostgreSQL:** 15+ (if running locally without Docker)
-
----
-
-## 🐳 Quick Start with Docker Compose
-
-Run the entire stack (PostgreSQL database, FastAPI backend, and pgAdmin) with a single command:
+### 1. Clone the Repository
 
 ```bash
-docker-compose up --build
+git clone https://github.com/Butcherboy7/khel-o.git
+cd khel-o
 ```
 
-- **Backend API:** [http://localhost:8000](http://localhost:8000)
-- **Health Check:** [http://localhost:8000/health](http://localhost:8000/health)
-- **Interactive Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+### 2. Start Everything with Docker Compose (Recommended)
+
+Run the entire application stack (PostgreSQL database, FastAPI backend, Next.js frontend, and pgAdmin) in one command:
+
+```bash
+docker compose up --build -d
+```
+
+### 3. Application URLs & Service Ports
+
+- **Frontend Application (PWA):** [http://localhost:3002](http://localhost:3002)
+- **Backend API Docs (Swagger):** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Backend Health Check:** [http://localhost:8000/health](http://localhost:8000/health)
 - **pgAdmin Management:** [http://localhost:5050](http://localhost:5050) (Login: `admin@khelo.in` / `adminpassword`)
 
 ---
 
-## 🛠 Local Development Setup
+## 🔐 One-Click Quick Demo Credentials
 
-### 1. Backend Setup
+All demo accounts are pre-seeded automatically in PostgreSQL with password `testpass123`:
+
+| Role | Email | Purpose / Direct Actions |
+|------|-------|--------------------------|
+| **🎮 Gamer (Customer)** | `test@example.com` | Explore venues, pick slots, pay & generate QR code |
+| **🏪 Café Owner** | `owner@example.com` | Manage cafe details, hardware tiers, flash promos, payouts |
+| **🎫 Café Staff** | `staff@example.com` | Scan customer QR codes & verify check-ins |
+| **🛡️ Platform Admin** | `admin@example.com` | Approve pending cafe onboarding applications |
+
+---
+
+## 🛒 Complete Customer Checkout Flow
+
+To test the complete customer booking and payment checkout flow:
+
+1. **Log in as Gamer**: Go to `http://localhost:3002/login` and click **🎮 Gamer**.
+2. **Explore Venues**: Go to `http://localhost:3002/` and click **Book Now** on a venue (e.g., *LXG Esports Arena*).
+3. **Select Hardware Tier & Time Slot (Step 1 & 2)**:
+   - On the venue page (`http://localhost:3002/cafes/<id>`), choose a hardware tier (e.g. *Flagship RTX 4080 Tier*) and click **Book Gaming Slot**.
+   - Pick your **Date**, **Time Slot** (Morning, Afternoon, Evening, Night), and **Duration** (e.g. 2 hrs).
+   - Click the green **Continue to Booking Review** button.
+4. **Review & Pay (Step 3)**:
+   - Review your live price summary, applied flash discounts, platform fees, and total payable amount.
+   - Click **Confirm and Pay ₹XXX.XX**.
+5. **Receive QR Pass**:
+   - Razorpay payment modal pops up (or sandbox auto-verifies).
+   - Once confirmed, you are immediately routed to your **Booking Confirmation Pass** featuring a live **QR Code**.
+
+---
+
+## 🛠 Local Setup (Without Docker)
+
+### Backend Setup
 
 ```bash
 cd backend
-
-# Create virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt # or pip install -e .
-
-# Copy environment variables
-cp ../.env.example .env
-
-# Run database migrations
-alembic upgrade head
-
-# Start development server
+pip install -e .
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. Frontend Setup (PWA)
+### Frontend Setup
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
+npm run dev -p 3002
 ```
-
-Visit [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
