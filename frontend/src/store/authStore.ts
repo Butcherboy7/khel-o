@@ -18,37 +18,14 @@ interface AuthState {
   initializeFromStorage: () => Promise<void>;
 }
 
-const getInitialState = () => {
-  if (typeof window === 'undefined') {
-    return {
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      isAuthenticated: false,
-      isLoading: true,
-      isHydrated: false,
-    };
-  }
-
-  const accessToken = localStorage.getItem('accessToken');
-  const refreshToken = localStorage.getItem('refreshToken');
-  const userStr = localStorage.getItem('user');
-  let user: UserResponse | null = null;
-  if (userStr) {
-    try {
-      user = JSON.parse(userStr);
-    } catch {}
-  }
-
-  return {
-    user,
-    accessToken,
-    refreshToken,
-    isAuthenticated: !!accessToken,
-    isLoading: false,
-    isHydrated: true,
-  };
-};
+const getInitialState = () => ({
+  user: null,
+  accessToken: null,
+  refreshToken: null,
+  isAuthenticated: false,
+  isLoading: true,
+  isHydrated: false,
+});
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   ...getInitialState(),
@@ -93,7 +70,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initializeFromStorage: async () => {
     if (typeof window === 'undefined') return;
 
-    // If we already have a user in memory, don't fetch /me again to prevent flashes
     if (get().isHydrated && get().user) {
       set({ isLoading: false });
       return;
@@ -107,8 +83,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    const userStr = localStorage.getItem('user');
+    let cachedUser: UserResponse | null = null;
+    if (userStr) {
+      try {
+        cachedUser = JSON.parse(userStr);
+      } catch {
+        cachedUser = null;
+      }
+    }
+
+    if (cachedUser) {
+      set({
+        user: cachedUser,
+        accessToken,
+        refreshToken,
+        isAuthenticated: true,
+        isLoading: false,
+        isHydrated: true,
+      });
+    }
+
     try {
-      set({ isLoading: true });
+      if (!cachedUser) {
+        set({ isLoading: true });
+      }
       const res = await api.get('/api/v1/auth/me');
       const user = res.data?.data?.user;
       if (user) {
@@ -121,21 +120,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isLoading: false,
           isHydrated: true,
         });
-      } else {
+      } else if (!cachedUser) {
         throw new Error('User not returned');
       }
     } catch {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      set({
-        user: null,
-        accessToken: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-        isHydrated: true,
-      });
+      if (!cachedUser) {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        set({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
+          isAuthenticated: false,
+          isLoading: false,
+          isHydrated: true,
+        });
+      }
     }
   },
 }));

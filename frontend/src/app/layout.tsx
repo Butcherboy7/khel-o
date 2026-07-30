@@ -30,6 +30,9 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'KHEL-O',
   },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 };
 
 export const viewport: Viewport = {

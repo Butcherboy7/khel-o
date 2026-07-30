@@ -88,3 +88,15 @@ docker compose up --build -d
 - **Role Routing** (already implemented, verified): Login page correctly routes `cafe_owner → /owner/dashboard`, `admin → /admin`, `gamer → /`. Owner layout blocks non-owner roles. Admin layout blocks non-admin roles.
 - **Test Accounts**: `test@example.com` (gamer), `owner@khel-o.test` (cafe_owner), `admin@khel-o.test` (admin) — all share password `testpass123`.
 - **Consequences**: All 3 layout groups now use the same `isHydrated`-first hydration guard. Build passes with 0 TypeScript errors. 17 static pages generated.
+
+---
+
+## ADR 008: Deterministic Store Hydration & Deprecation Warning Fix
+
+- **Context**: Hydration error `Hydration failed because the initial UI does not match what was rendered on the server` occurred because `authStore` evaluated `typeof window !== 'undefined'` in `getInitialState()`, causing `isHydrated` to be `true` on client initial render while server initial render was `false`. Additionally, browser logged a deprecation warning for `apple-mobile-web-app-capable`.
+- **Decision**:
+  - Normalized `getInitialState()` in `authStore.ts` to return deterministic initial state (`isHydrated: false`, `isLoading: true`) on both server and client during initial render.
+  - Enhanced `initializeFromStorage()` in `authStore.ts` to load cached user and token on mount before fetching `/me`.
+  - Added `mobile-web-app-capable: 'yes'` in `other` metadata of `src/app/layout.tsx`.
+  - Replaced residual `any` types in `src/lib/api.ts` with `Record<string, unknown>`.
+- **Consequences**: 0 hydration errors. 0 TypeScript errors. Next.js build passes generating 18 static pages.

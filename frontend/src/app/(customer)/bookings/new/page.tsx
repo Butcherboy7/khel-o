@@ -192,6 +192,36 @@ export default function NewBookingPage() {
     };
   }, [selectedTier, selectedDuration, cafe?.activePromotions]);
 
+  // Auto-select today if selectedDate is empty
+  React.useEffect(() => {
+    if (!selectedDate && dateOptions.length > 0) {
+      setSelectedDate(dateOptions[0].dateStr);
+    }
+  }, [dateOptions, selectedDate]);
+
+  // Group time slots by time of day
+  const groupedTimeSlots = useMemo(() => {
+    const morning: string[] = [];
+    const afternoon: string[] = [];
+    const evening: string[] = [];
+    const night: string[] = [];
+
+    timeSlots.forEach((slot) => {
+      const hour = parseInt(slot.slice(0, 2), 10);
+      if (hour >= 6 && hour < 12) morning.push(slot);
+      else if (hour >= 12 && hour < 17) afternoon.push(slot);
+      else if (hour >= 17 && hour < 21) evening.push(slot);
+      else night.push(slot);
+    });
+
+    return [
+      { label: '🌅 Morning', slots: morning },
+      { label: '☀️ Afternoon', slots: afternoon },
+      { label: '🌇 Evening', slots: evening },
+      { label: '🌙 Night', slots: night },
+    ].filter((g) => g.slots.length > 0);
+  }, [timeSlots]);
+
   // Handle Missing Query Params or invalid loading state
   if (!cafeId || !tierId) {
     return (
@@ -250,12 +280,10 @@ export default function NewBookingPage() {
 
   // Back button handler
   const handleBack = () => {
-    if (currentStep === 1) {
+    if (currentStep === 1 || currentStep === 2) {
       router.push(`/cafes/${cafeId}`);
-    } else if (currentStep === 2) {
-      setCurrentStep(1);
     } else if (currentStep === 3) {
-      setCurrentStep(2);
+      setCurrentStep(1);
     }
   };
 
@@ -275,236 +303,228 @@ export default function NewBookingPage() {
 
   return (
     <div className="space-y-4 pb-28">
-      {/* Top Header */}
-      <div className="flex items-center justify-between relative">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="p-2 bg-card border border-border rounded-full text-text-secondary hover:text-text-primary shadow-sm z-10"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
+      {/* STEP 1 & 2 UNIFIED: SELECT DATE & TIME & DURATION */}
+      {(currentStep === 1 || currentStep === 2) && (
+        <>
+          {/* Top Header */}
+          <div className="flex items-center justify-between relative">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="p-2 bg-card border border-border rounded-full text-text-secondary hover:text-text-primary shadow-sm z-10"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
 
-        <div className="flex-1 text-center">
-          <h1 className="text-lg font-bold font-heading text-text-primary">
-            Reserve your slot
-          </h1>
-          {/* Step Indicator */}
-          <div className="flex items-center justify-center space-x-1.5 mt-1">
-            {[1, 2, 3].map((step) => (
-              <div
-                key={step}
-                className={`h-2 rounded-full transition-all ${
-                  step === currentStep
-                    ? 'w-6 bg-primary'
-                    : 'w-2 bg-border'
-                }`}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="w-9" /> {/* Spacer */}
-      </div>
-
-      {/* Café Context Strip */}
-      <div className="bg-card border border-border rounded-2xl p-3 flex items-center justify-between shadow-sm">
-        <div className="font-heading font-semibold text-sm text-text-primary truncate max-w-[200px]">
-          {cafe.name}
-        </div>
-        <div className="text-primary font-data font-medium text-xs px-2.5 py-1 bg-surface rounded-full flex-shrink-0 border border-border">
-          {selectedTier.name}
-        </div>
-      </div>
-
-      {/* Error Alert Banner */}
-      {errorMessage && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-2xl p-3.5 flex items-start space-x-2 animate-shake">
-          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <span className="flex-1 font-medium">{errorMessage}</span>
-        </div>
-      )}
-
-      {/* STEP 1: SELECT DATE */}
-      {currentStep === 1 && (
-        <div className="space-y-4">
-          <h2 className="font-heading font-semibold text-xl text-text-primary">
-            When would you like to play?
-          </h2>
-
-          {/* Date Picker Row */}
-          <div className="flex space-x-2.5 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
-            {dateOptions.map((opt) => {
-              const isSelected = selectedDate === opt.dateStr;
-              return (
-                <button
-                  key={opt.dateStr}
-                  type="button"
-                  onClick={() => {
-                    setSelectedDate(opt.dateStr);
-                    setCurrentStep(2);
-                  }}
-                  className={`w-[64px] h-[84px] flex-shrink-0 snap-start rounded-2xl border p-2 flex flex-col items-center justify-center transition-all ${
-                    isSelected
-                      ? 'bg-primary text-white border-primary shadow-md'
-                      : 'bg-card border-border text-text-primary hover:border-primary/50'
-                  }`}
-                >
-                  <span
-                    className={`text-[10px] uppercase font-medium ${
-                      isSelected ? 'text-white/80' : 'text-text-secondary'
-                    }`}
-                  >
-                    {opt.dayName}
-                  </span>
-                  <span className="font-heading font-bold text-2xl my-0.5">
-                    {opt.dayNum}
-                  </span>
-                  <span
-                    className={`text-[10px] ${
-                      isSelected ? 'text-white/80' : 'text-text-secondary'
-                    }`}
-                  >
-                    {opt.monthName}
-                  </span>
-                  {opt.isToday && (
-                    <span
-                      className={`text-[9px] font-bold mt-0.5 ${
-                        isSelected ? 'text-white' : 'text-primary'
-                      }`}
-                    >
-                      Today
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Fixed Bottom CTA for Step 1 */}
-          {selectedDate && (
-            <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border p-4 shadow-lg">
-              <div className="max-w-md mx-auto">
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(2)}
-                  className="w-full bg-primary text-white rounded-2xl py-3.5 font-heading font-semibold text-sm shadow-sm active:scale-95 transition-transform"
-                >
-                  Continue
-                </button>
+            <div className="flex-1 text-center">
+              <h1 className="text-lg font-bold font-heading text-text-primary">
+                Reserve your slot
+              </h1>
+              <div className="flex items-center justify-center space-x-1.5 mt-1">
+                <div className="w-6 h-2 bg-primary rounded-full" />
+                <div className="w-2 h-2 bg-border rounded-full" />
               </div>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* STEP 2: SELECT TIME AND DURATION */}
-      {currentStep === 2 && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="font-heading font-semibold text-xl text-text-primary">
-              Pick your time
-            </h2>
-            <p className="text-text-secondary text-sm mt-0.5">
-              For {formatDateLong(selectedDate)}
-            </p>
+            <div className="w-9" />
           </div>
 
-          {/* Start Time Section */}
-          <div className="space-y-2">
-            <label className="block font-heading font-medium text-sm text-text-primary">
-              Start time
-            </label>
-            <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto pr-1">
-              {timeSlots.map((slot) => {
-                const disabled = isSlotDisabled(selectedDate, slot);
-                const isSelected = selectedTime === slot;
-                const displayTime = slot.slice(0, 5);
+          {/* Café Context Strip */}
+          <div className="bg-card border border-border rounded-2xl p-3 flex items-center justify-between shadow-sm">
+            <div className="font-heading font-semibold text-sm text-text-primary truncate max-w-[200px]">
+              {cafe.name}
+            </div>
+            <div className="text-primary font-data font-medium text-xs px-2.5 py-1 bg-surface rounded-full flex-shrink-0 border border-border">
+              {selectedTier.name} • ₹{selectedTier.pricePerHour}/hr
+            </div>
+          </div>
 
+          {/* Error Alert Banner */}
+          {errorMessage && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-2xl p-3.5 flex items-start space-x-2 animate-shake">
+              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <span className="flex-1 font-medium">{errorMessage}</span>
+            </div>
+          )}
+
+          {/* 📅 PERSISTENT DATE SELECTOR ROW */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block font-heading font-semibold text-sm text-text-primary">
+                📅 Select Date
+              </label>
+              <span className="text-xs text-text-secondary font-medium">
+                {formatDateLong(selectedDate || dateOptions[0]?.dateStr)}
+              </span>
+            </div>
+
+            <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
+              {dateOptions.map((opt) => {
+                const isSelected = selectedDate === opt.dateStr;
                 return (
                   <button
-                    key={slot}
+                    key={opt.dateStr}
                     type="button"
-                    disabled={disabled}
-                    onClick={() => setSelectedTime(slot)}
-                    className={`py-2 text-center text-sm font-data rounded-2xl border transition-all ${
-                      disabled
-                        ? 'bg-surface border-border text-text-secondary opacity-40 cursor-not-allowed'
-                        : isSelected
-                        ? 'bg-primary text-white border-primary shadow-sm font-semibold'
+                    onClick={() => setSelectedDate(opt.dateStr)}
+                    className={`w-[60px] h-[78px] flex-shrink-0 snap-start rounded-2xl border p-2 flex flex-col items-center justify-center transition-all ${
+                      isSelected
+                        ? 'bg-primary text-white border-primary shadow-md scale-105 font-bold'
                         : 'bg-card border-border text-text-primary hover:border-primary/50'
                     }`}
                   >
-                    {displayTime}
+                    <span
+                      className={`text-[9px] uppercase font-semibold ${
+                        isSelected ? 'text-white/80' : 'text-text-secondary'
+                      }`}
+                    >
+                      {opt.dayName}
+                    </span>
+                    <span className="font-heading font-bold text-xl my-0.5">
+                      {opt.dayNum}
+                    </span>
+                    <span
+                      className={`text-[9px] ${
+                        isSelected ? 'text-white/80' : 'text-text-secondary'
+                      }`}
+                    >
+                      {opt.monthName}
+                    </span>
+                    {opt.isToday && (
+                      <span
+                        className={`text-[8px] font-bold mt-0.5 ${
+                          isSelected ? 'text-white' : 'text-primary'
+                        }`}
+                      >
+                        Today
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Duration Selector */}
-          <div className="space-y-2 pt-2">
-            <label className="block font-heading font-medium text-sm text-text-primary">
-              Duration
+          {/* ⏰ GROUPED TIME SLOTS */}
+          <div className="space-y-3 pt-1">
+            <label className="block font-heading font-semibold text-sm text-text-primary">
+              ⏰ Select Start Time
             </label>
-            <div className="flex flex-wrap gap-2">
+
+            {groupedTimeSlots.map((group) => (
+              <div key={group.label} className="space-y-1.5">
+                <span className="text-xs font-semibold text-text-secondary">
+                  {group.label}
+                </span>
+                <div className="grid grid-cols-4 gap-2">
+                  {group.slots.map((slot) => {
+                    const disabled = isSlotDisabled(selectedDate, slot);
+                    const isSelected = selectedTime === slot;
+                    const displayTime = slot.slice(0, 5);
+
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => setSelectedTime(slot)}
+                        className={`py-2 text-center text-sm font-data rounded-2xl border transition-all ${
+                          disabled
+                            ? 'bg-surface border-border text-text-secondary opacity-30 cursor-not-allowed line-through'
+                            : isSelected
+                            ? 'bg-primary text-white border-primary shadow-md font-bold scale-105'
+                            : 'bg-card border-border text-text-primary hover:border-primary/50'
+                        }`}
+                      >
+                        {displayTime}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ⏳ TACTILE DURATION & PRICE PREVIEW */}
+          <div className="space-y-2 pt-2">
+            <label className="block font-heading font-semibold text-sm text-text-primary">
+              ⏳ Gaming Duration
+            </label>
+            <div className="grid grid-cols-4 gap-2">
               {[1, 1.5, 2, 3, 4, 5, 6, 8].map((hrs) => {
                 const isSelected = selectedDuration === hrs;
+                const estCost = Math.round(selectedTier.pricePerHour * hrs);
                 return (
                   <button
                     key={hrs}
                     type="button"
                     onClick={() => setSelectedDuration(hrs)}
-                    className={`px-4 py-2 rounded-full border text-sm font-data transition-all ${
+                    className={`p-2.5 rounded-2xl border flex flex-col items-center justify-center transition-all ${
                       isSelected
-                        ? 'bg-primary text-white border-primary shadow-sm font-semibold'
+                        ? 'bg-primary text-white border-primary shadow-md scale-105 font-bold'
                         : 'bg-card border-border text-text-secondary hover:text-text-primary'
                     }`}
                   >
-                    {hrs}h
+                    <span className="text-sm font-data">{hrs}h</span>
+                    <span className={`text-[10px] ${isSelected ? 'text-white/90' : 'text-text-secondary'}`}>
+                      ₹{estCost}
+                    </span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* End Time Preview */}
+          {/* Session End Time Preview */}
           {selectedTime && selectedDuration && (
-            <div className="bg-surface border border-border rounded-2xl p-3 text-center space-y-0.5">
-              <span className="text-text-secondary text-xs">Session ends at</span>
-              <div className="font-data font-semibold text-base text-text-primary">
-                {calculatedEndTime.slice(0, 5)}
+            <div className="bg-surface border border-border rounded-2xl p-3 flex items-center justify-between shadow-sm">
+              <div className="text-xs text-text-secondary">
+                Session window: <span className="font-semibold text-text-primary font-data">{selectedTime.slice(0, 5)} - {calculatedEndTime.slice(0, 5)}</span>
               </div>
-              {isEndTimeOverClosing && (
-                <div className="text-amber-600 text-xs font-medium pt-1">
-                  ⚠️ session extends beyond closing time ({cafe.closingTime})
-                </div>
-              )}
+              <div className="font-data font-bold text-sm text-primary">
+                Est: ₹{priceCalculation.totalAmount.toFixed(0)}
+              </div>
             </div>
           )}
 
-          {/* Fixed Bottom CTA for Step 2 */}
+          {/* Fixed Bottom CTA */}
           <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border p-4 shadow-lg">
             <div className="max-w-md mx-auto">
               <button
                 type="button"
                 disabled={!selectedTime || !selectedDuration}
                 onClick={() => setCurrentStep(3)}
-                className="w-full bg-primary text-white rounded-2xl py-3.5 font-heading font-semibold text-sm shadow-sm active:scale-95 transition-transform disabled:opacity-50 disabled:pointer-events-none"
+                className="w-full bg-primary text-white rounded-2xl py-3.5 font-heading font-semibold text-sm shadow-sm active:scale-95 transition-transform disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center space-x-2"
               >
-                Continue to Review
+                <span>Continue to Review ({priceCalculation.totalAmount > 0 ? `₹${priceCalculation.totalAmount.toFixed(0)}` : 'Select Slot'})</span>
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* STEP 3: REVIEW AND CONFIRM */}
       {currentStep === 3 && (
         <div className="space-y-4">
-          <h2 className="font-heading font-semibold text-xl text-text-primary">
-            Review your booking
-          </h2>
+          {/* Top Header Step 3 */}
+          <div className="flex items-center justify-between relative">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="p-2 bg-card border border-border rounded-full text-text-secondary hover:text-text-primary shadow-sm z-10"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div className="flex-1 text-center">
+              <h1 className="text-lg font-bold font-heading text-text-primary">
+                Review Booking
+              </h1>
+              <div className="flex items-center justify-center space-x-1.5 mt-1">
+                <div className="w-2 h-2 bg-border rounded-full" />
+                <div className="w-6 h-2 bg-primary rounded-full" />
+              </div>
+            </div>
+            <div className="w-9" />
+          </div>
 
           {/* Summary Card */}
           <div className="bg-card border border-border rounded-2xl p-4 space-y-3 shadow-md">
