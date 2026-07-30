@@ -52,9 +52,22 @@ async def require_cafe_owner(
     current_user: User = Depends(get_current_active_user)
 ) -> User:
     role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
-    if role_val != "cafe_owner":
+    if role_val not in ["cafe_owner", "admin"]:
         raise ForbiddenException("This action requires a café owner account")
     return current_user
+
+async def require_staff(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if role_val not in ["staff", "cafe_owner", "admin"]:
+        raise ForbiddenException("This action requires a staff or owner account")
+    return current_user
+
+async def require_staff_or_owner(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    return await require_staff(current_user)
 
 async def require_admin(
     current_user: User = Depends(get_current_active_user)

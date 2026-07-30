@@ -115,8 +115,9 @@ export default function OwnerCafePage() {
         queryClient.invalidateQueries({ queryKey: ['cafe', data.id] });
       }
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Failed to submit café.';
+    onError: (err: unknown) => {
+      const errObj = err as { response?: { data?: { error?: { message?: string }; detail?: string } } };
+      const msg = errObj?.response?.data?.error?.message || errObj?.response?.data?.detail || 'Failed to submit café.';
       setApiError(msg);
       setSuccessMessage(null);
     },
@@ -130,8 +131,9 @@ export default function OwnerCafePage() {
       queryClient.invalidateQueries({ queryKey: ['ownerCafe'] });
       queryClient.invalidateQueries({ queryKey: ['cafe', cafeId] });
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Failed to update café changes.';
+    onError: (err: unknown) => {
+      const errObj = err as { response?: { data?: { error?: { message?: string }; detail?: string } } };
+      const msg = errObj?.response?.data?.error?.message || errObj?.response?.data?.detail || 'Failed to update café changes.';
       setApiError(msg);
       setSuccessMessage(null);
     },
@@ -215,7 +217,7 @@ export default function OwnerCafePage() {
   };
 
   // Field validation trigger
-  const validateField = (field: keyof CafeFormData, value: any) => {
+  const validateField = (field: keyof CafeFormData, value: unknown) => {
     let errMsg = '';
     if (field === 'pincode') {
       const pinStr = String(value);

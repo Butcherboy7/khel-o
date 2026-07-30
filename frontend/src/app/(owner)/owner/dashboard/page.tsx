@@ -375,6 +375,21 @@ export default function OwnerDashboardPage() {
               </div>
 
               <div
+                onClick={() => router.push('/owner/staff')}
+                className="card-base p-4 flex flex-col gap-2 active:scale-[0.98] cursor-pointer hover:border-primary/50"
+              >
+                <Users className="w-6 h-6 text-primary" />
+                <div>
+                  <h3 className="font-heading font-semibold text-sm text-text-primary">
+                    Staff Accounts
+                  </h3>
+                  <p className="font-body text-xs text-text-secondary">
+                    Manage scanner staff
+                  </p>
+                </div>
+              </div>
+
+              <div
                 onClick={() => router.push('/owner/payouts')}
                 className="card-base p-4 flex flex-col gap-2 active:scale-[0.98] cursor-pointer hover:border-primary/50 col-span-2 bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20"
               >

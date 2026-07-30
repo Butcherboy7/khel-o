@@ -20,7 +20,7 @@ from app.services.admin_service import AdminService
 from app.services.cafe_service import CafeService
 from app.services.review_service import ReviewService
 from app.api.deps import require_admin
-from app.models.user import User
+from app.models.user import User, UserRole
 
 router = APIRouter()
 
@@ -123,7 +123,10 @@ async def verify_cafe(
     db: AsyncSession = Depends(get_db)
 ):
     cafe_repo = CafeRepository(db)
+    user_repo = UserRepository(db)
     updated = await cafe_repo.update_verification_status(cafe_id, payload.status, reason=payload.reason)
+    if updated and payload.status == "verified":
+        await user_repo.update_role(updated.owner_id, UserRole.CAFE_OWNER)
     return {
         "success": True,
         "data": {

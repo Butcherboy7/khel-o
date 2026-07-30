@@ -51,3 +51,12 @@ class CafeException(BaseAppException):
 class PromotionException(BaseAppException):
     def __init__(self, message: str = "Promotion operation error", error_code: str = "PROMOTION_ERROR"):
         super().__init__(message=message, error_code=error_code, status_code=status.HTTP_400_BAD_REQUEST)
+
+class BadRequestException(BaseAppException):
+    def __init__(self, message: str = "Bad request", error_code: str = "BAD_REQUEST", details: Optional[List[Any]] = None):
+        super().__init__(message=message, error_code=error_code, status_code=status.HTTP_400_BAD_REQUEST, details=details)
+
+class UnprocessableEntityException(BaseAppException):
+    def __init__(self, message: str = "Unprocessable entity", error_code: str = "UNPROCESSABLE_ENTITY", details: Optional[List[Any]] = None):
+        super().__init__(message=message, error_code=error_code, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, details=details)
+

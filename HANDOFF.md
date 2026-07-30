@@ -100,3 +100,39 @@ docker compose up --build -d
   - Added `mobile-web-app-capable: 'yes'` in `other` metadata of `src/app/layout.tsx`.
   - Replaced residual `any` types in `src/lib/api.ts` with `Record<string, unknown>`.
 - **Consequences**: 0 hydration errors. 0 TypeScript errors. Next.js build passes generating 18 static pages.
+
+---
+
+## ADR 009: Production Playo UX, Staff RBAC Role & Docker Multi-Stage Optimization
+
+- **Context**: The platform required a seamless Playo-grade booking UX, permission fixes for gamer café onboarding, delegation of QR check-in capabilities to venue staff without administrative privileges, and container optimization.
+- **Decision**:
+  - **STAFF Role**: Added `STAFF = "staff"` to `UserRole` in backend models and frontend types. Added `POST /api/v1/owner/staff` and `GET /api/v1/owner/staff` endpoints, and a dedicated Staff Management portal at `frontend/src/app/(owner)/owner/staff/page.tsx`.
+  - **Owner Onboarding**: Updated `POST /api/v1/cafes` to accept applications from active users during onboarding, automatically upgrading gamer roles to `cafe_owner`. Expanded onboarding to a 4-step wizard at `frontend/src/app/(owner)/owner/onboarding/page.tsx`.
+  - **Admin Verification**: Updated `verify_cafe` to guarantee owner role upgrade to `CAFE_OWNER` upon approval.
+  - **Playo-Style Booking**: Enhanced `frontend/src/app/(customer)/bookings/new/page.tsx` with a 14-day date picker, 4-bucket time slot selector (Morning, Afternoon, Evening, Night), tactile duration chips, live price breakdown, and sticky primary CTA.
+  - **Docker Optimization**: Multi-stage `Dockerfile` for Next.js production build, backend health checks, and bridge networking in `docker-compose.yml`.
+- **Consequences**: 19 static Next.js pages generated cleanly. 0 TypeScript or lint errors. Complete end-to-end integration across Gamer, Owner, Staff, and Admin portals.
+
+---
+
+## ADR 010: Full System Audit & Anti-Pattern Detective Hardening
+
+- **Context**: Performed a forensic audit to eliminate common "vibe coder" bugs, loose types, invalid TLD payloads, and schema validation crashes.
+- **Decision**:
+  - **Email & TLD Hardening**: Replaced invalid `.test` TLDs in demo login buttons (`owner@khel-o.test` -> `owner@example.com`, `admin@khel-o.test` -> `admin@example.com`). Added `ensure_demo_users()` in backend `main.py` lifespan context manager so all demo accounts exist in PostgreSQL on startup with password `testpass123`.
+  - **Strict TypeScript (Zero `any`)**: Audited and eliminated all `any` types across 10+ frontend files (`login`, `bookings`, `new`, `owner/cafe`, `owner/tiers`, `owner/promotions`, `owner/staff`, `owner/payouts`, `owner/bookings`), enforcing typed `unknown` error handling with safe record narrowing.
+  - **Flexible Pydantic Schema Parsing**: Added `@field_validator` with `mode="before"` to `backend/app/schemas/cafe.py` and `backend/app/schemas/booking.py` to parse non-standard time inputs (`"10 AM"`, `"10:00 AM"`, `""` -> `None` or `time`) and empty UUID string payloads (`""` -> `None`).
+  - **Memory Capping**: Configured `NODE_OPTIONS=--max-old-space-size=512` in `docker-compose.yml` to prevent Next.js dev/prod compilation memory ballooning.
+- **Consequences**: Zero `any` types remaining in `frontend/src`. Next.js production build succeeded with 19 static pages generated cleanly. 0 runtime schema parsing errors for non-standard times or empty strings.
+
+---
+
+## ADR 011: Backend Exceptions Alignment, Volume Bind-Mount & DB Table Auto-Init
+
+- **Context**: On full container restart, backend failed startup with `ImportError: cannot import name 'BadRequestException' from 'app.core.exceptions'` causing Uvicorn connection refusals (`ERR_CONNECTION_REFUSED`). Additionally, PostgreSQL tables were missing on a fresh database reset.
+- **Decision**:
+  - **Core Exceptions**: Added missing `BadRequestException` and `UnprocessableEntityException` to `backend/app/core/exceptions.py`.
+  - **Automatic DB Table Creation**: Added `init_db()` in `backend/app/main.py` lifespan context manager importing `app.models` to run `Base.metadata.create_all` before seeding demo users.
+  - **Docker Dev Volume**: Added `./backend:/app` volume mount in `docker-compose.yml` so python code changes are immediately synced to the backend container.
+- **Consequences**: Backend container started up 100% healthy (`Up (healthy)`). `POST /api/v1/auth/login` verified with live HTTP 200 OK responses and valid JWT tokens for Gamer, Owner, and Admin demo accounts.

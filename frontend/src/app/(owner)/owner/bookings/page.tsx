@@ -160,8 +160,9 @@ export default function OwnerBookingsPage() {
       setScanSuccessMsg(`Checked in successfully! Assign a PC in the tier: "${result.tierName || 'Gaming Rig'}"`);
       queryClient.invalidateQueries({ queryKey: ['ownerBookings'] });
       setManualBookingId('');
-    } catch (err: any) {
-      const msg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Check-in failed. Verify the booking window or status.';
+    } catch (err: unknown) {
+      const errObj = err as { response?: { data?: { error?: { message?: string }; detail?: string } } };
+      const msg = errObj?.response?.data?.error?.message || errObj?.response?.data?.detail || 'Check-in failed. Verify the booking window or status.';
       setScanErrorMsg(msg);
     } finally {
       setIsScanning(false);
@@ -181,8 +182,9 @@ export default function OwnerBookingsPage() {
         setCloseConfirmOpen(false);
         setCloseSuccessMsg(null);
       }, 3000);
-    } catch (err: any) {
-      alert(err?.response?.data?.error?.message || 'Failed to trigger emergency close.');
+    } catch (err: unknown) {
+      const errObj = err as { response?: { data?: { error?: { message?: string } } } };
+      alert(errObj?.response?.data?.error?.message || 'Failed to trigger emergency close.');
     } finally {
       setIsClosing(false);
     }

@@ -96,8 +96,9 @@ export default function BookingsListPage() {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       setCancellingBookingId(null);
     },
-    onError: (err: any) => {
-      alert(err?.response?.data?.error?.message || 'Failed to cancel booking.');
+    onError: (err: unknown) => {
+      const errObj = err as { response?: { data?: { error?: { message?: string } } } };
+      alert(errObj?.response?.data?.error?.message || 'Failed to cancel booking.');
       setCancellingBookingId(null);
     },
   });
@@ -180,7 +181,7 @@ export default function BookingsListPage() {
             Couldn&apos;t load bookings
           </h3>
           <p className="text-text-secondary text-sm">
-            {(error as any)?.message || 'Failed to connect to backend service.'}
+            {(error as Error)?.message || 'Failed to connect to backend service.'}
           </p>
           <button
             type="button"

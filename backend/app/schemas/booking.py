@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime, date, time
 from app.models.booking import BookingStatus
@@ -16,6 +16,13 @@ class BookingBase(BaseModel):
     duration_hours: float = Field(..., ge=0.5, le=8.0)
     notes: Optional[str] = None
     promotion_id: Optional[UUID] = None
+
+    @field_validator("promotion_id", mode="before")
+    @classmethod
+    def parse_empty_uuid(cls, v: Any) -> Any:
+        if v == "" or v is None:
+            return None
+        return v
 
     model_config = ConfigDict(
         alias_generator=to_camel,

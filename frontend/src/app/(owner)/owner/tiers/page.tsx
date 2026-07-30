@@ -141,8 +141,9 @@ export default function OwnerTiersPage() {
       setSheetMode('none');
       showSuccessToast('Tier created.');
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Failed to create tier.';
+    onError: (err: unknown) => {
+      const errObj = err as { response?: { data?: { error?: { message?: string }; detail?: string } } };
+      const msg = errObj?.response?.data?.error?.message || errObj?.response?.data?.detail || 'Failed to create tier.';
       setSheetError(msg);
     },
   });
@@ -154,8 +155,9 @@ export default function OwnerTiersPage() {
       setSheetMode('none');
       showSuccessToast('Tier updated.');
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Failed to update tier.';
+    onError: (err: unknown) => {
+      const errObj = err as { response?: { data?: { error?: { message?: string }; detail?: string } } };
+      const msg = errObj?.response?.data?.error?.message || errObj?.response?.data?.detail || 'Failed to update tier.';
       setSheetError(msg);
     },
   });

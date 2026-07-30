@@ -12,8 +12,9 @@ from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.review_repository import ReviewRepository
 from app.services.cafe_service import CafeService
 from app.services.hardware_tier_service import HardwareTierService
-from app.api.deps import require_cafe_owner, get_optional_user
-from app.models.user import User
+from app.repositories.user_repository import UserRepository
+from app.models.user import User, UserRole
+from app.api.deps import require_cafe_owner, get_optional_user, get_current_active_user
 
 router = APIRouter()
 
@@ -69,12 +70,19 @@ async def get_cafe(
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_cafe(
     payload: CafeCreateRequest,
-    current_owner: User = Depends(require_cafe_owner),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     repo = CafeRepository(db)
+    user_repo = UserRepository(db)
     service = CafeService(repo)
-    result = await service.create_cafe(current_owner.id, payload)
+
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if role_val == "gamer":
+        await user_repo.update_role(current_user.id, UserRole.CAFE_OWNER)
+        current_user.role = UserRole.CAFE_OWNER
+
+    result = await service.create_cafe(current_user.id, payload)
     return {
         "success": True,
         "data": {

@@ -23,7 +23,7 @@ export default function OwnerLayout({
     if (isHydrated && !isLoading) {
       if (!isAuthenticated) {
         router.push('/login');
-      } else if (user?.role !== 'cafe_owner' && user?.role !== 'admin') {
+      } else if (user?.role !== 'cafe_owner' && user?.role !== 'admin' && user?.role !== 'staff') {
         router.push('/');
       }
     }
@@ -34,23 +34,27 @@ export default function OwnerLayout({
       <div className="min-h-screen bg-surface flex items-center justify-center">
         <div className="flex flex-col items-center space-y-3">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs font-data text-text-secondary">Verifying Partner Access...</p>
+          <p className="text-xs font-data text-text-secondary">Verifying Access...</p>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated || (user?.role !== 'cafe_owner' && user?.role !== 'admin')) {
+  if (!isAuthenticated || (user?.role !== 'cafe_owner' && user?.role !== 'admin' && user?.role !== 'staff')) {
     return null;
   }
 
-  const ownerNavItems = [
-    { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
-    { label: 'My Café', href: '/owner/cafe', icon: Store },
-    { label: 'Hardware Tiers', href: '/owner/tiers', icon: Layers },
-    { label: 'Bookings', href: '/owner/bookings', icon: Calendar },
-    { label: 'Promotions', href: '/owner/promotions', icon: Tag },
-  ];
+  const isStaffOnly = user?.role === 'staff';
+
+  const ownerNavItems = isStaffOnly
+    ? [{ label: 'Bookings & Scan', href: '/owner/bookings', icon: Calendar }]
+    : [
+        { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
+        { label: 'My Café', href: '/owner/cafe', icon: Store },
+        { label: 'Hardware Tiers', href: '/owner/tiers', icon: Layers },
+        { label: 'Bookings', href: '/owner/bookings', icon: Calendar },
+        { label: 'Promotions', href: '/owner/promotions', icon: Tag },
+      ];
 
   return (
     <div className="min-h-screen bg-surface flex flex-col md:flex-row">

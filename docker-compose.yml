@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: khel_o_postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespassword
@@ -16,13 +16,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - khel_o_net
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: khel_o_backend
-    restart: always
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
@@ -35,30 +37,40 @@ services:
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-rzp_test_mock_khelo_key}
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET:-mock_razorpay_secret}
     volumes:
+      - ./backend:/app
       - qrdata:/app/static/qr
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - khel_o_net
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-your-google-client-id}
+        NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID:-rzp_test_mock_khelo_key}
     container_name: khel_o_frontend
-    restart: always
+    restart: unless-stopped
     ports:
       - "3002:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-your-google-client-id}
-      - NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-rzp_test_mock_khelo_key}
+      - NEXT_PUBLIC_RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-rzp_test_mock_khelo_key}
+      - NODE_OPTIONS=--max-old-space-size=512
     depends_on:
       - backend
+    networks:
+      - khel_o_net
 
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: khel_o_pgadmin
-    restart: always
+    restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@khelo.in
       PGADMIN_DEFAULT_PASSWORD: adminpassword
@@ -66,7 +78,13 @@ services:
       - "5050:80"
     depends_on:
       - postgres
+    networks:
+      - khel_o_net
 
 volumes:
   pgdata:
   qrdata:
+
+networks:
+  khel_o_net:
+    driver: bridge

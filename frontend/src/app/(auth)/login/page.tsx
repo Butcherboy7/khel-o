@@ -31,6 +31,8 @@ export default function LoginPage() {
       
       if (user.role === 'cafe_owner') {
         router.push('/owner/dashboard');
+      } else if (user.role === 'staff') {
+        router.push('/owner/bookings');
       } else if (user.role === 'admin') {
         router.push('/admin');
       } else {
@@ -79,20 +81,24 @@ export default function LoginPage() {
                 if (user.role === 'cafe_owner') router.push('/owner/dashboard');
                 else if (user.role === 'admin') router.push('/admin');
                 else router.push('/');
-              } catch (err: any) {
-                setError(err?.response?.data?.error?.message || 'Google authentication failed on backend.');
+              } catch (err: unknown) {
+                const msg = err && typeof err === 'object' && 'response' in err
+                  ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
+                  : undefined;
+                setError(msg || 'Google authentication failed on backend.');
               }
             }
           },
         });
-        (window as any).google.accounts.id.prompt();
+        const googleObj = (window as unknown as { google?: { accounts?: { id?: { prompt: () => void } } } }).google;
+        googleObj?.accounts?.id?.prompt();
       } else {
-        // Load GSI script dynamically if not present
         const script = document.createElement('script');
         script.src = 'https://accounts.google.com/gsi/client';
         script.async = true;
         script.onload = () => {
-          (window as any).google?.accounts?.id?.initialize({
+          const googleObj = (window as unknown as { google?: { accounts?: { id?: { initialize: (cfg: unknown) => void; prompt: () => void } } } }).google;
+          googleObj?.accounts?.id?.initialize({
             client_id: clientId,
             callback: async (response: { credential?: string }) => {
               if (response.credential) {
@@ -103,11 +109,11 @@ export default function LoginPage() {
               }
             },
           });
-          (window as any).google?.accounts?.id?.prompt();
+          googleObj?.accounts?.id?.prompt();
         };
         document.body.appendChild(script);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Google Sign-In failed. Try email login below.');
     } finally {
       setLoading(false);
@@ -127,8 +133,11 @@ export default function LoginPage() {
       if (user.role === 'cafe_owner') router.push('/owner/dashboard');
       else if (user.role === 'admin') router.push('/admin');
       else router.push('/');
-    } catch (err: any) {
-      setError(err?.response?.data?.error?.message || 'Demo login failed.');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
+        : undefined;
+      setError(msg || 'Demo login failed.');
     } finally {
       setLoading(false);
     }
@@ -221,14 +230,14 @@ export default function LoginPage() {
           </button>
           <button
             type="button"
-            onClick={() => handleDemoLogin('owner@khel-o.test')}
+            onClick={() => handleDemoLogin('owner@example.com')}
             className="py-2 px-2 bg-surface hover:bg-primary/10 border border-border rounded-xl text-xs text-text-primary font-medium transition-colors text-center truncate"
           >
             🏪 Owner
           </button>
           <button
             type="button"
-            onClick={() => handleDemoLogin('admin@khel-o.test')}
+            onClick={() => handleDemoLogin('admin@example.com')}
             className="py-2 px-2 bg-surface hover:bg-primary/10 border border-border rounded-xl text-xs text-text-primary font-medium transition-colors text-center truncate"
           >
             🛡️ Admin

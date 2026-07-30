@@ -87,21 +87,22 @@ export default function NewBookingPage() {
               });
               queryClient.invalidateQueries({ queryKey: ['bookings'] });
               router.push(`/bookings/${booking.id}`);
-            } catch (err: any) {
+            } catch (err: unknown) {
               setErrorMessage('Payment verification failed. Please check My Bookings.');
               setIsProcessingPayment(false);
             }
           },
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Fallback: Navigate to booking detail if order creation fails (sandbox handling)
         router.push(`/bookings/${booking.id}`);
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       setIsProcessingPayment(false);
-      const errorCode = error?.response?.data?.error?.code || error?.response?.data?.detail?.code;
-      const detailMsg = error?.response?.data?.error?.message || error?.response?.data?.detail;
+      const errObj = error as { response?: { data?: { error?: { code?: string; message?: string }; detail?: { code?: string; message?: string } | string } } };
+      const errorCode = errObj?.response?.data?.error?.code || (typeof errObj?.response?.data?.detail === 'object' ? errObj?.response?.data?.detail?.code : undefined);
+      const detailMsg = errObj?.response?.data?.error?.message || errObj?.response?.data?.detail;
 
       if (errorCode === 'INVALID_START_TIME' || (typeof detailMsg === 'string' && detailMsg.includes('future'))) {
         setErrorMessage('That time slot has passed. Please pick another.');

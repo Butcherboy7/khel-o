@@ -127,8 +127,9 @@ export default function OwnerPromotionsPage() {
       setSheetMode('none');
       showSuccessToast('Deal created.');
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Failed to create deal.';
+    onError: (err: unknown) => {
+      const errObj = err as { response?: { data?: { error?: { message?: string }; detail?: string } } };
+      const msg = errObj?.response?.data?.error?.message || errObj?.response?.data?.detail || 'Failed to create deal.';
       setSheetError(msg);
     },
   });
@@ -140,8 +141,9 @@ export default function OwnerPromotionsPage() {
       setSheetMode('none');
       showSuccessToast('Deal updated.');
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Failed to update deal.';
+    onError: (err: unknown) => {
+      const errObj = err as { response?: { data?: { error?: { message?: string }; detail?: string } } };
+      const msg = errObj?.response?.data?.error?.message || errObj?.response?.data?.detail || 'Failed to update deal.';
       setSheetError(msg);
     },
   });

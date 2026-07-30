@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, time
@@ -26,6 +26,23 @@ class CafeBase(BaseModel):
     total_seats: Optional[int] = Field(None, ge=1)
     amenities: List[str] = Field(default_factory=list)
     photos: List[str] = Field(default_factory=list)
+
+    @field_validator("opening_time", "closing_time", mode="before")
+    @classmethod
+    def parse_time_flexibly(cls, v: Any) -> Any:
+        if v == "" or v is None:
+            return None
+        if isinstance(v, str):
+            v_clean = v.strip().upper()
+            if "AM" in v_clean or "PM" in v_clean:
+                try:
+                    return datetime.strptime(v_clean, "%I:%M %p").time()
+                except ValueError:
+                    try:
+                        return datetime.strptime(v_clean, "%I %p").time()
+                    except ValueError:
+                        pass
+        return v
 
     model_config = ConfigDict(
         alias_generator=to_camel,

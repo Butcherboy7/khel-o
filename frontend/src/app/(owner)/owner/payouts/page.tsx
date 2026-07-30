@@ -48,8 +48,9 @@ export default function OwnerPayoutsPage() {
       setErrorMsg(null);
       refetch();
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Failed to submit details.';
+    onError: (err: unknown) => {
+      const errObj = err as { response?: { data?: { error?: { message?: string }; detail?: string } } };
+      const msg = errObj?.response?.data?.error?.message || errObj?.response?.data?.detail || 'Failed to submit details.';
       setErrorMsg(msg);
       setSuccessMsg(null);
     },
