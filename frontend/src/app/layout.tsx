@@ -1,24 +1,43 @@
 import type { Metadata, Viewport } from 'next';
-import './globals.css';
+import { Space_Grotesk, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import Providers from './providers';
+import './globals.css';
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-space-grotesk',
+  display: 'swap',
+});
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-plus-jakarta',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
-  title: 'KHEL-O — Gaming Café Marketplace India',
-  description: 'Discover nearby gaming cafés, compare RTX/PS5 hardware tiers, and grab off-peak flash deal discounts.',
+  title: 'KHEL-O — Gaming Café Marketplace',
+  description: 'Book high-performance PC & Console gaming slots at verified cafés near you.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
+    statusBarStyle: 'default',
     title: 'KHEL-O',
-    statusBarStyle: 'black-translucent',
   },
 };
 
 export const viewport: Viewport = {
+  themeColor: '#10B981',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#7c3aed',
 };
 
 export default function RootLayout({
@@ -27,8 +46,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-zinc-950 text-zinc-100 min-h-screen antialiased selection:bg-purple-600 selection:text-white">
+    <html
+      lang="en"
+      className={`${spaceGrotesk.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}
+    >
+      <body className="bg-surface text-text-primary antialiased selection:bg-primary selection:text-white min-h-screen">
         <Providers>{children}</Providers>
       </body>
     </html>

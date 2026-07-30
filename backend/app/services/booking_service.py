@@ -14,6 +14,7 @@ from app.schemas.booking import BookingCreateRequest, BookingResponse, BookingCa
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User, UserRole
 from app.models.cafe import VerificationStatus
+from app.models.platform_fee import PlatformFee
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 
 class BookingService:
@@ -36,9 +37,10 @@ class BookingService:
 
     async def create_booking(self, gamer_id: UUID, booking_in: BookingCreateRequest) -> BookingResponse:
         # Validate Cafe
+        cafe = None
         if self.cafe_repo:
             cafe = await self.cafe_repo.get_by_id(booking_in.cafe_id)
-            if not cafe or cafe.verification_status != VerificationStatus.VERIFIED or not cafe.is_active:
+            if not cafe or cafe.verification_status in (VerificationStatus.REJECTED, VerificationStatus.SUSPENDED) or not cafe.is_active:
                 raise ValidationException(message="Café is not available for booking", error_code="CAFE_NOT_AVAILABLE")
 
         # Validate Hardware Tier
@@ -68,15 +70,15 @@ class BookingService:
         end_datetime = start_datetime + timedelta(hours=booking_in.duration_hours)
         end_time = end_datetime.time()
 
-        # Seat Availability Checking
-        overlapping_count = await self.booking_repo.get_overlapping_bookings_count(
+        # Seat Availability Checking (with locking)
+        overlapping_count, app_bookable_seats = await self.booking_repo.get_overlapping_bookings_count_with_lock(
             tier_id=tier.id,
             session_date=booking_in.session_date,
             start_time=booking_in.start_time,
             end_time=end_time
         )
 
-        if overlapping_count >= tier.seats_in_tier:
+        if overlapping_count >= app_bookable_seats:
             raise ValidationException(
                 message="This hardware tier is fully booked for the selected time slot",
                 error_code="TIER_FULLY_BOOKED"
@@ -100,7 +102,21 @@ class BookingService:
 
         subtotal = base_amount - discount_amount
         gateway_fee = (subtotal * Decimal('0.02')).quantize(Decimal('0.01'))
-        total_amount = subtotal + gateway_fee
+        convenience_fee = Decimal('10.00')
+        total_amount = subtotal + gateway_fee + convenience_fee
+
+        # Unverified Café Cap Check
+        if cafe and cafe.verification_status != VerificationStatus.VERIFIED:
+            if cafe.booking_cap_count >= 15:
+                raise ValidationException(
+                    message="Booking cap reached for this unverified café.",
+                    error_code="UNVERIFIED_CAFE_CAP_REACHED"
+                )
+            if float(cafe.booking_cap_total) + float(total_amount) > 5000.00:
+                raise ValidationException(
+                    message="Booking total amount cap reached for this unverified café.",
+                    error_code="UNVERIFIED_CAFE_CAP_REACHED"
+                )
 
         booking_ref = self._generate_reference()
 
@@ -117,6 +133,7 @@ class BookingService:
             "base_amount": float(base_amount),
             "discount_amount": float(discount_amount),
             "gateway_fee": float(gateway_fee),
+            "convenience_fee": float(convenience_fee),
             "total_amount": float(total_amount),
             "status": BookingStatus.PENDING_PAYMENT,
             "promotion_id": booking_in.promotion_id,
@@ -124,6 +141,26 @@ class BookingService:
         }
 
         created = await self.booking_repo.create(booking_dict)
+
+        # Create Platform Fee record
+        platform_fee_dict = {
+            "id": uuid4(),
+            "booking_id": created.id,
+            "convenience_fee": float(convenience_fee),
+            "gateway_fee": float(gateway_fee),
+            "tds_amount": 0.00,
+            "owner_settlement_amount": float(subtotal)
+        }
+        fee_obj = PlatformFee(**platform_fee_dict)
+        self.booking_repo.db.add(fee_obj)
+        await self.booking_repo.db.commit()
+
+        # Update unverified café caps if applicable
+        if cafe:
+            cafe.booking_cap_count += 1
+            cafe.booking_cap_total = float(cafe.booking_cap_total) + float(total_amount)
+            self.booking_repo.db.add(cafe)
+            await self.booking_repo.db.commit()
 
         # Atomic increment of promotion current_uses after booking is saved
         if booking_in.promotion_id and self.promo_service:

@@ -74,6 +74,26 @@ class BookingRepository(BaseRepository[Booking]):
         result = await self.db.execute(stmt)
         return result.scalar() or 0
 
+    async def get_overlapping_bookings_count_with_lock(
+        self,
+        tier_id: UUID,
+        session_date: date,
+        start_time: time,
+        end_time: time
+    ) -> Tuple[int, int]:
+        """Returns (overlapping_count, app_bookable_seats) with row lock on HardwareTier."""
+        tier_stmt = select(HardwareTier).where(HardwareTier.id == tier_id).with_for_update()
+        tier_result = await self.db.execute(tier_stmt)
+        tier = tier_result.scalars().first()
+        
+        count = await self.get_overlapping_bookings_count(
+            tier_id=tier_id,
+            session_date=session_date,
+            start_time=start_time,
+            end_time=end_time
+        )
+        return count, tier.app_bookable_seats if tier else 0
+
     async def get_owner_bookings_joined(
         self,
         cafe_ids: List[UUID],
@@ -192,7 +212,7 @@ class BookingRepository(BaseRepository[Booking]):
     async def get_total_possible_hours_this_week(self, cafe_ids: List[UUID]) -> float:
         if not cafe_ids:
             return 0.0
-        stmt = select(func.sum(HardwareTier.seats_in_tier)).where(
+        stmt = select(func.sum(HardwareTier.total_seats)).where(
             HardwareTier.cafe_id.in_(cafe_ids),
             HardwareTier.is_active == True
         )

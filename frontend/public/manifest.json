@@ -1,11 +1,11 @@
 {
   "name": "KHEL-O Gaming Marketplace",
   "short_name": "KHEL-O",
-  "description": "Book high-end gaming PCs & discover off-peak flash deals near you.",
+  "description": "Book high-performance gaming sessions at top esports lounges near you.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#09090b",
-  "theme_color": "#7c3aed",
+  "background_color": "#F8F9FB",
+  "theme_color": "#10B981",
   "orientation": "portrait",
   "icons": [
     {

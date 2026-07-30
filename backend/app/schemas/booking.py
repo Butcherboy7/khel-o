@@ -54,10 +54,14 @@ class BookingResponse(BookingBase):
     discount_amount: float
     gateway_fee: float
     total_amount: float
+    convenience_fee: float
     status: BookingStatus
     qr_code_url: Optional[str] = None
     cancelled_at: Optional[datetime] = None
     cancellation_reason: Optional[str] = None
+    actual_start_time: Optional[datetime] = None
+    actual_end_time: Optional[datetime] = None
+    checkin_method: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

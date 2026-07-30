@@ -1,17 +1,8 @@
 import { create } from 'zustand';
 import api from '@/lib/api';
+import { User } from '@/types';
 
-export interface UserResponse {
-  id: string;
-  email: string;
-  fullName: string;
-  phoneNumber?: string | null;
-  role: 'gamer' | 'cafe_owner' | 'admin';
-  avatarUrl?: string | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt?: string | null;
-}
+export type UserResponse = User;
 
 interface AuthState {
   user: UserResponse | null;
@@ -19,6 +10,7 @@ interface AuthState {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isHydrated: boolean;
   setAuth: (user: UserResponse, accessToken: string, refreshToken: string) => void;
   setUser: (user: UserResponse | null) => void;
   setLoading: (loading: boolean) => void;
@@ -26,12 +18,40 @@ interface AuthState {
   initializeFromStorage: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  accessToken: null,
-  refreshToken: null,
-  isAuthenticated: false,
-  isLoading: true,
+const getInitialState = () => {
+  if (typeof window === 'undefined') {
+    return {
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: true,
+      isHydrated: false,
+    };
+  }
+
+  const accessToken = localStorage.getItem('accessToken');
+  const refreshToken = localStorage.getItem('refreshToken');
+  const userStr = localStorage.getItem('user');
+  let user: UserResponse | null = null;
+  if (userStr) {
+    try {
+      user = JSON.parse(userStr);
+    } catch {}
+  }
+
+  return {
+    user,
+    accessToken,
+    refreshToken,
+    isAuthenticated: !!accessToken,
+    isLoading: false,
+    isHydrated: true,
+  };
+};
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  ...getInitialState(),
 
   setAuth: (user, accessToken, refreshToken) => {
     if (typeof window !== 'undefined') {
@@ -45,6 +65,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       refreshToken,
       isAuthenticated: true,
       isLoading: false,
+      isHydrated: true,
     });
   },
 
@@ -65,17 +86,24 @@ export const useAuthStore = create<AuthState>((set) => ({
       refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
+      isHydrated: true,
     });
   },
 
   initializeFromStorage: async () => {
     if (typeof window === 'undefined') return;
 
+    // If we already have a user in memory, don't fetch /me again to prevent flashes
+    if (get().isHydrated && get().user) {
+      set({ isLoading: false });
+      return;
+    }
+
     const accessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
 
     if (!accessToken) {
-      set({ isLoading: false, isAuthenticated: false, user: null });
+      set({ isLoading: false, isAuthenticated: false, user: null, isHydrated: true });
       return;
     }
 
@@ -84,12 +112,14 @@ export const useAuthStore = create<AuthState>((set) => ({
       const res = await api.get('/api/v1/auth/me');
       const user = res.data?.data?.user;
       if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
         set({
           user,
           accessToken,
           refreshToken,
           isAuthenticated: true,
           isLoading: false,
+          isHydrated: true,
         });
       } else {
         throw new Error('User not returned');
@@ -104,6 +134,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         refreshToken: null,
         isAuthenticated: false,
         isLoading: false,
+        isHydrated: true,
       });
     }
   },

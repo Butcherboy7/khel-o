@@ -153,3 +153,74 @@ class OwnerService:
 
         updated = await self.booking_repo.update(booking_id, {"status": target_enum})
         return BookingResponse.model_validate(updated)
+
+    async def checkin_booking(self, booking_id: UUID, owner_id: UUID) -> BookingResponse:
+        booking = await self.booking_repo.get_by_id(booking_id)
+        if not booking:
+            raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
+
+        cafe = await self.cafe_repo.get_by_id(booking.cafe_id)
+        if not cafe or str(cafe.owner_id) != str(owner_id):
+            raise ForbiddenException(message="You can only check in bookings for your own café", error_code="FORBIDDEN")
+
+        if booking.status != BookingStatus.CONFIRMED:
+            raise ValidationException(
+                message=f"Cannot check in booking in status '{booking.status.value}'",
+                error_code="INVALID_BOOKING_STATUS"
+            )
+
+        now_utc = datetime.now(timezone.utc)
+        today = now_utc.date()
+        
+        # Verify it is scheduled for today
+        if booking.session_date != today:
+            raise ValidationException(
+                message=f"Booking is scheduled for {booking.session_date}, not today ({today})",
+                error_code="INVALID_CHECKIN_DATE"
+            )
+
+        session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=timezone.utc)
+        
+        # Allow check-in from 15 minutes before session to 30 minutes after session starts
+        if now_utc < (session_start - timedelta(minutes=15)):
+            raise ValidationException(
+                message="Check-in window has not opened yet (starts 15 minutes before session)",
+                error_code="CHECKIN_WINDOW_NOT_OPEN"
+            )
+        if now_utc > (session_start + timedelta(minutes=30)):
+            raise ValidationException(
+                message="Check-in window has expired (expired 30 minutes after session start)",
+                error_code="CHECKIN_WINDOW_EXPIRED"
+            )
+
+        updated = await self.booking_repo.update(booking_id, {
+            "actual_start_time": now_utc,
+            "checkin_method": "qr_scan"
+        })
+        return BookingResponse.model_validate(updated)
+
+    async def emergency_close_day(self, owner_id: UUID, cafe_id: UUID, closure_date: date) -> List[BookingResponse]:
+        cafe = await self.cafe_repo.get_by_id(cafe_id)
+        if not cafe or str(cafe.owner_id) != str(owner_id):
+            raise ForbiddenException(message="You can only close your own café", error_code="FORBIDDEN")
+
+        # Fetch all future/active bookings for that day
+        stmt = select(Booking).where(
+            Booking.cafe_id == cafe_id,
+            Booking.session_date == closure_date,
+            Booking.status.in_([BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED])
+        )
+        res = await self.booking_repo.db.execute(stmt)
+        bookings_to_cancel = res.scalars().all()
+
+        cancelled_bookings = []
+        now_utc = datetime.now(timezone.utc)
+        for b in bookings_to_cancel:
+            updated = await self.booking_repo.update(b.id, {
+                "status": BookingStatus.CANCELLED,
+                "cancelled_at": now_utc,
+                "cancellation_reason": "Emergency café closure"
+            })
+            cancelled_bookings.append(BookingResponse.model_validate(updated))
+
+        return cancelled_bookings

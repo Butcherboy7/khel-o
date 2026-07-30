@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     # Resend Email Service
     RESEND_API_KEY: Optional[str] = None
 
+    # KHEL-O V2 Configurations
+    RAZORPAY_ROUTE_ENABLED: bool = False
+    CONVENIENCE_FEE_AMOUNT: int = 10
+    UNVERIFIED_CAFE_BOOKING_CAP_VALUE: int = 5000
+    UNVERIFIED_CAFE_BOOKING_CAP_COUNT: int = 15
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

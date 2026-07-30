@@ -98,6 +98,8 @@ class CafeResponse(CafeBase):
     is_active: bool
     average_rating: float = 0.0
     total_reviews: int = 0
+    booking_cap_total: float = 0.0
+    booking_cap_count: int = 0
     tiers: List[HardwareTierResponse] = Field(default_factory=list)
     active_promotions: List[Dict[str, Any]] = Field(default_factory=list)
     recent_reviews: List[Dict[str, Any]] = Field(default_factory=list)

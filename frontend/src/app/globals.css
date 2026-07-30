@@ -2,6 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+@layer base {
+  :root {
+    --primary: #10B981;
+    --primary-dark: #059669;
+    --secondary: #1F2937;
+    --accent: #FC7C78;
+    --surface: #F3F4F6;
+    --card: #FFFFFF;
+    --text-primary: #111827;
+    --text-secondary: #4B5563;
+    --text-technical: #10B981;
+    --border: #E5E7EB;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --error: #EF4444;
+  }
+
+  body {
+    background-color: var(--surface);
+    color: var(--text-primary);
+    font-family: var(--font-plus-jakarta), sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-space-grotesk), sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-dark text-white rounded-2xl min-h-[48px] px-6 font-medium active:scale-95 transition-all duration-150 inline-flex items-center justify-center;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary hover:bg-gray-800 text-white rounded-2xl min-h-[48px] px-6 font-medium active:scale-95 transition-all duration-150 inline-flex items-center justify-center;
+  }
+
+  .btn-outline {
+    @apply border border-border text-secondary bg-card hover:bg-gray-50 rounded-2xl min-h-[48px] px-6 font-medium active:scale-95 transition-all duration-150 inline-flex items-center justify-center;
+  }
+
+  .card-base {
+    @apply bg-card rounded-2xl border border-border shadow-md p-4;
+  }
 }

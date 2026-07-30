@@ -42,5 +42,7 @@ class Cafe(Base):
     total_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
     amenities: Mapped[dict[str, Any]] = mapped_column(JSONB, default=list, nullable=False)
     photos: Mapped[dict[str, Any]] = mapped_column(JSONB, default=list, nullable=False)
+    booking_cap_total: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
+    booking_cap_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

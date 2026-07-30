@@ -5,6 +5,7 @@ from app.schemas.booking import BookingBase, BookingCreate, BookingResponse
 from app.schemas.payment import PaymentCreate, RazorpayVerifyRequest, PaymentResponse
 from app.schemas.promotion import PromotionBase, PromotionCreate, PromotionUpdate, PromotionResponse
 from app.schemas.review import ReviewBase, ReviewCreate, ReviewResponse
+from app.schemas.owner_payout import PayoutAccountCreateRequest, PayoutAccountResponse
 
 __all__ = [
     "UserBase", "UserCreate", "UserUpdate", "UserResponse",
@@ -14,4 +15,5 @@ __all__ = [
     "PaymentCreate", "RazorpayVerifyRequest", "PaymentResponse",
     "PromotionBase", "PromotionCreate", "PromotionUpdate", "PromotionResponse",
     "ReviewBase", "ReviewCreate", "ReviewResponse",
+    "PayoutAccountCreateRequest", "PayoutAccountResponse",
 ]

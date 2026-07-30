@@ -1,8 +1,8 @@
 # KHEL-O — Master Implementation Plan
 
-Version: 1.0  
-Last Updated: 2024  
-Status: Active  
+Version: 1.0
+Last Updated: 2024
+Status: Active
 
 ---
 
@@ -24,18 +24,18 @@ Every developer and every AI agent working on this project must:
 
 Before starting any phase, the following documents must be loaded as context:
 
-| Document | Purpose |
-|---|---|
-| docs/01-product-vision.md | Why we exist, what we are building |
-| docs/06-domain-model.md | All business entities and their rules |
-| docs/07-state-machines.md | All states and transitions |
-| docs/09-business-rules.md | All business rules, numbered |
-| docs/10-database-design.md | Database schema (use v0 for now) |
-| docs/11-api-style-guide.md | API naming, format, conventions |
-| docs/13-backend-architecture.md | Folder structure, layering rules |
-| docs/21-coding-standards.md | How code must be written |
-| docs/22-definition-of-done.md | What done means for every feature |
-| docs/25-error-handling.md | Exception hierarchy and error format |
+| Document                        | Purpose                               |
+| ------------------------------- | ------------------------------------- |
+| docs/01-product-vision.md       | Why we exist, what we are building    |
+| docs/06-domain-model.md         | All business entities and their rules |
+| docs/07-state-machines.md       | All states and transitions            |
+| docs/09-business-rules.md       | All business rules, numbered          |
+| docs/10-database-design.md      | Database schema (use v0 for now)      |
+| docs/11-api-style-guide.md      | API naming, format, conventions       |
+| docs/13-backend-architecture.md | Folder structure, layering rules      |
+| docs/21-coding-standards.md     | How code must be written              |
+| docs/22-definition-of-done.md   | What done means for every feature     |
+| docs/25-error-handling.md       | Exception hierarchy and error format  |
 
 ---
 
@@ -44,6 +44,7 @@ Before starting any phase, the following documents must be loaded as context:
 These apply to every phase without exception.
 
 ### Authentication
+
 - Google OAuth 2.0 is the primary login method
 - Email and password is the secondary login method
 - No OTP anywhere
@@ -52,6 +53,7 @@ These apply to every phase without exception.
 - Email is required for every user
 
 ### Payments
+
 - Razorpay is the only payment gateway
 - No partial refunds in MVP
 - Full refund if cancelled more than 2 hours before session
@@ -61,11 +63,13 @@ These apply to every phase without exception.
 - No convenience fee in MVP
 
 ### Notifications
+
 - Email via Resend only
 - Push notifications via Web Push / FCM for PWA
 - No SMS ever in MVP
 
 ### Architecture
+
 - Modular monolith — not microservices
 - FastAPI backend
 - PostgreSQL database
@@ -74,6 +78,7 @@ These apply to every phase without exception.
 - Alembic for all database migrations — never edit database manually
 
 ### Code Style
+
 - snake_case for database columns and Python variables
 - camelCase for all JSON API response fields
 - PascalCase for Python classes and TypeScript components
@@ -83,6 +88,7 @@ These apply to every phase without exception.
 - No business logic in routers — routers only call services
 
 ### Rejected Features (Never Implement These)
+
 - OTP login
 - SMS notifications
 - Exact PC seat reservations
@@ -119,16 +125,19 @@ Do not start a phase until all acceptance criteria of the previous phase pass.
 ## Phase 0 — Architecture Completion
 
 ### Goal
+
 Complete all missing structural files so the project compiles cleanly,
 Swagger loads without errors, and the layered architecture is fully in place.
 No business logic yet. Just the skeleton working end to end.
 
 ### Reference Docs
+
 - docs/13-backend-architecture.md
 - docs/21-coding-standards.md
 - docs/11-api-style-guide.md
 
 ### What Already Exists (Do Not Break These)
+
 - backend/app/main.py
 - backend/app/config.py
 - backend/app/database.py
@@ -148,6 +157,7 @@ No business logic yet. Just the skeleton working end to end.
 Create `backend/app/schemas/__init__.py` (empty)
 
 Create `backend/app/schemas/common.py`:
+
 - PaginatedResponse generic class
 - Standard API response envelope
   - success: bool
@@ -156,6 +166,7 @@ Create `backend/app/schemas/common.py`:
   - meta: pagination info or timestamp
 
 Create `backend/app/schemas/user.py`:
+
 - UserBase (email, fullName, phoneNumber optional)
 - UserCreateRequest (email, password, fullName)
 - GoogleAuthRequest (idToken)
@@ -164,6 +175,7 @@ Create `backend/app/schemas/user.py`:
 - UserListResponse
 
 Create `backend/app/schemas/cafe.py`:
+
 - CafeBase (name, description, addressLine1, addressLine2, city, state,
   pincode, phoneNumber, email, openingTime, closingTime, totalSeats, amenities)
 - CafeCreateRequest
@@ -175,6 +187,7 @@ Create `backend/app/schemas/cafe.py`:
 - CafeSearchRequest (city, query, minPrice, maxPrice, amenities, page, limit)
 
 Create `backend/app/schemas/hardware_tier.py`:
+
 - HardwareTierBase (name, description, specs as dict, seatsInTier, pricePerHour)
 - HardwareTierCreateRequest
 - HardwareTierUpdateRequest (all optional)
@@ -182,6 +195,7 @@ Create `backend/app/schemas/hardware_tier.py`:
   pricePerHour, isActive, createdAt)
 
 Create `backend/app/schemas/booking.py`:
+
 - BookingCreateRequest (cafeId, hardwareTierId, sessionDate, startTime,
   durationHours, promotionId optional, notes optional)
 - BookingResponse (all booking fields including bookingReference, status,
@@ -191,6 +205,7 @@ Create `backend/app/schemas/booking.py`:
 - BookingStatusUpdate (status, reason optional) — for owner and admin
 
 Create `backend/app/schemas/payment.py`:
+
 - PaymentCreateResponse (razorpayOrderId, amount, currency, keyId)
   This is what we return to frontend to initiate Razorpay checkout
 - PaymentVerifyRequest (razorpayOrderId, razorpayPaymentId, razorpaySignature)
@@ -198,6 +213,7 @@ Create `backend/app/schemas/payment.py`:
 - RefundResponse (refundId, amount, status, refundedAt)
 
 Create `backend/app/schemas/promotion.py`:
+
 - PromotionBase (title, description, discountPercentage, applicableTierId,
   validFrom, validUntil, daysOfWeek, startHour, endHour, maxUses)
 - PromotionCreateRequest
@@ -207,6 +223,7 @@ Create `backend/app/schemas/promotion.py`:
   tier name, discountPercentage, validUntil, slotsRemaining)
 
 Create `backend/app/schemas/review.py`:
+
 - ReviewCreateRequest (bookingId, rating 1-5, comment optional)
 - ReviewResponse (id, cafeId, gamerId, rating, comment, createdAt,
   gamerName)
@@ -215,6 +232,7 @@ Create `backend/app/schemas/review.py`:
 #### Backend — Repositories
 
 All repositories must:
+
 - Inherit from BaseRepository in base.py
 - Use async SQLAlchemy sessions
 - Accept db: AsyncSession as constructor argument
@@ -222,6 +240,7 @@ All repositories must:
 - Only perform database operations
 
 Create `backend/app/repositories/user_repository.py`:
+
 - get_by_id(user_id)
 - get_by_email(email)
 - get_by_google_id(google_id)
@@ -230,6 +249,7 @@ Create `backend/app/repositories/user_repository.py`:
 - deactivate(user_id)
 
 Create `backend/app/repositories/cafe_repository.py`:
+
 - get_by_id(cafe_id)
 - get_by_owner_id(owner_id)
 - get_all_verified(filters, page, limit)
@@ -240,6 +260,7 @@ Create `backend/app/repositories/cafe_repository.py`:
 - get_pending_verification(page, limit)
 
 Create `backend/app/repositories/hardware_tier_repository.py`:
+
 - get_by_id(tier_id)
 - get_by_cafe_id(cafe_id)
 - create(tier_data)
@@ -247,6 +268,7 @@ Create `backend/app/repositories/hardware_tier_repository.py`:
 - deactivate(tier_id)
 
 Create `backend/app/repositories/booking_repository.py`:
+
 - get_by_id(booking_id)
 - get_by_reference(booking_reference)
 - get_by_gamer_id(gamer_id, page, limit)
@@ -258,6 +280,7 @@ Create `backend/app/repositories/booking_repository.py`:
   Used to check seat availability
 
 Create `backend/app/repositories/payment_repository.py`:
+
 - get_by_id(payment_id)
 - get_by_booking_id(booking_id)
 - get_by_razorpay_order_id(order_id)
@@ -266,6 +289,7 @@ Create `backend/app/repositories/payment_repository.py`:
 - mark_refunded(payment_id, refund_id)
 
 Create `backend/app/repositories/promotion_repository.py`:
+
 - get_by_id(promotion_id)
 - get_by_cafe_id(cafe_id)
 - get_active_for_cafe(cafe_id, current_datetime)
@@ -276,6 +300,7 @@ Create `backend/app/repositories/promotion_repository.py`:
 - deactivate(promotion_id)
 
 Create `backend/app/repositories/review_repository.py`:
+
 - get_by_id(review_id)
 - get_by_cafe_id(cafe_id, page, limit)
 - get_by_booking_id(booking_id)
@@ -287,6 +312,7 @@ Create `backend/app/repositories/review_repository.py`:
 #### Backend — Services
 
 All services must:
+
 - Accept repository instances via dependency injection
 - Contain all business logic
 - Raise appropriate custom exceptions from core/exceptions.py
@@ -296,6 +322,7 @@ All services must:
 Create `backend/app/services/auth_service.py`:
 
 Stub methods with proper signatures and docstrings:
+
 - register_with_email(user_data: UserCreateRequest) -> UserResponse
 - login_with_email(email, password) -> dict with access_token and refresh_token
 - login_with_google(id_token: str) -> dict with access_token and refresh_token
@@ -306,6 +333,7 @@ Stub methods with proper signatures and docstrings:
 Create `backend/app/services/cafe_service.py`:
 
 Stub methods:
+
 - create_cafe(owner_id, cafe_data: CafeCreateRequest) -> CafeResponse
 - get_cafe(cafe_id) -> CafeResponse
 - update_cafe(cafe_id, owner_id, update_data: CafeUpdateRequest) -> CafeResponse
@@ -319,6 +347,7 @@ Stub methods:
 Create `backend/app/services/booking_service.py`:
 
 Stub methods:
+
 - create_booking(gamer_id, booking_data: BookingCreateRequest) -> BookingResponse
   Must validate: tier exists, cafe is verified, advance booking minimum 30 mins,
   calculate amounts, apply promotion if provided, set status to pending_payment
@@ -335,6 +364,7 @@ Stub methods:
 Create `backend/app/services/payment_service.py`:
 
 Stub methods:
+
 - create_razorpay_order(booking_id, gamer_id) -> PaymentCreateResponse
   Creates Razorpay order, creates Payment record with status created
 - verify_payment(verify_data: PaymentVerifyRequest) -> PaymentResponse
@@ -348,6 +378,7 @@ Stub methods:
 Create `backend/app/services/promotion_service.py`:
 
 Stub methods:
+
 - create_promotion(cafe_id, owner_id, promo_data) -> PromotionResponse
   Validate: discount max 50%, valid_until after valid_from,
   end_hour after start_hour
@@ -361,6 +392,7 @@ Stub methods:
 Create `backend/app/services/review_service.py`:
 
 Stub methods:
+
 - submit_review(gamer_id, review_data: ReviewCreateRequest) -> ReviewResponse
   Validate: booking belongs to gamer, booking is completed,
   no existing review for this booking
@@ -370,6 +402,7 @@ Stub methods:
 Create `backend/app/services/notification_service.py`:
 
 Stub methods:
+
 - send_booking_confirmation(booking_id) -> None
   Send email via Resend with booking details and QR code
 - send_payment_failure(booking_id) -> None
@@ -381,6 +414,7 @@ Stub methods:
 #### Backend — API Routers
 
 Create `backend/app/api/v1/auth.py`:
+
 - POST /auth/register
 - POST /auth/login
 - POST /auth/google
@@ -388,6 +422,7 @@ Create `backend/app/api/v1/auth.py`:
 - GET /auth/me
 
 Create `backend/app/api/v1/cafes.py`:
+
 - GET /cafes (list with filters)
 - GET /cafes/{cafe_id}
 - POST /cafes (owner only)
@@ -397,6 +432,7 @@ Create `backend/app/api/v1/cafes.py`:
 - PATCH /cafes/{cafe_id}/tiers/{tier_id} (owner only)
 
 Create `backend/app/api/v1/bookings.py`:
+
 - POST /bookings
 - GET /bookings (gamer's own bookings)
 - GET /bookings/{booking_id}
@@ -404,11 +440,13 @@ Create `backend/app/api/v1/bookings.py`:
 - GET /bookings/{booking_id}/qr
 
 Create `backend/app/api/v1/payments.py`:
+
 - POST /payments/create-order
 - POST /payments/verify
 - POST /payments/webhook (no auth, validate signature)
 
 Create `backend/app/api/v1/promotions.py`:
+
 - GET /promotions (active promotions near player)
 - POST /promotions (owner only)
 - GET /promotions/{promotion_id}
@@ -416,15 +454,18 @@ Create `backend/app/api/v1/promotions.py`:
 - DELETE /promotions/{promotion_id} (owner only)
 
 Create `backend/app/api/v1/reviews.py`:
+
 - POST /reviews
 - GET /cafes/{cafe_id}/reviews
 
 Create `backend/app/api/v1/owner.py`:
+
 - GET /owner/dashboard (summary stats)
 - GET /owner/bookings (cafe bookings)
 - PATCH /owner/bookings/{booking_id}/status
 
 Create `backend/app/api/v1/admin.py`:
+
 - GET /admin/cafes/pending
 - PATCH /admin/cafes/{cafe_id}/verify
 - GET /admin/users
@@ -434,6 +475,7 @@ Update `backend/app/api/v1/router.py`:
 Include all above routers with correct prefixes and tags.
 
 Update `backend/app/api/deps.py`:
+
 - get_db (already exists, keep it)
 - get_current_user (decode JWT, return user object)
 - get_current_active_user (get_current_user + check is_active)
@@ -444,6 +486,7 @@ Update `backend/app/api/deps.py`:
 #### Frontend — Foundation
 
 Create `frontend/src/app/layout.tsx`:
+
 - Root layout for Next.js App Router
 - Dark theme (gaming aesthetic, not childish)
 - Tailwind CSS
@@ -453,6 +496,7 @@ Create `frontend/src/app/layout.tsx`:
 - Providers wrapper (auth provider, query client)
 
 Create `frontend/src/app/page.tsx`:
+
 - Home page — café discovery landing
 - Hero section with KHEL-O branding and tagline
   "Find your next gaming session"
@@ -465,6 +509,7 @@ Create `frontend/src/app/page.tsx`:
 - Clean dark theme with accent color (suggest: electric blue or neon green)
 
 Create `frontend/src/app/(auth)/login/page.tsx`:
+
 - Login page
 - Google Sign In button (primary, prominent)
 - Email/password form (secondary)
@@ -472,12 +517,14 @@ Create `frontend/src/app/(auth)/login/page.tsx`:
 - Mobile-friendly design
 
 Create `frontend/src/app/(auth)/register/page.tsx`:
+
 - Register page
 - Google Sign Up button (primary)
 - Email, password, full name form (secondary)
 - Mobile-friendly design
 
 Create `frontend/src/components/shared/BottomNav.tsx`:
+
 - Mobile bottom navigation bar
 - Icons: Home, Search, Bookings, Profile
 - Active state highlighting
@@ -485,6 +532,7 @@ Create `frontend/src/components/shared/BottomNav.tsx`:
 - Hidden on desktop (desktop uses top nav)
 
 Create `frontend/src/components/shared/Navbar.tsx`:
+
 - Top navigation for desktop
 - KHEL-O logo/name
 - Login and Register buttons when not authenticated
@@ -494,6 +542,7 @@ Create `frontend/src/components/shared/Navbar.tsx`:
 #### Frontend — Dependencies
 
 Ensure `frontend/package.json` includes:
+
 - next (14+)
 - react, react-dom
 - typescript
@@ -530,11 +579,13 @@ All of the following must be true before Phase 0 is considered done:
 ## Phase 1 — Authentication
 
 ### Goal
+
 A user can register and log in using Google OAuth or email and password.
 JWT tokens are issued. Role-based access works.
 Authenticated users can call `/auth/me` and get their profile.
 
 ### Reference Docs
+
 - docs/15-authentication.md
 - docs/06-domain-model.md (User entity)
 - docs/07-state-machines.md (User states)
@@ -546,12 +597,14 @@ Authenticated users can call `/auth/me` and get their profile.
 #### auth_service.py — Implement fully
 
 register_with_email:
+
 - Check if email already exists → raise ConflictException
 - Hash password using passlib bcrypt
 - Create user with role gamer by default
 - Return UserResponse
 
 login_with_email:
+
 - Find user by email → raise AuthException if not found
 - Verify password hash → raise AuthException if wrong
 - Check user is_active → raise ForbiddenException if not
@@ -560,6 +613,7 @@ login_with_email:
 - Return tokens + user
 
 login_with_google:
+
 - Receive Google ID token from frontend
 - Verify token with Google API:
   GET https://oauth2.googleapis.com/tokeninfo?id_token={token}
@@ -570,12 +624,14 @@ login_with_google:
 - Never require a password for Google users
 
 refresh_access_token:
+
 - Decode refresh token
 - Validate it has not expired
 - Generate new access token
 - Return new access token
 
 get_current_user:
+
 - Decode JWT access token
 - Fetch user from database
 - Raise AuthException if token invalid or expired
@@ -585,26 +641,31 @@ get_current_user:
 #### auth.py router — Implement all 5 endpoints
 
 POST /auth/register:
+
 - Body: UserCreateRequest
 - Returns: UserResponse + tokens
 - Status: 201
 
 POST /auth/login:
+
 - Body: email, password
 - Returns: access_token, refresh_token, user
 - Status: 200
 
 POST /auth/google:
+
 - Body: idToken (from Google Sign In on frontend)
 - Returns: access_token, refresh_token, user
 - Status: 200
 
 POST /auth/refresh:
+
 - Body: refresh_token
 - Returns: new access_token
 - Status: 200
 
 GET /auth/me:
+
 - Requires: Bearer token in Authorization header
 - Returns: UserResponse
 - Status: 200
@@ -626,6 +687,7 @@ All protected routes will use this dependency.
 #### Google OAuth Setup
 
 In `frontend/src/lib/auth.ts`:
+
 - Implement Google Sign In using Google Identity Services
   (load accounts.google.com/gsi/client script)
 - On sign in success, receive credential (ID token)
@@ -637,6 +699,7 @@ In `frontend/src/lib/auth.ts`:
 #### Auth Store
 
 In `frontend/src/store/authStore.ts`:
+
 - user: UserResponse | null
 - accessToken: string | null
 - isAuthenticated: boolean
@@ -647,6 +710,7 @@ In `frontend/src/store/authStore.ts`:
 #### API Client
 
 In `frontend/src/lib/api.ts`:
+
 - Axios instance with base URL from env
 - Request interceptor: attach Authorization header if token exists
 - Response interceptor: if 401, attempt token refresh, retry request
@@ -655,6 +719,7 @@ In `frontend/src/lib/api.ts`:
 #### Login Page — Wire Up
 
 Connect `frontend/src/app/(auth)/login/page.tsx` to:
+
 - Google auth flow
 - Email/password form → POST /auth/login
 - On success: store tokens, redirect to home
@@ -663,6 +728,7 @@ Connect `frontend/src/app/(auth)/login/page.tsx` to:
 #### Register Page — Wire Up
 
 Connect `frontend/src/app/(auth)/register/page.tsx` to:
+
 - Google auth flow (same as login, creates account if new)
 - Email/password/name form → POST /auth/register
 - On success: redirect to home
@@ -690,11 +756,13 @@ Connect `frontend/src/app/(auth)/register/page.tsx` to:
 ## Phase 2 — Café Management
 
 ### Goal
+
 A café owner can create and manage their café profile and hardware tiers.
 Admin can verify or reject a café.
 Only verified cafés appear in player discovery.
 
 ### Reference Docs
+
 - docs/06-domain-model.md (Café, HardwareTier entities)
 - docs/07-state-machines.md (Café verification state machine)
 - docs/08-events.md (CaféCreated, CaféVerified, CaféRejected)
@@ -705,29 +773,34 @@ Only verified cafés appear in player discovery.
 #### cafe_service.py — Implement fully
 
 create_cafe:
+
 - Only cafe_owner role can create
 - One owner can have multiple cafés (for multi-location support)
 - Set verification_status to pending on creation
 - Return CafeResponse
 
 update_cafe:
+
 - Owner can only update their own café
 - Cannot update verification_status through this method
 - Raise ForbiddenException if owner_id does not match
 
 verify_cafe (admin only):
+
 - Status can be: verified, rejected, suspended
 - When verified: café becomes discoverable by players
 - When rejected: owner should be notified (email)
 - When suspended: café hidden from discovery
 
 add_hardware_tier:
+
 - Owner can add tiers to their own café only
 - Must have at least one active tier to be bookable
 - Validate: pricePerHour must be greater than 0
 - Validate: seatsInTier must be greater than 0
 
 update_hardware_tier:
+
 - Owner can only update tiers belonging to their café
 - Cannot delete a tier if it has confirmed future bookings
   (deactivate instead)
@@ -735,12 +808,14 @@ update_hardware_tier:
 #### cafes.py router — Implement all endpoints
 
 Owner endpoints:
+
 - POST /cafes — create café
 - PATCH /cafes/{cafe_id} — update café
 - POST /cafes/{cafe_id}/tiers — add tier
 - PATCH /cafes/{cafe_id}/tiers/{tier_id} — update tier
 
 Admin endpoints:
+
 - GET /admin/cafes/pending — list pending verification
 - PATCH /admin/cafes/{cafe_id}/verify — verify or reject
 
@@ -749,6 +824,7 @@ Admin endpoints:
 Create Alembic migration if any schema changes are needed.
 Do not edit 001_initial_schema.py.
 Create 002_add_indexes.py with:
+
 - Index on cafes.city
 - Index on cafes.verification_status
 - Index on cafes.owner_id
@@ -759,17 +835,20 @@ Create 002_add_indexes.py with:
 #### Owner Dashboard Foundation
 
 Create `frontend/src/app/owner/layout.tsx`:
+
 - Sidebar navigation for desktop
 - Bottom navigation for mobile (adapted for owner context)
 - Check user role is cafe_owner, redirect if not
 - Links: Dashboard, My Café, Hardware Tiers, Bookings, Promotions
 
 Create `frontend/src/app/owner/page.tsx`:
+
 - Welcome message
 - Quick stats placeholders (total bookings, revenue — static for now)
 - Call to action if no café exists yet: "Set up your café profile"
 
 Create `frontend/src/app/owner/cafe/page.tsx`:
+
 - Form to create/edit café profile
 - Fields: name, description, address, city, state, pincode,
   phone, email, opening time, closing time, total seats
@@ -779,6 +858,7 @@ Create `frontend/src/app/owner/cafe/page.tsx`:
 - Show verification status badge
 
 Create `frontend/src/app/owner/tiers/page.tsx`:
+
 - List existing hardware tiers
 - Form to add new tier
 - Fields: name, description, GPU, CPU, RAM, monitor Hz,
@@ -803,11 +883,13 @@ Create `frontend/src/app/owner/tiers/page.tsx`:
 ## Phase 3 — Café Discovery
 
 ### Goal
+
 A player can browse, search, and filter gaming cafés.
 A player can view a café profile with hardware tiers, photos, amenities, and reviews.
 Only verified and active cafés appear in discovery.
 
 ### Reference Docs
+
 - docs/05-user-flows.md (café discovery flow)
 - docs/06-domain-model.md (Café entity)
 - docs/09-business-rules.md (discovery rules)
@@ -817,17 +899,20 @@ Only verified and active cafés appear in discovery.
 #### cafe_service.py — Implement discovery methods
 
 list_cafes:
+
 - Filter by: city (required or use geolocation), isActive, verificationStatus=verified
 - Sort by: rating desc, distance (if lat/lng provided)
 - Paginate: default 20 per page
 - Return: CafeListResponse (lightweight, for cards)
 
 search_cafes:
+
 - Full text search on café name and description
 - Filter by: city, minPrice, maxPrice, amenities list
 - Return: CafeListResponse paginated
 
 get_cafe:
+
 - Return full CafeResponse including:
   - All hardware tiers
   - Active promotions
@@ -843,6 +928,7 @@ Filter by verification_status = verified AND is_active = true always.
 ### Frontend Tasks
 
 Create `frontend/src/app/cafes/page.tsx`:
+
 - Search bar at top (search by name or city)
 - Filter panel: price range, amenities, hardware tier type
 - Grid of CafeCard components
@@ -852,6 +938,7 @@ Create `frontend/src/app/cafes/page.tsx`:
 - Map toggle (placeholder for now, implement in Phase 10)
 
 Create `frontend/src/components/cafe/CafeCard.tsx`:
+
 - Café photo (first photo or placeholder)
 - Café name, city
 - Average rating with stars
@@ -861,6 +948,7 @@ Create `frontend/src/components/cafe/CafeCard.tsx`:
 - Click navigates to café detail page
 
 Create `frontend/src/app/cafes/[id]/page.tsx`:
+
 - Hero image or photo gallery
 - Café name, address, rating
 - Opening hours
@@ -876,6 +964,7 @@ Create `frontend/src/app/cafes/[id]/page.tsx`:
 - Map placeholder showing location
 
 Create `frontend/src/components/cafe/HardwareTierCard.tsx`:
+
 - Tier name and specs
 - Price display
 - Promotion badge if active:
@@ -902,12 +991,14 @@ Create `frontend/src/components/cafe/HardwareTierCard.tsx`:
 ## Phase 4 — Booking Flow
 
 ### Goal
+
 A player can select a hardware tier, date, time, and duration, and create a booking.
 The booking starts in pending_payment status.
 A QR code is generated after payment confirmation.
 Cancellation enforces the 2-hour rule.
 
 ### Reference Docs
+
 - docs/07-state-machines.md (Booking state machine)
 - docs/08-events.md (BookingCreated, BookingConfirmed, BookingCancelled)
 - docs/09-business-rules.md (booking rules)
@@ -918,6 +1009,7 @@ Cancellation enforces the 2-hour rule.
 #### booking_service.py — Implement fully
 
 create_booking:
+
 - Validate café is verified and active
 - Validate hardware tier belongs to café and is active
 - Validate session_date is not in the past
@@ -945,6 +1037,7 @@ create_booking:
 - Return BookingResponse
 
 cancel_booking:
+
 - Validate booking belongs to requesting user OR user is admin
 - Validate booking is in confirmed or pending_payment status
 - Check cancellation time:
@@ -956,6 +1049,7 @@ cancel_booking:
 - Return BookingResponse with cancellation details
 
 generate_qr_code:
+
 - Called as background task after booking is confirmed
 - Generate QR code containing JSON:
   {bookingId, bookingReference, cafeId, sessionDate, startTime, tier}
@@ -966,44 +1060,53 @@ generate_qr_code:
 #### bookings.py router — Implement all endpoints
 
 POST /bookings:
+
 - Requires gamer authentication
 - Body: BookingCreateRequest
 - Returns: BookingResponse with payment instructions
 - Status: 201
 
 GET /bookings:
+
 - Requires authentication
 - Returns gamer's own booking history paginated
 - Filter by status optional
 
 GET /bookings/{booking_id}:
+
 - Requires authentication
 - Gamer can see own bookings, owner can see café bookings, admin sees all
 - Returns: BookingResponse
 
 POST /bookings/{booking_id}/cancel:
+
 - Requires authentication
 - Body: BookingCancelRequest (reason optional)
 - Returns: BookingResponse with updated status
 
 GET /bookings/{booking_id}/qr:
+
 - Requires authentication (gamer who owns booking or café owner)
 - Returns: QR code image URL or redirect to image
 
 ### Frontend Tasks
 
 Create `frontend/src/app/bookings/new/page.tsx`:
+
 - Booking form stepper (mobile-friendly, full screen steps):
 
   Step 1: Select date
+
   - Date picker, minimum today + 30 minutes
-  
+
   Step 2: Select time and duration
+
   - Start time picker
   - Duration selector (1h, 1.5h, 2h, 3h, 4h, custom)
   - Show end time calculated automatically
-  
+
   Step 3: Review and confirm
+
   - Show selected café name, tier, date, time
   - Show price breakdown:
     Base amount
@@ -1013,12 +1116,14 @@ Create `frontend/src/app/bookings/new/page.tsx`:
   - Proceed to payment button
 
 Create `frontend/src/app/bookings/page.tsx`:
+
 - List of player's bookings
 - Tabs: Upcoming, Past, Cancelled
 - BookingCard for each booking showing:
   Café name, tier, date, time, status badge, amount
 
 Create `frontend/src/app/bookings/[id]/page.tsx`:
+
 - Full booking detail
 - Status badge (color coded)
 - Café details
@@ -1029,6 +1134,7 @@ Create `frontend/src/app/bookings/[id]/page.tsx`:
 - Refund eligibility message
 
 Create `frontend/src/components/booking/BookingQR.tsx`:
+
 - Display QR code image prominently
 - "Show this at the café" instruction text
 - Download QR code button
@@ -1054,12 +1160,14 @@ Create `frontend/src/components/booking/BookingQR.tsx`:
 ## Phase 5 — Payments (Razorpay)
 
 ### Goal
+
 Player pays for booking using Razorpay.
 On payment success, booking status moves to confirmed.
 On payment failure, booking remains in pending_payment with retry option.
 Webhooks handle async payment events.
 
 ### Reference Docs
+
 - docs/16-payments.md
 - docs/07-state-machines.md (Payment state machine)
 - docs/08-events.md (PaymentCaptured, PaymentFailed, RefundProcessed)
@@ -1069,6 +1177,7 @@ Webhooks handle async payment events.
 #### payment_service.py — Implement fully
 
 create_razorpay_order:
+
 - Validate booking exists and is in pending_payment status
 - Validate requesting user owns the booking
 - Create Razorpay order via Razorpay SDK:
@@ -1080,6 +1189,7 @@ create_razorpay_order:
   razorpayOrderId, amount (in rupees), currency, keyId (public key)
 
 verify_payment:
+
 - Receive: razorpayOrderId, razorpayPaymentId, razorpaySignature
 - Validate signature using HMAC-SHA256:
   message = razorpayOrderId + "|" + razorpayPaymentId
@@ -1093,6 +1203,7 @@ verify_payment:
 - Return PaymentResponse
 
 handle_webhook:
+
 - Validate Razorpay webhook signature using webhook secret
 - Handle events:
   payment.captured: same as verify_payment flow
@@ -1102,6 +1213,7 @@ handle_webhook:
   (return 200 but log the error — Razorpay retries on non-200)
 
 process_refund:
+
 - Only called when cancellation is within refund window
 - Initiate refund via Razorpay SDK using razorpay_payment_id
 - Full refund only
@@ -1112,18 +1224,21 @@ process_refund:
 #### payments.py router — Implement all endpoints
 
 POST /payments/create-order:
+
 - Requires gamer authentication
 - Body: { bookingId }
 - Returns: PaymentCreateResponse
 - Status: 200
 
 POST /payments/verify:
+
 - Requires gamer authentication
 - Body: PaymentVerifyRequest
 - Returns: PaymentResponse
 - Status: 200
 
 POST /payments/webhook:
+
 - No authentication
 - Validate Razorpay-Signature header
 - Body: Razorpay webhook payload
@@ -1135,6 +1250,7 @@ POST /payments/webhook:
 #### Razorpay Integration
 
 In `frontend/src/lib/razorpay.ts`:
+
 - Load Razorpay checkout script dynamically
 - Function initiatePayment(orderData, bookingId):
   Opens Razorpay checkout modal
@@ -1142,6 +1258,7 @@ In `frontend/src/lib/razorpay.ts`:
   On failure: show retry button, do not redirect
 
 Update `frontend/src/app/bookings/new/page.tsx`:
+
 - After booking created (POST /bookings), call POST /payments/create-order
 - Open Razorpay checkout with the order data
 - On Razorpay success callback: call POST /payments/verify
@@ -1152,6 +1269,7 @@ Update `frontend/src/app/bookings/new/page.tsx`:
 #### Payment States on Frontend
 
 Show different UI based on booking status:
+
 - pending_payment: Show "Complete Payment" button
 - confirmed: Show QR code and session details
 - cancelled: Show cancellation reason and refund status
@@ -1177,11 +1295,13 @@ Show different UI based on booking status:
 ## Phase 6 — Promotions
 
 ### Goal
+
 Café owners can create off-peak promotions with a discount up to 50%.
 Promotions are displayed to players with gamified styling.
 Discounts are automatically applied when players book within promotion window.
 
 ### Reference Docs
+
 - docs/07-state-machines.md (Promotion state machine)
 - docs/08-events.md (PromotionCreated, PromotionExpired)
 - docs/09-business-rules.md (promotion rules)
@@ -1191,6 +1311,7 @@ Discounts are automatically applied when players book within promotion window.
 #### promotion_service.py — Implement fully
 
 create_promotion:
+
 - Owner can only create promotions for their own café
 - Validate discount_percentage is between 1 and 50
 - Validate valid_until is after valid_from
@@ -1200,6 +1321,7 @@ create_promotion:
 - Set is_active to true immediately (no admin approval needed)
 
 get_active_promotions_for_cafe:
+
 - Return promotions where:
   is_active = true
   valid_from <= now <= valid_until
@@ -1208,6 +1330,7 @@ get_active_promotions_for_cafe:
   current_uses < max_uses (or max_uses is null)
 
 apply_promotion:
+
 - Called during booking creation
 - Validate promotion is still active at booking time
 - Validate promotion applies to the requested tier
@@ -1217,6 +1340,7 @@ apply_promotion:
 #### Background Task — Promotion Expiry
 
 Create a background task that runs every hour:
+
 - Find promotions where valid_until < now and is_active = true
 - Set is_active = false
 - Log the expiry
@@ -1226,6 +1350,7 @@ Create a background task that runs every hour:
 #### Promotion Display
 
 Update `frontend/src/components/cafe/HardwareTierCard.tsx`:
+
 - If active promotion on this tier:
   Show original price with strikethrough
   Show discounted price in accent color (bold)
@@ -1234,12 +1359,14 @@ Update `frontend/src/components/cafe/HardwareTierCard.tsx`:
   Show slots remaining if max_uses set and running low
 
 Create `frontend/src/components/cafe/PromotionBadge.tsx`:
+
 - Gamified badge component
 - Variants: flash-deal, off-peak, happy-hour
 - Animated pulse effect for urgency
 - Shows discount percentage prominently
 
 Update `frontend/src/app/page.tsx` (home page):
+
 - Active Promotions section
 - Horizontally scrollable cards on mobile
 - Each card shows:
@@ -1251,6 +1378,7 @@ Update `frontend/src/app/page.tsx` (home page):
 #### Owner Promotion Management
 
 Create `frontend/src/app/owner/promotions/page.tsx`:
+
 - List of current and past promotions
 - Create promotion form:
   Title
@@ -1282,10 +1410,12 @@ Create `frontend/src/app/owner/promotions/page.tsx`:
 ## Phase 7 — Owner Dashboard
 
 ### Goal
+
 Café owners can see their bookings, manage sessions, and view basic analytics.
 Owner can mark sessions as started (by scanning QR) and completed.
 
 ### Reference Docs
+
 - docs/07-state-machines.md (Booking state machine)
 - docs/06-domain-model.md (Booking, Session)
 
@@ -1294,6 +1424,7 @@ Owner can mark sessions as started (by scanning QR) and completed.
 #### owner.py — Implement fully
 
 GET /owner/dashboard:
+
 - Total bookings this month
 - Revenue this month (sum of total_amount for confirmed+completed bookings)
 - Upcoming bookings today (count)
@@ -1302,6 +1433,7 @@ GET /owner/dashboard:
 - Most popular tier this month
 
 GET /owner/bookings:
+
 - List all bookings for owner's café
 - Filter by: status, date, tier
 - Sort by: session_date desc
@@ -1309,6 +1441,7 @@ GET /owner/bookings:
 - Paginated
 
 PATCH /owner/bookings/{booking_id}/status:
+
 - Owner can update booking status:
   confirmed → completed (after session ends)
   confirmed → no_show (if player does not arrive)
@@ -1318,6 +1451,7 @@ PATCH /owner/bookings/{booking_id}/status:
 ### Frontend Tasks
 
 Update `frontend/src/app/owner/page.tsx`:
+
 - Dashboard with real data from GET /owner/dashboard
 - Stats cards:
   Bookings this month (number)
@@ -1328,6 +1462,7 @@ Update `frontend/src/app/owner/page.tsx`:
 - Quick action buttons: View All Bookings, Create Promotion
 
 Create `frontend/src/app/owner/bookings/page.tsx`:
+
 - Table/list of all café bookings
 - Columns: Reference, Gamer (first name), Tier, Date/Time, Status, Amount
 - Status filter tabs: All, Upcoming, Completed, Cancelled, No Show
@@ -1353,11 +1488,13 @@ Create `frontend/src/app/owner/bookings/page.tsx`:
 ## Phase 8 — Reviews and Notifications
 
 ### Goal
+
 Players can submit one review per completed booking.
 Email notifications are sent for key events.
 Push notifications (Web Push) alert players before sessions.
 
 ### Reference Docs
+
 - docs/17-notifications.md
 - docs/08-events.md (ReviewSubmitted, SessionReminder)
 
@@ -1366,6 +1503,7 @@ Push notifications (Web Push) alert players before sessions.
 #### review_service.py — Implement fully
 
 submit_review:
+
 - Validate booking belongs to requesting gamer
 - Validate booking status is completed
 - Validate no existing review for this booking (one per booking)
@@ -1376,22 +1514,26 @@ submit_review:
 #### notification_service.py — Implement with Resend
 
 send_booking_confirmation:
+
 - To: gamer email
 - Subject: "Your gaming session is confirmed! 🎮"
 - Content: booking reference, café name, date, time, tier, total paid
 - Include QR code as embedded image or link
 
 send_payment_failure:
+
 - To: gamer email
 - Subject: "Payment unsuccessful — retry your booking"
 - Content: booking reference, retry link
 
 send_session_reminder:
+
 - To: gamer email
 - Subject: "Your session starts in 30 minutes! 🎮"
 - Content: café address, tier, start time, link to QR code
 
 send_refund_confirmation:
+
 - To: gamer email
 - Subject: "Refund processed for your booking"
 - Content: booking reference, refund amount
@@ -1399,6 +1541,7 @@ send_refund_confirmation:
 #### Background Job — Session Reminders
 
 Create a background job that runs every 15 minutes:
+
 - Find confirmed bookings starting in 30 to 45 minutes
 - Send reminder email and web push notification
 - Mark reminder_sent = true to prevent duplicate emails
@@ -1406,18 +1549,21 @@ Create a background job that runs every 15 minutes:
 ### Frontend Tasks
 
 Create `frontend/src/components/review/ReviewForm.tsx`:
+
 - Star rating selector (1-5 stars)
 - Comment textarea (optional)
 - Submit review button
 - Show on booking detail page ONLY if status is completed and not reviewed
 
 Update `frontend/src/app/cafes/[id]/page.tsx`:
+
 - Show review summary: average rating, total count, star breakdown
 - List of reviews: gamer name, rating stars, comment, date
 
 #### Web Push Notifications
 
 In `frontend/src/lib/push.ts`:
+
 - Request notification permission from player
 - Subscribe to Web Push service
 - Send subscription object to backend POST /users/push-subscription
@@ -1438,9 +1584,11 @@ In `frontend/src/lib/push.ts`:
 ## Phase 9 — Admin Panel
 
 ### Goal
+
 Platform admin can manage users, verify cafés, view platform metrics, and handle manual refunds if needed.
 
 ### Reference Docs
+
 - docs/06-domain-model.md (Admin actions)
 - docs/09-business-rules.md (admin rules)
 
@@ -1449,6 +1597,7 @@ Platform admin can manage users, verify cafés, view platform metrics, and handl
 #### admin.py — Implement fully
 
 GET /admin/stats:
+
 - Total registered users (gamers, owners)
 - Total cafés (verified, pending, rejected)
 - Total bookings (all time, this month)
@@ -1456,35 +1605,42 @@ GET /admin/stats:
 - Platform status overview
 
 GET /admin/cafes:
+
 - Filter by: verification_status, city
 - Search by: café name, owner email
 - Paginated
 
 PATCH /admin/cafes/{cafe_id}/verify:
+
 - Body: { status: "verified" | "rejected" | "suspended", reason: string optional }
 - Update verification_status
 - Send notification email to owner
 
 GET /admin/users:
+
 - Search by email, name, role
 - Paginated
 
 PATCH /admin/users/{user_id}/deactivate:
+
 - Deactivate user account
 - Cancel any pending/confirmed bookings for this user
 
 ### Frontend Tasks
 
 Create `frontend/src/app/admin/layout.tsx`:
+
 - Admin sidebar: Overview, Cafés, Users, Bookings, System
 - Protect route: require role = admin
 
 Create `frontend/src/app/admin/page.tsx`:
+
 - Platform metrics overview dashboard
 - Pending café verification queue alert banner
 - Quick action links
 
 Create `frontend/src/app/admin/cafes/page.tsx`:
+
 - List of cafés with verification status filters
 - Pending verification section:
   Show café name, owner details, address, photos, tiers
@@ -1492,6 +1648,7 @@ Create `frontend/src/app/admin/cafes/page.tsx`:
   Reject button (with reason modal)
 
 Create `frontend/src/app/admin/users/page.tsx`:
+
 - User management table
 - Search and filter by role
 - Deactivate user toggle
@@ -1510,11 +1667,13 @@ Create `frontend/src/app/admin/users/page.tsx`:
 ## Phase 10 — PWA and Polish
 
 ### Goal
+
 Make KHEL-O fully installable as a PWA on mobile devices.
 Ensure fast load times, offline fallback page, and smooth animations.
 Complete end-to-end testing of the entire user journey.
 
 ### Reference Docs
+
 - docs/14-frontend-architecture.md
 - docs/22-definition-of-done.md
 
@@ -1523,6 +1682,7 @@ Complete end-to-end testing of the entire user journey.
 #### PWA Configuration
 
 Create `frontend/public/manifest.json`:
+
 - name: "KHEL-O — Gaming Café Marketplace"
 - short_name: "KHEL-O"
 - start_url: "/"
@@ -1532,11 +1692,13 @@ Create `frontend/public/manifest.json`:
 - icons: 192x192, 512x512, maskable icon
 
 Configure `next-pwa` in `frontend/next.config.js`:
+
 - Enable PWA in production mode
 - Cache static assets, Google fonts, images
 - Offline fallback page (`frontend/src/app/offline/page.tsx`)
 
 Create `frontend/src/app/offline/page.tsx`:
+
 - Friendly offline message: "You are currently offline"
 - "Check your connection and try again" button
 - Cached bookings visible offline if possible
@@ -1551,6 +1713,7 @@ Create `frontend/src/app/offline/page.tsx`:
 #### Mobile Install Prompt
 
 Create `frontend/src/components/shared/InstallPWA.tsx`:
+
 - Detect `beforeinstallprompt` browser event
 - Show subtle banner: "Add KHEL-O to Home Screen for faster access"
 - Install button triggers browser install prompt
@@ -1591,4 +1754,7 @@ Test and polish the full journey on mobile view (375px width):
 
 This implementation plan is complete and locked.
 All code written for KHEL-O must conform to the phases and acceptance criteria defined above.
+
+```
+
 ```

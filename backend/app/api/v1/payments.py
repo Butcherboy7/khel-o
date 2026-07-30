@@ -50,9 +50,10 @@ async def payment_webhook(
     x_razorpay_signature: Optional[str] = Header(None, alias="X-Razorpay-Signature"),
     db: AsyncSession = Depends(get_db)
 ):
-    payload: Dict[str, Any] = await request.json()
+    body_bytes = await request.body()
+    signature = x_razorpay_signature or ""
     payment_repo = PaymentRepository(db)
     booking_repo = BookingRepository(db)
     service = PaymentService(payment_repo, booking_repo)
-    result = await service.handle_webhook(payload, signature=x_razorpay_signature)
+    result = await service.handle_webhook(raw_body_bytes=body_bytes, signature=signature)
     return result

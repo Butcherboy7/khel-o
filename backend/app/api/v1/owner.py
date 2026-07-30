@@ -78,3 +78,45 @@ async def update_booking_status(
             "booking": result
         }
     }
+
+@router.post("/bookings/{booking_id}/checkin", status_code=status.HTTP_200_OK)
+async def checkin_booking(
+    booking_id: UUID,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    booking_repo = BookingRepository(db)
+    cafe_repo = CafeRepository(db)
+    service = OwnerService(booking_repo, cafe_repo)
+    result = await service.checkin_booking(
+        booking_id=booking_id,
+        owner_id=current_owner.id
+    )
+    return {
+        "success": True,
+        "data": {
+            "booking": result
+        }
+    }
+
+@router.post("/cafes/{cafe_id}/emergency-close", status_code=status.HTTP_200_OK)
+async def emergency_close_cafe(
+    cafe_id: UUID,
+    close_date: date = Query(..., alias="date"),
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    booking_repo = BookingRepository(db)
+    cafe_repo = CafeRepository(db)
+    service = OwnerService(booking_repo, cafe_repo)
+    cancelled_bookings = await service.emergency_close_day(
+        owner_id=current_owner.id,
+        cafe_id=cafe_id,
+        closure_date=close_date
+    )
+    return {
+        "success": True,
+        "data": {
+            "cancelledBookings": cancelled_bookings
+        }
+    }

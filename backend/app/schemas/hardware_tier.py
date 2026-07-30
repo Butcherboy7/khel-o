@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
@@ -11,8 +11,16 @@ class HardwareTierBase(BaseModel):
     name: str = Field(..., max_length=100)
     description: Optional[str] = None
     specs: Dict[str, Any] = Field(default_factory=dict)
-    seats_in_tier: int = Field(..., gt=0)
+    total_seats: int = Field(..., gt=0)
+    app_bookable_seats: int = Field(..., ge=0)
+    preset_category: Optional[str] = Field(None, max_length=50)
     price_per_hour: float = Field(..., gt=0.0)
+
+    @model_validator(mode='after')
+    def validate_seats(self) -> 'HardwareTierBase':
+        if self.app_bookable_seats > self.total_seats:
+            raise ValueError("appBookableSeats cannot exceed totalSeats")
+        return self
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -28,9 +36,20 @@ class HardwareTierUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
     specs: Optional[Dict[str, Any]] = None
-    seats_in_tier: Optional[int] = Field(None, gt=0)
+    total_seats: Optional[int] = Field(None, gt=0)
+    app_bookable_seats: Optional[int] = Field(None, ge=0)
+    active_seats_count: Optional[int] = Field(None, ge=0)
+    preset_category: Optional[str] = Field(None, max_length=50)
     price_per_hour: Optional[float] = Field(None, gt=0.0)
     is_active: Optional[bool] = None
+
+    @model_validator(mode='after')
+    def validate_seats_update(self) -> 'HardwareTierUpdate':
+        total = self.total_seats
+        bookable = self.app_bookable_seats
+        if total is not None and bookable is not None and bookable > total:
+            raise ValueError("appBookableSeats cannot exceed totalSeats")
+        return self
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -42,6 +61,9 @@ HardwareTierUpdateRequest = HardwareTierUpdate
 class HardwareTierResponse(HardwareTierBase):
     id: UUID
     cafe_id: UUID
+    active_seats_count: int
+    performance_rating: Optional[float] = None
+    warning: Optional[str] = None
     is_active: bool
     active_promotion: Optional[Dict[str, Any]] = None
     created_at: datetime

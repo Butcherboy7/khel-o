@@ -1,5 +1,7 @@
 import hmac
 import hashlib
+import json
+import logging
 from typing import Optional, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
@@ -11,9 +13,14 @@ from app.schemas.payment import PaymentCreateResponse, PaymentVerifyRequest, Pay
 from app.models.payment import Payment, PaymentStatus
 from app.models.booking import BookingStatus
 from app.models.user import User, UserRole
+from app.models.cafe import Cafe
+from app.models.owner_payout_account import OwnerPayoutAccount
+from app.models.platform_fee import PlatformFee
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 from app.background.qr_generator import generate_and_save_qr_code
 from app.services.notification_service import NotificationService
+
+logger = logging.getLogger(__name__)
 
 class PaymentService:
     def __init__(
@@ -40,6 +47,27 @@ class PaymentService:
                 error_code="INVALID_BOOKING_STATUS"
             )
 
+        # Get Café and Payout details
+        from sqlalchemy import select
+        cafe_stmt = select(Cafe).where(Cafe.id == booking.cafe_id)
+        cafe_res = await self.payment_repo.db.execute(cafe_stmt)
+        cafe = cafe_res.scalars().first()
+
+        if not cafe:
+             raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+
+        payout_stmt = select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == cafe.owner_id)
+        payout_res = await self.payment_repo.db.execute(payout_stmt)
+        payout = payout_res.scalars().first()
+
+        # Check KYC completion if Route split is active
+        if getattr(settings, "RAZORPAY_ROUTE_ENABLED", False):
+            if not payout or payout.kyc_status != "activated":
+                raise ValidationException(
+                    message="Café owner has not completed payout setup or KYC is pending",
+                    error_code="OWNER_KYC_INCOMPLETE"
+                )
+
         existing_payment = await self.payment_repo.get_by_booking_id(booking_id)
         if existing_payment:
             return PaymentCreateResponse(
@@ -49,7 +77,18 @@ class PaymentService:
                 key_id=settings.RAZORPAY_KEY_ID
             )
 
+        # Fetch settlement share from PlatformFee row
+        fee_stmt = select(PlatformFee).where(PlatformFee.booking_id == booking_id)
+        fee_res = await self.payment_repo.db.execute(fee_stmt)
+        fee_row = fee_res.scalars().first()
+        owner_share = fee_row.owner_settlement_amount if fee_row else (booking.base_amount - booking.discount_amount)
+
+        # Build order params (in real application we call Razorpay client, here we write mock and log transfers)
         order_id = f"order_{booking.booking_reference}_{uuid4().hex[:6]}"
+        
+        # Log split for transparency
+        logger.info(f"Creating order {order_id} with Route split: Cafe Owner Share = INR {owner_share}, Platform Share = INR {booking.total_amount - owner_share}")
+
         payment_dict = {
             "id": uuid4(),
             "booking_id": booking_id,
@@ -117,7 +156,34 @@ class PaymentService:
 
         return PaymentResponse.model_validate(updated_payment)
 
-    async def handle_webhook(self, payload: Dict[str, Any], signature: Optional[str] = None) -> Dict[str, str]:
+    async def handle_webhook(self, raw_body_bytes: bytes, signature: Optional[str] = None) -> Dict[str, str]:
+        webhook_secret = settings.RAZORPAY_WEBHOOK_SECRET
+
+        if not webhook_secret:
+            if settings.ENVIRONMENT == "production":
+                logger.error("RAZORPAY_WEBHOOK_SECRET is empty in production mode; rejecting webhook")
+                return {"status": "ok"}
+            else:
+                logger.warning("RAZORPAY_WEBHOOK_SECRET is empty in development mode; proceeding without signature check")
+        else:
+            if not signature:
+                logger.warning("invalid_webhook_signature: Missing signature header")
+                return {"status": "ok"}
+            expected = hmac.new(
+                webhook_secret.encode('utf-8'),
+                raw_body_bytes,
+                hashlib.sha256
+            ).hexdigest()
+            if not hmac.compare_digest(expected, signature):
+                logger.warning("invalid_webhook_signature: Webhook signature mismatch")
+                return {"status": "ok"}
+
+        try:
+            payload = json.loads(raw_body_bytes.decode('utf-8'))
+        except Exception:
+            logger.warning("Invalid JSON payload in webhook")
+            return {"status": "ok"}
+
         event = payload.get("event")
         payload_data = payload.get("payload", {})
         notifier = NotificationService()
@@ -155,6 +221,16 @@ class PaymentService:
                         "failure_reason": error_reason
                     })
                     await notifier.send_payment_failure(self.payment_repo.db, payment.booking_id)
+
+        elif event in ("account.activated", "account.suspended", "account.rejected"):
+            entity = payload_data.get("account", {}).get("entity", {})
+            account_id = entity.get("id")
+            if account_id:
+                from app.services.owner_payout_service import OwnerPayoutService
+                from app.repositories.owner_payout_repository import OwnerPayoutRepository
+                payout_repo = OwnerPayoutRepository(self.payment_repo.db)
+                payout_service = OwnerPayoutService(payout_repo)
+                await payout_service.handle_kyc_webhook(account_id, event)
 
         return {"status": "ok"}
 
