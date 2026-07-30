@@ -200,6 +200,17 @@ export default function NewBookingPage() {
     }
   }, [dateOptions, selectedDate]);
 
+  // Auto-select first available time slot
+  React.useEffect(() => {
+    if (!selectedTime && timeSlots.length > 0) {
+      const activeDate = selectedDate || dateOptions[0]?.dateStr;
+      const firstAvailable = timeSlots.find((slot) => !isSlotDisabled(activeDate, slot));
+      if (firstAvailable) {
+        setSelectedTime(firstAvailable);
+      }
+    }
+  }, [timeSlots, selectedTime, selectedDate, dateOptions]);
+
   // Group time slots by time of day
   const groupedTimeSlots = useMemo(() => {
     const morning: string[] = [];
@@ -487,15 +498,15 @@ export default function NewBookingPage() {
           )}
 
           {/* Fixed Bottom CTA */}
-          <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border p-4 shadow-lg">
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border p-4 shadow-2xl">
             <div className="max-w-md mx-auto">
               <button
                 type="button"
                 disabled={!selectedTime || !selectedDuration}
                 onClick={() => setCurrentStep(3)}
-                className="w-full bg-primary text-white rounded-2xl py-3.5 font-heading font-semibold text-sm shadow-sm active:scale-95 transition-transform disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center space-x-2"
+                className="w-full bg-primary hover:bg-primary-hover text-white rounded-2xl py-3.5 font-heading font-bold text-base shadow-md active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center space-x-2"
               >
-                <span>Continue to Review ({priceCalculation.totalAmount > 0 ? `₹${priceCalculation.totalAmount.toFixed(0)}` : 'Select Slot'})</span>
+                <span>Proceed to Review & Checkout ({priceCalculation.totalAmount > 0 ? `₹${priceCalculation.totalAmount.toFixed(0)}` : 'Select Slot'})</span>
               </button>
             </div>
           </div>
@@ -657,7 +668,7 @@ export default function NewBookingPage() {
           </p>
 
           {/* Fixed Bottom CTA for Step 3 */}
-          <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border p-4 shadow-lg">
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border p-4 shadow-2xl">
             <div className="max-w-md mx-auto">
               <button
                 type="button"
