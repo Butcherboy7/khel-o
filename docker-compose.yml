@@ -59,6 +59,21 @@ services:
     networks:
       - khel_o_net
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: khel_o_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - khel_o_net
+
 volumes:
   pgdata:
   qrdata:

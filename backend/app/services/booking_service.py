@@ -6,6 +6,10 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime, timezone, timedelta, date, time
 
+# KHEL-O is an India-only platform. All customer-submitted booking times
+# are in IST (UTC+5:30). We interpret them as IST for validation.
+IST = timezone(timedelta(hours=5, minutes=30))
+
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
@@ -51,11 +55,11 @@ class BookingService:
         if not tier or str(tier.cafe_id) != str(booking_in.cafe_id) or not tier.is_active:
             raise ValidationException(message="Selected hardware tier is not available", error_code="TIER_NOT_AVAILABLE")
 
-        # Time Validation
-        now_utc = datetime.now(timezone.utc)
-        start_datetime = datetime.combine(booking_in.session_date, booking_in.start_time).replace(tzinfo=timezone.utc)
+        # Time Validation — all submitted times are IST (UTC+5:30)
+        now_ist = datetime.now(IST)
+        start_datetime = datetime.combine(booking_in.session_date, booking_in.start_time).replace(tzinfo=IST)
 
-        if start_datetime - now_utc < timedelta(minutes=30):
+        if start_datetime - now_ist < timedelta(minutes=30):
             raise ValidationException(
                 message="Booking start time must be at least 30 minutes in the future",
                 error_code="INVALID_START_TIME"
@@ -212,10 +216,10 @@ class BookingService:
                 error_code="INVALID_BOOKING_STATUS"
             )
 
-        now_utc = datetime.now(timezone.utc)
-        start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=timezone.utc)
+        now_ist = datetime.now(IST)
+        start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
 
-        if start_datetime - now_utc < timedelta(hours=2):
+        if start_datetime - now_ist < timedelta(hours=2):
             raise ValidationException(
                 message="Cancellations are only allowed up to 2 hours before the session",
                 error_code="CANCELLATION_WINDOW_EXPIRED"

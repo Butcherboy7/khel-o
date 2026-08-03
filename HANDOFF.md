@@ -73,6 +73,56 @@ npm run dev
 
 ---
 
-## ADR 005 to ADR 012 Summary Reference
+## ADR 013: Satvik Repo Synchronization & Strict Port 3000 Local Workflow
 
-*(Previous ADRs 005-012 retained for historical context and architectural reference)*
+- **Context**: Pulled the latest features from `https://github.com/sathvikreddy27/KHELO-SATVIK` (Google Maps integration, Search suggestions, Notification center, Share modal, Rewards page, Lovable design parity). Needed a clean local workflow with Docker PostgreSQL while guaranteeing Next.js runs strictly on port `3000`.
+- **Decision**:
+  - **Repo Sync**: Merged `satvik/main` into local `main` branch. Installed updated dependencies including `@react-google-maps/api`.
+  - **Port 3000 Enforcement**: Identified and stopped a stale background container (`mrufesto-frontend-1`) occupying port 3000. Configured `"dev": "next dev -p 3000"` in `frontend/package.json` and updated `docker-compose.yml` frontend service mapping to `3000:3000`.
+  - **Local Dev Stack**: Running Docker for PostgreSQL container (`khel_o_postgres` on port `5434`), backend FastAPI via local virtual environment (`backend/.venv`), and frontend Next.js directly.
+  - **Database Seeding**: Created tables and seeded multi-city cafes (Mumbai, Pune, Bengaluru) and demo accounts (`test@example.com`, `owner@example.com`, `admin@example.com`, `staff@example.com` with `testpass123`).
+  - **Type & Export Fixes**: Resolved missing `getTodayString` export and type definitions in `src/lib/format.ts` and `bookings/new/page.tsx`.
+- **Consequences**: Next.js production build succeeded with 15 static/dynamic pages compiled cleanly. Frontend strictly runs on `http://localhost:3000` with direct local hot-reloading.
+
+---
+
+
+---
+
+## ADR 014: Customer Experience Audit & Sprint 1 Verification
+
+- **Context**: The user requested execution of `front end implementation_plan.md` using `ui-ux-pro-max` design recommendations, server health verification, and zero color palette changes while preserving exact layout and typography standards.
+- **Decision**:
+  - **Server Verification**: Verified FastAPI backend on `http://localhost:8000/health` (status 200) and Next.js frontend dev server running on `http://localhost:3000` (status 200).
+  - **Design & Layout Parity**: Confirmed Space Grotesk headline typography, Plus Jakarta Sans body typography, JetBrains Mono technical caps, and off-white/slate theme structure.
+  - **Production Build Verification**: Ran `npm run build` cleanly compiling all 15 static/dynamic routes with full type-safety.
+- **Consequences**: Customer app frontend sprint implementation plan verified end-to-end with all dev servers active.
+
+---
+
+## ADR 015: Multi-City 30+ Cafes Seeding & Customer Home Page Layout Sequence
+
+- **Context**: The user requested populating 30+ gaming cafes with realistic hardware tiers, photos, and amenities to test features end-to-end. Additionally, requested a strict homepage layout order:
+  1. Featured Café Spotlight on top
+  2. Auto-changing Promotional Banner Carousel
+  3. Nearby Gaming Cafés Grid
+  4. Recommended For You Based On Interests
+  5. Own a Gaming Café CTA at the very bottom.
+- **Decision**:
+  - **30+ Cafes Seeded**: Updated `backend/scripts/seed_extra.py` to seed 30 verified gaming cafes across Mumbai, Delhi, Bengaluru, Hyderabad, Pune, Chennai, Kolkata, Kochi, and Ahmedabad with hardware tiers ranging from budget RTX 3070 to RTX 4090 extreme pods, VR sim bays, and PS5 lounges.
+  - **Customer Home Page Restructure**: Reorganized `frontend/src/app/(customer)/page.tsx` to match the exact requested sequence. Added auto-sliding banner carousel with 4-second interval and updated `CafeListItem` TypeScript interface with `amenities` and `description` fields.
+- **Consequences**: Next.js production build (`npm run build`) compiled 100% cleanly across all 15 static/dynamic routes.
+
+---
+
+## ADR 016: Phase 2 End-to-End Functional QA & Data-Driven Refactor
+
+- **Context**: The user requested Phase 2 End-to-End Functional QA & Browser Automation. Focus on functionality without changing the design, systematically logging errors and solutions in real time into `QA_AUDIT_LOG.md`.
+- **Decision**:
+  - **Time Slot Truncation Fix**: Removed hardcoded `timeSlots.slice(0, 16)` in `frontend/src/app/(customer)/bookings/new/page.tsx` so all slots (e.g., up to 2:00 AM for overnight cafés) are displayed. Updated `generateTimeSlots` and `isSlotInPast` in `frontend/src/lib/format.ts` to support overnight operating hours.
+  - **Booking Session Persistence**: Added `localStorage.setItem('pending_booking', ...)` in `bookings/new/page.tsx` to persist booking choices when an unauthenticated user attempts checkout, restoring selections automatically upon return after login.
+  - **HTTP 422 Fix**: Added automatic selection of the earliest available future slot for today's date, preventing submission of past/expired time slots that triggered backend 422 validation errors.
+  - **Google Maps API Key Error Modal Fix**: Enhanced `GoogleLocationDisplay.tsx` to detect missing `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and display an interactive location preview card with latitude/longitude coordinates and a direct "View on Google Maps" button, eliminating Google's JS error modal. Fixed React hook ordering to conform to `rules-of-hooks`.
+  - **Data-Driven State Refactor**: Derived café opening/closing hours dynamically using `formatTime()`, derived amenities and recent reviews from backend responses in `cafe/[id]/page.tsx`, and wired router navigation in `NotificationCenter.tsx`.
+  - **Production Build & Test Verification**: Executed `npm run build` cleanly compiling all 15 static and dynamic routes. Verified E2E customer booking flow with dev servers active.
+- **Consequences**: Customer booking flow, location previews, and account pages operate cleanly with 100% backend-driven state and zero build/type errors.

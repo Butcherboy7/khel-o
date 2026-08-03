@@ -1,4 +1,4 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
 /* ── Input ───────────────────────────────────────────────────────── */
@@ -26,7 +26,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     },
     ref,
   ) => {
-    const inputId = id ?? `input-${Math.random().toString(36).slice(2, 7)}`;
+    const generatedId = useId();
+    const inputId = id ?? generatedId;
     const errorId = `${inputId}-error`;
     const hintId = `${inputId}-hint`;
 
@@ -118,7 +119,8 @@ interface TextareaProps
 
 const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, hint, error, id, ...props }, ref) => {
-    const textareaId = id ?? `textarea-${Math.random().toString(36).slice(2, 7)}`;
+    const generatedId = useId();
+    const textareaId = id ?? generatedId;
     const errorId = `${textareaId}-error`;
     const hintId = `${textareaId}-hint`;
 

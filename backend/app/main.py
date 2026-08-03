@@ -95,6 +95,48 @@ async def seed_demo_cafes():
 
             cafes_data = [
                 {
+                    "name": "Gamers Guild Arena",
+                    "description": "Hyderabad's premier esports arena with RTX 4090 stations, PS5 lounges, and food court.",
+                    "address_line1": "Road No. 36, Jubilee Hills",
+                    "city": "Hyderabad",
+                    "state": "Telangana",
+                    "pincode": "500033",
+                    "phone_number": "+91 9988776655",
+                    "email": "guild@khelo.in",
+                    "opening_time": time(9, 0),
+                    "closing_time": time(3, 0),
+                    "verification_status": VerificationStatus.VERIFIED,
+                    "is_active": True,
+                    "total_seats": 50,
+                    "amenities": ["wifi", "ac", "food", "ps5", "streaming"],
+                    "photos": [
+                        "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=800&auto=format&fit=crop",
+                        "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=800&auto=format&fit=crop"
+                    ],
+                    "tiers": [
+                        {
+                            "name": "RTX 4090 Ultra VIP Tier",
+                            "description": "Core i9-14900KS, RTX 4090, 360Hz BenQ ZOWIE Display",
+                            "specs": {"gpu": "RTX 4090", "cpu": "Intel i9-14900KS", "ram": "64GB DDR5", "monitor": "25'' 360Hz"},
+                            "total_seats": 20,
+                            "app_bookable_seats": 15,
+                            "preset_category": "ultra_streamer",
+                            "price_per_hour": 180.0,
+                            "is_active": True
+                        },
+                        {
+                            "name": "PS5 Gaming Lounge",
+                            "description": "PlayStation 5 Console with 4K OLED TV and DualSense Edge",
+                            "specs": {"gpu": "PS5 Custom RDNA2", "cpu": "Zen 2", "ram": "16GB", "monitor": "55'' 4K OLED"},
+                            "total_seats": 10,
+                            "app_bookable_seats": 8,
+                            "preset_category": "console_lounge",
+                            "price_per_hour": 120.0,
+                            "is_active": True
+                        }
+                    ]
+                },
+                {
                     "name": "LXG Esports Arena",
                     "description": "Premium esports facility with 240Hz monitors, RTX 4080 rigs, and ergonomic gaming chairs.",
                     "address_line1": "100 Feet Road, Indiranagar",
@@ -163,6 +205,68 @@ async def seed_demo_cafes():
                             "app_bookable_seats": 20,
                             "preset_category": "esports_starter",
                             "price_per_hour": 70.0,
+                            "is_active": True
+                        }
+                    ]
+                },
+                {
+                    "name": "CyberStorm Arena",
+                    "description": "High-octane esports venue in Bandra with liquid-cooled rigs and live match screening.",
+                    "address_line1": "Linking Road, Bandra West",
+                    "city": "Mumbai",
+                    "state": "Maharashtra",
+                    "pincode": "400050",
+                    "phone_number": "+91 9820011223",
+                    "email": "cyberstorm@khelo.in",
+                    "opening_time": time(10, 0),
+                    "closing_time": time(2, 0),
+                    "verification_status": VerificationStatus.VERIFIED,
+                    "is_active": True,
+                    "total_seats": 35,
+                    "amenities": ["wifi", "ac", "food", "headsets"],
+                    "photos": [
+                        "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=800&auto=format&fit=crop"
+                    ],
+                    "tiers": [
+                        {
+                            "name": "Pro Gaming Tier",
+                            "description": "RTX 4070 Ti Super, 240Hz display",
+                            "specs": {"gpu": "RTX 4070 Ti", "cpu": "Ryzen 7 7800X3D", "ram": "32GB DDR5", "monitor": "27'' 240Hz"},
+                            "total_seats": 35,
+                            "app_bookable_seats": 25,
+                            "preset_category": "pro_gaming",
+                            "price_per_hour": 130.0,
+                            "is_active": True
+                        }
+                    ]
+                },
+                {
+                    "name": "Velocity Gaming Hub",
+                    "description": "Popular hangout zone in Connaught Place with budget and pro rig setups.",
+                    "address_line1": "Block C, Connaught Place",
+                    "city": "Delhi",
+                    "state": "Delhi",
+                    "pincode": "110001",
+                    "phone_number": "+91 9811223344",
+                    "email": "velocity@khelo.in",
+                    "opening_time": time(9, 30),
+                    "closing_time": time(23, 30),
+                    "verification_status": VerificationStatus.VERIFIED,
+                    "is_active": True,
+                    "total_seats": 30,
+                    "amenities": ["wifi", "ac", "snacks"],
+                    "photos": [
+                        "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=800&auto=format&fit=crop"
+                    ],
+                    "tiers": [
+                        {
+                            "name": "Esports Starter Tier",
+                            "description": "RTX 3060, 144Hz Monitor",
+                            "specs": {"gpu": "RTX 3060", "cpu": "Intel i5", "ram": "16GB", "monitor": "24'' 144Hz"},
+                            "total_seats": 30,
+                            "app_bookable_seats": 20,
+                            "preset_category": "esports_starter",
+                            "price_per_hour": 80.0,
                             "is_active": True
                         }
                     ]

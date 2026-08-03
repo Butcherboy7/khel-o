@@ -47,16 +47,16 @@ Revenue is more valuable than software. A café owner does not care about a beau
 
 The following features are intentionally excluded — not because they are bad ideas, but because they do not serve the core mission in the MVP phase and would dilute focus:
 
-| Rejected Feature | Reason |
-|-----------------|--------|
-| Social networking / player profiles | We are a marketplace, not a social network. |
-| Clip sharing / highlight reels | Entertainment features do not fill empty PCs. |
-| Player reputation / ranking systems | Adds complexity without revenue impact. |
-| Strategy discussions / forums | Community features can come later. They do not drive bookings. |
-| Live ping monitoring | Technical novelty without business value. |
-| Exact PC reservation | Creates maintenance burden for café owners. Hardware tier model is better. |
-| Constant hardware synchronization | Over-engineering for MVP. Self-reported tiers are sufficient. |
-| Food ordering as core feature | Optional module only. Not a differentiator. |
+| Rejected Feature                    | Reason                                                                      |
+| ----------------------------------- | --------------------------------------------------------------------------- |
+| Social networking / player profiles | We are a marketplace, not a social network.                                 |
+| Clip sharing / highlight reels      | Entertainment features do not fill empty PCs.                               |
+| Player reputation / ranking systems | Adds complexity without revenue impact.                                     |
+| Strategy discussions / forums       | Community features can come later. They do not drive bookings.              |
+| Live ping monitoring                | Technical novelty without business value.                                   |
+| Exact PC reservation                | Creates maintenance burden for café owners. Hardware tier model is better. |
+| Constant hardware synchronization   | Over-engineering for MVP. Self-reported tiers are sufficient.               |
+| Food ordering as core feature       | Optional module only. Not a differentiator.                                 |
 
 We will revisit these after the marketplace achieves product-market fit. Not before.
 
@@ -69,6 +69,7 @@ We will revisit these after the marketplace achieves product-market fit. Not bef
 We do not let gamers reserve specific PCs. We let them reserve **hardware tiers**.
 
 Example tiers:
+
 - **Standard** — GTX 1650, 144Hz monitor, 16GB RAM
 - **Premium** — RTX 3060, 240Hz monitor, 32GB RAM
 - **PS5** — PlayStation 5 with controller
@@ -77,6 +78,7 @@ Example tiers:
 When a gamer books "Premium Tier, 3 PM–5 PM," they are booking the experience, not the machine. The café owner assigns any available machine in that tier when the gamer arrives.
 
 This model works because:
+
 - Owners do not need to track which specific PC is booked at which time.
 - If one PC in a tier has a hardware issue, the owner assigns another.
 - It reduces the operational burden that kills adoption of booking platforms.
@@ -84,16 +86,17 @@ This model works because:
 
 ### Two-Sided Value
 
-| Side | Value We Provide |
-|------|-----------------|
-| Café Owners | More customers during off-peak hours. Promotion distribution. Online payments. Booking management. Analytics on occupancy. |
-| Gamers | Easy café discovery. Hardware transparency. Price comparison. Online booking. Guaranteed hardware tier. Promotional discounts. |
+| Side         | Value We Provide                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Café Owners | More customers during off-peak hours. Promotion distribution. Online payments. Booking management. Analytics on occupancy.      |
+| Gamers       | Easy café discovery. Hardware transparency. Price comparison. Online booking. Guaranteed hardware tier. Promotional discounts. |
 
 ### Business Model
 
 The owner dashboard is free. We do not charge café owners to list their café or manage bookings. This removes the primary barrier to adoption.
 
 Revenue comes from:
+
 - **Convenience fees** — A small fee charged to the gamer on each booking.
 - **Premium memberships** — Subscription for gamers offering perks (priority booking, extra discounts).
 - **Tournament management** — Paid feature for organizing and managing esports events at cafés.
@@ -154,6 +157,7 @@ Booking is the transaction layer. Demand generation is the value layer. We inves
 ### 5. Indian market first
 
 We build for India. That means:
+
 - OTP-based login (not email + password as primary).
 - Razorpay for payments (not Stripe).
 - UPI as a first-class payment method.
@@ -176,17 +180,17 @@ We do not design in a vacuum. We ship the smallest useful version, measure how u
 
 These are the metrics that tell us whether the platform is working:
 
-| Metric | What It Measures | Target (Month 6) |
-|--------|-----------------|-------------------|
-| Active Cafés | Supply side health | 50+ |
-| Active Players | Demand side health | 5,000+ |
-| Monthly Bookings | Transaction volume | 2,000+ |
-| GMV (Gross Merchandise Value) | Total revenue flowing through | ₹10,00,000+/month |
-| Off-Peak Occupancy Improvement | Core value proposition | +20% for active cafés |
-| Booking Completion Rate | Funnel efficiency | >70% |
-| Repeat Usage (Monthly) | Stickiness | >30% of players book again |
-| NPS — Café Owners | Owner satisfaction | >40 |
-| NPS — Gamers | Player satisfaction | >50 |
+| Metric                         | What It Measures              | Target (Month 6)           |
+| ------------------------------ | ----------------------------- | -------------------------- |
+| Active Cafés                  | Supply side health            | 50+                        |
+| Active Players                 | Demand side health            | 5,000+                     |
+| Monthly Bookings               | Transaction volume            | 2,000+                     |
+| GMV (Gross Merchandise Value)  | Total revenue flowing through | ₹10,00,000+/month         |
+| Off-Peak Occupancy Improvement | Core value proposition        | +20% for active cafés     |
+| Booking Completion Rate        | Funnel efficiency             | >70%                       |
+| Repeat Usage (Monthly)         | Stickiness                    | >30% of players book again |
+| NPS — Café Owners            | Owner satisfaction            | >40                        |
+| NPS — Gamers                  | Player satisfaction           | >50                        |
 
 ---
 

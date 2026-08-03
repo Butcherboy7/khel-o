@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -23,6 +23,7 @@ import {
   formatDateStrip,
   formatSessionDate,
   generateTimeSlots,
+  isSlotInPast,
   formatTime,
   getTodayString,
 } from '@/lib/format';
@@ -37,7 +38,7 @@ function BookingWizardContent() {
   const { displayRazorpay } = useRazorpay();
 
   const availableDates = getNext14Days();
-  const [selectedDate, setSelectedDate] = useState(availableDates[0]?.dateString || getTodayString());
+  const [selectedDate, setSelectedDate] = useState(availableDates[0] || getTodayString());
   const [selectedTime, setSelectedTime] = useState('18:00:00');
   const [durationHours, setDurationHours] = useState(2);
   const [seatsCount, setSeatsCount] = useState(1);
@@ -52,6 +53,26 @@ function BookingWizardContent() {
     enabled: Boolean(cafeId),
     staleTime: 60_000,
   });
+
+  // Restore pending booking state if returning after login
+  useEffect(() => {
+    const saved = localStorage.getItem('pending_booking');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.cafeId === cafeId) {
+          if (parsed.sessionDate) setSelectedDate(parsed.sessionDate);
+          if (parsed.startTime) setSelectedTime(parsed.startTime);
+          if (parsed.durationHours) setDurationHours(parsed.durationHours);
+          if (parsed.seatsCount) setSeatsCount(parsed.seatsCount);
+        }
+      } catch {
+        // Ignore parse errors
+      } finally {
+        localStorage.removeItem('pending_booking');
+      }
+    }
+  }, [cafeId]);
 
   if (!cafeId) {
     return (
@@ -87,7 +108,13 @@ function BookingWizardContent() {
     cafe.openingTime || '09:00:00',
     cafe.closingTime || '23:00:00',
     selectedDate
-  );
+  ).map((slotStr) => ({
+    timeString: slotStr,
+    isDisabled: isSlotInPast(selectedDate, slotStr, cafe.openingTime || undefined),
+  }));
+
+  // Auto-pick the first available non-disabled slot if current selectedTime is invalid/disabled/default
+  const firstAvailableSlot = timeSlots.find((s) => !s.isDisabled)?.timeString || timeSlots[0]?.timeString || '18:00:00';
 
   const activeTier = selectedTier || (cafe.tiers && cafe.tiers[0] ? cafe.tiers[0] : null);
 
@@ -99,6 +126,21 @@ function BookingWizardContent() {
   const finalTotal = baseTotal + platformFee + gst;
 
   const handleCheckout = async () => {
+    if (!user) {
+      // Persist booking choices across login redirect
+      const pendingState = {
+        cafeId: cafe.id,
+        sessionDate: selectedDate,
+        startTime: selectedTime,
+        durationHours,
+        seatsCount,
+        hardwareTierId: activeTier?.id,
+      };
+      localStorage.setItem('pending_booking', JSON.stringify(pendingState));
+      router.push(`/login?redirect=${encodeURIComponent(`/bookings/new?cafeId=${cafe.id}`)}`);
+      return;
+    }
+
     if (!activeTier) {
       setError('Please select a hardware tier to proceed.');
       return;
@@ -158,20 +200,24 @@ function BookingWizardContent() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-32">
-      {/* Header (Matches Lovable Target) */}
-      <div className="flex items-center gap-3">
+    <div className="max-w-5xl mx-auto pb-40 lg:pb-32 pt-4 px-4 md:px-8">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-8">
         <button
           onClick={() => router.back()}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-secondary hover:bg-border/60"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-secondary hover:bg-border/80 transition-colors"
         >
-          <ChevronLeft className="h-5 w-5" />
+          <ChevronLeft className="h-6 w-6" />
         </button>
         <div>
           <h1 className="font-heading text-h2 font-bold text-text-primary">{cafe.name}</h1>
           <p className="text-caption text-text-secondary">{cafe.city}, Bengaluru</p>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+        {/* Left Column: Form Controls */}
+        <div className="col-span-1 lg:col-span-7 flex flex-col gap-8">
 
       {error && (
         <div className="p-4 rounded-2xl bg-error/10 border border-error/20 text-caption text-error">
@@ -210,7 +256,7 @@ function BookingWizardContent() {
       <div className="flex flex-col gap-3">
         <h2 className="font-heading text-h3 font-bold text-text-primary">Select slot</h2>
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-          {timeSlots.slice(0, 16).map((slotObj: any) => {
+          {timeSlots.map((slotObj: any) => {
             const slotStr = typeof slotObj === 'string' ? slotObj : slotObj.timeString;
             const isDisabled = slotObj?.isDisabled || false;
             const isSelected = slotStr === selectedTime;
@@ -220,12 +266,12 @@ function BookingWizardContent() {
                 key={slotStr}
                 disabled={isDisabled}
                 onClick={() => setSelectedTime(slotStr)}
-                className={`py-3 px-3 rounded-full text-caption font-semibold transition-all ${
+                className={`py-3 px-3 rounded-full text-caption font-semibold transition-all active:scale-95 ${
                   isDisabled
-                    ? 'bg-surface text-text-secondary/40 border border-border/40 cursor-not-allowed line-through'
+                    ? 'bg-surface text-text-secondary/40 border border-border/40 cursor-not-allowed line-through opacity-50'
                     : isSelected
-                    ? 'bg-secondary text-white shadow-card ring-2 ring-secondary/50'
-                    : 'bg-card text-text-primary border border-border/80 hover:bg-surface'
+                    ? 'bg-secondary text-white shadow-float ring-2 ring-secondary/50 font-bold scale-105'
+                    : 'bg-card text-text-primary border border-border/80 hover:border-secondary/50 hover:bg-surface'
                 }`}
               >
                 {formatTime(slotStr)}
@@ -301,17 +347,17 @@ function BookingWizardContent() {
                   onClick={() => setSelectedTier(tier)}
                   className={`p-4 rounded-3xl text-left transition-all flex items-center justify-between border ${
                     isSelected
-                      ? 'border-accent bg-accent/5 ring-1 ring-accent'
-                      : 'border-border/80 bg-card hover:bg-surface'
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                      : 'border-border/80 bg-card hover:border-primary/30 hover:bg-surface'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
-                        isSelected ? 'border-accent bg-accent' : 'border-border'
+                      className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                        isSelected ? 'border-primary bg-primary' : 'border-border'
                       }`}
                     >
-                      {isSelected && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                      {isSelected && <div className="h-2 w-2 rounded-full bg-white" />}
                     </div>
                     <div>
                       <h4 className="font-heading text-h3 font-bold text-text-primary">{tier.name}</h4>
@@ -332,9 +378,14 @@ function BookingWizardContent() {
           )}
         </div>
       </div>
+      </div>
 
+      {/* Right Column: Order Summary */}
+      <div className="col-span-1 lg:col-span-5 flex flex-col gap-6 lg:sticky lg:top-24 self-start">
+        <h2 className="font-heading text-h3 font-bold text-text-primary hidden lg:block">Order summary</h2>
+        
       {/* Detailed Price Breakdown Card */}
-      <Card elevation="resting" className="rounded-3xl border border-border/80">
+      <Card elevation="resting" className="rounded-3xl border border-border/80 shadow-card">
         <CardContent className="p-5 flex flex-col gap-2.5 text-body text-text-secondary">
           <div className="flex items-center justify-between">
             <span>
@@ -354,25 +405,27 @@ function BookingWizardContent() {
           </div>
         </CardContent>
       </Card>
+      </div>
+      </div>
 
       {/* Sticky Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-sticky bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
-        <div className="max-w-content mx-auto flex items-center justify-between gap-4">
+      <div className="fixed bottom-0 left-0 right-0 z-sticky bg-card/90 backdrop-blur-xl border-t border-border/40 p-4 shadow-overlay pb-safe">
+        <div className="max-w-content mx-auto flex items-center justify-between gap-4 px-2 md:px-0">
           <div>
-            <span className="text-caption text-text-secondary block">
+            <span className="text-caption text-text-secondary block font-medium">
               {formatSessionDate(selectedDate)} • {formatTime(selectedTime)} • {durationHours} hr
             </span>
-            <div className="font-heading text-h1 font-bold text-text-primary">
-              ₹{finalTotal}
+            <div className="font-heading text-h1 font-bold text-text-primary flex items-baseline gap-1">
+              ₹{finalTotal} <span className="text-caption font-normal text-text-secondary">total</span>
             </div>
           </div>
 
           <button
             onClick={handleCheckout}
             disabled={isProcessing}
-            className="rounded-2xl bg-primary px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-primary-dark disabled:opacity-50 transition-colors"
+            className="rounded-full bg-primary px-8 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-primary/90 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all min-h-[48px]"
           >
-            {isProcessing ? 'Processing...' : 'Continue'}
+            {isProcessing ? 'Processing...' : 'Pay & Book'}
           </button>
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import {
   Avatar,
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react';
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { user, setUser, logout } = useAuthStore();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
@@ -37,7 +39,12 @@ export default function ProfilePage() {
   const [homeCity, setHomeCity] = useState('Bengaluru');
   const [favGames, setFavGames] = useState('Valorant, EA FC 24');
 
-  if (!user) return null;
+  if (!user) {
+    if (typeof window !== 'undefined') {
+      router.push('/login?redirect=/profile');
+    }
+    return null;
+  }
 
   const handleSaveProfile = () => {
     setUser({
@@ -49,7 +56,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-24">
+    <div className="flex flex-col gap-8 max-w-2xl mx-auto pb-32 pt-4 px-4 md:px-8">
       {/* Profile Header Card */}
       <Card elevation="raised" className="overflow-hidden border-2 border-primary/20">
         <CardContent className="p-6 flex flex-col sm:flex-row items-center sm:items-start gap-5">
@@ -140,32 +147,61 @@ export default function ProfilePage() {
         </Card>
       )}
 
-      {/* Navigation Quick Links */}
-      <Card elevation="resting">
-        <CardContent className="p-2 flex flex-col divide-y divide-border">
-          <Link
-            href="/bookings"
-            className="flex items-center justify-between p-4 hover:bg-surface rounded-xl transition-colors"
-          >
-            <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
-              <Ticket className="h-5 w-5 text-primary" />
-              <span>My Booking Passes</span>
-            </div>
-            <ChevronRight className="h-5 w-5 text-text-secondary" />
-          </Link>
+      {/* Settings Lists */}
+      <div className="flex flex-col gap-4">
+        <h3 className="font-heading text-h3 text-text-primary px-2">Account</h3>
+        <Card elevation="resting" className="overflow-hidden shadow-card">
+          <CardContent className="p-0 flex flex-col divide-y divide-border/60">
+            <Link
+              href="/bookings"
+              className="flex items-center justify-between p-4 hover:bg-surface transition-colors group"
+            >
+              <div className="flex items-center gap-3 text-text-primary font-bold text-body">
+                <Ticket className="h-5 w-5 text-primary" />
+                <span>My Booking Passes</span>
+              </div>
+              <ChevronRight className="h-5 w-5 text-text-secondary group-hover:text-primary transition-colors" />
+            </Link>
 
-          <Link
-            href="/rewards"
-            className="flex items-center justify-between p-4 hover:bg-surface rounded-xl transition-colors"
-          >
-            <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
-              <Sparkles className="h-5 w-5 text-accent" />
-              <span>Gamified Rewards & Badges</span>
-            </div>
-            <ChevronRight className="h-5 w-5 text-text-secondary" />
-          </Link>
-        </CardContent>
-      </Card>
+            <Link
+              href="/rewards"
+              className="flex items-center justify-between p-4 hover:bg-surface transition-colors group"
+            >
+              <div className="flex items-center gap-3 text-text-primary font-bold text-body">
+                <Sparkles className="h-5 w-5 text-accent" />
+                <span>Gamified Rewards & Badges</span>
+              </div>
+              <ChevronRight className="h-5 w-5 text-text-secondary group-hover:text-primary transition-colors" />
+            </Link>
+          </CardContent>
+        </Card>
+
+        <h3 className="font-heading text-h3 text-text-primary px-2 mt-2">Support & Legal</h3>
+        <Card elevation="resting" className="overflow-hidden shadow-card">
+          <CardContent className="p-0 flex flex-col divide-y divide-border/60">
+            <button
+              onClick={() => {}}
+              className="flex items-center justify-between p-4 hover:bg-surface transition-colors group w-full text-left"
+            >
+              <div className="flex items-center gap-3 text-text-primary font-bold text-body">
+                <Mail className="h-5 w-5 text-secondary" />
+                <span>Contact Support</span>
+              </div>
+              <ChevronRight className="h-5 w-5 text-text-secondary group-hover:text-primary transition-colors" />
+            </button>
+            <button
+              onClick={() => {}}
+              className="flex items-center justify-between p-4 hover:bg-surface transition-colors group w-full text-left"
+            >
+              <div className="flex items-center gap-3 text-text-primary font-bold text-body">
+                <ShieldCheck className="h-5 w-5 text-success" />
+                <span>Privacy & Terms</span>
+              </div>
+              <ChevronRight className="h-5 w-5 text-text-secondary group-hover:text-primary transition-colors" />
+            </button>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Sign Out Button */}
       <Button

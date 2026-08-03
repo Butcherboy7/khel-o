@@ -31,7 +31,10 @@ export function AuthGuard({
     if (!isHydrated || isLoading) return;
 
     if (!isAuthenticated || !user) {
-      router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+      // Save draft query if on booking wizard
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      const fullRedirect = `${pathname}${search}`;
+      router.replace(`/login?redirect=${encodeURIComponent(fullRedirect)}`);
       return;
     }
 

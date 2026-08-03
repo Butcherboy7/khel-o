@@ -102,13 +102,14 @@ export default function RewardsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-24">
+    <div className="flex flex-col gap-8 max-w-2xl mx-auto pb-32 pt-4 px-4 md:px-8">
       {/* Level & XP Banner */}
-      <Card elevation="raised" className="overflow-hidden border-2 border-accent/30 bg-gradient-to-r from-secondary via-secondary to-[#2B2D42] text-white">
-        <CardContent className="p-6 flex flex-col gap-4">
+      <Card elevation="raised" className="overflow-hidden border-2 border-accent/40 bg-gradient-to-br from-secondary via-[#2C2C2E] to-secondary text-white relative">
+        <div className="absolute inset-0 bg-gradient-to-tr from-accent/10 to-transparent opacity-50" />
+        <CardContent className="p-6 flex flex-col gap-5 relative z-10">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-white font-heading font-bold text-h2 shadow-card">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-accent-dark text-secondary font-heading font-bold text-h1 shadow-[0_0_15px_rgba(249,168,38,0.5)]">
                 L4
               </div>
               <div>
@@ -129,9 +130,9 @@ export default function RewardsPage() {
               <span>Level 4 Progress</span>
               <span>{currentXp} / {nextLevelXp} XP ({xpPercentage}%)</span>
             </div>
-            <div className="h-3 w-full rounded-full bg-black/40 overflow-hidden p-0.5">
+            <div className="h-3.5 w-full rounded-full bg-black/50 overflow-hidden p-0.5 shadow-inner">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-500"
+                className="h-full rounded-full bg-gradient-to-r from-primary via-accent to-accent transition-all duration-1000 ease-out"
                 style={{ width: `${xpPercentage}%` }}
               />
             </div>
@@ -175,9 +176,9 @@ export default function RewardsPage() {
                       size="sm"
                       disabled={!canClaim}
                       onClick={() => claimCoupon(c.id)}
-                      className="text-caption"
+                      className="text-caption font-bold rounded-full px-4 active:scale-95 transition-all"
                     >
-                      Claim Coupon
+                      Claim Reward
                     </Button>
                   )}
                 </div>

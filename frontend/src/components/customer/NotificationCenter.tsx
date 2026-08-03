@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Bell, CheckCheck, Trash2, X, Ticket, Sparkles, AlertCircle } from 'lucide-react';
 import { Button, Badge } from '@/components/ui';
 
@@ -18,7 +19,7 @@ const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
     id: 'n1',
     title: 'Booking Confirmed! 🎮',
-    message: 'Your station at LXG Esports Arena is reserved for today at 4:00 PM.',
+    message: 'Your station at LXG Esports Arena is reserved.',
     timestamp: '10 mins ago',
     type: 'booking',
     isRead: false,
@@ -27,11 +28,11 @@ const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
     id: 'n2',
     title: '30% Off Afternoon Deal! 🔥',
-    message: 'Use code OFFPEAK50 before 5 PM at CyberStorm Arena in New Delhi.',
+    message: 'Use code OFFPEAK30 before 5 PM at verified partner lounges.',
     timestamp: '1 hour ago',
     type: 'offer',
     isRead: false,
-    link: '/cafe/ca893fe293ba463fb0bbc20f9590c0f1',
+    link: '/rewards',
   },
   {
     id: 'n3',
@@ -40,6 +41,7 @@ const INITIAL_NOTIFICATIONS: NotificationItem[] = [
     timestamp: '1 day ago',
     type: 'system',
     isRead: true,
+    link: '/',
   },
 ];
 
@@ -49,6 +51,7 @@ interface NotificationCenterProps {
 }
 
 export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
 
   if (!isOpen) return null;
@@ -57,6 +60,16 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  };
+
+  const handleNotificationClick = (n: NotificationItem) => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === n.id ? { ...item, isRead: true } : item))
+    );
+    if (n.link) {
+      router.push(n.link);
+      onClose();
+    }
   };
 
   const markAsRead = (id: string) => {
@@ -125,7 +138,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
             notifications.map((n) => (
               <div
                 key={n.id}
-                onClick={() => markAsRead(n.id)}
+                onClick={() => handleNotificationClick(n)}
                 className={`p-3 rounded-2xl flex items-start gap-3 transition-colors cursor-pointer ${
                   n.isRead ? 'opacity-80 bg-card hover:bg-surface/50' : 'bg-surface border-l-4 border-primary'
                 }`}

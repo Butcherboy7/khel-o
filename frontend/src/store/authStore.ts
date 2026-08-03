@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import type { User } from '@/types';
 import { apiClient } from '@/lib/api/client';
 
+interface BookingDraft {
+  cafeId: string;
+  hardwareTierId?: string;
+  sessionDate?: string;
+  startTime?: string;
+  durationHours?: number;
+  seatsCount?: number;
+}
+
 interface AuthState {
   user: User | null;
   accessToken: string | null;
@@ -9,9 +18,11 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   isHydrated: boolean;
+  bookingDraft: BookingDraft | null;
 
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
   setUser: (user: User) => void;
+  setBookingDraft: (draft: BookingDraft | null) => void;
   logout: () => void;
   initializeFromStorage: () => Promise<void>;
 }
@@ -23,6 +34,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
   isHydrated: false,
+  bookingDraft: null,
 
   setAuth: (user, accessToken, refreshToken) => {
     if (typeof window !== 'undefined') {
@@ -40,11 +52,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user });
   },
 
+  setBookingDraft: (draft) => {
+    if (typeof window !== 'undefined') {
+      if (draft) {
+        localStorage.setItem('khel_booking_draft', JSON.stringify(draft));
+      } else {
+        localStorage.removeItem('khel_booking_draft');
+      }
+    }
+    set({ bookingDraft: draft });
+  },
+
   logout: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      localStorage.removeItem('khel_booking_draft');
       window.location.href = '/login';
     }
     set({
@@ -54,6 +78,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: false,
       isLoading: false,
       isHydrated: true,
+      bookingDraft: null,
     });
   },
 
@@ -68,8 +93,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const accessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
 
+    const draftStr = localStorage.getItem('khel_booking_draft');
+    let cachedDraft = null;
+    if (draftStr) {
+      try {
+        cachedDraft = JSON.parse(draftStr);
+      } catch {
+        cachedDraft = null;
+      }
+    }
+
     if (!accessToken) {
-      set({ isLoading: false, isAuthenticated: false, user: null, isHydrated: true });
+      set({ isLoading: false, isAuthenticated: false, user: null, bookingDraft: cachedDraft, isHydrated: true });
       return;
     }
 
@@ -84,12 +119,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     if (cachedUser) {
-      set({ user: cachedUser, accessToken, refreshToken, isAuthenticated: true, isLoading: false, isHydrated: true });
+      set({ user: cachedUser, accessToken, refreshToken, isAuthenticated: true, isLoading: false, bookingDraft: cachedDraft, isHydrated: true });
     }
 
     try {
-      // Use relative endpoint /auth/me because apiClient baseURL already includes /api/v1
-      const res = await apiClient.get<{ success: boolean; data: { user: User } }>('/auth/me');
+      const res = await apiClient.get<{ success: boolean; data: { user: User } }>('/api/v1/auth/me');
       const user = res.data?.data?.user;
       if (user) {
         localStorage.setItem('user', JSON.stringify(user));

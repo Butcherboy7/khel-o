@@ -18,6 +18,8 @@ export interface CafeListItem {
   verificationStatus: VerificationStatus;
   isActive: boolean;
   totalSeats: number | null;
+  amenities?: string[];
+  description?: string | null;
   latitude?: number | null;
   longitude?: number | null;
 }

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     
     # Database Config
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgrespassword@localhost:5432/khel_o_db"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgrespassword@localhost:5434/khel_o_db"
     
     # Security Expiry
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
