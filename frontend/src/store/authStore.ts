@@ -60,7 +60,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initializeFromStorage: async () => {
     if (typeof window === 'undefined') return;
 
-    // Already hydrated with a user — skip
     if (get().isHydrated && get().user) {
       set({ isLoading: false });
       return;
@@ -74,7 +73,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    // Optimistically set from cache while /me fetch is in flight
     const userStr = localStorage.getItem('user');
     let cachedUser: User | null = null;
     if (userStr) {
@@ -90,7 +88,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      const res = await apiClient.get<{ success: boolean; data: { user: User } }>('/api/v1/auth/me');
+      // Use relative endpoint /auth/me because apiClient baseURL already includes /api/v1
+      const res = await apiClient.get<{ success: boolean; data: { user: User } }>('/auth/me');
       const user = res.data?.data?.user;
       if (user) {
         localStorage.setItem('user', JSON.stringify(user));

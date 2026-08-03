@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { Calendar, Clock, MapPin, QrCode, ChevronRight } from 'lucide-react';
-import { Card, CardContent, BookingStatusBadge, PriceDisplay } from '@/components/ui';
+import { Calendar, Clock, MapPin, QrCode, ChevronRight, Navigation, Star, MessageSquare } from 'lucide-react';
+import { Card, CardContent, BookingStatusBadge, PriceDisplay, Button } from '@/components/ui';
 import type { BookingDetail } from '@/types';
 import { formatSessionDate, formatTime } from '@/lib/format';
 
@@ -9,10 +9,12 @@ interface BookingCardProps {
 }
 
 export function BookingCard({ booking }: BookingCardProps) {
+  const isCompleted = booking.status === 'completed';
+
   return (
     <Card elevation="resting" interactive className="overflow-hidden">
-      <Link href={`/bookings/${booking.id}`} className="block">
-        <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <CardContent className="p-5 flex flex-col gap-4">
+        <Link href={`/bookings/${booking.id}`} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex flex-col gap-2">
             {/* Top row: Reference ID + Status Badge */}
             <div className="flex items-center gap-2">
@@ -63,8 +65,38 @@ export function BookingCard({ booking }: BookingCardProps) {
               <ChevronRight className="h-4 w-4" />
             </div>
           </div>
-        </CardContent>
-      </Link>
+        </Link>
+
+        {/* Quick Actions Row */}
+        <div className="flex items-center justify-between border-t border-border/60 pt-3 gap-2 flex-wrap">
+          <button
+            onClick={() => {
+              const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                `${booking.cafeName || 'Gaming Cafe'}, ${booking.cafeAddress || ''}`
+              )}`;
+              window.open(url, '_blank');
+            }}
+            className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary hover:text-primary transition-colors"
+          >
+            <Navigation className="h-3.5 w-3.5" />
+            <span>Directions</span>
+          </button>
+
+          {isCompleted ? (
+            <Link
+              href={`/cafe/${booking.cafeId}`}
+              className="flex items-center gap-1.5 text-caption font-semibold text-accent hover:underline"
+            >
+              <Star className="h-3.5 w-3.5 fill-accent" />
+              <span>Rate & Review</span>
+            </Link>
+          ) : (
+            <span className="text-caption text-text-secondary/70">
+              Pass active for check-in
+            </span>
+          )}
+        </div>
+      </CardContent>
     </Card>
   );
 }

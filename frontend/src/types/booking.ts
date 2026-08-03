@@ -22,12 +22,14 @@ export interface Booking {
   cancellationReason: string | null;
   createdAt: string;
   updatedAt: string;
+  gamerName?: string | null;
 }
 
 export interface BookingDetail extends Booking {
   cafeName: string | null;
   tierName: string | null;
   cafeAddress: string | null;
+  gamerName?: string | null;
 }
 
 export interface OwnerBookingItem extends Booking {

@@ -24,6 +24,7 @@ import {
   formatSessionDate,
   generateTimeSlots,
   formatTime,
+  getTodayString,
 } from '@/lib/format';
 import type { HardwareTier } from '@/types';
 
@@ -36,7 +37,7 @@ function BookingWizardContent() {
   const { displayRazorpay } = useRazorpay();
 
   const availableDates = getNext14Days();
-  const [selectedDate, setSelectedDate] = useState(availableDates[0]);
+  const [selectedDate, setSelectedDate] = useState(availableDates[0]?.dateString || getTodayString());
   const [selectedTime, setSelectedTime] = useState('18:00:00');
   const [durationHours, setDurationHours] = useState(2);
   const [seatsCount, setSeatsCount] = useState(1);
@@ -85,6 +86,7 @@ function BookingWizardContent() {
   const timeSlots = generateTimeSlots(
     cafe.openingTime || '09:00:00',
     cafe.closingTime || '23:00:00',
+    selectedDate
   );
 
   const activeTier = selectedTier || (cafe.tiers && cafe.tiers[0] ? cafe.tiers[0] : null);
@@ -181,7 +183,8 @@ function BookingWizardContent() {
       <div className="flex flex-col gap-3">
         <h2 className="font-heading text-h3 font-bold text-text-primary">Select date</h2>
         <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
-          {availableDates.slice(0, 7).map((dateStr) => {
+          {availableDates.slice(0, 7).map((dateObj: any) => {
+            const dateStr = typeof dateObj === 'string' ? dateObj : dateObj.dateString;
             const { day, date } = formatDateStrip(dateStr);
             const isSelected = dateStr === selectedDate;
 
@@ -207,19 +210,25 @@ function BookingWizardContent() {
       <div className="flex flex-col gap-3">
         <h2 className="font-heading text-h3 font-bold text-text-primary">Select slot</h2>
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-          {timeSlots.slice(0, 12).map((slot) => {
-            const isSelected = slot === selectedTime;
+          {timeSlots.slice(0, 16).map((slotObj: any) => {
+            const slotStr = typeof slotObj === 'string' ? slotObj : slotObj.timeString;
+            const isDisabled = slotObj?.isDisabled || false;
+            const isSelected = slotStr === selectedTime;
+
             return (
               <button
-                key={slot}
-                onClick={() => setSelectedTime(slot)}
+                key={slotStr}
+                disabled={isDisabled}
+                onClick={() => setSelectedTime(slotStr)}
                 className={`py-3 px-3 rounded-full text-caption font-semibold transition-all ${
-                  isSelected
-                    ? 'bg-secondary text-white shadow-card'
+                  isDisabled
+                    ? 'bg-surface text-text-secondary/40 border border-border/40 cursor-not-allowed line-through'
+                    : isSelected
+                    ? 'bg-secondary text-white shadow-card ring-2 ring-secondary/50'
                     : 'bg-card text-text-primary border border-border/80 hover:bg-surface'
                 }`}
               >
-                {formatTime(slot)}
+                {formatTime(slotStr)}
               </button>
             );
           })}
@@ -324,36 +333,36 @@ function BookingWizardContent() {
         </div>
       </div>
 
-      {/* Detailed Price Breakdown Card (Matches Lovable Target) */}
+      {/* Detailed Price Breakdown Card */}
       <Card elevation="resting" className="rounded-3xl border border-border/80">
         <CardContent className="p-5 flex flex-col gap-2.5 text-body text-text-secondary">
           <div className="flex items-center justify-between">
             <span>
               {activeTier?.name || 'Standard'} × {durationHours} hr × {seatsCount} seat
             </span>
-            <span className="font-data font-semibold text-text-primary">₹{baseTotal}</span>
+            <span className="font-body font-semibold text-text-primary text-body">₹{baseTotal}</span>
           </div>
 
           <div className="flex items-center justify-between">
             <span>Platform fee</span>
-            <span className="font-data font-semibold text-text-primary">₹{platformFee}</span>
+            <span className="font-body font-semibold text-text-primary text-body">₹{platformFee}</span>
           </div>
 
           <div className="flex items-center justify-between">
             <span>GST (18%)</span>
-            <span className="font-data font-semibold text-text-primary">₹{gst}</span>
+            <span className="font-body font-semibold text-text-primary text-body">₹{gst}</span>
           </div>
         </CardContent>
       </Card>
 
-      {/* Sticky Bottom Bar (Matches Lovable Target) */}
+      {/* Sticky Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-sticky bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
         <div className="max-w-content mx-auto flex items-center justify-between gap-4">
           <div>
             <span className="text-caption text-text-secondary block">
               {formatSessionDate(selectedDate)} • {formatTime(selectedTime)} • {durationHours} hr
             </span>
-            <div className="font-data text-price-lg font-bold text-text-primary">
+            <div className="font-heading text-h1 font-bold text-text-primary">
               ₹{finalTotal}
             </div>
           </div>
@@ -361,7 +370,7 @@ function BookingWizardContent() {
           <button
             onClick={handleCheckout}
             disabled={isProcessing}
-            className="rounded-2xl bg-secondary px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-secondary/90 disabled:opacity-50 transition-colors"
+            className="rounded-2xl bg-primary px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-primary-dark disabled:opacity-50 transition-colors"
           >
             {isProcessing ? 'Processing...' : 'Continue'}
           </button>

@@ -65,7 +65,7 @@ export default function OwnerBookingsPage() {
   const bookings = searchRef
     ? rawBookings.filter((b) =>
         b.bookingReference.toLowerCase().includes(searchRef.toLowerCase()) ||
-        b.gamerName.toLowerCase().includes(searchRef.toLowerCase())
+        (b.gamerName?.toLowerCase() || '').includes(searchRef.toLowerCase())
       )
     : rawBookings;
 

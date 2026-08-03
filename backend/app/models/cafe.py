@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime, timezone, time
 from typing import Any
-from sqlalchemy import String, Text, Boolean, DateTime, Enum, ForeignKey, Numeric, Integer, Time
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import String, Text, Boolean, DateTime, Enum, ForeignKey, Numeric, Integer, Time, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
 
@@ -40,8 +39,8 @@ class Cafe(Base):
     rejection_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     total_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    amenities: Mapped[dict[str, Any]] = mapped_column(JSONB, default=list, nullable=False)
-    photos: Mapped[dict[str, Any]] = mapped_column(JSONB, default=list, nullable=False)
+    amenities: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
+    photos: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     booking_cap_total: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
     booking_cap_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

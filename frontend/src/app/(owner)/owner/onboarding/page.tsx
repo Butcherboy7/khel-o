@@ -4,18 +4,18 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Store,
-  MapPin,
   Clock,
   CheckCircle2,
   AlertCircle,
   ChevronRight,
   ChevronLeft,
   ShieldCheck,
-  Sparkles,
+  MapPin,
 } from 'lucide-react';
 import { createCafe } from '@/lib/api/cafes';
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, Textarea, Card, CardContent, Badge } from '@/components/ui';
+import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
 
 interface OnboardingFormState {
   name: string;
@@ -25,6 +25,8 @@ interface OnboardingFormState {
   city: string;
   state: string;
   pincode: string;
+  latitude: number | null;
+  longitude: number | null;
   phoneNumber: string;
   email: string;
   openingTime: string;
@@ -41,6 +43,8 @@ const DEFAULT_STATE: OnboardingFormState = {
   city: 'Bengaluru',
   state: 'Karnataka',
   pincode: '',
+  latitude: 12.9716,
+  longitude: 77.5946,
   phoneNumber: '',
   email: '',
   openingTime: '09:00:00',
@@ -59,7 +63,6 @@ export default function OnboardingWizardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Restore draft from sessionStorage if present (Mitigation for risk #11)
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem('khelo_onboarding_draft');
@@ -117,6 +120,8 @@ export default function OnboardingWizardPage() {
         city: formData.city,
         state: formData.state,
         pincode: formData.pincode || undefined,
+        latitude: formData.latitude || undefined,
+        longitude: formData.longitude || undefined,
         phoneNumber: formData.phoneNumber || user?.phoneNumber || undefined,
         email: formData.email || user?.email || undefined,
         openingTime: formData.openingTime,
@@ -125,7 +130,6 @@ export default function OnboardingWizardPage() {
         amenities: formData.amenities,
       });
 
-      // Clear draft on successful submission
       sessionStorage.removeItem('khelo_onboarding_draft');
       setIsSubmitted(true);
     } catch (err: any) {
@@ -135,7 +139,6 @@ export default function OnboardingWizardPage() {
     }
   };
 
-  // Verification Pending Screen after submission
   if (isSubmitted) {
     return (
       <div className="flex flex-col items-center text-center max-w-xl mx-auto py-12 px-4">
@@ -182,7 +185,6 @@ export default function OnboardingWizardPage() {
 
   return (
     <div className="max-w-2xl mx-auto pb-16">
-      {/* Step Indicator Header */}
       <div className="flex flex-col gap-2 mb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -197,7 +199,6 @@ export default function OnboardingWizardPage() {
           <span className="text-caption font-semibold text-primary">Step {step} of 4</span>
         </div>
 
-        {/* Progress Bar */}
         <div className="h-2 w-full rounded-full bg-border overflow-hidden mt-2">
           <div
             className="h-full bg-primary transition-all duration-normal"
@@ -213,16 +214,14 @@ export default function OnboardingWizardPage() {
         </div>
       )}
 
-      {/* Step Forms */}
       <Card elevation="raised">
         <CardContent className="p-6 md:p-8">
           <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-            {/* Step 1: Venue & Address Details */}
             {step === 1 && (
               <div className="flex flex-col gap-4">
                 <div>
-                  <h2 className="font-heading text-h2 text-text-primary">1. Café Identity & Address</h2>
-                  <p className="text-caption text-text-secondary">Provide your venue name and location.</p>
+                  <h2 className="font-heading text-h2 text-text-primary">1. Café Identity & Interactive Location</h2>
+                  <p className="text-caption text-text-secondary">Provide your venue name and pin exact location on Google Maps.</p>
                 </div>
 
                 <Input
@@ -239,6 +238,22 @@ export default function OnboardingWizardPage() {
                   value={formData.description}
                   onChange={(e) => updateField('description', e.target.value)}
                 />
+
+                {/* Google Maps Pin Selection Component */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-caption font-semibold text-text-primary flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <span>Select Exact Location on Google Maps *</span>
+                  </label>
+                  <GoogleLocationPicker
+                    initialLat={formData.latitude || 12.9716}
+                    initialLng={formData.longitude || 77.5946}
+                    onLocationSelect={(pos) => {
+                      updateField('latitude', pos.lat);
+                      updateField('longitude', pos.lng);
+                    }}
+                  />
+                </div>
 
                 <Input
                   label="Address Line 1 *"
@@ -275,7 +290,6 @@ export default function OnboardingWizardPage() {
               </div>
             )}
 
-            {/* Step 2: Contact & Station Capacity */}
             {step === 2 && (
               <div className="flex flex-col gap-4">
                 <div>
@@ -326,7 +340,6 @@ export default function OnboardingWizardPage() {
               </div>
             )}
 
-            {/* Step 3: Amenities Selection */}
             {step === 3 && (
               <div className="flex flex-col gap-4">
                 <div>
@@ -377,7 +390,6 @@ export default function OnboardingWizardPage() {
               </div>
             )}
 
-            {/* Step 4: Review & Submit */}
             {step === 4 && (
               <div className="flex flex-col gap-4">
                 <div>
@@ -389,6 +401,12 @@ export default function OnboardingWizardPage() {
                   <div className="flex justify-between">
                     <span className="text-text-secondary">Venue Name:</span>
                     <span className="font-semibold text-text-primary">{formData.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-text-secondary">Coordinates:</span>
+                    <span className="font-semibold text-text-primary">
+                      {formData.latitude?.toFixed(4)}, {formData.longitude?.toFixed(4)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-secondary">Location:</span>
@@ -406,7 +424,6 @@ export default function OnboardingWizardPage() {
               </div>
             )}
 
-            {/* Navigation Buttons */}
             <div className="flex items-center justify-between border-t border-border pt-6 mt-4">
               {step > 1 ? (
                 <Button type="button" variant="ghost" onClick={handleBack} className="gap-1">

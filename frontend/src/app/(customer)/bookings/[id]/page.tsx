@@ -12,8 +12,9 @@ import {
   QrCode,
   ShieldCheck,
   XCircle,
-  Download,
-  AlertCircle,
+  Share2,
+  CalendarPlus,
+  ArrowLeft,
 } from 'lucide-react';
 import { getBooking, cancelBooking } from '@/lib/api/bookings';
 import { queryKeys } from '@/hooks/queries/keys';
@@ -37,6 +38,7 @@ export default function BookingDetailPage() {
 
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.bookings.detail(bookingId),
@@ -53,6 +55,34 @@ export default function BookingDetailPage() {
       setIsCancelModalOpen(false);
     },
   });
+
+  const handleShare = async () => {
+    const shareData = {
+      title: 'KHEL-O Digital Gaming Pass',
+      text: `Check out my booking pass for ${data?.cafeName || 'Gaming Café'} on KHEL-O!`,
+      url: window.location.href,
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch {
+        // Share dismissed
+      }
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
+  };
+
+  const handleAddToCalendar = () => {
+    if (!data) return;
+    const title = encodeURIComponent(`Gaming Session at ${data.cafeName || 'KHEL-O Venue'}`);
+    const details = encodeURIComponent(`Pass Ref: ${data.bookingReference}. Tier: ${data.tierName || 'Gaming Station'}`);
+    const location = encodeURIComponent(data.cafeAddress || 'Gaming Café');
+    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
+    window.open(googleCalendarUrl, '_blank');
+  };
 
   if (isLoading) {
     return (
@@ -76,7 +106,6 @@ export default function BookingDetailPage() {
   const booking = data;
   const canCancel = booking.status === 'confirmed' || booking.status === 'pending_payment';
 
-  // Generate QR Code URL fallback if backend QR is null
   const qrCodeSrc =
     booking.qrCodeUrl ||
     `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
@@ -85,7 +114,7 @@ export default function BookingDetailPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-md mx-auto pb-16">
-      {/* Header */}
+      {/* Top Action Bar */}
       <div className="flex items-center justify-between">
         <Link href="/bookings">
           <Button variant="ghost" size="sm" className="gap-1 text-text-secondary">
@@ -96,7 +125,7 @@ export default function BookingDetailPage() {
         <BookingStatusBadge status={booking.status} size="md" />
       </div>
 
-      {/* Digital Check-in Ticket Card */}
+      {/* Digital Pass Card */}
       <Card elevation="raised" className="overflow-hidden border-2 border-primary/20 bg-card">
         {/* Pass Header */}
         <div className="bg-secondary p-6 text-white text-center flex flex-col items-center gap-1">
@@ -126,7 +155,7 @@ export default function BookingDetailPage() {
             </div>
           </div>
 
-          {/* Pass Details Grid */}
+          {/* Details Grid */}
           <div className="w-full flex flex-col gap-3 text-body">
             <div className="flex items-center justify-between p-3 rounded-xl bg-surface">
               <div className="flex items-center gap-2 text-text-secondary">
@@ -166,23 +195,59 @@ export default function BookingDetailPage() {
             </div>
           </div>
 
+          {/* Interactive Utility CTAs */}
+          <div className="grid grid-cols-2 gap-3 w-full border-t border-border/60 pt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddToCalendar}
+              className="gap-2 text-caption font-semibold"
+            >
+              <CalendarPlus className="h-4 w-4 text-primary" />
+              <span>Add Calendar</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShare}
+              className="gap-2 text-caption font-semibold"
+            >
+              <Share2 className="h-4 w-4 text-accent" />
+              <span>{copiedLink ? 'Link Copied!' : 'Share Pass'}</span>
+            </Button>
+          </div>
+
           <div className="flex items-center gap-2 text-caption text-text-secondary text-center pt-2">
             <ShieldCheck className="h-4 w-4 text-primary flex-shrink-0" />
             <span>Show this QR pass at the café desk for instant check-in.</span>
           </div>
 
-          {/* Cancel Action */}
-          {canCancel && (
+          {/* Navigation & Cancel Actions */}
+          <div className="flex flex-col gap-2 w-full pt-2">
             <Button
-              variant="outline"
+              variant="primary"
               size="md"
               fullWidth
-              onClick={() => setIsCancelModalOpen(true)}
-              className="text-error border-error/30 hover:bg-error/10 mt-2"
+              onClick={() => router.push('/')}
+              className="gap-2"
             >
-              Cancel Booking
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Explore Cafés</span>
             </Button>
-          )}
+
+            {canCancel && (
+              <Button
+                variant="outline"
+                size="md"
+                fullWidth
+                onClick={() => setIsCancelModalOpen(true)}
+                className="text-error border-error/30 hover:bg-error/10"
+              >
+                Cancel Booking
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 

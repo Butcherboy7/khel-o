@@ -18,6 +18,8 @@ export interface CafeListItem {
   verificationStatus: VerificationStatus;
   isActive: boolean;
   totalSeats: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface Cafe {
@@ -39,6 +41,8 @@ export interface Cafe {
   amenities: string[];
   photos: string[];
   rejectionReason: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -73,6 +77,8 @@ export interface CafeCreateRequest {
   city: string;
   state: string;
   pincode?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   phoneNumber?: string;
   email?: string;
   openingTime?: string;

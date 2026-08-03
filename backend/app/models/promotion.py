@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Any
-from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, Integer
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -18,7 +17,7 @@ class Promotion(Base):
     applicable_tier_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hardware_tiers.id"), nullable=True)
     valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    days_of_week: Mapped[dict[str, Any]] = mapped_column(JSONB, default=list, nullable=False)
+    days_of_week: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     start_hour: Mapped[int] = mapped_column(Integer, nullable=False)
     end_hour: Mapped[int] = mapped_column(Integer, nullable=False)
     max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)

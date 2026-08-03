@@ -1,151 +1,78 @@
 # KHEL-O Project Handoff & Architecture Decision Records (ADRs)
 
 ## Overview
-KHEL-O is a mobile-first PWA and desktop-responsive gaming café marketplace in India built with Next.js 14, Tailwind CSS, FastAPI, PostgreSQL, and Docker.
+KHEL-O is a mobile-first PWA and desktop-responsive gaming café marketplace in India built with Next.js 14, Tailwind CSS, FastAPI, PostgreSQL (SQLite locally), and Docker.
 
 - **Design System**: Official Google Stitch "Elevated Precision" (`#10B981` Vibrant Emerald badge & CTA, `#006c49` Primary Emerald, `#1F2937` Dark Slate, `#FC7C78` Coral, `#F8F9FB` Neutral surface, Space Grotesk headline scale, Plus Jakarta Sans body scale, JetBrains Mono label caps & specs).
 
 ---
 
-## ADR 005: Frontend UI Refactoring Strategy & Route Group Isolation
+## ADR 013: Non-Docker Local Testing Environment & SQLite Cross-Compatibility
 
-- **Context**: The initial frontend prototyped unoptimized static components lacking route group isolation and native performance optimizations.
-- **Decision**: Executed a "Burn and Rebuild" of the UI layer, restructuring `src/app/` into 3 strict Next.js Route Groups (`app/(customer)`, `app/(owner)`, `app/(admin)`) with dedicated layouts and OpenAPI data bindings.
-- **Consequences**: Zero changes to the backend or database schemas. Enforces the strict 8px design system, sub-200ms SRS performance target, and strict OpenAPI payload compliance.
-
----
-
-## Implemented Architecture (Frontend Overhaul)
-
-### Phase 1: Route Group Isolation
-- `app/(customer)`: Customer discovery feed, Intent Selector, Filter Chips, slot selector, Razorpay payment, player bookings & QR pass, rewards, gamer profile. Dedicated `(customer)/layout.tsx` rendering `DesktopNavbar` + `BottomNav`.
-- `app/(owner)`: Dedicated B2B Owner Hub (`/owner/dashboard`, `/owner/onboarding`, `/owner/promotions`). Dedicated `(owner)/layout.tsx` rendering dark slate `OwnerNavbar`. Local JWT role guard treating `cafe_owner` / `owner` as a superset.
-- `app/(admin)`: Admin verification portal (`/admin/cafes`). Dedicated `(admin)/layout.tsx` for platform governance.
-
-### Phase 2: Component Eradication & Systematization
-- Stripped raw static HTML/CSS exports.
-- Implemented `IntentSelector` (`🎮 PC Gaming`, `🎯 Competitive`, `🕹️ PS5`, `👥 Squad`, `🔥 Flash Deals`) and `FilterChips` using performant native Tailwind CSS transitions.
-- Replaced legacy image tags with optimized image rendering.
-
-### Phase 3: OpenAPI Data Binding
-- Bound UI filter chips strictly to the `name` field of `HardwareTier` objects returned by backend OpenAPI contracts.
-- Bound booking checkout flow to exact `BookingCreate` camelCase OpenAPI payload (`cafeId`, `hardwareTierId`, `bookingDate`, `startTime`, `durationHours`).
+- **Context**: The user requires running and testing frontend and backend user flows locally on a Windows host machine without Docker or virtualization software, and without automated browser controls.
+- **Decision**:
+  - **Cross-Database Compatibility**: Updated SQLAlchemy models (`Cafe`, `HardwareTier`, `Promotion`, `OwnerPayoutAccount`) to replace PostgreSQL-specific `JSONB` column types with standard SQLAlchemy `JSON` types. This enables full compatibility with SQLite for zero-setup local dev while maintaining 100% PostgreSQL production compatibility.
+  - **Local Python Venv & SQLite Setup**: Set up backend virtual environment at `backend/venv` and configured local environment variables `.env` using SQLite driver `sqlite+aiosqlite:///./khel_o.db`.
+  - **Database Seeding**: Initialized database tables and seeded demo users & verified demo gaming cafes (`LXG Esports Arena`, `Respawn Gaming Lounge`) into `khel_o.db`.
+  - **Local Frontend Environment**: Configured `frontend/.env.local` pointing `NEXT_PUBLIC_API_URL` to `http://localhost:8000/api/v1`.
+- **Consequences**: Backend and Frontend run natively on Windows via standard Uvicorn and Next.js dev servers without requiring Docker.
 
 ---
 
-## Running the Application
-Run the entire platform with Docker Compose:
-```bash
-docker compose up --build -d
+## How to Run & Test Locally Without Docker
+
+### 1. Launch the Backend API Server
+Open a terminal in `backend/` and run:
+```powershell
+cd backend
+.\venv\Scripts\uvicorn app.main:app --reload --port 8000
 ```
+- **Backend API Base**: `http://localhost:8000`
+- **Swagger Interactive API Documentation**: `http://localhost:8000/docs`
+- **Health Check**: `http://localhost:8000/health`
 
-- **Customer Web App**: `http://localhost:3002`
-- **Café Owner Portal**: `http://localhost:3002/owner/dashboard`
-- **Admin Verification Panel**: `http://localhost:3002/admin/cafes`
-- **FastAPI Backend & Swagger**: `http://localhost:8000/docs`
-- **PostgreSQL Database**: `localhost:5434`
-- **pgAdmin**: `http://localhost:5050`
-
----
-
-## Phase 4: Customer Screens
-- Built real API-connected Explore screen at `frontend/src/app/(customer)/page.tsx`.
-- Integrated `listCafes` API endpoint supporting debounced query searches and city filter chips.
-- Created reusable components: `frontend/src/components/customer/CafeCard.tsx` and `frontend/src/components/customer/CafeCardSkeleton.tsx`.
-- Built real API-connected Café Detail screen at `frontend/src/app/(customer)/cafes/[id]/page.tsx` with photo carousel, verified badge, operating hours, hardware tier specs selector, amenities, and sticky booking action sheet.
-- Built 3-step Booking Wizard at `frontend/src/app/(customer)/bookings/new/page.tsx`: Step 1 date picker (14 days, snap scroll), Step 2 time slots (30-min intervals, 4-col grid, disabled past slots) + duration chips, Step 3 review + price breakdown + notes + confirm.
-- Built real API-connected Bookings List page at `frontend/src/app/(customer)/bookings/page.tsx`: sticky 50/50 tab bar (Upcoming/Past), client-side status & date filtering, status pills (Confirmed, Pending, Cancelled, Completed, No Show), date/time/duration/price details, View Pass CTA for confirmed bookings, skeletons, empty states with CTA.
-- Built real API-connected Owner Bookings page at `frontend/src/app/(owner)/owner/bookings/page.tsx` with ref/notes search filtering, Today/Upcoming/All tabs, live upcoming badge, status indicators, and Mark Complete & No Show quick buttons.
-- Built real API-connected Owner Promotions page at `frontend/src/app/(owner)/owner/promotions/page.tsx` with 1-50% discount slider configuration, date pickers, day toggles, start/end hours select, unlimited/max usage capping, active state toggle switches, inline delete confirmations, and bottom sheet overlay modals.
-- Built real API-connected Admin Verification Panel at `frontend/src/app/(admin)/admin/page.tsx` with stats indicators, User/Mail/Phone owner info, map location details, submitted timestamp dates, inline rejection reasons, suspension confirmations, re-evaluation options, and admin role layouts.
-- Built real API-connected Hardware Tiers page at `frontend/src/app/(owner)/owner/tiers/page.tsx`: two-panel layout featuring a main list view showing existing tiers, spec badge chips, inline ToggleSwitch for quick status changes, and a bottom sheet form modal overlay to seamlessly manage create/edit states.
-- Built real API-connected Profile page at `frontend/src/app/(customer)/profile/page.tsx`: profile header card with 80x80px avatar & initial fallback, name, email, role badge, phone row, and member-since date; quick actions grid (Rewards, History, Help & Support); "Become a Café Partner" B2B CTA card (conditionally rendered for `gamer` role only); settings list (Notifications, Privacy, Terms, Logout); and interactive logout confirmation modal.
-- All booking business rules enforced client-side (30-min advance window, session date validation).
-- Client-side price preview: base × duration → discount (promo) → 2% gateway fee → total.
-- Error handling: INVALID_START_TIME, TIER_FULLY_BOOKED auto-navigate to Step 2; PROMOTION_EXHAUSTED stays on Step 3.
-- Added `listCafeTiers`, `createTier`, `updateTier`, `TierFormData`, `getMe`, `listGamerBookings`, `ListBookingsParams`, `ListBookingsResponse`, `CreateBookingRequest`, `BookingResponse`, `createBooking`, `updateBookingStatus`, `listPromotions`, `createPromotion`, `updatePromotion`, `deletePromotion`, `PromotionFormData`, `getPendingCafes`, `verifyCafe` to `frontend/src/lib/api.ts`.
-- Created `frontend/src/lib/format.ts` with `formatDateLong`, `formatTime12h`, `getDurationLabel`, `addHoursToTime`, `generateTimeSlots`, `isSlotDisabled`, `getTodayString`, `getCurrentTimeString`.
-- Added `CafeDetail`, `Promotion`, `Review`, `CafeListItem`, `PaginatedResponse`, `BookingDetail`, `TierSpecs`, `PromotionDetail`, and `AdminCafe` types in `frontend/src/types/index.ts`.
+### 2. Launch the Frontend Application
+Open a second terminal in `frontend/` and run:
+```powershell
+cd frontend
+npm run dev
+```
+- **Customer Web App**: `http://localhost:3000`
+- **Café Owner Portal**: `http://localhost:3000/owner/dashboard`
+- **Admin Panel**: `http://localhost:3000/admin`
 
 ---
 
-## ADR 006: Launch-Ready V2 Core Expansion
+## Demo Accounts & Test Credentials
 
-- **Context**: Transitioning the platform to be fully launch-ready required resolving backend race conditions, defining standards for hardware tier presets and rating metrics, implementing zero-commission payouts, and adding a low-friction trust-but-verify onboarding flow.
-- **Decision**: 
-  - **Monetization**: Implemented a flat ₹10 Platform Fee (convenience fee) for gamers and 2% cancellation fee charging logic for café owners.
-  - **Database & Services**: Added SQL-level row locks (`SELECT FOR UPDATE`) on the hardware tier booking process to avoid overbooking. Set up unverified venue limits (capped at 15 bookings or ₹5,000 total transaction volume).
-  - **Payouts & KYC**: Automated Splits via Razorpay Route. Built bank setup screens and webhooks integration mapping.
-  - **QR Check-in**: Integrated mobile-friendly QR scanning mechanics in the Owner Hub.
-- **Consequences**: Successfully compiled, built, and statically optimized all 16 Next.js pages with TypeScript validity. Backend starting cleanly and database migrations applying seamlessly.
-
----
-
-## ADR 007: Role-Based Routing & Hydration Guard Consistency
-
-- **Context**: The `(customer)/layout.tsx` used `isLoading` as its hydration guard while `(owner)/layout.tsx` and `(admin)/layout.tsx` used the more robust `isHydrated` flag from `authStore`. This inconsistency could cause premature redirects to `/login` on page refresh before the store settled.
-- **Decision**: Updated `(customer)/layout.tsx` to read `isHydrated` from `authStore` and guard redirects with `isHydrated && !isLoading && !isAuthenticated` — consistent with the owner/admin pattern.
-- **Role Routing** (already implemented, verified): Login page correctly routes `cafe_owner → /owner/dashboard`, `admin → /admin`, `gamer → /`. Owner layout blocks non-owner roles. Admin layout blocks non-admin roles.
-- **Test Accounts**: `test@example.com` (gamer), `owner@khel-o.test` (cafe_owner), `admin@khel-o.test` (admin) — all share password `testpass123`.
-- **Consequences**: All 3 layout groups now use the same `isHydrated`-first hydration guard. Build passes with 0 TypeScript errors. 17 static pages generated.
+| Role | Email | Password | Access / Flow to Test |
+|---|---|---|---|
+| **Gamer (Customer)** | `test@example.com` | `testpass123` | Explore cafes, select slots, create bookings, view bookings & pass |
+| **Café Owner** | `owner@example.com` | `testpass123` | Cafe dashboard, tier management, promotions, owner bookings |
+| **Platform Admin** | `admin@example.com` | `testpass123` | Admin verification dashboard & cafe approval portal |
+| **Venue Staff** | `staff@example.com` | `testpass123` | Quick QR pass check-in scanning |
 
 ---
 
-## ADR 008: Deterministic Store Hydration & Deprecation Warning Fix
+## Recommended Manual User Flow Testing Matrix
 
-- **Context**: Hydration error `Hydration failed because the initial UI does not match what was rendered on the server` occurred because `authStore` evaluated `typeof window !== 'undefined'` in `getInitialState()`, causing `isHydrated` to be `true` on client initial render while server initial render was `false`. Additionally, browser logged a deprecation warning for `apple-mobile-web-app-capable`.
-- **Decision**:
-  - Normalized `getInitialState()` in `authStore.ts` to return deterministic initial state (`isHydrated: false`, `isLoading: true`) on both server and client during initial render.
-  - Enhanced `initializeFromStorage()` in `authStore.ts` to load cached user and token on mount before fetching `/me`.
-  - Added `mobile-web-app-capable: 'yes'` in `other` metadata of `src/app/layout.tsx`.
-  - Replaced residual `any` types in `src/lib/api.ts` with `Record<string, unknown>`.
-- **Consequences**: 0 hydration errors. 0 TypeScript errors. Next.js build passes generating 18 static pages.
+1. **Gamer Flow**:
+   - Go to `http://localhost:3000/login` -> Sign in with `test@example.com` / `testpass123`.
+   - Explore listed cafes (`LXG Esports Arena`, `Respawn Gaming Lounge`), use intent chips, open cafe details.
+   - Pick date, time slot, duration, and confirm booking.
+   - View booking details and QR pass in `/bookings`.
 
----
+2. **Café Owner Flow**:
+   - Log out or use incognito tab -> Sign in with `owner@example.com` / `testpass123`.
+   - Navigate to `/owner/dashboard`, `/owner/owner/tiers`, `/owner/owner/promotions`, and `/owner/owner/bookings`.
+   - Verify hardware tier seat counts, active promos, and incoming gamer bookings.
 
-## ADR 009: Production Playo UX, Staff RBAC Role & Docker Multi-Stage Optimization
-
-- **Context**: The platform required a seamless Playo-grade booking UX, permission fixes for gamer café onboarding, delegation of QR check-in capabilities to venue staff without administrative privileges, and container optimization.
-- **Decision**:
-  - **STAFF Role**: Added `STAFF = "staff"` to `UserRole` in backend models and frontend types. Added `POST /api/v1/owner/staff` and `GET /api/v1/owner/staff` endpoints, and a dedicated Staff Management portal at `frontend/src/app/(owner)/owner/staff/page.tsx`.
-  - **Owner Onboarding**: Updated `POST /api/v1/cafes` to accept applications from active users during onboarding, automatically upgrading gamer roles to `cafe_owner`. Expanded onboarding to a 4-step wizard at `frontend/src/app/(owner)/owner/onboarding/page.tsx`.
-  - **Admin Verification**: Updated `verify_cafe` to guarantee owner role upgrade to `CAFE_OWNER` upon approval.
-  - **Playo-Style Booking**: Enhanced `frontend/src/app/(customer)/bookings/new/page.tsx` with a 14-day date picker, 4-bucket time slot selector (Morning, Afternoon, Evening, Night), tactile duration chips, live price breakdown, and sticky primary CTA.
-  - **Docker Optimization**: Multi-stage `Dockerfile` for Next.js production build, backend health checks, and bridge networking in `docker-compose.yml`.
-- **Consequences**: 19 static Next.js pages generated cleanly. 0 TypeScript or lint errors. Complete end-to-end integration across Gamer, Owner, Staff, and Admin portals.
+3. **Admin Flow**:
+   - Sign in with `admin@example.com` / `testpass123`.
+   - Navigate to `/admin` to verify pending cafe approvals and system statistics.
 
 ---
 
-## ADR 010: Full System Audit & Anti-Pattern Detective Hardening
+## ADR 005 to ADR 012 Summary Reference
 
-- **Context**: Performed a forensic audit to eliminate common "vibe coder" bugs, loose types, invalid TLD payloads, and schema validation crashes.
-- **Decision**:
-  - **Email & TLD Hardening**: Replaced invalid `.test` TLDs in demo login buttons (`owner@khel-o.test` -> `owner@example.com`, `admin@khel-o.test` -> `admin@example.com`). Added `ensure_demo_users()` in backend `main.py` lifespan context manager so all demo accounts exist in PostgreSQL on startup with password `testpass123`.
-  - **Strict TypeScript (Zero `any`)**: Audited and eliminated all `any` types across 10+ frontend files (`login`, `bookings`, `new`, `owner/cafe`, `owner/tiers`, `owner/promotions`, `owner/staff`, `owner/payouts`, `owner/bookings`), enforcing typed `unknown` error handling with safe record narrowing.
-  - **Flexible Pydantic Schema Parsing**: Added `@field_validator` with `mode="before"` to `backend/app/schemas/cafe.py` and `backend/app/schemas/booking.py` to parse non-standard time inputs (`"10 AM"`, `"10:00 AM"`, `""` -> `None` or `time`) and empty UUID string payloads (`""` -> `None`).
-  - **Memory Capping**: Configured `NODE_OPTIONS=--max-old-space-size=512` in `docker-compose.yml` to prevent Next.js dev/prod compilation memory ballooning.
-- **Consequences**: Zero `any` types remaining in `frontend/src`. Next.js production build succeeded with 19 static pages generated cleanly. 0 runtime schema parsing errors for non-standard times or empty strings.
-
----
-
-## ADR 011: Backend Exceptions Alignment, Volume Bind-Mount & DB Table Auto-Init
-
-- **Context**: On full container restart, backend failed startup with `ImportError: cannot import name 'BadRequestException' from 'app.core.exceptions'` causing Uvicorn connection refusals (`ERR_CONNECTION_REFUSED`). Additionally, PostgreSQL tables were missing on a fresh database reset.
-- **Decision**:
-  - **Core Exceptions**: Added missing `BadRequestException` and `UnprocessableEntityException` to `backend/app/core/exceptions.py`.
-  - **Automatic DB Table Creation**: Added `init_db()` in `backend/app/main.py` lifespan context manager importing `app.models` to run `Base.metadata.create_all` before seeding demo users.
-  - **Docker Dev Volume**: Added `./backend:/app` volume mount in `docker-compose.yml` so python code changes are immediately synced to the backend container.
-- **Consequences**: Backend container started up 100% healthy (`Up (healthy)`). `POST /api/v1/auth/login` verified with live HTTP 200 OK responses and valid JWT tokens for Gamer, Owner, and Admin demo accounts.
-
----
-
-## ADR 012: Design System Overhaul & Enterprise UI Components
-
-- **Context**: Upgraded the frontend UI with a modernized design system, modularized TypeScript types, query hooks, responsive filter bars, hardware tier cards, booking cards, and route protection guards.
-- **Decision**:
-  - **Modularized Type Architecture**: Split monolithic types into domain-specific files (`user.ts`, `cafe.ts`, `booking.ts`, `tier.ts`, `promotion.ts`, `payment.ts`, `review.ts`, `owner.ts`, `shared.ts`).
-  - **Design & Layout Enhancements**: Added responsive components including `HardwareTierCard`, `BookingCard`, `CafeFilterBar`, `CafeCard`, and layout components (`AuthGuard`, `Footer`, `Navbar`, `Sidebar`).
-  - **Hooks & Queries**: Added custom hooks `useDebounce`, `useMediaQuery`, and query hooks under `src/hooks/queries/`.
-  - **Seed Scripts**: Added `backend/scripts/seed_demo_users.py` for reliable local development data seeding.
-- **Consequences**: Standardized UI across all route groups with zero TypeScript errors and complete type safety.
-
+*(Previous ADRs 005-012 retained for historical context and architectural reference)*

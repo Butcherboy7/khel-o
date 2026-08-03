@@ -4,28 +4,28 @@
 
 @layer base {
   :root {
-    /* ── Brand Colors ── */
-    --primary: #10B981;
-    --primary-dark: #059669;
-    --secondary: #1F2937;
-    --accent: #FC7C78;
+    /* ── Brand Colors (Matching Lovable Inspo Palette) ── */
+    --primary: #E54D42;
+    --primary-dark: #C83B31;
+    --secondary: #18191E;
+    --accent: #E54D42;
 
-    /* ── Background Colors ── */
-    --surface: #F3F4F6;
+    /* ── Background Colors (Off-White Warm Cream & Crisp White Cards) ── */
+    --surface: #F9F8F6;
     --card: #FFFFFF;
 
-    /* ── Text Colors ── */
-    --text-primary: #111827;
-    --text-secondary: #4B5563;
-    --text-technical: #10B981;
+    /* ── Text Colors (Deep Obsidian Black & Muted Charcoal) ── */
+    --text-primary: #111318;
+    --text-secondary: #5A5E6B;
+    --text-technical: #E54D42;
 
-    /* ── Border Colors ── */
-    --border: #E5E7EB;
+    /* ── Border Colors (Subtle Soft Neutral) ── */
+    --border: #E8E6E2;
 
     /* ── Status Colors ── */
     --success: #10B981;
     --warning: #F59E0B;
-    --error: #EF4444;
+    --error: #E54D42;
 
     /* ── Border Radii ── */
     --radius-sm: 4px;
@@ -35,16 +35,13 @@
     --radius-2xl: 16px;
     --radius-3xl: 24px;
 
-    /* ── Shadows (3 elevation levels only) ── */
-    /* Level 1: Cards and containers */
-    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05),
-      0 2px 4px -1px rgba(0, 0, 0, 0.03);
-    /* Level 2: Sticky bars and floating elements */
-    --shadow-float: 0 10px 15px -3px rgba(0, 0, 0, 0.08),
-      0 4px 6px -2px rgba(0, 0, 0, 0.04);
-    /* Level 3: Modals and overlays */
-    --shadow-overlay: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-      0 8px 10px -6px rgba(0, 0, 0, 0.06);
+    /* ── Shadows (3 elevation levels) ── */
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.03),
+      0 2px 4px -1px rgba(0, 0, 0, 0.02);
+    --shadow-float: 0 10px 15px -3px rgba(0, 0, 0, 0.06),
+      0 4px 6px -2px rgba(0, 0, 0, 0.03);
+    --shadow-overlay: 0 20px 25px -5px rgba(0, 0, 0, 0.08),
+      0 8px 10px -6px rgba(0, 0, 0, 0.04);
 
     /* ── Animation Durations ── */
     --duration-fast: 150ms;
@@ -90,12 +87,10 @@
     line-height: 1.5;
   }
 
-  /* ── Headings default to heading font ── */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-space-grotesk), sans-serif;
   }
 
-  /* ── Reduced motion preference ── */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -107,14 +102,12 @@
     }
   }
 
-  /* ── Focus visible ring for keyboard navigation ── */
   :focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
     border-radius: var(--radius-lg);
   }
 
-  /* ── Scrollbar styling ── */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -135,7 +128,6 @@
 }
 
 @layer utilities {
-  /* ── 8px grid spacing helpers ── */
   .grid-8 {
     gap: 8px;
   }
@@ -149,7 +141,6 @@
     gap: 32px;
   }
 
-  /* ── Hide scrollbar but keep functionality ── */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -158,7 +149,6 @@
     display: none;
   }
 
-  /* ── Safe area padding for fixed bottom elements ── */
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }

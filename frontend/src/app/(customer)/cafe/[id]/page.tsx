@@ -9,20 +9,32 @@ import {
   Clock,
   Star,
   ChevronLeft,
+  ChevronRight,
   Share2,
   Monitor,
   CheckCircle2,
   Navigation,
+  Gamepad2,
 } from 'lucide-react';
 import { getCafe } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Button, RatingDisplay, PriceDisplay, Badge, Skeleton, ErrorState } from '@/components/ui';
+import { GoogleLocationDisplay } from '@/components/maps/GoogleLocationDisplay';
+import { ShareModal } from '@/components/customer/ShareModal';
+
+const DEFAULT_PHOTOS = [
+  'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=1200&q=80',
+];
 
 export default function CafeDetailPage() {
   const params = useParams();
   const cafeId = params.id as string;
 
   const [activeTab, setActiveTab] = useState<'amenities' | 'games' | 'reviews'>('amenities');
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.cafes.detail(cafeId),
@@ -55,29 +67,27 @@ export default function CafeDetailPage() {
   }
 
   const cafe = data;
-  const primaryPhoto = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0] : null;
+  const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : DEFAULT_PHOTOS;
+  const currentPhoto = photosList[photoIndex % photosList.length];
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : 100;
+
+  const nextPhoto = () => setPhotoIndex((prev) => (prev + 1) % photosList.length);
+  const prevPhoto = () => setPhotoIndex((prev) => (prev - 1 + photosList.length) % photosList.length);
 
   return (
     <div className="flex flex-col gap-8 max-w-4xl mx-auto pb-28">
-      {/* Hero Header Image (Matches Lovable Target) */}
-      <div className="relative h-72 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float">
-        {primaryPhoto ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={primaryPhoto}
-            alt={cafe.name}
-            className="h-full w-full object-cover"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        ) : null}
+      {/* Hero Header Image with Gallery Arrows */}
+      <div className="relative h-72 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={currentPhoto}
+          alt={`${cafe.name} photo ${photoIndex + 1}`}
+          className="h-full w-full object-cover transition-all duration-300"
+        />
 
-        {/* Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-secondary/80 via-transparent to-black/30" />
 
-        {/* Floating Top Nav Buttons */}
+        {/* Top Controls */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
           <Link href="/">
             <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-colors">
@@ -85,16 +95,42 @@ export default function CafeDetailPage() {
             </button>
           </Link>
 
-          <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-colors">
+          <button
+            onClick={() => setIsShareOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-colors"
+          >
             <Share2 className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Carousel Indicators at Bottom Center */}
+        {/* Desktop Carousel Arrows */}
+        {photosList.length > 1 && (
+          <>
+            <button
+              onClick={prevPhoto}
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors opacity-0 group-hover:opacity-100"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              onClick={nextPhoto}
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors opacity-0 group-hover:opacity-100"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </>
+        )}
+
+        {/* Photo Indicators */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
-          <div className="h-2 w-6 rounded-full bg-white" />
-          <div className="h-2 w-2 rounded-full bg-white/50" />
-          <div className="h-2 w-2 rounded-full bg-white/50" />
+          {photosList.map((_, idx) => (
+            <div
+              key={idx}
+              className={`h-2 rounded-full transition-all ${
+                idx === photoIndex ? 'w-6 bg-white' : 'w-2 bg-white/50'
+              }`}
+            />
+          ))}
         </div>
       </div>
 
@@ -116,7 +152,6 @@ export default function CafeDetailPage() {
           </div>
         </div>
 
-        {/* Status Pills Row */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="rounded-full bg-success/10 px-3 py-1 text-caption font-semibold text-success">
             Open now
@@ -196,7 +231,6 @@ export default function CafeDetailPage() {
           ))}
         </div>
 
-        {/* Tab Content */}
         {activeTab === 'amenities' && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
@@ -209,16 +243,52 @@ export default function CafeDetailPage() {
             ].map((item) => (
               <div
                 key={item}
-                className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary"
+                className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary flex items-center gap-2"
               >
-                {item}
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'games' && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {['Valorant', 'Counter-Strike 2', 'GTA V', 'EA FC 24', 'Cyberpunk 2077', 'Apex Legends', 'Dota 2', 'Fortnite'].map((game) => (
+              <div
+                key={game}
+                className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-2.5 font-medium text-body text-text-primary"
+              >
+                <Gamepad2 className="h-4 w-4 text-accent" />
+                <span>{game}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'reviews' && (
+          <div className="flex flex-col gap-3">
+            {[
+              { name: 'Rohan M.', rating: 5, comment: 'Insane 240Hz monitors! Ultra smooth ping for Valorant ranked.' },
+              { name: 'Ananya S.', rating: 5, comment: 'Super clean lounge, great snacks, and friendly staff.' },
+              { name: 'Karan P.', rating: 4, comment: 'PS5 dualsense controllers were brand new. Great experience.' },
+            ].map((rev, i) => (
+              <div key={i} className="p-4 rounded-2xl bg-card border border-border/80 flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-heading text-body font-bold text-text-primary">{rev.name}</span>
+                  <div className="flex items-center text-warning">
+                    <Star className="h-4 w-4 fill-warning" />
+                    <span className="text-caption font-bold ml-1">{rev.rating}.0</span>
+                  </div>
+                </div>
+                <p className="text-caption text-text-secondary">{rev.comment}</p>
               </div>
             ))}
           </div>
         )}
       </section>
 
-      {/* Opening Hours & Location Map Row */}
+      {/* Opening Hours & Interactive Google Map Row */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="p-5 rounded-3xl bg-card border border-border/80 flex flex-col gap-2">
           <div className="flex items-center gap-2 font-heading text-h3 text-text-primary">
@@ -236,17 +306,30 @@ export default function CafeDetailPage() {
             <span>Location</span>
           </div>
 
-          <div className="h-28 w-full rounded-2xl bg-surface/80 border border-border flex items-center justify-center text-caption text-text-secondary">
-            [ Interactive Map ]
-          </div>
+          <GoogleLocationDisplay
+            lat={cafe.latitude}
+            lng={cafe.longitude}
+            venueName={cafe.name}
+          />
 
-          <Button variant="secondary" size="md" fullWidth className="gap-2">
-            <span>Get directions</span>
+          <Button
+            variant="secondary"
+            size="md"
+            fullWidth
+            className="gap-2"
+            onClick={() => {
+              const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                `${cafe.name}, ${cafe.addressLine1}, ${cafe.city}`
+              )}`;
+              window.open(url, '_blank');
+            }}
+          >
+            <span>Get directions on Google Maps</span>
           </Button>
         </div>
       </section>
 
-      {/* Sticky Bottom Action Bar (Dark Button like Lovable) */}
+      {/* Sticky Bottom Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-sticky bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
         <div className="max-w-content mx-auto flex items-center justify-between gap-4">
           <div>
@@ -263,6 +346,12 @@ export default function CafeDetailPage() {
           </Link>
         </div>
       </div>
+
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        title={cafe.name}
+      />
     </div>
   );
 }

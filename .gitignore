@@ -57,3 +57,7 @@ Thumbs.db
 
 # Docker & Database
 pgdata/
+*.db
+*.sqlite
+*.sqlite3
+*.txt
