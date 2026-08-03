@@ -31,7 +31,7 @@ services:
       - ENVIRONMENT=development
       - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@postgres:5432/khel_o_db
       - SECRET_KEY=dev-secret-key-must-be-changed-in-production-12345
-      - FRONTEND_URL=http://localhost:3002
+      - FRONTEND_URL=http://localhost:3000
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-your-google-client-id}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-your-google-client-secret}
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-rzp_test_mock_khelo_key}
@@ -42,28 +42,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - khel_o_net
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000
-        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-your-google-client-id}
-        NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID:-rzp_test_mock_khelo_key}
-    container_name: khel_o_frontend
-    restart: unless-stopped
-    ports:
-      - "3002:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-your-google-client-id}
-      - NEXT_PUBLIC_RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-rzp_test_mock_khelo_key}
-      - NODE_OPTIONS=--max-old-space-size=512
-    depends_on:
-      - backend
     networks:
       - khel_o_net
 

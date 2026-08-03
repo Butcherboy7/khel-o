@@ -1,257 +1,209 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState, Suspense, type FormEvent } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Gamepad2, Mail, Lock, ShieldCheck, Store, UserCheck, Loader2 } from 'lucide-react';
+import { Button, Input, Card, CardContent } from '@/components/ui';
+import { login } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
-import api from '@/lib/api';
+import type { UserRole } from '@/types';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
-  const setAuth = useAuthStore((state) => state.setAuth);
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get('redirect');
+
+  const setAuth = useAuthStore((s) => s.setAuth);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      setError('Please enter both email and password.');
+      return;
+    }
+
     setError(null);
-    setLoading(true);
+    setIsLoading(true);
 
     try {
-      const res = await api.post('/api/v1/auth/login', {
-        email,
-        password,
-      });
+      const res = await login({ email, password });
+      setAuth(res.user, res.accessToken, res.refreshToken);
 
-      const { user, accessToken, refreshToken } = res.data.data;
-      setAuth(user, accessToken, refreshToken);
-      
-      if (user.role === 'cafe_owner') {
-        router.push('/owner/dashboard');
-      } else if (user.role === 'staff') {
-        router.push('/owner/bookings');
-      } else if (user.role === 'admin') {
-        router.push('/admin');
+      if (redirectPath) {
+        router.push(redirectPath);
       } else {
-        router.push('/');
+        switch (res.user.role) {
+          case 'cafe_owner':
+          case 'staff':
+            router.push('/owner/dashboard');
+            break;
+          case 'admin':
+            router.push('/admin');
+            break;
+          default:
+            router.push('/');
+            break;
+        }
       }
-    } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
-        setError(axiosErr.response?.data?.error?.message || 'Invalid email or password.');
-      } else {
-        setError('Login failed. Please check your connection.');
-      }
+    } catch (err: any) {
+      setError(err?.message || 'Invalid email or password. Please try again.');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-      if (!clientId || clientId.includes('your-google-client-id')) {
-        // Fallback demo gamer login if no Google Client ID configured
-        const res = await api.post('/api/v1/auth/login', {
-          email: 'test@example.com',
-          password: 'testpass123',
-        });
-        const { user, accessToken, refreshToken } = res.data.data;
-        setAuth(user, accessToken, refreshToken);
-        router.push('/');
-        return;
-      }
-
-      if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
-        (window as any).google.accounts.id.initialize({
-          client_id: clientId,
-          callback: async (response: { credential?: string }) => {
-            if (response.credential) {
-              try {
-                const res = await api.post('/api/v1/auth/google', {
-                  idToken: response.credential,
-                });
-                const { user, accessToken, refreshToken } = res.data.data;
-                setAuth(user, accessToken, refreshToken);
-                if (user.role === 'cafe_owner') router.push('/owner/dashboard');
-                else if (user.role === 'admin') router.push('/admin');
-                else router.push('/');
-              } catch (err: unknown) {
-                const msg = err && typeof err === 'object' && 'response' in err
-                  ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
-                  : undefined;
-                setError(msg || 'Google authentication failed on backend.');
-              }
-            }
-          },
-        });
-        const googleObj = (window as unknown as { google?: { accounts?: { id?: { prompt: () => void } } } }).google;
-        googleObj?.accounts?.id?.prompt();
-      } else {
-        const script = document.createElement('script');
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.onload = () => {
-          const googleObj = (window as unknown as { google?: { accounts?: { id?: { initialize: (cfg: unknown) => void; prompt: () => void } } } }).google;
-          googleObj?.accounts?.id?.initialize({
-            client_id: clientId,
-            callback: async (response: { credential?: string }) => {
-              if (response.credential) {
-                const res = await api.post('/api/v1/auth/google', { idToken: response.credential });
-                const { user, accessToken, refreshToken } = res.data.data;
-                setAuth(user, accessToken, refreshToken);
-                router.push('/');
-              }
-            },
-          });
-          googleObj?.accounts?.id?.prompt();
-        };
-        document.body.appendChild(script);
-      }
-    } catch (err: unknown) {
-      setError('Google Sign-In failed. Try email login below.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDemoLogin = async (email: string) => {
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await api.post('/api/v1/auth/login', {
-        email,
-        password: 'testpass123',
-      });
-      const { user, accessToken, refreshToken } = res.data.data;
-      setAuth(user, accessToken, refreshToken);
-      if (user.role === 'cafe_owner') router.push('/owner/dashboard');
-      else if (user.role === 'admin') router.push('/admin');
-      else router.push('/');
-    } catch (err: unknown) {
-      const msg = err && typeof err === 'object' && 'response' in err
-        ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
-        : undefined;
-      setError(msg || 'Demo login failed.');
-    } finally {
-      setLoading(false);
+  const fillDemo = (role: UserRole) => {
+    switch (role) {
+      case 'gamer':
+        setEmail('gamer@khelo.com');
+        setPassword('Gamer123!');
+        break;
+      case 'cafe_owner':
+        setEmail('owner@khelo.com');
+        setPassword('Owner123!');
+        break;
+      case 'admin':
+        setEmail('admin@khelo.com');
+        setPassword('Admin123!');
+        break;
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-bold font-heading text-text-primary">Welcome Back</h2>
-        <p className="text-sm font-body text-text-secondary">Log in to book your gaming sessions</p>
-      </div>
+    <Card elevation="raised">
+      <CardContent className="p-6 md:p-8">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <h2 className="font-heading text-h2 text-text-primary">Sign in</h2>
+            <p className="text-body text-text-secondary mt-0.5">
+              Access your bookings and gaming passes
+            </p>
+          </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 border border-error/20 rounded-2xl text-xs text-error font-body">
-          {error}
-        </div>
-      )}
+          {error && (
+            <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">
+              {error}
+            </div>
+          )}
 
-      {/* Primary: Google Sign In */}
-      <button
-        type="button"
-        disabled={loading}
-        onClick={handleGoogleSignIn}
-        className="w-full btn-primary flex items-center justify-center space-x-2 disabled:opacity-50"
-      >
-        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-          <path d="M12.24 10.285V13.4h6.887c-.58 2.765-2.85 4.71-5.647 4.71-3.417 0-6.19-2.774-6.19-6.195 0-3.42 2.773-6.195 6.19-6.195 1.58 0 3.018.59 4.133 1.564l2.456-2.456C18.57 3.655 15.61 2.5 12.24 2.5 6.983 2.5 2.73 6.753 2.73 12.01s4.253 9.51 9.51 9.51c5.5 0 9.14-3.868 9.14-9.303 0-.642-.066-1.268-.176-1.932H12.24z" />
-        </svg>
-        <span>Continue with Google</span>
-      </button>
-
-      <div className="relative flex items-center justify-center">
-        <div className="border-t border-border w-full"></div>
-        <span className="bg-card px-3 text-xs text-text-secondary font-body uppercase tracking-wider">
-          or email
-        </span>
-      </div>
-
-      {/* Secondary: Email Form */}
-      <form onSubmit={handleEmailLogin} className="space-y-4">
-        <div>
-          <label className="block text-xs font-medium text-text-secondary mb-1">
-            Email Address
-          </label>
-          <input
+          <Input
+            label="Email Address"
             type="email"
-            required
+            placeholder="name@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="gamer@example.com"
-            className="w-full px-4 py-3 bg-surface border border-border rounded-2xl text-sm focus:outline-none focus:border-primary text-text-primary"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-text-secondary mb-1">
-            Password
-          </label>
-          <input
-            type="password"
+            leftIcon={<Mail className="h-4 w-4" />}
             required
+            autoComplete="email"
+          />
+
+          <Input
+            label="Password"
+            type="password"
+            placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            className="w-full px-4 py-3 bg-surface border border-border rounded-2xl text-sm focus:outline-none focus:border-primary text-text-primary"
+            leftIcon={<Lock className="h-4 w-4" />}
+            required
+            autoComplete="current-password"
           />
+
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            fullWidth
+            isLoading={isLoading}
+            loadingText="Signing in..."
+            className="mt-2"
+          >
+            Sign In
+          </Button>
+        </form>
+
+        {/* Quick Demo Credentials Switcher */}
+        <div className="mt-6 border-t border-border pt-4">
+          <p className="text-overline text-text-secondary uppercase tracking-wider font-semibold text-center mb-3">
+            Quick Fill Demo Accounts
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fillDemo('gamer')}
+              className="gap-1 text-caption"
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              <span>Gamer</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fillDemo('cafe_owner')}
+              className="gap-1 text-caption"
+            >
+              <Store className="h-3.5 w-3.5" />
+              <span>Owner</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fillDemo('admin')}
+              className="gap-1 text-caption"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>Admin</span>
+            </Button>
+          </div>
         </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full btn-secondary disabled:opacity-50"
-        >
-          {loading ? 'Logging in...' : 'Sign In with Email'}
-        </button>
-      </form>
-
-      {/* Quick Demo Login Chips */}
-      <div className="pt-2 border-t border-border space-y-2">
-        <span className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider block text-center">
-          ⚡ Quick Demo Accounts
-        </span>
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            onClick={() => handleDemoLogin('test@example.com')}
-            className="py-2 px-2 bg-surface hover:bg-primary/10 border border-border rounded-xl text-xs text-text-primary font-medium transition-colors text-center truncate"
-          >
-            🎮 Gamer
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDemoLogin('owner@example.com')}
-            className="py-2 px-2 bg-surface hover:bg-primary/10 border border-border rounded-xl text-xs text-text-primary font-medium transition-colors text-center truncate"
-          >
-            🏪 Owner
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDemoLogin('admin@example.com')}
-            className="py-2 px-2 bg-surface hover:bg-primary/10 border border-border rounded-xl text-xs text-text-primary font-medium transition-colors text-center truncate"
-          >
-            🛡️ Admin
-          </button>
-        </div>
-      </div>
-
-      <div className="text-center text-xs text-text-secondary">
-        Don&apos;t have an account?{' '}
-        <Link href="/register" className="text-primary font-semibold hover:underline">
-          Register here
-        </Link>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
+export default function LoginPage() {
+  return (
+    <div className="w-full max-w-md">
+      {/* Brand Header */}
+      <div className="flex flex-col items-center text-center mb-8">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-white shadow-float mb-3">
+          <Gamepad2 className="h-7 w-7" />
+        </div>
+        <h1 className="font-heading text-display text-text-primary">KHEL-O</h1>
+        <p className="text-body text-text-secondary mt-1">
+          India&apos;s Premier Gaming Café Marketplace
+        </p>
+      </div>
+
+      <Suspense
+        fallback={
+          <div className="flex justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        }
+      >
+        <LoginForm />
+      </Suspense>
+
+      {/* Footer Link */}
+      <p className="text-center text-body text-text-secondary mt-6">
+        Don&apos;t have an account?{' '}
+        <Link
+          href="/register"
+          className="font-semibold text-primary hover:underline transition-colors"
+        >
+          Create an account
+        </Link>
+      </p>
+    </div>
+  );
+}

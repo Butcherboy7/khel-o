@@ -13,7 +13,6 @@ try {
 
 const nextConfig = {
   reactStrictMode: true,
-  turbopack: {},
 };
 
 module.exports = withPWA(nextConfig);

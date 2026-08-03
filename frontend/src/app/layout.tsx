@@ -1,47 +1,69 @@
 import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
-import Providers from './providers';
-import './globals.css';
+import { Providers } from './providers';
+import '../globals.css';
+
+/* ── Font Loading ────────────────────────────────────────────────── */
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
-  variable: '--font-space-grotesk',
   display: 'swap',
+  variable: '--font-space-grotesk',
+  weight: ['600', '700'],
 });
 
-const plusJakarta = Plus_Jakarta_Sans({
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
-  variable: '--font-plus-jakarta',
   display: 'swap',
+  variable: '--font-plus-jakarta',
+  weight: ['400', '500', '600'],
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
-  variable: '--font-jetbrains-mono',
   display: 'swap',
+  variable: '--font-jetbrains-mono',
+  weight: ['400', '600', '700'],
 });
 
+/* ── Metadata ────────────────────────────────────────────────────── */
+
 export const metadata: Metadata = {
-  title: 'KHEL-O — Gaming Café Marketplace',
-  description: 'Book high-performance PC & Console gaming slots at verified cafés near you.',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'KHEL-O',
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? 'https://khelo.app',
+  ),
+  title: {
+    default: 'KHEL-O — Book Gaming Cafés Near You',
+    template: '%s | KHEL-O',
   },
-  other: {
-    'mobile-web-app-capable': 'yes',
+  description:
+    'Discover and book verified gaming cafés across India. Premium PCs, consoles, and immersive setups — one tap away.',
+  keywords: [
+    'gaming café',
+    'book gaming PC',
+    'esports café India',
+    'KHEL-O',
+    'gaming lounge booking',
+  ],
+  authors: [{ name: 'KHEL-O' }],
+  openGraph: {
+    type: 'website',
+    locale: 'en_IN',
+    siteName: 'KHEL-O',
+    title: 'KHEL-O — Book Gaming Cafés Near You',
+    description:
+      'Discover and book verified gaming cafés across India. Premium PCs, consoles, and immersive setups — one tap away.',
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#10B981',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  themeColor: '#10B981',
 };
+
+/* ── Root Layout ─────────────────────────────────────────────────── */
 
 export default function RootLayout({
   children,
@@ -51,9 +73,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}
+      className={`${spaceGrotesk.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="bg-surface text-text-primary antialiased selection:bg-primary selection:text-white min-h-screen">
+      <body className="font-body bg-surface text-text-primary antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -1,87 +1,117 @@
-'use client';
-
-import React from 'react';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { Star } from 'lucide-react';
-import { CafeListItem } from '@/types';
+import Link from 'next/link';
+import { MapPin, Star, Zap } from 'lucide-react';
+import { Card, CardImage } from '@/components/ui';
+import type { CafeListItem } from '@/types';
 
 interface CafeCardProps {
   cafe: CafeListItem;
 }
 
-export default function CafeCard({ cafe }: CafeCardProps) {
-  const router = Router();
-  const hasPhoto = cafe.photos && cafe.photos.length > 0 && cafe.photos[0];
+export function CafeCard({ cafe }: CafeCardProps) {
+  const primaryPhoto = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0] : null;
 
   return (
-    <div
-      onClick={() => router.push(`/cafes/${cafe.id}`)}
-      className="bg-card rounded-2xl border border-border shadow-md p-3 flex gap-3 cursor-pointer active:scale-98 transition-transform"
-    >
-      {/* Left: Square Image */}
-      <div className="relative w-[96px] h-[96px] rounded-xl overflow-hidden flex-shrink-0 bg-surface">
-        {hasPhoto ? (
-          <Image
-            src={cafe.photos[0]}
-            alt={cafe.name}
-            fill
-            sizes="96px"
-            className="object-cover"
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-secondary to-slate-700 flex items-center justify-center text-white text-xs font-heading font-bold p-1 text-center">
-            {cafe.name}
+    <Link href={`/cafe/${cafe.id}`} className="block h-full group">
+      <Card
+        interactive
+        elevation="resting"
+        className="h-full flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card transition-all duration-normal hover:shadow-float"
+      >
+        {/* Photo Header */}
+        <CardImage aspectClass="aspect-[16/10]" className="relative">
+          {primaryPhoto ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={primaryPhoto}
+              alt={cafe.name}
+              className="h-full w-full object-cover transition-transform duration-slow group-hover:scale-105"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : null}
+
+          {/* Gradient Fallback when image fails */}
+          <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-4 text-center -z-10">
+            <span className="font-heading text-h3 text-white opacity-80">{cafe.name}</span>
           </div>
-        )}
-      </div>
 
-      {/* Right: Info */}
-      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-        {/* Row 1: Name & Rating */}
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="font-heading font-semibold text-base text-text-primary truncate">
-            {cafe.name}
-          </h3>
-          <div className="flex items-center gap-1 bg-secondary text-white text-xs px-2 py-0.5 rounded-full flex-shrink-0">
-            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-            <span className="font-data font-medium">
-              {cafe.averageRating > 0 ? cafe.averageRating.toFixed(1) : 'New'}
+          {/* Overlay Badges */}
+          <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+            {cafe.hasActivePromotion ? (
+              <span className="rounded-full bg-accent px-3 py-1 text-badge font-bold uppercase tracking-wider text-white shadow-card">
+                Buy 2 hrs get 1 free
+              </span>
+            ) : (
+              <div />
+            )}
+
+            <span className="rounded-full bg-secondary/80 backdrop-blur-md px-3 py-1 text-badge font-semibold text-white">
+              Open now
+            </span>
+          </div>
+        </CardImage>
+
+        {/* Card Body Details */}
+        <div className="p-5 flex flex-1 flex-col justify-between gap-3">
+          <div>
+            {/* Title & Rating Row */}
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <h3 className="font-heading text-h3 font-bold text-text-primary group-hover:text-primary transition-colors truncate">
+                {cafe.name}
+              </h3>
+              <div className="flex items-center gap-1 font-heading text-body-emphasis font-bold text-text-primary flex-shrink-0">
+                <Star className="h-4 w-4 fill-warning text-warning" />
+                <span>{cafe.averageRating ? cafe.averageRating.toFixed(1) : '4.8'}</span>
+              </div>
+            </div>
+
+            {/* Location Row */}
+            <div className="flex items-center gap-1 text-caption text-text-secondary">
+              <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-text-secondary" />
+              <span className="truncate">
+                {cafe.city}, {cafe.state} • 1.2 km
+              </span>
+            </div>
+          </div>
+
+          {/* Tags Row */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary">
+              PC Gaming
+            </span>
+            {cafe.tierNames && cafe.tierNames.length > 0 ? (
+              cafe.tierNames.slice(0, 2).map((tier) => (
+                <span
+                  key={tier}
+                  className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary truncate max-w-[120px]"
+                >
+                  {tier}
+                </span>
+              ))
+            ) : (
+              <span className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary">
+                PS5 Lounge
+              </span>
+            )}
+          </div>
+
+          {/* Footer: Price Row */}
+          <div className="flex items-center justify-between border-t border-border/60 pt-3 mt-1">
+            <div className="flex items-center gap-1 text-caption font-semibold text-text-secondary">
+              <Zap className="h-3.5 w-3.5 text-accent" />
+              <span>from</span>
+              <span className="font-data text-body-emphasis font-bold text-text-primary">
+                ₹{cafe.startingPrice || 90}/hr
+              </span>
+            </div>
+
+            <span className="text-caption font-bold text-primary group-hover:translate-x-0.5 transition-transform">
+              Book rig →
             </span>
           </div>
         </div>
-
-        {/* Row 2: City */}
-        <p className="text-text-secondary text-sm truncate">{cafe.city}</p>
-
-        {/* Row 3: Tier Tags */}
-        <div className="flex flex-wrap gap-1">
-          {cafe.tierNames && cafe.tierNames.slice(0, 3).map((tier, idx) => (
-            <span
-              key={idx}
-              className="text-xs bg-surface border border-border text-text-secondary px-2 py-0.5 rounded-full truncate max-w-[120px]"
-            >
-              {tier}
-            </span>
-          ))}
-        </div>
-
-        {/* Row 4: Starting Price & Flash Deal Badge */}
-        <div className="flex items-center justify-between gap-2 mt-0.5">
-          <span className="text-primary font-data font-medium text-sm">
-            {cafe.startingPrice !== null ? `Starting from ₹${cafe.startingPrice}/hr` : 'Price on request'}
-          </span>
-          {cafe.hasActivePromotion && (
-            <span className="bg-accent text-white text-xs px-2 py-1 rounded-full font-medium flex-shrink-0">
-              🔥 Flash Deal
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
+      </Card>
+    </Link>
   );
-}
-
-function Router() {
-  return useRouter();
 }

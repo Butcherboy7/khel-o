@@ -136,3 +136,16 @@ docker compose up --build -d
   - **Automatic DB Table Creation**: Added `init_db()` in `backend/app/main.py` lifespan context manager importing `app.models` to run `Base.metadata.create_all` before seeding demo users.
   - **Docker Dev Volume**: Added `./backend:/app` volume mount in `docker-compose.yml` so python code changes are immediately synced to the backend container.
 - **Consequences**: Backend container started up 100% healthy (`Up (healthy)`). `POST /api/v1/auth/login` verified with live HTTP 200 OK responses and valid JWT tokens for Gamer, Owner, and Admin demo accounts.
+
+---
+
+## ADR 012: Design System Overhaul & Enterprise UI Components
+
+- **Context**: Upgraded the frontend UI with a modernized design system, modularized TypeScript types, query hooks, responsive filter bars, hardware tier cards, booking cards, and route protection guards.
+- **Decision**:
+  - **Modularized Type Architecture**: Split monolithic types into domain-specific files (`user.ts`, `cafe.ts`, `booking.ts`, `tier.ts`, `promotion.ts`, `payment.ts`, `review.ts`, `owner.ts`, `shared.ts`).
+  - **Design & Layout Enhancements**: Added responsive components including `HardwareTierCard`, `BookingCard`, `CafeFilterBar`, `CafeCard`, and layout components (`AuthGuard`, `Footer`, `Navbar`, `Sidebar`).
+  - **Hooks & Queries**: Added custom hooks `useDebounce`, `useMediaQuery`, and query hooks under `src/hooks/queries/`.
+  - **Seed Scripts**: Added `backend/scripts/seed_demo_users.py` for reliable local development data seeding.
+- **Consequences**: Standardized UI across all route groups with zero TypeScript errors and complete type safety.
+

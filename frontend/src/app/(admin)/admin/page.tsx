@@ -1,490 +1,248 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import Image from 'next/image';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Shield,
-  User,
-  MapPin,
-  Phone,
-  Mail,
-  Clock,
-  Users,
+  ShieldCheck,
   CheckCircle2,
   XCircle,
-  Ban,
-  AlertTriangle,
-  Loader2,
+  Clock,
+  Store,
+  MapPin,
+  User,
+  AlertCircle,
 } from 'lucide-react';
-import { getPendingCafes, verifyCafe } from '@/lib/api';
-import { AdminCafe } from '@/types';
-import { formatDateLong } from '@/lib/format';
-
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case 'verified':
-      return {
-        label: 'Verified',
-        className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      };
-    case 'pending':
-      return {
-        label: 'Pending',
-        className: 'bg-amber-50 text-amber-700 border-amber-200',
-      };
-    case 'rejected':
-      return {
-        label: 'Rejected',
-        className: 'bg-red-50 text-red-700 border-red-200',
-      };
-    case 'suspended':
-      return {
-        label: 'Suspended',
-        className: 'bg-red-50 text-red-700 border-red-200',
-      };
-    default:
-      return {
-        label: status,
-        className: 'bg-gray-100 text-gray-700 border-gray-200',
-      };
-  }
-};
-
-function SkeletonRow() {
-  return (
-    <div className="mx-4 card-base h-48 animate-pulse mb-4 bg-card border border-border rounded-2xl" />
-  );
-}
+import { listPendingCafes, verifyCafe, getAdminAnalytics } from '@/lib/api/admin';
+import { queryKeys } from '@/hooks/queries/keys';
+import {
+  Button,
+  Card,
+  CardContent,
+  StatCard,
+  Badge,
+  Modal,
+  Textarea,
+  SkeletonCard,
+  ErrorState,
+  EmptyState,
+} from '@/components/ui';
+import { formatCurrencyCompact } from '@/lib/format';
+import type { AdminCafe } from '@/types';
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
-
-  // Tabs states
-  const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
-
-  // Mutation and status tracking states
-  const [actioningId, setActioningId] = useState<string | null>(null);
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [selectedCafe, setSelectedCafe] = useState<AdminCafe | null>(null);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-  const [suspendingId, setSuspendingId] = useState<string | null>(null);
-  const [reevaluatingId, setReevaluatingId] = useState<string | null>(null);
 
-  // Fetch admin panel pending cafés
-  const {
-    data: cafesList,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ['adminCafes'],
-    queryFn: getPendingCafes,
-    staleTime: 30_000,
-    retry: 1,
+  // Fetch platform analytics
+  const { data: analytics } = useQuery({
+    queryKey: queryKeys.admin.analytics,
+    queryFn: getAdminAnalytics,
+    staleTime: 60_000,
   });
 
-  const cafes = cafesList || [];
+  // Fetch pending cafes queue
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: queryKeys.admin.pendingCafes(),
+    queryFn: () => listPendingCafes(),
+    staleTime: 0,
+  });
 
-  // Verification modification mutation
-  const verifyMutation = useMutation({
-    mutationFn: ({
-      cafeId,
-      status,
-      reason,
-    }: {
-      cafeId: string;
-      status: 'verified' | 'rejected' | 'suspended';
-      reason: string | null;
-    }) => verifyCafe(cafeId, status, reason),
-    onMutate: ({ cafeId }) => {
-      setActioningId(cafeId);
-    },
+  const pendingCafes = data?.items || [];
+
+  // Verify / Approve mutation
+  const approveMutation = useMutation({
+    mutationFn: (cafeId: string) => verifyCafe(cafeId, { status: 'verified' }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminCafes'] });
-      // Reset statuses
-      setRejectingId(null);
-      setSuspendingId(null);
-      setReevaluatingId(null);
-      setRejectionReason('');
-    },
-    onSettled: () => {
-      setActioningId(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      setSelectedCafe(null);
     },
   });
 
-  // Filter list
-  const filteredCafes = useMemo(() => {
-    if (activeTab === 'pending') {
-      return cafes.filter((c) => c.verificationStatus === 'pending');
-    }
-    return cafes;
-  }, [cafes, activeTab]);
-
-  // Derive counts stats
-  const stats = useMemo(() => {
-    let pending = 0;
-    let verified = 0;
-    let rejected = 0;
-
-    cafes.forEach((c) => {
-      if (c.verificationStatus === 'pending') pending++;
-      else if (c.verificationStatus === 'verified') verified++;
-      else if (c.verificationStatus === 'rejected') rejected++;
-    });
-
-    return {
-      total: cafes.length,
-      pending,
-      verified,
-      rejected,
-    };
-  }, [cafes]);
+  // Reject mutation
+  const rejectMutation = useMutation({
+    mutationFn: ({ cafeId, reason }: { cafeId: string; reason: string }) =>
+      verifyCafe(cafeId, { status: 'rejected', reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      setIsRejectModalOpen(false);
+      setSelectedCafe(null);
+    },
+  });
 
   return (
-    <div className="space-y-4 pb-24">
-      {/* PAGE HEADER */}
-      <div className="sticky top-0 z-20 bg-secondary text-white h-14 flex items-center justify-between px-4 -mx-6">
-        <div className="flex items-center space-x-2">
-          <Shield className="w-5 h-5 text-primary shrink-0" />
-          <span className="font-heading font-semibold text-base">Admin Panel</span>
+    <div className="flex flex-col gap-8 pb-12">
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <ShieldCheck className="h-6 w-6 text-primary" />
+          <h1 className="font-heading text-h1 text-text-primary">Admin Verification Queue</h1>
         </div>
-        <span className="bg-accent text-white text-xs font-data px-2 py-0.5 rounded-full shrink-0">
-          {stats.pending} pending
-        </span>
+        <p className="text-body text-text-secondary">
+          Review partner applications, verify café venues, and oversee platform health.
+        </p>
       </div>
 
-      {/* TABS SELECTOR */}
-      <div className="sticky top-14 z-10 bg-card border-b border-border shadow-sm flex -mx-6 px-6">
-        <button
-          type="button"
-          onClick={() => setActiveTab('pending')}
-          className={`flex-1 py-3 text-center text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'pending'
-              ? 'border-primary text-primary font-semibold'
-              : 'border-transparent text-text-secondary'
-          }`}
-        >
-          Pending ({stats.pending})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('all')}
-          className={`flex-1 py-3 text-center text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'all'
-              ? 'border-primary text-primary font-semibold'
-              : 'border-transparent text-text-secondary'
-          }`}
-        >
-          All Cafés ({stats.total})
-        </button>
-      </div>
-
-      {/* STATS BAR */}
-      <div className="grid grid-cols-4 gap-2 mx-0 pt-2">
-        <div className="card-base p-2 text-center shadow-sm">
-          <span className="font-data font-bold text-base text-text-primary">{stats.total}</span>
-          <p className="font-body text-[10px] text-text-secondary mt-0.5">Total</p>
-        </div>
-        <div className="card-base p-2 text-center shadow-sm">
-          <span className="font-data font-bold text-base text-warning">{stats.pending}</span>
-          <p className="font-body text-[10px] text-text-secondary mt-0.5">Pending</p>
-        </div>
-        <div className="card-base p-2 text-center shadow-sm">
-          <span className="font-data font-bold text-base text-text-technical">{stats.verified}</span>
-          <p className="font-body text-[10px] text-text-secondary mt-0.5">Verified</p>
-        </div>
-        <div className="card-base p-2 text-center shadow-sm">
-          <span className="font-data font-bold text-base text-error">{stats.rejected}</span>
-          <p className="font-body text-[10px] text-text-secondary mt-0.5">Rejected</p>
-        </div>
-      </div>
-
-      {/* SKELETON LOADER */}
-      {isLoading && (
-        <div className="space-y-4 pt-2">
-          <SkeletonRow />
-          <SkeletonRow />
+      {/* Platform Analytics Banner */}
+      {analytics && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard
+            label="Total Users"
+            value={analytics.totalUsers || 0}
+            subtext="Registered gamers & owners"
+          />
+          <StatCard
+            label="Live Cafés"
+            value={analytics.totalCafes || 0}
+            subtext="Verified partner venues"
+          />
+          <StatCard
+            label="Total GMV"
+            value={formatCurrencyCompact(analytics.totalRevenue || 0)}
+            subtext="Platform booking volume"
+          />
+          <StatCard
+            label="Pending Queue"
+            value={analytics.pendingCafes || pendingCafes.length}
+            subtext="Awaiting admin review"
+          />
         </div>
       )}
 
-      {/* ERROR CONTAINER */}
-      {isError && (
-        <div className="bg-card border border-border rounded-2xl p-8 flex flex-col items-center justify-center text-center space-y-3 shadow-md mt-4">
-          <AlertTriangle className="w-12 h-12 text-error" />
-          <h3 className="font-heading font-semibold text-lg text-text-primary">
-            Couldn&apos;t load cafés queue
-          </h3>
-          <p className="text-text-secondary text-sm">
-            {error?.message || 'Failed to connect to platforms dashboard.'}
-          </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="btn-outline text-sm py-2 px-6 rounded-2xl"
-          >
-            Try Again
-          </button>
+      {/* Pending Applications Queue */}
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-heading text-h2 text-text-primary">Pending Applications</h2>
+          <Badge variant="warning">{pendingCafes.length} Pending</Badge>
         </div>
-      )}
 
-      {/* EMPTY STATES */}
-      {!isLoading && !isError && filteredCafes.length === 0 && (
-        <div className="card-base p-8 text-center flex flex-col items-center justify-center space-y-2 mt-4">
-          <CheckCircle2 className="w-10 h-10 text-success/50" />
-          <h3 className="font-heading font-semibold text-base text-text-primary">
-            {activeTab === 'pending' ? 'All clear!' : 'No cafés registered yet'}
-          </h3>
-          <p className="text-xs text-text-secondary">
-            {activeTab === 'pending'
-              ? 'No cafés pending verification.'
-              : 'When owners register venues, they will show here.'}
-          </p>
+        {isLoading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        )}
+
+        {isError && (
+          <ErrorState
+            title="Failed to load verification queue"
+            message={(error as Error)?.message || 'Could not retrieve pending applications.'}
+            onRetry={() => refetch()}
+          />
+        )}
+
+        {!isLoading && !isError && pendingCafes.length === 0 && (
+          <EmptyState
+            title="Queue Clear!"
+            description="There are currently no pending café partner applications awaiting review."
+            icon={<CheckCircle2 className="h-8 w-8 text-success" />}
+          />
+        )}
+
+        {!isLoading && !isError && pendingCafes.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {pendingCafes.map((cafe) => (
+              <Card key={cafe.id} elevation="resting" className="overflow-hidden">
+                <CardContent className="p-5 flex flex-col gap-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-heading text-h3 text-text-primary">{cafe.name}</h3>
+                      <div className="flex items-center gap-1 text-caption text-text-secondary mt-0.5">
+                        <MapPin className="h-3.5 w-3.5 text-primary" />
+                        <span>{cafe.city}, {cafe.state}</span>
+                      </div>
+                    </div>
+                    <Badge variant="warning">Pending Review</Badge>
+                  </div>
+
+                  <div className="flex flex-col gap-2 text-caption bg-surface p-3 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <User className="h-3.5 w-3.5 text-text-secondary" />
+                      <span>Owner: <span className="font-semibold text-text-primary">{cafe.owner?.fullName || 'Partner Applicant'}</span></span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Store className="h-3.5 w-3.5 text-text-secondary" />
+                      <span>Capacity: <span className="font-semibold text-text-primary">{cafe.totalSeats || 20} Stations</span></span>
+                    </div>
+                  </div>
+
+                  {cafe.description && (
+                    <p className="text-caption text-text-secondary line-clamp-2">{cafe.description}</p>
+                  )}
+
+                  {/* Inline Action Buttons */}
+                  <div className="flex items-center justify-end gap-3 border-t border-border pt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedCafe(cafe);
+                        setIsRejectModalOpen(true);
+                      }}
+                      className="text-error border-error/30 hover:bg-error/10"
+                    >
+                      Reject
+                    </Button>
+
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => approveMutation.mutate(cafe.id)}
+                      isLoading={approveMutation.isPending}
+                      loadingText="Approving..."
+                      className="gap-1.5 shadow-card"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Approve Café</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Reject Modal with Reason */}
+      <Modal
+        isOpen={isRejectModalOpen}
+        onClose={() => setIsRejectModalOpen(false)}
+        title="Reject Application"
+        description={`Specify rejection reason for ${selectedCafe?.name}.`}
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="ghost" onClick={() => setIsRejectModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              isLoading={rejectMutation.isPending}
+              loadingText="Rejecting..."
+              onClick={() => {
+                if (selectedCafe) {
+                  rejectMutation.mutate({
+                    cafeId: selectedCafe.id,
+                    reason: rejectionReason || 'Information incomplete',
+                  });
+                }
+              }}
+            >
+              Confirm Rejection
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Textarea
+            label="Rejection Reason *"
+            placeholder="e.g. Address could not be verified / missing phone contact..."
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+            required
+          />
         </div>
-      )}
-
-      {/* PENDING CAFES LIST */}
-      {!isLoading && !isError && filteredCafes.length > 0 && (
-        <div className="space-y-4 pt-2">
-          {filteredCafes.map((c) => {
-            const badge = getStatusBadge(c.verificationStatus);
-            const isActioning = actioningId === c.id;
-            const isRejecting = rejectingId === c.id;
-            const isSuspending = suspendingId === c.id;
-            const isReevaluating = reevaluatingId === c.id;
-
-            return (
-              <div
-                key={c.id}
-                className="card-base p-0 overflow-hidden shadow-md border border-border rounded-2xl flex flex-col"
-              >
-                {/* Accent bar */}
-                <div
-                  className={`h-1 w-full ${
-                    c.verificationStatus === 'pending'
-                      ? 'bg-warning'
-                      : c.verificationStatus === 'verified'
-                      ? 'bg-emerald-500'
-                      : 'bg-error'
-                  }`}
-                />
-
-                <div className="p-4 space-y-3">
-                  {/* Owner Info block */}
-                  <div className="bg-surface rounded-xl p-3 space-y-1">
-                    <div className="flex items-center space-x-1.5 text-xs font-body text-text-primary font-semibold">
-                      <User className="w-3.5 h-3.5 text-text-secondary" />
-                      <span>{c.owner?.fullName || 'Owner Profile'}</span>
-                    </div>
-                    <div className="text-[10px] text-text-secondary font-data pl-5">
-                      {c.owner?.email} {c.owner?.phoneNumber ? `· ${c.owner.phoneNumber}` : ''}
-                    </div>
-                  </div>
-
-                  {/* Cafe Name & optional verification status badge for All tab */}
-                  <div className="flex justify-between items-start gap-4">
-                    <h3 className="font-heading font-bold text-lg text-text-primary line-clamp-1">
-                      {c.name}
-                    </h3>
-                    {activeTab === 'all' && (
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badge.className}`}>
-                        {badge.label}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Location Address details */}
-                  <div className="flex items-center space-x-2 text-xs text-text-secondary font-body">
-                    <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span className="truncate">
-                      {c.addressLine1}, {c.city}, {c.state} — <span className="font-data">{c.pincode}</span>
-                    </span>
-                  </div>
-
-                  {/* Hours & Capacity stats details */}
-                  <div className="flex items-center space-x-4 text-xs text-text-secondary font-data">
-                    <div className="flex items-center space-x-1">
-                      <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <span>
-                        {c.openingTime?.slice(0, 5)} — {c.closingTime?.slice(0, 5)}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Users className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <span>{c.totalSeats || 0} seats</span>
-                    </div>
-                  </div>
-
-                  {/* Description Box */}
-                  {c.description && (
-                    <p className="font-body text-xs text-text-secondary bg-surface rounded-xl p-3 leading-relaxed">
-                      {c.description}
-                    </p>
-                  )}
-
-                  {/* Amenities list */}
-                  {c.amenities && c.amenities.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {c.amenities.map((a) => (
-                        <span
-                          key={a}
-                          className="bg-surface border border-border text-[10px] text-text-secondary rounded-full px-2 py-0.5 font-body"
-                        >
-                          {a}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Photos Carousel */}
-                  {c.photos && c.photos.length > 0 && (
-                    <div className="overflow-x-auto flex gap-2 pt-1 scrollbar-none">
-                      {c.photos.map((p, idx) => (
-                        <div
-                          key={idx}
-                          className="relative w-20 h-16 rounded-xl overflow-hidden bg-surface border border-border shrink-0"
-                        >
-                          <img src={p} alt={`Photo #${idx + 1}`} className="w-full h-full object-cover" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Submitted Date */}
-                  {c.createdAt && (
-                    <p className="font-body text-[10px] text-text-secondary pt-1">
-                      Submitted {formatDateLong(c.createdAt.split('T')[0])}
-                    </p>
-                  )}
-
-                  {/* Action buttons */}
-                  {isActioning ? (
-                    <div className="flex justify-center pt-2">
-                      <Loader2 className="w-6 h-6 text-primary animate-spin" />
-                    </div>
-                  ) : activeTab === 'pending' || isReevaluating ? (
-                    <div className="space-y-3 pt-2 border-t border-border mt-3">
-                      {isRejecting ? (
-                        <div className="space-y-2.5 animate-fade-in">
-                          <textarea
-                            rows={3}
-                            required
-                            maxLength={300}
-                            value={rejectionReason}
-                            onChange={(e) => setRejectionReason(e.target.value)}
-                            placeholder="State the reason for rejection..."
-                            className="w-full bg-card border border-error/30 rounded-2xl px-4 py-3 text-xs font-body text-text-primary focus:outline-none focus:border-error"
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!rejectionReason.trim()) {
-                                  alert('Rejection reason is required');
-                                  return;
-                                }
-                                verifyMutation.mutate({
-                                  cafeId: c.id,
-                                  status: 'rejected',
-                                  reason: rejectionReason,
-                                });
-                              }}
-                              className="border border-red-200 text-error bg-red-50 hover:bg-red-100 rounded-full text-xs py-2 flex-1 font-semibold active:scale-95 transition-transform"
-                            >
-                              Confirm Reject
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRejectingId(null);
-                                setRejectionReason('');
-                              }}
-                              className="btn-outline text-xs py-2 flex-1 rounded-full active:scale-95 transition-transform"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : isSuspending ? (
-                        <div className="space-y-2.5 animate-fade-in">
-                          <p className="text-xs text-error font-semibold font-body text-center animate-pulse">
-                            Confirm café suspension?
-                          </p>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                verifyMutation.mutate({
-                                  cafeId: c.id,
-                                  status: 'suspended',
-                                  reason: null,
-                                })
-                              }
-                              className="border border-red-200 text-error bg-red-50 hover:bg-red-100 rounded-full text-xs py-2 flex-1 font-semibold active:scale-95 transition-transform"
-                            >
-                              Yes, Suspend
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSuspendingId(null)}
-                              className="btn-outline text-xs py-2 flex-1 rounded-full active:scale-95 transition-transform"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              verifyMutation.mutate({
-                                cafeId: c.id,
-                                status: 'verified',
-                                reason: null,
-                              })
-                            }
-                            className="bg-primary hover:bg-primary-dark text-white rounded-full text-xs py-2 flex-1 font-semibold flex items-center justify-center gap-1 active:scale-95 transition-transform"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Approve</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setRejectingId(c.id)}
-                            className="border border-red-200 text-error bg-red-50 hover:bg-red-100 rounded-full text-xs py-2 flex-1 font-semibold flex items-center justify-center gap-1 active:scale-95 transition-transform"
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                            <span>Reject</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSuspendingId(c.id)}
-                            className="border border-red-200 text-error bg-red-50 hover:bg-red-100 rounded-full text-xs py-2 flex-1 font-semibold flex items-center justify-center gap-1 active:scale-95 transition-transform"
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                            <span>Suspend</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : c.verificationStatus !== 'pending' ? (
-                    <div className="pt-2 border-t border-border flex justify-end mt-2">
-                      <button
-                        type="button"
-                        onClick={() => setReevaluatingId(c.id)}
-                        className="btn-outline text-xs py-1 px-3 min-h-[30px] rounded-full active:scale-95 transition-transform"
-                      >
-                        Re-evaluate
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }
