@@ -61,3 +61,5 @@ pgdata/
 *.sqlite
 *.sqlite3
 *.txt
+backend/static/
+frontend/tsconfig.tsbuildinfo

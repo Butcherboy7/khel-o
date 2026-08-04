@@ -15,9 +15,15 @@ import {
   Share2,
   CalendarPlus,
   ArrowLeft,
+  AlertCircle,
+  CreditCard,
+  RefreshCw,
 } from 'lucide-react';
 import { getBooking, cancelBooking } from '@/lib/api/bookings';
+import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
+import { useRazorpay } from '@/hooks/useRazorpay';
+import { useAuthStore } from '@/store/authStore';
 import {
   Button,
   Card,
@@ -36,9 +42,14 @@ export default function BookingDetailPage() {
   const queryClient = useQueryClient();
   const bookingId = params.id as string;
 
+  const user = useAuthStore((s) => s.user);
+  const { displayRazorpay } = useRazorpay();
+
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isRetryingPayment, setIsRetryingPayment] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.bookings.detail(bookingId),
@@ -55,6 +66,50 @@ export default function BookingDetailPage() {
       setIsCancelModalOpen(false);
     },
   });
+
+  const handleRetryPayment = async () => {
+    if (!data || isRetryingPayment) return;
+    setRetryError(null);
+    setIsRetryingPayment(true);
+
+    try {
+      const order = await createPaymentOrder(data.id);
+      displayRazorpay({
+        order_id: order.razorpayOrderId,
+        amount: order.amount * 100,
+        currency: order.currency,
+        key: order.keyId,
+        name: 'KHEL-O Gaming',
+        description: `Booking Retry: ${data.cafeName || 'Gaming Venue'}`,
+        prefill: {
+          name: user?.fullName,
+          email: user?.email,
+          contact: user?.phoneNumber || undefined,
+        },
+        onDismiss: () => {
+          setIsRetryingPayment(false);
+        },
+        handler: async (paymentResponse) => {
+          try {
+            await verifyPayment({
+              razorpayOrderId: paymentResponse.razorpay_order_id,
+              razorpayPaymentId: paymentResponse.razorpay_payment_id,
+              razorpaySignature: paymentResponse.razorpay_signature,
+            });
+            setIsRetryingPayment(false);
+            refetch();
+            queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+          } catch (verifyErr: any) {
+            setRetryError(verifyErr?.message || 'Payment verification failed.');
+            setIsRetryingPayment(false);
+          }
+        },
+      });
+    } catch (err: any) {
+      setRetryError(err?.message || 'Failed to initiate payment retry.');
+      setIsRetryingPayment(false);
+    }
+  };
 
   const handleShare = async () => {
     const shareData = {
@@ -104,13 +159,40 @@ export default function BookingDetailPage() {
   }
 
   const booking = data;
-  const canCancel = booking.status === 'confirmed' || booking.status === 'pending_payment';
+  
+  const isEligibleForCancellation = () => {
+    if (booking.status !== 'confirmed' && booking.status !== 'pending_payment' && booking.status !== 'failed') return false;
+    if (!booking.sessionDate || !booking.startTime) return true;
+    try {
+      const sessionStart = new Date(`${booking.sessionDate}T${booking.startTime}`);
+      const now = new Date();
+      const diffHours = (sessionStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+      return diffHours >= 2;
+    } catch {
+      return true;
+    }
+  };
 
-  const qrCodeSrc =
-    booking.qrCodeUrl ||
-    `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-      booking.bookingReference,
+  const canCancel = isEligibleForCancellation();
+  const isCancelled = booking.status === 'cancelled';
+  const isConfirmed = booking.status === 'confirmed' || booking.status === 'completed' || booking.status === 'checked_in';
+  const isPendingOrFailed = booking.status === 'pending_payment' || booking.status === 'failed';
+
+  const getQrSrc = () => {
+    if (booking.qrCodeUrl) {
+      if (booking.qrCodeUrl.startsWith('http')) {
+        return booking.qrCodeUrl;
+      }
+      const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiHost = rawApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
+      return `${apiHost}${booking.qrCodeUrl.startsWith('/') ? '' : '/'}${booking.qrCodeUrl}`;
+    }
+    return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+      booking.bookingReference
     )}`;
+  };
+
+  const qrCodeSrc = getQrSrc();
 
   return (
     <div className="flex flex-col gap-6 max-w-md mx-auto pb-16">
@@ -126,34 +208,121 @@ export default function BookingDetailPage() {
       </div>
 
       {/* Digital Pass Card */}
-      <Card elevation="raised" className="overflow-hidden border-2 border-primary/20 bg-card">
+      <Card
+        elevation="raised"
+        className={`overflow-hidden border-2 bg-card ${
+          isCancelled
+            ? 'border-error/30'
+            : isPendingOrFailed
+            ? 'border-warning/40'
+            : 'border-primary/20'
+        }`}
+      >
         {/* Pass Header */}
-        <div className="bg-secondary p-6 text-white text-center flex flex-col items-center gap-1">
-          <span className="text-overline text-white/60 tracking-widest uppercase">
-            Official Gaming Pass
+        <div
+          className={`${
+            isCancelled
+              ? 'bg-error/80'
+              : isPendingOrFailed
+              ? 'bg-warning/90'
+              : 'bg-secondary'
+          } p-6 text-white text-center flex flex-col items-center gap-1`}
+        >
+          <span className="text-overline text-white/80 tracking-widest uppercase">
+            {isCancelled
+              ? 'Cancelled Pass'
+              : isPendingOrFailed
+              ? 'Payment Not Completed'
+              : 'Official Gaming Pass'}
           </span>
           <h1 className="font-heading text-h2 text-white">{booking.cafeName || 'Gaming Café'}</h1>
-          <p className="text-caption text-white/80">{booking.tierName || 'Hardware Tier'}</p>
+          <p className="text-caption text-white/90">{booking.tierName || 'Hardware Tier'}</p>
         </div>
 
-        {/* QR Code Container */}
+        {/* QR Code / Void / Pending Payment Container */}
         <CardContent className="p-6 flex flex-col items-center gap-6">
-          <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-surface border border-border shadow-card w-full">
-            <div className="bg-white p-3 rounded-xl shadow-card">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={qrCodeSrc}
-                alt={`QR Pass ${booking.bookingReference}`}
-                className="h-48 w-48 object-contain"
-              />
+          {retryError && (
+            <div className="w-full p-3 rounded-xl bg-error/10 border border-error/20 text-caption text-error text-center">
+              {retryError}
             </div>
-            <div className="text-center">
-              <span className="text-overline text-text-secondary">Booking Reference</span>
-              <p className="font-data text-h3 font-bold text-text-primary tracking-wider">
-                {booking.bookingReference}
-              </p>
+          )}
+
+          {isCancelled ? (
+            <div className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl bg-error/10 border border-error/20 text-center w-full">
+              <XCircle className="h-16 w-16 text-error" />
+              <div>
+                <h3 className="font-heading text-h3 font-bold text-error">Pass Voided</h3>
+                <p className="text-caption text-text-secondary mt-1">
+                  This booking was cancelled and its QR pass is no longer active for desk check-in.
+                </p>
+              </div>
+              <div className="text-center mt-2">
+                <span className="text-overline text-text-secondary">Reference</span>
+                <p className="font-data text-body font-bold text-text-primary line-through">
+                  {booking.bookingReference}
+                </p>
+              </div>
             </div>
-          </div>
+          ) : isPendingOrFailed ? (
+            <div className="flex flex-col items-center justify-center gap-4 p-6 rounded-2xl bg-warning/10 border border-warning/30 text-center w-full">
+              <AlertCircle className="h-14 w-14 text-warning" />
+              <div>
+                <h3 className="font-heading text-h3 font-bold text-text-primary">Payment Required</h3>
+                <p className="text-caption text-text-secondary mt-1">
+                  Payment was not completed for this booking. Complete payment now to generate your official QR check-in pass.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2.5 w-full mt-2">
+                <Button
+                  variant="primary"
+                  size="md"
+                  fullWidth
+                  isLoading={isRetryingPayment}
+                  loadingText="Opening Payment..."
+                  onClick={handleRetryPayment}
+                  className="gap-2 shadow-card"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span>Retry Payment</span>
+                </Button>
+
+                {canCancel && (
+                  <Button
+                    variant="outline"
+                    size="md"
+                    fullWidth
+                    onClick={() => setIsCancelModalOpen(true)}
+                    className="text-error border-error/30 hover:bg-error/10"
+                  >
+                    Cancel Booking
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-surface border border-border shadow-card w-full">
+              <div className="bg-white p-3 rounded-xl shadow-card">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={qrCodeSrc}
+                  alt={`QR Pass ${booking.bookingReference}`}
+                  className="h-48 w-48 object-contain"
+                  onError={(e) => {
+                    e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                      booking.bookingReference
+                    )}`;
+                  }}
+                />
+              </div>
+              <div className="text-center">
+                <span className="text-overline text-text-secondary">Booking Reference</span>
+                <p className="font-data text-h3 font-bold text-text-primary tracking-wider">
+                  {booking.bookingReference}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Details Grid */}
           <div className="w-full flex flex-col gap-3 text-body">

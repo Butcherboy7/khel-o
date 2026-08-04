@@ -12,6 +12,7 @@ class BookingStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     COMPLETED = "completed"
     NO_SHOW = "no_show"
+    FAILED = "failed"
 
 class Booking(Base):
     __tablename__ = "bookings"

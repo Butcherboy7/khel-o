@@ -40,13 +40,15 @@ export function PriceDisplay({
   const styles = SIZE_MAP[size];
 
   return (
-    <div className={cn('inline-flex items-baseline gap-1.5', className)}>
-      <span className={cn('font-data font-bold text-primary', styles.main)}>
-        ₹{amount}
+    <div className={cn('inline-flex items-baseline gap-1', className)}>
+      <span className={cn('font-data font-bold text-primary flex items-baseline gap-0.5', styles.main)}>
+        <span className="rupee-symbol">₹</span>
+        <span>{amount}</span>
       </span>
       {originalAmount && originalAmount > amount && (
-        <span className={cn('font-data text-text-secondary opacity-60', styles.original)}>
-          ₹{originalAmount}
+        <span className={cn('font-data text-text-secondary opacity-60 flex items-baseline gap-0.5', styles.original)}>
+          <span className="rupee-symbol">₹</span>
+          <span>{originalAmount}</span>
         </span>
       )}
       {period && (

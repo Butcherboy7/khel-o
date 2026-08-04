@@ -17,7 +17,8 @@ class ReviewBase(BaseModel):
     )
 
 class ReviewCreate(ReviewBase):
-    booking_id: UUID
+    cafe_id: Optional[UUID] = None
+    booking_id: Optional[UUID] = None
 
 ReviewCreateRequest = ReviewCreate
 

@@ -67,6 +67,51 @@ async def get_cafe(
         }
     }
 
+@router.get("/{cafe_id}/availability", status_code=status.HTTP_200_OK)
+async def get_cafe_availability(
+    cafe_id: UUID,
+    tier_id: UUID = Query(...),
+    session_date: str = Query(..., alias="date"),
+    db: AsyncSession = Depends(get_db)
+):
+    from datetime import datetime as dt
+    from sqlalchemy import select
+    from app.models.booking import Booking, BookingStatus
+    from app.core.exceptions import NotFoundException
+
+    tier_repo = HardwareTierRepository(db)
+    tier = await tier_repo.get_by_id(tier_id)
+    if not tier:
+        raise NotFoundException(message="Hardware tier not found", error_code="TIER_NOT_FOUND")
+
+    try:
+        parsed_date = dt.strptime(session_date, "%Y-%m-%d").date()
+    except ValueError:
+        parsed_date = dt.now().date()
+
+    stmt = select(Booking).where(
+        Booking.hardware_tier_id == tier_id,
+        Booking.session_date == parsed_date,
+        Booking.status.in_([BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED])
+    )
+    res = await db.execute(stmt)
+    active_bookings = res.scalars().all()
+
+    booked_slots = []
+    for b in active_bookings:
+        booked_slots.append({
+            "startTime": b.start_time.strftime("%H:%M:%S"),
+            "endTime": b.end_time.strftime("%H:%M:%S")
+        })
+
+    return {
+        "success": True,
+        "data": {
+            "appBookableSeats": tier.app_bookable_seats or tier.total_seats or 10,
+            "bookedSlots": booked_slots
+        }
+    }
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_cafe(
     payload: CafeCreateRequest,

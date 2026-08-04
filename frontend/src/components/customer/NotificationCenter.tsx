@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, CheckCheck, Trash2, X, Ticket, Sparkles, AlertCircle } from 'lucide-react';
 import { Button, Badge } from '@/components/ui';
@@ -15,75 +14,44 @@ export interface NotificationItem {
   link?: string;
 }
 
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 'n1',
-    title: 'Booking Confirmed! 🎮',
-    message: 'Your station at LXG Esports Arena is reserved.',
-    timestamp: '10 mins ago',
-    type: 'booking',
-    isRead: false,
-    link: '/bookings',
-  },
-  {
-    id: 'n2',
-    title: '30% Off Afternoon Deal! 🔥',
-    message: 'Use code OFFPEAK30 before 5 PM at verified partner lounges.',
-    timestamp: '1 hour ago',
-    type: 'offer',
-    isRead: false,
-    link: '/rewards',
-  },
-  {
-    id: 'n3',
-    title: 'Welcome to KHEL-O 🚀',
-    message: 'Explore top gaming cafes, select hardware tiers, and enjoy instant pass check-ins.',
-    timestamp: '1 day ago',
-    type: 'system',
-    isRead: true,
-    link: '/',
-  },
-];
-
 interface NotificationCenterProps {
   isOpen: boolean;
   onClose: () => void;
+  notifications: NotificationItem[];
+  onMarkAllAsRead: () => void;
+  onMarkAsRead: (id: string) => void;
+  onClearAll: () => void;
 }
 
-export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
+export function NotificationCenter({
+  isOpen,
+  onClose,
+  notifications,
+  onMarkAllAsRead,
+  onMarkAsRead,
+  onClearAll,
+}: NotificationCenterProps) {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
 
   if (!isOpen) return null;
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-  };
-
   const handleNotificationClick = (n: NotificationItem) => {
-    setNotifications((prev) =>
-      prev.map((item) => (item.id === n.id ? { ...item, isRead: true } : item))
-    );
+    onMarkAsRead(n.id);
     if (n.link) {
       router.push(n.link);
       onClose();
     }
   };
 
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
-  };
-
-  const clearAll = () => {
-    setNotifications([]);
-  };
-
   return (
-    <div className="fixed inset-0 z-modal flex items-start justify-end p-4 md:p-6 bg-black/40 backdrop-blur-sm animate-in fade-in">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-modal flex items-start justify-end p-4 md:p-6 bg-black/40 backdrop-blur-sm animate-in fade-in"
+    >
       <div className="w-full max-w-sm rounded-3xl bg-card border border-border/80 shadow-overlay overflow-hidden flex flex-col max-h-[85vh] mt-12 md:mt-14">
         {/* Header */}
         <div className="p-4 border-b border-border/60 flex items-center justify-between bg-surface/50">
@@ -109,7 +77,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
         {notifications.length > 0 && (
           <div className="px-4 py-2 border-b border-border/40 flex items-center justify-between bg-card text-caption text-text-secondary">
             <button
-              onClick={markAllAsRead}
+              onClick={onMarkAllAsRead}
               className="flex items-center gap-1 hover:text-primary transition-colors font-medium"
             >
               <CheckCheck className="h-3.5 w-3.5" />
@@ -117,7 +85,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
             </button>
 
             <button
-              onClick={clearAll}
+              onClick={onClearAll}
               className="flex items-center gap-1 hover:text-error transition-colors font-medium"
             >
               <Trash2 className="h-3.5 w-3.5" />

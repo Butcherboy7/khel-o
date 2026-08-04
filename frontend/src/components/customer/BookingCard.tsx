@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { Calendar, Clock, MapPin, QrCode, ChevronRight, Navigation, Star, MessageSquare } from 'lucide-react';
-import { Card, CardContent, BookingStatusBadge, PriceDisplay, Button } from '@/components/ui';
+import { Calendar, Clock, MapPin, QrCode, ChevronRight, Navigation, Star, AlertCircle, CreditCard } from 'lucide-react';
+import { Card, CardContent, BookingStatusBadge, PriceDisplay } from '@/components/ui';
 import type { BookingDetail } from '@/types';
 import { formatSessionDate, formatTime } from '@/lib/format';
 
@@ -10,6 +10,9 @@ interface BookingCardProps {
 
 export function BookingCard({ booking }: BookingCardProps) {
   const isCompleted = booking.status === 'completed';
+  const isConfirmed = booking.status === 'confirmed' || booking.status === 'completed' || booking.status === 'checked_in';
+  const isPendingOrFailed = booking.status === 'pending_payment' || booking.status === 'failed';
+  const isCancelled = booking.status === 'cancelled';
 
   return (
     <Card elevation="resting" interactive className="overflow-hidden">
@@ -59,11 +62,24 @@ export function BookingCard({ booking }: BookingCardProps) {
           <div className="flex sm:flex-col items-center sm:items-end justify-between border-t sm:border-t-0 border-border pt-3 sm:pt-0 gap-3 flex-shrink-0">
             <PriceDisplay amount={booking.totalAmount} period="" size="md" />
 
-            <div className="inline-flex items-center gap-1 text-caption font-semibold text-primary">
-              <QrCode className="h-4 w-4" />
-              <span>View Pass</span>
-              <ChevronRight className="h-4 w-4" />
-            </div>
+            {isConfirmed ? (
+              <div className="inline-flex items-center gap-1 text-caption font-semibold text-primary">
+                <QrCode className="h-4 w-4" />
+                <span>View Pass</span>
+                <ChevronRight className="h-4 w-4" />
+              </div>
+            ) : isPendingOrFailed ? (
+              <div className="inline-flex items-center gap-1 text-caption font-bold text-warning bg-warning/10 px-2.5 py-1 rounded-full border border-warning/30">
+                <CreditCard className="h-3.5 w-3.5" />
+                <span>Pay Now</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1 text-caption font-semibold text-text-secondary">
+                <span>View Details</span>
+                <ChevronRight className="h-4 w-4" />
+              </div>
+            )}
           </div>
         </Link>
 
@@ -90,6 +106,14 @@ export function BookingCard({ booking }: BookingCardProps) {
               <Star className="h-3.5 w-3.5 fill-accent" />
               <span>Rate & Review</span>
             </Link>
+          ) : isPendingOrFailed ? (
+            <span className="text-caption font-semibold text-warning">
+              Payment required for check-in pass
+            </span>
+          ) : isCancelled ? (
+            <span className="text-caption text-error font-medium">
+              Cancelled session
+            </span>
           ) : (
             <span className="text-caption text-text-secondary/70">
               Pass active for check-in

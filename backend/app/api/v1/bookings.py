@@ -39,6 +39,7 @@ async def create_booking(
 
 @router.get("", status_code=status.HTTP_200_OK)
 async def list_my_bookings(
+    status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
     current_user: User = Depends(get_current_active_user),
@@ -46,7 +47,7 @@ async def list_my_bookings(
 ):
     booking_repo = BookingRepository(db)
     service = BookingService(booking_repo)
-    result = await service.list_gamer_bookings(current_user.id, page=page, limit=limit)
+    result = await service.list_gamer_bookings(current_user.id, status_filter=status, page=page, limit=limit)
     return {
         "success": True,
         "data": result

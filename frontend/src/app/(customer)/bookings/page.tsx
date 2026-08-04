@@ -23,7 +23,11 @@ export default function BookingsListPage() {
     staleTime: 0, // Always fresh
   });
 
-  const bookings = data?.items || [];
+  const rawBookings = data?.items || [];
+  const bookings = rawBookings.filter((b) => {
+    if (selectedStatus === 'all') return true;
+    return b.status === selectedStatus;
+  });
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-12">

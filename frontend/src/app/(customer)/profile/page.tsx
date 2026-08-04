@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import {
   Avatar,
@@ -26,96 +25,145 @@ import {
   Sparkles,
   Edit3,
   CheckCircle2,
+  Gamepad2,
+  Cpu,
 } from 'lucide-react';
 
+const CITIES = ['Bengaluru', 'Hyderabad', 'Mumbai', 'Delhi', 'Pune', 'Chennai'];
+const GAME_OPTIONS = ['Valorant', 'CS2', 'EA FC 24', 'GTA V', 'Apex Legends', 'Dota 2', 'Fortnite', 'Cyberpunk 2077'];
+const RIG_TIERS = ['Ultra RTX 4080 (240Hz)', 'RTX 4070 Super Rig', 'PS5 DualSense Lounge', 'Standard Esports PC'];
+
 export default function ProfilePage() {
-  const router = useRouter();
   const { user, setUser, logout } = useAuthStore();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
 
-  const [fullName, setFullName] = useState(user?.fullName || '');
-  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '+91 9876543210');
-  const [homeCity, setHomeCity] = useState('Bengaluru');
-  const [favGames, setFavGames] = useState('Valorant, EA FC 24');
+  const [fullName, setFullName] = useState(user?.fullName || 'Arjun Sharma');
+  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '9876543210');
+  const [phoneError, setPhoneError] = useState('');
+  const [nameError, setNameError] = useState('');
 
-  if (!user) {
-    if (typeof window !== 'undefined') {
-      router.push('/login?redirect=/profile');
+  const [homeCity, setHomeCity] = useState('Bengaluru');
+  const [favGames, setFavGames] = useState<string[]>(['Valorant', 'EA FC 24']);
+  const [preferredTier, setPreferredTier] = useState('Ultra RTX 4080 (240Hz)');
+
+  if (!user) return null;
+
+  const handlePhoneChange = (val: string) => {
+    // Only allow numeric digits for Indian mobile numbers
+    const digitsOnly = val.replace(/\D/g, '').slice(0, 10);
+    setPhoneNumber(digitsOnly);
+    if (digitsOnly.length > 0 && digitsOnly.length < 10) {
+      setPhoneError('Mobile number must be exactly 10 digits.');
+    } else if (digitsOnly.length === 10 && !/^[6-9]\d{9}$/.test(digitsOnly)) {
+      setPhoneError('Enter a valid 10-digit Indian mobile number starting with 6-9.');
+    } else {
+      setPhoneError('');
     }
-    return null;
-  }
+  };
+
+  const handleNameChange = (val: string) => {
+    setFullName(val);
+    if (val.trim().length < 2) {
+      setNameError('Name must be at least 2 characters.');
+    } else {
+      setNameError('');
+    }
+  };
+
+  const toggleGame = (game: string) => {
+    if (favGames.includes(game)) {
+      setFavGames(favGames.filter((g) => g !== game));
+    } else {
+      setFavGames([...favGames, game]);
+    }
+  };
 
   const handleSaveProfile = () => {
+    if (phoneError || nameError || phoneNumber.length !== 10) return;
     setUser({
       ...user,
       fullName,
-      phoneNumber,
+      phoneNumber: `+91 ${phoneNumber}`,
     });
     setIsEditOpen(false);
   };
 
   return (
-    <div className="flex flex-col gap-8 max-w-2xl mx-auto pb-32 pt-4 px-4 md:px-8">
+    <div className="flex flex-col gap-4 max-w-2xl mx-auto pb-24">
       {/* Profile Header Card */}
-      <Card elevation="raised" className="overflow-hidden border-2 border-primary/20">
-        <CardContent className="p-6 flex flex-col sm:flex-row items-center sm:items-start gap-5">
-          <Avatar name={user.fullName} src={user.avatarUrl} size="xl" />
+      <Card elevation="raised" className="overflow-hidden border border-primary/20">
+        <CardContent className="p-4 sm:p-5 flex flex-row items-center gap-4">
+          <Avatar name={fullName} src={user.avatarUrl} size="lg" className="flex-shrink-0" />
 
-          <div className="flex flex-1 flex-col items-center sm:items-start text-center sm:text-left gap-1">
+          <div className="flex flex-1 flex-col gap-0.5 min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="font-heading text-h2 text-text-primary">{user.fullName}</h1>
-              <Badge variant="primary" size="sm">
-                Level 4 Gamer
+              <h1 className="font-heading text-h3 font-bold text-text-primary truncate">{fullName}</h1>
+              <Badge variant="primary" size="sm" className="flex-shrink-0">
+                Level 4
               </Badge>
             </div>
-            <p className="text-body text-text-secondary">{user.email}</p>
+            <p className="text-caption text-text-secondary truncate">{user.email}</p>
 
-            <div className="flex items-center gap-3 text-caption text-text-secondary mt-1 flex-wrap">
-              <span className="flex items-center gap-1">
-                <Phone className="h-3.5 w-3.5 text-primary" />
-                <span>{phoneNumber}</span>
+            <div className="flex items-center gap-2 text-caption text-text-secondary mt-1 flex-wrap">
+              <span className="flex items-center gap-1 font-data">
+                <Phone className="h-3 w-3 text-primary flex-shrink-0" />
+                <span>+91 {phoneNumber}</span>
               </span>
               <span className="flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5 text-accent" />
+                <MapPin className="h-3 w-3 text-accent flex-shrink-0" />
                 <span>{homeCity}</span>
               </span>
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3.5 w-3.5 text-secondary" />
-                <span>Member since Jan 2026</span>
-              </span>
             </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditOpen(true)}
-              className="gap-1.5 mt-3 text-caption"
-            >
-              <Edit3 className="h-3.5 w-3.5" />
-              <span>Edit Profile</span>
-            </Button>
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsEditOpen(true)}
+            className="gap-1 text-caption flex-shrink-0"
+          >
+            <Edit3 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Edit</span>
+          </Button>
         </CardContent>
       </Card>
 
       {/* Gamer Preferences Breakdown */}
       <Card elevation="resting">
-        <CardContent className="p-5 flex flex-col gap-3">
-          <h3 className="font-heading text-h3 text-text-primary flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-accent" />
-            <span>Gaming Preferences</span>
-          </h3>
+        <CardContent className="p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-heading text-body font-bold text-text-primary flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-accent" />
+              <span>Gamer Profile & Hardware Preferences</span>
+            </h3>
+            <button
+              onClick={() => setIsEditOpen(true)}
+              className="text-caption font-bold text-primary hover:underline"
+            >
+              Manage
+            </button>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-body">
-            <div className="p-3.5 rounded-2xl bg-surface flex flex-col gap-1">
-              <span className="text-overline text-text-secondary">Favorite Games</span>
-              <span className="font-semibold text-text-primary">{favGames}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-caption">
+            <div className="p-3 rounded-2xl bg-surface flex flex-col gap-1">
+              <span className="text-overline text-text-secondary flex items-center gap-1">
+                <Gamepad2 className="h-3 w-3 text-primary" /> Favorite Games
+              </span>
+              <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                {favGames.map((g) => (
+                  <span key={g} className="rounded-full bg-card px-2.5 py-0.5 font-semibold text-text-primary border border-border">
+                    {g}
+                  </span>
+                ))}
+              </div>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-surface flex flex-col gap-1">
-              <span className="text-overline text-text-secondary">Preferred Rig Tier</span>
-              <span className="font-semibold text-primary">Ultra RTX 4080 (240Hz)</span>
+            <div className="p-3 rounded-2xl bg-surface flex flex-col gap-1">
+              <span className="text-overline text-text-secondary flex items-center gap-1">
+                <Cpu className="h-3 w-3 text-accent" /> Preferred Rig Tier
+              </span>
+              <span className="font-semibold text-primary mt-0.5">{preferredTier}</span>
             </div>
           </div>
         </CardContent>
@@ -123,23 +171,23 @@ export default function ProfilePage() {
 
       {/* Partner Conversion Banner */}
       {user.role === 'gamer' && (
-        <Card elevation="resting" className="border-2 border-primary/30 bg-gradient-to-r from-primary/10 via-card to-accent/10">
-          <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-card flex-shrink-0">
-                <Store className="h-6 w-6" />
+        <Card elevation="resting" className="border border-primary/20 bg-gradient-to-r from-primary/10 via-card to-accent/10">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white shadow-card flex-shrink-0">
+                <Store className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-heading text-h3 text-text-primary">Own a Gaming Café?</h3>
-                <p className="text-body text-text-secondary">
-                  List your café on KHEL-O to reach thousands of gamers and automate station bookings.
+                <h3 className="font-heading text-body font-bold text-text-primary">Own a Gaming Café?</h3>
+                <p className="text-caption text-text-secondary">
+                  List your venue on KHEL-O to automate station bookings.
                 </p>
               </div>
             </div>
 
             <Link href="/owner/onboarding" className="flex-shrink-0 w-full sm:w-auto">
-              <Button variant="primary" size="md" className="gap-2 w-full">
-                <span>Become a Partner</span>
+              <Button variant="primary" size="sm" className="gap-1.5 w-full">
+                <span>Become Partner</span>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </Link>
@@ -147,70 +195,41 @@ export default function ProfilePage() {
         </Card>
       )}
 
-      {/* Settings Lists */}
-      <div className="flex flex-col gap-4">
-        <h3 className="font-heading text-h3 text-text-primary px-2">Account</h3>
-        <Card elevation="resting" className="overflow-hidden shadow-card">
-          <CardContent className="p-0 flex flex-col divide-y divide-border/60">
-            <Link
-              href="/bookings"
-              className="flex items-center justify-between p-4 hover:bg-surface transition-colors group"
-            >
-              <div className="flex items-center gap-3 text-text-primary font-bold text-body">
-                <Ticket className="h-5 w-5 text-primary" />
-                <span>My Booking Passes</span>
-              </div>
-              <ChevronRight className="h-5 w-5 text-text-secondary group-hover:text-primary transition-colors" />
-            </Link>
+      {/* Navigation Quick Links */}
+      <Card elevation="resting">
+        <CardContent className="p-1 flex flex-col divide-y divide-border/60">
+          <Link
+            href="/bookings"
+            className="flex items-center justify-between p-3.5 hover:bg-surface rounded-xl transition-colors"
+          >
+            <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
+              <Ticket className="h-4 w-4 text-primary" />
+              <span>My Booking Passes</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-text-secondary" />
+          </Link>
 
-            <Link
-              href="/rewards"
-              className="flex items-center justify-between p-4 hover:bg-surface transition-colors group"
-            >
-              <div className="flex items-center gap-3 text-text-primary font-bold text-body">
-                <Sparkles className="h-5 w-5 text-accent" />
-                <span>Gamified Rewards & Badges</span>
-              </div>
-              <ChevronRight className="h-5 w-5 text-text-secondary group-hover:text-primary transition-colors" />
-            </Link>
-          </CardContent>
-        </Card>
-
-        <h3 className="font-heading text-h3 text-text-primary px-2 mt-2">Support & Legal</h3>
-        <Card elevation="resting" className="overflow-hidden shadow-card">
-          <CardContent className="p-0 flex flex-col divide-y divide-border/60">
-            <button
-              onClick={() => {}}
-              className="flex items-center justify-between p-4 hover:bg-surface transition-colors group w-full text-left"
-            >
-              <div className="flex items-center gap-3 text-text-primary font-bold text-body">
-                <Mail className="h-5 w-5 text-secondary" />
-                <span>Contact Support</span>
-              </div>
-              <ChevronRight className="h-5 w-5 text-text-secondary group-hover:text-primary transition-colors" />
-            </button>
-            <button
-              onClick={() => {}}
-              className="flex items-center justify-between p-4 hover:bg-surface transition-colors group w-full text-left"
-            >
-              <div className="flex items-center gap-3 text-text-primary font-bold text-body">
-                <ShieldCheck className="h-5 w-5 text-success" />
-                <span>Privacy & Terms</span>
-              </div>
-              <ChevronRight className="h-5 w-5 text-text-secondary group-hover:text-primary transition-colors" />
-            </button>
-          </CardContent>
-        </Card>
-      </div>
+          <Link
+            href="/rewards"
+            className="flex items-center justify-between p-3.5 hover:bg-surface rounded-xl transition-colors"
+          >
+            <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
+              <Sparkles className="h-4 w-4 text-accent" />
+              <span>Gamified Rewards & Badges</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-text-secondary" />
+          </Link>
+        </CardContent>
+      </Card>
 
       {/* Sign Out Button */}
       <Button
         variant="destructive"
-        size="lg"
+        size="md"
         onClick={() => setIsLogoutOpen(true)}
-        className="gap-2 mt-2"
+        className="gap-2 mt-1"
       >
-        <LogOut className="h-5 w-5" />
+        <LogOut className="h-4 w-4" />
         <span>Sign Out</span>
       </Button>
 
@@ -218,15 +237,15 @@ export default function ProfilePage() {
       <Modal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
-        title="Edit Profile"
-        description="Update your personal details and gamer profile."
+        title="Edit Gamer Profile"
+        description="Update your personal information and gaming preferences."
         footer={
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex items-center justify-end gap-2">
             <Button variant="ghost" onClick={() => setIsEditOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleSaveProfile}>
-              Save Changes
+            <Button variant="primary" onClick={handleSaveProfile} disabled={Boolean(phoneError || nameError)}>
+              Save Profile
             </Button>
           </div>
         }
@@ -237,39 +256,79 @@ export default function ProfilePage() {
             <input
               type="text"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-body text-text-primary"
+              onChange={(e) => handleNameChange(e.target.value)}
+              className="w-full rounded-xl border border-border bg-surface px-3.5 py-2 text-body text-text-primary focus:ring-2 focus:ring-primary/40 focus:outline-none"
             />
+            {nameError && <p className="text-caption text-error mt-1">{nameError}</p>}
           </div>
 
           <div>
-            <label className="text-caption font-semibold text-text-secondary mb-1 block">Phone Number</label>
-            <input
-              type="text"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-body text-text-primary"
-            />
+            <label className="text-caption font-semibold text-text-secondary mb-1 block">10-Digit Mobile Number (India)</label>
+            <div className="relative flex items-center">
+              <span className="absolute left-3.5 text-caption font-bold text-text-secondary">+91</span>
+              <input
+                type="text"
+                value={phoneNumber}
+                maxLength={10}
+                onChange={(e) => handlePhoneChange(e.target.value)}
+                placeholder="9876543210"
+                className="w-full rounded-xl border border-border bg-surface pl-12 pr-3.5 py-2 font-data text-body text-text-primary focus:ring-2 focus:ring-primary/40 focus:outline-none"
+              />
+            </div>
+            {phoneError && <p className="text-caption text-error mt-1">{phoneError}</p>}
           </div>
 
           <div>
             <label className="text-caption font-semibold text-text-secondary mb-1 block">Home City</label>
-            <input
-              type="text"
+            <select
               value={homeCity}
               onChange={(e) => setHomeCity(e.target.value)}
-              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-body text-text-primary"
-            />
+              className="w-full rounded-xl border border-border bg-surface px-3.5 py-2 text-body text-text-primary focus:ring-2 focus:ring-primary/40 focus:outline-none"
+            >
+              {CITIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
-            <label className="text-caption font-semibold text-text-secondary mb-1 block">Favorite Games</label>
-            <input
-              type="text"
-              value={favGames}
-              onChange={(e) => setFavGames(e.target.value)}
-              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-body text-text-primary"
-            />
+            <label className="text-caption font-semibold text-text-secondary mb-1 block">Preferred Hardware Tier</label>
+            <select
+              value={preferredTier}
+              onChange={(e) => setPreferredTier(e.target.value)}
+              className="w-full rounded-xl border border-border bg-surface px-3.5 py-2 text-body text-text-primary focus:ring-2 focus:ring-primary/40 focus:outline-none"
+            >
+              {RIG_TIERS.map((tier) => (
+                <option key={tier} value={tier}>
+                  {tier}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-caption font-semibold text-text-secondary mb-1.5 block">Favorite Games (Select Multiple)</label>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {GAME_OPTIONS.map((game) => {
+                const isSelected = favGames.includes(game);
+                return (
+                  <button
+                    key={game}
+                    type="button"
+                    onClick={() => toggleGame(game)}
+                    className={`rounded-full px-3 py-1 text-caption font-semibold transition-all ${
+                      isSelected
+                        ? 'bg-secondary text-white shadow-sm'
+                        : 'bg-surface text-text-secondary border border-border hover:bg-border/40'
+                    }`}
+                  >
+                    {game} {isSelected ? '✓' : ''}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </Modal>
@@ -281,7 +340,7 @@ export default function ProfilePage() {
         title="Sign Out"
         description="Are you sure you want to sign out of your KHEL-O account?"
         footer={
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex items-center justify-end gap-2">
             <Button variant="ghost" onClick={() => setIsLogoutOpen(false)}>
               Cancel
             </Button>

@@ -23,9 +23,29 @@ class BookingRepository(BaseRepository[Booking]):
         result = await self.db.execute(select(Booking).where(Booking.booking_reference == reference))
         return result.scalars().first()
 
-    async def get_by_gamer_id(self, gamer_id: UUID, page: int = 1, limit: int = 20) -> Tuple[List[Booking], int]:
-        stmt = select(Booking).where(Booking.gamer_id == gamer_id).order_by(Booking.created_at.desc())
-        
+    async def get_by_gamer_id(
+        self,
+        gamer_id: UUID,
+        status_filter: Optional[str] = None,
+        page: int = 1,
+        limit: int = 20
+    ) -> Tuple[List[Tuple[Booking, str, str, str]], int]:
+        stmt = select(
+            Booking,
+            Cafe.name.label("cafe_name"),
+            Cafe.address_line1.label("cafe_address"),
+            HardwareTier.name.label("tier_name")
+        ).outerjoin(
+            Cafe, Booking.cafe_id == Cafe.id
+        ).outerjoin(
+            HardwareTier, Booking.hardware_tier_id == HardwareTier.id
+        ).where(Booking.gamer_id == gamer_id)
+
+        if status_filter:
+            stmt = stmt.where(Booking.status == status_filter)
+
+        stmt = stmt.order_by(Booking.created_at.desc())
+
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self.db.execute(count_stmt)
         total = total_result.scalar() or 0
@@ -33,7 +53,12 @@ class BookingRepository(BaseRepository[Booking]):
         offset = (page - 1) * limit
         paginated_stmt = stmt.offset(offset).limit(limit)
         result = await self.db.execute(paginated_stmt)
-        items = list(result.scalars().all())
+        rows = result.all()
+
+        items = []
+        for row in rows:
+            b, c_name, c_addr, t_name = row[0], row[1] or "Gaming Cafe", row[2] or "", row[3] or "Hardware Tier"
+            items.append((b, c_name, c_addr, t_name))
 
         return items, total
 

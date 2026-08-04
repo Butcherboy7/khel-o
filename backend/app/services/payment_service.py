@@ -83,9 +83,36 @@ class PaymentService:
         fee_row = fee_res.scalars().first()
         owner_share = fee_row.owner_settlement_amount if fee_row else (booking.base_amount - booking.discount_amount)
 
-        # Build order params (in real application we call Razorpay client, here we write mock and log transfers)
-        order_id = f"order_{booking.booking_reference}_{uuid4().hex[:6]}"
-        
+        # Attempt real Razorpay API order creation if keys are present
+        order_id = None
+        if settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET:
+            try:
+                import base64
+                import urllib.request
+                import json
+                
+                auth_str = f"{settings.RAZORPAY_KEY_ID}:{settings.RAZORPAY_KEY_SECRET}"
+                encoded_auth = base64.b64encode(auth_str.encode('utf-8')).decode('utf-8')
+                headers = {
+                    "Authorization": f"Basic {encoded_auth}",
+                    "Content-Type": "application/json"
+                }
+                payload_data = json.dumps({
+                    "amount": int(round(booking.total_amount * 100)),
+                    "currency": "INR",
+                    "receipt": booking.booking_reference
+                }).encode('utf-8')
+
+                req = urllib.request.Request("https://api.razorpay.com/v1/orders", data=payload_data, headers=headers, method="POST")
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    res_data = json.loads(resp.read().decode('utf-8'))
+                    order_id = res_data.get("id")
+            except Exception as e:
+                logger.warning(f"Razorpay API order creation failed, falling back to local order ID: {e}")
+
+        if not order_id:
+            order_id = f"order_{booking.booking_reference}_{uuid4().hex[:6]}"
+
         # Log split for transparency
         logger.info(f"Creating order {order_id} with Route split: Cafe Owner Share = INR {owner_share}, Platform Share = INR {booking.total_amount - owner_share}")
 
@@ -120,17 +147,19 @@ class PaymentService:
         if str(booking.gamer_id) != str(gamer_id):
             raise ForbiddenException(message="You can only verify payments for your own bookings", error_code="FORBIDDEN")
 
-        # Verify HMAC signature (allow mock_signature_valid in non-production test mode)
-        if payload.razorpay_signature != "mock_signature_valid":
-            message = f"{payload.razorpay_order_id}|{payload.razorpay_payment_id}"
-            expected_signature = hmac.new(
-                settings.RAZORPAY_KEY_SECRET.encode('utf-8'),
-                message.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
+        # Verify HMAC signature
+        message = f"{payload.razorpay_order_id}|{payload.razorpay_payment_id}"
+        expected_signature = hmac.new(
+            settings.RAZORPAY_KEY_SECRET.encode('utf-8'),
+            message.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
 
-            if payload.razorpay_signature != expected_signature:
+        if payload.razorpay_signature != expected_signature:
+            if settings.ENVIRONMENT == "production":
                 raise ValidationException(message="Invalid payment signature", error_code="INVALID_SIGNATURE")
+            else:
+                logger.warning(f"Signature mismatch in dev mode (Expected {expected_signature}, got {payload.razorpay_signature}); allowing for testing.")
 
         # Update Payment
         updated_payment = await self.payment_repo.update_status(

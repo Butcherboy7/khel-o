@@ -188,14 +188,52 @@ class BookingService:
         if not is_owner:
             raise ForbiddenException(message="You do not have permission to view this booking", error_code="FORBIDDEN")
 
-        return BookingResponse.model_validate(booking)
+        # Auto-generate QR code for confirmed bookings if missing
+        if booking.status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED) and not booking.qr_code_url:
+            from app.background.qr_generator import generate_and_save_qr_code
+            qr_url = generate_and_save_qr_code(
+                booking_id=str(booking.id),
+                booking_reference=booking.booking_reference,
+                cafe_id=str(booking.cafe_id)
+            )
+            booking = await self.booking_repo.update(booking.id, {"qr_code_url": qr_url})
 
-    async def list_gamer_bookings(self, gamer_id: UUID, page: int = 1, limit: int = 20) -> Dict[str, Any]:
+        resp = BookingResponse.model_validate(booking)
+        if self.cafe_repo:
+            cafe_obj = await self.cafe_repo.get_by_id(booking.cafe_id)
+            if cafe_obj:
+                resp.cafe_name = cafe_obj.name
+                resp.cafe_address = cafe_obj.address_line1
+        if self.tier_repo:
+            tier_obj = await self.tier_repo.get_by_id(booking.hardware_tier_id)
+            if tier_obj:
+                resp.tier_name = tier_obj.name
+
+        return resp
+
+    async def list_gamer_bookings(
+        self,
+        gamer_id: UUID,
+        status_filter: Optional[str] = None,
+        page: int = 1,
+        limit: int = 20
+    ) -> Dict[str, Any]:
         limit = min(limit, 50)
-        items, total = await self.booking_repo.get_by_gamer_id(gamer_id, page=page, limit=limit)
+        items_tuples, total = await self.booking_repo.get_by_gamer_id(
+            gamer_id, status_filter=status_filter, page=page, limit=limit
+        )
         total_pages = math.ceil(total / limit) if total > 0 else 0
+
+        responses = []
+        for b, c_name, c_addr, t_name in items_tuples:
+            res = BookingResponse.model_validate(b)
+            res.cafe_name = c_name
+            res.cafe_address = c_addr
+            res.tier_name = t_name
+            responses.append(res)
+
         return {
-            "items": [BookingResponse.model_validate(b) for b in items],
+            "items": responses,
             "total": total,
             "page": page,
             "pageSize": limit,

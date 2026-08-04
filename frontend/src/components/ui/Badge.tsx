@@ -51,12 +51,13 @@ const BOOKING_STATUS_CONFIG: Record<
   BookingStatus,
   { label: string; variant: VariantProps<typeof badgeVariants>['variant'] }
 > = {
-  pending_payment: { label: 'Pending Payment', variant: 'warning' },
+  pending_payment: { label: 'Payment Pending', variant: 'warning' },
   confirmed: { label: 'Confirmed', variant: 'primary' },
   checked_in: { label: 'Checked In', variant: 'success' },
   completed: { label: 'Completed', variant: 'default' },
   cancelled: { label: 'Cancelled', variant: 'error' },
   no_show: { label: 'No Show', variant: 'error' },
+  failed: { label: 'Payment Failed', variant: 'error' },
 };
 
 interface BookingStatusBadgeProps {

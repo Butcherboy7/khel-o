@@ -1,30 +1,70 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MapPin, Star, Zap } from 'lucide-react';
+import { MapPin, Star, Zap, Gamepad2 } from 'lucide-react';
 import { Card, CardImage } from '@/components/ui';
 import type { CafeListItem } from '@/types';
 
 interface CafeCardProps {
   cafe: CafeListItem;
+  isFeatured?: boolean;
 }
 
-export function CafeCard({ cafe }: CafeCardProps) {
-  const primaryPhoto = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0] : null;
+const DEFAULT_CARD_PHOTOS = [
+  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=800&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=800&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=800&auto=format&fit=crop',
+];
+
+export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
+  const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : DEFAULT_CARD_PHOTOS;
+  const [photoIndex, setPhotoIndex] = useState(0);
+
+  useEffect(() => {
+    if (photosList.length <= 1) return;
+    const timer = setInterval(() => {
+      setPhotoIndex((prev) => (prev + 1) % photosList.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [photosList.length]);
+
+  const currentPhoto = photosList[photoIndex % photosList.length];
+
+  const hasConsole = cafe.tierNames?.some(
+    (t) =>
+      t.toLowerCase().includes('ps5') ||
+      t.toLowerCase().includes('console') ||
+      t.toLowerCase().includes('xbox') ||
+      t.toLowerCase().includes('switch')
+  ) || cafe.name.toLowerCase().includes('lounge') || cafe.name.toLowerCase().includes('velocity');
+
+  const handleOpenMap = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const query = encodeURIComponent(`${cafe.name}, ${cafe.city}, ${cafe.state}`);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+  };
 
   return (
     <Link href={`/cafe/${cafe.id}`} className="block h-full group">
       <Card
         interactive
         elevation="resting"
-        className="h-full flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card transition-all duration-normal hover:shadow-float"
+        className={`h-full flex flex-col overflow-hidden rounded-3xl border transition-all duration-normal hover:shadow-float ${
+          isFeatured
+            ? 'border-primary/40 ring-2 ring-primary/30 shadow-card bg-gradient-to-b from-card via-card to-primary/5'
+            : 'border-border/80 bg-card'
+        }`}
       >
         {/* Photo Header */}
         <CardImage aspectClass="aspect-[16/10]" className="relative">
-          {primaryPhoto ? (
+          {currentPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={primaryPhoto}
+              src={currentPhoto}
               alt={cafe.name}
-              className="h-full w-full object-cover transition-transform duration-slow group-hover:scale-105"
+              className="h-full w-full object-cover transition-all duration-700 group-hover:scale-105"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
@@ -36,9 +76,27 @@ export function CafeCard({ cafe }: CafeCardProps) {
             <span className="font-heading text-h3 text-white opacity-80">{cafe.name}</span>
           </div>
 
+          {/* Carousel Dot Indicators */}
+          {photosList.length > 1 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 z-10">
+              {photosList.map((_, idx) => (
+                <span
+                  key={idx}
+                  className={`h-1.5 rounded-full transition-all ${
+                    idx === photoIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Overlay Badges */}
-          <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-            {cafe.hasActivePromotion ? (
+          <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
+            {isFeatured ? (
+              <span className="rounded-full bg-accent px-3 py-1 text-badge font-bold uppercase tracking-wider text-white shadow-card flex items-center gap-1">
+                ★ Featured
+              </span>
+            ) : cafe.hasActivePromotion ? (
               <span className="rounded-full bg-accent px-3 py-1 text-badge font-bold uppercase tracking-wider text-white shadow-card">
                 Buy 2 hrs get 1 free
               </span>
@@ -66,34 +124,42 @@ export function CafeCard({ cafe }: CafeCardProps) {
               </div>
             </div>
 
-            {/* Location Row */}
-            <div className="flex items-center gap-1 text-caption text-text-secondary">
-              <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-text-secondary" />
-              <span className="truncate">
+            {/* Location Row (Clickable for directions) */}
+            <button
+              onClick={handleOpenMap}
+              className="flex items-center gap-1 text-caption text-text-secondary hover:text-primary transition-colors text-left truncate w-full"
+              title="Get directions on Google Maps"
+            >
+              <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
+              <span className="truncate hover:underline">
                 {cafe.city}, {cafe.state} • 1.2 km
               </span>
-            </div>
+            </button>
           </div>
 
-          {/* Tags Row */}
+          {/* Tags & Console Support Badges Row */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary">
               PC Gaming
             </span>
-            {cafe.tierNames && cafe.tierNames.length > 0 ? (
-              cafe.tierNames.slice(0, 2).map((tier) => (
-                <span
-                  key={tier}
-                  className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary truncate max-w-[120px]"
-                >
-                  {tier}
-                </span>
-              ))
-            ) : (
-              <span className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary">
-                PS5 Lounge
+
+            {hasConsole && (
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-overline font-bold text-primary flex items-center gap-1">
+                <Gamepad2 className="h-3 w-3" />
+                <span>PS5 / Consoles</span>
               </span>
             )}
+
+            {cafe.tierNames && cafe.tierNames.length > 0
+              ? cafe.tierNames.slice(0, 1).map((tier) => (
+                  <span
+                    key={tier}
+                    className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary truncate max-w-[120px]"
+                  >
+                    {tier}
+                  </span>
+                ))
+              : null}
           </div>
 
           {/* Footer: Price Row */}
@@ -102,12 +168,12 @@ export function CafeCard({ cafe }: CafeCardProps) {
               <Zap className="h-3.5 w-3.5 text-accent" />
               <span>from</span>
               <span className="font-data text-body-emphasis font-bold text-text-primary">
-                ₹{cafe.startingPrice || 90}/hr
+                <span className="rupee-symbol">₹</span>{cafe.startingPrice || 90}/hr
               </span>
             </div>
 
             <span className="text-caption font-bold text-primary group-hover:translate-x-0.5 transition-transform">
-              Book rig →
+              Book station →
             </span>
           </div>
         </div>

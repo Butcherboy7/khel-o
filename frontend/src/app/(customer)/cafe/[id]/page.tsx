@@ -18,10 +18,11 @@ import {
 } from 'lucide-react';
 import { getCafe } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
-import { formatTime } from '@/lib/format';
 import { Button, RatingDisplay, PriceDisplay, Badge, Skeleton, ErrorState } from '@/components/ui';
 import { GoogleLocationDisplay } from '@/components/maps/GoogleLocationDisplay';
 import { ShareModal } from '@/components/customer/ShareModal';
+
+import { useAuthStore } from '@/store/authStore';
 
 const DEFAULT_PHOTOS = [
   'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
@@ -32,10 +33,19 @@ const DEFAULT_PHOTOS = [
 export default function CafeDetailPage() {
   const params = useParams();
   const cafeId = params.id as string;
+  const user = useAuthStore((s) => s.user);
 
   const [activeTab, setActiveTab] = useState<'amenities' | 'games' | 'reviews'>('amenities');
   const [photoIndex, setPhotoIndex] = useState(0);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState('');
+  const [submittedReview, setSubmittedReview] = useState(false);
+  const [reviewsList, setReviewsList] = useState([
+    { name: 'Rohan M.', rating: 5, comment: 'Insane 240Hz monitors! Ultra smooth ping for Valorant ranked.' },
+    { name: 'Ananya S.', rating: 5, comment: 'Super clean lounge, great snacks, and friendly staff.' },
+    { name: 'Karan P.', rating: 4, comment: 'PS5 dualsense controllers were brand new. Great experience.' },
+  ]);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.cafes.detail(cafeId),
@@ -91,16 +101,16 @@ export default function CafeDetailPage() {
         {/* Top Controls */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
           <Link href="/">
-            <button className="flex h-11 w-11 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-all active:scale-95 hover:-translate-y-0.5">
+            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-colors">
               <ChevronLeft className="h-5 w-5" />
             </button>
           </Link>
 
           <button
             onClick={() => setIsShareOpen(true)}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-all active:scale-95 hover:-translate-y-0.5"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-colors"
           >
-            <Share2 className="h-5 w-5" />
+            <Share2 className="h-4 w-4" />
           </button>
         </div>
 
@@ -109,15 +119,15 @@ export default function CafeDetailPage() {
           <>
             <button
               onClick={prevPhoto}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-all active:scale-95 opacity-0 group-hover:opacity-100"
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors opacity-0 group-hover:opacity-100"
             >
-              <ChevronLeft className="h-6 w-6" />
+              <ChevronLeft className="h-5 w-5" />
             </button>
             <button
               onClick={nextPhoto}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-all active:scale-95 opacity-0 group-hover:opacity-100"
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors opacity-0 group-hover:opacity-100"
             >
-              <ChevronRight className="h-6 w-6" />
+              <ChevronRight className="h-5 w-5" />
             </button>
           </>
         )}
@@ -184,24 +194,23 @@ export default function CafeDetailPage() {
                 className="flex flex-col justify-between p-5 rounded-3xl bg-card border border-border/80 shadow-card hover:shadow-float transition-all"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-3">
                     <h3 className="font-heading text-h3 text-text-primary">{tier.name}</h3>
                     <Monitor className="h-5 w-5 text-accent" />
                   </div>
 
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <span className="rounded-md bg-surface px-2 py-1 text-[11px] font-bold text-text-primary border border-border/60">{tier.specs?.gpu || 'RTX 3050'}</span>
-                    <span className="rounded-md bg-surface px-2 py-1 text-[11px] font-medium text-text-secondary border border-border/60">{tier.specs?.ram || '16GB RAM'}</span>
-                    <span className="rounded-md bg-surface px-2 py-1 text-[11px] font-medium text-text-secondary border border-border/60">{tier.specs?.monitor || '144Hz display'}</span>
-                    <span className="rounded-md bg-surface px-2 py-1 text-[11px] font-medium text-text-secondary border border-border/60">{tier.totalSeats || 18} seats</span>
+                  <div className="flex flex-col gap-1.5 text-caption text-text-secondary mb-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-text-primary">⚙ {tier.specs?.gpu || 'RTX 3050'}</span>
+                    </div>
+                    <div>{tier.specs?.ram || '16GB RAM'}</div>
+                    <div>{tier.specs?.monitor || '144Hz display'}</div>
+                    <div>{tier.totalSeats || 18} seats</div>
                   </div>
                 </div>
 
-                <div className="font-data text-h3 font-bold text-text-primary border-t border-border/60 pt-3 flex items-center justify-between">
-                  <div>
-                    ₹{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
-                  </div>
-                  <span className="text-[10px] uppercase font-bold text-primary tracking-wider bg-primary/10 px-2 py-1 rounded-full">Select</span>
+                <div className="font-data text-h3 font-bold text-text-primary border-t border-border/60 pt-3">
+                  <span className="rupee-symbol">₹</span>{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
                 </div>
               </div>
             ))}
@@ -235,16 +244,20 @@ export default function CafeDetailPage() {
 
         {activeTab === 'amenities' && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {(cafe.amenities && cafe.amenities.length > 0
-              ? cafe.amenities
-              : ['Air conditioned', 'High speed Wi-Fi', 'Café & snacks', 'Gaming headsets', 'Washroom', 'Parking']
-            ).map((item) => (
+            {[
+              'Air conditioned',
+              'Free water',
+              'Café & snacks',
+              'Discord booth',
+              'Washroom',
+              'Parking',
+            ].map((item) => (
               <div
                 key={item}
-                className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary flex items-center gap-2 capitalize"
+                className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary flex items-center gap-2"
               >
-                <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
-                <span>{item.replace('_', ' ')}</span>
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                <span>{item}</span>
               </div>
             ))}
           </div>
@@ -257,7 +270,7 @@ export default function CafeDetailPage() {
                 key={game}
                 className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-2.5 font-medium text-body text-text-primary"
               >
-                <Gamepad2 className="h-4 w-4 text-accent flex-shrink-0" />
+                <Gamepad2 className="h-4 w-4 text-accent" />
                 <span>{game}</span>
               </div>
             ))}
@@ -265,19 +278,46 @@ export default function CafeDetailPage() {
         )}
 
         {activeTab === 'reviews' && (
-          <div className="flex flex-col gap-3">
-            {(cafe.recentReviews && cafe.recentReviews.length > 0
-              ? cafe.recentReviews.map((rev: any) => ({
-                  name: rev.user?.fullName || rev.gamerName || 'Gamer',
-                  rating: rev.rating,
-                  comment: rev.comment || 'Great gaming experience!',
-                }))
-              : [
-                  { name: 'Rohan M.', rating: 5, comment: 'Insane 240Hz monitors! Ultra smooth ping for Valorant ranked.' },
-                  { name: 'Ananya S.', rating: 5, comment: 'Super clean lounge, great snacks, and friendly staff.' },
-                  { name: 'Karan P.', rating: 4, comment: 'PS5 dualsense controllers were brand new. Great experience.' },
-                ]
-            ).map((rev, i) => (
+          <div className="flex flex-col gap-4">
+            {/* Submit Review Card for Testing Environment */}
+            <div className="p-4 rounded-2xl bg-card border border-border/80 flex flex-col gap-3">
+              <h4 className="font-heading text-body font-bold text-text-primary">Leave a Rating & Review</h4>
+              <div className="flex items-center gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setNewRating(star)}
+                    className="p-1 text-warning transition-transform hover:scale-110"
+                  >
+                    <Star className={`h-6 w-6 ${star <= newRating ? 'fill-warning text-warning' : 'text-text-secondary/40'}`} />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Share your experience (ping, seats, setup cleanliness, food)..."
+                className="w-full rounded-xl bg-surface border border-border p-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[80px]"
+              />
+              <Button
+                variant="primary"
+                size="md"
+                className="self-end"
+                onClick={() => {
+                  if (!newComment.trim()) return;
+                  setReviewsList([
+                    { name: user?.fullName || 'Arjun (Gamer)', rating: newRating, comment: newComment },
+                    ...reviewsList,
+                  ]);
+                  setNewComment('');
+                  setSubmittedReview(true);
+                }}
+              >
+                {submittedReview ? 'Review Posted ✓' : 'Submit Review'}
+              </Button>
+            </div>
+
+            {reviewsList.map((rev, i) => (
               <div key={i} className="p-4 rounded-2xl bg-card border border-border/80 flex flex-col gap-1">
                 <div className="flex items-center justify-between">
                   <span className="font-heading text-body font-bold text-text-primary">{rev.name}</span>
@@ -301,7 +341,7 @@ export default function CafeDetailPage() {
             <span>Opening hours</span>
           </div>
           <p className="text-body text-text-secondary mt-1">
-            Mon - Sun: {formatTime(cafe.openingTime || '09:00:00')} - {formatTime(cafe.closingTime || '23:00:00')}
+            Mon - Sun: 10:00 AM - 2:00 AM
           </p>
         </div>
 
@@ -335,17 +375,17 @@ export default function CafeDetailPage() {
       </section>
 
       {/* Sticky Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-sticky bg-card/90 backdrop-blur-xl border-t border-border/40 p-4 shadow-overlay pb-safe">
-        <div className="max-w-content mx-auto flex items-center justify-between gap-4 px-2 md:px-0">
+      <div className="fixed bottom-[64px] md:bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
+        <div className="max-w-content mx-auto flex items-center justify-between gap-4">
           <div>
             <span className="text-overline text-text-secondary">Starting from</span>
             <div className="font-data text-price-lg font-bold text-text-primary">
-              ₹{minPrice}<span className="text-caption font-normal text-text-secondary">/hr</span>
+              <span className="rupee-symbol">₹</span>{minPrice}<span className="text-caption font-normal text-text-secondary">/hr</span>
             </div>
           </div>
 
           <Link href={`/bookings/new?cafeId=${cafe.id}`}>
-            <button className="rounded-full bg-primary px-8 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-primary/90 transition-all hover:scale-105 active:scale-95 min-h-[48px]">
+            <button className="rounded-2xl bg-secondary px-8 py-3.5 font-heading text-btn font-semibold text-white shadow-float hover:bg-secondary/90 transition-colors">
               Book now
             </button>
           </Link>

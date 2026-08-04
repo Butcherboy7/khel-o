@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Gift, Award, Flame, Zap, Check, Lock, Ticket, Sparkles, ChevronRight } from 'lucide-react';
+import { Gift, Award, Flame, Zap, Check, Lock, Ticket, Sparkles, ChevronRight, Copy, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 
 interface Achievement {
@@ -91,6 +91,9 @@ const COUPONS: Coupon[] = [
 
 export default function RewardsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>(COUPONS);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [activeAchievement, setActiveAchievement] = useState<Achievement | null>(null);
+
   const currentXp = 1450;
   const nextLevelXp = 2000;
   const xpPercentage = Math.round((currentXp / nextLevelXp) * 100);
@@ -101,20 +104,27 @@ export default function RewardsPage() {
     );
   };
 
+  const copyCouponCode = (code: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(code);
+    }
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2500);
+  };
+
   return (
-    <div className="flex flex-col gap-8 max-w-2xl mx-auto pb-32 pt-4 px-4 md:px-8">
+    <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-24">
       {/* Level & XP Banner */}
-      <Card elevation="raised" className="overflow-hidden border-2 border-accent/40 bg-gradient-to-br from-secondary via-[#2C2C2E] to-secondary text-white relative">
-        <div className="absolute inset-0 bg-gradient-to-tr from-accent/10 to-transparent opacity-50" />
-        <CardContent className="p-6 flex flex-col gap-5 relative z-10">
+      <Card elevation="raised" className="overflow-hidden border border-accent/30 bg-gradient-to-r from-secondary via-secondary to-[#2B2D42] text-white">
+        <CardContent className="p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-accent-dark text-secondary font-heading font-bold text-h1 shadow-[0_0_15px_rgba(249,168,38,0.5)]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-white font-heading font-bold text-h3 shadow-card">
                 L4
               </div>
               <div>
                 <span className="text-overline text-white/70 uppercase">Current Tier</span>
-                <h1 className="font-heading text-h2 text-white">Veteran Gamer</h1>
+                <h1 className="font-heading text-h3 text-white">Veteran Gamer</h1>
               </div>
             </div>
 
@@ -125,14 +135,14 @@ export default function RewardsPage() {
           </div>
 
           {/* XP Progress Bar */}
-          <div className="flex flex-col gap-1.5 pt-2">
+          <div className="flex flex-col gap-1.5 pt-1">
             <div className="flex justify-between text-caption text-white/80">
               <span>Level 4 Progress</span>
               <span>{currentXp} / {nextLevelXp} XP ({xpPercentage}%)</span>
             </div>
-            <div className="h-3.5 w-full rounded-full bg-black/50 overflow-hidden p-0.5 shadow-inner">
+            <div className="h-2.5 w-full rounded-full bg-black/40 overflow-hidden p-0.5">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-primary via-accent to-accent transition-all duration-1000 ease-out"
+                className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-500"
                 style={{ width: `${xpPercentage}%` }}
               />
             </div>
@@ -140,9 +150,19 @@ export default function RewardsPage() {
         </CardContent>
       </Card>
 
+      {/* Toast Feedback Banner */}
+      {copiedCode && (
+        <div className="sticky top-20 z-50 rounded-2xl bg-success text-white px-4 py-2.5 shadow-float flex items-center justify-between animate-in fade-in">
+          <span className="font-heading text-caption font-bold flex items-center gap-1.5">
+            <CheckCircle2 className="h-4 w-4" /> Code {copiedCode} copied to clipboard!
+          </span>
+          <span className="text-overline uppercase">Ready to paste</span>
+        </div>
+      )}
+
       {/* Unlockable Coupons */}
       <div className="flex flex-col gap-3">
-        <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
+        <h2 className="font-heading text-h3 text-text-primary flex items-center gap-2">
           <Ticket className="h-5 w-5 text-primary" />
           <span>Reward Vouchers & Coupons</span>
         </h2>
@@ -157,28 +177,56 @@ export default function RewardsPage() {
               >
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-data text-h3 font-bold text-primary">{c.discount}</span>
+                    <span className="font-data text-h3 font-bold text-primary flex items-center gap-0.5">
+                      {c.discount.includes('₹') ? (
+                        <>
+                          <span className="rupee-symbol">₹</span>
+                          {c.discount.replace('₹', '')}
+                        </>
+                      ) : (
+                        c.discount
+                      )}
+                    </span>
                     <Badge variant={c.isClaimed ? 'success' : 'secondary'} size="sm">
                       {c.isClaimed ? 'Claimed' : `${c.requiredXp} XP`}
                     </Badge>
                   </div>
-                  <p className="text-caption text-text-secondary">{c.description}</p>
+                  <p className="text-caption text-text-secondary">
+                    {c.description.includes('₹') ? (
+                      <>
+                        {c.description.split('₹')[0]}
+                        <span className="rupee-symbol">₹</span>
+                        {c.description.split('₹')[1]}
+                      </>
+                    ) : (
+                      c.description
+                    )}
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-between border-t border-border/60 pt-3">
-                  <span className="font-data text-caption font-bold text-text-primary">{c.code}</span>
+                  <span className="font-data text-caption font-bold text-text-primary bg-surface px-2.5 py-1 rounded-lg border border-border">
+                    {c.code}
+                  </span>
+
                   {c.isClaimed ? (
-                    <span className="text-caption text-success font-semibold flex items-center gap-1">
-                      <Check className="h-3.5 w-3.5" /> Ready
-                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyCouponCode(c.code)}
+                      className="text-caption gap-1 text-primary border-primary/40 hover:bg-primary/10"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>{copiedCode === c.code ? 'Copied ✓' : 'Copy Code'}</span>
+                    </Button>
                   ) : (
                     <Button
                       size="sm"
                       disabled={!canClaim}
                       onClick={() => claimCoupon(c.id)}
-                      className="text-caption font-bold rounded-full px-4 active:scale-95 transition-all"
+                      className="text-caption"
                     >
-                      Claim Reward
+                      Claim Vouchers
                     </Button>
                   )}
                 </div>
@@ -190,7 +238,7 @@ export default function RewardsPage() {
 
       {/* Achievement Badges Grid */}
       <div className="flex flex-col gap-3">
-        <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
+        <h2 className="font-heading text-h3 text-text-primary flex items-center gap-2">
           <Award className="h-5 w-5 text-accent" />
           <span>Gamer Badges & Milestones</span>
         </h2>
@@ -199,13 +247,14 @@ export default function RewardsPage() {
           {ACHIEVEMENTS.map((ach) => (
             <div
               key={ach.id}
-              className={`p-4 rounded-3xl border transition-all flex items-start gap-3.5 ${
+              onClick={() => setActiveAchievement(ach)}
+              className={`p-4 rounded-3xl border transition-all flex items-start gap-3.5 cursor-pointer hover:shadow-card ${
                 ach.isUnlocked
-                  ? 'bg-card border-primary/40 shadow-card'
+                  ? 'bg-card border-primary/40 shadow-sm'
                   : 'bg-surface/60 border-border/60 opacity-75'
               }`}
             >
-              <div className="text-3xl p-2.5 rounded-2xl bg-surface flex-shrink-0">
+              <div className="text-3xl p-2 rounded-2xl bg-surface flex-shrink-0">
                 {ach.icon}
               </div>
 
@@ -224,14 +273,54 @@ export default function RewardsPage() {
                 </div>
 
                 <p className="text-caption text-text-secondary mt-0.5">{ach.description}</p>
-                <div className="text-badge font-semibold text-text-secondary mt-2">
-                  Progress: {ach.progress}
+                <div className="text-badge font-semibold text-text-secondary mt-2 flex items-center justify-between">
+                  <span>Progress: {ach.progress}</span>
+                  <span className="text-primary hover:underline">Details →</span>
                 </div>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Achievement Feedback Celebration Modal */}
+      {activeAchievement && (
+        <div
+          onClick={() => setActiveAchievement(null)}
+          className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl bg-card border border-border p-6 shadow-overlay flex flex-col items-center text-center gap-3"
+          >
+            <div className="text-5xl p-4 rounded-full bg-primary/10 mb-1">
+              {activeAchievement.icon}
+            </div>
+
+            <h3 className="font-heading text-h2 font-bold text-text-primary">
+              {activeAchievement.title}
+            </h3>
+
+            <p className="text-body text-text-secondary">
+              {activeAchievement.description}
+            </p>
+
+            <div className="w-full rounded-2xl bg-surface p-3 flex items-center justify-between text-caption font-semibold my-1">
+              <span className="text-text-secondary">Reward XP:</span>
+              <span className="font-bold text-success">+{activeAchievement.xpReward} XP</span>
+            </div>
+
+            <Button
+              variant="primary"
+              size="md"
+              fullWidth
+              onClick={() => setActiveAchievement(null)}
+            >
+              Continue Quest
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

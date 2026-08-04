@@ -63,6 +63,9 @@ class BookingResponse(BookingBase):
     total_amount: float
     convenience_fee: float
     status: BookingStatus
+    cafe_name: Optional[str] = None
+    tier_name: Optional[str] = None
+    cafe_address: Optional[str] = None
     qr_code_url: Optional[str] = None
     cancelled_at: Optional[datetime] = None
     cancellation_reason: Optional[str] = None

@@ -15,25 +15,21 @@ class ReviewService:
         self.booking_repo = booking_repo
 
     async def submit_review(self, gamer_id: UUID, user_full_name: str, review_in: ReviewCreateRequest) -> ReviewResponse:
-        booking = await self.booking_repo.get_by_id(review_in.booking_id)
-        if not booking:
-            raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
+        cafe_id = review_in.cafe_id
+        booking_id = review_in.booking_id
 
-        if str(booking.gamer_id) != str(gamer_id):
-            raise ForbiddenException(message="You can only review your own bookings", error_code="FORBIDDEN")
+        if booking_id:
+            booking = await self.booking_repo.get_by_id(booking_id)
+            if booking:
+                cafe_id = booking.cafe_id
+                if str(booking.gamer_id) != str(gamer_id):
+                    raise ForbiddenException(message="You can only review your own bookings", error_code="FORBIDDEN")
+                existing = await self.review_repo.get_by_booking_id(booking_id)
+                if existing:
+                    raise ConflictException(message="You have already reviewed this session", error_code="REVIEW_ALREADY_EXISTS")
 
-        if booking.status != BookingStatus.COMPLETED:
-            raise ValidationException(
-                message="You can only review a completed session",
-                error_code="REVIEW_NOT_ALLOWED"
-            )
-
-        existing = await self.review_repo.get_by_booking_id(review_in.booking_id)
-        if existing:
-            raise ConflictException(
-                message="You have already reviewed this session",
-                error_code="REVIEW_ALREADY_EXISTS"
-            )
+        if not cafe_id and not booking_id:
+            raise ValidationException(message="Either cafe_id or booking_id is required", error_code="INVALID_REVIEW_REQUEST")
 
         if review_in.rating < 1 or review_in.rating > 5:
             raise ValidationException(
@@ -43,9 +39,9 @@ class ReviewService:
 
         review_dict = {
             "id": uuid4(),
-            "cafe_id": booking.cafe_id,
+            "cafe_id": cafe_id,
             "gamer_id": gamer_id,
-            "booking_id": booking.id,
+            "booking_id": booking_id or uuid4(),
             "rating": review_in.rating,
             "comment": review_in.comment,
             "is_visible": True
