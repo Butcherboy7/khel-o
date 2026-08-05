@@ -41,33 +41,33 @@ TEST_ACCOUNTS = [
     },
 ]
 
+from app.repositories.user_repository import UserRepository
+
 async def seed_all():
     async with AsyncSessionLocal() as db:
+        user_repo = UserRepository(db)
         user_map = {}
         for acc in TEST_ACCOUNTS:
-            stmt = select(User).where(User.email == acc["email"])
-            res = await db.execute(stmt)
-            existing = res.scalars().first()
+            existing = await user_repo.get_by_email(acc["email"])
             hashed_pwd = get_password_hash(acc["password"])
             if existing:
                 existing.password_hash = hashed_pwd
                 existing.full_name = acc["full_name"]
-                existing.role = acc["role"]
                 existing.is_active = True
+                await user_repo.update_role(existing.id, acc["role"])
                 user_map[acc["email"]] = existing
             else:
-                user = User(
-                    id=uuid.uuid4(),
-                    email=acc["email"],
-                    password_hash=hashed_pwd,
-                    full_name=acc["full_name"],
-                    role=acc["role"],
-                    is_active=True,
-                )
-                db.add(user)
+                user = await user_repo.create({
+                    "id": uuid.uuid4(),
+                    "email": acc["email"],
+                    "password_hash": hashed_pwd,
+                    "full_name": acc["full_name"],
+                    "role": acc["role"],
+                    "is_active": True,
+                })
+                if acc["role"] != UserRole.GAMER:
+                    await user_repo.update_role(user.id, acc["role"])
                 user_map[acc["email"]] = user
-        
-        await db.commit()
 
         # Seed Verified Cafe for owner@example.com
         owner_user = user_map["owner@example.com"]

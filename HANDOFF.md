@@ -126,3 +126,24 @@ npm run dev
   - **Data-Driven State Refactor**: Derived café opening/closing hours dynamically using `formatTime()`, derived amenities and recent reviews from backend responses in `cafe/[id]/page.tsx`, and wired router navigation in `NotificationCenter.tsx`.
   - **Production Build & Test Verification**: Executed `npm run build` cleanly compiling all 15 static and dynamic routes. Verified E2E customer booking flow with dev servers active.
 - **Consequences**: Customer booking flow, location previews, and account pages operate cleanly with 100% backend-driven state and zero build/type errors.
+
+---
+
+## ADR 017: Latest GitHub Merge (`Butcherboy7/khel-o`) & Non-Docker Local Compatibility
+
+- **Context**: Merged the latest upstream changes from `https://github.com/Butcherboy7/khel-o` (commits up to `3c674b6` including dual-role switcher API, user_roles migration, OpenAPI DTOs, and Playwright baseline tests) into local `main`. Updated `.env` and `backend/.env` with user-specified settings.
+- **Decision**:
+  - **Environment Variables Sync**: Updated both `.env` and `backend/.env` with:
+    - `ENVIRONMENT=development`
+    - `SECRET_KEY=super-secret-key-change-in-production-at-least-32-chars`
+    - `FRONTEND_URL=http://localhost:3000`
+    - `DATABASE_URL=sqlite+aiosqlite:///./khel_o.db`
+    - `ACCESS_TOKEN_EXPIRE_MINUTES=600`
+    - `REFRESH_TOKEN_EXPIRE_DAYS=30`
+    - `RAZORPAY_KEY_ID=rzp_test_TLE0crqcVjU4ZB`
+    - `RAZORPAY_KEY_SECRET=e5ChIJwiaBpACrNnT7CmpGPl`
+    - `RAZORPAY_WEBHOOK_SECRET=rzp_test_webhook_secret`
+    - `RAZORPAY_ROUTE_ENABLED=false`
+    - `CONVENIENCE_FEE_AMOUNT=10`
+  - **SQLite Non-Docker Compatibility**: Added `aiosqlite>=0.19.0` to `backend/pyproject.toml` so SQLite runs natively without requiring PostgreSQL or Docker.
+- **Consequences**: The project runs identically locally with SQLite as it does for your teammate, requiring zero Docker installation.

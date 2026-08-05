@@ -76,6 +76,25 @@ class UserRepository(BaseRepository[User]):
         self.db.add(user_obj)
         await self.db.commit()
         await self.db.refresh(user_obj)
+
+        # Dual-write: Add base 'gamer' role to user_roles
+        from app.models.user_role import UserRoleMapping
+        import uuid
+        stmt_check = select(UserRoleMapping).where(
+            UserRoleMapping.user_id == user_obj.id,
+            UserRoleMapping.role == UserRole.GAMER,
+            UserRoleMapping.cafe_id.is_(None)
+        )
+        res = await self.db.execute(stmt_check)
+        if not res.scalars().first():
+            self.db.add(UserRoleMapping(
+                id=uuid.uuid4(),
+                user_id=user_obj.id,
+                role=UserRole.GAMER,
+                cafe_id=None
+            ))
+            await self.db.commit()
+
         return user_obj
 
     async def update(self, user_id: UUID, update_data: dict[str, Any]) -> Optional[User]:
@@ -95,5 +114,23 @@ class UserRepository(BaseRepository[User]):
     async def activate(self, user_id: UUID) -> Optional[User]:
         return await self.update(user_id, {"is_active": True})
 
-    async def update_role(self, user_id: UUID, role: UserRole) -> Optional[User]:
-        return await self.update(user_id, {"role": role})
+    async def update_role(self, user_id: UUID, role: UserRole, cafe_id: Optional[UUID] = None) -> Optional[User]:
+        user = await self.update(user_id, {"role": role})
+        if user:
+            from app.models.user_role import UserRoleMapping
+            import uuid
+            stmt_check = select(UserRoleMapping).where(
+                UserRoleMapping.user_id == user.id,
+                UserRoleMapping.role == role,
+                UserRoleMapping.cafe_id == cafe_id
+            )
+            res = await self.db.execute(stmt_check)
+            if not res.scalars().first():
+                self.db.add(UserRoleMapping(
+                    id=uuid.uuid4(),
+                    user_id=user.id,
+                    role=role,
+                    cafe_id=cafe_id
+                ))
+                await self.db.commit()
+        return user

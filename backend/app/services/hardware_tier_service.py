@@ -6,6 +6,7 @@ from app.repositories.promotion_repository import PromotionRepository
 from app.services.promotion_service import PromotionService
 from app.services.performance_rating import compute_rating, _score_gpu, _score_ram, _score_hz
 from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpdateRequest, HardwareTierResponse
+from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 
@@ -57,6 +58,11 @@ class HardwareTierService:
                 raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
             if str(cafe.owner_id) != str(owner_id):
                 raise ForbiddenException(message="You can only manage hardware tiers for your own café", error_code="FORBIDDEN")
+            if cafe.verification_status == VerificationStatus.SUSPENDED:
+                raise ForbiddenException(
+                    message="Suspended cafés cannot modify hardware tiers. Please contact admin.",
+                    error_code="CAFE_SUSPENDED"
+                )
 
         if tier_in.price_per_hour <= 0:
             raise ValidationException(message="Price per hour must be greater than 0", error_code="INVALID_PRICE")
@@ -103,6 +109,11 @@ class HardwareTierService:
                 raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
             if str(cafe.owner_id) != str(owner_id):
                 raise ForbiddenException(message="You can only manage hardware tiers for your own café", error_code="FORBIDDEN")
+            if cafe.verification_status == VerificationStatus.SUSPENDED:
+                raise ForbiddenException(
+                    message="Suspended cafés cannot modify hardware tiers. Please contact admin.",
+                    error_code="CAFE_SUSPENDED"
+                )
 
         total = update_data.total_seats if update_data.total_seats is not None else tier.total_seats
         bookable = update_data.app_bookable_seats if update_data.app_bookable_seats is not None else tier.app_bookable_seats

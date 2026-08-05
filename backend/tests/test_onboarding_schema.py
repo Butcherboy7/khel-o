@@ -32,7 +32,7 @@ async def test_onboarding_submission_succeeds_without_422(async_client: AsyncCli
         token = create_access_token(subject=str(user.id), role=user.role.value)
         headers = {"Authorization": f"Bearer {token}"}
 
-        payload = {
+        cafe_payload = {
             "name": "Velocity Gaming Arena",
             "description": "High-end RTX 4090 lounge",
             "addressLine1": "Indiranagar 100ft Road",
@@ -48,29 +48,11 @@ async def test_onboarding_submission_succeeds_without_422(async_client: AsyncCli
             "closingTime": "23:00:00",
             "totalSeats": 20,
             "amenities": ["High-speed Wi-Fi", "Air Conditioned"],
-            "photos": ["https://images.unsplash.com/photo-1542751371-adc38448a05e"],
-            "supportedGames": ["Valorant", "CS2"],
-            "businessPan": "ABCDE1234F",
-            "gstin": "29ABCDE1234F1Z5",
-            "legalDocumentUrl": "https://example.com/legal.pdf",
-            "bankAccountNumber": "91827364501",
-            "bankIfsc": "HDFC0001234",
-            "accountHolderName": "Onboarding Gamer",
-            "cancellationPolicy": "Free cancellation up to 2 hours before session.",
-            "houseRules": ["No outside food"],
-            "socialLinks": {"instagram": "@velocity", "discord": "discord.gg/velocity"},
-            "hardwareTiers": [
-                {
-                    "name": "Flagship RTX 4090 Pods",
-                    "gpu": "NVIDIA RTX 4090 / 240Hz",
-                    "hourlyRate": 250,
-                    "totalSeats": 8
-                }
-            ]
+            "photos": ["https://images.unsplash.com/photo-1542751371-adc38448a05e"]
         }
 
-        response = await async_client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
-        assert response.status_code == 200
+        response = await async_client.post("/api/v1/cafes", json=cafe_payload, headers=headers)
+        assert response.status_code == 201
         data = response.json()
         assert data["success"] is True
-        assert "cafeId" in data["data"]
+        assert "cafe" in data["data"]

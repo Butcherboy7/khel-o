@@ -34,11 +34,15 @@ async def get_optional_user(
         return None
 
 async def get_current_active_user(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ) -> User:
-    if not current_user.is_active:
-        raise ForbiddenException("Your account has been deactivated")
-    return current_user
+    # DB-backed re-check for revocation / deactivation mid-session
+    repo = UserRepository(db)
+    fresh_user = await repo.get_by_id(current_user.id)
+    if not fresh_user or not fresh_user.is_active:
+        raise ForbiddenException("Your account has been deactivated or revoked.")
+    return fresh_user
 
 async def require_gamer(
     current_user: User = Depends(get_current_active_user)

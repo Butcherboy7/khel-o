@@ -13,7 +13,7 @@
 | **Phase 1a** | Baseline Smoke Safety Net & Seed Accounts | ✅ **COMPLETED** | 5 Playwright E2E + 2 Pytest |
 | **Phase 1b** | Role Architecture & `user_roles` Join Table | ✅ **COMPLETED** | 6 Pytest + Dry-Run Row Counts |
 | **Phase 2** | Café Onboarding, DTO Schema & 422 Fixes | ✅ **COMPLETED** | 7 Pytest + OpenAPI DTOs |
-| **Phase 3** | Customer ↔ Owner Dual Role & Role Switcher | ✅ **COMPLETED** | 9 Pytest + 8 Playwright E2E |
+| **Phase 3** | Customer ↔ Owner Dual Role & Role Switcher | ✅ **COMPLETED** | 13 Pytest + 8 Playwright E2E |
 | **Phase 4** | Inventory Allocation Engine (`total_seats`) | ⏳ **NEXT IN QUEUE** | Pending Implementation |
 | **Phase 5** | Staff Management & Scoped Staff Portal | ⏳ **QUEUED** | Pending Implementation |
 | **Phase 6** | Payment-Gated QR Pass & Mock Payment Adapter | ⏳ **QUEUED** | Pending Implementation |

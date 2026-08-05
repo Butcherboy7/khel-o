@@ -136,3 +136,50 @@ async def test_checkin_fails_for_unpaid_booking(async_client: AsyncClient):
         # Attempt to check in unpaid booking
         response = await async_client.post(f"/api/v1/owner/bookings/{booking.id}/checkin", headers=headers)
         assert response.status_code in [400, 422]
+
+@pytest.mark.asyncio
+async def test_suspended_cafe_cannot_add_hardware_tier(async_client: AsyncClient):
+    """Verify that a suspended cafe owner cannot add hardware tiers."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid.uuid4(),
+            email=f"tier_suspended_owner_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Tier Suspended Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add(owner)
+        await db.commit()
+
+        cafe = Cafe(
+            id=uuid.uuid4(),
+            owner_id=owner.id,
+            name="Tier Suspended Arena",
+            address_line1="789 Test St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000002",
+            verification_status=VerificationStatus.SUSPENDED,
+            is_active=False
+        )
+        db.add(cafe)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role=owner.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Blocked Tier",
+            "description": "Suspended tier",
+            "specs": {"gpu": "RTX 4090", "ram": "32GB", "monitor": "240Hz"},
+            "totalSeats": 10,
+            "appBookableSeats": 8,
+            "pricePerHour": 150.0
+        }
+
+        response = await async_client.post(f"/api/v1/cafes/{cafe.id}/tiers", json=payload, headers=headers)
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "CAFE_SUSPENDED"
+

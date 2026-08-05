@@ -64,6 +64,27 @@ async def upgrade():
                         ))
                         added_count += 1
 
+            # If user role is staff, map to first verified cafe
+            elif u_role_str == "staff":
+                stmt_cafe = select(Cafe).where(Cafe.verification_status == VerificationStatus.VERIFIED)
+                res_cafe = await db.execute(stmt_cafe)
+                verified_cafe = res_cafe.scalars().first()
+                if verified_cafe:
+                    stmt_check_staff = select(UserRoleMapping).where(
+                        UserRoleMapping.user_id == u.id,
+                        UserRoleMapping.role == UserRole.STAFF,
+                        UserRoleMapping.cafe_id == verified_cafe.id
+                    )
+                    existing_staff = (await db.execute(stmt_check_staff)).scalars().first()
+                    if not existing_staff:
+                        db.add(UserRoleMapping(
+                            id=uuid.uuid4(),
+                            user_id=u.id,
+                            role=UserRole.STAFF,
+                            cafe_id=verified_cafe.id
+                        ))
+                        added_count += 1
+
         await db.commit()
 
         users_count_after = (await db.execute(stmt_user_count)).scalar() or 0

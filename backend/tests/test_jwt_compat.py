@@ -122,3 +122,41 @@ async def test_dual_write_role_sync():
         res_user = (await db.execute(stmt_user)).scalars().first()
         assert res_user is not None
         assert res_user.role == UserRole.CAFE_OWNER
+
+@pytest.mark.asyncio
+async def test_deactivated_user_rejected_mid_session():
+    """Verify that a user deactivated in DB is rejected on next request despite holding a valid unexpired JWT."""
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.core.security import create_access_token
+    async with AsyncSessionLocal() as db:
+        user = User(
+            id=uuid.uuid4(),
+            email=f"deactive_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Deactive User",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add(user)
+        await db.commit()
+
+        # Issue valid unexpired token
+        token = create_access_token(subject=str(user.id), role="cafe_owner")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            # 1. First request succeeds
+            res1 = await client.get("/api/v1/owner/dashboard", headers=headers)
+            assert res1.status_code == 200
+
+            # 2. Admin deactivates user in DB
+            user.is_active = False
+            await db.commit()
+
+            # 3. Second request with same valid token is REJECTED with 403
+            res2 = await client.get("/api/v1/owner/dashboard", headers=headers)
+            assert res2.status_code == 403
+            assert "deactivated" in res2.json()["error"]["message"].lower()
+
