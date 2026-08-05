@@ -99,6 +99,12 @@ class CafeService:
         if str(cafe.owner_id) != str(owner_id):
             raise ForbiddenException(message="You can only update your own café", error_code="FORBIDDEN")
 
+        if cafe.verification_status == VerificationStatus.SUSPENDED:
+            raise ForbiddenException(
+                message="Suspended cafés cannot be modified or reactivated by owners. Please contact admin.",
+                error_code="CAFE_SUSPENDED"
+            )
+
         update_dict = update_data.model_dump(exclude_unset=True)
         updated = await self.cafe_repo.update(cafe_id, update_dict)
         return await self._build_cafe_response(updated)
