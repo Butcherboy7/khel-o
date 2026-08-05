@@ -21,6 +21,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        // TODO: Confirm Playwright CI install strategy (headless docker container with pre-baked chromium) prior to production deployment.
         channel: 'msedge', // Uses installed Microsoft Edge on Windows host
       },
     },

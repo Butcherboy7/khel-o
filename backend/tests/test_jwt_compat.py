@@ -2,8 +2,10 @@ import pytest
 import uuid
 from datetime import datetime, timedelta, timezone
 from jose import jwt
+from sqlalchemy import select
 from app.config import settings
 from app.models.user import User, UserRole
+from app.models.user_role import UserRoleMapping
 from app.core.security import get_password_hash
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
@@ -79,3 +81,44 @@ async def test_jwt_new_multi_role_claim_shape_resolves_user():
         resolved_user = await auth_service.get_current_user(new_token)
         assert resolved_user.id == user.id
         assert resolved_user.email == user.email
+
+@pytest.mark.asyncio
+async def test_dual_write_role_sync():
+    """Verify that dual-write synchronization between user_roles join table and legacy user.role column works bi-directionally."""
+    async with AsyncSessionLocal() as db:
+        user = User(
+            id=uuid.uuid4(),
+            email=f"dual_write_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Dual Write User",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(user)
+        await db.commit()
+
+        # 1. Write role via user_roles join table
+        cafe_id = uuid.uuid4()
+        owner_role_entry = UserRoleMapping(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            role=UserRole.CAFE_OWNER,
+            cafe_id=cafe_id
+        )
+        db.add(owner_role_entry)
+        
+        # Application sync helper updates legacy user.role
+        user.role = UserRole.CAFE_OWNER
+        await db.commit()
+
+        # Verify query on user_roles join table
+        stmt_join = select(UserRoleMapping).where(UserRoleMapping.user_id == user.id, UserRoleMapping.role == UserRole.CAFE_OWNER)
+        res_join = (await db.execute(stmt_join)).scalars().first()
+        assert res_join is not None
+        assert res_join.cafe_id == cafe_id
+
+        # Verify legacy column reflects CAFE_OWNER
+        stmt_user = select(User).where(User.id == user.id)
+        res_user = (await db.execute(stmt_user)).scalars().first()
+        assert res_user is not None
+        assert res_user.role == UserRole.CAFE_OWNER

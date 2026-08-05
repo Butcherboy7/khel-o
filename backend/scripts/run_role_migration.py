@@ -13,8 +13,11 @@ async def upgrade():
             await conn.run_sync(UserRoleMapping.__table__.create, checkfirst=True)
 
         # Fetch count before backfill
-        stmt_count = select(func.count(UserRoleMapping.id))
-        count_before = (await db.execute(stmt_count)).scalar() or 0
+        stmt_user_count = select(func.count(User.id))
+        stmt_role_count = select(func.count(UserRoleMapping.id))
+
+        users_count_before = (await db.execute(stmt_user_count)).scalar() or 0
+        roles_count_before = (await db.execute(stmt_role_count)).scalar() or 0
 
         # Backfill all existing users with 'gamer' role
         stmt_users = select(User)
@@ -63,28 +66,37 @@ async def upgrade():
 
         await db.commit()
 
-        count_after = (await db.execute(stmt_count)).scalar() or 0
-        print(f"[MIGRATION UPGRADE] Success!")
-        print(f"  Row Count Before Upgrade: {count_before}")
-        print(f"  Rows Added: {added_count}")
-        print(f"  Row Count After Upgrade: {count_after}")
-        return count_before, count_after
+        users_count_after = (await db.execute(stmt_user_count)).scalar() or 0
+        roles_count_after = (await db.execute(stmt_role_count)).scalar() or 0
+
+        print(f"[MIGRATION UPGRADE] Finished Successfully")
+        print(f"  Total users in DB: {users_count_before}")
+        print(f"  user_roles count BEFORE upgrade: {roles_count_before}")
+        print(f"  New role mappings added: {added_count}")
+        print(f"  user_roles count AFTER upgrade: {roles_count_after}")
+        return users_count_before, roles_count_before, roles_count_after
 
 async def downgrade():
     async with AsyncSessionLocal() as db:
-        stmt_count = select(func.count(UserRoleMapping.id))
+        stmt_user_count = select(func.count(User.id))
+        stmt_role_count = select(func.count(UserRoleMapping.id))
+        
+        users_count_before = (await db.execute(stmt_user_count)).scalar() or 0
         try:
-            count_before_downgrade = (await db.execute(stmt_count)).scalar() or 0
+            roles_count_before = (await db.execute(stmt_role_count)).scalar() or 0
         except Exception:
-            count_before_downgrade = 0
+            roles_count_before = 0
 
         # Drop user_roles table
         async with engine.begin() as conn:
             await conn.run_sync(UserRoleMapping.__table__.drop, checkfirst=True)
 
-        print(f"[MIGRATION DOWNGRADE] Success!")
-        print(f"  Row Count Before Downgrade: {count_before_downgrade}")
-        print(f"  user_roles table cleanly dropped. Restored original state.")
+        users_count_after = (await db.execute(stmt_user_count)).scalar() or 0
+
+        print(f"[MIGRATION DOWNGRADE] Finished Successfully")
+        print(f"  user_roles count BEFORE downgrade: {roles_count_before}")
+        print(f"  users table row count preserved: {users_count_before} -> {users_count_after}")
+        print(f"  user_roles table cleanly dropped. Legacy user.role column preserved.")
 
 if __name__ == "__main__":
     import sys
@@ -94,8 +106,22 @@ if __name__ == "__main__":
     elif action == "downgrade":
         asyncio.run(downgrade())
     elif action == "dry-run":
-        print("=== DRY-RUN MIGRATION & ROLLBACK DEMONSTRATION ===")
+        print("=========================================================")
+        print("=== STEP 1: INITIAL UPGRADE MIGRATION ===")
+        print("=========================================================")
         asyncio.run(upgrade())
+        
+        print("\n=========================================================")
+        print("=== STEP 2: IDEMPOTENCY CHECK (SECOND UPGRADE RUN) ===")
+        print("=========================================================")
+        asyncio.run(upgrade())
+
+        print("\n=========================================================")
+        print("=== STEP 3: MIGRATION DOWNGRADE (ROLLBACK) ===")
+        print("=========================================================")
         asyncio.run(downgrade())
-        print("=== Re-running upgrade for active state ===")
+
+        print("\n=========================================================")
+        print("=== STEP 4: FINAL RE-UPGRADE FOR ACTIVE STATE ===")
+        print("=========================================================")
         asyncio.run(upgrade())
