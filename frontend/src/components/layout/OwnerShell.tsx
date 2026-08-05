@@ -13,10 +13,12 @@ import {
   Wallet,
   LogOut,
   ChevronRight,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
+import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 
 /* ── Navigation Items ────────────────────────────────────────────── */
 
@@ -36,22 +38,23 @@ const ownerNavSections: NavSection[] = [
     heading: 'Overview',
     items: [
       { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
+      { label: 'Analytics', href: '/owner/analytics', icon: BarChart3 },
     ],
   },
   {
     heading: 'Operations',
     items: [
-      { label: 'My Café', href: '/owner/cafe', icon: Store },
-      { label: 'Hardware Tiers', href: '/owner/tiers', icon: Monitor },
       { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
-      { label: 'Promotions', href: '/owner/promotions', icon: Tag },
+      { label: 'Hardware Tiers', href: '/owner/tiers', icon: Monitor },
+      { label: 'Promotions & Offers', href: '/owner/offers', icon: Tag },
+      { label: 'Reviews', href: '/owner/reviews', icon: Store },
     ],
   },
   {
-    heading: 'Settings',
+    heading: 'Financials & Staff',
     items: [
-      { label: 'Staff', href: '/owner/staff', icon: Users },
-      { label: 'Payouts', href: '/owner/payouts', icon: Wallet },
+      { label: 'Payouts & Razorpay', href: '/owner/payouts', icon: Wallet },
+      { label: 'Staff Management', href: '/owner/staff', icon: Users },
     ],
   },
 ];
@@ -127,15 +130,9 @@ function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
           </div>
         ))}
 
-        {/* Exit to customer app */}
-        <div className="mt-auto">
-          <Link
-            href="/"
-            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-body-emphasis text-white/40 transition-colors duration-fast hover:bg-white/10 hover:text-white"
-          >
-            <ChevronRight className="h-4 w-4 rotate-180" />
-            <span>Customer App</span>
-          </Link>
+        {/* Role Switcher in Sidebar */}
+        <div className="mt-auto pt-4 border-t border-white/10 flex justify-center">
+          <RoleSwitcher />
         </div>
       </nav>
 
@@ -179,7 +176,7 @@ function OwnerTopBar() {
         </div>
         <span className="font-heading text-h3 text-white">KHEL-O</span>
       </div>
-      <span className="text-caption text-white/60">Owner</span>
+      <RoleSwitcher />
     </header>
   );
 }

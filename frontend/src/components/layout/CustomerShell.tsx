@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { NotificationCenter, type NotificationItem } from '@/components/customer/NotificationCenter';
+import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 
 const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
@@ -113,6 +114,7 @@ function CustomerHeader({
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
+          <RoleSwitcher />
           <button
             onClick={onOpenNotifications}
             className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition-all hover:bg-border/60 hover:text-text-primary active:scale-95"

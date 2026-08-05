@@ -52,6 +52,14 @@ class RefreshTokenRequest(BaseModel):
         populate_by_name=True
     )
 
+class SwitchRoleRequest(BaseModel):
+    target_role: str = Field(..., alias="targetRole")
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 class UserUpdateRequest(BaseModel):
     full_name: Optional[str] = Field(None, min_length=2, max_length=255)
     phone_number: Optional[str] = Field(None, max_length=20)

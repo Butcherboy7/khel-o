@@ -6,6 +6,7 @@ from app.schemas.user import (
     LoginRequest,
     GoogleAuthRequest,
     RefreshTokenRequest,
+    SwitchRoleRequest,
     UserResponse
 )
 from app.repositories.user_repository import UserRepository
@@ -62,4 +63,18 @@ async def get_me(current_user: User = Depends(get_current_user)):
         "data": {
             "user": UserResponse.model_validate(current_user)
         }
+    }
+
+@router.post("/switch-role", status_code=status.HTTP_200_OK)
+async def switch_role(
+    payload: SwitchRoleRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    repo = UserRepository(db)
+    service = AuthService(repo)
+    result = await service.switch_active_role(current_user, payload.target_role, db)
+    return {
+        "success": True,
+        "data": result
     }

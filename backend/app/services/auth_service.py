@@ -235,3 +235,51 @@ class AuthService:
             raise ForbiddenException(message="Your account has been deactivated", error_code="ACCOUNT_DEACTIVATED")
 
         return user
+
+    async def switch_active_role(self, user: User, target_role: str, db_session) -> Dict[str, Any]:
+        target_role = target_role.strip().lower()
+        if target_role not in ["gamer", "cafe_owner", "staff", "admin"]:
+            raise ForbiddenException("Invalid target role", error_code="INVALID_ROLE")
+
+        from sqlalchemy import select
+        from app.models.user_role import UserRoleMapping
+        from app.models.cafe import Cafe, VerificationStatus
+
+        stmt = select(UserRoleMapping).where(UserRoleMapping.user_id == user.id)
+        res = await db_session.execute(stmt)
+        user_roles = res.scalars().all()
+        roles_list = list(set([r.role.value if hasattr(r.role, "value") else str(r.role) for r in user_roles] + ["gamer"]))
+
+        if target_role not in roles_list:
+            if target_role == "cafe_owner":
+                stmt_cafe = select(Cafe).where(Cafe.owner_id == user.id, Cafe.verification_status == VerificationStatus.VERIFIED)
+                res_cafe = await db_session.execute(stmt_cafe)
+                cafe = res_cafe.scalars().first()
+                if not cafe:
+                    raise ForbiddenException("Only verified café owners can switch to Owner mode", error_code="ROLE_NOT_GRANTED")
+                roles_list.append("cafe_owner")
+            elif target_role not in ["gamer"]:
+                raise ForbiddenException(f"Account does not have {target_role} entitlement", error_code="ROLE_NOT_GRANTED")
+
+        now = datetime.now(timezone.utc)
+        access_exp = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_payload = {
+            "sub": str(user.id),
+            "email": user.email,
+            "role": target_role,
+            "roles": roles_list,
+            "active_role": target_role,
+            "type": "access",
+            "exp": access_exp
+        }
+        access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm=ALGORITHM)
+        refresh_exp = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        refresh_token = jwt.encode({"sub": str(user.id), "type": "refresh", "exp": refresh_exp}, settings.SECRET_KEY, algorithm=ALGORITHM)
+
+        return {
+            "accessToken": access_token,
+            "refreshToken": refresh_token,
+            "activeRole": target_role,
+            "availableRoles": roles_list,
+            "user": UserResponse.model_validate(user)
+        }

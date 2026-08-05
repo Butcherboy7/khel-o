@@ -11,10 +11,13 @@ interface BookingDraft {
   seatsCount?: number;
 }
 
+export type UserActiveRole = 'gamer' | 'cafe_owner' | 'staff' | 'admin';
+
 interface AuthState {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
+  activeRole: UserActiveRole;
   isAuthenticated: boolean;
   isLoading: boolean;
   isHydrated: boolean;
@@ -22,6 +25,8 @@ interface AuthState {
 
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
   setUser: (user: User) => void;
+  setActiveRole: (role: UserActiveRole) => void;
+  switchActiveRole: (targetRole: UserActiveRole) => Promise<void>;
   setBookingDraft: (draft: BookingDraft | null) => void;
   logout: () => void;
   initializeFromStorage: () => Promise<void>;
@@ -31,18 +36,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
   refreshToken: null,
+  activeRole: 'gamer',
   isAuthenticated: false,
   isLoading: true,
   isHydrated: false,
   bookingDraft: null,
 
   setAuth: (user, accessToken, refreshToken) => {
+    const roleVal = (user.role as string) || 'gamer';
     if (typeof window !== 'undefined') {
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('activeRole', roleVal);
     }
-    set({ user, accessToken, refreshToken, isAuthenticated: true, isLoading: false, isHydrated: true });
+    set({ user, accessToken, refreshToken, activeRole: roleVal as UserActiveRole, isAuthenticated: true, isLoading: false, isHydrated: true });
   },
 
   setUser: (user) => {
@@ -50,6 +58,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem('user', JSON.stringify(user));
     }
     set({ user });
+  },
+
+  setActiveRole: (role) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('activeRole', role);
+    }
+    set({ activeRole: role });
+  },
+
+  switchActiveRole: async (targetRole) => {
+    try {
+      const res = await apiClient.post<{ success: boolean; data: { accessToken: string; refreshToken: string; activeRole: string; user: User } }>('/api/v1/auth/switch-role', { targetRole });
+      const { accessToken, refreshToken, activeRole, user } = res.data.data;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        localStorage.setItem('activeRole', activeRole);
+        localStorage.setItem('user', JSON.stringify(user));
+      }
+      set({ accessToken, refreshToken, activeRole: activeRole as UserActiveRole, user });
+    } catch (err: any) {
+      throw new Error(err?.response?.data?.detail?.message || err?.message || 'Failed to switch role');
+    }
   },
 
   setBookingDraft: (draft) => {
@@ -68,6 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      localStorage.removeItem('activeRole');
       localStorage.removeItem('khel_booking_draft');
       window.location.href = '/login';
     }
@@ -75,6 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: null,
       accessToken: null,
       refreshToken: null,
+      activeRole: 'gamer',
       isAuthenticated: false,
       isLoading: false,
       isHydrated: true,
@@ -92,6 +125,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const accessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
+    const savedActiveRole = (localStorage.getItem('activeRole') as UserActiveRole) || 'gamer';
 
     const draftStr = localStorage.getItem('khel_booking_draft');
     let cachedDraft = null;
@@ -104,7 +138,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     if (!accessToken) {
-      set({ isLoading: false, isAuthenticated: false, user: null, bookingDraft: cachedDraft, isHydrated: true });
+      set({ isLoading: false, isAuthenticated: false, user: null, activeRole: 'gamer', bookingDraft: cachedDraft, isHydrated: true });
       return;
     }
 
@@ -119,7 +153,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     if (cachedUser) {
-      set({ user: cachedUser, accessToken, refreshToken, isAuthenticated: true, isLoading: false, bookingDraft: cachedDraft, isHydrated: true });
+      set({ user: cachedUser, accessToken, refreshToken, activeRole: savedActiveRole, isAuthenticated: true, isLoading: false, bookingDraft: cachedDraft, isHydrated: true });
     }
 
     try {
@@ -127,7 +161,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = res.data?.data?.user;
       if (user) {
         localStorage.setItem('user', JSON.stringify(user));
-        set({ user, accessToken, refreshToken, isAuthenticated: true, isLoading: false, isHydrated: true });
+        set({ user, accessToken, refreshToken, activeRole: savedActiveRole, isAuthenticated: true, isLoading: false, isHydrated: true });
       } else if (!cachedUser) {
         throw new Error('No user in /me response');
       }
@@ -136,7 +170,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
-        set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false, isLoading: false, isHydrated: true });
+        localStorage.removeItem('activeRole');
+        set({ user: null, accessToken: null, refreshToken: null, activeRole: 'gamer', isAuthenticated: false, isLoading: false, isHydrated: true });
       }
     }
   },
