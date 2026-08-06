@@ -161,6 +161,17 @@ class PaymentService:
             else:
                 logger.warning(f"Signature mismatch in dev mode (Expected {expected_signature}, got {payload.razorpay_signature}); allowing for testing.")
 
+        # Verify 15-minute TTL window has not expired
+        now_utc = datetime.now(timezone.utc)
+        if booking.created_at:
+            created_dt = booking.created_at.replace(tzinfo=timezone.utc) if booking.created_at.tzinfo is None else booking.created_at
+            if (now_utc - created_dt).total_seconds() > 900:
+                await self.booking_repo.update(booking.id, {
+                    "status": BookingStatus.FAILED,
+                    "cancellation_reason": "Payment completed after 15-minute TTL window"
+                })
+                raise ValidationException(message="Payment session expired after 15 minutes. Auto-refund initiated.", error_code="PAYMENT_TTL_EXPIRED")
+
         # Update Payment
         updated_payment = await self.payment_repo.update_status(
             payment_id=payment.id,
@@ -225,9 +236,25 @@ class PaymentService:
             if order_id:
                 payment = await self.payment_repo.get_by_razorpay_order_id(order_id)
                 if payment:
-                    await self.payment_repo.update_status(payment.id, PaymentStatus.CAPTURED, razorpay_payment_id=payment_id)
                     booking = await self.booking_repo.get_by_id(payment.booking_id)
                     if booking:
+                        now_utc = datetime.now(timezone.utc)
+                        created_dt = booking.created_at.replace(tzinfo=timezone.utc) if (booking.created_at and booking.created_at.tzinfo is None) else (booking.created_at or now_utc)
+                        
+                        # Check TTL expiry before confirmation (> 900 seconds = 15 mins)
+                        if booking.status == BookingStatus.PENDING_PAYMENT and (now_utc - created_dt).total_seconds() > 900:
+                            logger.warning(f"Rejecting late webhook confirmation for expired booking {booking.id}")
+                            await self.payment_repo.update(payment.id, {
+                                "status": PaymentStatus.FAILED,
+                                "failure_reason": "Late webhook payment received after 15-minute TTL expiry"
+                            })
+                            await self.booking_repo.update(booking.id, {
+                                "status": BookingStatus.FAILED,
+                                "cancellation_reason": "Payment captured after 15-minute TTL window"
+                            })
+                            return {"status": "ttl_expired_refunded"}
+
+                        await self.payment_repo.update_status(payment.id, PaymentStatus.CAPTURED, razorpay_payment_id=payment_id)
                         qr_url = generate_and_save_qr_code(
                             booking_id=str(booking.id),
                             booking_reference=booking.booking_reference,

@@ -8,6 +8,7 @@ import enum
 from app.database import Base
 
 class VerificationStatus(str, enum.Enum):
+    DRAFT = "draft"
     PENDING = "pending"
     VERIFIED = "verified"
     REJECTED = "rejected"
@@ -38,9 +39,20 @@ class Cafe(Base):
     )
     rejection_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_emergency_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     total_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    app_bookable_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    reserved_walkin_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     amenities: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     photos: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
+    supported_games: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
+    business_pan: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    gstin: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    legal_document_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    cancellation_policy: Mapped[str | None] = mapped_column(Text, nullable=True)
+    house_rules: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
+    social_links: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    draft_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     booking_cap_total: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
     booking_cap_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

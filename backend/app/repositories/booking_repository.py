@@ -87,10 +87,19 @@ class BookingRepository(BaseRepository[Booking]):
         start_time: time,
         end_time: time
     ) -> int:
+        now_utc = datetime.now(timezone.utc)
+        ttl_threshold = now_utc - timedelta(minutes=15)
+
         stmt = select(func.count()).select_from(Booking).where(
             Booking.hardware_tier_id == tier_id,
             Booking.session_date == session_date,
-            Booking.status.in_([BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED]),
+            or_(
+                Booking.status == BookingStatus.CONFIRMED,
+                and_(
+                    Booking.status == BookingStatus.PENDING_PAYMENT,
+                    Booking.created_at >= ttl_threshold
+                )
+            ),
             and_(
                 Booking.start_time < end_time,
                 Booking.end_time > start_time

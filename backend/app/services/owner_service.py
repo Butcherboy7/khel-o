@@ -13,6 +13,7 @@ from app.schemas.owner import (
 )
 from app.schemas.booking import BookingResponse
 from app.models.booking import Booking, BookingStatus
+from app.models.user import User, UserRole
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 
 class OwnerService:
@@ -108,7 +109,7 @@ class OwnerService:
     async def update_booking_status(
         self,
         booking_id: UUID,
-        owner_id: UUID,
+        current_user: User,
         new_status: str
     ) -> BookingResponse:
         if new_status not in ("completed", "no_show"):
@@ -121,9 +122,7 @@ class OwnerService:
         if not booking:
             raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
 
-        cafe = await self.cafe_repo.get_by_id(booking.cafe_id)
-        if not cafe or str(cafe.owner_id) != str(owner_id):
-            raise ForbiddenException(message="You can only update bookings for your own café", error_code="FORBIDDEN")
+        await self._validate_user_cafe_access(current_user, booking.cafe_id)
 
         # State machine check: must transition FROM confirmed TO completed or no_show
         if booking.status != BookingStatus.CONFIRMED:
@@ -154,14 +153,38 @@ class OwnerService:
         updated = await self.booking_repo.update(booking_id, {"status": target_enum})
         return BookingResponse.model_validate(updated)
 
-    async def checkin_booking(self, booking_id: UUID, owner_id: UUID) -> BookingResponse:
+    async def _validate_user_cafe_access(self, user: User, cafe_id: UUID):
+        role_val = user.role.value if hasattr(user.role, "value") else str(user.role)
+        cafe = await self.cafe_repo.get_by_id(cafe_id)
+        if not cafe:
+            raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+
+        if role_val == "staff":
+            from sqlalchemy import select
+            from app.models.user_role import UserRoleMapping
+            from app.models.user import UserRole
+            stmt = select(UserRoleMapping).where(
+                UserRoleMapping.user_id == user.id,
+                UserRoleMapping.role == UserRole.STAFF,
+                UserRoleMapping.cafe_id == cafe_id
+            )
+            res = await self.booking_repo.db.execute(stmt)
+            if not res.scalars().first():
+                raise ForbiddenException(message="Staff members can only access bookings for their assigned café", error_code="FORBIDDEN")
+        elif role_val in ("cafe_owner", "owner"):
+            if str(cafe.owner_id) != str(user.id):
+                raise ForbiddenException(message="You can only manage bookings for your own café", error_code="FORBIDDEN")
+        elif role_val != "admin":
+            raise ForbiddenException(message="Forbidden", error_code="FORBIDDEN")
+
+        return cafe
+
+    async def checkin_booking(self, booking_id: UUID, current_user: User) -> BookingResponse:
         booking = await self.booking_repo.get_by_id(booking_id)
         if not booking:
             raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
 
-        cafe = await self.cafe_repo.get_by_id(booking.cafe_id)
-        if not cafe or str(cafe.owner_id) != str(owner_id):
-            raise ForbiddenException(message="You can only check in bookings for your own café", error_code="FORBIDDEN")
+        await self._validate_user_cafe_access(current_user, booking.cafe_id)
 
         if booking.status != BookingStatus.CONFIRMED:
             raise ValidationException(

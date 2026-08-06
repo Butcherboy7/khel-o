@@ -17,9 +17,14 @@ async def init_db():
     try:
         from app.database import engine, Base
         import app.models
+        from sqlalchemy import text
         
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            try:
+                await conn.execute(text("ALTER TABLE cafes ADD COLUMN is_emergency_mode BOOLEAN DEFAULT 0 NOT NULL;"))
+            except Exception:
+                pass
         logger.info("database_tables_initialized")
     except Exception as e:
         logger.error("database_init_failed", error=str(e))
@@ -312,7 +317,15 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:3000", "http://localhost:3002"],
+    allow_origins=[
+        settings.FRONTEND_URL,
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -403,6 +416,27 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         }
     )
 
+import traceback
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error("unhandled_exception", error=str(exc), traceback=traceback.format_exc())
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "success": False,
+            "data": None,
+            "error": {
+                "code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected error occurred on the server.",
+                "details": str(exc) if settings.ENVIRONMENT == "development" else []
+            },
+            "meta": {
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     return {
@@ -411,3 +445,4 @@ async def health_check():
         "environment": settings.ENVIRONMENT,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+

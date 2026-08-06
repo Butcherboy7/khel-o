@@ -80,7 +80,8 @@ class CafeRepository(BaseRepository[Cafe]):
     ) -> Tuple[List[Dict[str, Any]], int]:
         stmt = select(Cafe).where(
             Cafe.verification_status == VerificationStatus.VERIFIED,
-            Cafe.is_active == True
+            Cafe.is_active == True,
+            Cafe.is_emergency_mode == False
         )
 
         if city and city.strip():

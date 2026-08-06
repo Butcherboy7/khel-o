@@ -183,3 +183,156 @@ async def test_suspended_cafe_cannot_add_hardware_tier(async_client: AsyncClient
         assert response.status_code == 403
         assert response.json()["error"]["code"] == "CAFE_SUSPENDED"
 
+@pytest.mark.asyncio
+async def test_emergency_mode_blocks_booking_creation_and_availability_search(async_client: AsyncClient):
+    """Verify emergency mode blocks booking creation and excludes cafe from search results."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid.uuid4(),
+            email=f"emerg_owner_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Emergency Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"emerg_gamer_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Emergency Gamer",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add_all([owner, gamer])
+        await db.commit()
+
+        cafe = Cafe(
+            id=uuid.uuid4(),
+            owner_id=owner.id,
+            name="Emergency Arena",
+            address_line1="999 Emerg St",
+            city="EmergencyCity",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000099",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True,
+            is_emergency_mode=True
+        )
+        db.add(cafe)
+        await db.commit()
+
+        gamer_token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        gamer_headers = {"Authorization": f"Bearer {gamer_token}"}
+
+        # 1. Search cafes should exclude emergency cafe
+        search_res = await async_client.get(f"/api/v1/cafes?city=EmergencyCity", headers=gamer_headers)
+        assert search_res.status_code == 200
+        items = search_res.json()["data"]["items"]
+        assert len(items) == 0
+
+        # 2. Attempting to create booking returns 400 EMERGENCY_MODE_ACTIVE
+        from app.models.hardware_tier import HardwareTier
+        tier = HardwareTier(
+            id=uuid.uuid4(),
+            cafe_id=cafe.id,
+            name="Emerg Tier",
+            total_seats=10,
+            app_bookable_seats=10,
+            price_per_hour=100.0,
+            is_active=True
+        )
+        db.add(tier)
+        await db.commit()
+
+        booking_payload = {
+            "cafeId": str(cafe.id),
+            "hardwareTierId": str(tier.id),
+            "sessionDate": (date.today()).isoformat(),
+            "startTime": "18:00:00",
+            "durationHours": 2.0
+        }
+        create_res = await async_client.post("/api/v1/bookings", json=booking_payload, headers=gamer_headers)
+        assert create_res.status_code == 422
+        assert create_res.json()["error"]["code"] == "EMERGENCY_MODE_ACTIVE"
+
+@pytest.mark.asyncio
+async def test_booking_cancellation_success(async_client: AsyncClient):
+    """Verify that canceling a booking in the future succeeds without NameError / 500 error."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"cancel_gamer_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Cancel Gamer",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        owner = User(
+            id=uuid.uuid4(),
+            email=f"cancel_owner_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Cancel Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add_all([gamer, owner])
+        await db.commit()
+
+        cafe = Cafe(
+            id=uuid.uuid4(),
+            owner_id=owner.id,
+            name="Cancel Arena",
+            address_line1="123 Cancel St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000088",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True
+        )
+        db.add(cafe)
+        await db.commit()
+
+        from app.models.hardware_tier import HardwareTier
+        tier = HardwareTier(
+            id=uuid.uuid4(),
+            cafe_id=cafe.id,
+            name="Cancel Tier",
+            total_seats=5,
+            app_bookable_seats=5,
+            price_per_hour=100.0,
+            is_active=True
+        )
+        db.add(tier)
+        await db.commit()
+
+        from datetime import timedelta
+        future_date = date.today() + timedelta(days=2)
+
+        booking = Booking(
+            id=uuid.uuid4(),
+            booking_reference=f"GC-2026-{uuid.uuid4().hex[:6].upper()}",
+            gamer_id=gamer.id,
+            cafe_id=cafe.id,
+            hardware_tier_id=tier.id,
+            session_date=future_date,
+            start_time=time(14, 0, 0),
+            end_time=time(16, 0, 0),
+            duration_hours=2.0,
+            base_amount=200.0,
+            total_amount=200.0,
+            status=BookingStatus.CONFIRMED
+        )
+        db.add(booking)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        cancel_res = await async_client.post(f"/api/v1/bookings/{booking.id}/cancel", json={"reason": "Plans changed"}, headers=headers)
+        assert cancel_res.status_code == 200
+        res_data = cancel_res.json()["data"]["booking"]
+        assert res_data["status"] == "cancelled"
+
+

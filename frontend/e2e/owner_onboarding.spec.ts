@@ -13,7 +13,7 @@ test.describe('Owner Café Onboarding Wizard Flow (Phase 2)', () => {
 
     // 2. Navigate to owner onboarding page
     await page.goto('/owner/onboarding');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     // 3. Verify onboarding header loads
     await expect(page.locator('h1').filter({ hasText: /Café Onboarding Setup/i })).toBeVisible({ timeout: 10000 });

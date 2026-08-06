@@ -28,6 +28,12 @@ export default defineConfig({
   ],
   webServer: [
     {
+      command: 'cd ..\\backend && .\\venv\\Scripts\\python -m uvicorn app.main:app --port 8000',
+      url: 'http://localhost:8000/docs',
+      reuseExistingServer: true,
+      timeout: 120 * 1000,
+    },
+    {
       command: 'npm run dev',
       url: 'http://localhost:3000',
       reuseExistingServer: true,

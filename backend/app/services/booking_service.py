@@ -46,6 +46,8 @@ class BookingService:
             cafe = await self.cafe_repo.get_by_id(booking_in.cafe_id)
             if not cafe or cafe.verification_status in (VerificationStatus.REJECTED, VerificationStatus.SUSPENDED) or not cafe.is_active:
                 raise ValidationException(message="Café is not available for booking", error_code="CAFE_NOT_AVAILABLE")
+            if cafe.is_emergency_mode:
+                raise ValidationException(message="Café is currently in emergency mode and not accepting new bookings", error_code="EMERGENCY_MODE_ACTIVE")
 
         # Validate Hardware Tier
         if not self.tier_repo:
@@ -199,6 +201,9 @@ class BookingService:
             booking = await self.booking_repo.update(booking.id, {"qr_code_url": qr_url})
 
         resp = BookingResponse.model_validate(booking)
+        if booking.status not in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED):
+            resp.qr_code_url = None
+
         if self.cafe_repo:
             cafe_obj = await self.cafe_repo.get_by_id(booking.cafe_id)
             if cafe_obj:
@@ -254,6 +259,7 @@ class BookingService:
                 error_code="INVALID_BOOKING_STATUS"
             )
 
+        now_utc = datetime.now(timezone.utc)
         now_ist = datetime.now(IST)
         start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
 

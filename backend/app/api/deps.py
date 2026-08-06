@@ -53,11 +53,22 @@ async def require_gamer(
     return current_user
 
 async def require_cafe_owner(
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
     if role_val not in ["cafe_owner", "admin"]:
         raise ForbiddenException("This action requires a café owner account")
+    
+    if role_val == "cafe_owner":
+        from sqlalchemy import select
+        from app.models.cafe import Cafe, VerificationStatus
+        stmt = select(Cafe).where(Cafe.owner_id == current_user.id).order_by(Cafe.created_at.desc())
+        res = await db.execute(stmt)
+        cafe = res.scalars().first()
+        if cafe and cafe.verification_status == VerificationStatus.SUSPENDED:
+            raise ForbiddenException("Suspended café accounts cannot perform live operations", error_code="CAFE_SUSPENDED")
+
     return current_user
 
 async def require_staff(

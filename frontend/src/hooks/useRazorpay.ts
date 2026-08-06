@@ -62,7 +62,15 @@ export function useRazorpay() {
       process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
       'rzp_test_mock_khelo_key';
 
-    if (!isLoaded || typeof window.Razorpay === 'undefined') {
+    const enableSandboxMock = process.env.NEXT_PUBLIC_ENABLE_SANDBOX_MOCK_PAYMENTS === 'true';
+
+    const isMockKey =
+      enableSandboxMock ||
+      !razorpayKey ||
+      razorpayKey.startsWith('rzp_test_mock') ||
+      razorpayKey.startsWith('rzp_test_placeholder');
+
+    if (!isLoaded || typeof window.Razorpay === 'undefined' || isMockKey) {
       // Sandbox mode: Prompt user to choose Success vs Failure for complete E2E testing
       const choice = window.confirm(
         `[Sandbox Payment Checkout]\nOrder: ${options.order_id}\nAmount: ₹${options.amount / 100}\n\nClick OK for SUCCESSFUL payment.\nClick CANCEL to simulate PAYMENT FAILURE / USER BACK.`

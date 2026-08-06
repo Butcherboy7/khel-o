@@ -16,6 +16,7 @@ class HardwareTier(Base):
     specs: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     total_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     app_bookable_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    reserved_walkin_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     active_seats_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     preset_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
     price_per_hour: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)

@@ -31,8 +31,9 @@ export function PriceDisplay({
   period = '/hr',
   originalAmount,
   size = 'md',
+  showPeriod = true,
   className,
-}: PriceDisplayProps) {
+}: PriceDisplayProps & { showPeriod?: boolean }) {
   if (amount === null || amount === undefined) {
     return <span className={cn('text-caption text-text-secondary', className)}>N/A</span>;
   }
@@ -42,16 +43,16 @@ export function PriceDisplay({
   return (
     <div className={cn('inline-flex items-baseline gap-1', className)}>
       <span className={cn('font-data font-bold text-primary flex items-baseline gap-0.5', styles.main)}>
-        <span className="rupee-symbol">₹</span>
+        <span className="rupee-symbol font-sans">₹</span>
         <span>{amount}</span>
       </span>
       {originalAmount && originalAmount > amount && (
         <span className={cn('font-data text-text-secondary opacity-60 flex items-baseline gap-0.5', styles.original)}>
-          <span className="rupee-symbol">₹</span>
+          <span className="rupee-symbol font-sans">₹</span>
           <span>{originalAmount}</span>
         </span>
       )}
-      {period && (
+      {showPeriod && period && (
         <span className={cn('text-text-secondary font-normal', styles.period)}>
           {period}
         </span>
@@ -59,3 +60,6 @@ export function PriceDisplay({
     </div>
   );
 }
+
+export const Price = PriceDisplay;
+

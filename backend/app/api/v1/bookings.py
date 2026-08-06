@@ -87,3 +87,43 @@ async def cancel_booking(
             "booking": result
         }
     }
+
+@router.get("/{booking_id}/qr-pass", status_code=status.HTTP_200_OK)
+async def get_booking_qr_pass(
+    booking_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    booking_repo = BookingRepository(db)
+    booking = await booking_repo.get_by_id(booking_id)
+    if not booking:
+        from app.core.exceptions import NotFoundException
+        raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
+
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if str(booking.gamer_id) != str(current_user.id) and role_val not in ("admin", "staff", "cafe_owner"):
+        from app.core.exceptions import ForbiddenException
+        raise ForbiddenException(message="Forbidden", error_code="FORBIDDEN")
+
+    from app.models.booking import BookingStatus
+    if booking.status not in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED):
+        from app.core.exceptions import ForbiddenException
+        raise ForbiddenException(message="QR check-in pass is only available after payment confirmation", error_code="PAYMENT_REQUIRED")
+
+    if not booking.qr_code_url:
+        from app.background.qr_generator import generate_and_save_qr_code
+        qr_url = generate_and_save_qr_code(
+            booking_id=str(booking.id),
+            booking_reference=booking.booking_reference,
+            cafe_id=str(booking.cafe_id)
+        )
+        booking = await booking_repo.update(booking.id, {"qr_code_url": qr_url})
+
+    return {
+        "success": True,
+        "data": {
+            "bookingId": str(booking.id),
+            "bookingReference": booking.booking_reference,
+            "qrCodeUrl": booking.qr_code_url
+        }
+    }

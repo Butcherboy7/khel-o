@@ -71,6 +71,8 @@ class HardwareTierService:
         if tier_in.app_bookable_seats > tier_in.total_seats:
             raise ValidationException(message="App bookable seats cannot exceed total seats", error_code="INVALID_SEATS")
 
+        reserved_walkin = tier_in.reserved_walkin_seats if tier_in.reserved_walkin_seats is not None else (tier_in.total_seats - tier_in.app_bookable_seats)
+
         tier_dict = {
             "id": uuid4(),
             "cafe_id": cafe_id,
@@ -79,6 +81,7 @@ class HardwareTierService:
             "specs": tier_in.specs,
             "total_seats": tier_in.total_seats,
             "app_bookable_seats": tier_in.app_bookable_seats,
+            "reserved_walkin_seats": reserved_walkin,
             "active_seats_count": tier_in.total_seats,  # starts as equal to total seats
             "preset_category": tier_in.preset_category,
             "price_per_hour": tier_in.price_per_hour,
