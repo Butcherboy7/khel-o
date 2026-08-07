@@ -113,12 +113,21 @@ class BookingRepository(BaseRepository[Booking]):
         tier_id: UUID,
         session_date: date,
         start_time: time,
-        end_time: time
+        end_time: time,
+        use_cafe_capacity: bool = False,
+        cafe_id: Optional[UUID] = None
     ) -> Tuple[int, int]:
-        """Returns (overlapping_count, app_bookable_seats) with row lock on HardwareTier."""
-        tier_stmt = select(HardwareTier).where(HardwareTier.id == tier_id).with_for_update()
-        tier_result = await self.db.execute(tier_stmt)
-        tier = tier_result.scalars().first()
+        """Returns (overlapping_count, capacity) with row lock. Uses cafe.bookable_stations if use_cafe_capacity=True."""
+        if use_cafe_capacity and cafe_id:
+            cafe_stmt = select(Cafe).where(Cafe.id == cafe_id).with_for_update()
+            cafe_result = await self.db.execute(cafe_stmt)
+            cafe = cafe_result.scalars().first()
+            capacity = cafe.bookable_stations if cafe else 0
+        else:
+            tier_stmt = select(HardwareTier).where(HardwareTier.id == tier_id).with_for_update()
+            tier_result = await self.db.execute(tier_stmt)
+            tier = tier_result.scalars().first()
+            capacity = tier.app_bookable_seats if tier else 0
         
         count = await self.get_overlapping_bookings_count(
             tier_id=tier_id,
@@ -126,7 +135,7 @@ class BookingRepository(BaseRepository[Booking]):
             start_time=start_time,
             end_time=end_time
         )
-        return count, tier.app_bookable_seats if tier else 0
+        return count, capacity
 
     async def get_owner_bookings_joined(
         self,

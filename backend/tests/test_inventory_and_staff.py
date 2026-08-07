@@ -84,7 +84,8 @@ async def test_overbooking_rejected(async_client: AsyncClient):
             pincode="560001",
             phone_number="+919876543210",
             verification_status=VerificationStatus.VERIFIED,
-            is_active=True
+            is_active=True,
+            bookable_stations=1
         )
         db.add(cafe)
         await db.flush()
@@ -142,7 +143,7 @@ async def test_overbooking_rejected(async_client: AsyncClient):
                     duration_hours=2.0
                 )
             )
-        assert exc_info.value.error_code == "TIER_FULLY_BOOKED"
+        assert exc_info.value.error_code == "SLOT_FULLY_BOOKED"
 
 @pytest.mark.asyncio
 async def test_ttl_expired_pending_booking_ignored():
@@ -196,7 +197,7 @@ async def test_owner_invites_staff_linked_to_cafe(async_client: AsyncClient):
             is_active=True
         )
         db.add(owner)
-        await db.flush()
+        await db.commit()
 
         cafe = Cafe(
             id=uuid.uuid4(),
@@ -208,7 +209,8 @@ async def test_owner_invites_staff_linked_to_cafe(async_client: AsyncClient):
             pincode="560001",
             phone_number="+919876543210",
             verification_status=VerificationStatus.VERIFIED,
-            is_active=True
+            is_active=True,
+            bookable_stations=10
         )
         db.add(cafe)
         await db.commit()
@@ -230,6 +232,7 @@ async def test_owner_invites_staff_linked_to_cafe(async_client: AsyncClient):
 
         # Check user_roles join table
         user_repo = UserRepository(db)
+        await db.commit()  # Ensure all changes are committed
         created_staff = await user_repo.get_by_email(staff_email)
         assert created_staff is not None
 
@@ -285,7 +288,8 @@ async def test_staff_cross_cafe_idor_rejected(async_client: AsyncClient):
             pincode="560001",
             phone_number="+919000000001",
             verification_status=VerificationStatus.VERIFIED,
-            is_active=True
+            is_active=True,
+            bookable_stations=10
         )
         cafe_b = Cafe(
             id=uuid.uuid4(),
@@ -297,7 +301,8 @@ async def test_staff_cross_cafe_idor_rejected(async_client: AsyncClient):
             pincode="560002",
             phone_number="+919000000002",
             verification_status=VerificationStatus.VERIFIED,
-            is_active=True
+            is_active=True,
+            bookable_stations=10
         )
         db.add_all([cafe_a, cafe_b])
         await db.flush()

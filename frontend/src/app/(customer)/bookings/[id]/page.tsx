@@ -159,24 +159,12 @@ export default function BookingDetailPage() {
   }
 
   const booking = data;
-  
-  const isEligibleForCancellation = () => {
-    if (booking.status !== 'confirmed' && booking.status !== 'pending_payment' && booking.status !== 'failed') return false;
-    if (!booking.sessionDate || !booking.startTime) return true;
-    try {
-      const sessionStart = new Date(`${booking.sessionDate}T${booking.startTime}`);
-      const now = new Date();
-      const diffHours = (sessionStart.getTime() - now.getTime()) / (1000 * 60 * 60);
-      return diffHours >= 2;
-    } catch {
-      return true;
-    }
-  };
-
-  const canCancel = isEligibleForCancellation();
   const isCancelled = booking.status === 'cancelled';
   const isConfirmed = booking.status === 'confirmed' || booking.status === 'completed' || booking.status === 'checked_in';
   const isPendingOrFailed = booking.status === 'pending_payment' || booking.status === 'failed';
+
+  const canCancel = booking.cancelPolicy?.allowed ?? false;
+  const cancelDisabledReason = booking.cancelPolicy?.reason ?? '';
 
   const getQrSrc = () => {
     if (booking.qrCodeUrl) {
@@ -287,17 +275,23 @@ export default function BookingDetailPage() {
                   <span>Retry Payment</span>
                 </Button>
 
-                {canCancel && (
-                  <Button
-                    variant="outline"
-                    size="md"
-                    fullWidth
-                    onClick={() => setIsCancelModalOpen(true)}
-                    className="text-error border-error/30 hover:bg-error/10"
-                  >
-                    Cancel Booking
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="md"
+                  fullWidth
+                  disabled={!canCancel}
+                  title={!canCancel ? cancelDisabledReason : ''}
+                  onClick={() => setIsCancelModalOpen(true)}
+                  className={`gap-2 ${!canCancel ? 'opacity-50 cursor-not-allowed' : 'text-error border-error/30 hover:bg-error/10'}`}
+                >
+                  <XCircle className="h-4 w-4" />
+                  <span>Cancel Booking</span>
+                  {!canCancel && cancelDisabledReason && (
+                    <span className="text-caption text-text-secondary ml-2">
+                      ({cancelDisabledReason})
+                    </span>
+                  )}
+                </Button>
               </div>
             </div>
           ) : (
@@ -405,17 +399,23 @@ export default function BookingDetailPage() {
               <span>Back to Explore Cafés</span>
             </Button>
 
-            {canCancel && (
-              <Button
-                variant="outline"
-                size="md"
-                fullWidth
-                onClick={() => setIsCancelModalOpen(true)}
-                className="text-error border-error/30 hover:bg-error/10"
-              >
-                Cancel Booking
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="md"
+              fullWidth
+              disabled={!canCancel}
+              title={!canCancel ? cancelDisabledReason : ''}
+              onClick={() => setIsCancelModalOpen(true)}
+              className={`gap-2 ${!canCancel ? 'opacity-50 cursor-not-allowed' : 'text-error border-error/30 hover:bg-error/10'}`}
+            >
+              <XCircle className="h-4 w-4" />
+              <span>Cancel Booking</span>
+              {!canCancel && cancelDisabledReason && (
+                <span className="text-caption text-text-secondary ml-2">
+                  ({cancelDisabledReason})
+                </span>
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>

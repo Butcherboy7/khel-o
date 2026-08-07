@@ -81,7 +81,8 @@ class CafeRepository(BaseRepository[Cafe]):
         stmt = select(Cafe).where(
             Cafe.verification_status == VerificationStatus.VERIFIED,
             Cafe.is_active == True,
-            Cafe.is_emergency_mode == False
+            Cafe.is_emergency_mode == False,
+            Cafe.bookings_paused == False
         )
 
         if city and city.strip():

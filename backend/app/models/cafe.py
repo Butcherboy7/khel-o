@@ -43,6 +43,8 @@ class Cafe(Base):
     total_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
     app_bookable_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     reserved_walkin_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    bookable_stations: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    bookings_paused: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     amenities: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     photos: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     supported_games: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)

@@ -44,10 +44,14 @@ class BookingService:
         cafe = None
         if self.cafe_repo:
             cafe = await self.cafe_repo.get_by_id(booking_in.cafe_id)
-            if not cafe or cafe.verification_status in (VerificationStatus.REJECTED, VerificationStatus.SUSPENDED) or not cafe.is_active:
+            if not cafe or cafe.verification_status != VerificationStatus.VERIFIED or not cafe.is_active:
                 raise ValidationException(message="Café is not available for booking", error_code="CAFE_NOT_AVAILABLE")
             if cafe.is_emergency_mode:
                 raise ValidationException(message="Café is currently in emergency mode and not accepting new bookings", error_code="EMERGENCY_MODE_ACTIVE")
+            if cafe.bookings_paused:
+                raise ValidationException(message="Café is currently not accepting new bookings", error_code="BOOKINGS_PAUSED")
+            if cafe.bookable_stations <= 0:
+                raise ValidationException(message="Café has no bookable stations available", error_code="NO_BOOKABLE_STATIONS")
 
         # Validate Hardware Tier
         if not self.tier_repo:
@@ -76,18 +80,20 @@ class BookingService:
         end_datetime = start_datetime + timedelta(hours=booking_in.duration_hours)
         end_time = end_datetime.time()
 
-        # Seat Availability Checking (with locking)
-        overlapping_count, app_bookable_seats = await self.booking_repo.get_overlapping_bookings_count_with_lock(
+        # Seat Availability Checking (with locking) - uses cafe.bookable_stations for inventory
+        overlapping_count, capacity = await self.booking_repo.get_overlapping_bookings_count_with_lock(
             tier_id=tier.id,
             session_date=booking_in.session_date,
             start_time=booking_in.start_time,
-            end_time=end_time
+            end_time=end_time,
+            use_cafe_capacity=True,
+            cafe_id=booking_in.cafe_id
         )
 
-        if overlapping_count >= app_bookable_seats:
+        if overlapping_count >= capacity:
             raise ValidationException(
-                message="This hardware tier is fully booked for the selected time slot",
-                error_code="TIER_FULLY_BOOKED"
+                message="This time slot is fully booked at this café",
+                error_code="SLOT_FULLY_BOOKED"
             )
 
         # Financial Math (Decimal) & Promotion Application
@@ -110,19 +116,6 @@ class BookingService:
         gateway_fee = (subtotal * Decimal('0.02')).quantize(Decimal('0.01'))
         convenience_fee = Decimal('10.00')
         total_amount = subtotal + gateway_fee + convenience_fee
-
-        # Unverified Café Cap Check
-        if cafe and cafe.verification_status != VerificationStatus.VERIFIED:
-            if cafe.booking_cap_count >= 15:
-                raise ValidationException(
-                    message="Booking cap reached for this unverified café.",
-                    error_code="UNVERIFIED_CAFE_CAP_REACHED"
-                )
-            if float(cafe.booking_cap_total) + float(total_amount) > 5000.00:
-                raise ValidationException(
-                    message="Booking total amount cap reached for this unverified café.",
-                    error_code="UNVERIFIED_CAFE_CAP_REACHED"
-                )
 
         booking_ref = self._generate_reference()
 
@@ -160,13 +153,6 @@ class BookingService:
         fee_obj = PlatformFee(**platform_fee_dict)
         self.booking_repo.db.add(fee_obj)
         await self.booking_repo.db.commit()
-
-        # Update unverified café caps if applicable
-        if cafe:
-            cafe.booking_cap_count += 1
-            cafe.booking_cap_total = float(cafe.booking_cap_total) + float(total_amount)
-            self.booking_repo.db.add(cafe)
-            await self.booking_repo.db.commit()
 
         # Atomic increment of promotion current_uses after booking is saved
         if booking_in.promotion_id and self.promo_service:
@@ -214,6 +200,25 @@ class BookingService:
             if tier_obj:
                 resp.tier_name = tier_obj.name
 
+        # Compute cancel policy
+        from app.schemas.booking import CancelPolicy
+        if booking.status in (BookingStatus.CANCELLED, BookingStatus.COMPLETED, BookingStatus.NO_SHOW):
+            resp.cancel_policy = CancelPolicy(allowed=False, reason=f"Booking already {booking.status.value}")
+        elif booking.status not in (BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED):
+            resp.cancel_policy = CancelPolicy(allowed=False, reason=f"Booking status '{booking.status.value}' cannot be cancelled")
+        else:
+            start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
+            now_ist = datetime.now(IST)
+            if start_datetime - now_ist < timedelta(hours=2):
+                time_diff = start_datetime - now_ist
+                hours_left = time_diff.total_seconds() / 3600
+                resp.cancel_policy = CancelPolicy(
+                    allowed=False, 
+                    reason=f"Cancellation window expired (must be 2+ hours before session, currently {hours_left:.1f} hours remaining)"
+                )
+            else:
+                resp.cancel_policy = CancelPolicy(allowed=True, reason="")
+
         return resp
 
     async def list_gamer_bookings(
@@ -253,22 +258,26 @@ class BookingService:
         if str(booking.gamer_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
             raise ForbiddenException(message="You can only cancel your own booking", error_code="FORBIDDEN")
 
-        if booking.status not in (BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED):
+        if booking.status not in (BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED, BookingStatus.FAILED):
             raise ValidationException(
                 message=f"Cannot cancel booking with status '{booking.status.value}'",
                 error_code="INVALID_BOOKING_STATUS"
             )
 
+        # Cancellation window restriction ONLY applies to CONFIRMED (paid) bookings
+        # PENDING_PAYMENT and FAILED bookings can be cancelled immediately without time restriction
+        if booking.status == BookingStatus.CONFIRMED:
+            now_utc = datetime.now(timezone.utc)
+            now_ist = datetime.now(IST)
+            start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
+
+            if start_datetime - now_ist < timedelta(hours=2):
+                raise ValidationException(
+                    message="Cancellations are only allowed up to 2 hours before the session",
+                    error_code="CANCELLATION_WINDOW_EXPIRED"
+                )
+
         now_utc = datetime.now(timezone.utc)
-        now_ist = datetime.now(IST)
-        start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
-
-        if start_datetime - now_ist < timedelta(hours=2):
-            raise ValidationException(
-                message="Cancellations are only allowed up to 2 hours before the session",
-                error_code="CANCELLATION_WINDOW_EXPIRED"
-            )
-
         updated = await self.booking_repo.update(booking_id, {
             "status": BookingStatus.CANCELLED,
             "cancelled_at": now_utc,

@@ -6,6 +6,8 @@ export interface User {
   fullName: string;
   phoneNumber: string | null;
   role: UserRole;
+  roles: UserRole[];
+  cafeId?: string;
   isActive: boolean;
   avatarUrl: string | null;
   createdAt: string;

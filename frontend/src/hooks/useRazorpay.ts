@@ -37,6 +37,14 @@ declare global {
 
 export function useRazorpay() {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [mockModalState, setMockModalState] = useState<{
+    isOpen: boolean;
+    orderId: string;
+    amount: number;
+    onSuccess: () => void;
+    onFailure: () => void;
+    onClose: () => void;
+  } | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -71,22 +79,36 @@ export function useRazorpay() {
       razorpayKey.startsWith('rzp_test_placeholder');
 
     if (!isLoaded || typeof window.Razorpay === 'undefined' || isMockKey) {
-      // Sandbox mode: Prompt user to choose Success vs Failure for complete E2E testing
-      const choice = window.confirm(
-        `[Sandbox Payment Checkout]\nOrder: ${options.order_id}\nAmount: ₹${options.amount / 100}\n\nClick OK for SUCCESSFUL payment.\nClick CANCEL to simulate PAYMENT FAILURE / USER BACK.`
-      );
-
-      if (choice) {
-        options.handler({
-          razorpay_payment_id: `pay_mock_${Date.now()}`,
-          razorpay_order_id: options.order_id,
-          razorpay_signature: 'mock_signature_valid',
-        });
-      } else {
-        if (options.onDismiss) {
-          options.onDismiss();
-        }
-      }
+      // SANDBOX MODE: Show in-app modal with explicit Success/Failure buttons
+      setMockModalState({
+        isOpen: true,
+        orderId: options.order_id,
+        amount: options.amount,
+        onSuccess: () => {
+          options.handler({
+            razorpay_payment_id: `pay_mock_${Date.now()}`,
+            razorpay_order_id: options.order_id,
+            razorpay_signature: 'mock_signature_valid',
+          });
+          setMockModalState(null);
+        },
+        onFailure: () => {
+          // Simulate payment failure by calling handler with invalid signature
+          // which will fail verification and show the failure UI
+          options.handler({
+            razorpay_payment_id: `pay_mock_failed_${Date.now()}`,
+            razorpay_order_id: options.order_id,
+            razorpay_signature: 'mock_signature_INVALID', // This will fail HMAC verification
+          });
+          setMockModalState(null);
+        },
+        onClose: () => {
+          if (options.onDismiss) {
+            options.onDismiss();
+          }
+          setMockModalState(null);
+        },
+      });
       return;
     }
 
@@ -106,5 +128,5 @@ export function useRazorpay() {
     rzp.open();
   };
 
-  return { isLoaded, displayRazorpay };
+  return { isLoaded, displayRazorpay, mockModalState };
 }

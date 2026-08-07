@@ -18,6 +18,7 @@ import { createBooking } from '@/lib/api/bookings';
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useRazorpay } from '@/hooks/useRazorpay';
+import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { useAuthStore } from '@/store/authStore';
 import { Card, CardContent, Skeleton, ErrorState } from '@/components/ui';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
@@ -36,10 +37,10 @@ function BookingWizardContent() {
   const cafeId = searchParams.get('cafeId') || '';
 
   const user = useAuthStore((s) => s.user);
-  const { displayRazorpay } = useRazorpay();
+  const { displayRazorpay, mockModalState } = useRazorpay();
 
   const availableDates = getNext14Days();
-  const [selectedDate, setSelectedDate] = useState(availableDates[0]?.dateString || getTodayString());
+  const [selectedDate, setSelectedDate] = useState(availableDates[0] || getTodayString());
   const [selectedTime, setSelectedTime] = useState('18:00:00');
   const [durationHours, setDurationHours] = useState(2);
   const [seatsCount, setSeatsCount] = useState(1);
@@ -170,7 +171,8 @@ function BookingWizardContent() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-32">
+    <>
+      <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-32">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
@@ -359,6 +361,17 @@ function BookingWizardContent() {
         </div>
       </div>
     </div>
+
+      {/* Mock Payment Modal for Sandbox Mode */}
+      <MockPaymentModal
+        isOpen={mockModalState?.isOpen || false}
+        orderId={mockModalState?.orderId || ''}
+        amount={mockModalState?.amount || 0}
+        onSuccess={mockModalState?.onSuccess || (() => {})}
+        onFailure={mockModalState?.onFailure || (() => {})}
+        onClose={mockModalState?.onClose || (() => {})}
+      />
+    </>
   );
 }
 

@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Monitor, Cpu, HardDrive, Zap, Tag, Edit, AlertCircle } from 'lucide-react';
 import { listCafeTiers, createTier, updateTier } from '@/lib/api/tiers';
-import { listCafes } from '@/lib/api/cafes';
+import { getOwnerCafeId } from '@/lib/api/owner';
+import { useAuthStore } from '@/store/authStore';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
   Button,
@@ -35,19 +36,18 @@ export default function HardwareTiersPage() {
   const [presetCategory, setPresetCategory] = useState<PresetCategory>('pro_gaming');
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Fetch owner's first café
-  const { data: cafeData } = useQuery({
-    queryKey: queryKeys.cafes.list({ limit: 1 }),
-    queryFn: () => listCafes({ limit: 1 }),
-  });
-
-  const cafeId = cafeData?.items?.[0]?.id || '';
-
-  // Fetch tiers for this café
+  const cafeId = useAuthStore((s) => s.user?.cafeId) || '';
+  
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.cafes.tiers(cafeId),
-    queryFn: () => listCafeTiers(cafeId).then((res) => res.hardwareTiers),
-    enabled: Boolean(cafeId),
+    queryFn: async () => {
+      if (!cafeId) {
+        const cafeData = await getOwnerCafeId();
+        return (await listCafeTiers(cafeData.cafeId)).hardwareTiers;
+      }
+      return (await listCafeTiers(cafeId)).hardwareTiers;
+    },
+    enabled: Boolean(cafeId) || true,
   });
 
   const tiers = data || [];

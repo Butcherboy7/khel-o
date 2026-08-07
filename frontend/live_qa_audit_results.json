@@ -1,0 +1,338 @@
+{
+  "flows": [
+    {
+      "flow": 1,
+      "name": "Customer: Browse -> Detail -> Book -> Razorpay Failure",
+      "steps": [
+        {
+          "step": "1a. Register Customer",
+          "expected": "201 Created & redirected to home page",
+          "actual": "Landed on route http://localhost:3000/register",
+          "evidence": {
+            "url": "http://localhost:3000/register"
+          }
+        },
+        {
+          "step": "1b. Open Cafe Detail",
+          "expected": "Café detail page loaded with booking options",
+          "actual": "Loaded route http://localhost:3000/login?redirect=%2Fcafe%2Ffb4dfbdc-6257-40bc-848c-ca358898d92f",
+          "evidence": {
+            "url": "http://localhost:3000/login?redirect=%2Fcafe%2Ffb4dfbdc-6257-40bc-848c-ca358898d92f"
+          }
+        },
+        {
+          "step": "1c. Book Slot & Razorpay Payment Failure State",
+          "expected": "Payment modal opens OR Retry/Cancel/Share Pass state observable",
+          "actual": "Book clicked: false. Retry button: false, Cancel button: false, Share Pass: false",
+          "evidence": {
+            "bookClicked": false,
+            "hasRetry": false,
+            "hasCancel": false,
+            "hasSharePass": false,
+            "snippet": "KHEL-O\n\nIndia's Premier Gaming Café Marketplace\n\nSign in\n\nAccess your bookings and gaming passes\n\nEmail Address\nPassword\nSign In\nContinue with Google\n\nDon't have an account? Create an account"
+          }
+        }
+      ]
+    },
+    {
+      "flow": 2,
+      "name": "Customer: Cafe Detail -> Back Button Location Persistence",
+      "steps": [
+        {
+          "step": "2a. Back Button City Filter Persistence",
+          "expected": "City filter \"Bengaluru\" persists in URL/Input on returning to search",
+          "actual": "URL after back: http://localhost:3000/cafes?city=Bengaluru. City input value: N/A",
+          "evidence": {
+            "url": "http://localhost:3000/cafes?city=Bengaluru",
+            "cityInputVal": "N/A"
+          }
+        }
+      ]
+    },
+    {
+      "flow": 3,
+      "name": "Customer: Notifications -> Mark All Read -> Refresh",
+      "steps": [
+        {
+          "step": "3a. Mark All Read & Badge State After Refresh",
+          "expected": "Badge count cleared or 0 after mark as read & refresh",
+          "actual": "Mark read clicked: false. Badge text after refresh: No badge element found",
+          "evidence": {
+            "markedRead": false,
+            "badgeText": "No badge element found",
+            "url": "http://localhost:3000/notifications"
+          }
+        }
+      ]
+    },
+    {
+      "flow": 4,
+      "name": "New User: Become a Partner Route Landing",
+      "steps": [
+        {
+          "step": "4a. Become a Partner Landing Route",
+          "expected": "Intro landing page OR direct onboarding form",
+          "actual": "Landed on route: http://localhost:3000/login?redirect=%2Fowner%2Fonboarding. Renders wizard directly: false",
+          "evidence": {
+            "landedUrl": "http://localhost:3000/login?redirect=%2Fowner%2Fonboarding",
+            "isWizardDirect": false
+          }
+        }
+      ]
+    },
+    {
+      "flow": 5,
+      "name": "Mid-Onboarding Sidebar Navigation Crash Check",
+      "steps": [
+        {
+          "step": "5. Navigated to /owner/dashboard mid-onboarding",
+          "expected": "Page renders gracefully or redirects without crash",
+          "actual": "Route: http://localhost:3000/login?redirect=%2Fowner%2Fdashboard. Error state: false",
+          "evidence": {
+            "route": "http://localhost:3000/login?redirect=%2Fowner%2Fdashboard",
+            "isError": false,
+            "snippet": "KHEL-O\n\nIndia's Premier Gaming Café Marketplace\n\nSign in\n\nAccess your bookings and gaming passes\n\nEmail Address\nPassword\nSign In\nContinue with Google\n\nDon't have an account? Create an account"
+          }
+        },
+        {
+          "step": "5. Navigated to /owner/analytics mid-onboarding",
+          "expected": "Page renders gracefully or redirects without crash",
+          "actual": "Route: http://localhost:3000/login?redirect=%2Fowner%2Fanalytics. Error state: false",
+          "evidence": {
+            "route": "http://localhost:3000/login?redirect=%2Fowner%2Fanalytics",
+            "isError": false,
+            "snippet": "KHEL-O\n\nIndia's Premier Gaming Café Marketplace\n\nSign in\n\nAccess your bookings and gaming passes\n\nEmail Address\nPassword\nSign In\nContinue with Google\n\nDon't have an account? Create an account"
+          }
+        },
+        {
+          "step": "5. Navigated to /owner/bookings mid-onboarding",
+          "expected": "Page renders gracefully or redirects without crash",
+          "actual": "Route: http://localhost:3000/login?redirect=%2Fowner%2Fbookings. Error state: false",
+          "evidence": {
+            "route": "http://localhost:3000/login?redirect=%2Fowner%2Fbookings",
+            "isError": false,
+            "snippet": "KHEL-O\n\nIndia's Premier Gaming Café Marketplace\n\nSign in\n\nAccess your bookings and gaming passes\n\nEmail Address\nPassword\nSign In\nContinue with Google\n\nDon't have an account? Create an account"
+          }
+        },
+        {
+          "step": "5. Navigated to /owner/tiers mid-onboarding",
+          "expected": "Page renders gracefully or redirects without crash",
+          "actual": "Route: http://localhost:3000/login?redirect=%2Fowner%2Ftiers. Error state: false",
+          "evidence": {
+            "route": "http://localhost:3000/login?redirect=%2Fowner%2Ftiers",
+            "isError": false,
+            "snippet": "KHEL-O\n\nIndia's Premier Gaming Café Marketplace\n\nSign in\n\nAccess your bookings and gaming passes\n\nEmail Address\nPassword\nSign In\nContinue with Google\n\nDon't have an account? Create an account"
+          }
+        }
+      ]
+    },
+    {
+      "flow": 6,
+      "name": "Complete Onboarding Form & Submit",
+      "steps": [
+        {
+          "step": "6a. Submit Onboarding Form",
+          "expected": "Form submits, POST /api/v1/owner/onboarding succeeds, redirect to pending/dashboard",
+          "actual": "Post-submit URL: http://localhost:3000/login?redirect=%2Fowner%2Fonboarding. Contains success text: false",
+          "evidence": {
+            "postSubmitUrl": "http://localhost:3000/login?redirect=%2Fowner%2Fonboarding",
+            "bodySnippet": "KHEL-O\n\nIndia's Premier Gaming Café Marketplace\n\nSign in\n\nAccess your bookings and gaming passes\n\nEmail Address\nPassword\nSign In\nContinue with Google\n\nDon't have an account? Create an account"
+          }
+        }
+      ]
+    },
+    {
+      "flow": 7,
+      "name": "Admin Pending Queue Real-Time Check",
+      "steps": [
+        {
+          "step": "7a. Admin Pending Queue Immediate Check",
+          "expected": "Admin dashboard pending queue displays recent submissions without manual reload",
+          "actual": "Landed at http://localhost:3000/login?redirect=%2Fadmin. Pending section present: false",
+          "evidence": {
+            "url": "http://localhost:3000/login?redirect=%2Fadmin",
+            "hasPendingQueue": false,
+            "adminBodySnippet": "KHEL-O\n\nIndia's Premier Gaming Café Marketplace\n\nSign in\n\nAccess your bookings and gaming passes\n\nEmail Address\nPassword\nSign In\nContinue with Google\n\nDon't have an account? Create an account"
+          }
+        }
+      ]
+    },
+    {
+      "flow": 8,
+      "name": "Admin Approval API Capture",
+      "steps": [
+        {
+          "step": "8a. Approve Pending Cafe",
+          "expected": "Approve API request sent (PATCH /api/v1/admin/cafes/{id}/approve), status 200",
+          "actual": "Approve button clicked: false",
+          "evidence": {
+            "approved": false
+          }
+        }
+      ]
+    },
+    {
+      "flow": 9,
+      "name": "Owner \"Get Owner Dashboard\" (No Reload)",
+      "steps": [
+        {
+          "step": "9a. Get Owner Dashboard CTA without manual reload",
+          "expected": "Dashboard updates to reflect approved owner status",
+          "actual": "CTA clicked: false. Contains verified text: false",
+          "evidence": {
+            "ctaClicked": false,
+            "snippet": "KHEL-O\n\nIndia's Premier Gaming Café Marketplace\n\nSign in\n\nAccess your bookings and gaming passes\n\nEmail Address\nPassword\nSign In\nContinue with Google\n\nDon't have an account? Create an account"
+          }
+        }
+      ]
+    },
+    {
+      "flow": 10,
+      "name": "Manual Reload & Role Switcher Verification",
+      "steps": [
+        {
+          "step": "10a. Manual Reload & Switch to Owner Role",
+          "expected": "Role switcher appears on reload, switching role calls POST /api/v1/auth/switch-role",
+          "actual": "Has role switcher: false. Final route: http://localhost:3000/login?redirect=%2Fowner%2Fdashboard",
+          "evidence": {
+            "hasRoleSwitcher": false,
+            "route": "http://localhost:3000/login?redirect=%2Fowner%2Fdashboard"
+          }
+        }
+      ]
+    }
+  ],
+  "networkLogs": [],
+  "consoleLogs": [
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:36:27.051Z"
+    },
+    {
+      "type": "error",
+      "text": "Warning: Extra attributes from the server: %s%s style \n    at input\n    at div\n    at div\n    at eval (webpack-internal:///(app-pages-browser)/./src/components/ui/Input.tsx:15:11)\n    at form\n    at div\n    at _c8 (webpack-internal:///(app-pages-browser)/./src/components/ui/Card.tsx:80:11)\n    at div\n    at _c (webpack-internal:///(app-pages-browser)/./src/components/ui/Card.tsx:19:11)\n    at RegisterForm (webpack-internal:///(app-pages-browser)/./src/app/(auth)/register/page.tsx:38:78)\n    at Suspense\n    at div\n    at RegisterPage\n    at StaticGenerationSearchParamsBailoutProvider (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/static-generation-searchparams-bailout-provider.js:16:11)\n    at InnerLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:242:11)\n    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:73:9)\n    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:81:11)\n    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:84:11)\n    at LoadingBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:335:11)\n    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:161:11)\n    at InnerScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:152:9)\n    at ScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:227:11)\n    at RenderFromTemplateContext (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/render-from-template-context.js:16:44)\n    at OuterLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:354:11)\n    at InnerLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:242:11)\n    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:73:9)\n    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:81:11)\n    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:76:9)\n    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:84:11)\n    at LoadingBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:335:11)\n    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:161:11)\n    at InnerScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:152:9)\n    at ScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:227:11)\n    at RenderFromTemplateContext (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/render-from-template-context.js:16:44)\n    at OuterLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:354:11)\n    at div\n    at InnerLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:242:11)\n    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:73:9)\n    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:81:11)\n    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:76:9)\n    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:84:11)\n    at LoadingBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:335:11)\n    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:161:11)\n    at InnerScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:152:9)\n    at ScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:227:11)\n    at RenderFromTemplateContext (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/render-from-template-context.js:16:44)\n    at OuterLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:354:11)\n    at PopChildMeasure (webpack-internal:///(app-pages-browser)/./node_modules/framer-motion/dist/es/components/AnimatePresence/PopChild.mjs:20:5)\n    at PopChild (webpack-internal:///(app-pages-browser)/./node_modules/framer-motion/dist/es/components/AnimatePresence/PopChild.mjs:47:11)\n    at PresenceChild (webpack-internal:///(app-pages-browser)/./node_modules/framer-motion/dist/es/components/AnimatePresence/PresenceChild.mjs:20:11)\n    at AnimatePresence (webpack-internal:///(app-pages-browser)/./node_modules/framer-motion/dist/es/components/AnimatePresence/index.mjs:55:11)\n    at AuthInitializer (webpack-internal:///(app-pages-browser)/./src/app/providers.tsx:44:11)\n    at QueryClientProvider (webpack-internal:///(app-pages-browser)/./node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:27:11)\n    at Providers (webpack-internal:///(app-pages-browser)/./src/app/providers.tsx:63:11)\n    at body\n    at html\n    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:73:9)\n    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:81:11)\n    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:76:9)\n    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:84:11)\n    at DevRootNotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/dev-root-not-found-boundary.js:33:11)\n    at ReactDevOverlay (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/internal/ReactDevOverlay.js:84:9)\n    at HotReload (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/hot-reloader-client.js:307:11)\n    at Router (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/app-router.js:181:11)\n    at ErrorBoundaryHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:114:9)\n    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:161:11)\n    at AppRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/app-router.js:536:13)\n    at ServerRoot (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:129:11)\n    at RSCComponent\n    at Root (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:145:11)",
+      "timestamp": "2026-08-07T12:36:27.179Z"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "timestamp": "2026-08-07T12:36:45.931Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:36:46.183Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:36:48.189Z"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "timestamp": "2026-08-07T12:36:50.469Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:36:50.647Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:36:52.135Z"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "timestamp": "2026-08-07T12:36:53.268Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:36:53.493Z"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "timestamp": "2026-08-07T12:37:25.169Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:37:25.344Z"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "timestamp": "2026-08-07T12:37:27.037Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:37:27.213Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:37:29.179Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:37:48.181Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:37:50.153Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:37:52.399Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:37:54.147Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:37:55.884Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:37:58.097Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:37:59.637Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:38:28.712Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:38:39.140Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:38:41.631Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-08-07T12:38:43.576Z"
+    }
+  ]
+}

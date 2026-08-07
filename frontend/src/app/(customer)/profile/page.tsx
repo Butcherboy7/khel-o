@@ -170,7 +170,7 @@ export default function ProfilePage() {
       </Card>
 
       {/* Partner Conversion Banner */}
-      {user.role === 'gamer' && (
+      {user.roles && !user.roles.includes('cafe_owner') && (
         <Card elevation="resting" className="border border-primary/20 bg-gradient-to-r from-primary/10 via-card to-accent/10">
           <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3">

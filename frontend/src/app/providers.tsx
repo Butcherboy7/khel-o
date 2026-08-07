@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
 import { useState, useEffect, type ReactNode } from 'react';
 import { useAuthStore } from '@/store/authStore';
+import { RoleSyncProvider } from '@/components/providers/RoleSyncProvider';
 
 /* ── QueryClient Factory ─────────────────────────────────────────── */
 
@@ -62,7 +63,9 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthInitializer>
-        <AnimatePresence mode="wait">{children}</AnimatePresence>
+        <RoleSyncProvider>
+          <AnimatePresence mode="wait">{children}</AnimatePresence>
+        </RoleSyncProvider>
       </AuthInitializer>
     </QueryClientProvider>
   );

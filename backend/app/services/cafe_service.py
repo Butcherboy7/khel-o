@@ -5,10 +5,13 @@ from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.review_repository import ReviewRepository
+from app.repositories.user_repository import UserRepository
 from app.services.promotion_service import PromotionService
 from app.schemas.cafe import CafeCreateRequest, CafeUpdateRequest, CafeResponse, CafeListItem, CafeListResponse
 from app.schemas.hardware_tier import HardwareTierResponse
 from app.schemas.review import ReviewResponse
+from app.schemas.user import UserResponse
+from app.schemas.admin import AdminCafeDetailResponse
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.user import User, UserRole
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
@@ -19,12 +22,14 @@ class CafeService:
         cafe_repo: CafeRepository,
         tier_repo: Optional[HardwareTierRepository] = None,
         promo_repo: Optional[PromotionRepository] = None,
-        review_repo: Optional[ReviewRepository] = None
+        review_repo: Optional[ReviewRepository] = None,
+        user_repo: Optional[UserRepository] = None
     ):
         self.cafe_repo = cafe_repo
         self.tier_repo = tier_repo
         self.promo_repo = promo_repo
         self.review_repo = review_repo
+        self.user_repo = user_repo
 
     async def create_cafe(self, owner_id: UUID, cafe_in: CafeCreateRequest) -> CafeResponse:
         cafe_dict = cafe_in.model_dump()
@@ -52,7 +57,7 @@ class CafeService:
 
         return await self._build_cafe_response(cafe)
 
-    async def _build_cafe_response(self, cafe: Cafe) -> CafeResponse:
+    async def _build_cafe_response(self, cafe: Cafe, response_cls: type = CafeResponse) -> Any:
         tiers_res: List[HardwareTierResponse] = []
         if self.tier_repo:
             active_tiers = await self.tier_repo.get_by_cafe_id(cafe.id, active_only=True)
@@ -83,12 +88,29 @@ class CafeService:
                 }
                 recent_revs.append(ReviewResponse.model_validate(rd))
 
-        resp = CafeResponse.model_validate(cafe)
+        resp = response_cls.model_validate(cafe)
         resp.tiers = tiers_res
         resp.active_promotions = active_promos
         resp.recent_reviews = recent_revs
         resp.average_rating = avg_rating
         resp.total_reviews = total_revs
+
+        if hasattr(resp, "owner") and getattr(resp, "owner", None) is None and self.user_repo:
+            owner_obj = await self.user_repo.get_by_id(cafe.owner_id)
+            if owner_obj:
+                resp.owner = UserResponse.model_validate(owner_obj)
+
+        if hasattr(resp, "bank_account_number") and getattr(resp, "bank_account_number", None) is None:
+            from app.models.owner_payout_account import OwnerPayoutAccount
+            from sqlalchemy import select
+            stmt_payout = select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == cafe.owner_id)
+            res_payout = await self.cafe_repo.db.execute(stmt_payout)
+            payout_acc = res_payout.scalars().first()
+            if payout_acc:
+                resp.bank_account_number = payout_acc.bank_account_number_masked or (payout_acc.details.get("full_account") if payout_acc.details else None)
+                resp.bank_ifsc = payout_acc.bank_ifsc
+                resp.account_holder_name = payout_acc.account_holder_name
+
         return resp
 
     async def update_cafe(self, cafe_id: UUID, owner_id: UUID, update_data: CafeUpdateRequest) -> CafeResponse:
@@ -156,7 +178,7 @@ class CafeService:
         limit = min(limit, 50)
         total_pages = math.ceil(total / limit) if total > 0 else 0
         return {
-            "items": [await self._build_cafe_response(c) for c in items],
+            "items": [await self._build_cafe_response(c, response_cls=AdminCafeDetailResponse) for c in items],
             "total": total,
             "page": page,
             "pageSize": limit,

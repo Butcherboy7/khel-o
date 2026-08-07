@@ -15,9 +15,8 @@ export function RoleSwitcher() {
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // If user is not logged in or is purely a gamer without owner access, hide or show simple badge
-  const userRole = (user?.role as string) || 'gamer';
-  if (!user || (userRole === 'gamer' && activeRole === 'gamer')) {
+  const roles = user?.roles || [];
+  if (!user || roles.length <= 1) {
     return null;
   }
 

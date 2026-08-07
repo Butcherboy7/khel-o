@@ -8,6 +8,15 @@ def to_camel(string: str) -> str:
     components = string.split('_')
     return components[0] + ''.join(x.title() for x in components[1:])
 
+class CancelPolicy(BaseModel):
+    allowed: bool
+    reason: str
+    
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 class BookingBase(BaseModel):
     cafe_id: UUID
     hardware_tier_id: UUID
@@ -72,6 +81,7 @@ class BookingResponse(BookingBase):
     actual_start_time: Optional[datetime] = None
     actual_end_time: Optional[datetime] = None
     checkin_method: Optional[str] = None
+    cancel_policy: Optional[CancelPolicy] = None
     created_at: datetime
     updated_at: datetime
 

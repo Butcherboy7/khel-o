@@ -1,12 +1,15 @@
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import select
 from app.main import app
 from app.models.user import User, UserRole
+from app.models.user_role import UserRoleMapping
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.booking import Booking, BookingStatus
 from app.core.security import create_access_token, get_password_hash
 from app.database import AsyncSessionLocal
+from tests.conftest import create_test_user
 import uuid
 from datetime import date, time
 
@@ -20,20 +23,12 @@ async def async_client():
 async def test_gamer_cannot_access_owner_dashboard(async_client: AsyncClient):
     """Verify that a user with gamer role cannot access owner dashboard endpoint."""
     async with AsyncSessionLocal() as db:
-        gamer = User(
-            id=uuid.uuid4(),
-            email=f"gamer_guard_{uuid.uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("password123"),
-            full_name="Guard Test Gamer",
-            role=UserRole.GAMER,
-            is_active=True
-        )
-        db.add(gamer)
+        gamer = await create_test_user(db, role=UserRole.GAMER)
         await db.commit()
-
+        
         token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
         headers = {"Authorization": f"Bearer {token}"}
-
+        
         response = await async_client.get("/api/v1/owner/dashboard", headers=headers)
         assert response.status_code == 403
 
@@ -334,5 +329,183 @@ async def test_booking_cancellation_success(async_client: AsyncClient):
         assert cancel_res.status_code == 200
         res_data = cancel_res.json()["data"]["booking"]
         assert res_data["status"] == "cancelled"
+
+@pytest.mark.asyncio
+async def test_pending_cafe_cannot_accept_bookings(async_client: AsyncClient):
+    """Verify that a café with PENDING verification_status cannot accept bookings at all."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid.uuid4(),
+            email=f"pending_owner_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Pending Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"pending_gamer_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Pending Gamer",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add_all([owner, gamer])
+        await db.commit()
+
+        cafe = Cafe(
+            id=uuid.uuid4(),
+            owner_id=owner.id,
+            name="Pending Arena",
+            address_line1="123 Pending St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000099",
+            verification_status=VerificationStatus.PENDING,
+            is_active=True
+        )
+        db.add(cafe)
+        await db.commit()
+
+        from app.models.hardware_tier import HardwareTier
+        tier = HardwareTier(
+            id=uuid.uuid4(),
+            cafe_id=cafe.id,
+            name="Pending Tier",
+            total_seats=10,
+            app_bookable_seats=10,
+            price_per_hour=100.0,
+            is_active=True
+        )
+        db.add(tier)
+        await db.commit()
+
+        gamer_token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        gamer_headers = {"Authorization": f"Bearer {gamer_token}"}
+
+        from datetime import timedelta
+        future_date = date.today() + timedelta(days=2)
+
+        booking_payload = {
+            "cafeId": str(cafe.id),
+            "hardwareTierId": str(tier.id),
+            "sessionDate": future_date.isoformat(),
+            "startTime": "18:00:00",
+            "durationHours": 2.0
+        }
+        create_res = await async_client.post("/api/v1/bookings", json=booking_payload, headers=gamer_headers)
+        assert create_res.status_code == 422
+        assert create_res.json()["error"]["code"] == "CAFE_NOT_AVAILABLE"
+
+
+@pytest.mark.asyncio
+async def test_admin_approve_pending_cafe(async_client: AsyncClient):
+    """Verify admin can approve a pending cafe, changing its verification_status to VERIFIED."""
+    async with AsyncSessionLocal() as db:
+        admin = User(
+            id=uuid.uuid4(),
+            email=f"admin_approve_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Admin Approve",
+            role=UserRole.ADMIN,
+            is_active=True
+        )
+        owner = User(
+            id=uuid.uuid4(),
+            email=f"owner_approve_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Owner Approve",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add_all([admin, owner])
+        await db.commit()
+
+        cafe = Cafe(
+            id=uuid.uuid4(),
+            owner_id=owner.id,
+            name="Pending Approve Arena",
+            address_line1="123 Pending St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000099",
+            verification_status=VerificationStatus.PENDING,
+            is_active=False
+        )
+        db.add(cafe)
+        await db.commit()
+
+        admin_token = create_access_token(subject=str(admin.id), role=admin.role.value)
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+        # Admin approves via PATCH endpoint
+        approve_res = await async_client.patch(
+            f"/api/v1/admin/cafes/{cafe.id}/verify",
+            json={"status": "verified"},
+            headers=admin_headers
+        )
+        assert approve_res.status_code == 200
+        data = approve_res.json()["data"]["cafe"]
+        assert data["verification_status"] == "verified"
+
+        # Verify owner has CAFE_OWNER role in user_roles (new auth system)
+        from app.models.user_role import UserRoleMapping
+        stmt = select(UserRoleMapping).where(UserRoleMapping.user_id == owner.id)
+        result = await db.execute(stmt)
+        roles = result.scalars().all()
+        role_values = [r.role.value for r in roles]
+        assert "cafe_owner" in role_values
+
+
+@pytest.mark.asyncio
+async def test_owner_status_reflects_after_onboarding_submit(async_client: AsyncClient):
+    """Verify owner status endpoint returns 'pending' after onboarding submission."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"owner_status_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Owner Status",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        gamer_token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        gamer_headers = {"Authorization": f"Bearer {gamer_token}"}
+
+        # 1. Before onboarding: status should be 'prospective'
+        status_res_before = await async_client.get("/api/v1/owner/status", headers=gamer_headers)
+        assert status_res_before.status_code == 200
+        assert status_res_before.json()["data"]["status"] == "prospective"
+
+        # 2. Submit onboarding
+        onboarding_payload = {
+            "name": "Status Test Cafe",
+            "addressLine1": "123 Status St",
+            "city": "Bengaluru",
+            "state": "Karnataka",
+            "pincode": "560001",
+            "phoneNumber": "+919999999999",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00"
+        }
+        onboarding_res = await async_client.post("/api/v1/owner/onboarding/submit", json=onboarding_payload, headers=gamer_headers)
+        assert onboarding_res.status_code == 200
+        cafe_id = onboarding_res.json()["data"]["cafeId"]
+
+        # 3. After onboarding: status should be 'pending'
+        status_res_after = await async_client.get("/api/v1/owner/status", headers=gamer_headers)
+        assert status_res_after.status_code == 200
+        data_after = status_res_after.json()["data"]
+        assert data_after["status"] == "pending"
+        assert data_after["cafe"]["id"] == cafe_id
+
+
+
+
 
 

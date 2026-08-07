@@ -1,0 +1,86 @@
+﻿python : C:\Users\ADMIN\AppData\Roaming\Python\Python313\site-packages\requests\__init__.py:113: 
+RequestsDependencyWarning: urllib3 (2.4.0) or chardet (7.4.3)/charset_normalizer (3.4.2) doesn't match a supported 
+version!
+At line:1 char:1
++ python -m pytest tests/ -v --tb=no 2>&1 | Out-File -FilePath E:\KHEL- ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\ADMIN\...ported version!:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  warnings.warn(
+============================= test session starts =============================
+platform win32 -- Python 3.13.3, pytest-9.0.3, pluggy-1.6.0 -- C:\Program Files\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: E:\KHEL-O\backend
+configfile: pyproject.toml
+plugins: anyio-4.9.0, langsmith-0.4.5, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 36 items
+
+tests/test_acceptance_final.py::test_1_approved_owner_can_still_book PASSED [  2%]
+tests/test_acceptance_final.py::test_2_dual_roles_after_approval PASSED  [  5%]
+tests/test_acceptance_final.py::test_3_direct_cafe_creation_dual_roles PASSED [  8%]
+tests/test_acceptance_final.py::test_4_owner_endpoint_access_200 PASSED  [ 11%]
+tests/test_inventory_and_staff.py::test_seat_allocation_invariant PASSED [ 13%]
+tests/test_inventory_and_staff.py::test_overbooking_rejected PASSED      [ 16%]
+tests/test_inventory_and_staff.py::test_ttl_expired_pending_booking_ignored PASSED [ 19%]
+tests/test_inventory_and_staff.py::test_owner_invites_staff_linked_to_cafe PASSED [ 22%]
+tests/test_inventory_and_staff.py::test_staff_cross_cafe_idor_rejected PASSED [ 25%]
+tests/test_inventory_and_staff.py::test_unpaid_booking_qr_pass_rejected PASSED [ 27%]
+tests/test_inventory_and_staff.py::test_payment_webhook_idempotency PASSED [ 30%]
+tests/test_inventory_and_staff.py::test_late_webhook_after_ttl_expired_rejected PASSED [ 33%]
+tests/test_inventory_and_staff.py::test_cancelled_booking_releases_seat PASSED [ 36%]
+tests/test_jwt_compat.py::test_jwt_legacy_claim_shape_resolves_user PASSED [ 38%]
+tests/test_jwt_compat.py::test_jwt_new_multi_role_claim_shape_resolves_user PASSED [ 41%]
+tests/test_jwt_compat.py::test_dual_write_role_sync PASSED               [ 44%]
+tests/test_jwt_compat.py::test_deactivated_user_rejected_mid_session PASSED [ 47%]
+tests/test_onboarding_schema.py::test_onboarding_submission_succeeds_without_422 PASSED [ 50%]
+tests/test_owner_dashboard_capabilities.py::test_owner_can_set_bookable_stations PASSED [ 52%]
+tests/test_owner_dashboard_capabilities.py::test_pausing_bookings_blocks_new_bookings PASSED [ 55%]
+tests/test_owner_dashboard_capabilities.py::test_different_owner_cannot_edit_cafe PASSED [ 58%]
+tests/test_owner_dashboard_capabilities.py::test_edit_operating_hours_overnight PASSED [ 61%]
+tests/test_role_guards.py::test_gamer_cannot_access_owner_dashboard PASSED [ 63%]
+tests/test_role_guards.py::test_suspended_cafe_cannot_be_self_reactivated PASSED [ 66%]
+tests/test_role_guards.py::test_checkin_fails_for_unpaid_booking PASSED  [ 69%]
+tests/test_role_guards.py::test_suspended_cafe_cannot_add_hardware_tier PASSED [ 72%]
+tests/test_role_guards.py::test_emergency_mode_blocks_booking_creation_and_availability_search PASSED [ 75%]
+tests/test_role_guards.py::test_booking_cancellation_success PASSED      [ 77%]
+tests/test_role_guards.py::test_pending_cafe_cannot_accept_bookings PASSED [ 80%]
+tests/test_role_guards.py::test_admin_approve_pending_cafe PASSED        [ 83%]
+tests/test_role_guards.py::test_owner_status_reflects_after_onboarding_submit PASSED [ 86%]
+tests/test_role_switcher.py::test_verified_owner_can_switch_roles PASSED [ 88%]
+tests/test_role_switcher.py::test_unverified_gamer_cannot_switch_to_owner PASSED [ 91%]
+tests/test_role_switcher.py::test_reverse_dual_write_sync PASSED         [ 94%]
+tests/test_role_switcher.py::test_update_role_idempotency PASSED         [ 97%]
+tests/test_role_switcher.py::test_approved_owner_can_switch_to_gamer PASSED [100%]
+
+============================== warnings summary ===============================
+tests/test_inventory_and_staff.py::test_overbooking_rejected
+  E:\KHEL-O\backend\app\services\booking_service.py:94: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    raise ValidationException(
+
+tests/test_owner_dashboard_capabilities.py::test_owner_can_set_bookable_stations
+tests/test_owner_dashboard_capabilities.py::test_pausing_bookings_blocks_new_bookings
+tests/test_owner_dashboard_capabilities.py::test_different_owner_cannot_edit_cafe
+tests/test_owner_dashboard_capabilities.py::test_edit_operating_hours_overnight
+  C:\Users\ADMIN\AppData\Roaming\Python\Python313\site-packages\httpx\_client.py:1426: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=ASGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+tests/test_owner_dashboard_capabilities.py::test_pausing_bookings_blocks_new_bookings
+  E:\KHEL-O\backend\app\services\booking_service.py:52: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    raise ValidationException(message="CafΘ is currently not accepting new bookings", error_code="BOOKINGS_PAUSED")
+
+tests/test_role_guards.py::test_checkin_fails_for_unpaid_booking
+  E:\KHEL-O\backend\app\services\owner_service.py:190: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    raise ValidationException(
+
+tests/test_role_guards.py::test_emergency_mode_blocks_booking_creation_and_availability_search
+  E:\KHEL-O\backend\app\services\booking_service.py:50: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    raise ValidationException(message="CafΘ is currently in emergency mode and not accepting new bookings", error_code="EMERGENCY_MODE_ACTIVE")
+
+tests/test_role_guards.py::test_pending_cafe_cannot_accept_bookings
+  E:\KHEL-O\backend\app\services\booking_service.py:48: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    raise ValidationException(message="CafΘ is not available for booking", error_code="CAFE_NOT_AVAILABLE")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 36 passed, 9 warnings in 11.27s =======================

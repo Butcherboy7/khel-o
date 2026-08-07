@@ -1,5 +1,10 @@
 import type { BookingStatus } from './shared';
 
+export interface CancelPolicy {
+  allowed: boolean;
+  reason: string;
+}
+
 export interface Booking {
   id: string;
   bookingReference: string;
@@ -30,6 +35,7 @@ export interface BookingDetail extends Booking {
   tierName: string | null;
   cafeAddress: string | null;
   gamerName?: string | null;
+  cancelPolicy?: CancelPolicy | null;
 }
 
 export interface OwnerBookingItem extends Booking {

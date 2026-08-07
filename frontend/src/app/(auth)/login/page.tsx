@@ -4,9 +4,15 @@ import { useState, Suspense, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Gamepad2, Mail, Lock, Loader2 } from 'lucide-react';
+import { z } from 'zod';
 import { Button, Input, Card, CardContent } from '@/components/ui';
 import { login } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
+
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
 
 function LoginForm() {
   const router = useRouter();
@@ -18,15 +24,23 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError('Please enter both email and password.');
+    
+    const result = loginSchema.safeParse({ email, password });
+    if (!result.success) {
+      const fieldErrors: { email?: string; password?: string } = {};
+      result.error.issues.forEach(err => {
+        fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+      });
+      setValidationErrors(fieldErrors);
       return;
     }
-
+    
+    setValidationErrors({});
     setError(null);
     setIsLoading(true);
 
@@ -84,6 +98,7 @@ function LoginForm() {
             leftIcon={<Mail className="h-4 w-4" />}
             required
             autoComplete="email"
+            error={validationErrors.email}
           />
 
           <Input
@@ -95,6 +110,7 @@ function LoginForm() {
             leftIcon={<Lock className="h-4 w-4" />}
             required
             autoComplete="current-password"
+            error={validationErrors.password}
           />
 
           <Button

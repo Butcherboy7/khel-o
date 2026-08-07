@@ -152,12 +152,39 @@ export default function OnboardingWizardPage() {
 
   const handleNext = async () => {
     setError(null);
+    
+    // Step 1: Basic validation
     if (step === 1) {
       if (!formData.name || !formData.addressLine1 || !formData.city || !formData.state || !formData.pincode) {
         setError('Please complete all required business identity, address, and pincode fields.');
         return;
       }
+      if (!/^\d{6}$/.test(formData.pincode)) {
+        setError('Please enter a valid 6-digit Indian pincode.');
+        return;
+      }
     }
+    
+    // Step 2: Business verification
+    if (step === 2) {
+      if (formData.phoneNumber && !/^\+91[6-9]\d{9}$/.test(formData.phoneNumber)) {
+        setError('Please enter a valid Indian mobile number (+91 XXXXX XXXXX).');
+        return;
+      }
+      if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        setError('Please enter a valid email address.');
+        return;
+      }
+      if (formData.gstin) {
+        const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+        if (!GSTIN_REGEX.test(formData.gstin.toUpperCase())) {
+          setError('Please enter a valid 15-character GSTIN (e.g. 29ABCDE1234F1Z5).');
+          return;
+        }
+      }
+    }
+    
+    // Step 3: Bank & Payouts
     if (step === 3) {
       if (formData.businessPan) {
         const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
@@ -166,8 +193,22 @@ export default function OnboardingWizardPage() {
           return;
         }
       }
-      if (formData.bankAccountNumber && !formData.bankIfsc) {
-        setError('Please enter a valid Bank IFSC code.');
+      if (formData.accountHolderName && formData.accountHolderName.length < 2) {
+        setError('Account holder name must be at least 2 characters.');
+        return;
+      }
+      if (formData.bankAccountNumber) {
+        if (!/^\d{8,18}$/.test(formData.bankAccountNumber)) {
+          setError('Bank account number must be 8-18 digits.');
+          return;
+        }
+        if (!formData.bankIfsc || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(formData.bankIfsc.toUpperCase())) {
+          setError('Please enter a valid Bank IFSC code (e.g. HDFC0000128).');
+          return;
+        }
+      }
+      if (formData.bankIfsc && !formData.bankAccountNumber) {
+        setError('Please enter bank account number along with IFSC code.');
         return;
       }
     }
@@ -533,17 +574,21 @@ export default function OnboardingWizardPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Input
-                    label="Opening Time"
+                    label="Opening Time *"
                     type="time"
+                    required
                     value={formData.openingTime}
                     onChange={(e) => updateField('openingTime', e.target.value)}
+                    error={!formData.openingTime ? 'Opening time is required' : undefined}
                   />
 
                   <Input
-                    label="Closing Time"
+                    label="Closing Time *"
                     type="time"
+                    required
                     value={formData.closingTime}
                     onChange={(e) => updateField('closingTime', e.target.value)}
+                    error={!formData.closingTime ? 'Closing time is required' : undefined}
                   />
 
                   <Input

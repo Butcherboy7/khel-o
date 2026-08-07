@@ -15,7 +15,7 @@ export function ProspectiveOwnerView() {
             <span>KHEL Café Marketplace</span>
           </div>
           <h1 className="font-heading text-display md:text-[2.75rem] font-bold leading-tight">
-            Grow Your Gaming Café Revenue with KHEL
+            Grow Your Gaming Café Revenue with KHELO
           </h1>
           <p className="text-body text-slate-300 leading-relaxed">
             Fill idle PC stations, automate hourly bookings, and receive direct Razorpay Route payouts. Join over 30+ top gaming lounges across India.

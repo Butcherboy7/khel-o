@@ -4,9 +4,17 @@ import { useState, Suspense, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Gamepad2, Mail, Lock, User, Phone, Loader2 } from 'lucide-react';
+import { z } from 'zod';
 import { Button, Input, Card, CardContent } from '@/components/ui';
 import { register } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
+
+const registerSchema = z.object({
+  fullName: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  phoneNumber: z.string().regex(/^(\+91|0)?[6-9]\d{9}$/, 'Please enter a valid Indian phone number').optional().or(z.literal('')),
+});
 
 function RegisterForm() {
   const router = useRouter();
@@ -20,19 +28,23 @@ function RegisterForm() {
   const [password, setPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{ fullName?: string; email?: string; password?: string; phoneNumber?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!fullName || !email || !password) {
-      setError('Please fill in all required fields.');
+    
+    const result = registerSchema.safeParse({ fullName, email, password, phoneNumber });
+    if (!result.success) {
+      const fieldErrors: { fullName?: string; email?: string; password?: string; phoneNumber?: string } = {};
+      result.error.issues.forEach(err => {
+        fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+      });
+      setValidationErrors(fieldErrors);
       return;
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long.');
-      return;
-    }
-
+    
+    setValidationErrors({});
     setError(null);
     setIsLoading(true);
 
@@ -82,6 +94,7 @@ function RegisterForm() {
             onChange={(e) => setFullName(e.target.value)}
             leftIcon={<User className="h-4 w-4" />}
             required
+            error={validationErrors.fullName}
           />
 
           <Input
@@ -93,6 +106,7 @@ function RegisterForm() {
             leftIcon={<Mail className="h-4 w-4" />}
             required
             autoComplete="email"
+            error={validationErrors.email}
           />
 
           <Input
@@ -103,6 +117,7 @@ function RegisterForm() {
             onChange={(e) => setPhoneNumber(e.target.value)}
             leftIcon={<Phone className="h-4 w-4" />}
             hint="Optional — used for SMS booking pass confirmation"
+            error={validationErrors.phoneNumber}
           />
 
           <Input
@@ -114,6 +129,7 @@ function RegisterForm() {
             leftIcon={<Lock className="h-4 w-4" />}
             required
             autoComplete="new-password"
+            error={validationErrors.password}
           />
 
           <Button

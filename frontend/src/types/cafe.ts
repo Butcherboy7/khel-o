@@ -43,6 +43,13 @@ export interface Cafe {
   amenities: string[];
   photos: string[];
   rejectionReason: string | null;
+  businessPan?: string;
+  gstin?: string;
+  legalDocumentUrl?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
+  accountHolderName?: string;
+  draftData?: any;
   latitude?: number | null;
   longitude?: number | null;
   createdAt: string;

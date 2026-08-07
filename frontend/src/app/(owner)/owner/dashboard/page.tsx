@@ -38,6 +38,43 @@ export default function OwnerDashboardPage() {
   const loadStatusAndOps = async () => {
     try {
       const statusRes = await getOwnerStatus();
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      
+      // Instant role sync: if backend reports role mismatch, trigger token refresh
+      if (storedUser && statusRes.role) {
+        const parsedUser = JSON.parse(storedUser);
+        const storedRole = parsedUser?.role?.toLowerCase();
+        const serverRole = statusRes.role.toLowerCase();
+        if (storedRole && serverRole && storedRole !== serverRole) {
+          try {
+            const refreshToken = localStorage.getItem('refreshToken');
+            if (refreshToken) {
+              const refreshRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refreshToken })
+              });
+              if (refreshRes.ok) {
+                const data = await refreshRes.json();
+                localStorage.setItem('accessToken', data.data.accessToken);
+                localStorage.setItem('refreshToken', data.data.refreshToken);
+                const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/me`, {
+                  headers: { Authorization: `Bearer ${data.data.accessToken}` }
+                });
+                if (userRes.ok) {
+                  const userData = await userRes.json();
+                  localStorage.setItem('user', JSON.stringify(userData.data.user));
+                  window.location.reload();
+                  return;
+                }
+              }
+            }
+          } catch {
+            // Silently ignore sync failure
+          }
+        }
+      }
+      
       setStatusState({
         status: statusRes.status as any,
         cafe: statusRes.cafe
@@ -75,7 +112,7 @@ export default function OwnerDashboardPage() {
     }
   };
 
-  const handleStatusUpdate = async (bookingId: string, targetStatus: string) => {
+  const handleStatusUpdate = async (bookingId: string, targetStatus: 'completed' | 'no_show') => {
     try {
       setActionMessage(null);
       await updateOwnerBookingStatus(bookingId, targetStatus);

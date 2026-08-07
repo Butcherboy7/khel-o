@@ -37,6 +37,25 @@ class AdminCafeListItem(CafeResponse):
         populate_by_name=True
     )
 
+class AdminCafeDetailResponse(CafeResponse):
+    business_pan: Optional[str] = None
+    gstin: Optional[str] = None
+    legal_document_url: Optional[str] = None
+    bank_account_number: Optional[str] = None
+    bank_ifsc: Optional[str] = None
+    account_holder_name: Optional[str] = None
+    cancellation_policy: Optional[str] = None
+    house_rules: List[str] = Field(default_factory=list)
+    social_links: Dict[str, Any] = Field(default_factory=dict)
+    draft_data: Dict[str, Any] = Field(default_factory=dict)
+    owner: Optional[UserResponse] = None
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 class UserRoleUpdateRequest(BaseModel):
     role: str = Field(..., description="Target role: 'gamer', 'cafe_owner', or 'admin'")
 

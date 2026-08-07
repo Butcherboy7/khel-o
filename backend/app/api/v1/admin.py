@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 from typing import Optional
 from uuid import UUID
 from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.database import get_db
 from app.schemas.admin import (
     CafeVerifyAdminRequest,
     UserRoleUpdateRequest,
-    AdminAnalyticsResponse
+    AdminAnalyticsResponse,
+    AdminCafeDetailResponse
 )
 from app.schemas.review import ReviewVisibilityRequest
 from app.repositories.user_repository import UserRepository
@@ -21,6 +23,7 @@ from app.services.cafe_service import CafeService
 from app.services.review_service import ReviewService
 from app.api.deps import require_admin
 from app.models.user import User, UserRole
+from app.models.user_role import UserRoleMapping
 
 router = APIRouter()
 
@@ -88,7 +91,8 @@ async def list_pending_cafes(
     db: AsyncSession = Depends(get_db)
 ):
     repo = CafeRepository(db)
-    service = CafeService(repo)
+    user_repo = UserRepository(db)
+    service = CafeService(repo, user_repo=user_repo)
     result = await service.get_pending_cafes(page=page, limit=limit)
     return {
         "success": True,
@@ -103,15 +107,16 @@ async def get_cafe_admin_detail(
 ):
     cafe_repo = CafeRepository(db)
     user_repo = UserRepository(db)
+    service = CafeService(cafe_repo, user_repo=user_repo)
     cafe = await cafe_repo.get_by_id(cafe_id)
     if not cafe:
         return {"success": False, "error": {"code": "CAFE_NOT_FOUND", "message": "Café not found"}}
-    owner = await user_repo.get_by_id(cafe.owner_id)
+    cafe_resp = await service._build_cafe_response(cafe, response_cls=AdminCafeDetailResponse)
     return {
         "success": True,
         "data": {
-            "cafe": cafe,
-            "owner": owner
+            "cafe": cafe_resp,
+            "owner": cafe_resp.owner
         }
     }
 
@@ -124,13 +129,60 @@ async def verify_cafe(
 ):
     cafe_repo = CafeRepository(db)
     user_repo = UserRepository(db)
-    updated = await cafe_repo.update_verification_status(cafe_id, payload.status, reason=payload.reason)
-    if updated and payload.status == "verified":
-        await user_repo.update_role(updated.owner_id, UserRole.CAFE_OWNER)
+    
+    cafe = await cafe_repo.get_by_id(cafe_id)
+    if not cafe:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Cafe not found")
+    
+    is_active = (payload.status == "verified")
+    update_fields = {"verification_status": payload.status, "is_active": is_active}
+    if payload.reason is not None:
+        update_fields["rejection_reason"] = payload.reason
+    
+    for field, value in update_fields.items():
+        if hasattr(cafe, field):
+            setattr(cafe, field, value)
+    
+    if payload.status == "verified":
+        from app.models.user_role import UserRoleMapping
+        import uuid
+        
+        stmt_check_gamer = select(UserRoleMapping).where(
+            UserRoleMapping.user_id == cafe.owner_id,
+            UserRoleMapping.role == UserRole.GAMER,
+            UserRoleMapping.cafe_id.is_(None)
+        )
+        res_gamer = await db.execute(stmt_check_gamer)
+        if not res_gamer.scalars().first():
+            db.add(UserRoleMapping(
+                id=uuid.uuid4(),
+                user_id=cafe.owner_id,
+                role=UserRole.GAMER,
+                cafe_id=None
+            ))
+        
+        stmt_check_owner = select(UserRoleMapping).where(
+            UserRoleMapping.user_id == cafe.owner_id,
+            UserRoleMapping.role == UserRole.CAFE_OWNER,
+            UserRoleMapping.cafe_id.is_(None)
+        )
+        res_owner = await db.execute(stmt_check_owner)
+        if not res_owner.scalars().first():
+            db.add(UserRoleMapping(
+                id=uuid.uuid4(),
+                user_id=cafe.owner_id,
+                role=UserRole.CAFE_OWNER,
+                cafe_id=None
+            ))
+    
+    await db.commit()
+    await db.refresh(cafe)
+    
     return {
         "success": True,
         "data": {
-            "cafe": updated
+            "cafe": cafe
         }
     }
 

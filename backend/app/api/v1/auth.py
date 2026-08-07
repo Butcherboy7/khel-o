@@ -57,11 +57,21 @@ async def refresh_token(payload: RefreshTokenRequest, db: AsyncSession = Depends
     }
 
 @router.get("/me", status_code=status.HTTP_200_OK)
-async def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.api.deps import get_user_roles
+    
+    roles = await get_user_roles(current_user.id, db)
+    
+    user_dict = UserResponse.model_validate(current_user).model_dump()
+    user_dict["roles"] = roles
+    
     return {
         "success": True,
         "data": {
-            "user": UserResponse.model_validate(current_user)
+            "user": user_dict
         }
     }
 

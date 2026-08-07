@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status, Query
 from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.database import get_db
 from app.schemas.cafe import CafeCreateRequest, CafeUpdateRequest
@@ -14,7 +15,9 @@ from app.services.cafe_service import CafeService
 from app.services.hardware_tier_service import HardwareTierService
 from app.repositories.user_repository import UserRepository
 from app.models.user import User, UserRole
+from app.models.user_role import UserRoleMapping
 from app.api.deps import require_cafe_owner, get_optional_user, get_current_active_user
+import uuid
 
 router = APIRouter()
 
@@ -121,13 +124,39 @@ async def create_cafe(
     repo = CafeRepository(db)
     user_repo = UserRepository(db)
     service = CafeService(repo)
-
-    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
-    if role_val == "gamer":
-        await user_repo.update_role(current_user.id, UserRole.CAFE_OWNER)
-        current_user.role = UserRole.CAFE_OWNER
-
+    
+    stmt_check_gamer = select(UserRoleMapping).where(
+        UserRoleMapping.user_id == current_user.id,
+        UserRoleMapping.role == UserRole.GAMER,
+        UserRoleMapping.cafe_id.is_(None)
+    )
+    res_gamer = await db.execute(stmt_check_gamer)
+    if not res_gamer.scalars().first():
+        db.add(UserRoleMapping(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+            role=UserRole.GAMER,
+            cafe_id=None
+        ))
+    
+    stmt_check_owner = select(UserRoleMapping).where(
+        UserRoleMapping.user_id == current_user.id,
+        UserRoleMapping.role == UserRole.CAFE_OWNER,
+        UserRoleMapping.cafe_id.is_(None)
+    )
+    res_owner = await db.execute(stmt_check_owner)
+    if not res_owner.scalars().first():
+        db.add(UserRoleMapping(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+            role=UserRole.CAFE_OWNER,
+            cafe_id=None
+        ))
+    
     result = await service.create_cafe(current_user.id, payload)
+    
+    await db.commit()
+    
     return {
         "success": True,
         "data": {

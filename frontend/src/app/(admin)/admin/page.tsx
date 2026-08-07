@@ -171,6 +171,15 @@ export default function AdminPage() {
                     <p className="text-caption text-text-secondary line-clamp-2">{cafe.description}</p>
                   )}
 
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedCafe(cafe)}
+                    className="text-caption"
+                  >
+                    View Full Details →
+                  </Button>
+
                   {/* Inline Action Buttons */}
                   <div className="flex items-center justify-end gap-3 border-t border-border pt-3">
                     <Button
@@ -241,6 +250,68 @@ export default function AdminPage() {
             onChange={(e) => setRejectionReason(e.target.value)}
             required
           />
+        </div>
+      </Modal>
+
+      {/* Full Details Modal */}
+      <Modal
+        isOpen={!!selectedCafe && !isRejectModalOpen}
+        onClose={() => setSelectedCafe(null)}
+        title={`Application Details: ${selectedCafe?.name}`}
+        description="Full onboarding information for verification review."
+      >
+        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+          <div className="p-3 rounded-xl bg-surface-hover">
+            <h4 className="font-semibold text-caption mb-2">Business Identity</h4>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div><span className="text-text-tertiary">Address:</span> {selectedCafe?.addressLine1}, {selectedCafe?.city}</div>
+              <div><span className="text-text-tertiary">Pincode:</span> {selectedCafe?.pincode}</div>
+              <div><span className="text-text-tertiary">Phone:</span> {selectedCafe?.phoneNumber}</div>
+              <div><span className="text-text-tertiary">Email:</span> {selectedCafe?.email || 'Not provided'}</div>
+            </div>
+          </div>
+          
+          <div className="p-3 rounded-xl bg-surface-hover">
+            <h4 className="font-semibold text-caption mb-2">Verification Documents</h4>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div><span className="text-text-tertiary">Business PAN:</span> {selectedCafe?.businessPan || 'Not provided'}</div>
+              <div><span className="text-text-tertiary">GSTIN:</span> {selectedCafe?.gstin || 'Not provided'}</div>
+              <div className="col-span-2">
+                <span className="text-text-tertiary">Legal Doc:</span>{' '}
+                {selectedCafe?.legalDocumentUrl ? (
+                  <a href={selectedCafe.legalDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">View Document</a>
+                ) : 'Not provided'}
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-3 rounded-xl bg-surface-hover">
+            <h4 className="font-semibold text-caption mb-2">Payout Account</h4>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div><span className="text-text-tertiary">Account Holder:</span> {selectedCafe?.accountHolderName || 'Not provided'}</div>
+              <div><span className="text-text-tertiary">Account #:</span> {selectedCafe?.bankAccountNumber ? `••••${selectedCafe.bankAccountNumber.slice(-4)}` : 'Not provided'}</div>
+              <div><span className="text-text-tertiary">IFSC:</span> {selectedCafe?.bankIfsc || 'Not provided'}</div>
+            </div>
+          </div>
+          
+          {selectedCafe?.draftData?.hardwareTiers && (
+            <div className="p-3 rounded-xl bg-surface-hover">
+              <h4 className="font-semibold text-caption mb-2">Hardware Tiers</h4>
+              <div className="flex flex-col gap-1 text-xs">
+                {selectedCafe.draftData.hardwareTiers.map((tier: any, idx: number) => (
+                  <div key={idx} className="flex justify-between">
+                    <span>{tier.name}</span>
+                    <span className="text-text-tertiary">{tier.gpu} • ₹{tier.hourlyRate}/hr • {tier.totalSeats} seats</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
+          <Button variant="ghost" onClick={() => setSelectedCafe(null)}>Close</Button>
+          <Button variant="primary" onClick={() => { if (selectedCafe) approveMutation.mutate(selectedCafe.id); }}>Approve Café</Button>
         </div>
       </Modal>
     </div>

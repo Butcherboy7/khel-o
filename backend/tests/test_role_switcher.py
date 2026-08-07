@@ -88,7 +88,7 @@ async def test_unverified_gamer_cannot_switch_to_owner(async_client: AsyncClient
 
 @pytest.mark.asyncio
 async def test_reverse_dual_write_sync(async_client: AsyncClient):
-    """Verify that update_role writes to user_roles join table and updates legacy user.role scalar field."""
+    """Verify that update_role writes to user_roles join table (dual-write for backward compat)."""
     from app.repositories.user_repository import UserRepository
     async with AsyncSessionLocal() as db:
         user = User(
@@ -112,8 +112,8 @@ async def test_reverse_dual_write_sync(async_client: AsyncClient):
         # 2. Trigger update_role to staff
         cafe_id = uuid.uuid4()
         updated_user = await user_repo.update_role(created_user.id, UserRole.STAFF, cafe_id=cafe_id)
-        assert updated_user.role == UserRole.STAFF
-
+        await db.commit()
+        
         # 3. Verify user_roles join table reflects staff role mapping
         res_staff = await db.execute(
             select(UserRoleMapping).where(UserRoleMapping.user_id == created_user.id, UserRoleMapping.role == UserRole.STAFF)
@@ -142,6 +142,7 @@ async def test_update_role_idempotency(async_client: AsyncClient):
         cafe_id = uuid.uuid4()
         # Call update_role first time
         await user_repo.update_role(created_user.id, UserRole.CAFE_OWNER, cafe_id=cafe_id)
+        await db.commit()
         
         stmt_count = select(func.count(UserRoleMapping.id)).where(
             UserRoleMapping.user_id == created_user.id,
@@ -153,7 +154,59 @@ async def test_update_role_idempotency(async_client: AsyncClient):
 
         # Call update_role second time (duplicate call)
         await user_repo.update_role(created_user.id, UserRole.CAFE_OWNER, cafe_id=cafe_id)
+        await db.commit()
         count2 = (await db.execute(stmt_count)).scalar() or 0
         assert count2 == 1  # Row count must remain 1
+
+
+@pytest.mark.asyncio
+async def test_approved_owner_can_switch_to_gamer(async_client: AsyncClient):
+    """Verify that a user approved as cafe_owner can switch back to gamer role."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"approved_switcher_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Approved Switcher",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.flush()
+
+        cafe = Cafe(
+            id=uuid.uuid4(),
+            owner_id=gamer.id,
+            name="Approved Arena",
+            address_line1="Road 1",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919876543210",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True
+        )
+        db.add(cafe)
+        
+        from app.repositories.user_repository import UserRepository
+        user_repo = UserRepository(db)
+        await user_repo.update_role(gamer.id, UserRole.CAFE_OWNER, cafe_id=cafe.id)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role="cafe_owner")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Switch to Gamer Mode
+        resp_gamer = await async_client.post("/api/v1/auth/switch-role", json={"targetRole": "gamer"}, headers=headers)
+        assert resp_gamer.status_code == 200
+        data_gamer = resp_gamer.json()["data"]
+        assert data_gamer["activeRole"] == "gamer"
+
+        # Switch back to Owner Mode
+        resp_owner = await async_client.post("/api/v1/auth/switch-role", json={"targetRole": "cafe_owner"}, headers=headers)
+        assert resp_owner.status_code == 200
+        data_owner = resp_owner.json()["data"]
+        assert data_owner["activeRole"] == "cafe_owner"
+
 
 

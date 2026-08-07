@@ -44,11 +44,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setAuth: (user, accessToken, refreshToken) => {
     const roleVal = (user.role as string) || 'gamer';
+    const rolesVal = user.roles || [roleVal];
     if (typeof window !== 'undefined') {
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('user', JSON.stringify(user));
       localStorage.setItem('activeRole', roleVal);
+      localStorage.setItem('roles', JSON.stringify(rolesVal));
     }
     set({ user, accessToken, refreshToken, activeRole: roleVal as UserActiveRole, isAuthenticated: true, isLoading: false, isHydrated: true });
   },
@@ -71,11 +73,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const res = await apiClient.post<{ success: boolean; data: { accessToken: string; refreshToken: string; activeRole: string; user: User } }>('/auth/switch-role', { targetRole });
       const { accessToken, refreshToken, activeRole, user } = res.data.data;
+      const rolesVal = user.roles || [user.role];
       if (typeof window !== 'undefined') {
         localStorage.setItem('accessToken', accessToken);
         localStorage.setItem('refreshToken', refreshToken);
         localStorage.setItem('activeRole', activeRole);
         localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('roles', JSON.stringify(rolesVal));
       }
       set({ accessToken, refreshToken, activeRole: activeRole as UserActiveRole, user });
     } catch (err: any) {
@@ -100,6 +104,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
       localStorage.removeItem('activeRole');
+      localStorage.removeItem('roles');
       localStorage.removeItem('khel_booking_draft');
       window.location.href = '/login';
     }
@@ -160,7 +165,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const res = await apiClient.get<{ success: boolean; data: { user: User } }>('/auth/me');
       const user = res.data?.data?.user;
       if (user) {
+        const rolesVal = user.roles || [user.role];
         localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('roles', JSON.stringify(rolesVal));
         set({ user, accessToken, refreshToken, activeRole: savedActiveRole, isAuthenticated: true, isLoading: false, isHydrated: true });
       } else if (!cachedUser) {
         throw new Error('No user in /me response');
@@ -171,6 +178,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
         localStorage.removeItem('activeRole');
+        localStorage.removeItem('roles');
         set({ user: null, accessToken: null, refreshToken: null, activeRole: 'gamer', isAuthenticated: false, isLoading: false, isHydrated: true });
       }
     }

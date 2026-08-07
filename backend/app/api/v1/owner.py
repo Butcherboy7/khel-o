@@ -15,7 +15,7 @@ from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.services.owner_service import OwnerService
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user
+from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
@@ -57,8 +57,8 @@ class OnboardingSubmitRequest(BaseModel):
     longitude: Optional[float] = None
     phone_number: str = Field(..., max_length=20)
     email: Optional[str] = None
-    opening_time: Optional[str] = "09:00:00"
-    closing_time: Optional[str] = "23:00:00"
+    opening_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Opening time in HH:MM:SS format (required)")
+    closing_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Closing time in HH:MM:SS format (required, can be earlier than opening for overnight)")
     total_seats: int = Field(20, ge=1)
     amenities: List[str] = Field(default_factory=list)
     photos: List[str] = Field(default_factory=list)
@@ -183,32 +183,47 @@ async def submit_onboarding_application(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Upgrade user role if needed
-    if current_user.role == UserRole.GAMER:
-        current_user.role = UserRole.CAFE_OWNER
-        db.add(current_user)
+    from app.models.user_role import UserRoleMapping
+    import uuid
+    
+    stmt_check_gamer = select(UserRoleMapping).where(
+        UserRoleMapping.user_id == current_user.id,
+        UserRoleMapping.role == UserRole.GAMER,
+        UserRoleMapping.cafe_id.is_(None)
+    )
+    res_gamer = await db.execute(stmt_check_gamer)
+    if not res_gamer.scalars().first():
+        db.add(UserRoleMapping(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+            role=UserRole.GAMER,
+            cafe_id=None
+        ))
+    
+    stmt_check_owner = select(UserRoleMapping).where(
+        UserRoleMapping.user_id == current_user.id,
+        UserRoleMapping.role == UserRole.CAFE_OWNER,
+        UserRoleMapping.cafe_id.is_(None)
+    )
+    res_owner = await db.execute(stmt_check_owner)
+    if not res_owner.scalars().first():
+        db.add(UserRoleMapping(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+            role=UserRole.CAFE_OWNER,
+            cafe_id=None
+        ))
 
     stmt = select(Cafe).where(Cafe.owner_id == current_user.id).order_by(Cafe.created_at.desc())
     res = await db.execute(stmt)
     cafe = res.scalars().first()
 
-    # Parse opening/closing time strings safely
-    opening_time_obj = None
-    closing_time_obj = None
-    if payload.opening_time:
-        try:
-            parts = payload.opening_time.split(":")
-            opening_time_obj = time(hour=int(parts[0]), minute=int(parts[1]))
-        except Exception:
-            opening_time_obj = time(9, 0)
-
-    if payload.closing_time:
-        try:
-            parts = payload.closing_time.split(":")
-            closing_time_obj = time(hour=int(parts[0]), minute=int(parts[1]))
-        except Exception:
-            closing_time_obj = time(23, 0)
-
+    parts = payload.opening_time.split(":")
+    opening_time_obj = time(hour=int(parts[0]), minute=int(parts[1]))
+    
+    parts = payload.closing_time.split(":")
+    closing_time_obj = time(hour=int(parts[0]), minute=int(parts[1]))
+    
     if not cafe:
         cafe = Cafe(
             owner_id=current_user.id,
@@ -600,6 +615,7 @@ async def create_staff_user(
 
     # Link staff user role to owner cafe_id in user_roles join table
     await user_repo.update_role(staff_user.id, UserRole.STAFF, cafe_id=cafe_id)
+    await db.commit()
 
     return {
         "success": True,
@@ -670,5 +686,457 @@ async def delete_staff_user(
         "success": True,
         "data": {
             "message": "Staff member deactivated successfully"
+        }
+    }
+
+@router.patch("/cafes/{cafe_id}/emergency-mode", status_code=status.HTTP_200_OK)
+async def toggle_emergency_mode(
+    cafe_id: UUID,
+    is_emergency_mode: bool = Query(..., alias="isEmergencyMode"),
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Toggle cafe emergency mode. When enabled, cafe won't appear in search and can't accept bookings."""
+    stmt = select(Cafe).where(Cafe.id == cafe_id, Cafe.owner_id == current_owner.id)
+    res = await db.execute(stmt)
+    cafe = res.scalars().first()
+    
+    if not cafe:
+        raise NotFoundException("Café not found")
+    
+    cafe.is_emergency_mode = is_emergency_mode
+    await db.commit()
+    await db.refresh(cafe)
+    
+    return {
+        "success": True,
+        "data": {
+            "cafe": {
+                "id": str(cafe.id),
+                "isEmergencyMode": cafe.is_emergency_mode
+            }
+        }
+    }
+
+
+class BookingControlsUpdate(BaseModel):
+    bookable_stations: Optional[int] = Field(None, ge=0)
+    bookings_paused: Optional[bool] = None
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class CafeHoursUpdate(BaseModel):
+    opening_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$")
+    closing_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$")
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class CafePricingUpdate(BaseModel):
+    pricing: List[Dict[str, Any]]
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class TierCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100)
+    description: Optional[str] = None
+    specs: Dict[str, Any] = Field(default_factory=dict)
+    price_per_hour: float = Field(..., ge=0)
+    total_seats: int = Field(10, ge=1)
+    app_bookable_seats: int = Field(7, ge=1)
+    preset_category: str = "custom"
+    is_active: bool = True
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class TierUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=100)
+    description: Optional[str] = None
+    specs: Optional[Dict[str, Any]] = None
+    price_per_hour: Optional[float] = Field(None, ge=0)
+    total_seats: Optional[int] = Field(None, ge=1)
+    app_bookable_seats: Optional[int] = Field(None, ge=1)
+    is_active: Optional[bool] = None
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class CafeDetailsUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=255)
+    description: Optional[str] = None
+    address_line1: Optional[str] = Field(None, max_length=255)
+    address_line2: Optional[str] = Field(None, max_length=255)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    pincode: Optional[str] = Field(None, max_length=10)
+    phone_number: Optional[str] = Field(None, max_length=20)
+    email: Optional[str] = None
+    amenities: Optional[List[str]] = None
+    photos: Optional[List[str]] = None
+    description: Optional[str] = None
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+@router.patch("/cafes/{cafe_id}/booking-controls", status_code=status.HTTP_200_OK)
+async def update_booking_controls(
+    cafe_id: UUID,
+    payload: BookingControlsUpdate,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update booking controls: bookable stations count and pause/resume bookings."""
+    if payload.bookable_stations is not None:
+        cafe.bookable_stations = payload.bookable_stations
+    
+    if payload.bookings_paused is not None:
+        cafe.bookings_paused = payload.bookings_paused
+    
+    await db.commit()
+    await db.refresh(cafe)
+    
+    return {
+        "success": True,
+        "data": {
+            "cafe": {
+                "id": str(cafe.id),
+                "bookableStations": cafe.bookable_stations,
+                "bookingsPaused": cafe.bookings_paused
+            }
+        }
+    }
+
+@router.post("/cafes/{cafe_id}/pause-bookings", status_code=status.HTTP_200_OK)
+async def pause_bookings(
+    cafe_id: UUID,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Pause all online bookings for this cafe."""
+    cafe.bookings_paused = True
+    await db.commit()
+    await db.refresh(cafe)
+    
+    return {
+        "success": True,
+        "data": {
+            "cafe": {
+                "id": str(cafe.id),
+                "bookingsPaused": cafe.bookings_paused
+            },
+            "message": "Bookings paused successfully"
+        }
+    }
+
+@router.post("/cafes/{cafe_id}/resume-bookings", status_code=status.HTTP_200_OK)
+async def resume_bookings(
+    cafe_id: UUID,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Resume online bookings for this cafe."""
+    cafe.bookings_paused = False
+    await db.commit()
+    await db.refresh(cafe)
+    
+    return {
+        "success": True,
+        "data": {
+            "cafe": {
+                "id": str(cafe.id),
+                "bookingsPaused": cafe.bookings_paused
+            },
+            "message": "Bookings resumed successfully"
+        }
+    }
+
+@router.patch("/cafes/{cafe_id}/hours", status_code=status.HTTP_200_OK)
+async def update_operating_hours(
+    cafe_id: UUID,
+    payload: CafeHoursUpdate,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update cafe operating hours. Supports overnight ranges like 10:00-02:00."""
+    try:
+        parts = payload.opening_time.split(":")
+        opening_time_obj = time(hour=int(parts[0]), minute=int(parts[1]))
+    except Exception:
+        raise BadRequestException("Invalid opening time format. Use HH:MM:SS")
+    
+    try:
+        parts = payload.closing_time.split(":")
+        closing_time_obj = time(hour=int(parts[0]), minute=int(parts[1]))
+    except Exception:
+        raise BadRequestException("Invalid closing time format. Use HH:MM:SS")
+    
+    cafe.opening_time = opening_time_obj
+    cafe.closing_time = closing_time_obj
+    await db.commit()
+    await db.refresh(cafe)
+    
+    return {
+        "success": True,
+        "data": {
+            "cafe": {
+                "id": str(cafe.id),
+                "openingTime": str(cafe.opening_time),
+                "closingTime": str(cafe.closing_time)
+            }
+        }
+    }
+
+@router.patch("/cafes/{cafe_id}/pricing", status_code=status.HTTP_200_OK)
+async def update_pricing(
+    cafe_id: UUID,
+    payload: CafePricingUpdate,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update pricing for hardware tiers. Each tier must belong to this cafe."""
+    tier_repo = HardwareTierRepository(db)
+    
+    for tier_update in payload.pricing:
+        tier_id = tier_update.get("tierId") or tier_update.get("tier_id")
+        if not tier_id:
+            continue
+        
+        tier = await tier_repo.get_by_id(UUID(tier_id))
+        if not tier or str(tier.cafe_id) != str(cafe_id):
+            raise ForbiddenException(f"Tier {tier_id} does not belong to this café", error_code="TIER_NOT_OWNED")
+        
+        price_per_hour = tier_update.get("pricePerHour") or tier_update.get("price_per_hour")
+        if price_per_hour is not None:
+            tier.price_per_hour = float(price_per_hour)
+    
+    await db.commit()
+    
+    tiers = await tier_repo.get_by_cafe_id(cafe_id)
+    
+    return {
+        "success": True,
+        "data": {
+            "tiers": [
+                {
+                    "id": str(t.id),
+                    "name": t.name,
+                    "pricePerHour": t.price_per_hour
+                }
+                for t in tiers
+            ]
+        }
+    }
+
+@router.post("/cafes/{cafe_id}/tiers", status_code=status.HTTP_200_OK)
+async def create_tier(
+    cafe_id: UUID,
+    payload: TierCreate,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a new gaming tier to this cafe."""
+    tier_repo = HardwareTierRepository(db)
+    
+    tier_dict = {
+        "cafe_id": cafe_id,
+        "name": payload.name,
+        "description": payload.description,
+        "specs": payload.specs,
+        "price_per_hour": payload.price_per_hour,
+        "total_seats": payload.total_seats,
+        "app_bookable_seats": payload.app_bookable_seats,
+        "active_seats_count": payload.total_seats,
+        "preset_category": payload.preset_category,
+        "is_active": payload.is_active
+    }
+    
+    created_tier = await tier_repo.create(tier_dict)
+    await db.commit()
+    await db.refresh(created_tier)
+    
+    return {
+        "success": True,
+        "data": {
+            "tier": {
+                "id": str(created_tier.id),
+                "name": created_tier.name,
+                "pricePerHour": created_tier.price_per_hour,
+                "totalSeats": created_tier.total_seats
+            }
+        }
+    }
+
+@router.patch("/cafes/{cafe_id}/tiers/{tier_id}", status_code=status.HTTP_200_OK)
+async def update_tier(
+    cafe_id: UUID,
+    tier_id: UUID,
+    payload: TierUpdate,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update an existing gaming tier."""
+    tier_repo = HardwareTierRepository(db)
+    tier = await tier_repo.get_by_id(tier_id)
+    
+    if not tier or str(tier.cafe_id) != str(cafe_id):
+        raise ForbiddenException("This tier does not belong to your café", error_code="TIER_NOT_OWNED")
+    
+    update_data = {}
+    if payload.name is not None:
+        update_data["name"] = payload.name
+    if payload.description is not None:
+        update_data["description"] = payload.description
+    if payload.specs is not None:
+        update_data["specs"] = payload.specs
+    if payload.price_per_hour is not None:
+        update_data["price_per_hour"] = payload.price_per_hour
+    if payload.total_seats is not None:
+        update_data["total_seats"] = payload.total_seats
+    if payload.app_bookable_seats is not None:
+        update_data["app_bookable_seats"] = payload.app_bookable_seats
+    if payload.is_active is not None:
+        update_data["is_active"] = payload.is_active
+    
+    if update_data:
+        await tier_repo.update(tier_id, update_data)
+        await db.commit()
+    
+    updated_tier = await tier_repo.get_by_id(tier_id)
+    
+    return {
+        "success": True,
+        "data": {
+            "tier": {
+                "id": str(updated_tier.id),
+                "name": updated_tier.name,
+                "pricePerHour": updated_tier.price_per_hour,
+                "totalSeats": updated_tier.total_seats,
+                "isActive": updated_tier.is_active
+            }
+        }
+    }
+
+@router.delete("/cafes/{cafe_id}/tiers/{tier_id}", status_code=status.HTTP_200_OK)
+async def delete_tier(
+    cafe_id: UUID,
+    tier_id: UUID,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete (deactivate) a gaming tier."""
+    tier_repo = HardwareTierRepository(db)
+    tier = await tier_repo.get_by_id(tier_id)
+    
+    if not tier or str(tier.cafe_id) != str(cafe_id):
+        raise ForbiddenException("This tier does not belong to your café", error_code="TIER_NOT_OWNED")
+    
+    await tier_repo.update(tier_id, {"is_active": False})
+    await db.commit()
+    
+    return {
+        "success": True,
+        "data": {
+            "message": "Tier deactivated successfully",
+            "tierId": str(tier_id)
+        }
+    }
+
+@router.patch("/cafes/{cafe_id}/details", status_code=status.HTTP_200_OK)
+async def update_cafe_details(
+    cafe_id: UUID,
+    payload: CafeDetailsUpdate,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update general cafe details (name, address, description, etc.)."""
+    if payload.name is not None:
+        cafe.name = payload.name
+    if payload.description is not None:
+        cafe.description = payload.description
+    if payload.address_line1 is not None:
+        cafe.address_line1 = payload.address_line1
+    if payload.address_line2 is not None:
+        cafe.address_line2 = payload.address_line2
+    if payload.city is not None:
+        cafe.city = payload.city
+    if payload.state is not None:
+        cafe.state = payload.state
+    if payload.pincode is not None:
+        cafe.pincode = payload.pincode
+    if payload.phone_number is not None:
+        cafe.phone_number = payload.phone_number
+    if payload.email is not None:
+        cafe.email = payload.email
+    if payload.amenities is not None:
+        cafe.amenities = payload.amenities
+    if payload.photos is not None:
+        cafe.photos = payload.photos
+    
+    await db.commit()
+    await db.refresh(cafe)
+    
+    return {
+        "success": True,
+        "data": {
+            "cafe": {
+                "id": str(cafe.id),
+                "name": cafe.name,
+                "description": cafe.description,
+                "city": cafe.city
+            }
+        }
+    }
+
+@router.post("/bookings/{booking_id}/cancel", status_code=status.HTTP_200_OK)
+async def cancel_booking_as_owner(
+    booking_id: UUID,
+    reason: Optional[str] = Body(None, embed=True),
+    current_user: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Cancel a booking as cafe owner. Follows payment_status-aware cancellation rules."""
+    booking_repo = BookingRepository(db)
+    cafe_repo = CafeRepository(db)
+    tier_repo = HardwareTierRepository(db)
+    
+    booking = await booking_repo.get_by_id(booking_id)
+    if not booking:
+        raise NotFoundException("Booking not found", error_code="BOOKING_NOT_FOUND")
+    
+    cafe = await cafe_repo.get_by_id(booking.cafe_id)
+    if not cafe or str(cafe.owner_id) != str(current_user.id):
+        raise ForbiddenException("You can only cancel bookings for your own café", error_code="NOT_CAFE_OWNER")
+    
+    if booking.status not in (BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED):
+        raise BadRequestException(
+            f"Cannot cancel booking with status '{booking.status.value}'",
+            error_code="INVALID_BOOKING_STATUS"
+        )
+    
+    now_utc = datetime.now(timezone.utc)
+    from app.services.booking_service import IST
+    now_ist = datetime.now(IST)
+    start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
+    
+    if booking.status == BookingStatus.CONFIRMED:
+        if start_datetime - now_ist < timedelta(hours=2):
+            raise BadRequestException(
+                "Cannot cancel confirmed booking within 2 hours of session start",
+                error_code="CANCELLATION_WINDOW_EXPIRED"
+            )
+    
+    updated = await booking_repo.update(booking_id, {
+        "status": BookingStatus.CANCELLED,
+        "cancelled_at": now_utc,
+        "cancellation_reason": reason or "Cancelled by cafe owner"
+    })
+    
+    return {
+        "success": True,
+        "data": {
+            "booking": {
+                "id": str(updated.id),
+                "status": updated.status.value,
+                "cancelledAt": updated.cancelled_at.isoformat() if updated.cancelled_at else None
+            },
+            "message": "Booking cancelled successfully"
         }
     }

@@ -114,23 +114,79 @@ class UserRepository(BaseRepository[User]):
     async def activate(self, user_id: UUID) -> Optional[User]:
         return await self.update(user_id, {"is_active": True})
 
+    async def grant_role(self, user_id: UUID, role: UserRole, cafe_id: Optional[UUID] = None) -> bool:
+        """Additive role grant - ONLY inserts into user_roles, never overwrites users.role column."""
+        from app.models.user_role import UserRoleMapping
+        import uuid
+        
+        user = await self.get_by_id(user_id)
+        if not user:
+            return False
+        
+        stmt_check = select(UserRoleMapping).where(
+            UserRoleMapping.user_id == user_id,
+            UserRoleMapping.role == role,
+            UserRoleMapping.cafe_id == cafe_id
+        )
+        res = await self.db.execute(stmt_check)
+        if not res.scalars().first():
+            self.db.add(UserRoleMapping(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                role=role,
+                cafe_id=cafe_id
+            ))
+        
+        return True
+    
+    async def ensure_gamer_role(self, user_id: UUID) -> bool:
+        """Ensure base GAMER role exists for user (idempotent)."""
+        from app.models.user_role import UserRoleMapping
+        import uuid
+        
+        user = await self.get_by_id(user_id)
+        if not user:
+            return False
+        
+        stmt_check = select(UserRoleMapping).where(
+            UserRoleMapping.user_id == user_id,
+            UserRoleMapping.role == UserRole.GAMER,
+            UserRoleMapping.cafe_id.is_(None)
+        )
+        res = await self.db.execute(stmt_check)
+        if not res.scalars().first():
+            self.db.add(UserRoleMapping(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                role=UserRole.GAMER,
+                cafe_id=None
+            ))
+        
+        return True
+
     async def update_role(self, user_id: UUID, role: UserRole, cafe_id: Optional[UUID] = None) -> Optional[User]:
-        user = await self.update(user_id, {"role": role})
-        if user:
-            from app.models.user_role import UserRoleMapping
-            import uuid
-            stmt_check = select(UserRoleMapping).where(
-                UserRoleMapping.user_id == user.id,
-                UserRoleMapping.role == role,
-                UserRoleMapping.cafe_id == cafe_id
-            )
-            res = await self.db.execute(stmt_check)
-            if not res.scalars().first():
-                self.db.add(UserRoleMapping(
-                    id=uuid.uuid4(),
-                    user_id=user.id,
-                    role=role,
-                    cafe_id=cafe_id
-                ))
-                await self.db.commit()
+        user = await self.get_by_id(user_id)
+        if not user:
+            return None
+        
+        import uuid
+        from app.models.user_role import UserRoleMapping
+        
+        role_hierarchy = {
+            UserRole.GAMER: 1,
+            UserRole.CAFE_OWNER: 2,
+            UserRole.STAFF: 2,
+            UserRole.ADMIN: 3
+        }
+        
+        current_role_level = role_hierarchy.get(user.role, 0)
+        new_role_level = role_hierarchy.get(role, 0)
+        
+        if new_role_level > current_role_level:
+            user.role = role
+        
+        await self.ensure_gamer_role(user_id)
+        
+        await self.grant_role(user_id, role, cafe_id)
+        
         return user
