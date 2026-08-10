@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -14,6 +14,7 @@ import {
   LogOut,
   ChevronRight,
   BarChart3,
+  QrCode,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -44,6 +45,7 @@ const ownerNavSections: NavSection[] = [
   {
     heading: 'Operations',
     items: [
+      { label: 'Pass Scanner', href: '/owner/scanner', icon: QrCode },
       { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
       { label: 'Hardware Tiers', href: '/owner/tiers', icon: Monitor },
       { label: 'Promotions & Offers', href: '/owner/offers', icon: Tag },
@@ -59,8 +61,10 @@ const ownerNavSections: NavSection[] = [
   },
 ];
 
-// Staff-only sees a simplified view
+// Staff sees a dedicated operational view
 const staffNavItems: NavItem[] = [
+  { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
+  { label: 'Pass Scanner', href: '/owner/scanner', icon: QrCode },
   { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
 ];
 
@@ -69,15 +73,33 @@ const staffNavItems: NavItem[] = [
 function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
+  const [cachedUser, setCachedUser] = useState<any>(null);
 
-  const initials = user?.fullName
-    ? user.fullName
+  useEffect(() => {
+    if (!user && typeof window !== 'undefined') {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        try {
+          setCachedUser(JSON.parse(stored));
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, [user]);
+
+  const activeUser = user || cachedUser;
+
+  const initials = activeUser?.fullName
+    ? activeUser.fullName
         .split(' ')
-        .map((n) => n[0])
+        .map((n: string) => n[0])
         .join('')
         .slice(0, 2)
         .toUpperCase()
-    : '?';
+    : activeUser?.email
+    ? activeUser.email[0].toUpperCase()
+    : 'O';
 
   const sections = isStaff
     ? [{ heading: 'Operations', items: staffNavItems }]
@@ -145,7 +167,7 @@ function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
             </div>
             <div className="flex flex-col">
               <span className="truncate text-body-emphasis text-white">
-                {user?.fullName ?? 'Owner'}
+                {activeUser?.fullName || activeUser?.email || 'Café Owner'}
               </span>
               <span className="truncate text-caption text-white/50">
                 {isStaff ? 'Staff' : 'Owner'}
@@ -169,13 +191,20 @@ function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
 
 function OwnerTopBar() {
   return (
-    <header className="sticky top-0 z-nav flex h-nav items-center justify-between border-b border-border bg-secondary px-4 lg:hidden">
-      <div className="flex items-center gap-2">
+    <header className="sticky top-0 z-nav flex h-14 items-center justify-between border-b border-border bg-card px-4 lg:px-8">
+      <div className="flex items-center gap-2 lg:hidden">
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
           <span className="font-heading text-body-emphasis text-white">K</span>
         </div>
-        <span className="font-heading text-h3 text-white">KHEL-O</span>
+        <span className="font-heading text-h3 text-text-primary">KHEL-O</span>
       </div>
+
+      <div className="hidden lg:flex items-center gap-2 text-caption text-text-secondary">
+        <span className="font-semibold text-text-primary">Café Owner Portal</span>
+        <span>•</span>
+        <span>Venue Operational Status & Live Management</span>
+      </div>
+
       <RoleSwitcher />
     </header>
   );
@@ -225,14 +254,14 @@ export function OwnerShell({
   return (
     <div className="min-h-screen bg-surface">
       <OwnerSidebar isStaff={isStaff} />
-      <OwnerTopBar />
 
       {/* Main content — offset by owner sidebar on desktop */}
-      <main className="lg:pl-owner-sidebar">
-        <div className="mx-auto w-full max-w-owner px-4 pb-20 pt-4 lg:px-8 lg:pb-8 lg:pt-8">
+      <div className="lg:pl-owner-sidebar">
+        <OwnerTopBar />
+        <main className="mx-auto w-full max-w-owner px-4 pb-20 pt-4 lg:px-8 lg:pb-8 lg:pt-8">
           {children}
-        </div>
-      </main>
+        </main>
+      </div>
 
       <OwnerBottomNav isStaff={isStaff} />
     </div>

@@ -54,13 +54,25 @@ function clearAuthAndRedirect() {
 function normaliseError(err: unknown): ApiError {
   if (err instanceof ApiError) return err;
 
-  const axiosErr = err as AxiosError<{ error?: { code?: string; message?: string }; detail?: string }>;
+  const axiosErr = err as AxiosError<{ error?: { code?: string; message?: string }; detail?: any }>;
 
   if (axiosErr.isAxiosError && axiosErr.response) {
     const data = axiosErr.response.data;
     const code = data?.error?.code;
-    const message =
-      data?.error?.message ?? data?.detail ?? 'An unexpected error occurred.';
+    let message = data?.error?.message ?? (typeof data?.detail === 'string' ? data?.detail : null);
+
+    if (!message && Array.isArray(data?.detail)) {
+      const fieldErrs = data.detail.map((d: any) => {
+        const fieldName = Array.isArray(d.loc) ? d.loc[d.loc.length - 1] : 'field';
+        return `${fieldName}: ${d.msg}`;
+      }).join(' | ');
+      message = `Validation Error — ${fieldErrs}`;
+    }
+
+    if (!message) {
+      message = 'An unexpected error occurred.';
+    }
+
     return new ApiError(message, axiosErr.response.status, code);
   }
 

@@ -125,3 +125,16 @@ async def db_session():
     
     async with AsyncSessionLocal() as session:
         yield session
+
+
+@pytest_asyncio.fixture
+async def async_client():
+    """Create an async HTTP client for testing."""
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test"
+    ) as client:
+        yield client

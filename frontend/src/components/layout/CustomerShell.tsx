@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import {
   Search,
   CalendarDays,
@@ -13,37 +14,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
-import { NotificationCenter, type NotificationItem } from '@/components/customer/NotificationCenter';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
-
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 'n1',
-    title: 'Booking Confirmed! 🎮',
-    message: 'Your station at LXG Esports Arena is reserved for today at 4:00 PM.',
-    timestamp: '10 mins ago',
-    type: 'booking',
-    isRead: false,
-    link: '/bookings',
-  },
-  {
-    id: 'n2',
-    title: '30% Off Afternoon Deal! 🔥',
-    message: 'Use code OFFPEAK50 before 5 PM at CyberStorm Arena in New Delhi.',
-    timestamp: '1 hour ago',
-    type: 'offer',
-    isRead: false,
-    link: '/cafe/ca893fe293ba463fb0bbc20f9590c0f1',
-  },
-  {
-    id: 'n3',
-    title: 'Welcome to KHEL-O 🚀',
-    message: 'Explore top gaming cafes, select hardware tiers, and enjoy instant pass check-ins.',
-    timestamp: '1 day ago',
-    type: 'system',
-    isRead: true,
-  },
-];
+import { apiClient } from '@/lib/api/client';
 
 interface NavItem {
   label: string;
@@ -59,17 +31,22 @@ const customerNavItems: NavItem[] = [
   { label: 'Profile', href: '/profile', icon: UserCircle, matchPrefix: false },
 ];
 
-function CustomerHeader({
-  onOpenNotifications,
-  hasUnread,
-}: {
-  onOpenNotifications: () => void;
-  hasUnread: boolean;
-}) {
+function CustomerHeader() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
+  
+  const { data: unreadData } = useQuery<{ unreadCount: number }>({
+    queryKey: ['unread-count'],
+    queryFn: async () => {
+      const response = await apiClient.get('/api/v1/notifications/unread-count');
+      return response.data;
+    },
+    staleTime: 60_000,
+    refetchInterval: 30_000,
+  });
 
   const initial = user?.fullName ? user.fullName[0].toUpperCase() : 'A';
+  const unreadCount = unreadData?.unreadCount || 0;
 
   return (
     <header className="sticky top-0 z-nav w-full border-b border-border/60 bg-card/95 backdrop-blur-md">
@@ -115,16 +92,18 @@ function CustomerHeader({
         {/* Right Actions */}
         <div className="flex items-center gap-3">
           <RoleSwitcher />
-          <button
-            onClick={onOpenNotifications}
+          <Link
+            href="/notifications"
             className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition-all hover:bg-border/60 hover:text-text-primary active:scale-95"
             aria-label="Notifications"
           >
             <Bell className="h-4 w-4" />
-            {hasUnread && (
-              <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-accent animate-pulse" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-accent text-white text-badge font-bold">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
             )}
-          </button>
+          </Link>
 
           <Link href="/profile">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary font-heading text-caption font-semibold text-white shadow-card transition-transform hover:scale-105">
@@ -174,47 +153,17 @@ function CustomerBottomNav() {
 
 export function CustomerShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
-
   const hideBottomNav = pathname.startsWith('/bookings/new');
-  const hasUnread = notifications.some((n) => !n.isRead);
-
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
-  };
-
-  const clearAll = () => {
-    setNotifications([]);
-  };
 
   return (
     <div className="min-h-screen bg-surface/40">
-      <CustomerHeader
-        onOpenNotifications={() => setIsNotificationsOpen(true)}
-        hasUnread={hasUnread}
-      />
+      <CustomerHeader />
 
       <main className="mx-auto w-full max-w-content px-4 py-6 md:px-6 md:py-8 pb-24 md:pb-12">
         {children}
       </main>
 
       {!hideBottomNav && <CustomerBottomNav />}
-
-      <NotificationCenter
-        isOpen={isNotificationsOpen}
-        onClose={() => setIsNotificationsOpen(false)}
-        notifications={notifications}
-        onMarkAllAsRead={markAllAsRead}
-        onMarkAsRead={markAsRead}
-        onClearAll={clearAll}
-      />
     </div>
   );
 }
