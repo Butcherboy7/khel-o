@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Search, MapPin, SlidersHorizontal, Flame, Sparkles, Navigation, X, Gamepad2, Layers } from 'lucide-react';
 import { listCafes } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAuthStore } from '@/store/authStore';
+import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SearchBarWithSuggestions } from '@/components/customer/SearchBarWithSuggestions';
 import { SkeletonCafeGrid, ErrorState, EmptyState, Button, Badge } from '@/components/ui';
@@ -40,17 +42,70 @@ function findClosestCity(lat: number, lng: number): string {
 export default function ExplorePage() {
   const user = useAuthStore((s) => s.user);
   const firstName = user?.fullName ? user.fullName.split(' ')[0] : 'Gamer';
+  
+  const { selectedCity: persistedCity, setSelectedCity: setPersistedCity } = useLocationStore();
+  
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCity, setSelectedCity] = useState('All Cities');
+  const [selectedCity, setSelectedCity] = useState(persistedCity || 'All Cities');
   const [activeTag, setActiveTag] = useState<string>('All');
   const [isLocating, setIsLocating] = useState(false);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const cafesGridRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<number>(0);
 
   const debouncedQuery = useDebounce(searchQuery, 300);
+  
+  useEffect(() => {
+    const cityParam = searchParams.get('city');
+    if (cityParam && KNOWN_CITIES.includes(cityParam)) {
+      setSelectedCity(cityParam);
+      setPersistedCity(cityParam);
+    }
+  }, [searchParams, setPersistedCity]);
+  
+  const handleCityChange = (city: string) => {
+    setSelectedCity(city);
+    setPersistedCity(city);
+    const params = new URLSearchParams(searchParams.toString());
+    if (city && city !== 'All Cities') {
+      params.set('city', city);
+    } else {
+      params.delete('city');
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      scrollRef.current = window.scrollY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const savedPos = sessionStorage.getItem('explore_scroll_pos');
+    if (savedPos) {
+      const pos = parseInt(savedPos, 10);
+      if (!isNaN(pos) && pos > 0) {
+        setTimeout(() => {
+          window.scrollTo({ top: pos, behavior: 'auto' });
+        }, 50);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      sessionStorage.setItem('explore_scroll_pos', String(scrollRef.current));
+    };
+  }, []);
 
   // Click-outside listener for city dropdown
   useEffect(() => {
@@ -72,12 +127,11 @@ export default function ExplorePage() {
         setIsLocating(false);
         const { latitude, longitude } = pos.coords;
         const detected = findClosestCity(latitude, longitude);
-        setSelectedCity(detected);
+        handleCityChange(detected);
       },
       () => {
         setIsLocating(false);
-        // Fallback to Hyderabad if permission denied or offline in test environment
-        setSelectedCity('Hyderabad');
+        handleCityChange('Hyderabad');
       },
       { timeout: 5000 }
     );
@@ -136,7 +190,7 @@ export default function ExplorePage() {
 
   const handleResetFilters = () => {
     setSearchQuery('');
-    setSelectedCity('All Cities');
+    handleCityChange('All Cities');
     setActiveTag('All');
   };
 
@@ -186,7 +240,7 @@ export default function ExplorePage() {
                 <button
                   key={city}
                   onClick={() => {
-                    setSelectedCity(city);
+                    handleCityChange(city);
                     setShowCityDropdown(false);
                   }}
                   className={`p-2.5 rounded-xl text-caption font-semibold text-left transition-colors flex items-center justify-between ${

@@ -1,8 +1,8 @@
 'use client';
 
 import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
-import { useCallback, useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { useCallback, useState, useRef, useEffect } from 'react';
+import { MapPin, Search } from 'lucide-react';
 
 const mapContainerStyle = {
   width: '100%',
@@ -15,10 +15,12 @@ const defaultCenter = {
   lng: 77.5946,
 };
 
+const libraries: ('places' | 'drawing' | 'geometry' | 'visualization')[] = ['places'];
+
 interface LocationPickerProps {
   initialLat?: number;
   initialLng?: number;
-  onLocationSelect: (location: { lat: number; lng: number; address?: string }) => void;
+  onLocationSelect: (location: { lat: number; lng: number; addressLine1?: string; city?: string; state?: string; pincode?: string }) => void;
 }
 
 export function GoogleLocationPicker({
@@ -27,16 +29,71 @@ export function GoogleLocationPicker({
   onLocationSelect,
 }: LocationPickerProps) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const { isLoaded, loadError } = useJsApiLoader({
+  const isAlreadyLoaded = typeof window !== 'undefined' && typeof window.google?.maps?.Map === 'function';
+
+  const { isLoaded: isJsLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: apiKey,
+    libraries,
   });
+
+  const isLoaded = isJsLoaded || isAlreadyLoaded;
 
   const [position, setPosition] = useState<{ lat: number; lng: number }>({
     lat: initialLat || defaultCenter.lat,
     lng: initialLng || defaultCenter.lng,
   });
+
+  useEffect(() => {
+    if (!isLoaded || !inputRef.current || !window.google?.maps?.places) return;
+
+    try {
+      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+        types: ['establishment', 'geocode'],
+        componentRestrictions: { country: 'in' },
+      });
+
+      const listener = autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (place.geometry && place.geometry.location) {
+          const newLat = place.geometry.location.lat();
+          const newLng = place.geometry.location.lng();
+          const newPos = { lat: newLat, lng: newLng };
+          setPosition(newPos);
+
+          let addressLine1 = place.name || '';
+          let city = '';
+          let state = '';
+          let pincode = '';
+
+          if (place.address_components) {
+            for (const comp of place.address_components) {
+              if (comp.types.includes('locality')) city = comp.long_name;
+              if (comp.types.includes('administrative_area_level_1')) state = comp.long_name;
+              if (comp.types.includes('postal_code')) pincode = comp.long_name;
+            }
+          }
+
+          onLocationSelect({
+            lat: newLat,
+            lng: newLng,
+            addressLine1: addressLine1 || place.formatted_address,
+            city,
+            state,
+            pincode,
+          });
+        }
+      });
+
+      return () => {
+        if (listener) listener.remove();
+      };
+    } catch {
+      // Ignore autocomplete setup error if Google Cloud project lacks Places API (New) enablement
+    }
+  }, [isLoaded, onLocationSelect]);
 
   const handleMapClick = useCallback(
     (e: google.maps.MapMouseEvent) => {
@@ -66,7 +123,7 @@ export function GoogleLocationPicker({
 
   if (loadError) {
     return (
-      <div className="h-64 w-full rounded-2xl bg-surface border border-border p-4 flex flex-col items-center justify-center text-center text-caption text-text-secondary gap-2">
+      <div className="h-72 w-full rounded-2xl bg-surface border border-border p-4 flex flex-col items-center justify-center text-center text-caption text-text-secondary gap-2">
         <MapPin className="h-6 w-6 text-error" />
         <span>Failed to load Google Maps script. Check API Key configuration.</span>
       </div>
@@ -75,28 +132,44 @@ export function GoogleLocationPicker({
 
   if (!isLoaded) {
     return (
-      <div className="h-64 w-full rounded-2xl bg-surface border border-border flex items-center justify-center text-caption text-text-secondary animate-pulse">
-        Loading Google Maps...
+      <div className="h-72 w-full rounded-2xl bg-surface border border-border flex items-center justify-center text-caption text-text-secondary animate-pulse">
+        Loading Google Maps & Places Search...
       </div>
     );
   }
 
   return (
-    <div className="relative h-64 w-full rounded-2xl overflow-hidden border border-border shadow-card">
-      <GoogleMap
-        mapContainerStyle={mapContainerStyle}
-        center={position}
-        zoom={13}
-        onClick={handleMapClick}
-        options={{
-          disableDefaultUI: false,
-          zoomControl: true,
-        }}
-      >
-        <MarkerF position={position} draggable onDragEnd={handleMarkerDragEnd} />
-      </GoogleMap>
-      <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm">
-        Lat: {position.lat.toFixed(4)}, Lng: {position.lng.toFixed(4)} (Click or drag pin)
+    <div className="flex flex-col gap-3">
+      {/* Search Input Box */}
+      <div className="relative z-10">
+        <div className="relative flex items-center">
+          <Search className="absolute left-3.5 h-4 w-4 text-text-tertiary" />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search your gaming café address on Google Maps..."
+            className="w-full rounded-xl border border-border bg-card pl-10 pr-4 py-2.5 text-body text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm"
+          />
+        </div>
+      </div>
+
+      {/* Interactive Map View */}
+      <div className="relative h-64 w-full rounded-2xl overflow-hidden border border-border shadow-card">
+        <GoogleMap
+          mapContainerStyle={mapContainerStyle}
+          center={position}
+          zoom={14}
+          onClick={handleMapClick}
+          options={{
+            disableDefaultUI: false,
+            zoomControl: true,
+          }}
+        >
+          <MarkerF position={position} draggable onDragEnd={handleMarkerDragEnd} />
+        </GoogleMap>
+        <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm">
+          Lat: {position.lat.toFixed(4)}, Lng: {position.lng.toFixed(4)} (Search or drag pin)
+        </div>
       </div>
     </div>
   );

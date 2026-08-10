@@ -120,7 +120,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               </h3>
               <div className="flex items-center gap-1 font-heading text-body-emphasis font-bold text-text-primary flex-shrink-0">
                 <Star className="h-4 w-4 fill-warning text-warning" />
-                <span>{cafe.averageRating ? cafe.averageRating.toFixed(1) : '4.8'}</span>
+                <span>{cafe.averageRating && cafe.averageRating > 0 ? cafe.averageRating.toFixed(1) : 'New'}</span>
               </div>
             </div>
 

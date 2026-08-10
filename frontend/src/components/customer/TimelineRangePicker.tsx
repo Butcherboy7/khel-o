@@ -12,6 +12,11 @@ import {
 interface BookedSlot {
   startTime: string;
   endTime: string;
+  seatsCount?: number;
+}
+
+interface AvailabilityBadge {
+  remainingSeats?: number;
 }
 
 interface TimelineRangePickerProps {
@@ -24,6 +29,7 @@ interface TimelineRangePickerProps {
   bookedSlots?: BookedSlot[];
   totalSeats?: number;
   requestedSeats?: number;
+  remainingSeats?: number;
 }
 
 function formatPlayoTime(minutes: number): string {
@@ -44,6 +50,7 @@ export function TimelineRangePicker({
   bookedSlots = [],
   totalSeats = 10,
   requestedSeats = 1,
+  remainingSeats,
 }: TimelineRangePickerProps) {
   const outerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -212,14 +219,18 @@ export function TimelineRangePicker({
       if (nowMin >= 0 && m + 30 <= nowMin) {
         state = 'PAST';
       } else {
-        let overlaps = 0;
+        let totalOccupiedSeats = 0;
         for (const bs of bookedSlots) {
           let bS = timeToMinutes(bs.startTime);
           let bE = timeToMinutes(bs.endTime);
           if (bE <= bS) bE += 1440;
-          if (m < bE && m + 30 > bS) overlaps++;
+          if (m < bE && m + 30 > bS) {
+            totalOccupiedSeats += bs.seatsCount || 1;
+          }
         }
-        if (overlaps >= totalSeats - requestedSeats + 1) state = 'BOOKED';
+        if (totalOccupiedSeats + requestedSeats > totalSeats) {
+          state = 'BOOKED';
+        }
       }
       list.push({ start: m, state });
     }
@@ -254,6 +265,34 @@ export function TimelineRangePicker({
 
   const labelStepMinutes = slotW < 20 ? 120 : 60;
 
+  // Calculate dynamic remaining seats for the currently selected time window (selStart to selEnd)
+  const windowMaxOccupiedSeats = useMemo(() => {
+    let maxOccupied = 0;
+    for (let m = selStart; m < selEnd; m += 30) {
+      let slotOccupied = 0;
+      for (const bs of bookedSlots) {
+        let bS = timeToMinutes(bs.startTime);
+        let bE = timeToMinutes(bs.endTime);
+        if (bE <= bS) bE += 1440;
+        if (m < bE && m + 30 > bS) {
+          slotOccupied += bs.seatsCount || 1;
+        }
+      }
+      if (slotOccupied > maxOccupied) maxOccupied = slotOccupied;
+    }
+    return maxOccupied;
+  }, [selStart, selEnd, bookedSlots]);
+
+  const activeWindowRemainingSeats = Math.max(0, totalSeats - windowMaxOccupiedSeats);
+
+  const availabilityBadge = useMemo(() => {
+    const seats = activeWindowRemainingSeats;
+    if (seats === 0) return { text: 'Sold Out', variant: 'sold_out' as const };
+    if (seats <= 2) return { text: `Last ${seats} seat${seats > 1 ? 's' : ''}!`, variant: 'critical' as const };
+    if (seats <= 10) return { text: `Only ${seats} seats left!`, variant: 'warning' as const };
+    return { text: `${seats} seats left`, variant: 'neutral' as const };
+  }, [activeWindowRemainingSeats]);
+
   const ticks = useMemo(() => {
     const list: { minutes: number; label: string; showLabel: boolean; isHour: boolean }[] = [];
     for (let m = openMin; m <= closeMin; m += 30) {
@@ -280,26 +319,44 @@ export function TimelineRangePicker({
           </span>
         </div>
 
-        <div className="flex items-center gap-2.5 bg-white rounded-2xl px-3 py-1.5 border border-border/60 shadow-sm">
-          <button
-            type="button"
-            onClick={() => adjustDuration(-0.5)}
-            disabled={durationHours <= 0.5}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-          <span className="font-bold text-[13px] text-text-primary min-w-[65px] text-center">
-            {durMin} Mins
-          </span>
-          <button
-            type="button"
-            onClick={() => adjustDuration(0.5)}
-            disabled={selEnd + 30 > closeMin || durationHours >= 16}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+        <div className="flex items-center gap-2.5">
+          {availabilityBadge && (
+            <span
+              className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                availabilityBadge.variant === 'sold_out'
+                  ? 'bg-gray-200 text-gray-600'
+                  : availabilityBadge.variant === 'critical'
+                  ? 'bg-red-100 text-red-700 animate-pulse'
+                  : availabilityBadge.variant === 'warning'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              {availabilityBadge.text}
+            </span>
+          )}
+
+          <div className="flex items-center gap-2.5 bg-white rounded-2xl px-3 py-1.5 border border-border/60 shadow-sm">
+            <button
+              type="button"
+              onClick={() => adjustDuration(-0.5)}
+              disabled={durationHours <= 0.5}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <span className="font-bold text-[13px] text-text-primary min-w-[65px] text-center">
+              {durMin} Mins
+            </span>
+            <button
+              type="button"
+              onClick={() => adjustDuration(0.5)}
+              disabled={selEnd + 30 > closeMin || durationHours >= 16}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -361,12 +418,9 @@ export function TimelineRangePicker({
               {segments.map((seg) => {
                 const x = ((seg.start - openMin) / 30) * slotW;
                 // If segment is within selected range, hide the baseline green/red line so greyish striped bar replaces it
-                const isSelected = seg.start >= selStart && seg.start < selEnd;
-                if (isSelected) return null;
-
                 let bgColor = '#22c55e'; // Green for Available
                 if (seg.state === 'BOOKED') bgColor = '#ef4444'; // Red for Booked
-                else if (seg.state === 'PAST') bgColor = '#e5e7eb'; // Light Grey for Past
+                else if (seg.state === 'PAST') bgColor = '#d1d5db'; // Grey for Past
 
                 return (
                   <div
@@ -376,8 +430,9 @@ export function TimelineRangePicker({
                       left: x,
                       width: slotW,
                       top: 0,
-                      height: 3,
+                      height: 4,
                       backgroundColor: bgColor,
+                      borderRadius: 1,
                     }}
                   />
                 );

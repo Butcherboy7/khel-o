@@ -2,7 +2,10 @@ import { apiClient, call } from './client';
 import type { HardwareTier, TierCreateRequest, TierUpdateRequest } from '@/types';
 
 export async function listCafeTiers(cafeId: string): Promise<{ hardwareTiers: HardwareTier[] }> {
-  return call(() => apiClient.get(`/api/v1/cafes/${cafeId}/tiers`));
+  const res = await call<any>(() => apiClient.get(`/api/v1/cafes/${cafeId}/tiers`));
+  return {
+    hardwareTiers: res.tiers || res.hardwareTiers || [],
+  };
 }
 
 export async function getTier(tierId: string): Promise<{ hardwareTier: HardwareTier }> {

@@ -23,10 +23,14 @@ interface LocationDisplayProps {
 export function GoogleLocationDisplay({ lat, lng, venueName }: LocationDisplayProps) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-display-script',
+  const isAlreadyLoaded = typeof window !== 'undefined' && typeof window.google?.maps?.Map === 'function';
+
+  const { isLoaded: isJsLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
     googleMapsApiKey: apiKey,
   });
+
+  const isLoaded = isJsLoaded || isAlreadyLoaded;
 
   const center = {
     lat: lat || defaultCenter.lat,

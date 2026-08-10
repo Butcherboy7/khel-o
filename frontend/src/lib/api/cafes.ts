@@ -26,6 +26,7 @@ export async function updateCafe(cafeId: string, body: CafeUpdateRequest): Promi
 
 export interface CafeAvailabilityResponse {
   appBookableSeats: number;
+  remainingSeats?: number;
   bookedSlots: Array<{ startTime: string; endTime: string }>;
 }
 

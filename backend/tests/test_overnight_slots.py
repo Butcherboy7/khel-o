@@ -209,7 +209,7 @@ async def test_post_midnight_booking_locks_correct_date(db_session):
             headers=gamer_headers
         )
         assert resp2.status_code == 422, "Overlap should be rejected"
-        assert "SLOT_FULLY_BOOKED" in resp2.json().get("error", {}).get("code", "")
+        assert "SLOT_OVERCAPACITY" in resp2.json().get("error", {}).get("code", "")
 
 
 @pytest.mark.asyncio

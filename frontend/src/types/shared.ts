@@ -32,10 +32,11 @@ export type VerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspende
 export type BookingStatus =
   | 'pending_payment'
   | 'confirmed'
+  | 'checked_in'
+  | 'active'
   | 'cancelled'
   | 'completed'
   | 'no_show'
-  | 'checked_in'
   | 'failed';
 
 export type PaymentStatus = 'created' | 'captured' | 'failed' | 'refunded';

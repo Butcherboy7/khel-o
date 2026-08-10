@@ -17,6 +17,8 @@ import {
   Gamepad2,
 } from 'lucide-react';
 import { getCafe } from '@/lib/api/cafes';
+import { listCafeReviews, createReview } from '@/lib/api/reviews';
+import { listBookings } from '@/lib/api/bookings';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Button, RatingDisplay, PriceDisplay, Badge, Skeleton, ErrorState } from '@/components/ui';
 import { GoogleLocationDisplay } from '@/components/maps/GoogleLocationDisplay';
@@ -40,18 +42,27 @@ export default function CafeDetailPage() {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [submittedReview, setSubmittedReview] = useState(false);
-  const [reviewsList, setReviewsList] = useState([
-    { name: 'Rohan M.', rating: 5, comment: 'Insane 240Hz monitors! Ultra smooth ping for Valorant ranked.' },
-    { name: 'Ananya S.', rating: 5, comment: 'Super clean lounge, great snacks, and friendly staff.' },
-    { name: 'Karan P.', rating: 4, comment: 'PS5 dualsense controllers were brand new. Great experience.' },
-  ]);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.cafes.detail(cafeId),
     queryFn: () => getCafe(cafeId).then((res) => res.cafe),
     enabled: Boolean(cafeId),
     staleTime: 60_000,
+  });
+
+  const { data: serverReviewsData, refetch: refetchReviews } = useQuery({
+    queryKey: ['cafe-reviews', cafeId],
+    queryFn: () => listCafeReviews(cafeId),
+    enabled: Boolean(cafeId),
+  });
+
+  const { data: userBookingsData } = useQuery({
+    queryKey: ['user-cafe-bookings', cafeId, user?.id],
+    queryFn: () => listBookings({ limit: 20 }),
+    enabled: Boolean(user?.id && cafeId),
   });
 
   if (isLoading) {
@@ -158,8 +169,10 @@ export default function CafeDetailPage() {
 
           <div className="flex items-center gap-1 font-heading text-h3 font-bold text-text-primary flex-shrink-0">
             <Star className="h-5 w-5 fill-warning text-warning" />
-            <span>{cafe.averageRating ? cafe.averageRating.toFixed(1) : '4.8'}</span>
-            <span className="text-caption font-normal text-text-secondary">({cafe.totalReviews || 120} reviews)</span>
+            <span>{cafe.averageRating && cafe.averageRating > 0 ? cafe.averageRating.toFixed(1) : 'New'}</span>
+            <span className="text-caption font-normal text-text-secondary">
+              ({cafe.totalReviews || 0} review{cafe.totalReviews === 1 ? '' : 's'})
+            </span>
           </div>
         </div>
 
@@ -279,13 +292,14 @@ export default function CafeDetailPage() {
 
         {activeTab === 'reviews' && (
           <div className="flex flex-col gap-4">
-            {/* Submit Review Card for Testing Environment */}
-            <div className="p-4 rounded-2xl bg-card border border-border/80 flex flex-col gap-3">
+            {/* Submit Review Card */}
+            <div className="p-5 rounded-2xl bg-card border border-border/80 flex flex-col gap-3">
               <h4 className="font-heading text-body font-bold text-text-primary">Leave a Rating & Review</h4>
               <div className="flex items-center gap-2">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
+                    type="button"
                     onClick={() => setNewRating(star)}
                     className="p-1 text-warning transition-transform hover:scale-110"
                   >
@@ -293,6 +307,11 @@ export default function CafeDetailPage() {
                   </button>
                 ))}
               </div>
+
+              {reviewError && (
+                <p className="text-caption text-rose-500 font-medium">{reviewError}</p>
+              )}
+
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
@@ -303,32 +322,65 @@ export default function CafeDetailPage() {
                 variant="primary"
                 size="md"
                 className="self-end"
-                onClick={() => {
-                  if (!newComment.trim()) return;
-                  setReviewsList([
-                    { name: user?.fullName || 'Arjun (Gamer)', rating: newRating, comment: newComment },
-                    ...reviewsList,
-                  ]);
-                  setNewComment('');
-                  setSubmittedReview(true);
-                }}
+                disabled={isSubmittingReview}
+                  onClick={async () => {
+                    if (!newComment.trim()) return;
+                    setReviewError(null);
+                    
+                    const completedBooking = userBookingsData?.items?.find(
+                      (b) => b.cafeId === cafeId && (b.status === 'completed' || b.status === 'checked_in' || b.status === 'confirmed')
+                    );
+
+                    if (!completedBooking) {
+                      setReviewError('You must have an active or completed booking at this venue to leave a review.');
+                      return;
+                    }
+
+                    setIsSubmittingReview(true);
+                    try {
+                      await createReview({
+                        bookingId: completedBooking.id,
+                        rating: newRating,
+                        comment: newComment,
+                      });
+                      setNewComment('');
+                      setSubmittedReview(true);
+                      refetchReviews();
+                      refetch();
+                    } catch (err: any) {
+                      setReviewError(err?.message || 'Failed to submit review.');
+                    } finally {
+                      setIsSubmittingReview(false);
+                    }
+                  }}
               >
-                {submittedReview ? 'Review Posted ✓' : 'Submit Review'}
+                {isSubmittingReview ? 'Submitting...' : submittedReview ? 'Review Posted ✓' : 'Submit Review'}
               </Button>
             </div>
 
-            {reviewsList.map((rev, i) => (
-              <div key={i} className="p-4 rounded-2xl bg-card border border-border/80 flex flex-col gap-1">
-                <div className="flex items-center justify-between">
-                  <span className="font-heading text-body font-bold text-text-primary">{rev.name}</span>
-                  <div className="flex items-center text-warning">
-                    <Star className="h-4 w-4 fill-warning" />
-                    <span className="text-caption font-bold ml-1">{rev.rating}.0</span>
+            {/* List Reviews */}
+            {serverReviewsData && serverReviewsData.items && serverReviewsData.items.length > 0 ? (
+              serverReviewsData.items.map((rev) => (
+                <div key={rev.id} className="p-4 rounded-2xl bg-card border border-border/80 flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-heading text-body font-bold text-text-primary">
+                      {rev.gamerName || 'Verified Gamer'}
+                    </span>
+                    <div className="flex items-center text-warning">
+                      <Star className="h-4 w-4 fill-warning" />
+                      <span className="text-caption font-bold ml-1">{rev.rating}.0</span>
+                    </div>
                   </div>
+                  <p className="text-caption text-text-secondary">{rev.comment}</p>
                 </div>
-                <p className="text-caption text-text-secondary">{rev.comment}</p>
+              ))
+            ) : (
+              <div className="p-6 rounded-2xl bg-card border border-border/60 text-center">
+                <Star className="h-8 w-8 text-warning/40 mx-auto mb-2" />
+                <p className="font-heading text-body font-bold text-text-primary">No Reviews Yet</p>
+                <p className="text-caption text-text-secondary">Be the first gamer to leave a review for this café after your session!</p>
               </div>
-            ))}
+            )}
           </div>
         )}
       </section>

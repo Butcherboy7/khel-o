@@ -143,7 +143,7 @@ async def test_overbooking_rejected(async_client: AsyncClient):
                     duration_hours=2.0
                 )
             )
-        assert exc_info.value.error_code == "SLOT_FULLY_BOOKED"
+        assert exc_info.value.error_code == "SLOT_OVERCAPACITY"
 
 @pytest.mark.asyncio
 async def test_ttl_expired_pending_booking_ignored():

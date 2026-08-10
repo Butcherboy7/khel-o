@@ -35,6 +35,7 @@ import {
   Modal,
 } from '@/components/ui';
 import { formatSessionDate, formatTime } from '@/lib/format';
+import { MockPaymentModal } from '@/components/MockPaymentModal';
 
 export default function BookingDetailPage() {
   const params = useParams();
@@ -43,7 +44,7 @@ export default function BookingDetailPage() {
   const bookingId = params.id as string;
 
   const user = useAuthStore((s) => s.user);
-  const { displayRazorpay } = useRazorpay();
+  const { displayRazorpay, mockModalState } = useRazorpay();
 
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -99,6 +100,10 @@ export default function BookingDetailPage() {
             setIsRetryingPayment(false);
             refetch();
             queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+            if (data?.cafeId) {
+              queryClient.invalidateQueries({ queryKey: ['cafe-availability', data.cafeId] });
+              queryClient.invalidateQueries({ queryKey: queryKeys.cafes.detail(data.cafeId) });
+            }
           } catch (verifyErr: any) {
             setRetryError(verifyErr?.message || 'Payment verification failed.');
             setIsRetryingPayment(false);
@@ -455,6 +460,18 @@ export default function BookingDetailPage() {
           />
         </div>
       </Modal>
+
+      {/* Mock Payment Modal for Sandbox Mode */}
+      {mockModalState && mockModalState.isOpen && (
+        <MockPaymentModal
+          isOpen={mockModalState.isOpen}
+          orderId={mockModalState.orderId}
+          amount={mockModalState.amount}
+          onSuccess={mockModalState.onSuccess}
+          onFailure={mockModalState.onFailure}
+          onClose={mockModalState.onClose}
+        />
+      )}
     </div>
   );
 }

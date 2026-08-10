@@ -49,15 +49,16 @@ Badge.displayName = 'Badge';
 
 const BOOKING_STATUS_CONFIG: Record<
   BookingStatus,
-  { label: string; variant: VariantProps<typeof badgeVariants>['variant'] }
+  { label: string; variant: VariantProps<typeof badgeVariants>['variant']; dotColor: string }
 > = {
-  pending_payment: { label: 'Payment Pending', variant: 'warning' },
-  confirmed: { label: 'Confirmed', variant: 'primary' },
-  checked_in: { label: 'Checked In', variant: 'success' },
-  completed: { label: 'Completed', variant: 'default' },
-  cancelled: { label: 'Cancelled', variant: 'error' },
-  no_show: { label: 'No Show', variant: 'error' },
-  failed: { label: 'Payment Failed', variant: 'error' },
+  pending_payment: { label: 'Payment Pending', variant: 'warning', dotColor: 'bg-yellow-500' },
+  confirmed: { label: 'Confirmed', variant: 'success', dotColor: 'bg-green-500' },
+  checked_in: { label: 'Checked In', variant: 'success', dotColor: 'bg-green-600' },
+  active: { label: 'In Session 🎮', variant: 'success', dotColor: 'bg-emerald-500' },
+  completed: { label: 'Completed', variant: 'default', dotColor: 'bg-gray-400' },
+  cancelled: { label: 'Cancelled', variant: 'error', dotColor: 'bg-red-500' },
+  no_show: { label: 'No Show', variant: 'error', dotColor: 'bg-red-600' },
+  failed: { label: 'Payment Failed', variant: 'error', dotColor: 'bg-red-500' },
 };
 
 interface BookingStatusBadgeProps {
@@ -74,6 +75,7 @@ function BookingStatusBadge({
   const config = BOOKING_STATUS_CONFIG[status];
   return (
     <Badge variant={config.variant} size={size} className={className}>
+      <span className={`h-2 w-2 rounded-full ${config.dotColor}`} />
       {config.label}
     </Badge>
   );

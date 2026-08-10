@@ -20,6 +20,9 @@ from app.models.user import User, UserRole
 from app.models.cafe import VerificationStatus
 from app.models.platform_fee import PlatformFee
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
+import logging
+
+logger = logging.getLogger(__name__)
 
 class BookingService:
     def __init__(
@@ -50,7 +53,8 @@ class BookingService:
                 raise ValidationException(message="Café is currently in emergency mode and not accepting new bookings", error_code="EMERGENCY_MODE_ACTIVE")
             if cafe.bookings_paused:
                 raise ValidationException(message="Café is currently not accepting new bookings", error_code="BOOKINGS_PAUSED")
-            if cafe.bookable_stations <= 0:
+            effective_stations = cafe.bookable_stations if cafe.bookable_stations > 0 else (cafe.total_seats or 10)
+            if effective_stations <= 0:
                 raise ValidationException(message="Café has no bookable stations available", error_code="NO_BOOKABLE_STATIONS")
 
         # Validate Hardware Tier
@@ -79,27 +83,41 @@ class BookingService:
 
         end_datetime = start_datetime + timedelta(hours=booking_in.duration_hours)
         end_time = end_datetime.time()
+        
+        seats_requested = getattr(booking_in, 'seats_count', 1)
 
-        # Seat Availability Checking (with locking) - uses cafe.bookable_stations for inventory
+        # Seat Availability Checking (with locking) - uses tier app_bookable_seats for inventory
         overlapping_count, capacity = await self.booking_repo.get_overlapping_bookings_count_with_lock(
             tier_id=tier.id,
             session_date=booking_in.session_date,
             start_time=booking_in.start_time,
             end_time=end_time,
-            use_cafe_capacity=True,
+            use_cafe_capacity=False,
             cafe_id=booking_in.cafe_id
         )
 
-        if overlapping_count >= capacity:
+        if overlapping_count + seats_requested > capacity:
             raise ValidationException(
-                message="This time slot is fully booked at this café",
-                error_code="SLOT_FULLY_BOOKED"
+                message=f"Requested {seats_requested} seat(s) exceeds remaining capacity ({capacity - overlapping_count} available)",
+                error_code="SLOT_OVERCAPACITY"
+            )
+        
+        gamer_daily_seats = await self.booking_repo.get_gamer_daily_seats_count(
+            gamer_id=gamer_id,
+            cafe_id=booking_in.cafe_id,
+            session_date=booking_in.session_date
+        )
+        
+        if gamer_daily_seats + seats_requested > 60:
+            raise ValidationException(
+                message=f"Exceeded maximum cumulative booking limit of 60 seats per user per venue per day (you have {gamer_daily_seats} seats booked)",
+                error_code="USER_DAILY_LIMIT_EXCEEDED"
             )
 
         # Financial Math (Decimal) & Promotion Application
         price_per_hour = Decimal(str(tier.price_per_hour))
         duration = Decimal(str(booking_in.duration_hours))
-        base_amount = price_per_hour * duration
+        base_amount = price_per_hour * duration * seats_requested
 
         discount_amount = Decimal('0.00')
         if booking_in.promotion_id:
@@ -129,6 +147,7 @@ class BookingService:
             "start_time": booking_in.start_time,
             "end_time": end_time,
             "duration_hours": float(duration),
+            "seats_count": seats_requested,
             "base_amount": float(base_amount),
             "discount_amount": float(discount_amount),
             "gateway_fee": float(gateway_fee),
@@ -264,9 +283,11 @@ class BookingService:
                 error_code="INVALID_BOOKING_STATUS"
             )
 
+        was_confirmed = booking.status == BookingStatus.CONFIRMED
+        
         # Cancellation window restriction ONLY applies to CONFIRMED (paid) bookings
         # PENDING_PAYMENT and FAILED bookings can be cancelled immediately without time restriction
-        if booking.status == BookingStatus.CONFIRMED:
+        if was_confirmed:
             now_utc = datetime.now(timezone.utc)
             now_ist = datetime.now(IST)
             start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
@@ -283,5 +304,20 @@ class BookingService:
             "cancelled_at": now_utc,
             "cancellation_reason": reason
         })
+
+        # Trigger refund for CONFIRMED (paid) bookings
+        if was_confirmed:
+            try:
+                from app.services.payment_service import PaymentService
+                from app.repositories.payment_repository import PaymentRepository
+                
+                payment_repo = PaymentRepository(self.booking_repo.db)
+                payment_service = PaymentService(payment_repo, self.booking_repo)
+                
+                refund_result = await payment_service.process_refund(booking_id, current_user.id)
+                logger.info(f"Refund initiated for booking {booking_id}: {refund_result}")
+            except Exception as e:
+                logger.error(f"Failed to process refund for booking {booking_id}: {e}")
+                # Booking is still cancelled, but refund may need manual processing
 
         return BookingResponse.model_validate(updated)

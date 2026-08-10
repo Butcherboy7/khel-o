@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect, Suspense } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ChevronLeft,
@@ -28,6 +28,8 @@ import {
   formatSessionDate,
   formatTime,
   getTodayString,
+  timeToMinutes,
+  minutesToTimeString,
 } from '@/lib/format';
 import type { HardwareTier } from '@/types';
 
@@ -35,13 +37,23 @@ function BookingWizardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const cafeId = searchParams.get('cafeId') || '';
+  const queryClient = useQueryClient();
 
   const user = useAuthStore((s) => s.user);
   const { displayRazorpay, mockModalState } = useRazorpay();
 
   const availableDates = getNext14Days();
   const [selectedDate, setSelectedDate] = useState(availableDates[0] || getTodayString());
-  const [selectedTime, setSelectedTime] = useState('18:00:00');
+
+  // Dynamically compute valid initial start time (at least current time + 30 mins)
+  const getInitialValidTime = () => {
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const validMin = Math.ceil((nowMin + 35) / 30) * 30;
+    return minutesToTimeString(validMin % 1440);
+  };
+
+  const [selectedTime, setSelectedTime] = useState(getInitialValidTime());
   const [durationHours, setDurationHours] = useState(2);
   const [seatsCount, setSeatsCount] = useState(1);
   const [selectedTier, setSelectedTier] = useState<HardwareTier | null>(null);
@@ -64,6 +76,87 @@ function BookingWizardContent() {
     enabled: Boolean(cafeId && activeTier?.id && selectedDate),
     staleTime: 10_000,
   });
+
+  // Automatically find and select the first available time slot when availability loads or date/tier changes
+  useEffect(() => {
+    if (!cafe || !availabilityData) return;
+
+    const openingStr = cafe.openingTime || '09:00:00';
+    const closingStr = cafe.closingTime || '23:00:00';
+    const openMin = timeToMinutes(openingStr);
+    let closeMin = timeToMinutes(closingStr);
+    if (closeMin <= openMin) closeMin += 1440;
+
+    const totalSeats = availabilityData.appBookableSeats || activeTier?.totalSeats || 10;
+    const bookedSlots = availabilityData.bookedSlots || [];
+
+    const today = getTodayString();
+    let minValidStart = openMin;
+    if (selectedDate === today) {
+      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+      minValidStart = Math.max(openMin, Math.ceil((nowMin + 30) / 30) * 30);
+    }
+
+    // Find the first 2-hour continuous available slot
+    let foundFirstSlot = false;
+    for (let m = minValidStart; m <= closeMin - 120; m += 30) {
+      let isAvailable = true;
+      for (let checkM = m; checkM < m + 120; checkM += 30) {
+        let occupied = 0;
+        for (const bs of bookedSlots) {
+          let bS = timeToMinutes(bs.startTime);
+          let bE = timeToMinutes(bs.endTime);
+          if (bE <= bS) bE += 1440;
+          if (checkM < bE && checkM + 30 > bS) {
+            occupied += (bs as any).seatsCount || 1;
+          }
+        }
+        if (occupied + seatsCount > totalSeats) {
+          isAvailable = false;
+          break;
+        }
+      }
+
+      if (isAvailable) {
+        setSelectedTime(minutesToTimeString(m));
+        foundFirstSlot = true;
+        break;
+      }
+    }
+
+    // If no 2-hour slot is free, search for a 1-hour slot
+    if (!foundFirstSlot) {
+      for (let m = minValidStart; m <= closeMin - 60; m += 30) {
+        let isAvailable = true;
+        for (let checkM = m; checkM < m + 60; checkM += 30) {
+          let occupied = 0;
+          for (const bs of bookedSlots) {
+            let bS = timeToMinutes(bs.startTime);
+            let bE = timeToMinutes(bs.endTime);
+            if (bE <= bS) bE += 1440;
+            if (checkM < bE && checkM + 30 > bS) {
+              occupied += (bs as any).seatsCount || 1;
+            }
+          }
+          if (occupied + seatsCount > totalSeats) {
+            isAvailable = false;
+            break;
+          }
+        }
+
+        if (isAvailable) {
+          setSelectedTime(minutesToTimeString(m));
+          setDurationHours(1);
+          foundFirstSlot = true;
+          break;
+        }
+      }
+    }
+
+    if (!foundFirstSlot && minValidStart < closeMin) {
+      setSelectedTime(minutesToTimeString(minValidStart));
+    }
+  }, [cafe, availabilityData, selectedDate, activeTier?.id, seatsCount]);
 
   if (!cafeId) {
     return (
@@ -95,12 +188,12 @@ function BookingWizardContent() {
     );
   }
 
-  // Price calculations
+  // Price calculations (aligned with backend: gatewayFee = 2%, convenienceFee = 10)
   const pricePerHour = activeTier?.pricePerHour || 100;
   const baseTotal = Math.round(pricePerHour * durationHours * seatsCount);
-  const platformFee = 19;
-  const gst = Math.round(baseTotal * 0.18);
-  const finalTotal = baseTotal + platformFee + gst;
+  const gatewayFee = Math.round(baseTotal * 0.02 * 100) / 100;
+  const convenienceFee = 10;
+  const finalTotal = baseTotal + gatewayFee + convenienceFee;
 
   const handleTimelineChange = (newStartTime: string, newDurationHours: number) => {
     setSelectedTime(newStartTime);
@@ -125,6 +218,7 @@ function BookingWizardContent() {
         sessionDate: selectedDate,
         startTime: selectedTime,
         durationHours: durationHours,
+        seatsCount: seatsCount,
         promotionId: activeTier.activePromotion?.id || undefined,
       });
 
@@ -157,6 +251,8 @@ function BookingWizardContent() {
               razorpayPaymentId: paymentResponse.razorpay_payment_id,
               razorpaySignature: paymentResponse.razorpay_signature,
             });
+            queryClient.invalidateQueries({ queryKey: ['cafe-availability'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.cafes.detail(cafeId) });
             router.push(`/bookings/${booking.id}`);
           } catch (verifyErr: any) {
             setError(verifyErr?.message || 'Payment verification failed.');
@@ -284,6 +380,7 @@ function BookingWizardContent() {
           bookedSlots={availabilityData?.bookedSlots || []}
           totalSeats={availabilityData?.appBookableSeats || activeTier?.totalSeats || 10}
           requestedSeats={seatsCount}
+          remainingSeats={availabilityData?.remainingSeats}
         />
       </div>
 
@@ -308,8 +405,9 @@ function BookingWizardContent() {
           <span className="w-6 text-center font-heading text-body font-bold">{seatsCount}</span>
           <button
             type="button"
-            onClick={() => setSeatsCount((s) => Math.min(6, s + 1))}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 transition-colors"
+            onClick={() => setSeatsCount((s) => Math.min(availabilityData?.remainingSeats ?? 6, Math.min(6, s + 1)))}
+            disabled={availabilityData?.remainingSeats !== undefined && seatsCount >= availabilityData.remainingSeats}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -321,19 +419,19 @@ function BookingWizardContent() {
         <CardContent className="p-5 flex flex-col gap-2.5 text-body text-text-secondary">
           <div className="flex items-center justify-between">
             <span>
-              {activeTier?.name || 'Standard'} ({durationHours} hr × {seatsCount} seat)
+              {activeTier?.name || 'Standard'} ({durationHours} hr × {seatsCount} seat{seatsCount > 1 ? 's' : ''})
             </span>
             <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{baseTotal}</span>
           </div>
 
           <div className="flex items-center justify-between">
-            <span>Platform fee</span>
-            <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{platformFee}</span>
+            <span>Gateway fee (2%)</span>
+            <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{gatewayFee.toFixed(2)}</span>
           </div>
 
           <div className="flex items-center justify-between">
-            <span>GST (18%)</span>
-            <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{gst}</span>
+            <span>Convenience fee</span>
+            <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{convenienceFee}</span>
           </div>
         </CardContent>
       </Card>
@@ -353,10 +451,16 @@ function BookingWizardContent() {
           <button
             type="button"
             onClick={handleCheckout}
-            disabled={isProcessing}
-            className="rounded-2xl bg-secondary px-8 sm:px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-secondary/90 disabled:opacity-50 transition-colors"
+            disabled={isProcessing || (availabilityData?.remainingSeats !== undefined && availabilityData.remainingSeats < seatsCount)}
+            className="rounded-2xl bg-secondary px-8 sm:px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isProcessing ? 'Processing...' : 'Continue to Payment'}
+            {isProcessing
+              ? 'Processing...'
+              : availabilityData?.remainingSeats === 0
+              ? 'Sold Out'
+              : availabilityData?.remainingSeats !== undefined && availabilityData.remainingSeats < seatsCount
+              ? `Only ${availabilityData.remainingSeats} Seat${availabilityData.remainingSeats > 1 ? 's' : ''} Left`
+              : 'Continue to Payment'}
           </button>
         </div>
       </div>

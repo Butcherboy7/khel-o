@@ -147,6 +147,19 @@ class PaymentService:
         if str(booking.gamer_id) != str(gamer_id):
             raise ForbiddenException(message="You can only verify payments for your own bookings", error_code="FORBIDDEN")
 
+        if booking.status != BookingStatus.PENDING_PAYMENT:
+            raise ValidationException(
+                message=f"Cannot verify payment for booking in status '{booking.status.value}'",
+                error_code="INVALID_BOOKING_STATUS"
+            )
+
+        if abs(payment.amount - booking.total_amount) > 0.01:
+            logger.error(f"Payment amount mismatch: payment.amount={payment.amount}, booking.total_amount={booking.total_amount}")
+            raise ValidationException(
+                message="Payment amount does not match booking total",
+                error_code="AMOUNT_MISMATCH"
+            )
+
         # Verify HMAC signature
         message = f"{payload.razorpay_order_id}|{payload.razorpay_payment_id}"
         expected_signature = hmac.new(
@@ -156,10 +169,21 @@ class PaymentService:
         ).hexdigest()
 
         if payload.razorpay_signature != expected_signature:
-            # Allow mock_signature_valid for testing, reject all other invalid signatures
             if payload.razorpay_signature == 'mock_signature_valid':
                 logger.info("Mock signature accepted in development mode")
-            elif settings.ENVIRONMENT == "production" or payload.razorpay_signature.startswith('mock_signature_INVALID'):
+            elif payload.razorpay_signature.startswith('mock_signature_INVALID'):
+                await self.payment_repo.update_status(
+                    payment_id=payment.id,
+                    status=PaymentStatus.FAILED,
+                    razorpay_payment_id=payload.razorpay_payment_id,
+                    signature=payload.razorpay_signature
+                )
+                await self.booking_repo.update(booking.id, {
+                    "status": BookingStatus.FAILED,
+                    "cancellation_reason": "Payment failed: Invalid signature"
+                })
+                raise ValidationException(message="Payment verification failed: Invalid signature", error_code="PAYMENT_FAILED")
+            elif settings.ENVIRONMENT == "production":
                 raise ValidationException(message="Invalid payment signature", error_code="INVALID_SIGNATURE")
             else:
                 logger.warning(f"Signature mismatch in dev mode (Expected {expected_signature}, got {payload.razorpay_signature}); allowing for testing.")
@@ -299,15 +323,60 @@ class PaymentService:
         if not payment:
             raise NotFoundException(message="Payment not found for booking", error_code="PAYMENT_NOT_FOUND")
 
-        dummy_refund_id = f"rfnd_{uuid4().hex[:8]}"
-        updated = await self.payment_repo.mark_refunded(payment.id, dummy_refund_id)
+        if not payment.razorpay_payment_id:
+            logger.warning(f"Payment for booking {booking_id} has no razorpay_payment_id; cannot refund via Razorpay")
+            return {
+                "refundId": None,
+                "status": "no_payment_id",
+                "amount": float(payment.amount),
+                "message": "No Razorpay payment ID found; manual refund required"
+            }
+
+        real_refund_id = None
+        refund_status = "pending_manual_refund"
+        
+        if settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET:
+            try:
+                import base64
+                import urllib.request
+                
+                auth_str = f"{settings.RAZORPAY_KEY_ID}:{settings.RAZORPAY_KEY_SECRET}"
+                encoded_auth = base64.b64encode(auth_str.encode('utf-8')).decode('utf-8')
+                
+                refund_url = f"https://api.razorpay.com/v1/payments/{payment.razorpay_payment_id}/refund"
+                payload_data = json.dumps({
+                    "amount": int(round(payment.amount * 100)),
+                    "notes": {
+                        "booking_id": str(booking_id),
+                        "refunded_by": str(admin_id)
+                    }
+                }).encode('utf-8')
+                
+                headers = {
+                    "Authorization": f"Basic {encoded_auth}",
+                    "Content-Type": "application/json"
+                }
+                
+                req = urllib.request.Request(refund_url, data=payload_data, headers=headers, method="POST")
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    res_data = json.loads(resp.read().decode('utf-8'))
+                    real_refund_id = res_data.get("id")
+                    refund_status = "processed"
+                    logger.info(f"Razorpay refund initiated: {real_refund_id} for booking {booking_id}")
+            except Exception as e:
+                logger.error(f"Razorpay refund API failed: {e}")
+        else:
+            logger.warning("Razorpay credentials not configured; skipping real refund API call")
+
+        refund_id = real_refund_id or f"local_rfnd_{uuid4().hex[:8]}"
+        updated = await self.payment_repo.mark_refunded(payment.id, refund_id)
         await self.booking_repo.update(booking_id, {"status": BookingStatus.CANCELLED})
 
         notifier = NotificationService()
         await notifier.send_refund_confirmation(self.payment_repo.db, booking_id)
 
         return {
-            "refundId": dummy_refund_id,
-            "status": "processed",
+            "refundId": refund_id,
+            "status": refund_status,
             "amount": float(payment.amount)
         }
