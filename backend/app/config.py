@@ -31,9 +31,12 @@ class Settings(BaseSettings):
     CONVENIENCE_FEE_AMOUNT: int = 10
     UNVERIFIED_CAFE_BOOKING_CAP_VALUE: int = 5000
     UNVERIFIED_CAFE_BOOKING_CAP_COUNT: int = 15
+    
+    # Sentry Error Monitoring
+    SENTRY_DSN: Optional[str] = None
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file="../.env",
         env_file_encoding="utf-8",
         extra="ignore"
     )

@@ -11,7 +11,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import settings
 from app.core.logging import setup_logging, logger
 from app.core.exceptions import BaseAppException
+from app.core.sentry import init_sentry
 from app.api.v1.router import api_router
+
+init_sentry()
 
 async def init_db():
     try:
@@ -35,6 +38,8 @@ async def ensure_demo_users():
         from app.repositories.user_repository import UserRepository
         from app.models.user import UserRole
         from app.core.security import get_password_hash
+        from app.models.user_role import UserRoleMapping
+        import uuid as uuid_lib
         
         async with AsyncSessionLocal() as session:
             repo = UserRepository(session)
@@ -53,13 +58,32 @@ async def ensure_demo_users():
             for email, name, role in demo_accounts:
                 existing = await repo.get_by_email(email)
                 if not existing:
-                    await repo.create({
+                    user = await repo.create({
                         "email": email,
                         "password_hash": hashed_password,
                         "full_name": name,
                         "role": role,
                         "is_active": True,
                     })
+                    
+                    # Ensure role mapping exists in user_roles table
+                    session.add(UserRoleMapping(
+                        id=uuid_lib.uuid4(),
+                        user_id=user.id,
+                        role=role,
+                        cafe_id=None
+                    ))
+                    
+                    # All users should also have gamer role for booking capability
+                    if role != UserRole.GAMER:
+                        session.add(UserRoleMapping(
+                            id=uuid_lib.uuid4(),
+                            user_id=user.id,
+                            role=UserRole.GAMER,
+                            cafe_id=None
+                        ))
+                    
+                    await session.commit()
                 elif existing.role != role:
                     await repo.update(existing.id, {"role": role, "is_active": True})
 
@@ -302,8 +326,8 @@ async def lifespan(app: FastAPI):
     os.makedirs("static/qr", exist_ok=True)
     logger.info("starting_khel_o_backend", environment=settings.ENVIRONMENT)
     await init_db()
-    await ensure_demo_users()
-    await seed_demo_cafes()
+    if settings.ENVIRONMENT in ("development", "staging", "local"):
+        await ensure_demo_users()
     yield
     logger.info("stopping_khel_o_backend")
 
