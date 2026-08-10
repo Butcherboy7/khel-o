@@ -113,3 +113,28 @@ class NotificationService:
             await self._send_resend_email(gamer.email, subject, html_body, booking.booking_reference)
         except Exception as e:
             logger.error("send_refund_confirmation_error", error=str(e), booking_id=str(booking_id))
+
+    async def send_staff_invitation(self, email: str, full_name: str, venue_name: str, invite_url: str) -> bool:
+        try:
+            subject = f"You've been invited to join {venue_name} on KHEL-O! 🎮"
+            html_body = f"""
+            <div style="font-family: Arial, sans-serif; background: #09090b; color: #f4f4f5; padding: 24px; border-radius: 8px;">
+                <h2 style="color: #7c3aed; margin-top: 0;">Staff Invitation</h2>
+                <p>Hello <strong>{full_name}</strong>,</p>
+                <p>You have been invited to join <strong>{venue_name}</strong> as a staff member on KHEL-O Cafe Management Platform.</p>
+                <p>Click the button below to accept your invitation and set up your account password:</p>
+                <div style="margin: 24px 0;">
+                    <a href="{invite_url}" style="background-color: #7c3aed; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Accept Invitation & Set Password</a>
+                </div>
+                <p style="color: #a1a1aa; font-size: 14px;">Or copy and paste this link into your browser:<br/><a href="{invite_url}" style="color: #a78bfa;">{invite_url}</a></p>
+                <p style="color: #71717a; font-size: 12px; margin-top: 24px;">This invitation link will expire in 7 days.</p>
+                <footer style="margin-top: 20px; border-top: 1px solid #27272a; padding-top: 12px; color: #71717a; font-size: 12px;">
+                    KHEL-O — Next Gen Gaming Cafe Platform
+                </footer>
+            </div>
+            """
+            return await self._send_resend_email(email, subject, html_body, f"INVITE-{venue_name}")
+        except Exception as e:
+            logger.error("send_staff_invitation_error", error=str(e), email=email)
+            return False
+
