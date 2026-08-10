@@ -23,6 +23,7 @@ class BookingBase(BaseModel):
     session_date: date
     start_time: time
     duration_hours: float = Field(..., ge=0.5, le=8.0)
+    seats_count: int = Field(1, ge=1, le=6, description="Number of seats for this booking session (1 to 6)")
     notes: Optional[str] = None
     promotion_id: Optional[UUID] = None
 
@@ -76,14 +77,15 @@ class BookingResponse(BookingBase):
     tier_name: Optional[str] = None
     cafe_address: Optional[str] = None
     qr_code_url: Optional[str] = None
-    cancelled_at: Optional[datetime] = None
-    cancellation_reason: Optional[str] = None
     actual_start_time: Optional[datetime] = None
     actual_end_time: Optional[datetime] = None
+    checked_in_by: Optional[UUID] = None
+    checked_in_at: Optional[datetime] = None
     checkin_method: Optional[str] = None
     cancel_policy: Optional[CancelPolicy] = None
     created_at: datetime
     updated_at: datetime
+
 
     model_config = ConfigDict(
         from_attributes=True,

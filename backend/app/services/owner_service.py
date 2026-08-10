@@ -91,6 +91,7 @@ class OwnerService:
 
         item_responses: List[OwnerBookingItemResponse] = []
         for booking, gamer_name, tier_name, cafe_name in items_tuples:
+            booking = await self.auto_transition_booking(booking)
             booking_dict = BookingResponse.model_validate(booking).model_dump()
             booking_dict["gamer_name"] = gamer_name
             booking_dict["tier_name"] = tier_name
@@ -105,6 +106,22 @@ class OwnerService:
             "pageSize": limit,
             "totalPages": total_pages
         }
+
+    async def auto_transition_booking(self, booking: Booking) -> Booking:
+        """Lazy-write status transitions based on current time."""
+        now_utc = datetime.now(timezone.utc)
+        
+        if booking.status == BookingStatus.CHECKED_IN:
+            session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=timezone.utc)
+            if now_utc >= session_start:
+                updated = await self.booking_repo.update(booking.id, {"status": BookingStatus.ACTIVE})
+                return updated or booking
+        elif booking.status == BookingStatus.ACTIVE:
+            session_end = datetime.combine(booking.session_date, booking.end_time).replace(tzinfo=timezone.utc)
+            if now_utc >= session_end:
+                updated = await self.booking_repo.update(booking.id, {"status": BookingStatus.COMPLETED})
+                return updated or booking
+        return booking
 
     async def update_booking_status(
         self,
@@ -124,8 +141,8 @@ class OwnerService:
 
         await self._validate_user_cafe_access(current_user, booking.cafe_id)
 
-        # State machine check: must transition FROM confirmed TO completed or no_show
-        if booking.status != BookingStatus.CONFIRMED:
+        # State machine check: can mark completed/no_show from confirmed, checked_in, or active
+        if booking.status not in (BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.ACTIVE):
             raise ValidationException(
                 message=f"Cannot update status from '{booking.status.value}' to '{new_status}'",
                 error_code="INVALID_BOOKING_STATUS"
@@ -133,15 +150,10 @@ class OwnerService:
 
         now_utc = datetime.now(timezone.utc)
         session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=timezone.utc)
-        session_end = datetime.combine(booking.session_date, booking.end_time).replace(tzinfo=timezone.utc)
 
         if new_status == "completed":
-            if session_end > now_utc:
-                raise ValidationException(
-                    message="Cannot mark session as completed before the session ends",
-                    error_code="SESSION_NOT_ENDED"
-                )
             target_enum = BookingStatus.COMPLETED
+            update_dict = {"status": target_enum, "actual_end_time": now_utc}
         else: # no_show
             if session_start > now_utc:
                 raise ValidationException(
@@ -149,8 +161,9 @@ class OwnerService:
                     error_code="SESSION_NOT_STARTED"
                 )
             target_enum = BookingStatus.NO_SHOW
+            update_dict = {"status": target_enum}
 
-        updated = await self.booking_repo.update(booking_id, {"status": target_enum})
+        updated = await self.booking_repo.update(booking_id, update_dict)
         return BookingResponse.model_validate(updated)
 
     async def _validate_user_cafe_access(self, user: User, cafe_id: UUID):
@@ -186,40 +199,25 @@ class OwnerService:
 
         await self._validate_user_cafe_access(current_user, booking.cafe_id)
 
-        if booking.status != BookingStatus.CONFIRMED:
+        # Allow check-in for confirmed and already checked-in bookings
+        if booking.status not in (BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN):
             raise ValidationException(
                 message=f"Cannot check in booking in status '{booking.status.value}'",
                 error_code="INVALID_BOOKING_STATUS"
             )
 
         now_utc = datetime.now(timezone.utc)
-        today = now_utc.date()
-        
-        # Verify it is scheduled for today
-        if booking.session_date != today:
-            raise ValidationException(
-                message=f"Booking is scheduled for {booking.session_date}, not today ({today})",
-                error_code="INVALID_CHECKIN_DATE"
-            )
-
-        session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=timezone.utc)
-        
-        # Allow check-in from 15 minutes before session to 30 minutes after session starts
-        if now_utc < (session_start - timedelta(minutes=15)):
-            raise ValidationException(
-                message="Check-in window has not opened yet (starts 15 minutes before session)",
-                error_code="CHECKIN_WINDOW_NOT_OPEN"
-            )
-        if now_utc > (session_start + timedelta(minutes=30)):
-            raise ValidationException(
-                message="Check-in window has expired (expired 30 minutes after session start)",
-                error_code="CHECKIN_WINDOW_EXPIRED"
-            )
-
-        updated = await self.booking_repo.update(booking_id, {
+        update_fields: dict = {
+            "status": BookingStatus.CHECKED_IN,
+            "checked_in_by": current_user.id,
+            "checked_in_at": now_utc,
             "actual_start_time": now_utc,
-            "checkin_method": "qr_scan"
-        })
+            "checkin_method": "owner_desk"
+        }
+
+        updated = await self.booking_repo.update(booking_id, update_fields)
+        if updated:
+            updated = await self.auto_transition_booking(updated)
         return BookingResponse.model_validate(updated)
 
     async def emergency_close_day(self, owner_id: UUID, cafe_id: UUID, closure_date: date) -> List[BookingResponse]:

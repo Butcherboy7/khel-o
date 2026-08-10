@@ -89,8 +89,8 @@ class BookingRepository(BaseRepository[Booking]):
     ) -> int:
         now_utc = datetime.now(timezone.utc)
         ttl_threshold = now_utc - timedelta(minutes=15)
-
-        stmt = select(func.count()).select_from(Booking).where(
+        
+        stmt = select(func.coalesce(func.sum(Booking.seats_count), 0)).select_from(Booking).where(
             Booking.hardware_tier_id == tier_id,
             Booking.session_date == session_date,
             or_(
@@ -106,7 +106,7 @@ class BookingRepository(BaseRepository[Booking]):
             )
         )
         result = await self.db.execute(stmt)
-        return result.scalar() or 0
+        return int(result.scalar() or 0)
 
     async def get_overlapping_bookings_count_with_lock(
         self,
@@ -136,6 +136,30 @@ class BookingRepository(BaseRepository[Booking]):
             end_time=end_time
         )
         return count, capacity
+    
+    async def get_gamer_daily_seats_count(
+        self,
+        gamer_id: UUID,
+        cafe_id: UUID,
+        session_date: date
+    ) -> int:
+        now_utc = datetime.now(timezone.utc)
+        ttl_threshold = now_utc - timedelta(minutes=15)
+        
+        stmt = select(func.coalesce(func.sum(Booking.seats_count), 0)).select_from(Booking).where(
+            Booking.gamer_id == gamer_id,
+            Booking.cafe_id == cafe_id,
+            Booking.session_date == session_date,
+            or_(
+                Booking.status == BookingStatus.CONFIRMED,
+                and_(
+                    Booking.status == BookingStatus.PENDING_PAYMENT,
+                    Booking.created_at >= ttl_threshold
+                )
+            )
+        )
+        result = await self.db.execute(stmt)
+        return int(result.scalar() or 0)
 
     async def get_owner_bookings_joined(
         self,

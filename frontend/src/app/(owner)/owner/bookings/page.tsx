@@ -104,10 +104,12 @@ export default function OwnerBookingsPage() {
             className="h-input px-3 rounded-xl border border-border bg-card font-body text-body text-text-primary"
           >
             <option value="all">All Statuses</option>
-            <option value="confirmed font-semibold">Confirmed</option>
+            <option value="confirmed">Confirmed</option>
             <option value="checked_in">Checked In</option>
+            <option value="active">Active</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
+            <option value="no_show">No Show</option>
           </select>
         </div>
       </div>
@@ -192,7 +194,7 @@ export default function OwnerBookingsPage() {
                       </Button>
                     )}
 
-                    {booking.status === 'checked_in' && (
+                    {(booking.status === 'checked_in' || booking.status === 'active') && (
                       <Button
                         variant="outline"
                         size="sm"

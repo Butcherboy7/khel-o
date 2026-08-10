@@ -50,6 +50,7 @@ export interface BookingCreateRequest {
   sessionDate: string;
   startTime: string;
   durationHours: number;
+  seatsCount?: number;
   promotionId?: string;
   notes?: string;
 }
