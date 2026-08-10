@@ -22,13 +22,79 @@ import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } 
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, Textarea, Card, CardContent, Badge } from '@/components/ui';
 import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
+import { INDIAN_STATES } from '@/constants/states';
 
-const GPU_PRESETS = [
-  { name: 'Standard RTX 3060 Pods', gpu: 'NVIDIA RTX 3060 / 16GB RAM', hourlyRate: 100, totalSeats: 10 },
-  { name: 'High-End RTX 4070 Pods', gpu: 'NVIDIA RTX 4070 / 32GB RAM', hourlyRate: 150, totalSeats: 8 },
-  { name: 'Flagship RTX 4090 Arena', gpu: 'NVIDIA RTX 4090 / 240Hz Displays', hourlyRate: 250, totalSeats: 4 },
-  { name: 'PS5 Console Lounge', gpu: 'PlayStation 5 / 4K OLED HDR', hourlyRate: 200, totalSeats: 2 },
-  { name: 'VR Flight & Racing Sim Bay', gpu: 'Motion Sim + VR Headset', hourlyRate: 350, totalSeats: 1 },
+const HARDWARE_PRESETS = [
+  {
+    name: 'Flagship RTX 4090 Arena',
+    gpu: 'NVIDIA RTX 4090 (24GB VRAM)',
+    cpu: 'Intel Core i9-14900KS (5.9GHz)',
+    monitor: 'BenQ ZOWIE XL2566K (360Hz Esports)',
+    hourlyRate: 250,
+    totalSeats: 10,
+    appBookableSeats: 8,
+  },
+  {
+    name: 'High-End RTX 4070 Pods',
+    gpu: 'NVIDIA RTX 4070 (12GB VRAM)',
+    cpu: 'Intel Core i7-14700K (20 Cores)',
+    monitor: 'ASUS ROG Swift 240Hz QHD OLED',
+    hourlyRate: 150,
+    totalSeats: 10,
+    appBookableSeats: 8,
+  },
+  {
+    name: 'Standard RTX 3060 Pods',
+    gpu: 'NVIDIA RTX 3060 (12GB VRAM)',
+    cpu: 'Intel Core i5-13400F',
+    monitor: 'BenQ ZOWIE 144Hz 1ms Gaming',
+    hourlyRate: 100,
+    totalSeats: 12,
+    appBookableSeats: 10,
+  },
+  {
+    name: 'PS5 Console Lounge',
+    gpu: 'PlayStation 5 Console',
+    cpu: 'PS5 Custom AMD Zen 2 CPU',
+    monitor: 'LG 55" 4K OLED HDR TV (PS5)',
+    hourlyRate: 200,
+    totalSeats: 4,
+    appBookableSeats: 3,
+  },
+];
+
+const POPULAR_GPUS = [
+  'NVIDIA RTX 4090 (24GB VRAM)',
+  'NVIDIA RTX 4080 Super (16GB VRAM)',
+  'NVIDIA RTX 4070 Ti Super (16GB VRAM)',
+  'NVIDIA RTX 4070 (12GB VRAM)',
+  'NVIDIA RTX 3070 Ti (8GB VRAM)',
+  'NVIDIA RTX 3060 (12GB VRAM)',
+  'AMD Radeon RX 7900 XTX (24GB)',
+  'PlayStation 5 Console',
+  'Xbox Series X Console',
+  'Custom GPU (Type custom GPU below)',
+];
+
+const POPULAR_CPUS = [
+  'Intel Core i9-14900KS (5.9GHz)',
+  'Intel Core i7-14700K (20 Cores)',
+  'Intel Core i7-13700K (16 Cores)',
+  'AMD Ryzen 7 7800X3D (Esports King)',
+  'AMD Ryzen 9 7950X3D (16 Cores)',
+  'Intel Core i5-13400F',
+  'PS5 Custom AMD Zen 2 CPU',
+  'Custom CPU (Type custom CPU below)',
+];
+
+const POPULAR_MONITORS = [
+  'BenQ ZOWIE XL2566K (360Hz Esports)',
+  'ASUS ROG Swift 240Hz QHD OLED',
+  'LG Ultragear 240Hz 1ms IPS',
+  'BenQ ZOWIE 144Hz 1ms Gaming',
+  'Samsung Odyssey G7 240Hz Curved',
+  'LG 55" 4K OLED HDR TV (PS5)',
+  'Custom Monitor (Type custom monitor below)',
 ];
 
 const PRESET_GAMES = [
@@ -59,6 +125,7 @@ interface OnboardingState {
   phoneNumber: string;
   email: string;
   businessPan: string;
+  hasGst: boolean;
   gstin: string;
   legalDocumentUrl: string;
   bankAccountNumber: string;
@@ -70,8 +137,11 @@ interface OnboardingState {
   hardwareTiers: Array<{
     name: string;
     gpu: string;
+    cpu?: string;
+    monitor?: string;
     hourlyRate: number;
     totalSeats: number;
+    appBookableSeats: number;
   }>;
   supportedGames: string[];
   amenities: string[];
@@ -95,6 +165,7 @@ const INITIAL_STATE: OnboardingState = {
   phoneNumber: '',
   email: '',
   businessPan: 'ABCDE1234F',
+  hasGst: false,
   gstin: '',
   legalDocumentUrl: '',
   bankAccountNumber: '',
@@ -104,8 +175,24 @@ const INITIAL_STATE: OnboardingState = {
   closingTime: '23:00',
   totalSeats: 20,
   hardwareTiers: [
-    { name: 'Standard RTX 3060 Pods', gpu: 'NVIDIA RTX 3060 / 16GB RAM', hourlyRate: 100, totalSeats: 12 },
-    { name: 'High-End RTX 4070 Pods', gpu: 'NVIDIA RTX 4070 / 32GB RAM', hourlyRate: 150, totalSeats: 8 },
+    {
+      name: 'High-End RTX 4070 Pods',
+      gpu: 'NVIDIA RTX 4070 (12GB VRAM)',
+      cpu: 'Intel Core i7-14700K (20 Cores)',
+      monitor: 'ASUS ROG Swift 240Hz QHD OLED',
+      hourlyRate: 150,
+      totalSeats: 10,
+      appBookableSeats: 8,
+    },
+    {
+      name: 'Standard RTX 3060 Pods',
+      gpu: 'NVIDIA RTX 3060 (12GB VRAM)',
+      cpu: 'Intel Core i5-13400F',
+      monitor: 'BenQ ZOWIE 144Hz 1ms Gaming',
+      hourlyRate: 100,
+      totalSeats: 10,
+      appBookableSeats: 8,
+    },
   ],
   supportedGames: ['Valorant', 'Counter-Strike 2', 'GTA V Online', 'EA Sports FC 24'],
   amenities: ['High-speed Wi-Fi', 'Air Conditioned', 'Snacks & Drinks'],
@@ -134,6 +221,9 @@ export default function OnboardingWizardPage() {
         const res = await getOnboardingDraft();
         if (isMounted && res.draft && Object.keys(res.draft).length > 0) {
           setFormData((prev) => ({ ...prev, ...res.draft }));
+          if (res.draft.step && typeof res.draft.step === 'number') {
+            setStep(res.draft.step);
+          }
         }
       } catch {
         // Fallback to local session
@@ -159,6 +249,10 @@ export default function OnboardingWizardPage() {
         setError('Please complete all required business identity, address, and pincode fields.');
         return;
       }
+      if (formData.name.trim().length < 2) {
+        setError('Café Name must be at least 2 characters long.');
+        return;
+      }
       if (!/^\d{6}$/.test(formData.pincode)) {
         setError('Please enter a valid 6-digit Indian pincode.');
         return;
@@ -175,7 +269,7 @@ export default function OnboardingWizardPage() {
         setError('Please enter a valid email address.');
         return;
       }
-      if (formData.gstin) {
+      if (formData.hasGst && formData.gstin) {
         const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
         if (!GSTIN_REGEX.test(formData.gstin.toUpperCase())) {
           setError('Please enter a valid 15-character GSTIN (e.g. 29ABCDE1234F1Z5).');
@@ -241,8 +335,11 @@ export default function OnboardingWizardPage() {
     const formattedHardwareTiers = (formData.hardwareTiers || []).map((t) => ({
       name: t.name,
       gpu: t.gpu,
+      cpu: t.cpu,
+      monitor: t.monitor,
       hourlyRate: Number(t.hourlyRate) || 100,
       totalSeats: Number(t.totalSeats) || 10,
+      appBookableSeats: Number(t.appBookableSeats) || Number(t.totalSeats) || 8,
     }));
 
     try {
@@ -264,12 +361,12 @@ export default function OnboardingWizardPage() {
         amenities: formData.amenities,
         photos: formData.photos,
         supportedGames: formData.supportedGames,
-        businessPan: formData.businessPan,
-        gstin: formData.gstin,
-        legalDocumentUrl: formData.legalDocumentUrl,
-        bankAccountNumber: formData.bankAccountNumber,
-        bankIfsc: formData.bankIfsc,
-        accountHolderName: formData.accountHolderName || user?.fullName,
+        businessPan: formData.businessPan || undefined,
+        gstin: formData.gstin || undefined,
+        legalDocumentUrl: formData.legalDocumentUrl || undefined,
+        bankAccountNumber: formData.bankAccountNumber || undefined,
+        bankIfsc: formData.bankIfsc || undefined,
+        accountHolderName: formData.accountHolderName || user?.fullName || undefined,
         cancellationPolicy: formData.cancellationPolicy,
         houseRules: formData.houseRules,
         socialLinks: { instagram: formData.instagram, discord: formData.discord },
@@ -278,7 +375,13 @@ export default function OnboardingWizardPage() {
 
       setIsSubmitted(true);
     } catch (err: any) {
-      setError(err?.message || 'Failed to submit café application. Please try again.');
+      const details = err?.details || err?.response?.data?.detail;
+      let msg = err?.message || 'Failed to submit café application.';
+      if (Array.isArray(details)) {
+        const fieldMsgs = details.map((d: any) => `${d.loc?.[d.loc?.length - 1] || 'Field'}: ${d.msg}`).join(', ');
+        msg = `Validation Error: ${fieldMsgs}`;
+      }
+      setError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -321,7 +424,37 @@ export default function OnboardingWizardPage() {
           </CardContent>
         </Card>
 
-        <Button variant="primary" size="lg" onClick={() => router.push('/owner/dashboard')}>
+        <Button
+          variant="primary"
+          size="lg"
+          onClick={async () => {
+            try {
+              const refreshToken = localStorage.getItem('refreshToken');
+              if (refreshToken) {
+                const refreshRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/refresh`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ refreshToken })
+                });
+                if (refreshRes.ok) {
+                  const data = await refreshRes.json();
+                  localStorage.setItem('accessToken', data.data.accessToken);
+                  localStorage.setItem('refreshToken', data.data.refreshToken);
+                  const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/refresh`, {
+                    headers: { Authorization: `Bearer ${data.data.accessToken}` }
+                  });
+                  if (userRes.ok) {
+                    const userData = await userRes.json();
+                    localStorage.setItem('user', JSON.stringify(userData.data?.user || userData.data));
+                  }
+                }
+              }
+            } catch {
+              // Ignore token sync error
+            }
+            window.location.href = '/owner/dashboard';
+          }}
+        >
           Go to Owner Dashboard Status
         </Button>
       </div>
@@ -421,9 +554,13 @@ export default function OnboardingWizardPage() {
                   <GoogleLocationPicker
                     initialLat={formData.latitude || 12.9716}
                     initialLng={formData.longitude || 77.5946}
-                    onLocationSelect={(pos) => {
-                      updateField('latitude', pos.lat);
-                      updateField('longitude', pos.lng);
+                    onLocationSelect={(res) => {
+                      updateField('latitude', res.lat);
+                      updateField('longitude', res.lng);
+                      if (res.addressLine1) updateField('addressLine1', res.addressLine1);
+                      if (res.city) updateField('city', res.city);
+                      if (res.state) updateField('state', res.state);
+                      if (res.pincode) updateField('pincode', res.pincode);
                     }}
                   />
                 </div>
@@ -451,12 +588,24 @@ export default function OnboardingWizardPage() {
                     required
                   />
 
-                  <Input
-                    label="State *"
-                    value={formData.state}
-                    onChange={(e) => updateField('state', e.target.value)}
-                    required
-                  />
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-caption font-semibold text-text-primary">
+                      State *
+                    </label>
+                    <select
+                      value={formData.state}
+                      onChange={(e) => updateField('state', e.target.value)}
+                      className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                      required
+                    >
+                      <option value="">Select State</option>
+                      {INDIAN_STATES.map((state) => (
+                        <option key={state} value={state}>
+                          {state}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
                   <Input
                     label="Pincode"
@@ -503,13 +652,54 @@ export default function OnboardingWizardPage() {
                     onChange={(e) => updateField('businessPan', e.target.value.toUpperCase())}
                   />
 
+                  <div className="flex flex-col gap-2">
+                    <label className="text-caption font-semibold text-text-primary">
+                      Do you have GST registration?
+                    </label>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateField('hasGst', true);
+                          if (!formData.gstin) {
+                            updateField('gstin', '');
+                          }
+                        }}
+                        className={`flex-1 px-4 py-2 rounded-xl text-caption font-semibold transition-all ${
+                          formData.hasGst
+                            ? 'bg-primary text-white border-2 border-primary'
+                            : 'bg-surface text-text-secondary border border-border hover:border-primary'
+                        }`}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateField('hasGst', false);
+                          updateField('gstin', '');
+                        }}
+                        className={`flex-1 px-4 py-2 rounded-xl text-caption font-semibold transition-all ${
+                          !formData.hasGst
+                            ? 'bg-primary text-white border-2 border-primary'
+                            : 'bg-surface text-text-secondary border border-border hover:border-primary'
+                        }`}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {formData.hasGst && (
                   <Input
-                    label="GSTIN Number (Optional)"
+                    label="GSTIN Number"
                     placeholder="29ABCDE1234F1Z5"
                     value={formData.gstin}
                     onChange={(e) => updateField('gstin', e.target.value.toUpperCase())}
+                    required
                   />
-                </div>
+                )}
 
                 <Input
                   label="Trade License / Registration Document URL"
@@ -546,6 +736,8 @@ export default function OnboardingWizardPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
                     label="Bank Account Number"
+                    name="bank-account-number"
+                    autoComplete="off"
                     placeholder="9180200192847291"
                     value={formData.bankAccountNumber}
                     onChange={(e) => updateField('bankAccountNumber', e.target.value)}
@@ -553,6 +745,8 @@ export default function OnboardingWizardPage() {
 
                   <Input
                     label="Bank IFSC Code"
+                    name="bank-ifsc-code"
+                    autoComplete="off"
                     placeholder="HDFC0000128"
                     value={formData.bankIfsc}
                     onChange={(e) => updateField('bankIfsc', e.target.value.toUpperCase())}
@@ -609,27 +803,27 @@ export default function OnboardingWizardPage() {
                       size="sm"
                       onClick={() => {
                         updateField('hardwareTiers', [
+                          { name: 'Custom Hardware Tier', gpu: 'NVIDIA RTX 4070 / 32GB RAM / 240Hz QHD', hourlyRate: 150, totalSeats: 5 },
                           ...formData.hardwareTiers,
-                          { name: 'Custom Hardware Tier', gpu: 'RTX 3070 / 16GB', hourlyRate: 120, totalSeats: 5 }
                         ]);
                       }}
                       className="gap-1.5"
                     >
                       <Plus className="h-4 w-4" />
-                      <span>Add Tier</span>
+                      <span>Add Tier to Top</span>
                     </Button>
                   </div>
 
-                  {/* GPU Presets Selector */}
+                  {/* Hardware Presets Selector */}
                   <div className="flex flex-wrap gap-2 mb-2">
                     <span className="text-xs text-text-tertiary self-center">Quick Presets:</span>
-                    {GPU_PRESETS.map((preset) => (
+                    {HARDWARE_PRESETS.map((preset) => (
                       <button
                         key={preset.name}
                         type="button"
                         onClick={() => {
                           if (!formData.hardwareTiers.some((t) => t.name === preset.name)) {
-                            updateField('hardwareTiers', [...formData.hardwareTiers, preset]);
+                            updateField('hardwareTiers', [preset, ...formData.hardwareTiers]);
                           }
                         }}
                         className="px-2.5 py-1 rounded-lg bg-surface-hover hover:bg-border/60 text-xs font-medium text-text-secondary border border-border transition-all"
@@ -639,69 +833,186 @@ export default function OnboardingWizardPage() {
                     ))}
                   </div>
 
-                  {formData.hardwareTiers.map((tier, idx) => (
-                    <div key={idx} className="p-4 rounded-2xl bg-surface-hover border border-border flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-heading text-caption font-bold text-emerald-600">Tier #{idx + 1}</span>
-                        {formData.hardwareTiers.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = formData.hardwareTiers.filter((_, i) => i !== idx);
+                  {formData.hardwareTiers.map((tier, idx) => {
+                    const isKnownGpu = POPULAR_GPUS.includes(tier.gpu || '');
+                    const isKnownCpu = POPULAR_CPUS.includes(tier.cpu || '');
+                    const isKnownMonitor = POPULAR_MONITORS.includes(tier.monitor || '');
+
+                    return (
+                      <div key={idx} className="p-5 rounded-2xl bg-surface-hover border border-border flex flex-col gap-4 shadow-sm">
+                        <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                          <span className="font-heading text-caption font-bold text-emerald-600">Tier #{idx + 1}</span>
+                          {formData.hardwareTiers.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = formData.hardwareTiers.filter((_, i) => i !== idx);
+                                updateField('hardwareTiers', updated);
+                              }}
+                              className="text-rose-500 hover:text-rose-600 p-1 flex items-center gap-1 text-caption font-semibold"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span>Remove</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Row 1: Tier Name & Hourly Price */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <Input
+                            label="Tier Name *"
+                            placeholder="e.g. RTX 4090 Ultra VIP Tier"
+                            value={tier.name}
+                            onChange={(e) => {
+                              const updated = [...formData.hardwareTiers];
+                              updated[idx].name = e.target.value;
                               updateField('hardwareTiers', updated);
                             }}
-                            className="text-rose-500 hover:text-rose-600 p-1"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
+                          />
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <Input
-                          label="Tier Name"
-                          value={tier.name}
-                          onChange={(e) => {
-                            const updated = [...formData.hardwareTiers];
-                            updated[idx].name = e.target.value;
-                            updateField('hardwareTiers', updated);
-                          }}
-                        />
-                        <Input
-                          label="Specifications & GPU"
-                          value={tier.gpu}
-                          onChange={(e) => {
-                            const updated = [...formData.hardwareTiers];
-                            updated[idx].gpu = e.target.value;
-                            updateField('hardwareTiers', updated);
-                          }}
-                        />
-                      </div>
+                          <Input
+                            label="Hourly Rate (₹) *"
+                            type="number"
+                            placeholder="200"
+                            value={tier.hourlyRate}
+                            onChange={(e) => {
+                              const updated = [...formData.hardwareTiers];
+                              updated[idx].hourlyRate = Number(e.target.value);
+                              updateField('hardwareTiers', updated);
+                            }}
+                          />
+                        </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <Input
-                          label="Hourly Price (₹)"
-                          type="number"
-                          value={tier.hourlyRate}
-                          onChange={(e) => {
-                            const updated = [...formData.hardwareTiers];
-                            updated[idx].hourlyRate = Number(e.target.value);
-                            updateField('hardwareTiers', updated);
-                          }}
-                        />
-                        <Input
-                          label="Seats in this Tier"
-                          type="number"
-                          value={tier.totalSeats}
-                          onChange={(e) => {
-                            const updated = [...formData.hardwareTiers];
-                            updated[idx].totalSeats = Number(e.target.value);
-                            updateField('hardwareTiers', updated);
-                          }}
-                        />
+                        {/* Row 2: 3 Separate Dropdowns for GPU, CPU, Monitor */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          {/* GPU Selector */}
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-caption font-semibold text-text-primary">GPU / Graphics Card</label>
+                            <select
+                              value={isKnownGpu ? tier.gpu : 'Custom GPU (Type custom GPU below)'}
+                              onChange={(e) => {
+                                const updated = [...formData.hardwareTiers];
+                                const val = e.target.value;
+                                updated[idx].gpu = val.includes('Custom') ? 'NVIDIA RTX 4070' : val;
+                                updateField('hardwareTiers', updated);
+                              }}
+                              className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                            >
+                              {POPULAR_GPUS.map((g) => (
+                                <option key={g} value={g}>{g}</option>
+                              ))}
+                            </select>
+                            {!isKnownGpu && (
+                              <Input
+                                placeholder="Type custom GPU..."
+                                value={tier.gpu}
+                                onChange={(e) => {
+                                  const updated = [...formData.hardwareTiers];
+                                  updated[idx].gpu = e.target.value;
+                                  updateField('hardwareTiers', updated);
+                                }}
+                              />
+                            )}
+                          </div>
+
+                          {/* CPU Selector */}
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-caption font-semibold text-text-primary">CPU / Processor</label>
+                            <select
+                              value={isKnownCpu ? (tier.cpu || POPULAR_CPUS[1]) : 'Custom CPU (Type custom CPU below)'}
+                              onChange={(e) => {
+                                const updated = [...formData.hardwareTiers];
+                                const val = e.target.value;
+                                updated[idx].cpu = val.includes('Custom') ? 'Intel Core i7' : val;
+                                updateField('hardwareTiers', updated);
+                              }}
+                              className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                            >
+                              {POPULAR_CPUS.map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                            {!isKnownCpu && (
+                              <Input
+                                placeholder="Type custom CPU..."
+                                value={tier.cpu || ''}
+                                onChange={(e) => {
+                                  const updated = [...formData.hardwareTiers];
+                                  updated[idx].cpu = e.target.value;
+                                  updateField('hardwareTiers', updated);
+                                }}
+                              />
+                            )}
+                          </div>
+
+                          {/* Monitor Selector */}
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-caption font-semibold text-text-primary">Monitor / Display</label>
+                            <select
+                              value={isKnownMonitor ? (tier.monitor || POPULAR_MONITORS[1]) : 'Custom Monitor (Type custom monitor below)'}
+                              onChange={(e) => {
+                                const updated = [...formData.hardwareTiers];
+                                const val = e.target.value;
+                                updated[idx].monitor = val.includes('Custom') ? '240Hz Display' : val;
+                                updateField('hardwareTiers', updated);
+                              }}
+                              className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                            >
+                              {POPULAR_MONITORS.map((m) => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                            </select>
+                            {!isKnownMonitor && (
+                              <Input
+                                placeholder="Type custom monitor..."
+                                value={tier.monitor || ''}
+                                onChange={(e) => {
+                                  const updated = [...formData.hardwareTiers];
+                                  updated[idx].monitor = e.target.value;
+                                  updateField('hardwareTiers', updated);
+                                }}
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Row 3: Total Seats Available vs Total Allowed for KHEL-O App */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-card p-3 rounded-xl border border-border/60">
+                          <Input
+                            label="Total Stations Built in Café *"
+                            type="number"
+                            min="1"
+                            value={tier.totalSeats}
+                            onChange={(e) => {
+                              const updated = [...formData.hardwareTiers];
+                              const val = Number(e.target.value);
+                              updated[idx].totalSeats = val;
+                              if (updated[idx].appBookableSeats > val) {
+                                updated[idx].appBookableSeats = val;
+                              }
+                              updateField('hardwareTiers', updated);
+                            }}
+                          />
+
+                          <Input
+                            label="Total Allowed to be Booked on KHEL-O App *"
+                            type="number"
+                            min="1"
+                            max={tier.totalSeats}
+                            value={tier.appBookableSeats}
+                            onChange={(e) => {
+                              const updated = [...formData.hardwareTiers];
+                              const val = Number(e.target.value);
+                              // Clamp typed value so it never exceeds totalSeats
+                              const clampedVal = Math.min(val, tier.totalSeats);
+                              updated[idx].appBookableSeats = clampedVal;
+                              updateField('hardwareTiers', updated);
+                            }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

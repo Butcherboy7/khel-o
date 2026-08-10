@@ -148,6 +148,11 @@ async def verify_cafe(
         from app.models.user_role import UserRoleMapping
         import uuid
         
+        # Upgrade owner primary role to CAFE_OWNER so authentication token refreshes automatically
+        owner_user = await user_repo.get_by_id(cafe.owner_id)
+        if owner_user:
+            owner_user.role = UserRole.CAFE_OWNER
+
         stmt_check_gamer = select(UserRoleMapping).where(
             UserRoleMapping.user_id == cafe.owner_id,
             UserRoleMapping.role == UserRole.GAMER,

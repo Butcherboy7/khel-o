@@ -10,6 +10,7 @@ from app.api.v1.owner import router as owner_router
 from app.api.v1.owner_payouts import router as owner_payouts_router
 from app.api.v1.reviews import router as reviews_router
 from app.api.v1.admin import router as admin_router
+from app.api.v1.notifications import router as notifications_router
 
 api_router = APIRouter()
 
@@ -23,6 +24,7 @@ api_router.include_router(owner_router, prefix="/owner", tags=["Owner Dashboard"
 api_router.include_router(owner_payouts_router, prefix="/owner/payouts", tags=["Owner Payouts"])
 api_router.include_router(reviews_router, prefix="/reviews", tags=["Reviews"])
 api_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
+api_router.include_router(notifications_router, tags=["Notifications"])
 
 @api_router.get("/status", tags=["Status"])
 async def get_v1_status():

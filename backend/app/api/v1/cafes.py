@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, Request
 from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.database import get_db
 from app.schemas.cafe import CafeCreateRequest, CafeUpdateRequest
@@ -18,6 +18,8 @@ from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
 from app.api.deps import require_cafe_owner, get_optional_user, get_current_active_user
 import uuid
+
+limiter = None
 
 router = APIRouter()
 
@@ -72,13 +74,13 @@ async def get_cafe(
 
 @router.get("/{cafe_id}/availability", status_code=status.HTTP_200_OK)
 async def get_cafe_availability(
+    request: Request,
     cafe_id: UUID,
     tier_id: UUID = Query(...),
     session_date: str = Query(..., alias="date"),
     db: AsyncSession = Depends(get_db)
 ):
-    from datetime import datetime as dt
-    from sqlalchemy import select
+    from datetime import datetime as dt, timedelta, timezone
     from app.models.booking import Booking, BookingStatus
     from app.core.exceptions import NotFoundException
 
@@ -92,26 +94,34 @@ async def get_cafe_availability(
     except ValueError:
         parsed_date = dt.now().date()
 
-    stmt = select(Booking).where(
-        Booking.hardware_tier_id == tier_id,
-        Booking.session_date == parsed_date,
-        Booking.status.in_([BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED])
+    payment_window_cutoff = dt.now(timezone.utc) - timedelta(minutes=15)
+    stmt = (
+        select(Booking.start_time, Booking.end_time, Booking.seats_count)
+        .where(
+            Booking.hardware_tier_id == tier_id,
+            Booking.session_date == parsed_date,
+            Booking.status.in_([BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED]),
+        )
     )
     res = await db.execute(stmt)
-    active_bookings = res.scalars().all()
+    booking_rows = res.all()
 
     booked_slots = []
-    for b in active_bookings:
+    for b in booking_rows:
         booked_slots.append({
             "startTime": b.start_time.strftime("%H:%M:%S"),
-            "endTime": b.end_time.strftime("%H:%M:%S")
+            "endTime": b.end_time.strftime("%H:%M:%S"),
+            "seatsCount": b.seats_count or 1
         })
+
+    app_bookable_seats = tier.app_bookable_seats or tier.total_seats or 10
 
     return {
         "success": True,
         "data": {
-            "appBookableSeats": tier.app_bookable_seats or tier.total_seats or 10,
-            "bookedSlots": booked_slots
+            "appBookableSeats": app_bookable_seats,
+            "remainingSeats": app_bookable_seats,
+            "bookedSlots": booked_slots,
         }
     }
 

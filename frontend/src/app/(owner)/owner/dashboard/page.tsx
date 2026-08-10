@@ -15,10 +15,12 @@ import {
   ShieldCheck,
   ChevronRight,
   RefreshCw,
-  Plus
+  Plus,
+  Eye
 } from 'lucide-react';
 import { getOwnerStatus, getOwnerDashboard, getOwnerBookings, checkinBooking, updateOwnerBookingStatus } from '@/lib/api/owner';
-import { Card, CardContent, Button, Badge } from '@/components/ui';
+import { getOwnerOccupancy, type TierOccupancy } from '@/lib/api/scanner';
+import { Card, CardContent, Button, Badge, Modal } from '@/components/ui';
 import { PendingApprovalView } from '@/components/owner/PendingApprovalView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
 
@@ -30,9 +32,12 @@ export default function OwnerDashboardPage() {
 
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [todayBookings, setTodayBookings] = useState<any[]>([]);
+  const [tierOccupancy, setTierOccupancy] = useState<TierOccupancy[]>([]);
+  const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [isLoadingOps, setIsLoadingOps] = useState(false);
   const [isPausedToday, setIsPausedToday] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionIsError, setActionIsError] = useState(false);
 
   // Fetch status on load
   const loadStatusAndOps = async () => {
@@ -82,13 +87,15 @@ export default function OwnerDashboardPage() {
 
       if (statusRes.status === 'verified' || statusRes.status === 'pending') {
         setIsLoadingOps(true);
-        const [dashRes, bookingsRes] = await Promise.all([
+        const [dashRes, bookingsRes, occRes] = await Promise.all([
           getOwnerDashboard().catch(() => null),
-          getOwnerBookings({ limit: 20 }).catch(() => ({ items: [] }))
+          getOwnerBookings({ limit: 20 }).catch(() => ({ items: [] })),
+          getOwnerOccupancy().catch(() => ({ tiers: [] }))
         ]);
 
         setDashboardData(dashRes);
         setTodayBookings(bookingsRes?.items || []);
+        setTierOccupancy(occRes?.tiers || []);
       }
     } catch {
       setStatusState({ status: 'prospective' });
@@ -104,22 +111,30 @@ export default function OwnerDashboardPage() {
   const handleCheckIn = async (bookingId: string) => {
     try {
       setActionMessage(null);
+      setActionIsError(false);
       await checkinBooking(bookingId);
-      setActionMessage('Gamer checked in successfully!');
+      setActionMessage('✅ Gamer checked in successfully!');
+      setActionIsError(false);
       loadStatusAndOps();
-    } catch (err: any) {
-      setActionMessage(err?.message || 'Check-in failed. Please try again.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Check-in failed. Please try again.';
+      setActionMessage(msg);
+      setActionIsError(true);
     }
   };
 
   const handleStatusUpdate = async (bookingId: string, targetStatus: 'completed' | 'no_show') => {
     try {
       setActionMessage(null);
+      setActionIsError(false);
       await updateOwnerBookingStatus(bookingId, targetStatus);
       setActionMessage(`Booking marked as ${targetStatus}!`);
+      setActionIsError(false);
       loadStatusAndOps();
-    } catch (err: any) {
-      setActionMessage(err?.message || 'Status update failed.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Status update failed.';
+      setActionMessage(msg);
+      setActionIsError(true);
     }
   };
 
@@ -144,8 +159,8 @@ export default function OwnerDashboardPage() {
     );
   }
 
-  const upcomingCount = todayBookings.filter((b) => b.status === 'confirmed').length;
-  const checkedInCount = todayBookings.filter((b) => b.status === 'in_session' || b.status === 'completed').length;
+  const upcomingCount = todayBookings.filter((b) => b.status === 'confirmed' || b.status === 'pending_payment').length;
+  const checkedInCount = todayBookings.filter((b) => b.status === 'checked_in' || b.status === 'active' || b.status === 'completed').length;
   const totalEarningsToday = todayBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
   return (
@@ -180,9 +195,17 @@ export default function OwnerDashboardPage() {
       </div>
 
       {actionMessage && (
-        <div className="flex items-center gap-2 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-caption font-semibold">
-          <CheckCircle2 className="h-5 w-5" />
+        <div className={`flex items-center gap-2 p-3.5 rounded-2xl text-caption font-semibold ${
+          actionIsError
+            ? 'bg-red-500/10 border border-red-500/20 text-red-600'
+            : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600'
+        }`}>
+          {actionIsError ? <AlertCircle className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
           <span>{actionMessage}</span>
+          <button
+            onClick={() => setActionMessage(null)}
+            className="ml-auto text-xs opacity-60 hover:opacity-100"
+          >✕</button>
         </div>
       )}
 
@@ -245,6 +268,68 @@ export default function OwnerDashboardPage() {
         </Card>
       </div>
 
+      {/* LIVE TIER OCCUPANCY PROGRESS BARS */}
+      {tierOccupancy.length > 0 && (
+        <Card elevation="raised" className="bg-surface border border-border">
+          <CardContent className="p-6 flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
+                  <Monitor className="h-5 w-5 text-indigo-400" />
+                  <span>Real-Time Tier Station Occupancy</span>
+                </h2>
+                <p className="text-caption text-text-secondary">
+                  Live ratio of checked-in gamers vs total station capacity per hardware tier.
+                </p>
+              </div>
+              <Link href="/owner/scanner">
+                <Button variant="primary" size="sm" className="gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold">
+                  <QrCode className="h-4 w-4" />
+                  <span>Open Pass Scanner</span>
+                </Button>
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+              {tierOccupancy.map((t) => {
+                const colorClass =
+                  t.occupancyPercent >= 80
+                    ? 'bg-rose-500'
+                    : t.occupancyPercent >= 50
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500';
+
+                return (
+                  <div
+                    key={t.tierId}
+                    className="p-4 rounded-2xl bg-surface-hover border border-border flex flex-col gap-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-heading text-body font-bold text-text-primary">{t.tierName}</span>
+                      <span className="text-caption font-bold text-text-primary">
+                        {t.occupiedSeats} / {t.totalSeats} Occupied ({t.occupancyPercent}%)
+                      </span>
+                    </div>
+
+                    <div className="w-full h-3 rounded-full bg-surface border border-border overflow-hidden p-0.5">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${colorClass}`}
+                        style={{ width: `${Math.min(100, Math.max(0, t.occupancyPercent))}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-text-tertiary">
+                      <span>App-Bookable Quota: {t.appBookableSeats} Seats</span>
+                      <span>Walk-In Reserved: {t.totalSeats - t.appBookableSeats} Seats</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* TODAY'S BOOKINGS TIMELINE & ACTION FEED */}
       <Card elevation="raised" className="bg-surface border border-border">
         <CardContent className="p-6 flex flex-col gap-6">
@@ -273,8 +358,11 @@ export default function OwnerDashboardPage() {
           ) : (
             <div className="flex flex-col gap-3">
               {todayBookings.map((b) => {
-                const isConfirmed = b.status === 'confirmed';
+                const isCheckedIn = b.status === 'checked_in';
+                const isActive = b.status === 'active';
                 const isCompleted = b.status === 'completed';
+                const isConfirmed = b.status === 'confirmed';
+
                 return (
                   <div
                     key={b.id}
@@ -287,8 +375,11 @@ export default function OwnerDashboardPage() {
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-2">
                           <span className="font-heading text-body font-bold text-text-primary">{b.gamerName || 'Rohan Sharma'}</span>
-                          <Badge variant={isConfirmed ? 'success' : isCompleted ? 'default' : 'warning'} size="sm">
-                            {b.status}
+                          <Badge
+                            variant={isCheckedIn || isActive || isConfirmed ? 'success' : isCompleted ? 'default' : 'warning'}
+                            size="sm"
+                          >
+                            {isCheckedIn ? 'Checked In ✓' : isActive ? 'In Session 🎮' : b.status}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-3 text-caption text-text-secondary">
@@ -302,7 +393,17 @@ export default function OwnerDashboardPage() {
                     </div>
 
                     <div className="flex items-center gap-2 self-end sm:self-auto">
-                      {isConfirmed && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedBooking(b)}
+                        className="gap-1.5"
+                      >
+                        <Eye className="h-4 w-4 text-primary" />
+                        <span>View Details</span>
+                      </Button>
+
+                      {(b.status === 'confirmed' || b.status === 'pending_payment' || b.status === 'booked') && (
                         <Button
                           variant="primary"
                           size="sm"
@@ -313,7 +414,8 @@ export default function OwnerDashboardPage() {
                           <span>1-Tap Check In</span>
                         </Button>
                       )}
-                      {b.status === 'in_session' && (
+
+                      {(b.status === 'checked_in' || b.status === 'active' || b.status === 'in_session') && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -332,6 +434,82 @@ export default function OwnerDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* GAMER BOOKING DETAILS MODAL */}
+      <Modal
+        isOpen={Boolean(selectedBooking)}
+        onClose={() => setSelectedBooking(null)}
+        title="Gamer Booking Details"
+        description={`Verification & Ticket details for Booking Ref: ${selectedBooking?.bookingReference || selectedBooking?.id?.slice(0, 8) || 'N/A'}`}
+      >
+        {selectedBooking && (
+          <div className="flex flex-col gap-5 pt-1">
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-surface border border-border">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold text-lg">
+                  {selectedBooking.gamerName?.charAt(0) || 'G'}
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-heading text-body font-bold text-text-primary">{selectedBooking.gamerName || 'Gamer'}</span>
+                  <span className="text-caption text-text-secondary">{selectedBooking.gamerEmail || selectedBooking.gamerPhone || 'Registered Gamer'}</span>
+                </div>
+              </div>
+              <Badge variant={selectedBooking.status === 'confirmed' ? 'success' : 'default'}>
+                {selectedBooking.status}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-caption">
+              <div className="p-3.5 rounded-xl bg-surface border border-border flex flex-col gap-1">
+                <span className="text-text-tertiary text-xs">Hardware Tier</span>
+                <span className="font-semibold text-text-primary">{selectedBooking.tierName || 'Standard Pod'}</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-surface border border-border flex flex-col gap-1">
+                <span className="text-text-tertiary text-xs">Session Date</span>
+                <span className="font-semibold text-text-primary">{selectedBooking.sessionDate || 'Today'}</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-surface border border-border flex flex-col gap-1">
+                <span className="text-text-tertiary text-xs">Time & Duration</span>
+                <span className="font-semibold text-text-primary">{selectedBooking.startTime?.slice(0, 5) || '14:00'} ({selectedBooking.durationHours || 2} Hours)</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-surface border border-border flex flex-col gap-1">
+                <span className="text-text-tertiary text-xs">Total Paid</span>
+                <span className="font-semibold text-emerald-600 text-body">₹{selectedBooking.totalAmount}</span>
+              </div>
+            </div>
+
+            {selectedBooking.seatsBooked && (
+              <div className="p-3.5 rounded-xl bg-surface border border-border flex flex-col gap-1 text-caption">
+                <span className="text-text-tertiary text-xs">Stations Reserved</span>
+                <span className="font-semibold text-text-primary">{selectedBooking.seatsBooked} Seat(s)</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 border-t border-border pt-4">
+              <Button variant="ghost" onClick={() => setSelectedBooking(null)}>
+                Close
+              </Button>
+              {(selectedBooking.status === 'confirmed' || selectedBooking.status === 'pending_payment' || selectedBooking.status === 'booked') && (
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    const bId = selectedBooking.id;
+                    setSelectedBooking(null);
+                    handleCheckIn(bId);
+                  }}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold gap-1.5"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  <span>Confirm 1-Tap Check In</span>
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

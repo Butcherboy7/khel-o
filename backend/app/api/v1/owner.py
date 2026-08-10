@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, status, Query, Body
 from typing import Optional, Dict, Any, List
 from uuid import UUID
-from datetime import date, datetime, timezone, time
+import secrets
+from datetime import date, datetime, timezone, time, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.database import get_db
+from app.config import settings
 from app.schemas.owner import (
     OwnerDashboardResponse,
     OwnerStatusUpdateRequest
@@ -13,7 +15,9 @@ from app.schemas.owner import (
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
+from app.repositories.staff_invitation_repository import StaffInvitationRepository
 from app.services.owner_service import OwnerService
+from app.services.notification_service import NotificationService
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
@@ -31,6 +35,13 @@ def to_camel(string: str) -> str:
     components = string.split('_')
     return components[0] + ''.join(x.title() for x in components[1:])
 
+class StaffInviteRequest(BaseModel):
+    email: EmailStr
+    full_name: str = Field(..., min_length=2, max_length=255)
+    phone_number: Optional[str] = None
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
 class StaffCreateRequest(BaseModel):
     email: EmailStr
     full_name: str = Field(..., min_length=2, max_length=255)
@@ -38,6 +49,12 @@ class StaffCreateRequest(BaseModel):
     phone_number: Optional[str] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class ValidateQRRequest(BaseModel):
+    qr_data: str
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
 
 class OnboardingDraftSaveRequest(BaseModel):
     step: int = 1
@@ -199,11 +216,11 @@ async def submit_onboarding_application(
             role=UserRole.GAMER,
             cafe_id=None
         ))
-    
+
+    # Also grant CAFE_OWNER role
     stmt_check_owner = select(UserRoleMapping).where(
         UserRoleMapping.user_id == current_user.id,
-        UserRoleMapping.role == UserRole.CAFE_OWNER,
-        UserRoleMapping.cafe_id.is_(None)
+        UserRoleMapping.role == UserRole.CAFE_OWNER
     )
     res_owner = await db.execute(stmt_check_owner)
     if not res_owner.scalars().first():
@@ -213,6 +230,8 @@ async def submit_onboarding_application(
             role=UserRole.CAFE_OWNER,
             cafe_id=None
         ))
+    
+    current_user.role = UserRole.CAFE_OWNER
 
     stmt = select(Cafe).where(Cafe.owner_id == current_user.id).order_by(Cafe.created_at.desc())
     res = await db.execute(stmt)
@@ -426,6 +445,157 @@ async def checkin_booking(
         }
     }
 
+@router.post("/bookings/validate-qr", status_code=status.HTTP_200_OK)
+async def validate_qr_code(
+    payload: ValidateQRRequest,
+    current_user: User = Depends(require_staff_or_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    import urllib.parse
+    qr_data = payload.qr_data.strip()
+    booking_id_str = None
+    ref_str = None
+
+    if "khelo://" in qr_data or "?" in qr_data:
+        parsed = urllib.parse.urlparse(qr_data)
+        params = urllib.parse.parse_qs(parsed.query)
+        if "id" in params and params["id"]:
+            booking_id_str = params["id"][0]
+        if "ref" in params and params["ref"]:
+            ref_str = params["ref"][0]
+    else:
+        if len(qr_data) == 36 and "-" in qr_data:
+            booking_id_str = qr_data
+        else:
+            ref_str = qr_data
+
+    booking_repo = BookingRepository(db)
+    booking = None
+    if booking_id_str:
+        try:
+            booking = await booking_repo.get_by_id(UUID(booking_id_str))
+        except Exception:
+            booking = None
+
+    if not booking and ref_str:
+        booking = await booking_repo.get_by_reference(ref_str)
+
+    if not booking:
+        return {
+            "success": True,
+            "data": {
+                "valid": False,
+                "alreadyCheckedIn": False,
+                "message": "Booking not found or invalid QR code"
+            }
+        }
+
+    cafe_repo = CafeRepository(db)
+    service = OwnerService(booking_repo, cafe_repo)
+    await service._validate_user_cafe_access(current_user, booking.cafe_id)
+
+    user_repo = UserRepository(db)
+    tier_repo = HardwareTierRepository(db)
+    gamer = await user_repo.get_by_id(booking.gamer_id)
+    tier = await tier_repo.get_by_id(booking.hardware_tier_id)
+
+    already_checked_in = booking.status in (BookingStatus.CHECKED_IN, BookingStatus.ACTIVE, BookingStatus.COMPLETED)
+
+    checked_in_by_name = None
+    if booking.checked_in_by:
+        staff_user = await user_repo.get_by_id(booking.checked_in_by)
+        if staff_user:
+            checked_in_by_name = staff_user.full_name
+
+    return {
+        "success": True,
+        "data": {
+            "valid": True,
+            "alreadyCheckedIn": already_checked_in,
+            "checkedInByName": checked_in_by_name,
+            "checkedInAt": booking.checked_in_at.isoformat() if booking.checked_in_at else None,
+            "booking": {
+                "id": str(booking.id),
+                "bookingReference": booking.booking_reference,
+                "gamerName": gamer.full_name if gamer else "Gamer",
+                "gamerEmail": gamer.email if gamer else None,
+                "gamerPhone": gamer.phone_number if gamer else None,
+                "tierName": tier.name if tier else "Standard Tier",
+                "sessionDate": booking.session_date.isoformat(),
+                "startTime": booking.start_time.strftime("%H:%M"),
+                "endTime": booking.end_time.strftime("%H:%M"),
+                "durationHours": float(booking.duration_hours),
+                "seatsCount": booking.seats_count,
+                "totalAmount": float(booking.total_amount),
+                "status": booking.status.value,
+            }
+        }
+    }
+
+@router.get("/occupancy", status_code=status.HTTP_200_OK)
+async def get_owner_occupancy(
+    current_user: User = Depends(require_staff_or_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    cafe_repo = CafeRepository(db)
+    tier_repo = HardwareTierRepository(db)
+
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    cafe = None
+
+    if role_val in ("cafe_owner", "owner"):
+        cafes = await cafe_repo.get_by_owner_id(current_user.id)
+        if cafes:
+            cafe = cafes[0]
+    elif role_val == "staff":
+        from sqlalchemy import select
+        from app.models.user_role import UserRoleMapping
+        stmt = select(UserRoleMapping).where(
+            UserRoleMapping.user_id == current_user.id,
+            UserRoleMapping.role == UserRole.STAFF
+        )
+        res = await db.execute(stmt)
+        mapping = res.scalars().first()
+        if mapping and mapping.cafe_id:
+            cafe = await cafe_repo.get_by_id(mapping.cafe_id)
+
+    if not cafe:
+        return {"success": True, "data": {"tiers": []}}
+
+    tiers = await tier_repo.get_by_cafe_id(cafe.id)
+    today = datetime.now(timezone.utc).date()
+
+    stmt = select(Booking.hardware_tier_id, func.sum(Booking.seats_count)).where(
+        Booking.cafe_id == cafe.id,
+        Booking.session_date == today,
+        Booking.status.in_([BookingStatus.CHECKED_IN, BookingStatus.ACTIVE])
+    ).group_by(Booking.hardware_tier_id)
+
+    res = await db.execute(stmt)
+    occupancy_counts = dict(res.all())
+
+    tiers_data = []
+    for tier in tiers:
+        occupied = int(occupancy_counts.get(tier.id, 0) or 0)
+        total = tier.total_seats
+        pct = round((occupied / total) * 100, 1) if total > 0 else 0.0
+        tiers_data.append({
+            "tierId": str(tier.id),
+            "tierName": tier.name,
+            "totalSeats": total,
+            "appBookableSeats": tier.app_bookable_seats,
+            "occupiedSeats": occupied,
+            "occupancyPercent": pct,
+            "pricePerHour": float(tier.price_per_hour)
+        })
+
+    return {
+        "success": True,
+        "data": {
+            "tiers": tiers_data
+        }
+    }
+
 @router.post("/cafes/{cafe_id}/emergency-close", status_code=status.HTTP_200_OK)
 async def emergency_close_cafe(
     cafe_id: UUID,
@@ -588,6 +758,125 @@ async def get_owner_analytics(
     }
 
 # --- STAFF MANAGEMENT ---
+@router.post("/staff/invitations", status_code=status.HTTP_201_CREATED)
+async def create_staff_invitation(
+    payload: StaffInviteRequest,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt_cafe = select(Cafe).where(Cafe.owner_id == current_owner.id)
+    res_cafe = await db.execute(stmt_cafe)
+    owner_cafe = res_cafe.scalars().first()
+    if not owner_cafe:
+        raise BadRequestException("Café not found for current owner")
+
+    repo = StaffInvitationRepository(db)
+    token = secrets.token_hex(32)
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=7)
+
+    invitation = await repo.create({
+        "venue_id": owner_cafe.id,
+        "email": payload.email.strip().lower(),
+        "full_name": payload.full_name.strip(),
+        "phone_number": payload.phone_number,
+        "role": "staff",
+        "token": token,
+        "expires_at": expires_at,
+        "status": "pending",
+        "invited_by": current_owner.id,
+        "created_at": now
+    })
+
+    invite_url = f"{settings.FRONTEND_URL}/accept-invitation?token={token}"
+    notification_svc = NotificationService()
+    await notification_svc.send_staff_invitation(
+        email=invitation.email,
+        full_name=invitation.full_name,
+        venue_name=owner_cafe.name,
+        invite_url=invite_url
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "invitation": {
+                "id": str(invitation.id),
+                "venueId": str(invitation.venue_id),
+                "email": invitation.email,
+                "fullName": invitation.full_name,
+                "phoneNumber": invitation.phone_number,
+                "role": invitation.role,
+                "status": invitation.status,
+                "token": invitation.token,
+                "inviteUrl": invite_url,
+                "expiresAt": invitation.expires_at.isoformat(),
+                "createdAt": invitation.created_at.isoformat()
+            }
+        }
+    }
+
+@router.get("/staff/invitations", status_code=status.HTTP_200_OK)
+async def list_staff_invitations(
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt_cafe = select(Cafe).where(Cafe.owner_id == current_owner.id)
+    res_cafe = await db.execute(stmt_cafe)
+    owner_cafe = res_cafe.scalars().first()
+    if not owner_cafe:
+        return {"success": True, "data": {"invitations": []}}
+
+    repo = StaffInvitationRepository(db)
+    invitations = await repo.get_by_venue(owner_cafe.id)
+
+    return {
+        "success": True,
+        "data": {
+            "invitations": [
+                {
+                    "id": str(inv.id),
+                    "venueId": str(inv.venue_id),
+                    "email": inv.email,
+                    "fullName": inv.full_name,
+                    "phoneNumber": inv.phone_number,
+                    "role": inv.role,
+                    "status": inv.status,
+                    "token": inv.token,
+                    "inviteUrl": f"{settings.FRONTEND_URL}/accept-invitation?token={inv.token}",
+                    "expiresAt": inv.expires_at.isoformat(),
+                    "createdAt": inv.created_at.isoformat()
+                }
+                for inv in invitations
+            ]
+        }
+    }
+
+@router.delete("/staff/invitations/{invitation_id}", status_code=status.HTTP_200_OK)
+async def cancel_staff_invitation(
+    invitation_id: UUID,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt_cafe = select(Cafe).where(Cafe.owner_id == current_owner.id)
+    res_cafe = await db.execute(stmt_cafe)
+    owner_cafe = res_cafe.scalars().first()
+    if not owner_cafe:
+        raise NotFoundException("Café not found")
+
+    repo = StaffInvitationRepository(db)
+    invitation = await repo.get_by_id(invitation_id)
+    if not invitation or invitation.venue_id != owner_cafe.id:
+        raise NotFoundException("Invitation not found")
+
+    await repo.update_status(invitation_id, "cancelled")
+    return {
+        "success": True,
+        "data": {
+            "message": "Invitation cancelled successfully"
+        }
+    }
+
 @router.post("/staff", status_code=status.HTTP_201_CREATED)
 async def create_staff_user(
     payload: StaffCreateRequest,

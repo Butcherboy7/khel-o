@@ -38,8 +38,11 @@ export default function ProfilePage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
 
-  const [fullName, setFullName] = useState(user?.fullName || 'Arjun Sharma');
-  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '9876543210');
+  const defaultName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'Khel-O Gamer');
+  const defaultPhone = user?.phoneNumber ? user.phoneNumber.replace(/^\+91\s?/, '') : '';
+
+  const [fullName, setFullName] = useState(defaultName);
+  const [phoneNumber, setPhoneNumber] = useState(defaultPhone);
   const [phoneError, setPhoneError] = useState('');
   const [nameError, setNameError] = useState('');
 
@@ -169,8 +172,31 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Partner Conversion Banner */}
-      {user.roles && !user.roles.includes('cafe_owner') && (
+      {/* Partner Conversion / Application Status Banner */}
+      {user.roles && user.roles.includes('cafe_owner') ? (
+        <Card elevation="resting" className="border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-card to-amber-500/10">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-slate-950 shadow-card flex-shrink-0 font-bold">
+                <Store className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-heading text-body font-bold text-text-primary">Café Owner Portal Access</h3>
+                <p className="text-caption text-text-secondary">
+                  Manage your gaming venue, live bookings & payouts.
+                </p>
+              </div>
+            </div>
+
+            <Link href="/owner/dashboard" className="flex-shrink-0 w-full sm:w-auto">
+              <Button variant="primary" size="sm" className="gap-1.5 w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold">
+                <span>Go to Owner Portal</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      ) : (
         <Card elevation="resting" className="border border-primary/20 bg-gradient-to-r from-primary/10 via-card to-accent/10">
           <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -185,7 +211,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <Link href="/owner/onboarding" className="flex-shrink-0 w-full sm:w-auto">
+            <Link href="/partner" className="flex-shrink-0 w-full sm:w-auto">
               <Button variant="primary" size="sm" className="gap-1.5 w-full">
                 <span>Become Partner</span>
                 <ChevronRight className="h-4 w-4" />

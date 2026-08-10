@@ -15,8 +15,9 @@ export function RoleSwitcher() {
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const roles = user?.roles || [];
-  if (!user || roles.length <= 1) {
+  const hasMultipleRoles = (user?.roles && user.roles.length > 1) || user?.role === 'cafe_owner' || user?.role === 'gamer';
+
+  if (!user || !hasMultipleRoles) {
     return null;
   }
 
@@ -42,11 +43,11 @@ export function RoleSwitcher() {
   const isOwnerActive = activeRole === 'cafe_owner';
 
   return (
-    <div className="relative inline-flex items-center gap-2">
+    <div className="relative inline-flex items-center gap-1.5">
       <button
         onClick={handleToggleRole}
         disabled={isSwitching}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all duration-200 shadow-sm ${
+        className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95 ${
           isOwnerActive
             ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
             : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
@@ -54,28 +55,28 @@ export function RoleSwitcher() {
         title={`Click to switch to ${isOwnerActive ? 'Gamer Mode' : 'Owner Portal'}`}
       >
         {isSwitching ? (
-          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+          <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-500" />
         ) : isOwnerActive ? (
-          <Store className="h-3.5 w-3.5" />
+          <Store className="h-3.5 w-3.5 text-amber-500" />
         ) : (
-          <Gamepad2 className="h-3.5 w-3.5" />
+          <Gamepad2 className="h-3.5 w-3.5 text-emerald-500" />
         )}
 
-        <span>{isOwnerActive ? 'Owner Portal' : 'Gamer Mode'}</span>
+        <span className="inline">{isOwnerActive ? 'Owner Portal' : 'Gamer Mode'}</span>
 
         <Badge
           variant={isOwnerActive ? 'warning' : 'success'}
           size="sm"
-          className="ml-1 text-[10px] uppercase py-0 px-1.5"
+          className="hidden sm:inline-flex ml-1 text-[10px] uppercase py-0 px-1.5"
         >
           {isOwnerActive ? 'Owner' : 'Gamer'}
         </Badge>
       </button>
 
       {error && (
-        <span className="text-[11px] text-rose-400 flex items-center gap-1">
+        <span className="text-[10px] text-rose-400 flex items-center gap-1 font-medium">
           <AlertCircle className="h-3 w-3" />
-          {error}
+          <span>{error}</span>
         </span>
       )}
     </div>

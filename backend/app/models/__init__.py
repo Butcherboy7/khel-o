@@ -8,6 +8,8 @@ from app.models.promotion import Promotion
 from app.models.review import Review
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.platform_fee import PlatformFee
+from app.models.notification import Notification, NotificationType
+from app.models.staff_invitation import StaffInvitation
 
 __all__ = [
     "User",
@@ -24,4 +26,7 @@ __all__ = [
     "Review",
     "OwnerPayoutAccount",
     "PlatformFee",
+    "Notification",
+    "NotificationType",
+    "StaffInvitation",
 ]

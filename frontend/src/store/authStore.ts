@@ -71,7 +71,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   switchActiveRole: async (targetRole) => {
     try {
-      const res = await apiClient.post<{ success: boolean; data: { accessToken: string; refreshToken: string; activeRole: string; user: User } }>('/auth/switch-role', { targetRole });
+      const res = await apiClient.post<{ success: boolean; data: { accessToken: string; refreshToken: string; activeRole: string; user: User } }>('/api/v1/auth/switch-role', { targetRole });
       const { accessToken, refreshToken, activeRole, user } = res.data.data;
       const rolesVal = user.roles || [user.role];
       if (typeof window !== 'undefined') {
@@ -162,7 +162,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      const res = await apiClient.get<{ success: boolean; data: { user: User } }>('/auth/me');
+      const res = await apiClient.get<{ success: boolean; data: { user: User } }>('/api/v1/auth/me');
       const user = res.data?.data?.user;
       if (user) {
         const rolesVal = user.roles || [user.role];

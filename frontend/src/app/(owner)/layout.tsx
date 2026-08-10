@@ -17,20 +17,21 @@ import { useAuthStore } from '@/store/authStore';
  * This fixes the critical bug where gamers couldn't access onboarding.
  */
 function OwnerLayoutInner({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const isStaff = user?.role === 'staff';
+
+  // If user is undergoing onboarding, hide sidebar navigation
+  if (pathname === '/owner/onboarding') {
+    return <div className="min-h-screen bg-surface">{children}</div>;
+  }
 
   return <OwnerShell isStaff={isStaff}>{children}</OwnerShell>;
 }
 
 export default function OwnerLayout({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const isOnboarding = pathname === '/owner/onboarding';
-
-  // Allow gamers to reach the onboarding page — this fixes audit issue C1
-  const allowedRoles = isOnboarding
-    ? (['gamer', 'cafe_owner', 'staff', 'admin'] as const)
-    : (['cafe_owner', 'staff', 'admin'] as const);
+  // Allow gamers, cafe_owners, staff, and admin to access /owner pages so onboarding and application status dashboards work seamlessly
+  const allowedRoles = ['gamer', 'cafe_owner', 'staff', 'admin'] as const;
 
   return (
     <AuthGuard allowedRoles={[...allowedRoles]}>

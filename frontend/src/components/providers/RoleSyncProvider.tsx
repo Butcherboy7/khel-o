@@ -14,7 +14,7 @@ export function RoleSyncProvider({ children }: { children: ReactNode }) {
 
     const syncRoles = async () => {
       try {
-        const res = await apiClient.get<{ success: boolean; data: { user: any } }>('/auth/me');
+        const res = await apiClient.get<{ success: boolean; data: { user: any } }>('/api/v1/auth/me');
         const freshUser = res.data?.data?.user;
         
         if (freshUser && freshUser.roles) {
