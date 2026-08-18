@@ -36,6 +36,24 @@ class StaffInvitationRepository:
         res = await self.db.execute(stmt)
         return res.scalars().first()
 
+    async def get_pending_by_email(self, email: str) -> List[StaffInvitation]:
+        clean_email = email.lower().strip()
+        now = datetime.now(timezone.utc)
+        stmt = select(StaffInvitation).where(
+            StaffInvitation.email == clean_email,
+            StaffInvitation.status == "pending"
+        )
+        res = await self.db.execute(stmt)
+        invites = list(res.scalars().all())
+        valid_invites = []
+        for inv in invites:
+            exp = inv.expires_at
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if exp > now:
+                valid_invites.append(inv)
+        return valid_invites
+
     async def get_by_venue_id(self, venue_id: uuid.UUID) -> List[StaffInvitation]:
         stmt = select(StaffInvitation).where(
             StaffInvitation.venue_id == venue_id

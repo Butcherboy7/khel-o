@@ -10,6 +10,13 @@ export interface User {
   cafeId?: string;
   isActive: boolean;
   avatarUrl: string | null;
+  pendingInvitations?: Array<{
+    id: string;
+    venueName: string;
+    token: string;
+    role: string;
+    createdAt: string;
+  }>;
   createdAt: string;
   updatedAt: string | null;
 }

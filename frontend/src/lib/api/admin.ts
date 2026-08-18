@@ -63,3 +63,104 @@ export async function deactivatePromotion(promotionId: string): Promise<{ promot
 export async function setReviewVisibility(reviewId: string, isVisible: boolean): Promise<{ review: Review }> {
   return call(() => apiClient.patch(`/api/v1/admin/reviews/${reviewId}/visibility`, { isVisible }));
 }
+
+export async function listAdminReviews(
+  params: { cafeId?: string; page?: number; limit?: number } = {},
+): Promise<{ items: Review[]; total: number }> {
+  return call(() => apiClient.get('/api/v1/admin/reviews', { params }));
+}
+
+// ── Café Suspension / Activation ────────────────────────────────────────────
+
+export async function suspendCafe(cafeId: string, reason: string): Promise<{ id: string; name: string; verificationStatus: string; isActive: boolean }> {
+  return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/suspend`, { reason }));
+}
+
+export async function reactivateCafe(cafeId: string): Promise<{ id: string; name: string; verificationStatus: string; isActive: boolean }> {
+  return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/reactivate`));
+}
+
+export async function pauseCafeBookings(cafeId: string, paused: boolean): Promise<{ id: string; name: string; bookingsPaused: boolean }> {
+  return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/pause-bookings`, { paused }));
+}
+
+// ── Payment Oversight ────────────────────────────────────────────────────────
+
+export interface AdminPayment {
+  id: string;
+  bookingId: string;
+  bookingReference: string;
+  razorpayOrderId: string;
+  razorpayPaymentId: string | null;
+  amount: number;
+  currency: string;
+  status: 'created' | 'captured' | 'failed' | 'refunded';
+  failureReason: string | null;
+  refundId: string | null;
+  refundedAt: string | null;
+  createdAt: string;
+  cafeId: string;
+  cafeName: string;
+  gamerEmail: string;
+  gamerName: string;
+}
+
+export async function listAdminPayments(
+  params: { status?: string; cafeId?: string; page?: number; limit?: number } = {},
+): Promise<{ items: AdminPayment[]; total: number; page: number; pageSize: number; totalPages: number }> {
+  return call(() => apiClient.get('/api/v1/admin/payments', { params }));
+}
+
+// ── Staff Oversight ───────────────────────────────────────────────────────────
+
+export interface AdminStaffMember {
+  userId: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string | null;
+  isActive: boolean;
+  cafeId: string | null;
+  cafeName: string | null;
+  joinedAt: string | null;
+  status: 'active';
+}
+
+export interface AdminPendingInvitation {
+  id: string;
+  email: string;
+  fullName: string;
+  cafeId: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export async function listAdminStaff(
+  params: { cafeId?: string; page?: number; limit?: number } = {},
+): Promise<{ items: AdminStaffMember[]; pendingInvitations: AdminPendingInvitation[]; total: number }> {
+  return call(() => apiClient.get('/api/v1/admin/staff', { params }));
+}
+
+export async function revokeStaffAccess(userId: string, cafeId: string): Promise<{ userId: string; cafeId: string; revoked: boolean }> {
+  return call(() => apiClient.delete(`/api/v1/admin/staff/${userId}/revoke`, { data: { cafeId } }));
+}
+
+// ── Audit Log ────────────────────────────────────────────────────────────────
+
+export interface AdminAuditEntry {
+  id: string;
+  adminId: string;
+  adminEmail: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  entityName: string | null;
+  reason: string | null;
+  createdAt: string;
+}
+
+export async function listAuditLog(
+  params: { entityType?: string; action?: string; page?: number; limit?: number } = {},
+): Promise<{ items: AdminAuditEntry[]; total: number; page: number; pageSize: number; totalPages: number }> {
+  return call(() => apiClient.get('/api/v1/admin/audit-log', { params }));
+}

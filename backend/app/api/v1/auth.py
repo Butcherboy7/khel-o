@@ -83,8 +83,23 @@ async def get_me(
     
     roles = await get_user_roles(current_user.id, db)
     
+    inv_repo = StaffInvitationRepository(db)
+    pending_invs = await inv_repo.get_pending_by_email(current_user.email)
+    cafe_repo = CafeRepository(db)
+    pending_invitations_list = []
+    for inv in pending_invs:
+        c = await cafe_repo.get_by_id(inv.venue_id)
+        pending_invitations_list.append({
+            "id": str(inv.id),
+            "venueName": c.name if c else "Gaming Cafe",
+            "token": inv.token,
+            "role": inv.role,
+            "createdAt": inv.created_at.isoformat()
+        })
+
     user_dict = UserResponse.model_validate(current_user).model_dump()
     user_dict["roles"] = roles
+    user_dict["pendingInvitations"] = pending_invitations_list
     
     return {
         "success": True,

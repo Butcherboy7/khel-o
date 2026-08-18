@@ -44,6 +44,14 @@ class AuthService:
 
         return access_token, refresh_token
 
+    async def _claim_pending_staff_invitations(self, user: User) -> None:
+        from app.repositories.staff_invitation_repository import StaffInvitationRepository
+        inv_repo = StaffInvitationRepository(self.user_repo.db)
+        pending_invites = await inv_repo.get_pending_by_email(user.email)
+        for inv in pending_invites:
+            await self.user_repo.update_role(user.id, UserRole.STAFF, cafe_id=inv.venue_id)
+            await inv_repo.update_status(inv.id, "accepted")
+
     async def register_with_email(self, user_data: UserCreateRequest) -> Dict[str, Any]:
         clean_email = user_data.email.strip().lower()
         existing = await self.user_repo.get_by_email(clean_email)
@@ -68,6 +76,7 @@ class AuthService:
         }
 
         created_user = await self.user_repo.create(user_dict)
+        await self._claim_pending_staff_invitations(created_user)
         access_token, refresh_token = self.create_tokens(created_user)
 
         return {
@@ -159,6 +168,7 @@ class AuthService:
                 "is_active": True
             }
             user = await self.user_repo.create(user_dict)
+            await self._claim_pending_staff_invitations(user)
 
         access_token, refresh_token = self.create_tokens(user)
         return {

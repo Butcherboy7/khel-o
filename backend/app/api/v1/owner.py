@@ -95,6 +95,159 @@ class OnboardingSubmitRequest(BaseModel):
 
 router = APIRouter()
 
+class ToggleEmergencyModeRequest(BaseModel):
+    is_emergency_mode: Optional[bool] = Field(None, alias="isEmergencyMode")
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class ToggleBookingsPauseRequest(BaseModel):
+    bookings_paused: Optional[bool] = Field(None, alias="bookingsPaused")
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+@router.get("/settings", status_code=status.HTTP_200_OK)
+async def get_owner_settings(
+    current_user: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get owner café settings in one call."""
+    stmt = select(Cafe).where(Cafe.owner_id == current_user.id).order_by(Cafe.created_at.desc())
+    result = await db.execute(stmt)
+    cafe = result.scalars().first()
+
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+
+    cafe_data = {
+        "cafeId": str(cafe.id),
+        "cafeName": cafe.name,
+        "isEmergencyMode": cafe.is_emergency_mode,
+        "bookingsPaused": cafe.bookings_paused,
+        "openingTime": str(cafe.opening_time) if cafe.opening_time else None,
+        "closingTime": str(cafe.closing_time) if cafe.closing_time else None,
+        "phoneNumber": cafe.phone_number,
+        "addressLine1": cafe.address_line1,
+        "city": cafe.city,
+        "state": cafe.state,
+        "pincode": cafe.pincode,
+    }
+
+    return {
+        "success": True,
+        "data": {
+            "cafe": cafe_data
+        },
+        "cafe": cafe_data
+    }
+
+@router.patch("/cafe/emergency-mode", status_code=status.HTTP_200_OK)
+async def toggle_emergency_mode(
+    isEmergencyMode: Optional[bool] = Query(None),
+    payload: Optional[ToggleEmergencyModeRequest] = Body(None),
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Cafe).where(Cafe.owner_id == current_owner.id).order_by(Cafe.created_at.desc())
+    res = await db.execute(stmt)
+    cafe = res.scalars().first()
+    if not cafe:
+        raise NotFoundException("Café not found", error_code="CAFE_NOT_FOUND")
+
+    target_val = isEmergencyMode
+    if target_val is None and payload is not None:
+        target_val = payload.is_emergency_mode
+    if target_val is None:
+        target_val = not cafe.is_emergency_mode
+
+    cafe.is_emergency_mode = target_val
+    await db.commit()
+    await db.refresh(cafe)
+
+    return {
+        "success": True,
+        "data": {
+            "isEmergencyMode": cafe.is_emergency_mode
+        },
+        "isEmergencyMode": cafe.is_emergency_mode
+    }
+
+@router.patch("/cafe/bookings-pause", status_code=status.HTTP_200_OK)
+async def toggle_bookings_paused(
+    bookingsPaused: Optional[bool] = Query(None),
+    payload: Optional[ToggleBookingsPauseRequest] = Body(None),
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Cafe).where(Cafe.owner_id == current_owner.id).order_by(Cafe.created_at.desc())
+    res = await db.execute(stmt)
+    cafe = res.scalars().first()
+    if not cafe:
+        raise NotFoundException("Café not found", error_code="CAFE_NOT_FOUND")
+
+    target_val = bookingsPaused
+    if target_val is None and payload is not None:
+        target_val = payload.bookings_paused
+    if target_val is None:
+        target_val = not cafe.bookings_paused
+
+    cafe.bookings_paused = target_val
+    await db.commit()
+    await db.refresh(cafe)
+
+    return {
+        "success": True,
+        "data": {
+            "bookingsPaused": cafe.bookings_paused
+        },
+        "bookingsPaused": cafe.bookings_paused
+    }
+
+@router.post("/cafe/pause-bookings", status_code=status.HTTP_200_OK)
+async def pause_bookings(
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Cafe).where(Cafe.owner_id == current_owner.id).order_by(Cafe.created_at.desc())
+    res = await db.execute(stmt)
+    cafe = res.scalars().first()
+    if not cafe:
+        raise NotFoundException("Café not found", error_code="CAFE_NOT_FOUND")
+
+    cafe.bookings_paused = True
+    await db.commit()
+    await db.refresh(cafe)
+
+    return {
+        "success": True,
+        "data": {
+            "bookingsPaused": True
+        },
+        "bookingsPaused": True
+    }
+
+@router.post("/cafe/resume-bookings", status_code=status.HTTP_200_OK)
+async def resume_bookings(
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Cafe).where(Cafe.owner_id == current_owner.id).order_by(Cafe.created_at.desc())
+    res = await db.execute(stmt)
+    cafe = res.scalars().first()
+    if not cafe:
+        raise NotFoundException("Café not found", error_code="CAFE_NOT_FOUND")
+
+    cafe.bookings_paused = False
+    await db.commit()
+    await db.refresh(cafe)
+
+    return {
+        "success": True,
+        "data": {
+            "bookingsPaused": False
+        },
+        "bookingsPaused": False
+    }
+
 @router.get("/status", status_code=status.HTTP_200_OK)
 async def get_owner_status(
     current_user: User = Depends(get_current_active_user),
@@ -104,6 +257,17 @@ async def get_owner_status(
     stmt = select(Cafe).where(Cafe.owner_id == current_user.id).order_by(Cafe.created_at.desc())
     res = await db.execute(stmt)
     cafe = res.scalars().first()
+
+    if not cafe:
+        from app.models.user_role import UserRoleMapping
+        stmt_staff = select(Cafe).join(
+            UserRoleMapping, UserRoleMapping.cafe_id == Cafe.id
+        ).where(
+            UserRoleMapping.user_id == current_user.id,
+            UserRoleMapping.role == UserRole.STAFF
+        ).order_by(Cafe.created_at.desc())
+        res_staff = await db.execute(stmt_staff)
+        cafe = res_staff.scalars().first()
 
     if not cafe:
         return {
@@ -117,6 +281,20 @@ async def get_owner_status(
 
     status_str = cafe.verification_status.value if hasattr(cafe.verification_status, "value") else str(cafe.verification_status)
 
+    tier_repo = HardwareTierRepository(db)
+    tiers = await tier_repo.get_by_cafe_id(cafe.id)
+    tiers_data = [
+        {
+            "id": str(t.id),
+            "name": t.name,
+            "totalSeats": t.total_seats,
+            "appBookableSeats": t.app_bookable_seats,
+            "pricePerHour": float(t.price_per_hour),
+            "gpu": t.specs.get("gpu") if isinstance(t.specs, dict) else "Pod"
+        }
+        for t in tiers
+    ]
+
     return {
         "success": True,
         "data": {
@@ -128,6 +306,10 @@ async def get_owner_status(
                 "verificationStatus": status_str,
                 "rejectionReason": cafe.rejection_reason,
                 "isActive": cafe.is_active,
+                "bookableStations": cafe.bookable_stations,
+                "appBookableSeats": cafe.app_bookable_seats,
+                "totalSeats": cafe.total_seats or sum(t.total_seats for t in tiers),
+                "tiers": tiers_data,
                 "draftData": cafe.draft_data or {}
             },
             "role": current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
@@ -365,7 +547,7 @@ async def submit_onboarding_application(
 
 @router.get("/dashboard", status_code=status.HTTP_200_OK)
 async def get_owner_dashboard(
-    current_owner: User = Depends(require_cafe_owner),
+    current_owner: User = Depends(require_staff_or_owner),
     db: AsyncSession = Depends(get_db)
 ):
     booking_repo = BookingRepository(db)
@@ -797,6 +979,24 @@ async def create_staff_invitation(
         invite_url=invite_url
     )
 
+    # Insert in-app Notification record if target user account exists
+    user_repo = UserRepository(db)
+    target_user = await user_repo.get_by_email(invitation.email)
+    if target_user:
+        from app.models.notification import Notification
+        from uuid import uuid4
+        in_app_notif = Notification(
+            id=uuid4(),
+            user_id=target_user.id,
+            title=f"Staff Invitation: {owner_cafe.name}",
+            message=f"You've been invited by {current_owner.full_name or 'Café Owner'} to join {owner_cafe.name} as Staff!",
+            notification_type="system",
+            is_read=False,
+            link=f"/accept-invitation?token={token}"
+        )
+        db.add(in_app_notif)
+        await db.commit()
+
     return {
         "success": True,
         "data": {
@@ -1008,11 +1208,119 @@ async def toggle_emergency_mode(
     }
 
 
+class TierAllocationItem(BaseModel):
+    tier_id: UUID
+    app_bookable_seats: int = Field(..., ge=0)
+    
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
 class BookingControlsUpdate(BaseModel):
     bookable_stations: Optional[int] = Field(None, ge=0)
+    app_bookable_seats: Optional[int] = Field(None, ge=0)
     bookings_paused: Optional[bool] = None
+    tier_allocations: Optional[List[TierAllocationItem]] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+@router.patch("/cafe/booking-controls", status_code=status.HTTP_200_OK)
+async def update_owner_cafe_booking_controls(
+    payload: BookingControlsUpdate,
+    current_user: User = Depends(require_staff_or_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Cafe).where(Cafe.owner_id == current_user.id).order_by(Cafe.created_at.desc())
+    res = await db.execute(stmt)
+    cafe = res.scalars().first()
+    if not cafe:
+        from app.models.user_role import UserRoleMapping
+        stmt_staff = select(Cafe).join(
+            UserRoleMapping, UserRoleMapping.cafe_id == Cafe.id
+        ).where(
+            UserRoleMapping.user_id == current_user.id,
+            UserRoleMapping.role == UserRole.STAFF
+        ).order_by(Cafe.created_at.desc())
+        res_staff = await db.execute(stmt_staff)
+        cafe = res_staff.scalars().first()
+    
+    if not cafe:
+        raise NotFoundException("Café not found")
+        
+    tier_repo = HardwareTierRepository(db)
+    tiers = await tier_repo.get_by_cafe_id(cafe.id)
+    total_cafe_seats = sum(t.total_seats for t in tiers) if tiers else (cafe.total_seats or 20)
+    cafe.total_seats = total_cafe_seats
+
+    # Mode 1: Manual Per-Tier Allocation Updates
+    if payload.tier_allocations is not None:
+        for alloc in payload.tier_allocations:
+            await tier_repo.update(alloc.tier_id, {"app_bookable_seats": alloc.app_bookable_seats})
+        
+        # Re-fetch tiers to calculate total app stations
+        updated_t = await tier_repo.get_by_cafe_id(cafe.id)
+        new_total_app_seats = sum(t.app_bookable_seats for t in updated_t)
+        cafe.bookable_stations = new_total_app_seats
+        cafe.app_bookable_seats = new_total_app_seats
+        if new_total_app_seats > 0:
+            cafe.bookings_paused = False
+        else:
+            cafe.bookings_paused = True
+
+    # Mode 2: Global Bookable Stations Adjuster
+    else:
+        if payload.bookings_paused is not None:
+            cafe.bookings_paused = payload.bookings_paused
+            if not payload.bookings_paused and cafe.bookable_stations == 0:
+                cafe.bookable_stations = max(1, round(total_cafe_seats * 0.7))
+                cafe.app_bookable_seats = cafe.bookable_stations
+
+        if payload.bookable_stations is not None:
+            cafe.bookable_stations = payload.bookable_stations
+            cafe.app_bookable_seats = payload.bookable_stations
+            if payload.bookable_stations > 0:
+                cafe.bookings_paused = False
+            else:
+                cafe.bookings_paused = True
+
+        # Scale tier app_bookable_seats
+        if cafe.bookings_paused or cafe.is_emergency_mode or cafe.bookable_stations == 0:
+            for t in tiers:
+                await tier_repo.update(t.id, {"app_bookable_seats": 0})
+        else:
+            ratio = cafe.bookable_stations / total_cafe_seats if total_cafe_seats > 0 else 1.0
+            for t in tiers:
+                scaled_seats = max(0, min(t.total_seats, round(t.total_seats * ratio)))
+                # Guarantee at least 1 app seat per tier if ratio > 0 and total_seats >= 1
+                if scaled_seats == 0 and ratio > 0 and t.total_seats >= 1:
+                    scaled_seats = 1
+                await tier_repo.update(t.id, {"app_bookable_seats": scaled_seats})
+
+    await db.commit()
+    await db.refresh(cafe)
+    
+    # Re-query updated tiers
+    updated_tiers = await tier_repo.get_by_cafe_id(cafe.id)
+    tiers_data = [
+        {
+            "id": str(t.id),
+            "name": t.name,
+            "totalSeats": t.total_seats,
+            "appBookableSeats": t.app_bookable_seats,
+            "pricePerHour": float(t.price_per_hour),
+            "gpu": t.specs.get("gpu") if isinstance(t.specs, dict) else "Pod"
+        }
+        for t in updated_tiers
+    ]
+
+    return {
+        "success": True,
+        "data": {
+            "bookableStations": cafe.bookable_stations,
+            "appBookableSeats": cafe.app_bookable_seats,
+            "bookingsPaused": cafe.bookings_paused,
+            "totalSeats": cafe.total_seats or 20,
+            "tiers": tiers_data
+        }
+    }
 
 class CafeHoursUpdate(BaseModel):
     opening_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$")

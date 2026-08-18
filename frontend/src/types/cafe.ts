@@ -40,6 +40,10 @@ export interface Cafe {
   closingTime: string | null;
   totalSeats: number | null;
   verificationStatus: VerificationStatus;
+  isEmergencyMode?: boolean;
+  bookingsPaused?: boolean;
+  bookableStations?: number;
+  appBookableSeats?: number;
   amenities: string[];
   photos: string[];
   rejectionReason: string | null;

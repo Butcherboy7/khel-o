@@ -8,6 +8,11 @@ import {
   Store,
   Users,
   BarChart3,
+  CalendarDays,
+  MessageSquare,
+  CreditCard,
+  UsersRound,
+  ScrollText,
   ExternalLink,
   type LucideIcon,
 } from 'lucide-react';
@@ -26,7 +31,12 @@ const adminNavItems: NavItem[] = [
   { label: 'Verification Queue', href: '/admin', icon: ShieldCheck },
   { label: 'All Cafés', href: '/admin/cafes', icon: Store },
   { label: 'Users', href: '/admin/users', icon: Users },
+  { label: 'Staff', href: '/admin/staff', icon: UsersRound },
+  { label: 'Bookings', href: '/admin/bookings', icon: CalendarDays },
+  { label: 'Payments', href: '/admin/payments', icon: CreditCard },
+  { label: 'Reviews', href: '/admin/reviews', icon: MessageSquare },
   { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+  { label: 'Audit Log', href: '/admin/audit-log', icon: ScrollText },
 ];
 
 /* ── Admin Sidebar ───────────────────────────────────────────────── */

@@ -139,6 +139,8 @@ async def test_deactivated_user_rejected_mid_session():
             is_active=True
         )
         db.add(user)
+        db.add(UserRoleMapping(id=uuid.uuid4(), user_id=user.id, role=UserRole.GAMER, cafe_id=None))
+        db.add(UserRoleMapping(id=uuid.uuid4(), user_id=user.id, role=UserRole.CAFE_OWNER, cafe_id=None))
         await db.commit()
 
         # Issue valid unexpired token
@@ -152,7 +154,10 @@ async def test_deactivated_user_rejected_mid_session():
             assert res1.status_code == 200
 
             # 2. Admin deactivates user in DB
-            user.is_active = False
+            stmt = select(User).where(User.id == user.id)
+            res = await db.execute(stmt)
+            db_user = res.scalar_one()
+            db_user.is_active = False
             await db.commit()
 
             # 3. Second request with same valid token is REJECTED with 403

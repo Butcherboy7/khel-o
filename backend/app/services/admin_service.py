@@ -357,3 +357,310 @@ class AdminService:
         if not deactivated:
             raise NotFoundException(message="Promotion not found", error_code="PROMOTION_NOT_FOUND")
         return PromotionResponse.model_validate(deactivated)
+
+    # ── Café Suspension / Activation ────────────────────────────────────────
+
+    async def suspend_cafe(self, cafe_id: UUID, reason: str) -> Dict[str, Any]:
+        """Suspend a verified café. Sets status=suspended, is_active=False, records reason."""
+        cafe = await self.cafe_repo.get_by_id(cafe_id)
+        if not cafe:
+            raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+        cafe.verification_status = VerificationStatus.SUSPENDED
+        cafe.is_active = False
+        cafe.rejection_reason = reason
+        await self.db.commit()
+        await self.db.refresh(cafe)
+        return {"id": str(cafe.id), "name": cafe.name, "verificationStatus": cafe.verification_status.value, "isActive": cafe.is_active}
+
+    async def reactivate_cafe(self, cafe_id: UUID) -> Dict[str, Any]:
+        """Reactivate a suspended/rejected café back to verified + active."""
+        cafe = await self.cafe_repo.get_by_id(cafe_id)
+        if not cafe:
+            raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+        cafe.verification_status = VerificationStatus.VERIFIED
+        cafe.is_active = True
+        cafe.rejection_reason = None
+        await self.db.commit()
+        await self.db.refresh(cafe)
+        return {"id": str(cafe.id), "name": cafe.name, "verificationStatus": cafe.verification_status.value, "isActive": cafe.is_active}
+
+    async def set_cafe_bookings_paused(self, cafe_id: UUID, paused: bool) -> Dict[str, Any]:
+        """Toggle online booking availability without full suspension."""
+        cafe = await self.cafe_repo.get_by_id(cafe_id)
+        if not cafe:
+            raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+        cafe.bookings_paused = paused
+        await self.db.commit()
+        await self.db.refresh(cafe)
+        return {"id": str(cafe.id), "name": cafe.name, "bookingsPaused": cafe.bookings_paused}
+
+    # ── Payment Oversight ────────────────────────────────────────────────────
+
+    async def list_payments(
+        self,
+        status: Optional[str] = None,
+        cafe_id: Optional[UUID] = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        """List all platform payments joined with booking + user + café info."""
+        from app.models.payment import Payment
+        from app.models.booking import Booking
+        from app.models.cafe import Cafe
+        from app.models.user import User
+
+        limit = min(limit, 50)
+
+        stmt = select(
+            Payment,
+            Booking.booking_reference,
+            Booking.total_amount.label("booking_amount"),
+            Booking.cafe_id,
+            User.email.label("gamer_email"),
+            User.full_name.label("gamer_name"),
+            Cafe.name.label("cafe_name"),
+        ).join(
+            Booking, Payment.booking_id == Booking.id
+        ).join(
+            User, Booking.gamer_id == User.id
+        ).join(
+            Cafe, Booking.cafe_id == Cafe.id
+        )
+
+        filters = []
+        if status:
+            filters.append(Payment.status == status)
+        if cafe_id:
+            filters.append(Booking.cafe_id == cafe_id)
+        if filters:
+            from sqlalchemy import and_
+            stmt = stmt.where(and_(*filters))
+
+        stmt = stmt.order_by(Payment.created_at.desc())
+
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total = (await self.db.execute(count_stmt)).scalar() or 0
+
+        offset = (page - 1) * limit
+        rows = (await self.db.execute(stmt.offset(offset).limit(limit))).all()
+
+        items = []
+        for row in rows:
+            p = row[0]
+            items.append({
+                "id": str(p.id),
+                "bookingId": str(p.booking_id),
+                "bookingReference": row[1],
+                "razorpayOrderId": p.razorpay_order_id,
+                "razorpayPaymentId": p.razorpay_payment_id,
+                "amount": float(p.amount),
+                "currency": p.currency,
+                "status": p.status.value,
+                "failureReason": p.failure_reason,
+                "refundId": p.refund_id,
+                "refundedAt": p.refunded_at.isoformat() if p.refunded_at else None,
+                "createdAt": p.created_at.isoformat(),
+                "cafeId": str(row[3]),
+                "cafeName": row[6],
+                "gamerEmail": row[4],
+                "gamerName": row[5],
+            })
+
+        return {
+            "items": items,
+            "total": total,
+            "totalPages": math.ceil(total / limit) if total > 0 else 0,
+        }
+
+    # ── Staff Oversight ──────────────────────────────────────────────────────
+
+    async def list_staff(
+        self,
+        cafe_id: Optional[UUID] = None,
+        page: int = 1,
+        limit: int = 50,
+    ) -> Dict[str, Any]:
+        """List all staff members with their café and invitation/role status."""
+        from app.models.staff_invitation import StaffInvitation
+        from app.models.user_role import UserRoleMapping
+        from app.models.user import UserRole
+
+        limit = min(limit, 100)
+
+        # Active staff: users who have a staff UserRoleMapping
+        stmt_active = select(
+            User.id,
+            User.full_name,
+            User.email,
+            User.phone_number,
+            User.is_active,
+            Cafe.id.label("cafe_id"),
+            Cafe.name.label("cafe_name"),
+            UserRoleMapping.created_at.label("joined_at"),
+        ).join(
+            UserRoleMapping, UserRoleMapping.user_id == User.id
+        ).join(
+            Cafe, UserRoleMapping.cafe_id == Cafe.id, isouter=True
+        ).where(
+            UserRoleMapping.role == UserRole.STAFF
+        )
+
+        if cafe_id:
+            stmt_active = stmt_active.where(UserRoleMapping.cafe_id == cafe_id)
+
+        stmt_active = stmt_active.order_by(UserRoleMapping.created_at.desc())
+
+        count_q = select(func.count()).select_from(stmt_active.subquery())
+        total = (await self.db.execute(count_q)).scalar() or 0
+
+        offset = (page - 1) * limit
+        rows = (await self.db.execute(stmt_active.offset(offset).limit(limit))).all()
+
+        # Pending invitations
+        stmt_inv = select(StaffInvitation).where(StaffInvitation.status == "pending")
+        if cafe_id:
+            stmt_inv = stmt_inv.where(StaffInvitation.venue_id == cafe_id)
+        inv_rows = (await self.db.execute(stmt_inv)).scalars().all()
+        pending_invitations = [
+            {
+                "id": str(i.id),
+                "email": i.email,
+                "fullName": i.full_name,
+                "cafeId": str(i.venue_id),
+                "status": i.status,
+                "expiresAt": i.expires_at.isoformat(),
+                "createdAt": i.created_at.isoformat(),
+            }
+            for i in inv_rows
+        ]
+
+        items = [
+            {
+                "userId": str(r[0]),
+                "fullName": r[1],
+                "email": r[2],
+                "phoneNumber": r[3],
+                "isActive": r[4],
+                "cafeId": str(r[5]) if r[5] else None,
+                "cafeName": r[6],
+                "joinedAt": r[7].isoformat() if r[7] else None,
+                "status": "active",
+            }
+            for r in rows
+        ]
+
+        return {
+            "items": items,
+            "pendingInvitations": pending_invitations,
+            "total": total,
+            "page": page,
+            "pageSize": limit,
+            "totalPages": math.ceil(total / limit) if total > 0 else 0,
+        }
+
+    async def revoke_staff(self, user_id: UUID, cafe_id: UUID) -> Dict[str, Any]:
+        """Remove a staff UserRoleMapping and cancel any pending invitations for this user+café."""
+        from app.models.user_role import UserRoleMapping
+        from app.models.user import UserRole
+        from sqlalchemy import delete
+
+        # Remove role mapping
+        await self.db.execute(
+            delete(UserRoleMapping).where(
+                UserRoleMapping.user_id == user_id,
+                UserRoleMapping.cafe_id == cafe_id,
+                UserRoleMapping.role == UserRole.STAFF,
+            )
+        )
+        # Revert user primary role to gamer if they have no other role mappings
+        remaining = (await self.db.execute(
+            select(func.count(UserRoleMapping.id)).where(UserRoleMapping.user_id == user_id)
+        )).scalar() or 0
+        if remaining == 0:
+            user = await self.user_repo.get_by_id(user_id)
+            if user:
+                user.role = UserRole.GAMER
+
+        await self.db.commit()
+        return {"userId": str(user_id), "cafeId": str(cafe_id), "revoked": True}
+
+    # ── Audit Log ────────────────────────────────────────────────────────────
+
+    async def write_audit_log(
+        self,
+        admin_id: UUID,
+        admin_email: str,
+        action: str,
+        entity_type: str,
+        entity_id: str,
+        entity_name: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> None:
+        """Persist a single audit log entry. Call fire-and-forget from endpoints."""
+        from app.models.admin_audit_log import AdminAuditLog
+        import uuid as _uuid
+        entry = AdminAuditLog(
+            id=_uuid.uuid4(),
+            admin_id=admin_id,
+            admin_email=admin_email,
+            action=action,
+            entity_type=entity_type,
+            entity_id=str(entity_id),
+            entity_name=entity_name,
+            reason=reason,
+        )
+        self.db.add(entry)
+        await self.db.commit()
+
+    async def list_audit_logs(
+        self,
+        entity_type: Optional[str] = None,
+        action: Optional[str] = None,
+        page: int = 1,
+        limit: int = 30,
+    ) -> Dict[str, Any]:
+        """Return paginated audit log entries newest-first."""
+        from app.models.admin_audit_log import AdminAuditLog
+
+        limit = min(limit, 100)
+        stmt = select(AdminAuditLog)
+
+        filters = []
+        if entity_type:
+            filters.append(AdminAuditLog.entity_type == entity_type)
+        if action:
+            filters.append(AdminAuditLog.action == action)
+        if filters:
+            stmt = stmt.where(and_(*filters))
+
+        stmt = stmt.order_by(AdminAuditLog.created_at.desc())
+
+        total = (await self.db.execute(
+            select(func.count()).select_from(stmt.subquery())
+        )).scalar() or 0
+
+        offset = (page - 1) * limit
+        rows = (await self.db.execute(stmt.offset(offset).limit(limit))).scalars().all()
+
+        items = [
+            {
+                "id": str(r.id),
+                "adminId": str(r.admin_id),
+                "adminEmail": r.admin_email,
+                "action": r.action,
+                "entityType": r.entity_type,
+                "entityId": r.entity_id,
+                "entityName": r.entity_name,
+                "reason": r.reason,
+                "createdAt": r.created_at.isoformat(),
+            }
+            for r in rows
+        ]
+
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "pageSize": limit,
+            "totalPages": math.ceil(total / limit) if total > 0 else 0,
+        }

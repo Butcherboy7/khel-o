@@ -10,6 +10,7 @@ from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.platform_fee import PlatformFee
 from app.models.notification import Notification, NotificationType
 from app.models.staff_invitation import StaffInvitation
+from app.models.admin_audit_log import AdminAuditLog
 
 __all__ = [
     "User",
@@ -29,4 +30,5 @@ __all__ = [
     "Notification",
     "NotificationType",
     "StaffInvitation",
+    "AdminAuditLog",
 ]

@@ -65,7 +65,8 @@ function BookingWizardContent() {
     queryKey: queryKeys.cafes.detail(cafeId),
     queryFn: () => getCafe(cafeId).then((res) => res.cafe),
     enabled: Boolean(cafeId),
-    staleTime: 60_000,
+    staleTime: 2_000,
+    refetchInterval: 4_000,
   });
 
   const activeTier = selectedTier || (cafe?.tiers && cafe.tiers[0] ? cafe.tiers[0] : null);
@@ -74,8 +75,28 @@ function BookingWizardContent() {
     queryKey: ['cafe-availability', cafeId, activeTier?.id, selectedDate],
     queryFn: () => getCafeAvailability(cafeId, activeTier!.id, selectedDate),
     enabled: Boolean(cafeId && activeTier?.id && selectedDate),
-    staleTime: 10_000,
+    staleTime: 2_000,
+    refetchInterval: 3_000,
   });
+
+  // Listen for real-time seat cap updates from owner dashboard
+  useEffect(() => {
+    const handleSeatCapUpdate = () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cafes.detail(cafeId) });
+      queryClient.invalidateQueries({ queryKey: ['cafe-availability'] });
+    };
+
+    window.addEventListener('khelo:seat-cap-updated', handleSeatCapUpdate);
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'khelo_seat_cap') handleSeatCapUpdate();
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('khelo:seat-cap-updated', handleSeatCapUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [cafeId, queryClient]);
 
   // Automatically find and select the first available time slot when availability loads or date/tier changes
   useEffect(() => {
@@ -283,6 +304,22 @@ function BookingWizardContent() {
         </div>
       </div>
 
+      {(cafe.isEmergencyMode || cafe.bookingsPaused || cafe.bookableStations === 0 || availabilityData?.appBookableSeats === 0) && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-600 font-medium text-caption flex items-center gap-3 shadow-card">
+          <div className="h-10 w-10 rounded-xl bg-amber-500 text-slate-950 font-bold flex items-center justify-center flex-shrink-0 text-xl">
+            ⏸️
+          </div>
+          <div>
+            <h3 className="font-bold text-body text-text-primary">App Bookings Paused / Walk-Ins Only</h3>
+            <p className="text-xs text-text-secondary mt-0.5">
+              {cafe.isEmergencyMode
+                ? 'Café is currently in Emergency Mode and not accepting new bookings.'
+                : 'The venue owner has paused online app bookings or reserved all stations for walk-in players. Please visit the café directly for walk-in availability.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="p-4 rounded-2xl bg-error/10 border border-error/20 text-caption text-error">
           {error}
@@ -323,6 +360,8 @@ function BookingWizardContent() {
           {cafe.tiers && cafe.tiers.length > 0 ? (
             cafe.tiers.map((tier) => {
               const isSelected = activeTier?.id === tier.id;
+              const isTierPaused = cafe.bookingsPaused || cafe.isEmergencyMode || cafe.bookableStations === 0 || tier.appBookableSeats === 0;
+
               return (
                 <button
                   key={tier.id}
@@ -351,9 +390,15 @@ function BookingWizardContent() {
                   </div>
 
                   <div className="flex items-center justify-between border-t border-border/50 pt-2.5 mt-2">
-                    <span className="text-caption text-text-secondary">
-                      {tier.totalSeats || 10} seats total
-                    </span>
+                    {isTierPaused ? (
+                      <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-600">
+                        Walk-Ins Only
+                      </span>
+                    ) : (
+                      <span className="text-caption text-text-secondary">
+                        {tier.appBookableSeats !== undefined ? tier.appBookableSeats : (tier.totalSeats || 10)} app seats ({tier.totalSeats || 10} total)
+                      </span>
+                    )}
                     <div className="font-data text-body-emphasis font-bold text-text-primary">
                       <span className="rupee-symbol">₹</span>{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
                     </div>
@@ -451,11 +496,20 @@ function BookingWizardContent() {
           <button
             type="button"
             onClick={handleCheckout}
-            disabled={isProcessing || (availabilityData?.remainingSeats !== undefined && availabilityData.remainingSeats < seatsCount)}
+            disabled={
+              isProcessing ||
+              Boolean(cafe.isEmergencyMode) ||
+              Boolean(cafe.bookingsPaused) ||
+              (availabilityData?.remainingSeats !== undefined && availabilityData.remainingSeats < seatsCount)
+            }
             className="rounded-2xl bg-secondary px-8 sm:px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isProcessing
               ? 'Processing...'
+              : cafe.isEmergencyMode
+              ? 'Emergency Mode Active'
+              : cafe.bookingsPaused
+              ? 'Bookings Paused'
               : availabilityData?.remainingSeats === 0
               ? 'Sold Out'
               : availabilityData?.remainingSeats !== undefined && availabilityData.remainingSeats < seatsCount

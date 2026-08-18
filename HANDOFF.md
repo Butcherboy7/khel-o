@@ -44,19 +44,37 @@ This document tracks the features, architecture, and current status of the KHEL-
 - **Strict TypeScript Compliance**:
   - Zero `any` types; all camera devices, config options, and responses strictly typed.
 
-### Phase 4: Multi-Seat Booking & Notification Infrastructure
-- **Multi-Seat Support**:
-  - Added migration `009_add_seats_count.py` adding `seats_count` to bookings table.
-  - Pricing and capacity validation updated across booking services.
-- **Notification Service**:
-  - In-app and email notifications service with unread counts and mark-as-read endpoints (`backend/app/api/v1/notifications.py`).
-  - Customer notifications view page at `frontend/src/app/(customer)/notifications/page.tsx`.
+### Phase 5: Café Settings Page, Emergency Operational Controls & Mobile Navigation
+- **Backend API Endpoints & Schemas**:
+  - `GET /api/v1/owner/settings`: Aggregate settings endpoint returning café metadata, opening hours, emergency mode, and booking pause status.
+  - `PATCH /api/v1/owner/cafe/emergency-mode`: Toggles `is_emergency_mode` on active venue.
+  - `PATCH /api/v1/owner/cafe/bookings-pause`: Toggles `bookings_paused` on active venue.
+  - `POST /api/v1/owner/cafe/pause-bookings` & `POST /api/v1/owner/cafe/resume-bookings`: Explicit pause/resume operational aliases.
+  - `CafeResponse` schema updated to return `is_emergency_mode` & `bookings_paused` to client apps.
+- **Frontend Settings & Live Booking Sync**:
+  - `frontend/src/lib/api/settings.ts`: Strictly-typed settings API client with 0 `any` types.
+  - `frontend/src/components/owner/SettingsHeader.tsx`: Responsive operational status header with red pulse animation for emergency mode.
+  - `frontend/src/components/owner/EmergencyModeCard.tsx`: Red warning emergency toggle card with confirmation modal dialog.
+  - `frontend/src/components/owner/BookingsPauseCard.tsx`: Amber pause/resume toggle card.
+  - `frontend/src/app/(owner)/owner/settings/page.tsx`: Owner Settings page with mobile responsive design and Staff role guard (redirecting non-owners to dashboard).
+  - `frontend/src/app/(owner)/owner/dashboard/page.tsx`: Connected header button to `toggleBookingsPaused` API with live status badge update.
+  - `frontend/src/app/(customer)/bookings/new/page.tsx`: Live warning banner and disabled payment checkout when venue emergency mode or bookings paused is active.
+  - `frontend/src/app/(owner)/owner/bookings/page.tsx`: Added `Pending Payment` option to desk status filter dropdown.
+  - `frontend/src/store/authStore.ts`: Cross-tab authentication session synchronizer via `storage` event listener.
+- **Full Mobile Navigation & Staff Desk Optimizations**:
+  - `frontend/src/components/layout/OwnerShell.tsx`: Fixed mobile slide-over drawer alignment to pop out from the **left side** (`mr-auto`), matching the top-left hamburger menu (`☰`) icon position for 100% intuitive touch feedback.
+  - `frontend/src/app/(owner)/owner/dashboard/page.tsx`: Added a dedicated **Staff Desk Command Card** with a prominent **`📷 Open Camera Pass Scanner`** action hero button, live station occupancy progress, and 1-tap customer check-ins optimized for front-desk phone/tablet use.
+- **Real-Time KHEL-O App Seat Allocator & Mobile Dashboard Optimization**:
+  - `backend/app/api/v1/owner.py`: Updated `PATCH /api/v1/owner/cafe/booking-controls` to support `tierAllocations` payload array for manual per-tier app seat caps, and smart unpause logic (automatically clearing `bookings_paused` when app stations > 0 or `+` is clicked).
+  - `frontend/src/lib/api/settings.ts`: Fixed `updateBookingControls` wrapper to directly return unwrapped data from `call<T>()` helper, resolving runtime `Cannot read properties of undefined (reading 'tiers')` error.
+  - `frontend/src/app/(owner)/owner/dashboard/page.tsx`: Applied `/ui-ux-pro-max` layout de-congestion — replaced 4 bulky analytics cards with a compact, single-row Operational Stats Ribbon (saving 70% vertical space), and added an interactive **`[ ⚙️ Custom Per-Tier Controls ▾ ]`** expandable drawer on the Seat Allocator Card.
+  - `frontend/src/app/(customer)/bookings/new/page.tsx`: Real-time listener invalidation re-evaluates `isTierPaused` per tier in real time when owner adjusts any tier's seat cap.
 
 ---
 
 ## Verification & Test Results
 - **TypeScript**: `npx tsc --noEmit` passing with 0 errors across all frontend files.
-- **Backend Tests**: 52/52 pytest unit and integration tests passing (`pytest backend/tests`).
+- **Backend Tests**: 56/56 pytest unit and integration tests passing (`python -m pytest tests`).
 - **Security & Quality**:
   - No `any` types in TypeScript.
   - No hardcoded secrets or committed `.env` files.

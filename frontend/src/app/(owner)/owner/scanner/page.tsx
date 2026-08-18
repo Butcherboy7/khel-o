@@ -18,6 +18,8 @@ import {
   Upload,
   SwitchCamera,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/hooks/queries/keys';
 import { Card, CardContent, Button, Input, Badge } from '@/components/ui';
 import { checkinBooking } from '@/lib/api/owner';
 import { validateQRCode, type QRValidationResponse } from '@/lib/api/scanner';
@@ -61,6 +63,7 @@ declare global {
 }
 
 export default function ScannerPage() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'camera' | 'upload' | 'manual'>('camera');
   const [manualQuery, setManualQuery] = useState('');
   const [isValidating, setIsValidating] = useState(false);
@@ -288,6 +291,8 @@ export default function ScannerPage() {
 
     try {
       await checkinBooking(bookingId);
+      queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
       setCheckinSuccessMsg('✅ Gamer checked in successfully!');
       if (validationResult?.booking) {
         setValidationResult({

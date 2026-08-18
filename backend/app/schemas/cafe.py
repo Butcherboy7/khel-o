@@ -113,6 +113,8 @@ class CafeResponse(CafeBase):
     owner_id: UUID
     verification_status: VerificationStatus
     is_active: bool
+    is_emergency_mode: bool = False
+    bookings_paused: bool = False
     average_rating: float = 0.0
     total_reviews: int = 0
     booking_cap_total: float = 0.0

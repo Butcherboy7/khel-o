@@ -12,14 +12,18 @@ import {
   Users,
   Wallet,
   LogOut,
-  ChevronRight,
   BarChart3,
   QrCode,
+  Settings,
+  Menu,
+  X,
+  MoreHorizontal,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
+import type { User } from '@/types';
 
 /* ── Navigation Items ────────────────────────────────────────────── */
 
@@ -53,10 +57,11 @@ const ownerNavSections: NavSection[] = [
     ],
   },
   {
-    heading: 'Financials & Staff',
+    heading: 'Financials & Settings',
     items: [
       { label: 'Payouts & Razorpay', href: '/owner/payouts', icon: Wallet },
       { label: 'Staff Management', href: '/owner/staff', icon: Users },
+      { label: 'Café Settings', href: '/owner/settings', icon: Settings },
     ],
   },
 ];
@@ -73,7 +78,7 @@ const staffNavItems: NavItem[] = [
 function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
-  const [cachedUser, setCachedUser] = useState<any>(null);
+  const [cachedUser, setCachedUser] = useState<Partial<User> | null>(null);
 
   useEffect(() => {
     if (!user && typeof window !== 'undefined') {
@@ -116,7 +121,9 @@ function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
           <span className="font-heading text-h3 text-white">KHEL-O</span>
         </div>
         <div className="mt-2">
-          <p className="text-caption text-white/50 uppercase tracking-wide">Owner Portal</p>
+          <p className="text-caption text-white/50 uppercase tracking-wide">
+            {isStaff ? 'Staff Portal' : 'Owner Portal'}
+          </p>
         </div>
       </div>
 
@@ -139,7 +146,7 @@ function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
                   className={cn(
                     'flex items-center gap-3 rounded-xl px-3 py-2.5 text-body-emphasis transition-colors duration-fast',
                     isActive
-                      ? 'bg-white/15 text-white'
+                      ? 'bg-white/15 text-white font-bold'
                       : 'text-white/60 hover:bg-white/10 hover:text-white',
                   )}
                   aria-current={isActive ? 'page' : undefined}
@@ -187,22 +194,144 @@ function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
   );
 }
 
-/* ── Mobile Top Bar ──────────────────────────────────────────────── */
+/* ── Mobile Navigation Drawer & Bottom Bar ────────────────────────────────────────── */
 
-function OwnerTopBar() {
+function OwnerMobileMenu({
+  isOpen,
+  onClose,
+  isStaff,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  isStaff: boolean;
+}) {
+  const pathname = usePathname();
+  const { user, logout } = useAuthStore();
+
+  const sections = isStaff
+    ? [{ heading: 'Operations', items: staffNavItems }]
+    : ownerNavSections;
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-modal flex lg:hidden">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Slide-over Drawer (Left Aligned to match top-left hamburger icon) */}
+      <div className="relative mr-auto flex h-full w-4/5 max-w-xs flex-col overflow-y-auto bg-secondary p-5 shadow-2xl text-white animate-in slide-in-from-left duration-200">
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
+              <span className="font-heading text-body-emphasis text-white">K</span>
+            </div>
+            <span className="font-heading text-h3 text-white">KHEL-O Menu</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10"
+            aria-label="Close menu"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <nav className="flex-1 py-4 space-y-6">
+          {sections.map((section) => (
+            <div key={section.heading}>
+              <p className="mb-2 text-overline text-white/40 uppercase tracking-widest">
+                {section.heading}
+              </p>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onClose}
+                      className={cn(
+                        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-body-emphasis transition-colors',
+                        isActive
+                          ? 'bg-white/15 text-white font-bold'
+                          : 'text-white/70 hover:bg-white/10 hover:text-white',
+                      )}
+                    >
+                      <item.icon className="h-5 w-5 shrink-0" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        <div className="border-t border-white/10 pt-4 flex flex-col gap-4">
+          <div className="flex justify-center">
+            <RoleSwitcher />
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-caption text-white/60 truncate max-w-[180px]">
+              {user?.fullName || user?.email || 'Café Owner'}
+            </span>
+            <button
+              onClick={() => {
+                onClose();
+                logout();
+              }}
+              className="flex items-center gap-1.5 text-caption font-semibold text-rose-400 hover:text-rose-300"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Log out</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OwnerTopBar({
+  isStaff,
+  onOpenMobileMenu,
+}: {
+  isStaff: boolean;
+  onOpenMobileMenu: () => void;
+}) {
   return (
     <header className="sticky top-0 z-nav flex h-14 items-center justify-between border-b border-border bg-card px-4 lg:px-8">
-      <div className="flex items-center gap-2 lg:hidden">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
-          <span className="font-heading text-body-emphasis text-white">K</span>
+      <div className="flex items-center gap-3 lg:hidden">
+        <button
+          onClick={onOpenMobileMenu}
+          className="p-1.5 rounded-lg text-text-primary hover:bg-surface-hover transition-colors"
+          aria-label="Open navigation menu"
+        >
+          <Menu className="h-6 w-6" />
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent">
+            <span className="font-heading text-caption font-bold text-white">K</span>
+          </div>
+          <span className="font-heading text-h3 text-text-primary">KHEL-O</span>
         </div>
-        <span className="font-heading text-h3 text-text-primary">KHEL-O</span>
       </div>
 
       <div className="hidden lg:flex items-center gap-2 text-caption text-text-secondary">
-        <span className="font-semibold text-text-primary">Café Owner Portal</span>
+        <span className="font-semibold text-text-primary">
+          {isStaff ? 'Café Staff Desk' : 'Café Owner Portal'}
+        </span>
         <span>•</span>
-        <span>Venue Operational Status & Live Management</span>
+        <span>
+          {isStaff
+            ? 'Desk Operations & Station Check-In'
+            : 'Venue Operational Status & Live Management'}
+        </span>
       </div>
 
       <RoleSwitcher />
@@ -210,11 +339,31 @@ function OwnerTopBar() {
   );
 }
 
-/* ── Mobile Bottom Nav ───────────────────────────────────────────── */
-
-function OwnerBottomNav({ isStaff }: { isStaff: boolean }) {
+function OwnerBottomNav({
+  isStaff,
+  onOpenMobileMenu,
+}: {
+  isStaff: boolean;
+  onOpenMobileMenu: () => void;
+}) {
   const pathname = usePathname();
-  const items = isStaff ? staffNavItems : ownerNavSections.flatMap((s) => s.items).slice(0, 4);
+
+  const ownerQuickItems: (NavItem & { isMenu?: boolean })[] = [
+    { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
+    { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
+    { label: 'Scanner', href: '/owner/scanner', icon: QrCode },
+    { label: 'Settings', href: '/owner/settings', icon: Settings },
+    { label: 'More', href: '#menu', icon: MoreHorizontal, isMenu: true },
+  ];
+
+  const staffQuickItems: (NavItem & { isMenu?: boolean })[] = [
+    { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
+    { label: 'Scanner', href: '/owner/scanner', icon: QrCode },
+    { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
+    { label: 'More', href: '#menu', icon: MoreHorizontal, isMenu: true },
+  ];
+
+  const items = isStaff ? staffQuickItems : ownerQuickItems;
 
   return (
     <nav
@@ -222,14 +371,27 @@ function OwnerBottomNav({ isStaff }: { isStaff: boolean }) {
       aria-label="Owner bottom navigation"
     >
       {items.map((item) => {
+        if (item.isMenu) {
+          return (
+            <button
+              key="mobile-more-menu"
+              onClick={onOpenMobileMenu}
+              className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-text-secondary hover:text-primary transition-colors"
+            >
+              <item.icon className="h-5 w-5" />
+              <span className="text-badge">{item.label}</span>
+            </button>
+          );
+        }
+
         const isActive = pathname.startsWith(item.href);
         return (
           <Link
             key={item.href}
             href={item.href}
             className={cn(
-              'flex flex-col items-center gap-0.5 px-3 py-2 transition-colors duration-fast',
-              isActive ? 'text-primary' : 'text-text-secondary',
+              'flex flex-col items-center gap-0.5 px-3 py-1.5 transition-colors duration-fast',
+              isActive ? 'text-primary font-bold' : 'text-text-secondary hover:text-text-primary',
             )}
             aria-current={isActive ? 'page' : undefined}
           >
@@ -251,19 +413,33 @@ export function OwnerShell({
   children: ReactNode;
   isStaff?: boolean;
 }) {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-surface">
       <OwnerSidebar isStaff={isStaff} />
 
       {/* Main content — offset by owner sidebar on desktop */}
       <div className="lg:pl-owner-sidebar">
-        <OwnerTopBar />
+        <OwnerTopBar
+          isStaff={isStaff}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+        />
         <main className="mx-auto w-full max-w-owner px-4 pb-20 pt-4 lg:px-8 lg:pb-8 lg:pt-8">
           {children}
         </main>
       </div>
 
-      <OwnerBottomNav isStaff={isStaff} />
+      <OwnerBottomNav
+        isStaff={isStaff}
+        onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+      />
+
+      <OwnerMobileMenu
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+        isStaff={isStaff}
+      />
     </div>
   );
 }

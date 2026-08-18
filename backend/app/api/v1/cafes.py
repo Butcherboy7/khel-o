@@ -116,12 +116,22 @@ async def get_cafe_availability(
 
     app_bookable_seats = tier.app_bookable_seats or tier.total_seats or 10
 
+    cafe_repo = CafeRepository(db)
+    cafe_obj = await cafe_repo.get_by_id(cafe_id)
+    if cafe_obj:
+        if cafe_obj.bookable_stations is not None and cafe_obj.bookable_stations >= 0:
+            app_bookable_seats = min(app_bookable_seats, cafe_obj.bookable_stations)
+        if cafe_obj.bookings_paused or cafe_obj.is_emergency_mode or cafe_obj.bookable_stations == 0:
+            app_bookable_seats = 0
+
     return {
         "success": True,
         "data": {
             "appBookableSeats": app_bookable_seats,
             "remainingSeats": app_bookable_seats,
             "bookedSlots": booked_slots,
+            "bookingsPaused": cafe_obj.bookings_paused if cafe_obj else False,
+            "isEmergencyMode": cafe_obj.is_emergency_mode if cafe_obj else False,
         }
     }
 

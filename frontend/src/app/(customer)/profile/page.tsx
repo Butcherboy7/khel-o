@@ -27,6 +27,7 @@ import {
   CheckCircle2,
   Gamepad2,
   Cpu,
+  Users,
 } from 'lucide-react';
 
 const CITIES = ['Bengaluru', 'Hyderabad', 'Mumbai', 'Delhi', 'Pune', 'Chennai'];
@@ -131,6 +132,38 @@ export default function ProfilePage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Pending Staff Invitation Banner */}
+      {user.pendingInvitations && user.pendingInvitations.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {user.pendingInvitations.map((inv) => (
+            <Card key={inv.id} elevation="raised" className="border-2 border-emerald-500/50 bg-gradient-to-r from-emerald-500/10 via-card to-amber-500/10">
+              <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-slate-950 font-bold flex-shrink-0">
+                    <Users className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading text-body font-bold text-text-primary flex items-center gap-2">
+                      <span>🎉 Staff Invitation: {inv.venueName}</span>
+                    </h3>
+                    <p className="text-caption text-text-secondary">
+                      You have been invited to join {inv.venueName} as venue staff.
+                    </p>
+                  </div>
+                </div>
+
+                <Link href={`/accept-invitation?token=${inv.token}`} className="w-full sm:w-auto flex-shrink-0">
+                  <Button variant="primary" size="sm" className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold gap-1.5 shadow-card">
+                    <span>Accept Invitation</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Gamer Preferences Breakdown */}
       <Card elevation="resting">

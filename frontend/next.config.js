@@ -15,6 +15,9 @@ try {
 
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'framer-motion', '@tanstack/react-query'],
+  },
 };
 
 const sentryWebpackPluginOptions = {
@@ -26,4 +29,6 @@ const sentryWebpackPluginOptions = {
   silent: !process.env.CI,
 };
 
-module.exports = withSentryConfig(withPWA(nextConfig), sentryWebpackPluginOptions);
+module.exports = process.env.NODE_ENV === 'production'
+  ? withSentryConfig(withPWA(nextConfig), sentryWebpackPluginOptions)
+  : withPWA(nextConfig);

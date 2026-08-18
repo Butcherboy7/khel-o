@@ -14,6 +14,7 @@ from app.schemas.owner import (
 from app.schemas.booking import BookingResponse
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User, UserRole
+from app.models.cafe import Cafe
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 
 class OwnerService:
@@ -23,6 +24,18 @@ class OwnerService:
 
     async def get_dashboard_stats(self, owner_id: UUID) -> OwnerDashboardResponse:
         owner_cafes = await self.cafe_repo.get_by_owner_id(owner_id)
+        if not owner_cafes:
+            from app.models.user_role import UserRoleMapping
+            from sqlalchemy import select
+            stmt_staff = select(Cafe).join(
+                UserRoleMapping, UserRoleMapping.cafe_id == Cafe.id
+            ).where(
+                UserRoleMapping.user_id == owner_id,
+                UserRoleMapping.role == UserRole.STAFF
+            )
+            res_staff = await self.booking_repo.db.execute(stmt_staff)
+            owner_cafes = list(res_staff.scalars().all())
+
         if not owner_cafes:
             return OwnerDashboardResponse(
                 total_cafes=0,
@@ -110,14 +123,18 @@ class OwnerService:
     async def auto_transition_booking(self, booking: Booking) -> Booking:
         """Lazy-write status transitions based on current time."""
         now_utc = datetime.now(timezone.utc)
+        session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=timezone.utc)
+        session_end = datetime.combine(booking.session_date, booking.end_time).replace(tzinfo=timezone.utc)
         
-        if booking.status == BookingStatus.CHECKED_IN:
-            session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=timezone.utc)
+        if booking.status == BookingStatus.CONFIRMED:
+            if now_utc >= session_end:
+                updated = await self.booking_repo.update(booking.id, {"status": BookingStatus.NO_SHOW})
+                return updated or booking
+        elif booking.status == BookingStatus.CHECKED_IN:
             if now_utc >= session_start:
                 updated = await self.booking_repo.update(booking.id, {"status": BookingStatus.ACTIVE})
                 return updated or booking
         elif booking.status == BookingStatus.ACTIVE:
-            session_end = datetime.combine(booking.session_date, booking.end_time).replace(tzinfo=timezone.utc)
             if now_utc >= session_end:
                 updated = await self.booking_repo.update(booking.id, {"status": BookingStatus.COMPLETED})
                 return updated or booking

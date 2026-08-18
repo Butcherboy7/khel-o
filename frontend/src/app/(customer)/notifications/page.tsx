@@ -31,15 +31,15 @@ export default function NotificationsPage() {
   const { data, isLoading, isError, error, refetch } = useQuery<NotificationsResponse>({
     queryKey: ['notifications'],
     queryFn: async () => {
-      const response = await apiClient.get('/notifications');
+      const response = await apiClient.get('/api/v1/notifications');
       return response.data;
     },
-    staleTime: 30_000,
+    staleTime: 5_000,
   });
   
   const markAllReadMutation = useMutation({
     mutationFn: async () => {
-      await apiClient.post('/notifications/mark-all-read');
+      await apiClient.post('/api/v1/notifications/mark-all-read');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
@@ -52,7 +52,7 @@ export default function NotificationsPage() {
   
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId: string) => {
-      await apiClient.post(`/notifications/${notificationId}/read`);
+      await apiClient.post(`/api/v1/notifications/${notificationId}/read`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });

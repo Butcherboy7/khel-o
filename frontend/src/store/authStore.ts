@@ -184,3 +184,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 }));
+
+// Cross-tab authentication session synchronizer
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'user' || e.key === 'accessToken' || e.key === 'activeRole') {
+      const storedUser = localStorage.getItem('user');
+      const storedToken = localStorage.getItem('accessToken');
+      const storedRefreshToken = localStorage.getItem('refreshToken');
+      const storedRole = (localStorage.getItem('activeRole') as UserActiveRole) || 'gamer';
+
+      if (storedUser && storedToken) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          useAuthStore.setState({
+            user: parsedUser,
+            accessToken: storedToken,
+            refreshToken: storedRefreshToken,
+            activeRole: storedRole,
+            isAuthenticated: true,
+          });
+        } catch {
+          // Ignore JSON parse errors
+        }
+      } else if (!storedToken) {
+        useAuthStore.setState({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
+          activeRole: 'gamer',
+          isAuthenticated: false,
+        });
+      }
+    }
+  });
+}
+

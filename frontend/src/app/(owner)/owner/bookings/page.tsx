@@ -104,6 +104,7 @@ export default function OwnerBookingsPage() {
             className="h-input px-3 rounded-xl border border-border bg-card font-body text-body text-text-primary"
           >
             <option value="all">All Statuses</option>
+            <option value="pending_payment">Pending Payment</option>
             <option value="confirmed">Confirmed</option>
             <option value="checked_in">Checked In</option>
             <option value="active">Active</option>

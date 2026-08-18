@@ -4,6 +4,7 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios';
+import * as Sentry from '@sentry/nextjs';
 import { ApiError } from './errors';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -124,8 +125,8 @@ apiClient.interceptors.response.use(
             return original ? apiClient(original) : Promise.reject(normaliseError(error));
           }
         }
-      } catch {
-        // Silently ignore - proceed to reject with original error
+      } catch (roleRefreshError) {
+        Sentry.captureException(roleRefreshError, { tags: { location: 'client-interceptor-403-role-refresh' } });
       }
     }
 
@@ -177,8 +178,8 @@ apiClient.interceptors.response.use(
           if (userRes.data?.data?.user) {
             localStorage.setItem('user', JSON.stringify(userRes.data.data.user));
           }
-        } catch {
-          // Silently ignore user fetch error
+        } catch (userFetchError) {
+          Sentry.captureException(userFetchError, { tags: { location: 'client-interceptor-post-refresh-me' } });
         }
 
         flushQueue(null, newAccess);
