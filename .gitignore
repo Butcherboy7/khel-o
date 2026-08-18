@@ -9,6 +9,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.prod.example
 .venv/
 dist/
 build/

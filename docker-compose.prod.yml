@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: khel_o_postgres
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - khel_o_net
+    # No host port published — only reachable by other containers on khel_o_net.
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: khel_o_backend
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - qrdata:/app/static/qr
+    networks:
+      - khel_o_net
+    # No host port published — only Caddy talks to this over khel_o_net.
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+        NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID}
+    container_name: khel_o_frontend
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    depends_on:
+      - backend
+    networks:
+      - khel_o_net
+    # No host port published — only Caddy talks to this over khel_o_net.
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: khel_o_caddy
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - khel_o_net
+
+  backup:
+    image: postgres:15-alpine
+    container_name: khel_o_backup
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    entrypoint: >
+      sh -c "
+      while true; do
+        sleep 86400;
+        PGPASSWORD=$$POSTGRES_PASSWORD pg_dump -h postgres -U $$POSTGRES_USER -d $$POSTGRES_DB -F c -f /backups/khel_o_$$(date +%Y%m%d_%H%M%S).dump;
+        find /backups -name '*.dump' -mtime +14 -delete;
+      done"
+    volumes:
+      - pgbackups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - khel_o_net
+
+volumes:
+  pgdata:
+  pgbackups:
+  qrdata:
+  caddy_data:
+  caddy_config:
+
+networks:
+  khel_o_net:
+    driver: bridge
