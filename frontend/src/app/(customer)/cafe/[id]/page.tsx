@@ -25,6 +25,8 @@ import { GoogleLocationDisplay } from '@/components/maps/GoogleLocationDisplay';
 import { ShareModal } from '@/components/customer/ShareModal';
 
 import { useAuthStore } from '@/store/authStore';
+import { useLocationStore } from '@/store/locationStore';
+import { calculateDistance, formatDistance } from '@/lib/format';
 
 const DEFAULT_PHOTOS = [
   'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
@@ -36,6 +38,7 @@ export default function CafeDetailPage() {
   const params = useParams();
   const cafeId = params.id as string;
   const user = useAuthStore((s) => s.user);
+  const { userLat, userLng } = useLocationStore();
 
   const [activeTab, setActiveTab] = useState<'amenities' | 'games' | 'reviews'>('amenities');
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -89,6 +92,10 @@ export default function CafeDetailPage() {
   }
 
   const cafe = data;
+  const distanceLabel =
+    userLat != null && userLng != null && cafe.latitude != null && cafe.longitude != null
+      ? formatDistance(calculateDistance(userLat, userLng, cafe.latitude, cafe.longitude))
+      : null;
   const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : DEFAULT_PHOTOS;
   const currentPhoto = photosList[photoIndex % photosList.length];
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : 100;
@@ -180,17 +187,13 @@ export default function CafeDetailPage() {
           <span className="rounded-full bg-success/10 px-3 py-1 text-caption font-semibold text-success">
             Open now
           </span>
-          <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary">
-            1.2 km away
-          </span>
+          {distanceLabel && (
+            <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary">
+              {distanceLabel} away
+            </span>
+          )}
           <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary">
             PC Gaming
-          </span>
-          <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary">
-            Premium PCs
-          </span>
-          <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary">
-            PS5
           </span>
         </div>
       </div>
@@ -256,38 +259,39 @@ export default function CafeDetailPage() {
         </div>
 
         {activeTab === 'amenities' && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {[
-              'Air conditioned',
-              'Free water',
-              'Café & snacks',
-              'Discord booth',
-              'Washroom',
-              'Parking',
-            ].map((item) => (
-              <div
-                key={item}
-                className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary flex items-center gap-2"
-              >
-                <CheckCircle2 className="h-4 w-4 text-primary" />
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
+          cafe.amenities && cafe.amenities.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {cafe.amenities.map((item) => (
+                <div
+                  key={item}
+                  className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary flex items-center gap-2"
+                >
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-body text-text-secondary italic">No amenities listed by this café yet.</p>
+          )
         )}
 
         {activeTab === 'games' && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {['Valorant', 'Counter-Strike 2', 'GTA V', 'EA FC 24', 'Cyberpunk 2077', 'Apex Legends', 'Dota 2', 'Fortnite'].map((game) => (
-              <div
-                key={game}
-                className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-2.5 font-medium text-body text-text-primary"
-              >
-                <Gamepad2 className="h-4 w-4 text-accent" />
-                <span>{game}</span>
-              </div>
-            ))}
-          </div>
+          cafe.supportedGames && cafe.supportedGames.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {cafe.supportedGames.map((game) => (
+                <div
+                  key={game}
+                  className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-2.5 font-medium text-body text-text-primary"
+                >
+                  <Gamepad2 className="h-4 w-4 text-accent" />
+                  <span>{game}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-body text-text-secondary italic">No supported games listed by this café yet.</p>
+          )
         )}
 
         {activeTab === 'reviews' && (

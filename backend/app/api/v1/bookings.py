@@ -78,7 +78,8 @@ async def cancel_booking(
     db: AsyncSession = Depends(get_db)
 ):
     booking_repo = BookingRepository(db)
-    service = BookingService(booking_repo)
+    cafe_repo = CafeRepository(db)
+    service = BookingService(booking_repo, cafe_repo)
     reason = payload.reason if payload else None
     result = await service.cancel_booking(booking_id, current_user=current_user, reason=reason)
     return {

@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MapPin, Star, Zap, Gamepad2 } from 'lucide-react';
 import { Card, CardImage } from '@/components/ui';
+import { useLocationStore } from '@/store/locationStore';
+import { calculateDistance, formatDistance } from '@/lib/format';
 import type { CafeListItem } from '@/types';
 
 interface CafeCardProps {
@@ -18,6 +20,12 @@ const DEFAULT_CARD_PHOTOS = [
 ];
 
 export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
+  const { userLat, userLng } = useLocationStore();
+  const distanceLabel =
+    userLat != null && userLng != null && cafe.latitude != null && cafe.longitude != null
+      ? formatDistance(calculateDistance(userLat, userLng, cafe.latitude, cafe.longitude))
+      : null;
+
   const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : DEFAULT_CARD_PHOTOS;
   const [photoIndex, setPhotoIndex] = useState(0);
 
@@ -132,7 +140,8 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             >
               <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
               <span className="truncate hover:underline">
-                {cafe.city}, {cafe.state} • 1.2 km
+                {cafe.city}, {cafe.state}
+                {distanceLabel ? ` • ${distanceLabel}` : ''}
               </span>
             </button>
           </div>

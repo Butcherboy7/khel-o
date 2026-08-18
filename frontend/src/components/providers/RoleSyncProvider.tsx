@@ -45,6 +45,8 @@ export function RoleSyncProvider({ children }: { children: ReactNode }) {
     };
 
     syncRoles();
+    const interval = setInterval(syncRoles, 30_000);
+    return () => clearInterval(interval);
   }, [isAuthenticated, accessToken]);
 
   return <>{children}</>;

@@ -33,6 +33,29 @@ class PaymentService:
         self.booking_repo = booking_repo
         self.db = db_session
 
+    async def _notify_owner(self, cafe_id: UUID, title: str, message: str, notification_type: str = "system", link: Optional[str] = None) -> None:
+        """Best-effort in-app notification for the café owner. Never blocks the payment flow."""
+        try:
+            from sqlalchemy import select
+            cafe_result = await self.booking_repo.db.execute(select(Cafe).where(Cafe.id == cafe_id))
+            cafe = cafe_result.scalars().first()
+            if not cafe or not cafe.owner_id:
+                return
+            from app.models.notification import Notification
+            notif = Notification(
+                id=uuid4(),
+                user_id=cafe.owner_id,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                is_read=False,
+                link=link
+            )
+            self.booking_repo.db.add(notif)
+            await self.booking_repo.db.commit()
+        except Exception as e:
+            logger.error(f"Failed to write owner notification for cafe {cafe_id}: {e}")
+
     async def create_razorpay_order(self, booking_id: UUID, gamer_id: UUID) -> PaymentCreateResponse:
         booking = await self.booking_repo.get_by_id(booking_id)
         if not booking:
@@ -182,6 +205,13 @@ class PaymentService:
                     "status": BookingStatus.FAILED,
                     "cancellation_reason": "Payment failed: Invalid signature"
                 })
+                await self._notify_owner(
+                    cafe_id=booking.cafe_id,
+                    title="Payment issue on a booking",
+                    message=f"Booking {booking.booking_reference} failed payment verification (invalid signature).",
+                    notification_type="payment_failed",
+                    link=f"/owner/bookings?ref={booking.booking_reference}"
+                )
                 raise ValidationException(message="Payment verification failed: Invalid signature", error_code="PAYMENT_FAILED")
             elif settings.ENVIRONMENT == "production":
                 raise ValidationException(message="Invalid payment signature", error_code="INVALID_SIGNATURE")
@@ -221,6 +251,15 @@ class PaymentService:
         # Trigger confirmation email
         notifier = NotificationService()
         await notifier.send_booking_confirmation(self.payment_repo.db, booking.id)
+
+        # In-app notification for the café owner
+        await self._notify_owner(
+            cafe_id=booking.cafe_id,
+            title="New booking confirmed",
+            message=f"Booking {booking.booking_reference} confirmed for {booking.session_date} at {booking.start_time}.",
+            notification_type="booking_confirmed",
+            link=f"/owner/bookings?ref={booking.booking_reference}"
+        )
 
         return PaymentResponse.model_validate(updated_payment)
 

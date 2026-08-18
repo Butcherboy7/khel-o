@@ -235,6 +235,28 @@ class OwnerService:
         updated = await self.booking_repo.update(booking_id, update_fields)
         if updated:
             updated = await self.auto_transition_booking(updated)
+
+        # Notify the owner when a staff member (not the owner themself) performs the check-in
+        if current_user.role == UserRole.STAFF:
+            try:
+                cafe = await self.cafe_repo.get_by_id(booking.cafe_id)
+                if cafe and cafe.owner_id:
+                    from app.models.notification import Notification
+                    import uuid as _uuid
+                    notif = Notification(
+                        id=_uuid.uuid4(),
+                        user_id=cafe.owner_id,
+                        title="Customer checked in",
+                        message=f"{current_user.full_name or 'Staff'} checked in booking {booking.booking_reference}.",
+                        notification_type="system",
+                        is_read=False,
+                        link=f"/owner/bookings?ref={booking.booking_reference}"
+                    )
+                    self.booking_repo.db.add(notif)
+                    await self.booking_repo.db.commit()
+            except Exception:
+                pass
+
         return BookingResponse.model_validate(updated)
 
     async def emergency_close_day(self, owner_id: UUID, cafe_id: UUID, closure_date: date) -> List[BookingResponse]:

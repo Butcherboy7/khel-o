@@ -3,6 +3,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   Store,
@@ -18,11 +19,13 @@ import {
   Menu,
   X,
   MoreHorizontal,
+  Bell,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
+import { apiClient } from '@/lib/api/client';
 import type { User } from '@/types';
 
 /* ── Navigation Items ────────────────────────────────────────────── */
@@ -44,6 +47,7 @@ const ownerNavSections: NavSection[] = [
     items: [
       { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
       { label: 'Analytics', href: '/owner/analytics', icon: BarChart3 },
+      { label: 'Notifications', href: '/owner/notifications', icon: Bell },
     ],
   },
   {
@@ -297,6 +301,34 @@ function OwnerMobileMenu({
   );
 }
 
+function OwnerNotificationBell() {
+  const { data } = useQuery<{ unreadCount: number }>({
+    queryKey: ['unread-count'],
+    queryFn: async () => {
+      const response = await apiClient.get('/api/v1/notifications/unread-count');
+      return response.data;
+    },
+    staleTime: 60_000,
+    refetchInterval: 30_000,
+  });
+  const unreadCount = data?.unreadCount || 0;
+
+  return (
+    <Link
+      href="/owner/notifications"
+      className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition-all hover:bg-border/60 hover:text-text-primary active:scale-95"
+      aria-label="Notifications"
+    >
+      <Bell className="h-4 w-4" />
+      {unreadCount > 0 && (
+        <span className="absolute -top-1 -right-1 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-accent text-white text-badge font-bold">
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 function OwnerTopBar({
   isStaff,
   onOpenMobileMenu,
@@ -334,7 +366,10 @@ function OwnerTopBar({
         </span>
       </div>
 
-      <RoleSwitcher />
+      <div className="flex items-center gap-3">
+        <OwnerNotificationBell />
+        <RoleSwitcher />
+      </div>
     </header>
   );
 }

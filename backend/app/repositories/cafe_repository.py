@@ -164,6 +164,8 @@ class CafeRepository(BaseRepository[Cafe]):
                 "name": c.name,
                 "city": c.city,
                 "state": c.state,
+                "latitude": c.latitude,
+                "longitude": c.longitude,
                 "average_rating": 4.8,
                 "total_reviews": 12,
                 "starting_price": starting_price,

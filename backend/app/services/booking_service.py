@@ -42,6 +42,29 @@ class BookingService:
         random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         return f"GC-{year}-{random_suffix}"
 
+    async def _notify_owner(self, cafe_id: UUID, title: str, message: str, notification_type: str = "system", link: Optional[str] = None) -> None:
+        """Best-effort in-app notification for the café owner. Never blocks the booking flow."""
+        try:
+            if not self.cafe_repo:
+                return
+            cafe = await self.cafe_repo.get_by_id(cafe_id)
+            if not cafe or not cafe.owner_id:
+                return
+            from app.models.notification import Notification
+            notif = Notification(
+                id=uuid4(),
+                user_id=cafe.owner_id,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                is_read=False,
+                link=link
+            )
+            self.booking_repo.db.add(notif)
+            await self.booking_repo.db.commit()
+        except Exception as e:
+            logger.error(f"Failed to write owner notification for cafe {cafe_id}: {e}")
+
     async def create_booking(self, gamer_id: UUID, booking_in: BookingCreateRequest) -> BookingResponse:
         # Validate Cafe
         cafe = None
@@ -319,5 +342,13 @@ class BookingService:
             except Exception as e:
                 logger.error(f"Failed to process refund for booking {booking_id}: {e}")
                 # Booking is still cancelled, but refund may need manual processing
+
+        await self._notify_owner(
+            cafe_id=booking.cafe_id,
+            title="Booking cancelled",
+            message=f"Booking {booking.booking_reference} for {booking.session_date} was cancelled by the customer.",
+            notification_type="booking_cancelled",
+            link=f"/owner/bookings?ref={booking.booking_reference}"
+        )
 
         return BookingResponse.model_validate(updated)

@@ -183,7 +183,24 @@ async def verify_cafe(
     
     await db.commit()
     await db.refresh(cafe)
-    
+
+    audit_service = AdminService(
+        db=db,
+        user_repo=user_repo,
+        cafe_repo=cafe_repo,
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db)
+    )
+    await audit_service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action=f"cafe.{payload.status}",
+        entity_type="cafe",
+        entity_id=str(cafe_id),
+        entity_name=cafe.name,
+        reason=payload.reason,
+    )
+
     return {
         "success": True,
         "data": {
@@ -256,6 +273,13 @@ async def deactivate_user_admin(
         promo_repo=PromotionRepository(db)
     )
     updated = await service.deactivate_user(user_id)
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="user.deactivate",
+        entity_type="user",
+        entity_id=str(user_id),
+    )
     return {
         "success": True,
         "data": {
@@ -277,6 +301,13 @@ async def activate_user_admin(
         promo_repo=PromotionRepository(db)
     )
     updated = await service.activate_user(user_id)
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="user.activate",
+        entity_type="user",
+        entity_id=str(user_id),
+    )
     return {
         "success": True,
         "data": {
@@ -432,6 +463,22 @@ async def toggle_review_visibility(
     booking_repo = BookingRepository(db)
     service = ReviewService(review_repo, booking_repo)
     result = await service.toggle_review_visibility(review_id, payload.is_visible)
+
+    audit_service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=booking_repo,
+        promo_repo=PromotionRepository(db)
+    )
+    await audit_service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="review.hide" if not payload.is_visible else "review.restore",
+        entity_type="review",
+        entity_id=str(review_id),
+    )
+
     return {
         "success": True,
         "data": {
@@ -462,6 +509,14 @@ async def suspend_cafe(
         promo_repo=PromotionRepository(db),
     )
     result = await service.suspend_cafe(cafe_id, payload.reason)
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="cafe.suspend",
+        entity_type="cafe",
+        entity_id=str(cafe_id),
+        reason=payload.reason,
+    )
     return {"success": True, "data": result}
 
 
@@ -480,6 +535,13 @@ async def reactivate_cafe(
         promo_repo=PromotionRepository(db),
     )
     result = await service.reactivate_cafe(cafe_id)
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="cafe.reactivate",
+        entity_type="cafe",
+        entity_id=str(cafe_id),
+    )
     return {"success": True, "data": result}
 
 

@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Gift, Award, Flame, Zap, Check, Lock, Ticket, Sparkles, ChevronRight, Copy, CheckCircle2 } from 'lucide-react';
-import { Card, CardContent, Button, Badge } from '@/components/ui';
+import { Card, CardContent, Button, Badge, Skeleton } from '@/components/ui';
+import { apiClient } from '@/lib/api/client';
+import { useAuthStore } from '@/store/authStore';
 
 interface Achievement {
   id: string;
@@ -14,44 +17,13 @@ interface Achievement {
   xpReward: number;
 }
 
-const ACHIEVEMENTS: Achievement[] = [
-  {
-    id: 'a1',
-    title: 'First Blood 🩸',
-    description: 'Complete your first gaming session booking.',
-    icon: '🎯',
-    isUnlocked: true,
-    progress: '1 / 1',
-    xpReward: 100,
-  },
-  {
-    id: 'a2',
-    title: 'Night Owl 🦉',
-    description: 'Book and complete a session after 10 PM.',
-    icon: '🌙',
-    isUnlocked: true,
-    progress: '1 / 1',
-    xpReward: 250,
-  },
-  {
-    id: 'a3',
-    title: 'Weekend Warrior ⚔️',
-    description: 'Complete 3 weekend sessions in a single month.',
-    icon: '🎮',
-    isUnlocked: false,
-    progress: '2 / 3',
-    xpReward: 500,
-  },
-  {
-    id: 'a4',
-    title: 'Regular Patron 👑',
-    description: 'Complete 10 total station bookings.',
-    icon: '🏆',
-    isUnlocked: false,
-    progress: '4 / 10',
-    xpReward: 1000,
-  },
-];
+interface RewardsResponse {
+  xp: number;
+  level: number;
+  nextLevelXp: number;
+  completedBookings: number;
+  achievements: Achievement[];
+}
 
 interface Coupon {
   id: string;
@@ -62,14 +34,13 @@ interface Coupon {
   isClaimed: boolean;
 }
 
-const COUPONS: Coupon[] = [
+const COUPONS: Omit<Coupon, 'isClaimed'>[] = [
   {
     id: 'c1',
     code: 'FIRSTBLOOD50',
     discount: '₹50 OFF',
     description: 'Applicable on any station booking above ₹150.',
     requiredXp: 0,
-    isClaimed: true,
   },
   {
     id: 'c2',
@@ -77,7 +48,6 @@ const COUPONS: Coupon[] = [
     discount: '30% OFF',
     description: 'Valid for afternoon sessions before 5 PM.',
     requiredXp: 300,
-    isClaimed: false,
   },
   {
     id: 'c3',
@@ -85,23 +55,57 @@ const COUPONS: Coupon[] = [
     discount: '₹100 OFF',
     description: 'Valid for RTX 4080 & RTX 4090 VIP Tiers.',
     requiredXp: 1500,
-    isClaimed: false,
   },
 ];
 
+const LEVEL_TITLES = ['Rookie', 'Contender', 'Skilled Gamer', 'Veteran Gamer', 'Elite Gamer', 'Legend'];
+function getLevelTitle(level: number): string {
+  return LEVEL_TITLES[Math.min(level - 1, LEVEL_TITLES.length - 1)] ?? 'Rookie';
+}
+
 export default function RewardsPage() {
-  const [coupons, setCoupons] = useState<Coupon[]>(COUPONS);
+  const userId = useAuthStore((s) => s.user?.id);
+  const [claimedIds, setClaimedIds] = useState<Set<string>>(new Set());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [activeAchievement, setActiveAchievement] = useState<Achievement | null>(null);
 
-  const currentXp = 1450;
-  const nextLevelXp = 2000;
-  const xpPercentage = Math.round((currentXp / nextLevelXp) * 100);
+  const storageKey = userId ? `khelo_claimed_coupons_${userId}` : null;
+
+  useEffect(() => {
+    if (!storageKey || typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) setClaimedIds(new Set(JSON.parse(raw)));
+    } catch {
+      // ignore corrupted local state
+    }
+  }, [storageKey]);
+
+  const { data, isLoading } = useQuery<RewardsResponse>({
+    queryKey: ['rewards'],
+    queryFn: async () => {
+      const response = await apiClient.get('/api/v1/rewards');
+      return response.data.data;
+    },
+    staleTime: 30_000,
+  });
+
+  const currentXp = data?.xp ?? 0;
+  const level = data?.level ?? 1;
+  const nextLevelXp = data?.nextLevelXp ?? 500;
+  const achievements = data?.achievements ?? [];
+  const xpPercentage = Math.min(100, Math.round((currentXp / nextLevelXp) * 100));
+
+  const coupons: Coupon[] = COUPONS.map((c) => ({ ...c, isClaimed: claimedIds.has(c.id) }));
 
   const claimCoupon = (id: string) => {
-    setCoupons((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, isClaimed: true } : c))
-    );
+    setClaimedIds((prev) => {
+      const next = new Set(prev).add(id);
+      if (storageKey && typeof window !== 'undefined') {
+        window.localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
+      }
+      return next;
+    });
   };
 
   const copyCouponCode = (code: string) => {
@@ -120,11 +124,11 @@ export default function RewardsPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-white font-heading font-bold text-h3 shadow-card">
-                L4
+                L{level}
               </div>
               <div>
                 <span className="text-overline text-white/70 uppercase">Current Tier</span>
-                <h1 className="font-heading text-h3 text-white">Veteran Gamer</h1>
+                <h1 className="font-heading text-h3 text-white">{getLevelTitle(level)}</h1>
               </div>
             </div>
 
@@ -137,7 +141,7 @@ export default function RewardsPage() {
           {/* XP Progress Bar */}
           <div className="flex flex-col gap-1.5 pt-1">
             <div className="flex justify-between text-caption text-white/80">
-              <span>Level 4 Progress</span>
+              <span>Level {level} Progress</span>
               <span>{currentXp} / {nextLevelXp} XP ({xpPercentage}%)</span>
             </div>
             <div className="h-2.5 w-full rounded-full bg-black/40 overflow-hidden p-0.5">
@@ -244,7 +248,13 @@ export default function RewardsPage() {
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {ACHIEVEMENTS.map((ach) => (
+          {isLoading && (
+            <>
+              <Skeleton className="h-24 rounded-3xl" />
+              <Skeleton className="h-24 rounded-3xl" />
+            </>
+          )}
+          {!isLoading && achievements.map((ach) => (
             <div
               key={ach.id}
               onClick={() => setActiveAchievement(ach)}

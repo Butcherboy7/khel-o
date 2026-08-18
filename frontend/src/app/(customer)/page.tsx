@@ -43,7 +43,7 @@ export default function ExplorePage() {
   const user = useAuthStore((s) => s.user);
   const firstName = user?.fullName ? user.fullName.split(' ')[0] : 'Gamer';
   
-  const { selectedCity: persistedCity, setSelectedCity: setPersistedCity } = useLocationStore();
+  const { selectedCity: persistedCity, setSelectedCity: setPersistedCity, setUserCoords } = useLocationStore();
   
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -126,6 +126,7 @@ export default function ExplorePage() {
       (pos) => {
         setIsLocating(false);
         const { latitude, longitude } = pos.coords;
+        setUserCoords(latitude, longitude);
         const detected = findClosestCity(latitude, longitude);
         handleCityChange(detected);
       },

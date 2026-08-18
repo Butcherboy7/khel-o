@@ -25,6 +25,7 @@ class CafeBase(BaseModel):
     closing_time: Optional[time] = None
     total_seats: Optional[int] = Field(None, ge=1)
     amenities: List[str] = Field(default_factory=list)
+    supported_games: List[str] = Field(default_factory=list)
     photos: List[str] = Field(default_factory=list)
 
     @field_validator("opening_time", "closing_time", mode="before")
@@ -93,6 +94,8 @@ class CafeListItem(BaseModel):
     name: str
     city: str
     state: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     average_rating: float = 0.0
     total_reviews: int = 0
     starting_price: Optional[float] = None
