@@ -70,12 +70,28 @@ This document tracks the features, architecture, and current status of the KHEL-
   - `frontend/src/app/(owner)/owner/dashboard/page.tsx`: Applied `/ui-ux-pro-max` layout de-congestion — replaced 4 bulky analytics cards with a compact, single-row Operational Stats Ribbon (saving 70% vertical space), and added an interactive **`[ ⚙️ Custom Per-Tier Controls ▾ ]`** expandable drawer on the Seat Allocator Card.
   - `frontend/src/app/(customer)/bookings/new/page.tsx`: Real-time listener invalidation re-evaluates `isTierPaused` per tier in real time when owner adjusts any tier's seat cap.
 
+### Phase 6: Data Persistence, Test Isolation & Realistic Café Seeding
+- **Test Database Isolation**:
+  - `backend/tests/conftest.py`: Configured dedicated SQLite test engine and sessionmaker (`test_khel_o.db`), overriding `get_db` FastAPI dependency and globally patching `app.database.engine` and `AsyncSessionLocal`.
+  - Pytest executions run 100% isolated against temporary test storage and never touch, pollute, or alter `backend/khel_o.db`.
+- **Source-Anchored Path Resolution & Production Guards**:
+  - `backend/app/config.py`: Anchored `.env` search and relative SQLite paths directly to `BASE_DIR` (`Path(__file__).resolve().parent.parent`), preventing split database files across working directories.
+  - Added Pydantic `model_validator` in `config.py` and `lifespan` in `main.py` ensuring the application refuses to boot in production if SQLite or placeholder secret keys are detected.
+- **Account Preservation & Idempotent Seeding**:
+  - `backend/app/main.py`: Gated demo user initialization strictly behind `ENVIRONMENT == "development"`.
+  - Preserved existing user records (`uzair@gmail.com`) in `backend/khel_o.db` while ensuring password hash (`testpass123`) and gamer/primary role mappings for all test accounts (`uzair1@...`, `uzair2@...`, `uzair3@...`, `owner@...`, `admin@...`, `staff@...`).
+- **Authentic Esports Lounges & Cascaded Cleanup**:
+  - `backend/scripts/seed_realistic_cafes.py`: Cascaded cleanup of throwaway test fixtures, orphaned bookings, reviews, and payments.
+  - Seeded 7 authentic esports venues across Bengaluru, Mumbai, Delhi, Hyderabad, and Pune (LXG, Respawn, Immortal, Havoc, Matrix, PlayMax, GearUp) with verified tiers, ₹80–₹280/hr pricing, coordinates, amenities, and photos.
+
 ---
 
 ## Verification & Test Results
 - **TypeScript**: `npx tsc --noEmit` passing with 0 errors across all frontend files.
-- **Backend Tests**: 56/56 pytest unit and integration tests passing (`python -m pytest tests`).
+- **Backend Tests**: 72/72 pytest unit and integration tests passing (`python -m pytest tests`) with 0 database pollution.
 - **Security & Quality**:
   - No `any` types in TypeScript.
   - No hardcoded secrets or committed `.env` files.
-  - Proper error handling and authorization checks on all endpoints.
+  - Test database execution fully isolated from development and staging databases.
+  - Production fail-safe validation against SQLite and default secrets.
+

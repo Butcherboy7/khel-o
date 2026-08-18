@@ -1,5 +1,14 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
 from typing import Optional
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parent.parent  # e:\KHEL-O\backend
+
+# Locate .env in backend directory first, then root directory
+_backend_env = BASE_DIR / ".env"
+_root_env = BASE_DIR.parent / ".env"
+_env_files = [str(f) for f in [_backend_env, _root_env] if f.exists()]
 
 class Settings(BaseSettings):
     # App Config
@@ -35,10 +44,35 @@ class Settings(BaseSettings):
     # Sentry Error Monitoring
     SENTRY_DSN: Optional[str] = None
 
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def normalize_sqlite_url(cls, v: str) -> str:
+        """Resolve relative SQLite paths to absolute paths anchored to BASE_DIR."""
+        if v and "sqlite" in v and ":///" in v:
+            prefix, db_path = v.split(":///", 1)
+            if db_path in (":memory:", ""):
+                return v
+            path_obj = Path(db_path)
+            if not path_obj.is_absolute():
+                abs_path = (BASE_DIR / path_obj).resolve()
+                return f"{prefix}:///{abs_path.as_posix()}"
+        return v
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        """Enforce strict security and database constraints in production."""
+        if self.ENVIRONMENT == "production":
+            if "sqlite" in self.DATABASE_URL.lower():
+                raise ValueError("CRITICAL: SQLite cannot be used as DATABASE_URL in production. A PostgreSQL connection is required.")
+            if self.SECRET_KEY == "super-secret-key-change-in-production-at-least-32-chars":
+                raise ValueError("CRITICAL: Default insecure SECRET_KEY detected in production. A secure SECRET_KEY must be provided.")
+        return self
+
     model_config = SettingsConfigDict(
-        env_file="../.env",
+        env_file=_env_files if _env_files else None,
         env_file_encoding="utf-8",
         extra="ignore"
     )
 
 settings = Settings()
+

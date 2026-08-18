@@ -39,6 +39,7 @@ async def ensure_demo_users():
         from app.models.user import UserRole
         from app.core.security import get_password_hash
         from app.models.user_role import UserRoleMapping
+        from sqlalchemy import select
         import uuid as uuid_lib
         
         async with AsyncSessionLocal() as session:
@@ -46,6 +47,10 @@ async def ensure_demo_users():
             hashed_password = get_password_hash("testpass123")
             
             demo_accounts = [
+                ("uzair@gmail.com", "Uzair (Gamer)", UserRole.GAMER),
+                ("uzair1@gmail.com", "Uzair 1", UserRole.GAMER),
+                ("uzair2@gmail.com", "Uzair 2", UserRole.GAMER),
+                ("uzair3@gmail.com", "Uzair 3", UserRole.GAMER),
                 ("test@example.com", "Demo Gamer", UserRole.GAMER),
                 ("owner@example.com", "Demo Cafe Owner", UserRole.CAFE_OWNER),
                 ("owner@khelo.in", "Demo Cafe Owner", UserRole.CAFE_OWNER),
@@ -53,6 +58,7 @@ async def ensure_demo_users():
                 ("admin@example.com", "Platform Admin", UserRole.ADMIN),
                 ("admin@khelo.in", "Platform Admin", UserRole.ADMIN),
                 ("admin@khel-o.test", "Platform Admin", UserRole.ADMIN),
+                ("staff@example.com", "Demo Staff Member", UserRole.STAFF),
             ]
             
             for email, name, role in demo_accounts:
@@ -66,7 +72,7 @@ async def ensure_demo_users():
                         "is_active": True,
                     })
                     
-                    # Ensure role mapping exists in user_roles table
+                    # Ensure primary role mapping exists in user_roles table
                     session.add(UserRoleMapping(
                         id=uuid_lib.uuid4(),
                         user_id=user.id,
@@ -84,19 +90,40 @@ async def ensure_demo_users():
                         ))
                     
                     await session.commit()
-                elif existing.role != role:
-                    await repo.update(existing.id, {"role": role, "is_active": True})
+                else:
+                    # Update password hash to ensure testpass123 works and ensure role mappings
+                    await repo.update(existing.id, {"password_hash": hashed_password, "is_active": True})
+                    
+                    # Verify gamer role mapping
+                    stmt = select(UserRoleMapping).where(
+                        UserRoleMapping.user_id == existing.id,
+                        UserRoleMapping.role == UserRole.GAMER
+                    )
+                    res = await session.execute(stmt)
+                    if not res.scalars().first():
+                        session.add(UserRoleMapping(
+                            id=uuid_lib.uuid4(),
+                            user_id=existing.id,
+                            role=UserRole.GAMER,
+                            cafe_id=None
+                        ))
+                    
+                    # Verify primary role mapping
+                    if role != UserRole.GAMER:
+                        stmt_p = select(UserRoleMapping).where(
+                            UserRoleMapping.user_id == existing.id,
+                            UserRoleMapping.role == role
+                        )
+                        res_p = await session.execute(stmt_p)
+                        if not res_p.scalars().first():
+                            session.add(UserRoleMapping(
+                                id=uuid_lib.uuid4(),
+                                user_id=existing.id,
+                                role=role,
+                                cafe_id=None
+                            ))
+                    await session.commit()
 
-            # Also ensure a staff account exists for scanning QR codes
-            staff_user = await repo.get_by_email("staff@example.com")
-            if not staff_user:
-                await repo.create({
-                    "email": "staff@example.com",
-                    "password_hash": hashed_password,
-                    "full_name": "Demo Staff Member",
-                    "role": UserRole.STAFF,
-                    "is_active": True,
-                })
         logger.info("demo_users_seeded_successfully")
     except Exception as e:
         logger.warning("ensure_demo_users_warning", error=str(e))
@@ -325,8 +352,15 @@ async def lifespan(app: FastAPI):
     setup_logging()
     os.makedirs("static/qr", exist_ok=True)
     logger.info("starting_khel_o_backend", environment=settings.ENVIRONMENT)
+    
+    if settings.ENVIRONMENT == "production":
+        if "sqlite" in settings.DATABASE_URL.lower():
+            raise RuntimeError("CRITICAL: SQLite cannot be used as DATABASE_URL in production environment.")
+        if settings.SECRET_KEY == "super-secret-key-change-in-production-at-least-32-chars":
+            raise RuntimeError("CRITICAL: Default insecure SECRET_KEY detected in production.")
+
     await init_db()
-    if settings.ENVIRONMENT in ("development", "staging", "local"):
+    if settings.ENVIRONMENT == "development":
         await ensure_demo_users()
     yield
     logger.info("stopping_khel_o_backend")
