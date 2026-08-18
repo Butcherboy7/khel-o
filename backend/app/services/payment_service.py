@@ -192,8 +192,10 @@ class PaymentService:
         ).hexdigest()
 
         if payload.razorpay_signature != expected_signature:
-            if payload.razorpay_signature == 'mock_signature_valid':
+            if payload.razorpay_signature == 'mock_signature_valid' and settings.ENVIRONMENT != "production":
                 logger.info("Mock signature accepted in development mode")
+            elif payload.razorpay_signature == 'mock_signature_valid':
+                raise ValidationException(message="Invalid payment signature", error_code="INVALID_SIGNATURE")
             elif payload.razorpay_signature.startswith('mock_signature_INVALID'):
                 await self.payment_repo.update_status(
                     payment_id=payment.id,

@@ -7,6 +7,10 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
 
+# Disable Sentry reporting for test runs so intentional test-exception paths
+# don't get reported to the real project as noise.
+os.environ["SENTRY_DSN"] = ""
+
 from app.config import BASE_DIR
 from app.core.security import create_access_token
 from app.models.user import User, UserRole

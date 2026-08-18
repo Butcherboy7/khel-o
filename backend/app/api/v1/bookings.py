@@ -96,15 +96,33 @@ async def get_booking_qr_pass(
     db: AsyncSession = Depends(get_db)
 ):
     booking_repo = BookingRepository(db)
+    cafe_repo = CafeRepository(db)
     booking = await booking_repo.get_by_id(booking_id)
     if not booking:
         from app.core.exceptions import NotFoundException
         raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
 
     role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
-    if str(booking.gamer_id) != str(current_user.id) and role_val not in ("admin", "staff", "cafe_owner"):
+    if str(booking.gamer_id) != str(current_user.id):
         from app.core.exceptions import ForbiddenException
-        raise ForbiddenException(message="Forbidden", error_code="FORBIDDEN")
+        if role_val == "staff":
+            from sqlalchemy import select
+            from app.models.user_role import UserRoleMapping
+            from app.models.user import UserRole
+            stmt = select(UserRoleMapping).where(
+                UserRoleMapping.user_id == current_user.id,
+                UserRoleMapping.role == UserRole.STAFF,
+                UserRoleMapping.cafe_id == booking.cafe_id
+            )
+            res = await db.execute(stmt)
+            if not res.scalars().first():
+                raise ForbiddenException(message="Staff members can only access bookings for their assigned café", error_code="FORBIDDEN")
+        elif role_val == "cafe_owner":
+            cafe = await cafe_repo.get_by_id(booking.cafe_id)
+            if not cafe or str(cafe.owner_id) != str(current_user.id):
+                raise ForbiddenException(message="You can only access bookings for your own café", error_code="FORBIDDEN")
+        elif role_val != "admin":
+            raise ForbiddenException(message="Forbidden", error_code="FORBIDDEN")
 
     from app.models.booking import BookingStatus
     if booking.status not in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED):

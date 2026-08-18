@@ -1169,6 +1169,22 @@ async def delete_staff_user(
     current_owner: User = Depends(require_cafe_owner),
     db: AsyncSession = Depends(get_db)
 ):
+    stmt_cafe = select(Cafe).where(Cafe.owner_id == current_owner.id)
+    res_cafe = await db.execute(stmt_cafe)
+    owner_cafe = res_cafe.scalars().first()
+    if not owner_cafe:
+        raise NotFoundException("Staff member not found")
+
+    from app.models.user_role import UserRoleMapping
+    stmt_mapping = select(UserRoleMapping).where(
+        UserRoleMapping.user_id == staff_id,
+        UserRoleMapping.role == UserRole.STAFF,
+        UserRoleMapping.cafe_id == owner_cafe.id
+    )
+    res_mapping = await db.execute(stmt_mapping)
+    if not res_mapping.scalars().first():
+        raise NotFoundException("Staff member not found")
+
     user_repo = UserRepository(db)
     staff_user = await user_repo.get_by_id(staff_id)
     if not staff_user or staff_user.role != UserRole.STAFF:
