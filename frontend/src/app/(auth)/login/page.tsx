@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { Button, Input, Card, CardContent } from '@/components/ui';
 import { login } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -134,6 +135,17 @@ function LoginForm() {
           >
             Sign In
           </Button>
+
+          <div className="flex items-center gap-3 py-1">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-caption text-text-tertiary">or</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <GoogleSignInButton
+            redirectPath={redirectPath}
+            onError={(message) => setError(message)}
+          />
         </form>
       </CardContent>
     </Card>

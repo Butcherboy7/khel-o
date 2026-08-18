@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { Button, Input, Card, CardContent } from '@/components/ui';
 import { register } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
@@ -143,6 +144,17 @@ function RegisterForm() {
           >
             Register Account
           </Button>
+
+          <div className="flex items-center gap-3 py-1">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-caption text-text-tertiary">or</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <GoogleSignInButton
+            redirectPath={redirectPath}
+            onError={(message) => setError(message)}
+          />
         </form>
       </CardContent>
     </Card>
