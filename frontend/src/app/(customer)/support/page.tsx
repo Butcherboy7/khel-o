@@ -98,11 +98,11 @@ export default function SupportPage() {
           </div>
 
           {createMut.isError && (
-            <p className="text-caption text-error">Couldn't submit your ticket. Please try again.</p>
+            <p className="text-caption text-error">Couldn&apos;t submit your ticket. Please try again.</p>
           )}
           {submitted && (
             <p className="text-caption text-success flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Ticket submitted — we'll follow up soon.
+              <CheckCircle2 className="h-3.5 w-3.5" /> Ticket submitted — we&apos;ll follow up soon.
             </p>
           )}
 

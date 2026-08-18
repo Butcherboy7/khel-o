@@ -54,7 +54,7 @@ export default function ForgotPasswordPage() {
               <CheckCircle2 className="h-10 w-10 text-success" />
               <h2 className="font-heading text-h2 text-text-primary">Check your inbox</h2>
               <p className="text-body text-text-secondary">
-                If <strong>{email}</strong> is registered with KHEL-O, we've sent a link to reset your password. It expires in 30 minutes.
+                If <strong>{email}</strong> is registered with KHEL-O, we&apos;ve sent a link to reset your password. It expires in 30 minutes.
               </p>
               <Link href="/login" className="mt-2">
                 <Button variant="ghost" size="md" className="gap-1.5">
@@ -68,7 +68,7 @@ export default function ForgotPasswordPage() {
               <div>
                 <h2 className="font-heading text-h2 text-text-primary">Forgot your password?</h2>
                 <p className="text-body text-text-secondary mt-0.5">
-                  Enter the email on your account and we'll send you a reset link.
+                  Enter the email on your account and we&apos;ll send you a reset link.
                 </p>
               </div>
 

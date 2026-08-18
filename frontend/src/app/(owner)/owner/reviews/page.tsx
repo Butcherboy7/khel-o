@@ -127,7 +127,7 @@ export default function OwnerReviewsPage() {
                         autoFocus
                       />
                       {replyMut.isError && thisMutPending === false && (
-                        <p className="text-caption text-error">Couldn't post your reply — please try again.</p>
+                        <p className="text-caption text-error">Couldn&apos;t post your reply — please try again.</p>
                       )}
                       <div className="flex items-center gap-2">
                         <Button

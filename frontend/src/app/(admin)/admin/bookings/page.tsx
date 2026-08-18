@@ -278,7 +278,7 @@ export default function AdminBookingsPage() {
           <div className="flex flex-col gap-4">
             <p className="text-caption text-text-secondary">
               {actionTarget.kind === 'refund' ? (
-                <>Refund booking <strong>{actionTarget.booking.bookingReference}</strong> (₹{actionTarget.booking.totalAmount}). This also cancels the booking. Goes through Razorpay when live keys are configured; otherwise it's recorded as pending manual refund.</>
+                <>Refund booking <strong>{actionTarget.booking.bookingReference}</strong> (₹{actionTarget.booking.totalAmount}). This also cancels the booking. Goes through Razorpay when live keys are configured; otherwise it&apos;s recorded as pending manual refund.</>
               ) : (
                 <>Force-cancel booking <strong>{actionTarget.booking.bookingReference}</strong> without issuing a refund — use this for a stuck booking, not a payment dispute.</>
               )}

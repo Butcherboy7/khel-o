@@ -391,7 +391,7 @@ export default function OwnerOffersPage() {
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
-              {editingId && <p className="text-[11px] text-text-tertiary">Tier scope can't change after creation — pause and create a new offer instead.</p>}
+              {editingId && <p className="text-[11px] text-text-tertiary">Tier scope can&apos;t change after creation — pause and create a new offer instead.</p>}
             </div>
           </div>
 
