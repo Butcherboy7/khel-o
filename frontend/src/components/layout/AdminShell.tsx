@@ -14,6 +14,8 @@ import {
   UsersRound,
   ScrollText,
   ExternalLink,
+  LifeBuoy,
+  Settings,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -36,7 +38,9 @@ const adminNavItems: NavItem[] = [
   { label: 'Payments', href: '/admin/payments', icon: CreditCard },
   { label: 'Reviews', href: '/admin/reviews', icon: MessageSquare },
   { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+  { label: 'Support', href: '/admin/support', icon: LifeBuoy },
   { label: 'Audit Log', href: '/admin/audit-log', icon: ScrollText },
+  { label: 'Settings', href: '/admin/settings', icon: Settings },
 ];
 
 /* ── Admin Sidebar ───────────────────────────────────────────────── */

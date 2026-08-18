@@ -11,6 +11,8 @@ from app.models.platform_fee import PlatformFee
 from app.models.notification import Notification, NotificationType
 from app.models.staff_invitation import StaffInvitation
 from app.models.admin_audit_log import AdminAuditLog
+from app.models.support_ticket import SupportTicket, SupportTicketStatus, SupportTicketPriority
+from app.models.platform_setting import PlatformSetting
 
 __all__ = [
     "User",
@@ -31,4 +33,8 @@ __all__ = [
     "NotificationType",
     "StaffInvitation",
     "AdminAuditLog",
+    "SupportTicket",
+    "SupportTicketStatus",
+    "SupportTicketPriority",
+    "PlatformSetting",
 ]

@@ -11,12 +11,14 @@ import {
   RefreshCw,
   Shield,
   ShieldOff,
+  ShieldPlus,
 } from 'lucide-react';
-import { listAdminUsers, deactivateUser, activateUser } from '@/lib/api/admin';
+import { listAdminUsers, deactivateUser, activateUser, changeUserRole } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
   Button,
   Badge,
+  Modal,
   SkeletonCard,
   ErrorState,
   EmptyState,
@@ -88,6 +90,13 @@ export default function AdminUsersPage() {
     mutationFn: (userId: string) => activateUser(userId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.all }),
   });
+
+  const promoteMut = useMutation({
+    mutationFn: (userId: string) => changeUserRole(userId, 'admin'),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.all }),
+  });
+
+  const [confirmPromoteId, setConfirmPromoteId] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -233,6 +242,16 @@ export default function AdminUsersPage() {
                         <UserCheck className="h-3.5 w-3.5" />
                       </button>
                     )}
+                    {u.role !== 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmPromoteId(u.id)}
+                        title="Promote to admin"
+                        className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors"
+                      >
+                        <ShieldPlus className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -240,6 +259,35 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={!!confirmPromoteId}
+        onClose={() => setConfirmPromoteId(null)}
+        title="Promote to admin"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-caption text-text-secondary">
+            This grants full admin access — every user, café, booking, and payment on the platform.
+            Only do this for someone on the KHELO team.
+          </p>
+          <div className="flex items-center gap-2 justify-end">
+            <Button variant="ghost" size="sm" onClick={() => setConfirmPromoteId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={promoteMut.isPending}
+              onClick={() => {
+                if (confirmPromoteId) promoteMut.mutate(confirmPromoteId);
+                setConfirmPromoteId(null);
+              }}
+            >
+              Confirm promotion
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

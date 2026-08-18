@@ -164,3 +164,67 @@ export async function listAuditLog(
 ): Promise<{ items: AdminAuditEntry[]; total: number; page: number; pageSize: number; totalPages: number }> {
   return call(() => apiClient.get('/api/v1/admin/audit-log', { params }));
 }
+
+// ── Booking Oversight (force-cancel + refund) ────────────────────────────────
+
+export async function forceCancelBooking(bookingId: string, reason: string): Promise<{ id: string; bookingReference: string; status: string }> {
+  return call(() => apiClient.patch(`/api/v1/admin/bookings/${bookingId}/force-cancel`, { reason }));
+}
+
+export async function refundBooking(bookingId: string, reason: string): Promise<{ refundId: string | null; status: string; amount: number }> {
+  return call(() => apiClient.post(`/api/v1/admin/bookings/${bookingId}/refund`, { reason }));
+}
+
+// ── Support Tickets ───────────────────────────────────────────────────────────
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  subject: string;
+  description: string;
+  category: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'normal' | 'high';
+  bookingId: string | null;
+  cafeId: string | null;
+  adminNotes: string | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listSupportTickets(
+  params: { status?: string; category?: string; page?: number; limit?: number } = {},
+): Promise<{ items: SupportTicket[]; total: number; page: number; pageSize: number }> {
+  return call(() => apiClient.get('/api/v1/admin/support/tickets', { params }));
+}
+
+export async function getSupportTicket(ticketId: string): Promise<{ ticket: SupportTicket }> {
+  return call(() => apiClient.get(`/api/v1/admin/support/tickets/${ticketId}`));
+}
+
+export async function updateSupportTicket(
+  ticketId: string,
+  payload: { status?: string; priority?: string; adminNotes?: string },
+): Promise<{ ticket: SupportTicket }> {
+  return call(() => apiClient.patch(`/api/v1/admin/support/tickets/${ticketId}`, payload));
+}
+
+// ── Platform Settings ─────────────────────────────────────────────────────────
+
+export interface PlatformSettings {
+  commissionPercentage: number;
+  supportEmail: string;
+  maintenanceMode: boolean;
+  maintenanceMessage: string | null;
+  updatedAt: string;
+}
+
+export async function getPlatformSettings(): Promise<{ settings: PlatformSettings }> {
+  return call(() => apiClient.get('/api/v1/admin/settings'));
+}
+
+export async function updatePlatformSettings(payload: Partial<PlatformSettings>): Promise<{ settings: PlatformSettings }> {
+  return call(() => apiClient.patch('/api/v1/admin/settings', payload));
+}

@@ -28,6 +28,7 @@ import {
   Gamepad2,
   Cpu,
   Users,
+  LifeBuoy,
 } from 'lucide-react';
 
 const CITIES = ['Bengaluru', 'Hyderabad', 'Mumbai', 'Delhi', 'Pune', 'Chennai'];
@@ -275,6 +276,17 @@ export default function ProfilePage() {
             <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
               <Sparkles className="h-4 w-4 text-accent" />
               <span>Gamified Rewards & Badges</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-text-secondary" />
+          </Link>
+
+          <Link
+            href="/support"
+            className="flex items-center justify-between p-3.5 hover:bg-surface rounded-xl transition-colors"
+          >
+            <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
+              <LifeBuoy className="h-4 w-4 text-text-secondary" />
+              <span>Help & Support</span>
             </div>
             <ChevronRight className="h-4 w-4 text-text-secondary" />
           </Link>

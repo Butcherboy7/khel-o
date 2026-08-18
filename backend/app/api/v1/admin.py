@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status, Query, HTTPException
+from pydantic import BaseModel, Field
 from typing import Optional
 from uuid import UUID
 from datetime import date
@@ -18,6 +19,7 @@ from app.repositories.cafe_repository import CafeRepository
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.review_repository import ReviewRepository
+from app.repositories.payment_repository import PaymentRepository
 from app.services.admin_service import AdminService
 from app.services.cafe_service import CafeService
 from app.services.review_service import ReviewService
@@ -330,6 +332,14 @@ async def change_user_role_admin(
         promo_repo=PromotionRepository(db)
     )
     updated = await service.change_user_role(user_id, payload.role)
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action=f"user.role_change.{payload.role}",
+        entity_type="user",
+        entity_id=str(user_id),
+        entity_name=updated.email,
+    )
     return {
         "success": True,
         "data": {
@@ -390,6 +400,78 @@ async def get_booking_admin_detail(
         "data": result
     }
 
+class BookingForceCancelRequest(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=200)
+
+@router.patch("/bookings/{booking_id}/force-cancel", status_code=status.HTTP_200_OK)
+async def force_cancel_booking_admin(
+    booking_id: UUID,
+    payload: BookingForceCancelRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Cancel a stuck/disputed booking regardless of the normal cancellation window. Does not trigger a refund — use the refund endpoint separately if money needs to move."""
+    service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db)
+    )
+    result = await service.force_cancel_booking(booking_id, payload.reason)
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="booking.force_cancel",
+        entity_type="booking",
+        entity_id=str(booking_id),
+        entity_name=result.get("bookingReference"),
+        reason=payload.reason,
+    )
+    return {"success": True, "data": result}
+
+class BookingRefundRequest(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=200)
+
+@router.post("/bookings/{booking_id}/refund", status_code=status.HTTP_200_OK)
+async def refund_booking_admin(
+    booking_id: UUID,
+    payload: BookingRefundRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Admin-initiated refund, independent of the customer-facing cancellation flow.
+
+    Goes through the same PaymentService.process_refund() path used by cancellations —
+    it calls the real Razorpay refund API when RAZORPAY_KEY_ID/SECRET are configured, and
+    otherwise records a `pending_manual_refund` entry. No behavior change is needed when
+    live keys are added later; this endpoint already exercises the same code path.
+    """
+    from app.services.payment_service import PaymentService
+    payment_service = PaymentService(
+        payment_repo=PaymentRepository(db),
+        booking_repo=BookingRepository(db),
+        db_session=db
+    )
+    result = await payment_service.process_refund(booking_id, admin_id=current_admin.id)
+
+    admin_service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db)
+    )
+    await admin_service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="payment.refund",
+        entity_type="booking",
+        entity_id=str(booking_id),
+        reason=payload.reason,
+    )
+    return {"success": True, "data": result}
+
 # --- PROMOTION OVERSIGHT ---
 @router.get("/promotions", status_code=status.HTTP_200_OK)
 async def list_promotions_admin(
@@ -427,6 +509,13 @@ async def deactivate_promotion_admin(
         promo_repo=PromotionRepository(db)
     )
     updated = await service.deactivate_promotion(promotion_id)
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="promotion.deactivate",
+        entity_type="promotion",
+        entity_id=str(promotion_id),
+    )
     return {
         "success": True,
         "data": {
@@ -487,8 +576,6 @@ async def toggle_review_visibility(
     }
 
 # --- CAFÉ SUSPENSION / ACTIVATION ---
-
-from pydantic import BaseModel, Field
 
 class CafeSuspendRequest(BaseModel):
     reason: str = Field(..., min_length=10, description="Reason for suspension (min 10 chars)")
@@ -564,6 +651,13 @@ async def set_cafe_bookings_paused(
         promo_repo=PromotionRepository(db),
     )
     result = await service.set_cafe_bookings_paused(cafe_id, payload.paused)
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="cafe.pause_bookings" if payload.paused else "cafe.resume_bookings",
+        entity_type="cafe",
+        entity_id=str(cafe_id),
+    )
     return {"success": True, "data": result}
 
 
@@ -677,3 +771,113 @@ async def get_audit_log(
         limit=limit,
     )
     return {"success": True, "data": result}
+
+
+# --- SUPPORT TICKETS ---
+
+from app.repositories.support_ticket_repository import SupportTicketRepository
+from app.services.support_ticket_service import SupportTicketService
+from app.schemas.support import SupportTicketUpdateRequest
+
+@router.get("/support/tickets", status_code=status.HTTP_200_OK)
+async def list_support_tickets_admin(
+    status_: Optional[str] = Query(None, alias="status"),
+    category: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=50),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    service = SupportTicketService(SupportTicketRepository(db))
+    result = await service.list_all_tickets(status=status_, category=category, page=page, limit=limit)
+    return {"success": True, "data": result}
+
+@router.get("/support/tickets/{ticket_id}", status_code=status.HTTP_200_OK)
+async def get_support_ticket_admin(
+    ticket_id: UUID,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.schemas.support import SupportTicketResponse
+    service = SupportTicketService(SupportTicketRepository(db))
+    ticket = await service.get_ticket(ticket_id)
+    return {"success": True, "data": {"ticket": SupportTicketResponse.model_validate(ticket)}}
+
+@router.patch("/support/tickets/{ticket_id}", status_code=status.HTTP_200_OK)
+async def update_support_ticket_admin(
+    ticket_id: UUID,
+    payload: SupportTicketUpdateRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Triage a support ticket: change status, priority, or leave internal notes."""
+    ticket_service = SupportTicketService(SupportTicketRepository(db))
+    updated = await ticket_service.update_ticket(
+        ticket_id,
+        resolved_by=current_admin.id,
+        status=payload.status,
+        priority=payload.priority,
+        admin_notes=payload.admin_notes,
+    )
+
+    admin_service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db),
+    )
+    await admin_service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action=f"support_ticket.update{'.' + payload.status if payload.status else ''}",
+        entity_type="support_ticket",
+        entity_id=str(ticket_id),
+    )
+    return {"success": True, "data": {"ticket": updated}}
+
+
+# --- PLATFORM SETTINGS ---
+
+from app.repositories.platform_settings_repository import PlatformSettingsRepository
+from app.schemas.support import PlatformSettingsResponse, PlatformSettingsUpdateRequest
+
+@router.get("/settings", status_code=status.HTTP_200_OK)
+async def get_platform_settings_admin(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    settings_repo = PlatformSettingsRepository(db)
+    settings = await settings_repo.get_or_create()
+    return {"success": True, "data": {"settings": PlatformSettingsResponse.model_validate(settings)}}
+
+@router.patch("/settings", status_code=status.HTTP_200_OK)
+async def update_platform_settings_admin(
+    payload: PlatformSettingsUpdateRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    settings_repo = PlatformSettingsRepository(db)
+    updated = await settings_repo.update({
+        "commission_percentage": payload.commission_percentage,
+        "support_email": payload.support_email,
+        "maintenance_mode": payload.maintenance_mode,
+        "maintenance_message": payload.maintenance_message,
+        "updated_by": current_admin.id,
+    })
+
+    admin_service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db),
+    )
+    await admin_service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="platform_settings.update",
+        entity_type="platform_settings",
+        entity_id=str(updated.id),
+    )
+    return {"success": True, "data": {"settings": PlatformSettingsResponse.model_validate(updated)}}

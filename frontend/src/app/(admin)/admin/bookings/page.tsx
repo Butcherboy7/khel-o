@@ -1,23 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarDays,
   Search,
   Filter,
   RefreshCw,
   QrCode,
+  Ban,
+  IndianRupee,
 } from 'lucide-react';
-import { listAdminBookings } from '@/lib/api/admin';
+import { listAdminBookings, forceCancelBooking, refundBooking } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
   Badge,
+  Button,
+  Modal,
   SkeletonCard,
   ErrorState,
   EmptyState,
 } from '@/components/ui';
-import type { BookingStatus } from '@/types';
+import type { BookingStatus, BookingDetail } from '@/types';
 
 /* ─── helpers ─────────────────────────────────────────────────────── */
 
@@ -43,8 +47,11 @@ const STATUS_FILTERS: Array<{ label: string; value: BookingStatus | 'all' }> = [
 /* ─── page ─────────────────────────────────────────────────────────── */
 
 export default function AdminBookingsPage() {
+  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<BookingStatus | 'all'>('all');
   const [search, setSearch] = useState('');
+  const [actionTarget, setActionTarget] = useState<{ booking: BookingDetail; kind: 'cancel' | 'refund' } | null>(null);
+  const [reason, setReason] = useState('');
 
   const params = {
     ...(statusFilter !== 'all' ? { status: statusFilter as BookingStatus } : {}),
@@ -66,6 +73,26 @@ export default function AdminBookingsPage() {
       (b as any).cafeName?.toLowerCase().includes(q)
     );
   });
+
+  const forceCancelMut = useMutation({
+    mutationFn: (vars: { id: string; reason: string }) => forceCancelBooking(vars.id, vars.reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      setActionTarget(null);
+      setReason('');
+    },
+  });
+
+  const refundMut = useMutation({
+    mutationFn: (vars: { id: string; reason: string }) => refundBooking(vars.id, vars.reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      setActionTarget(null);
+      setReason('');
+    },
+  });
+
+  const actionMut = actionTarget?.kind === 'refund' ? refundMut : forceCancelMut;
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -147,7 +174,7 @@ export default function AdminBookingsPage() {
       {!isLoading && !isError && bookings.length > 0 && (
         <div className="rounded-2xl border border-border overflow-hidden bg-surface">
           {/* Header row */}
-          <div className="hidden md:grid grid-cols-[auto_1fr_1fr_auto_auto_auto_auto] gap-4 px-5 py-2.5 bg-surface-hover text-xs font-semibold text-text-secondary border-b border-border">
+          <div className="hidden md:grid grid-cols-[auto_1fr_1fr_auto_auto_auto_auto_auto] gap-4 px-5 py-2.5 bg-surface-hover text-xs font-semibold text-text-secondary border-b border-border">
             <span>#</span>
             <span>Gamer</span>
             <span>Café · Tier</span>
@@ -155,13 +182,14 @@ export default function AdminBookingsPage() {
             <span>Amount</span>
             <span>Status</span>
             <span>QR</span>
+            <span>Actions</span>
           </div>
 
           <div className="divide-y divide-border">
             {bookings.map((b, idx) => (
               <div
                 key={b.id}
-                className="px-4 md:px-5 py-3 flex flex-col md:grid md:grid-cols-[auto_1fr_1fr_auto_auto_auto_auto] gap-2 md:gap-4 md:items-center hover:bg-surface-hover transition-colors"
+                className="px-4 md:px-5 py-3 flex flex-col md:grid md:grid-cols-[auto_1fr_1fr_auto_auto_auto_auto_auto] gap-2 md:gap-4 md:items-center hover:bg-surface-hover transition-colors"
               >
                 {/* Row # */}
                 <span className="hidden md:block text-xs text-text-tertiary font-data">{idx + 1}</span>
@@ -211,11 +239,79 @@ export default function AdminBookingsPage() {
                     <span className="text-[10px] text-text-tertiary">—</span>
                   )}
                 </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1.5">
+                  {b.status !== 'cancelled' && b.status !== 'completed' && (
+                    <button
+                      type="button"
+                      title="Force-cancel booking"
+                      onClick={() => { setActionTarget({ booking: b, kind: 'cancel' }); setReason(''); }}
+                      className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors"
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {b.status !== 'cancelled' && (
+                    <button
+                      type="button"
+                      title="Issue refund"
+                      onClick={() => { setActionTarget({ booking: b, kind: 'refund' }); setReason(''); }}
+                      className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-600 transition-colors"
+                    >
+                      <IndianRupee className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={!!actionTarget}
+        onClose={() => setActionTarget(null)}
+        title={actionTarget?.kind === 'refund' ? 'Issue refund' : 'Force-cancel booking'}
+      >
+        {actionTarget && (
+          <div className="flex flex-col gap-4">
+            <p className="text-caption text-text-secondary">
+              {actionTarget.kind === 'refund' ? (
+                <>Refund booking <strong>{actionTarget.booking.bookingReference}</strong> (₹{actionTarget.booking.totalAmount}). This also cancels the booking. Goes through Razorpay when live keys are configured; otherwise it's recorded as pending manual refund.</>
+              ) : (
+                <>Force-cancel booking <strong>{actionTarget.booking.bookingReference}</strong> without issuing a refund — use this for a stuck booking, not a payment dispute.</>
+              )}
+            </p>
+            <div>
+              <label className="text-caption font-semibold text-text-primary mb-1.5 block">Reason</label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+                placeholder="Why are you doing this? (shown in the audit log)"
+                className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-caption text-text-primary resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            {actionMut.isError && (
+              <p className="text-caption text-error">Action failed. Please try again.</p>
+            )}
+            <div className="flex items-center gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setActionTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={reason.trim().length < 3 || actionMut.isPending}
+                onClick={() => actionMut.mutate({ id: actionTarget.booking.id, reason: reason.trim() })}
+              >
+                {actionTarget.kind === 'refund' ? 'Issue refund' : 'Confirm cancellation'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

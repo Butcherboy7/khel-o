@@ -394,6 +394,21 @@ class AdminService:
         await self.db.refresh(cafe)
         return {"id": str(cafe.id), "name": cafe.name, "bookingsPaused": cafe.bookings_paused}
 
+    # ── Booking Oversight ─────────────────────────────────────────────────────
+
+    async def force_cancel_booking(self, booking_id: UUID, reason: str) -> Dict[str, Any]:
+        """Admin override: cancel a stuck/disputed booking regardless of the normal cancellation window. Does not touch payment/refund state."""
+        booking = await self.booking_repo.get_by_id(booking_id)
+        if not booking:
+            raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
+        if booking.status in (BookingStatus.CANCELLED, BookingStatus.COMPLETED):
+            raise ValidationException(message=f"Booking is already {booking.status.value}", error_code="INVALID_BOOKING_STATE")
+        updated = await self.booking_repo.update(booking_id, {
+            "status": BookingStatus.CANCELLED,
+            "cancellation_reason": f"[Admin override] {reason}",
+        })
+        return {"id": str(updated.id), "bookingReference": updated.booking_reference, "status": updated.status.value}
+
     # ── Payment Oversight ────────────────────────────────────────────────────
 
     async def list_payments(
