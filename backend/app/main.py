@@ -91,9 +91,8 @@ async def ensure_demo_users():
                     
                     await session.commit()
                 else:
-                    # Update password hash to ensure testpass123 works and ensure role mappings
-                    await repo.update(existing.id, {"password_hash": hashed_password, "is_active": True})
-                    
+                    # Existing account (possibly a real signup) - only ensure role mappings,
+                    # never overwrite a password the user may have set themselves.
                     # Verify gamer role mapping
                     stmt = select(UserRoleMapping).where(
                         UserRoleMapping.user_id == existing.id,
