@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
 import {
   ChevronLeft,
   Minus,
@@ -30,6 +31,7 @@ import {
   getTodayString,
   timeToMinutes,
   minutesToTimeString,
+  calculateWindowRemainingSeats,
 } from '@/lib/format';
 import type { HardwareTier } from '@/types';
 
@@ -78,6 +80,24 @@ function BookingWizardContent() {
     staleTime: 2_000,
     refetchInterval: 3_000,
   });
+
+  // Seats actually free for the currently selected time window — same calculation
+  // TimelineRangePicker uses for its "Only N seats left!" badge, so the seats
+  // stepper and the Book button below can never disagree with what's shown there.
+  const totalSeatsForTier = availabilityData?.appBookableSeats || activeTier?.totalSeats || 10;
+  const windowRemainingSeats = useMemo(() => {
+    const openingStr = cafe?.openingTime || '09:00:00';
+    let windowStart = timeToMinutes(selectedTime);
+    const openMin = timeToMinutes(openingStr);
+    if (windowStart < openMin) windowStart += 1440;
+    const windowEnd = windowStart + Math.round(durationHours * 60);
+    return calculateWindowRemainingSeats(
+      totalSeatsForTier,
+      availabilityData?.bookedSlots || [],
+      windowStart,
+      windowEnd
+    );
+  }, [totalSeatsForTier, availabilityData?.bookedSlots, selectedTime, durationHours, cafe?.openingTime]);
 
   // Listen for real-time seat cap updates from owner dashboard
   useEffect(() => {
@@ -363,10 +383,11 @@ function BookingWizardContent() {
               const isTierPaused = cafe.bookingsPaused || cafe.isEmergencyMode || cafe.bookableStations === 0 || tier.appBookableSeats === 0;
 
               return (
-                <button
+                <motion.button
                   key={tier.id}
                   type="button"
                   onClick={() => setSelectedTier(tier)}
+                  whileTap={{ scale: 0.97 }}
                   className={`p-4 rounded-3xl text-left transition-all flex flex-col justify-between border ${
                     isSelected
                       ? 'border-accent bg-accent/5 ring-2 ring-accent/60 shadow-card'
@@ -403,7 +424,7 @@ function BookingWizardContent() {
                       <span className="rupee-symbol">₹</span>{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
                     </div>
                   </div>
-                </button>
+                </motion.button>
               );
             })
           ) : (
@@ -423,9 +444,9 @@ function BookingWizardContent() {
           durationHours={durationHours}
           onChange={handleTimelineChange}
           bookedSlots={availabilityData?.bookedSlots || []}
-          totalSeats={availabilityData?.appBookableSeats || activeTier?.totalSeats || 10}
+          totalSeats={totalSeatsForTier}
           requestedSeats={seatsCount}
-          remainingSeats={availabilityData?.remainingSeats}
+          remainingSeats={windowRemainingSeats}
         />
       </div>
 
@@ -450,8 +471,8 @@ function BookingWizardContent() {
           <span className="w-6 text-center font-heading text-body font-bold">{seatsCount}</span>
           <button
             type="button"
-            onClick={() => setSeatsCount((s) => Math.min(availabilityData?.remainingSeats ?? 6, Math.min(6, s + 1)))}
-            disabled={availabilityData?.remainingSeats !== undefined && seatsCount >= availabilityData.remainingSeats}
+            onClick={() => setSeatsCount((s) => Math.min(windowRemainingSeats, 6, s + 1))}
+            disabled={seatsCount >= windowRemainingSeats || seatsCount >= 6}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <Plus className="h-4 w-4" />
@@ -481,8 +502,10 @@ function BookingWizardContent() {
         </CardContent>
       </Card>
 
-      {/* Sticky Bottom Action & Total Price Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-sticky bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
+      {/* Sticky Bottom Action & Total Price Bar — sits above the mobile bottom nav
+          (bottom-nav is z-nav/40, fixed bottom-0) rather than underneath it, otherwise
+          the nav bar silently eats the first tap on this button on mobile. */}
+      <div className="fixed bottom-[var(--bottom-nav-height)] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
         <div className="max-w-content mx-auto flex items-center justify-between gap-4">
           <div>
             <span className="text-caption text-text-secondary block truncate max-w-[200px] sm:max-w-none">
@@ -493,14 +516,15 @@ function BookingWizardContent() {
             </div>
           </div>
 
-          <button
+          <motion.button
             type="button"
             onClick={handleCheckout}
+            whileTap={{ scale: 0.96 }}
             disabled={
               isProcessing ||
               Boolean(cafe.isEmergencyMode) ||
               Boolean(cafe.bookingsPaused) ||
-              (availabilityData?.remainingSeats !== undefined && availabilityData.remainingSeats < seatsCount)
+              windowRemainingSeats < seatsCount
             }
             className="rounded-2xl bg-secondary px-8 sm:px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -510,12 +534,12 @@ function BookingWizardContent() {
               ? 'Emergency Mode Active'
               : cafe.bookingsPaused
               ? 'Bookings Paused'
-              : availabilityData?.remainingSeats === 0
+              : windowRemainingSeats === 0
               ? 'Sold Out'
-              : availabilityData?.remainingSeats !== undefined && availabilityData.remainingSeats < seatsCount
-              ? `Only ${availabilityData.remainingSeats} Seat${availabilityData.remainingSeats > 1 ? 's' : ''} Left`
+              : windowRemainingSeats < seatsCount
+              ? `Only ${windowRemainingSeats} Seat${windowRemainingSeats > 1 ? 's' : ''} Left`
               : 'Continue to Payment'}
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>

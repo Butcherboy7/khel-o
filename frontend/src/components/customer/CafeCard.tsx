@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { MapPin, Star, Zap, Gamepad2 } from 'lucide-react';
 import { Card, CardImage } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance } from '@/lib/format';
+import { getAmenityDisplay } from '@/lib/amenities';
 import type { CafeListItem } from '@/types';
 
 interface CafeCardProps {
@@ -56,6 +58,13 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
 
   return (
     <Link href={`/cafe/${cafe.id}`} className="block h-full group">
+      <motion.div
+        className="h-full"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: 'easeOut' }}
+        whileTap={{ scale: 0.98 }}
+      >
       <Card
         interactive
         elevation="resting"
@@ -132,10 +141,10 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               </div>
             </div>
 
-            {/* Location Row (Clickable for directions) */}
+            {/* Location Row (Clickable for directions — sized to content so the rest of the card row still opens the cafe page) */}
             <button
               onClick={handleOpenMap}
-              className="flex items-center gap-1 text-caption text-text-secondary hover:text-primary transition-colors text-left truncate w-full"
+              className="inline-flex max-w-full items-center gap-1 text-caption text-text-secondary hover:text-primary transition-colors text-left"
               title="Get directions on Google Maps"
             >
               <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
@@ -145,6 +154,29 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               </span>
             </button>
           </div>
+
+          {/* Amenity Icons Row */}
+          {cafe.amenities && cafe.amenities.length > 0 && (
+            <div className="flex items-center gap-2.5">
+              {cafe.amenities.slice(0, 5).map((amenity) => {
+                const { icon: AmenityIcon, label } = getAmenityDisplay(amenity);
+                return (
+                  <span
+                    key={amenity}
+                    title={label}
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-surface text-text-secondary flex-shrink-0"
+                  >
+                    <AmenityIcon className="h-3.5 w-3.5" />
+                  </span>
+                );
+              })}
+              {cafe.amenities.length > 5 && (
+                <span className="text-overline font-semibold text-text-tertiary">
+                  +{cafe.amenities.length - 5}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Tags & Console Support Badges Row */}
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -187,6 +219,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
           </div>
         </div>
       </Card>
+      </motion.div>
     </Link>
   );
 }

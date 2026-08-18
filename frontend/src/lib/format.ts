@@ -199,6 +199,40 @@ export function minutesToTimeString(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
 
+interface BookedSlotLike {
+  startTime: string;
+  endTime: string;
+  seatsCount?: number;
+}
+
+/**
+ * Seats actually free for a specific start/end window, given the café's
+ * total seat count and its currently booked slots. Single source of truth
+ * shared by the booking timeline slider and the seats-required stepper —
+ * they must never compute this independently or they'll drift out of sync.
+ */
+export function calculateWindowRemainingSeats(
+  totalSeats: number,
+  bookedSlots: BookedSlotLike[],
+  windowStartMin: number,
+  windowEndMin: number,
+): number {
+  let maxOccupied = 0;
+  for (let m = windowStartMin; m < windowEndMin; m += 30) {
+    let slotOccupied = 0;
+    for (const bs of bookedSlots) {
+      let bS = timeToMinutes(bs.startTime);
+      let bE = timeToMinutes(bs.endTime);
+      if (bE <= bS) bE += 1440;
+      if (m < bE && m + 30 > bS) {
+        slotOccupied += bs.seatsCount || 1;
+      }
+    }
+    if (slotOccupied > maxOccupied) maxOccupied = slotOccupied;
+  }
+  return Math.max(0, totalSeats - maxOccupied);
+}
+
 /** Format minutes since midnight to 12-hour format "10:00 AM" */
 export function formatMinutesTo12h(minutes: number): string {
   const h = Math.floor(minutes / 60) % 24;

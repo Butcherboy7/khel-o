@@ -12,12 +12,12 @@ import {
   ChevronRight,
   Share2,
   Monitor,
-  CheckCircle2,
   Navigation,
   Gamepad2,
 } from 'lucide-react';
 import { getCafe } from '@/lib/api/cafes';
 import { listCafeReviews, createReview } from '@/lib/api/reviews';
+import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Button, RatingDisplay, PriceDisplay, Badge, Skeleton, ErrorState } from '@/components/ui';
@@ -261,15 +261,18 @@ export default function CafeDetailPage() {
         {activeTab === 'amenities' && (
           cafe.amenities && cafe.amenities.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {cafe.amenities.map((item) => (
-                <div
-                  key={item}
-                  className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary flex items-center gap-2"
-                >
-                  <CheckCircle2 className="h-4 w-4 text-primary" />
-                  <span>{item}</span>
-                </div>
-              ))}
+              {cafe.amenities.map((item) => {
+                const { icon: AmenityIcon, label } = getAmenityDisplay(item);
+                return (
+                  <div
+                    key={item}
+                    className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary flex items-center gap-2"
+                  >
+                    <AmenityIcon className="h-4 w-4 text-primary flex-shrink-0" />
+                    <span>{label}</span>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p className="text-body text-text-secondary italic">No amenities listed by this café yet.</p>

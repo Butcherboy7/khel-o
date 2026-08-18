@@ -7,6 +7,7 @@ import {
   minutesToTimeString,
   formatMinutesTo12h,
   getTodayString,
+  calculateWindowRemainingSeats,
 } from '@/lib/format';
 
 interface BookedSlot {
@@ -265,25 +266,13 @@ export function TimelineRangePicker({
 
   const labelStepMinutes = slotW < 20 ? 120 : 60;
 
-  // Calculate dynamic remaining seats for the currently selected time window (selStart to selEnd)
-  const windowMaxOccupiedSeats = useMemo(() => {
-    let maxOccupied = 0;
-    for (let m = selStart; m < selEnd; m += 30) {
-      let slotOccupied = 0;
-      for (const bs of bookedSlots) {
-        let bS = timeToMinutes(bs.startTime);
-        let bE = timeToMinutes(bs.endTime);
-        if (bE <= bS) bE += 1440;
-        if (m < bE && m + 30 > bS) {
-          slotOccupied += bs.seatsCount || 1;
-        }
-      }
-      if (slotOccupied > maxOccupied) maxOccupied = slotOccupied;
-    }
-    return maxOccupied;
-  }, [selStart, selEnd, bookedSlots]);
-
-  const activeWindowRemainingSeats = Math.max(0, totalSeats - windowMaxOccupiedSeats);
+  // Calculate dynamic remaining seats for the currently selected time window (selStart to selEnd).
+  // Shared with the seats-required stepper in the parent page via calculateWindowRemainingSeats
+  // so the two can never show different numbers for the same selection.
+  const activeWindowRemainingSeats = useMemo(
+    () => calculateWindowRemainingSeats(totalSeats, bookedSlots, selStart, selEnd),
+    [totalSeats, bookedSlots, selStart, selEnd]
+  );
 
   const availabilityBadge = useMemo(() => {
     const seats = activeWindowRemainingSeats;

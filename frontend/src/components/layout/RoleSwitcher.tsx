@@ -15,7 +15,7 @@ export function RoleSwitcher() {
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasMultipleRoles = (user?.roles && user.roles.length > 1) || user?.role === 'cafe_owner' || user?.role === 'gamer';
+  const hasMultipleRoles = Boolean(user?.roles && user.roles.length > 1);
 
   if (!user || !hasMultipleRoles) {
     return null;
