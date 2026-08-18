@@ -13,6 +13,7 @@ from app.models.staff_invitation import StaffInvitation
 from app.models.admin_audit_log import AdminAuditLog
 from app.models.support_ticket import SupportTicket, SupportTicketStatus, SupportTicketPriority
 from app.models.platform_setting import PlatformSetting
+from app.models.password_reset_token import PasswordResetToken
 
 __all__ = [
     "User",
@@ -37,4 +38,5 @@ __all__ = [
     "SupportTicketStatus",
     "SupportTicketPriority",
     "PlatformSetting",
+    "PasswordResetToken",
 ]

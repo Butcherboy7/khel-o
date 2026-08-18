@@ -32,6 +32,17 @@ class AcceptInvitationRequest(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(..., min_length=3)
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=6)
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
 router = APIRouter()
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -72,6 +83,26 @@ async def refresh_token(payload: RefreshTokenRequest, db: AsyncSession = Depends
     return {
         "success": True,
         "data": result
+    }
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    repo = UserRepository(db)
+    service = AuthService(repo)
+    await service.request_password_reset(payload.email)
+    return {
+        "success": True,
+        "data": {"message": "If that email is registered, a reset link has been sent."}
+    }
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    repo = UserRepository(db)
+    service = AuthService(repo)
+    await service.reset_password(payload.token, payload.new_password)
+    return {
+        "success": True,
+        "data": {"message": "Password has been reset. You can now log in."}
     }
 
 @router.get("/me", status_code=status.HTTP_200_OK)

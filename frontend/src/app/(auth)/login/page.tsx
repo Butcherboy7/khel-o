@@ -101,17 +101,27 @@ function LoginForm() {
             error={validationErrors.email}
           />
 
-          <Input
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            leftIcon={<Lock className="h-4 w-4" />}
-            required
-            autoComplete="current-password"
-            error={validationErrors.password}
-          />
+          <div>
+            <Input
+              label="Password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              leftIcon={<Lock className="h-4 w-4" />}
+              required
+              autoComplete="current-password"
+              error={validationErrors.password}
+            />
+            <div className="mt-1.5 text-right">
+              <Link
+                href="/forgot-password"
+                className="text-caption font-semibold text-primary hover:underline transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
+          </div>
 
           <Button
             type="submit"

@@ -9,7 +9,8 @@ from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserCreateRequest, UserResponse
 from app.models.user import User, UserRole
 from app.core.security import get_password_hash, verify_password
-from app.core.exceptions import AuthException, ConflictException, ForbiddenException
+from app.core.exceptions import AuthException, ConflictException, ForbiddenException, BadRequestException
+from app.core.logging import logger
 
 ALGORITHM = "HS256"
 
@@ -293,3 +294,56 @@ class AuthService:
             "availableRoles": roles_list,
             "user": UserResponse.model_validate(user)
         }
+
+    async def request_password_reset(self, email: str) -> None:
+        """Generate a reset token and email it, if the address belongs to an account.
+
+        Always succeeds from the caller's point of view — never reveals whether the
+        email is registered, so this endpoint can't be used to enumerate accounts.
+        """
+        import secrets
+        from app.repositories.password_reset_repository import PasswordResetRepository
+        from app.models.password_reset_token import PasswordResetToken
+        from app.services.notification_service import NotificationService
+
+        clean_email = email.strip().lower()
+        user = await self.user_repo.get_by_email(clean_email)
+        if not user or not user.is_active:
+            return
+
+        reset_repo = PasswordResetRepository(self.user_repo.db)
+        await reset_repo.invalidate_all_for_user(user.id)
+
+        token = secrets.token_urlsafe(32)
+        reset_token = PasswordResetToken(
+            user_id=user.id,
+            token=token,
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+        )
+        await reset_repo.create(reset_token)
+
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+        notifier = NotificationService()
+        sent = await notifier.send_password_reset(user.email, user.full_name, reset_url)
+        if not sent:
+            logger.warning("password_reset_email_not_sent", user_id=str(user.id))
+
+    async def reset_password(self, token: str, new_password: str) -> None:
+        from app.repositories.password_reset_repository import PasswordResetRepository
+
+        reset_repo = PasswordResetRepository(self.user_repo.db)
+        reset_token = await reset_repo.get_by_token(token)
+        if not reset_token:
+            raise BadRequestException(message="This reset link is invalid.", error_code="INVALID_RESET_TOKEN")
+
+        if reset_token.used_at is not None:
+            raise BadRequestException(message="This reset link has already been used.", error_code="RESET_TOKEN_USED")
+
+        expires_at = reset_token.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
+            raise BadRequestException(message="This reset link has expired. Please request a new one.", error_code="RESET_TOKEN_EXPIRED")
+
+        await self.user_repo.update(reset_token.user_id, {"password_hash": get_password_hash(new_password)})
+        await reset_repo.mark_used(reset_token.id)

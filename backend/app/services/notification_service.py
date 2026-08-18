@@ -138,3 +138,26 @@ class NotificationService:
             logger.error("send_staff_invitation_error", error=str(e), email=email)
             return False
 
+    async def send_password_reset(self, email: str, full_name: str, reset_url: str) -> bool:
+        try:
+            subject = "Reset your KHEL-O password"
+            html_body = f"""
+            <div style="font-family: Arial, sans-serif; background: #09090b; color: #f4f4f5; padding: 24px; border-radius: 8px;">
+                <h2 style="color: #7c3aed; margin-top: 0;">Password Reset</h2>
+                <p>Hello <strong>{full_name or 'there'}</strong>,</p>
+                <p>We received a request to reset the password on your KHEL-O account. Click the button below to choose a new one:</p>
+                <div style="margin: 24px 0;">
+                    <a href="{reset_url}" style="background-color: #7c3aed; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
+                </div>
+                <p style="color: #a1a1aa; font-size: 14px;">Or copy and paste this link into your browser:<br/><a href="{reset_url}" style="color: #a78bfa;">{reset_url}</a></p>
+                <p style="color: #71717a; font-size: 12px; margin-top: 24px;">This link will expire in 30 minutes. If you didn't request this, you can safely ignore this email — your password won't change.</p>
+                <footer style="margin-top: 20px; border-top: 1px solid #27272a; padding-top: 12px; color: #71717a; font-size: 12px;">
+                    KHEL-O — Next Gen Gaming Cafe Platform
+                </footer>
+            </div>
+            """
+            return await self._send_resend_email(email, subject, html_body, "PASSWORD-RESET")
+        except Exception as e:
+            logger.error("send_password_reset_error", error=str(e), email=email)
+            return False
+
