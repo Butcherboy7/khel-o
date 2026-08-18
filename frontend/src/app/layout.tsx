@@ -47,6 +47,16 @@ export const metadata: Metadata = {
     'gaming lounge booking',
   ],
   authors: [{ name: 'KHEL-O' }],
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'KHEL-O',
+  },
+  icons: {
+    icon: '/icons/icon-192x192.png',
+    apple: '/icons/icon-192x192.png',
+  },
   openGraph: {
     type: 'website',
     locale: 'en_IN',
