@@ -20,9 +20,11 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
         ref={ref}
         className={cn(
           'rounded-2xl bg-card',
-          // Elevation
+          // Elevation — 'resting' pairs a soft shadow with a subtle border so
+          // the card reads as a distinct surface even on displays where the
+          // shadow alone washes out (e.g. IPS panels at typical brightness).
           elevation === 'flat' && 'border border-border',
-          elevation === 'resting' && 'shadow-card',
+          elevation === 'resting' && 'shadow-card border border-border/70',
           elevation === 'raised' && 'shadow-float',
           // Interactive states
           interactive && [
