@@ -40,6 +40,14 @@ class ReviewUpdate(BaseModel):
         populate_by_name=True
     )
 
+class ReviewReplyRequest(BaseModel):
+    reply: str = Field(..., min_length=1, max_length=2000)
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 class ReviewResponse(ReviewBase):
     id: UUID
     cafe_id: UUID
@@ -47,6 +55,8 @@ class ReviewResponse(ReviewBase):
     booking_id: UUID
     gamer_name: str
     is_visible: bool
+    owner_reply: Optional[str] = None
+    owner_replied_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

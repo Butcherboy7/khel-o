@@ -12,6 +12,10 @@ export interface OwnerSettings {
   city: string;
   state: string;
   pincode: string;
+  amenities: string[];
+  photos: string[];
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface SettingsResponse {
@@ -68,14 +72,29 @@ export interface CafeDetailsUpdateParams {
   pincode?: string;
   phoneNumber?: string;
   email?: string;
+  amenities?: string[];
+  photos?: string[];
+  latitude?: number;
+  longitude?: number;
 }
 
 // PATCH /api/v1/owner/cafes/{cafeId}/details
 export async function updateCafeDetails(
   cafeId: string,
   params: CafeDetailsUpdateParams
-): Promise<{ cafe: { id: string; name: string; description: string | null; city: string } }> {
+): Promise<{ cafe: { id: string; name: string; description: string | null; city: string; amenities: string[]; photos: string[]; latitude: number | null; longitude: number | null } }> {
   return call(() => apiClient.patch(`/api/v1/owner/cafes/${cafeId}/details`, params));
+}
+
+// PATCH /api/v1/owner/cafes/{cafeId}/hours
+export async function updateOperatingHours(
+  cafeId: string,
+  openingTime: string,
+  closingTime: string
+): Promise<{ cafe: { id: string; openingTime: string; closingTime: string } }> {
+  return call(() =>
+    apiClient.patch(`/api/v1/owner/cafes/${cafeId}/hours`, { openingTime, closingTime })
+  );
 }
 
 // PATCH /api/v1/owner/cafe/booking-controls

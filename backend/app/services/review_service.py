@@ -10,9 +10,27 @@ from app.models.booking import BookingStatus
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException, ConflictException
 
 class ReviewService:
-    def __init__(self, review_repo: ReviewRepository, booking_repo: BookingRepository):
+    def __init__(self, review_repo: ReviewRepository, booking_repo: BookingRepository, cafe_repo=None):
         self.review_repo = review_repo
         self.booking_repo = booking_repo
+        self.cafe_repo = cafe_repo
+
+    @staticmethod
+    def _to_response(review: Review, gamer_name: str) -> ReviewResponse:
+        return ReviewResponse.model_validate({
+            "id": review.id,
+            "cafe_id": review.cafe_id,
+            "gamer_id": review.gamer_id,
+            "booking_id": review.booking_id,
+            "rating": review.rating,
+            "comment": review.comment,
+            "is_visible": review.is_visible,
+            "owner_reply": review.owner_reply,
+            "owner_replied_at": review.owner_replied_at,
+            "gamer_name": gamer_name,
+            "created_at": review.created_at,
+            "updated_at": review.updated_at
+        })
 
     async def submit_review(self, gamer_id: UUID, user_full_name: str, review_in: ReviewCreateRequest) -> ReviewResponse:
         cafe_id = review_in.cafe_id
@@ -49,20 +67,7 @@ class ReviewService:
 
         created = await self.review_repo.create(review_dict)
         first_name = user_full_name.split()[0] if user_full_name else "Gamer"
-
-        resp_dict = {
-            "id": created.id,
-            "cafe_id": created.cafe_id,
-            "gamer_id": created.gamer_id,
-            "booking_id": created.booking_id,
-            "rating": created.rating,
-            "comment": created.comment,
-            "is_visible": created.is_visible,
-            "gamer_name": first_name,
-            "created_at": created.created_at,
-            "updated_at": created.updated_at
-        }
-        return ReviewResponse.model_validate(resp_dict)
+        return self._to_response(created, first_name)
 
     async def get_cafe_reviews(self, cafe_id: UUID, page: int = 1, limit: int = 20) -> Dict[str, Any]:
         limit = min(limit, 50)
@@ -73,21 +78,7 @@ class ReviewService:
             include_hidden=False
         )
 
-        item_responses: List[ReviewResponse] = []
-        for review, first_name in items_tuples:
-            resp_dict = {
-                "id": review.id,
-                "cafe_id": review.cafe_id,
-                "gamer_id": review.gamer_id,
-                "booking_id": review.booking_id,
-                "rating": review.rating,
-                "comment": review.comment,
-                "is_visible": review.is_visible,
-                "gamer_name": first_name,
-                "created_at": review.created_at,
-                "updated_at": review.updated_at
-            }
-            item_responses.append(ReviewResponse.model_validate(resp_dict))
+        item_responses: List[ReviewResponse] = [self._to_response(review, first_name) for review, first_name in items_tuples]
 
         total_pages = math.ceil(total / limit) if total > 0 else 0
         return {
@@ -106,21 +97,7 @@ class ReviewService:
             limit=limit
         )
 
-        item_responses: List[ReviewResponse] = []
-        for review, first_name in items_tuples:
-            resp_dict = {
-                "id": review.id,
-                "cafe_id": review.cafe_id,
-                "gamer_id": review.gamer_id,
-                "booking_id": review.booking_id,
-                "rating": review.rating,
-                "comment": review.comment,
-                "is_visible": review.is_visible,
-                "gamer_name": first_name,
-                "created_at": review.created_at,
-                "updated_at": review.updated_at
-            }
-            item_responses.append(ReviewResponse.model_validate(resp_dict))
+        item_responses: List[ReviewResponse] = [self._to_response(review, first_name) for review, first_name in items_tuples]
 
         total_pages = math.ceil(total / limit) if total > 0 else 0
         return {
@@ -131,33 +108,36 @@ class ReviewService:
             "totalPages": total_pages
         }
 
-    async def toggle_review_visibility(self, review_id: UUID, is_visible: bool) -> ReviewResponse:
-        updated = await self.review_repo.toggle_visibility(review_id, is_visible)
-        if not updated:
-            raise NotFoundException(message="Review not found", error_code="REVIEW_NOT_FOUND")
-
+    async def _first_name_for_review(self, review: Review) -> str:
         items_tuples, _ = await self.review_repo.get_by_cafe_id(
-            cafe_id=updated.cafe_id,
+            cafe_id=review.cafe_id,
             page=1,
             limit=100,
             include_hidden=True
         )
-        first_name = "Gamer"
         for r, fn in items_tuples:
-            if r.id == updated.id:
-                first_name = fn
-                break
+            if r.id == review.id:
+                return fn
+        return "Gamer"
 
-        resp_dict = {
-            "id": updated.id,
-            "cafe_id": updated.cafe_id,
-            "gamer_id": updated.gamer_id,
-            "booking_id": updated.booking_id,
-            "rating": updated.rating,
-            "comment": updated.comment,
-            "is_visible": updated.is_visible,
-            "gamer_name": first_name,
-            "created_at": updated.created_at,
-            "updated_at": updated.updated_at
-        }
-        return ReviewResponse.model_validate(resp_dict)
+    async def toggle_review_visibility(self, review_id: UUID, is_visible: bool) -> ReviewResponse:
+        updated = await self.review_repo.toggle_visibility(review_id, is_visible)
+        if not updated:
+            raise NotFoundException(message="Review not found", error_code="REVIEW_NOT_FOUND")
+        first_name = await self._first_name_for_review(updated)
+        return self._to_response(updated, first_name)
+
+    async def reply_to_review(self, review_id: UUID, owner_id: UUID, reply: str) -> ReviewResponse:
+        """Let a café owner post a public reply to a review on their own café."""
+        review = await self.review_repo.get_by_id(review_id)
+        if not review:
+            raise NotFoundException(message="Review not found", error_code="REVIEW_NOT_FOUND")
+
+        if self.cafe_repo:
+            cafe = await self.cafe_repo.get_by_id(review.cafe_id)
+            if not cafe or str(cafe.owner_id) != str(owner_id):
+                raise ForbiddenException(message="You can only reply to reviews on your own café", error_code="FORBIDDEN")
+
+        updated = await self.review_repo.set_owner_reply(review_id, reply)
+        first_name = await self._first_name_for_review(updated)
+        return self._to_response(updated, first_name)

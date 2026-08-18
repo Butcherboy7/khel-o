@@ -153,6 +153,18 @@ class PromotionService:
 
         return active_promos
 
+    async def get_promotions_for_owner(self, cafe_id: UUID, owner_id: UUID) -> List[PromotionResponse]:
+        """Full promotion list for the owner's management view — every status, not just currently-active."""
+        if self.cafe_repo:
+            cafe = await self.cafe_repo.get_by_id(cafe_id)
+            if not cafe:
+                raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+            if str(cafe.owner_id) != str(owner_id):
+                raise ForbiddenException(message="You can only view promotions for your own café", error_code="FORBIDDEN")
+
+        promos = await self.promo_repo.get_by_cafe_id(cafe_id)
+        return [PromotionResponse.model_validate(p) for p in promos]
+
     async def get_promotion(self, promotion_id: UUID) -> PromotionResponse:
         promo = await self.promo_repo.get_by_id(promotion_id)
         if not promo:

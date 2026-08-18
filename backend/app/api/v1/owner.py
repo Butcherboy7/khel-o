@@ -130,6 +130,10 @@ async def get_owner_settings(
         "city": cafe.city,
         "state": cafe.state,
         "pincode": cafe.pincode,
+        "amenities": cafe.amenities or [],
+        "photos": cafe.photos or [],
+        "latitude": cafe.latitude,
+        "longitude": cafe.longitude,
     }
 
     return {
@@ -1369,6 +1373,8 @@ class CafeDetailsUpdate(BaseModel):
     amenities: Optional[List[str]] = None
     photos: Optional[List[str]] = None
     description: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -1666,10 +1672,14 @@ async def update_cafe_details(
         cafe.amenities = payload.amenities
     if payload.photos is not None:
         cafe.photos = payload.photos
-    
+    if payload.latitude is not None:
+        cafe.latitude = payload.latitude
+    if payload.longitude is not None:
+        cafe.longitude = payload.longitude
+
     await db.commit()
     await db.refresh(cafe)
-    
+
     return {
         "success": True,
         "data": {
@@ -1677,7 +1687,11 @@ async def update_cafe_details(
                 "id": str(cafe.id),
                 "name": cafe.name,
                 "description": cafe.description,
-                "city": cafe.city
+                "city": cafe.city,
+                "amenities": cafe.amenities,
+                "photos": cafe.photos,
+                "latitude": cafe.latitude,
+                "longitude": cafe.longitude
             }
         }
     }

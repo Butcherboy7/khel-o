@@ -1,144 +1,159 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Star, MessageSquare, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Card, CardContent, Badge, Button, Textarea } from '@/components/ui';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Star, MessageSquare, Edit3, CheckCircle2 } from 'lucide-react';
+import { Card, CardContent, Badge, Button, Textarea, SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
 import { getOwnerStatus } from '@/lib/api/owner';
-import { listCafeReviews } from '@/lib/api/reviews';
+import { listCafeReviews, replyToReview } from '@/lib/api/reviews';
 import type { Review } from '@/types';
 
 export default function OwnerReviewsPage() {
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [replyingId, setReplyingId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    async function loadReviews() {
-      try {
-        const statusRes = await getOwnerStatus();
-        if (statusRes.cafe?.id) {
-          const revRes = await listCafeReviews(statusRes.cafe.id);
-          setReviews(revRes.items || []);
-        }
-      } catch {
-        setReviews([]);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadReviews();
-  }, []);
+  const { data: statusRes } = useQuery({
+    queryKey: ['owner-status-reviews'],
+    queryFn: getOwnerStatus,
+  });
+  const cafeId = statusRes?.cafe?.id as string | undefined;
+
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['owner-reviews', cafeId],
+    queryFn: () => listCafeReviews(cafeId!),
+    enabled: !!cafeId,
+  });
+  const reviews: Review[] = data?.items ?? [];
+
+  const replyMut = useMutation({
+    mutationFn: (vars: { reviewId: string; reply: string }) => replyToReview(vars.reviewId, vars.reply),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['owner-reviews'] });
+      setReplyingId(null);
+      setReplyText('');
+    },
+  });
+
+  const startReply = (rev: Review) => {
+    setReplyingId(rev.id);
+    setReplyText(rev.ownerReply ?? '');
+  };
 
   return (
-    <div className="max-w-4xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-8">
-      <div className="flex items-center justify-between border-b border-border pb-6">
-        <div>
-          <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-            <Star className="h-6 w-6 text-amber-500 fill-amber-500" />
-            <span>Customer Reviews & Ratings</span>
-          </h1>
-          <p className="text-caption text-text-secondary mt-1">
-            Real-time customer feedback, ratings, and gamer responses for your venue.
-          </p>
-        </div>
+    <div className="max-w-4xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-6">
+      <div className="border-b border-border pb-6">
+        <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
+          <Star className="h-6 w-6 text-amber-500 fill-amber-500" />
+          <span>Customer Reviews & Ratings</span>
+        </h1>
+        <p className="text-caption text-text-secondary mt-1">
+          Real-time customer feedback for your venue. Replies are public and visible to every gamer who reads this review.
+        </p>
       </div>
 
-      {msg && (
-        <div
-          className={`flex items-center gap-2 p-4 rounded-2xl border text-caption font-semibold ${
-            msg.type === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
-              : 'bg-rose-500/10 border-rose-500/20 text-rose-600'
-          }`}
-        >
-          {msg.type === 'success' ? <CheckCircle2 className="h-5 w-5 shrink-0" /> : <AlertCircle className="h-5 w-5 shrink-0" />}
-          <span>{msg.text}</span>
+      {isLoading && (
+        <div className="flex flex-col gap-4">
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       )}
 
-      {isLoading ? (
-        <div className="flex items-center justify-center min-h-[300px]">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" />
-        </div>
-      ) : reviews.length === 0 ? (
-        <Card elevation="raised" className="bg-surface border border-border">
-          <CardContent className="p-8 text-center flex flex-col items-center gap-3">
-            <Star className="h-10 w-10 text-text-tertiary" />
-            <h3 className="font-heading text-h3 text-text-primary">No Customer Reviews Yet</h3>
-            <p className="text-caption text-text-secondary max-w-md">
-              As gamers complete sessions at your venue, their reviews and ratings will appear here.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
+      {isError && (
+        <ErrorState
+          title="Failed to load reviews"
+          message={(error as Error)?.message ?? 'Could not fetch reviews for your café.'}
+          onRetry={() => refetch()}
+        />
+      )}
+
+      {!isLoading && !isError && reviews.length === 0 && (
+        <EmptyState
+          title="No Customer Reviews Yet"
+          description="As gamers complete sessions at your venue, their reviews and ratings will appear here."
+          icon={<Star className="h-8 w-8 text-text-tertiary" />}
+        />
+      )}
+
+      {!isLoading && !isError && reviews.length > 0 && (
         <div className="flex flex-col gap-4">
-          {reviews.map((rev) => (
-            <Card key={rev.id} elevation="raised" className="bg-surface border border-border">
-              <CardContent className="p-6 flex flex-col gap-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
+          {reviews.map((rev) => {
+            const isReplying = replyingId === rev.id;
+            const thisMutPending = replyMut.isPending && replyMut.variables?.reviewId === rev.id;
+            return (
+              <Card key={rev.id} elevation="raised">
+                <CardContent className="p-5 sm:p-6 flex flex-col gap-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
                       <span className="font-heading text-body font-bold text-text-primary">
                         {rev.gamerName || 'Gamer'}
                       </span>
+                      <p className="text-xs text-text-tertiary mt-0.5">
+                        {new Date(rev.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
                     </div>
-                    <span className="text-xs text-text-tertiary">
-                      {new Date(rev.createdAt).toLocaleDateString()}
-                    </span>
+                    <Badge variant="warning" size="md" className="flex items-center gap-1 flex-shrink-0">
+                      <Star className="h-3 w-3 fill-current" />
+                      {rev.rating}.0
+                    </Badge>
                   </div>
 
-                  <div className="flex items-center gap-1 text-amber-500 font-bold">
-                    <span>★</span>
-                    <span>{rev.rating}.0</span>
-                  </div>
-                </div>
+                  <p className="text-body text-text-secondary">{rev.comment}</p>
 
-                <p className="text-body text-text-secondary">{rev.comment}</p>
-
-                {!replyingId || replyingId !== rev.id ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setReplyingId(rev.id)}
-                    className="self-start gap-1.5"
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    <span>Reply to Review</span>
-                  </Button>
-                ) : (
-                  <div className="flex flex-col gap-3 pt-2">
-                    <Textarea
-                      placeholder="Write your response to the gamer..."
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                    />
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => {
-                          setMsg({ type: 'success', text: 'Reply submitted successfully!' });
-                          setReplyingId(null);
-                          setReplyText('');
-                        }}
-                        className="bg-emerald-500 text-slate-950 font-bold"
-                      >
-                        Post Reply
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setReplyingId(null)}>
-                        Cancel
-                      </Button>
+                  {rev.ownerReply && !isReplying && (
+                    <div className="rounded-xl bg-primary/5 border border-primary/20 p-3.5 flex flex-col gap-1">
+                      <span className="text-[11px] font-bold text-primary uppercase tracking-wide">Your reply</span>
+                      <p className="text-caption text-text-primary">{rev.ownerReply}</p>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                  )}
+
+                  {!isReplying ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => startReply(rev)}
+                      className="self-start gap-1.5"
+                    >
+                      {rev.ownerReply ? <Edit3 className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+                      <span>{rev.ownerReply ? 'Edit Reply' : 'Reply to Review'}</span>
+                    </Button>
+                  ) : (
+                    <div className="flex flex-col gap-3 pt-1">
+                      <Textarea
+                        placeholder="Write your public response to the gamer..."
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        rows={3}
+                        autoFocus
+                      />
+                      {replyMut.isError && thisMutPending === false && (
+                        <p className="text-caption text-error">Couldn't post your reply — please try again.</p>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          disabled={!replyText.trim()}
+                          isLoading={thisMutPending}
+                          loadingText="Posting..."
+                          onClick={() => replyMut.mutate({ reviewId: rev.id, reply: replyText.trim() })}
+                          className="gap-1.5"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          Post Reply
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setReplyingId(null); setReplyText(''); }}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
-

@@ -202,11 +202,33 @@ export default function OwnerSettingsPage() {
                   <span className="text-body text-text-primary">
                     {settings.openingTime && settings.closingTime
                       ? `${settings.openingTime.slice(0, 5)} - ${settings.closingTime.slice(0, 5)}`
-                      : 'Standard Venue Hours'}
+                      : 'Not set'}
                   </span>
                 </div>
               </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-caption text-text-tertiary">Map Location</span>
+                <span className="text-body text-text-primary">
+                  {settings.latitude != null && settings.longitude != null
+                    ? `${settings.latitude.toFixed(4)}, ${settings.longitude.toFixed(4)}`
+                    : 'Not set'}
+                </span>
+              </div>
             </div>
+
+            {settings.amenities && settings.amenities.length > 0 && (
+              <div className="flex flex-col gap-1.5 mt-4 pt-4 border-t border-border">
+                <span className="text-caption text-text-tertiary">Amenities</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {settings.amenities.map((a) => (
+                    <span key={a} className="text-[11px] font-semibold px-2 py-1 rounded-md bg-primary/10 text-primary">
+                      {a}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -245,19 +267,7 @@ export default function OwnerSettingsPage() {
           cafeId={settings.cafeId}
           settings={settings}
           onSaved={(updated) =>
-            setSettings((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    cafeName: updated.name,
-                    phoneNumber: updated.phoneNumber,
-                    addressLine1: updated.addressLine1,
-                    city: updated.city,
-                    state: updated.state,
-                    pincode: updated.pincode,
-                  }
-                : prev
-            )
+            setSettings((prev) => (prev ? { ...prev, ...updated } : prev))
           }
         />
       )}

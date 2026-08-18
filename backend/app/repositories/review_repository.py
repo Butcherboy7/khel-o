@@ -120,3 +120,14 @@ class ReviewRepository(BaseRepository[Review]):
         await self.db.commit()
         await self.db.refresh(review)
         return review
+
+    async def set_owner_reply(self, review_id: UUID, reply: str) -> Optional[Review]:
+        from datetime import datetime, timezone
+        review = await self.get_by_id(review_id)
+        if not review:
+            return None
+        review.owner_reply = reply
+        review.owner_replied_at = datetime.now(timezone.utc)
+        await self.db.commit()
+        await self.db.refresh(review)
+        return review

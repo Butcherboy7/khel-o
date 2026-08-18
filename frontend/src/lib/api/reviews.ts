@@ -11,3 +11,7 @@ export async function listCafeReviews(
 ): Promise<PaginatedResponse<Review>> {
   return call(() => apiClient.get(`/api/v1/reviews/cafe/${cafeId}`, { params }));
 }
+
+export async function replyToReview(reviewId: string, reply: string): Promise<{ review: Review }> {
+  return call(() => apiClient.patch(`/api/v1/reviews/${reviewId}/reply`, { reply }));
+}

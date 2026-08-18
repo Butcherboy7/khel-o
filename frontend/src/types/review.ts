@@ -7,6 +7,8 @@ export interface Review {
   rating: number;
   comment: string | null;
   isVisible: boolean;
+  ownerReply: string | null;
+  ownerRepliedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

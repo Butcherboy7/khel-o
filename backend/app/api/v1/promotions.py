@@ -57,6 +57,24 @@ async def list_cafe_promotions(
         }
     }
 
+@router.get("/owner/cafe/{cafe_id}", status_code=status.HTTP_200_OK)
+async def list_owner_promotions(
+    cafe_id: UUID,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Full promotion list for the owner's management view (all statuses, not just currently-active)."""
+    promo_repo = PromotionRepository(db)
+    cafe_repo = CafeRepository(db)
+    service = PromotionService(promo_repo, cafe_repo)
+    results = await service.get_promotions_for_owner(cafe_id=cafe_id, owner_id=current_owner.id)
+    return {
+        "success": True,
+        "data": {
+            "promotions": results
+        }
+    }
+
 @router.get("/{promotion_id}", status_code=status.HTTP_200_OK)
 async def get_promotion(
     promotion_id: UUID,

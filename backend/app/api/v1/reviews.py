@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, status, Query
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.review import ReviewCreateRequest, ReviewResponse
+from app.schemas.review import ReviewCreateRequest, ReviewResponse, ReviewReplyRequest
 from app.repositories.review_repository import ReviewRepository
 from app.repositories.booking_repository import BookingRepository
+from app.repositories.cafe_repository import CafeRepository
 from app.services.review_service import ReviewService
-from app.api.deps import require_gamer, get_current_user
+from app.api.deps import require_gamer, require_cafe_owner, get_current_user
 from app.models.user import User
 
 router = APIRouter()
@@ -42,4 +43,24 @@ async def get_cafe_reviews(
     return {
         "success": True,
         "data": result
+    }
+
+@router.patch("/{review_id}/reply", status_code=status.HTTP_200_OK)
+async def reply_to_review(
+    review_id: UUID,
+    payload: ReviewReplyRequest,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Café owner posts a public reply to a review on their own café."""
+    review_repo = ReviewRepository(db)
+    booking_repo = BookingRepository(db)
+    cafe_repo = CafeRepository(db)
+    service = ReviewService(review_repo, booking_repo, cafe_repo)
+    result = await service.reply_to_review(review_id, current_owner.id, payload.reply)
+    return {
+        "success": True,
+        "data": {
+            "review": result
+        }
     }

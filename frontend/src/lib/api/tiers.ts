@@ -19,3 +19,7 @@ export async function createTier(cafeId: string, body: TierCreateRequest): Promi
 export async function updateTier(cafeId: string, tierId: string, body: TierUpdateRequest): Promise<{ hardwareTier: HardwareTier }> {
   return call(() => apiClient.patch(`/api/v1/cafes/${cafeId}/tiers/${tierId}`, body));
 }
+
+export async function deleteTier(cafeId: string, tierId: string): Promise<{ message: string; tierId: string }> {
+  return call(() => apiClient.delete(`/api/v1/owner/cafes/${cafeId}/tiers/${tierId}`));
+}

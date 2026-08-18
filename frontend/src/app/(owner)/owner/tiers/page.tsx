@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Monitor, Cpu, HardDrive, Zap, Tag, Edit, AlertCircle } from 'lucide-react';
-import { listCafeTiers, createTier, updateTier } from '@/lib/api/tiers';
+import { Plus, Monitor, Cpu, HardDrive, Zap, Tag, Edit, AlertCircle, Power, PowerOff } from 'lucide-react';
+import { listCafeTiers, createTier, updateTier, deleteTier } from '@/lib/api/tiers';
 import { getOwnerCafeId } from '@/lib/api/owner';
 import { useAuthStore } from '@/store/authStore';
 import { queryKeys } from '@/hooks/queries/keys';
@@ -58,6 +58,7 @@ const POPULAR_MONITORS = [
 export default function HardwareTiersPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deactivateTarget, setDeactivateTarget] = useState<HardwareTier | null>(null);
 
   // Form State
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
@@ -147,6 +148,29 @@ export default function HardwareTiersPage() {
     },
     onError: (err: any) => {
       setFormError(err?.message || 'Failed to update tier.');
+    },
+  });
+
+  // Deactivate Tier Mutation
+  const deactivateMutation = useMutation({
+    mutationFn: async (tierId: string) => {
+      const targetId = await getActiveCafeId();
+      return deleteTier(targetId, tierId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
+      setDeactivateTarget(null);
+    },
+  });
+
+  // Reactivate Tier Mutation
+  const reactivateMutation = useMutation({
+    mutationFn: async (tierId: string) => {
+      const targetId = await getActiveCafeId();
+      return updateTier(targetId, tierId, { isActive: true });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
     },
   });
 
@@ -280,6 +304,26 @@ export default function HardwareTiersPage() {
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
+                      {tier.isActive ? (
+                        <button
+                          type="button"
+                          onClick={() => setDeactivateTarget(tier)}
+                          title="Deactivate tier — hides it from booking, doesn't delete data"
+                          className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:bg-error/10 hover:text-error transition-colors"
+                        >
+                          <PowerOff className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => reactivateMutation.mutate(tier.id)}
+                          disabled={reactivateMutation.isPending && reactivateMutation.variables === tier.id}
+                          title="Reactivate tier"
+                          className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:bg-success/10 hover:text-success transition-colors disabled:opacity-50"
+                        >
+                          <Power className="h-4 w-4" />
+                        </button>
+                      )}
                       <Badge variant={tier.isActive ? 'success' : 'default'}>
                         {tier.isActive ? 'Active' : 'Disabled'}
                       </Badge>
@@ -497,6 +541,34 @@ export default function HardwareTiersPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Deactivate Confirmation */}
+      <Modal
+        isOpen={!!deactivateTarget}
+        onClose={() => setDeactivateTarget(null)}
+        title="Deactivate this tier?"
+      >
+        {deactivateTarget && (
+          <div className="flex flex-col gap-4">
+            <p className="text-caption text-text-secondary">
+              <strong className="text-text-primary">{deactivateTarget.name}</strong> will stop appearing to customers for new bookings. Existing bookings on this tier are unaffected, and you can reactivate it anytime.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setDeactivateTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                isLoading={deactivateMutation.isPending}
+                onClick={() => deactivateMutation.mutate(deactivateTarget.id)}
+              >
+                Deactivate Tier
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
