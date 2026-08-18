@@ -1,9 +1,9 @@
 # KHELO — Launch Readiness Audit Report
 
 **Audit Date**: August 2026  
-**Last Verified Against Codebase**: 2026-08-18 (commit `22f79af`)  
-**Version**: 1.2  
-**Status**: 🟢 **All P0 blockers resolved — P1 nearly clear, two gaps remain**
+**Last Verified Against Codebase**: 2026-08-18 (commit `ef75ccc`)  
+**Version**: 1.3  
+**Status**: 🟢 **All P0 and P1 blockers resolved — admin capability set complete**
 
 ---
 
@@ -33,7 +33,7 @@
 | Customer: Discover - Book - Pay - QR - Check-in - Complete | 98% | None blocking — rewards coupon claims still local-only |
 | Owner: Onboard - Approve - Configure - Operate - Money | 95% | Notifications only cover booking/payment/staff-checkin, not staff invite/revoke; opening hours/photos/amenities/map still not editable |
 | Staff: Login - Arrivals - Scan - Check-in - Complete | 100% | None |
-| Admin: Approve - Manage - Investigate - Rescue | 90% | 3 of ~10 mutating actions still don't write audit logs; no support ticket system |
+| Admin: Approve - Manage - Investigate - Rescue | 98% | Support tickets, refund, force-cancel, promote-to-admin, and full audit coverage all shipped; dispute-resolution workflow and maintenance-mode enforcement still open |
 | System: State propagation across roles | 95% | RoleSync + scanner cache invalidation fixed; no other known sync gaps |
 
 ### Critical Blockers — RESOLVED (verified against codebase 2026-08-18)
@@ -57,7 +57,7 @@
 | P1-5 | No delete tier API | ✅ FIXED | `DELETE /api/v1/owner/cafes/{cafe_id}/tiers/{tier_id}` added at `backend/app/api/v1/owner.py:1614-1615` |
 | P1-6 | RoleSync doesn't poll | ✅ FIXED | `RoleSyncProvider.tsx` now runs `syncRoles()` on mount and every 30s via `setInterval` |
 | P1-7 | Refund silent failures | ✅ FIXED | `process_refund` in `backend/app/services/payment_service.py` now logs `logger.warning`/`logger.error` on Razorpay refund failures instead of swallowing them |
-| P1-8 | Audit logging incomplete | ⚠️ MOSTLY FIXED | `write_audit_log()` now called from cafe verify/approve/reject (`admin.py:194`), user activate/deactivate (`:276`, `:304`), review visibility toggle (`:474`), cafe suspend/reactivate (`:512`, `:538`), and staff.revoke (`:643`). **Remaining gap:** `PATCH /users/{user_id}/role` (`change_user_role_admin`, `admin.py:319`), `PATCH /cafes/{cafe_id}/pause-bookings` (`:552`), and `PATCH /promotions/{promotion_id}/deactivate` (`:417`) still don't write audit log entries. |
+| P1-8 | Audit logging incomplete | ✅ FIXED | `write_audit_log()` now called from every admin mutation: cafe verify/approve/reject, user activate/deactivate/role-change, review visibility toggle, cafe suspend/reactivate/pause-bookings, promotion deactivate, staff.revoke, support-ticket triage, and platform-settings updates. |
 
 ---
 
@@ -532,7 +532,7 @@ The scanner's `handleCheckIn` now calls `queryClient.invalidateQueries({ queryKe
 | Login | PASS | Standard auth |
 | Backend permissions enforced | PASS | require_admin on all endpoints |
 | Normal users blocked | PASS | Returns 403 |
-| Audit logging | PARTIAL | Most admin actions logged now; role-change, pause-bookings, promotion-deactivate still not |
+| Audit logging | PASS | All admin mutations now write to admin_audit_logs |
 
 ### 7.2 Dashboard
 
@@ -584,29 +584,27 @@ The scanner's `handleCheckIn` now calls `queryClient.invalidateQueries({ queryKe
 
 | Missing | Priority |
 |---------|----------|
-| Admin-initiated refund | HIGH |
-| Dispute resolution workflow | MEDIUM |
+| Admin-initiated refund | ✅ FIXED — `POST /admin/bookings/{id}/refund`, reuses PaymentService.process_refund |
+| Dispute resolution workflow | MEDIUM — still open; support tickets (7.7) cover intake, no formal dispute state machine |
 
 ### 7.7 Support / Moderation
 
 | Feature | Status | Priority |
 |---------|--------|----------|
-| Support ticket system | NOT IMPLEMENTED | HIGH |
-| Link issue to user/booking/cafe | NOT IMPLEMENTED | HIGH |
+| Support ticket system | ✅ FIXED — `support_tickets` table, user-facing create/list, admin triage queue |
+| Link issue to user/booking/cafe | ✅ FIXED — `booking_id`/`cafe_id` optional FKs on the ticket |
 | View/moderate reviews | PASS | Hide/restore |
-| Record moderation actions | PARTIAL | Not logged |
+| Record moderation actions | PASS | Logged |
 
 ### 7.8 Audit Trail
 
 | Feature | Status | Details |
 |---------|--------|---------|
 | Audit log table | PASS | admin_audit_logs table exists |
-| Action tracking | PARTIAL | Cafe verify/suspend/reactivate, user activate/deactivate, review toggle, staff.revoke logged; role-change, pause-bookings, promotion-deactivate not |
+| Action tracking | PASS | Every admin mutation now writes an entry — cafe verify/suspend/reactivate/pause-bookings, user activate/deactivate/role-change, review toggle, promotion deactivate, staff.revoke, support-ticket triage, platform-settings update |
 | Who approved cafe | PASS | `admin.py:194` |
 | Who suspended cafe | PASS | `admin.py:512` |
-| Who modified user | PASS | activate/deactivate logged; role changes (`admin.py:319`) still not |
-
-**Remaining gap:** `change_user_role_admin`, `set_cafe_bookings_paused`, `deactivate_promotion_admin` still don't call `write_audit_log`.
+| Who modified user | PASS | activate/deactivate and role-change all logged |
 
 ---
 
@@ -689,7 +687,7 @@ The scanner's `handleCheckIn` now calls `queryClient.invalidateQueries({ queryKe
 | Dead Edit Profile button | settings/page.tsx | ✅ FIXED (EditCafeModal wired up) |
 | Silent error swallowing | client.ts:128 | ✅ FIXED (Sentry.captureException added) |
 
-### P1 - High Priority — nearly clear (verified 2026-08-18, commit `22f79af`)
+### P1 - High Priority — all closed (verified 2026-08-18, commit `ef75ccc`)
 
 | Issue | Location | Impact | Status |
 |-------|----------|--------|--------|
@@ -700,7 +698,7 @@ The scanner's `handleCheckIn` now calls `queryClient.invalidateQueries({ queryKe
 | No delete tier API | owner.py:1614-1615 | Can't remove tiers | ✅ FIXED |
 | RoleSync doesn't poll | RoleSyncProvider.tsx | Requires reload | ✅ FIXED (30s interval) |
 | Refund silent failures | payment_service.py:process_refund | May need manual fix | ✅ FIXED (logs Razorpay failures) |
-| Audit logging incomplete | admin.py | Accountability gap | ⚠️ MOSTLY FIXED — role-change, pause-bookings, promotion-deactivate still not logged |
+| Audit logging incomplete | admin.py | Accountability gap | ✅ FIXED — every admin mutation now logged |
 
 ### P2 - Medium Priority (Next Sprint)
 
@@ -747,31 +745,21 @@ CREATE TABLE voucher_claims (
 ```
 plus `POST /api/v1/rewards/coupons/{id}/claim` that checks `requiredXp` server-side before recording a claim.
 
-#### P3-2: Complete Audit Logging — ⚠️ MOSTLY DONE
+#### P3-2: Complete Audit Logging — ✅ DONE
 
-`write_audit_log` now covers: cafe approve/reject (`admin.py:194`), cafe suspend/reactivate (`:512`, `:538`), user activate/deactivate (`:276`, `:304`), review visibility toggle (`:474`), staff.revoke (`:643`).
+`write_audit_log` now covers every admin mutation: cafe approve/reject/suspend/reactivate/pause-bookings, user activate/deactivate/role-change, review visibility toggle, promotion deactivate, staff.revoke, support-ticket triage, and platform-settings updates.
 
-**Still open** — three admin mutation endpoints don't call it:
-- `PATCH /users/{user_id}/role` — `change_user_role_admin`, `admin.py:319`
-- `PATCH /cafes/{cafe_id}/pause-bookings` — `set_cafe_bookings_paused`, `admin.py:552`
-- `PATCH /promotions/{promotion_id}/deactivate` — `deactivate_promotion_admin`, `admin.py:417`
+#### P3-3: Support Ticket System — ✅ DONE
 
-#### P3-3: Implement Support Ticket System
+`support_tickets` table (migration `012_add_support_tickets_and_platform_settings.py`), matching the shape originally sketched here, plus `booking_id`/`cafe_id` links. User-facing `POST/GET /api/v1/support/tickets`, admin `GET/PATCH /api/v1/admin/support/tickets/{id}` for triage (status/priority/internal notes). Customer "Help & Support" page linked from the profile menu; admin ticket queue at `/admin/support`.
 
-**New tables:**
-```sql
-CREATE TABLE support_tickets (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  subject VARCHAR(255),
-  description TEXT,
-  status VARCHAR(20) DEFAULT 'open',
-  priority VARCHAR(10) DEFAULT 'normal',
-  category VARCHAR(50),
-  booking_id UUID REFERENCES bookings(id),
-  cafe_id UUID REFERENCES cafes(id)
-);
-```
+#### P3-5: Admin Capabilities Added Beyond This Audit — ✅ DONE
+
+Requested directly by the KHELO team, not originally in this doc:
+- **Admin-initiated refund** — `POST /admin/bookings/{id}/refund`, reuses `PaymentService.process_refund` (same Razorpay code path as customer cancellations; works unchanged once live keys are set — currently records `pending_manual_refund` or `no_payment_id` without them).
+- **Force-cancel booking** — `PATCH /admin/bookings/{id}/force-cancel`, for stuck/disputed bookings independent of refund.
+- **Promote user to admin** — surfaced the existing `PATCH /users/{id}/role` endpoint in the admin Users page with a confirm modal.
+- **Platform settings** — commission %, support email, maintenance-mode flag. Flag only for now, not yet enforced platform-wide.
 
 #### P3-4: Implement Password Reset
 
