@@ -415,6 +415,13 @@ function BookingWizardContent() {
                       <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-600">
                         Walk-Ins Only
                       </span>
+                    ) : isSelected ? (
+                      <span className="text-caption text-text-secondary">
+                        <span className={windowRemainingSeats <= 2 ? 'font-bold text-error' : windowRemainingSeats <= 10 ? 'font-bold text-warning' : ''}>
+                          {windowRemainingSeats}
+                        </span>{' '}
+                        free for this slot ({tier.totalSeats || 10} total)
+                      </span>
                     ) : (
                       <span className="text-caption text-text-secondary">
                         {tier.appBookableSeats !== undefined ? tier.appBookableSeats : (tier.totalSeats || 10)} app seats ({tier.totalSeats || 10} total)
@@ -505,7 +512,7 @@ function BookingWizardContent() {
       {/* Sticky Bottom Action & Total Price Bar — sits above the mobile bottom nav
           (bottom-nav is z-nav/40, fixed bottom-0) rather than underneath it, otherwise
           the nav bar silently eats the first tap on this button on mobile. */}
-      <div className="fixed bottom-[var(--bottom-nav-height)] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
+      <div className="fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
         <div className="max-w-content mx-auto flex items-center justify-between gap-4">
           <div>
             <span className="text-caption text-text-secondary block truncate max-w-[200px] sm:max-w-none">
