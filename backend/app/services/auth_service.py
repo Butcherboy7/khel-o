@@ -18,6 +18,18 @@ class AuthService:
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
 
+    async def _user_response_with_roles(self, user: User) -> Dict[str, Any]:
+        """UserResponse plus the real roles list from user_roles — the sole
+        source of truth for authorization. Every auth endpoint that returns a
+        user (register/login/google) must include this, or the frontend has
+        no way to know about roles beyond the single legacy `role` column
+        until it separately calls /auth/me — which login flows don't do."""
+        from app.api.deps import get_user_roles
+        roles = await get_user_roles(user.id, self.user_repo.db)
+        user_dict = UserResponse.model_validate(user).model_dump(by_alias=True)
+        user_dict["roles"] = roles
+        return user_dict
+
     def create_tokens(self, user: User) -> Tuple[str, str]:
         now = datetime.now(timezone.utc)
         
@@ -83,7 +95,7 @@ class AuthService:
         return {
             "accessToken": access_token,
             "refreshToken": refresh_token,
-            "user": UserResponse.model_validate(created_user)
+            "user": await self._user_response_with_roles(created_user)
         }
 
     async def login_with_email(self, email: str, password: str) -> Dict[str, Any]:
@@ -110,7 +122,7 @@ class AuthService:
         return {
             "accessToken": access_token,
             "refreshToken": refresh_token,
-            "user": UserResponse.model_validate(user)
+            "user": await self._user_response_with_roles(user)
         }
 
     async def login_with_google(self, id_token: str) -> Dict[str, Any]:
@@ -143,7 +155,7 @@ class AuthService:
             return {
                 "accessToken": access_token,
                 "refreshToken": refresh_token,
-                "user": UserResponse.model_validate(user)
+                "user": await self._user_response_with_roles(user)
             }
 
         # 2. Check if user exists by email
@@ -175,7 +187,7 @@ class AuthService:
         return {
             "accessToken": access_token,
             "refreshToken": refresh_token,
-            "user": UserResponse.model_validate(user)
+            "user": await self._user_response_with_roles(user)
         }
 
     async def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:
@@ -287,12 +299,15 @@ class AuthService:
         refresh_exp = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
         refresh_token = jwt.encode({"sub": str(user.id), "type": "refresh", "exp": refresh_exp}, settings.SECRET_KEY, algorithm=ALGORITHM)
 
+        user_dict = UserResponse.model_validate(user).model_dump(by_alias=True)
+        user_dict["roles"] = roles_list
+
         return {
             "accessToken": access_token,
             "refreshToken": refresh_token,
             "activeRole": target_role,
             "availableRoles": roles_list,
-            "user": UserResponse.model_validate(user)
+            "user": user_dict
         }
 
     async def request_password_reset(self, email: str) -> None:

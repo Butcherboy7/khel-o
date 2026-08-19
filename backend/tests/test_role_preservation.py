@@ -329,5 +329,48 @@ async def test_booking_works_after_role_addition(db_session, async_client: Async
     
     assert cafes_response.status_code == 200, \
         f"User with dual roles cannot access gamer endpoints: {cafes_response.status_code}"
-    
+
     print(f"\n[PASS] Dual-role user can access gamer endpoints (no permission loss)")
+
+
+@pytest.mark.asyncio
+async def test_login_response_includes_full_roles_list(db_session, async_client: AsyncClient):
+    """
+    Regression test: /auth/login (and register/google/accept-invitation) must
+    return the account's full `roles` list on the user object, not just the
+    legacy single `role` field. The frontend's role switcher decides whether
+    to render at all based on `user.roles.length > 1` from this exact
+    response — if roles is missing, a real multi-role account (e.g. gamer +
+    admin) silently has no way to reach its other role in the UI, even
+    though the account is correctly set up in the database.
+    """
+    user_id = uuid4()
+    user = User(
+        id=user_id,
+        email=f"multi_role_{uuid4().hex}@test.com",
+        full_name="Multi Role User",
+        password_hash=get_password_hash("testpass123"),
+        role=UserRole.GAMER,
+        is_active=True
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    db_session.add(UserRoleMapping(id=uuid4(), user_id=user.id, role=UserRole.GAMER, cafe_id=None))
+    db_session.add(UserRoleMapping(id=uuid4(), user_id=user.id, role=UserRole.ADMIN, cafe_id=None))
+    await db_session.commit()
+
+    login_response = await async_client.post("/api/v1/auth/login", json={
+        "email": user.email,
+        "password": "testpass123"
+    })
+
+    assert login_response.status_code == 200
+    user_data = login_response.json()["data"]["user"]
+    assert "roles" in user_data, "login response is missing the user.roles list entirely"
+    assert set(user_data["roles"]) == {"gamer", "admin"}
+    # camelCase, matching every other field on this response — a plain
+    # model_dump() without by_alias=True would silently produce full_name
+    # instead, which the frontend's User type doesn't read.
+    assert "fullName" in user_data
+    assert user_data["fullName"] == "Multi Role User"

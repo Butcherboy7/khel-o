@@ -128,7 +128,7 @@ async def get_me(
             "createdAt": inv.created_at.isoformat()
         })
 
-    user_dict = UserResponse.model_validate(current_user).model_dump()
+    user_dict = UserResponse.model_validate(current_user).model_dump(by_alias=True)
     user_dict["roles"] = roles
     user_dict["pendingInvitations"] = pending_invitations_list
     
@@ -247,7 +247,7 @@ async def accept_invitation(
         "data": {
             "accessToken": access_token,
             "refreshToken": refresh_token,
-            "user": UserResponse.model_validate(user)
+            "user": await auth_svc._user_response_with_roles(user)
         }
     }
 
