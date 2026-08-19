@@ -116,11 +116,14 @@ export default function OwnerDashboardPage() {
 
       if (statusRes.status === 'verified' || statusRes.status === 'pending') {
         setIsLoadingOps(true);
+        // /owner/settings is cafe_owner-only (require_cafe_owner) — staff always
+        // get a 403 from it, so skip the doomed call+retry for staff entirely.
+        const isCafeOwner = statusRes.role?.toLowerCase() === 'cafe_owner';
         const [dashRes, bookingsRes, occRes, settingsRes] = await Promise.all([
           getOwnerDashboard().catch(() => null),
           getOwnerBookings({ limit: 20 }).catch(() => ({ items: [] })),
           getOwnerOccupancy().catch(() => ({ tiers: [] })),
-          getOwnerSettings().catch(() => null),
+          isCafeOwner ? getOwnerSettings().catch(() => null) : Promise.resolve(null),
         ]);
 
         setDashboardData(dashRes);
