@@ -25,7 +25,7 @@ export function AuthGuard({
 }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isAuthenticated, isHydrated, isLoading } = useAuthStore();
+  const { user, activeRole, isAuthenticated, isHydrated, isLoading } = useAuthStore();
 
   useEffect(() => {
     if (!isHydrated || isLoading) return;
@@ -38,11 +38,15 @@ export function AuthGuard({
       return;
     }
 
-    if (!allowedRoles.includes(user.role)) {
-      const redirect = fallbackPath ?? getRoleDefaultPath(user.role);
+    // Gate on activeRole (the role the switcher sets), not user.role — that's
+    // the account's single legacy "primary" DB column and never changes when
+    // switching roles, so gating on it made every route bounce a multi-role
+    // account straight back out the moment it switched to any non-primary role.
+    if (!allowedRoles.includes(activeRole as UserRole)) {
+      const redirect = fallbackPath ?? getRoleDefaultPath(activeRole as UserRole);
       router.replace(redirect);
     }
-  }, [isHydrated, isLoading, isAuthenticated, user, allowedRoles, fallbackPath, router, pathname]);
+  }, [isHydrated, isLoading, isAuthenticated, user, activeRole, allowedRoles, fallbackPath, router, pathname]);
 
   // Show loading spinner during hydration
   if (!isHydrated || isLoading) {
@@ -57,7 +61,7 @@ export function AuthGuard({
   }
 
   // Not authenticated or wrong role — guard will redirect
-  if (!isAuthenticated || !user || !allowedRoles.includes(user.role)) {
+  if (!isAuthenticated || !user || !allowedRoles.includes(activeRole as UserRole)) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-surface">
         <Loader2
