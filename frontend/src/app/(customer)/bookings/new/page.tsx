@@ -228,12 +228,16 @@ function BookingWizardContent() {
     );
   }
 
-  // Price calculations (aligned with backend: gatewayFee = 2%, convenienceFee = 10)
+  // Price calculations — this is a checkout-time estimate only, the server
+  // recomputes and is authoritative. Combined platform service fee (Razorpay's
+  // real processing cost + KHEL-O's margin) must match backend Settings
+  // RAZORPAY_COST_PERCENT + PLATFORM_MARGIN_PERCENT (2.65% + 1.20% today).
+  // No separate flat convenience fee anymore.
   const pricePerHour = activeTier?.pricePerHour || 100;
   const baseTotal = Math.round(pricePerHour * durationHours * seatsCount);
-  const gatewayFee = Math.round(baseTotal * 0.02 * 100) / 100;
-  const convenienceFee = 10;
-  const finalTotal = baseTotal + gatewayFee + convenienceFee;
+  const SERVICE_FEE_PERCENT = 3.85;
+  const serviceFee = Math.round(baseTotal * (SERVICE_FEE_PERCENT / 100) * 100) / 100;
+  const finalTotal = baseTotal + serviceFee;
 
   const handleTimelineChange = (newStartTime: string, newDurationHours: number) => {
     setSelectedTime(newStartTime);
@@ -496,13 +500,8 @@ function BookingWizardContent() {
           </div>
 
           <div className="flex items-center justify-between">
-            <span>Gateway fee (2%)</span>
-            <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{gatewayFee.toFixed(2)}</span>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span>Convenience fee</span>
-            <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{convenienceFee}</span>
+            <span>Platform service fee ({SERVICE_FEE_PERCENT}%)</span>
+            <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
           </div>
         </CardContent>
       </Card>

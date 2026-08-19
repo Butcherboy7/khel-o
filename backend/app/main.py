@@ -28,6 +28,18 @@ async def init_db():
                 await conn.execute(text("ALTER TABLE cafes ADD COLUMN is_emergency_mode BOOLEAN DEFAULT 0 NOT NULL;"))
             except Exception:
                 pass
+            try:
+                await conn.execute(text("ALTER TABLE platform_fees ADD COLUMN razorpay_transfer_id VARCHAR(100);"))
+            except Exception:
+                pass
+            try:
+                await conn.execute(text("ALTER TABLE platform_fees ADD COLUMN transfer_status VARCHAR(30) DEFAULT 'pending' NOT NULL;"))
+            except Exception:
+                pass
+            try:
+                await conn.execute(text("ALTER TABLE platform_fees ADD COLUMN transfer_error VARCHAR(500);"))
+            except Exception:
+                pass
         logger.info("database_tables_initialized")
     except Exception as e:
         logger.error("database_init_failed", error=str(e))

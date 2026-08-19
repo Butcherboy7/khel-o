@@ -56,6 +56,91 @@ class PaymentService:
         except Exception as e:
             logger.error(f"Failed to write owner notification for cafe {cafe_id}: {e}")
 
+    async def _create_route_transfer(self, booking, razorpay_payment_id: str) -> None:
+        """Split a captured payment: transfer the café's share to its Razorpay Route
+        linked account, leaving KHEL-O's service fee behind in the main account.
+
+        Called from both verify_payment (frontend-driven confirmation) and the
+        payment.captured webhook (server-to-server, the reliable source of truth)
+        — both paths can fire for the same payment, so this is idempotent via the
+        PlatformFee row's transfer_status/razorpay_transfer_id.
+        """
+        if not getattr(settings, "RAZORPAY_ROUTE_ENABLED", False):
+            return
+
+        from sqlalchemy import select
+        from app.repositories.platform_fee_repository import PlatformFeeRepository
+
+        fee_repo = PlatformFeeRepository(self.payment_repo.db)
+        fee_row = await fee_repo.get_by_booking_id(booking.id)
+        if not fee_row:
+            logger.error(f"No PlatformFee row for booking {booking.id}; cannot create Route transfer")
+            return
+
+        if fee_row.transfer_status == "transferred":
+            return  # already split by the other confirmation path
+
+        cafe_result = await self.payment_repo.db.execute(select(Cafe).where(Cafe.id == booking.cafe_id))
+        cafe = cafe_result.scalars().first()
+        if not cafe:
+            await fee_repo.update(fee_row, {"transfer_status": "failed", "transfer_error": "Cafe not found"})
+            return
+
+        payout_result = await self.payment_repo.db.execute(
+            select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == cafe.owner_id)
+        )
+        payout = payout_result.scalars().first()
+
+        if not payout or payout.kyc_status != "activated" or not payout.razorpay_account_id:
+            await fee_repo.update(fee_row, {"transfer_status": "skipped_no_linked_account"})
+            logger.info(f"Skipping Route transfer for booking {booking.id}: café owner has no activated linked account yet")
+            return
+
+        if not (settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET):
+            await fee_repo.update(fee_row, {"transfer_status": "failed", "transfer_error": "Razorpay credentials not configured"})
+            return
+
+        try:
+            import base64
+            import urllib.request
+
+            auth_str = f"{settings.RAZORPAY_KEY_ID}:{settings.RAZORPAY_KEY_SECRET}"
+            encoded_auth = base64.b64encode(auth_str.encode('utf-8')).decode('utf-8')
+            headers = {
+                "Authorization": f"Basic {encoded_auth}",
+                "Content-Type": "application/json"
+            }
+
+            transfer_url = f"https://api.razorpay.com/v1/payments/{razorpay_payment_id}/transfers"
+            payload_data = json.dumps({
+                "transfers": [{
+                    "account": payout.razorpay_account_id,
+                    "amount": int(round(fee_row.owner_settlement_amount * 100)),
+                    "currency": "INR",
+                    "on_hold": False,
+                    "notes": {
+                        "booking_id": str(booking.id),
+                        "booking_reference": booking.booking_reference
+                    }
+                }]
+            }).encode('utf-8')
+
+            req = urllib.request.Request(transfer_url, data=payload_data, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                items = res_data.get("items", [])
+                transfer_id = items[0]["id"] if items else res_data.get("id")
+
+            await fee_repo.update(fee_row, {
+                "razorpay_transfer_id": transfer_id,
+                "transfer_status": "transferred",
+                "transfer_error": None
+            })
+            logger.info(f"Route transfer {transfer_id} created for booking {booking.id}: INR {fee_row.owner_settlement_amount} to {payout.razorpay_account_id}")
+        except Exception as e:
+            logger.error(f"Route transfer failed for booking {booking.id}: {e}")
+            await fee_repo.update(fee_row, {"transfer_status": "failed", "transfer_error": str(e)[:500]})
+
     async def create_razorpay_order(self, booking_id: UUID, gamer_id: UUID) -> PaymentCreateResponse:
         booking = await self.booking_repo.get_by_id(booking_id)
         if not booking:
@@ -263,6 +348,8 @@ class PaymentService:
             link=f"/owner/bookings?ref={booking.booking_reference}"
         )
 
+        await self._create_route_transfer(booking, payload.razorpay_payment_id)
+
         return PaymentResponse.model_validate(updated_payment)
 
     async def handle_webhook(self, raw_body_bytes: bytes, signature: Optional[str] = None) -> Dict[str, str]:
@@ -333,6 +420,7 @@ class PaymentService:
                             "qr_code_url": qr_url
                         })
                         await notifier.send_booking_confirmation(self.payment_repo.db, booking.id)
+                        await self._create_route_transfer(booking, payment_id)
 
         elif event == "payment.failed":
             entity = payload_data.get("payment", {}).get("entity", {})
@@ -363,6 +451,25 @@ class PaymentService:
         payment = await self.payment_repo.get_by_booking_id(booking_id)
         if not payment:
             raise NotFoundException(message="Payment not found for booking", error_code="PAYMENT_NOT_FOUND")
+
+        # NOTE (Route, deliberately not auto-handled yet — needs live testing first):
+        # if this booking's payment was already split to the café's linked account
+        # (transfer_status == "transferred"), a plain refund on the original payment
+        # can leave the books mismatched — the café's share already left the main
+        # account. Razorpay can reverse a linked-account transfer, but that's a
+        # separate API call this doesn't make. Flagging loudly rather than silently
+        # under- or over-refunding until this is verified against a real transfer.
+        from app.repositories.platform_fee_repository import PlatformFeeRepository
+        fee_repo = PlatformFeeRepository(self.payment_repo.db)
+        fee_row = await fee_repo.get_by_booking_id(booking_id)
+        if fee_row and fee_row.transfer_status == "transferred":
+            logger.warning(
+                f"Refunding booking {booking_id} whose payment was already split via Route "
+                f"(transfer {fee_row.razorpay_transfer_id}, café share INR {fee_row.owner_settlement_amount}) — "
+                f"the café's share is NOT automatically clawed back by this refund. Reverse the "
+                f"transfer manually in the Razorpay dashboard, or via the Route reversal API, until "
+                f"automatic reversal is built and tested."
+            )
 
         if not payment.razorpay_payment_id:
             logger.warning(f"Payment for booking {booking_id} has no razorpay_payment_id; cannot refund via Razorpay")

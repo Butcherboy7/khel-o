@@ -10,6 +10,7 @@ from datetime import datetime, timezone, timedelta, date, time
 # are in IST (UTC+5:30). We interpret them as IST for validation.
 IST = timezone(timedelta(hours=5, minutes=30))
 
+from app.config import settings
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
@@ -154,8 +155,14 @@ class BookingService:
             )
 
         subtotal = base_amount - discount_amount
-        gateway_fee = (subtotal * Decimal('0.02')).quantize(Decimal('0.01'))
-        convenience_fee = Decimal('10.00')
+        # Single combined platform service fee (Razorpay's real cost + KHEL-O's
+        # margin) — see Settings.RAZORPAY_COST_PERCENT / PLATFORM_MARGIN_PERCENT.
+        # Stored in the `gateway_fee` column for backward compatibility; the old
+        # separate flat convenience fee is retired (kept at 0, not removed from
+        # the schema, so historical bookings still read correctly).
+        service_fee_percent = Decimal(str(settings.RAZORPAY_COST_PERCENT)) + Decimal(str(settings.PLATFORM_MARGIN_PERCENT))
+        gateway_fee = (subtotal * service_fee_percent / Decimal('100')).quantize(Decimal('0.01'))
+        convenience_fee = Decimal('0.00')
         total_amount = subtotal + gateway_fee + convenience_fee
 
         booking_ref = self._generate_reference()

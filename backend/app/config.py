@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     CONVENIENCE_FEE_AMOUNT: int = 10
     UNVERIFIED_CAFE_BOOKING_CAP_VALUE: int = 5000
     UNVERIFIED_CAFE_BOOKING_CAP_COUNT: int = 15
+
+    # Platform service fee, charged to the gamer on top of the booking subtotal.
+    # Replaces the old separate "gateway fee (2%) + flat convenience fee" line
+    # items with a single combined percentage: Razorpay's real processing cost
+    # (payment gateway fee + Route transfer fee, both +18% GST) plus KHEL-O's
+    # margin. Bump PLATFORM_MARGIN_PERCENT via env var to change pricing without
+    # a code change — no redeploy of logic needed, just the env var.
+    RAZORPAY_COST_PERCENT: float = 2.65
+    PLATFORM_MARGIN_PERCENT: float = 1.20
     
     # Sentry Error Monitoring
     SENTRY_DSN: Optional[str] = None
