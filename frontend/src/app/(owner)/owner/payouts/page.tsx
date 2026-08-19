@@ -96,7 +96,7 @@ export default function OwnerPayoutsPage() {
             <CreditCard className="h-6 w-6 text-emerald-500" />
             <span>Payouts</span>
           </h1>
-          <p className="text-caption text-text-secondary">Real breakdown of what gamers paid, what KHEL-O keeps, and what's transferred to your bank via Razorpay Route.</p>
+          <p className="text-caption text-text-secondary">Real breakdown of what gamers paid, what KHEL-O keeps, and what&apos;s transferred to your bank via Razorpay Route.</p>
         </div>
 
         {kycActivated ? (
@@ -222,7 +222,7 @@ export default function OwnerPayoutsPage() {
           </div>
 
           {loadError && (
-            <p className="text-caption text-error">Couldn't load payout data — try refreshing.</p>
+            <p className="text-caption text-error">Couldn&apos;t load payout data — try refreshing.</p>
           )}
 
           {!loadError && transactions.length === 0 && (
