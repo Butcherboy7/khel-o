@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
+import { useLocationStore } from '@/store/locationStore';
 import {
   Avatar,
   Card,
@@ -37,6 +38,7 @@ const RIG_TIERS = ['Ultra RTX 4080 (240Hz)', 'RTX 4070 Super Rig', 'PS5 DualSens
 
 export default function ProfilePage() {
   const { user, setUser, logout } = useAuthStore();
+  const { selectedCity } = useLocationStore();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
 
@@ -48,7 +50,12 @@ export default function ProfilePage() {
   const [phoneError, setPhoneError] = useState('');
   const [nameError, setNameError] = useState('');
 
-  const [homeCity, setHomeCity] = useState('Bengaluru');
+  // Defaults to whatever city the app already has you set as (detected via
+  // geolocation or picked on the explore page) rather than a hardcoded city,
+  // so this doesn't silently disagree with what you've set elsewhere.
+  const [homeCity, setHomeCity] = useState(
+    selectedCity && selectedCity !== 'All Cities' ? selectedCity : 'Bengaluru'
+  );
   const [favGames, setFavGames] = useState<string[]>(['Valorant', 'EA FC 24']);
   const [preferredTier, setPreferredTier] = useState('Ultra RTX 4080 (240Hz)');
 

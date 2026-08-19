@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
 import {
   ChevronLeft,
   Minus,
@@ -383,12 +382,11 @@ function BookingWizardContent() {
               const isTierPaused = cafe.bookingsPaused || cafe.isEmergencyMode || cafe.bookableStations === 0 || tier.appBookableSeats === 0;
 
               return (
-                <motion.button
+                <button
                   key={tier.id}
                   type="button"
                   onClick={() => setSelectedTier(tier)}
-                  whileTap={{ scale: 0.97 }}
-                  className={`p-4 rounded-3xl text-left transition-all flex flex-col justify-between border ${
+                  className={`p-4 rounded-3xl text-left transition-all active:scale-[0.97] flex flex-col justify-between border ${
                     isSelected
                       ? 'border-accent bg-accent/5 ring-2 ring-accent/60 shadow-card'
                       : 'border-border/80 bg-card hover:bg-surface'
@@ -431,7 +429,7 @@ function BookingWizardContent() {
                       <span className="rupee-symbol">₹</span>{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
                     </div>
                   </div>
-                </motion.button>
+                </button>
               );
             })
           ) : (
@@ -523,17 +521,16 @@ function BookingWizardContent() {
             </div>
           </div>
 
-          <motion.button
+          <button
             type="button"
             onClick={handleCheckout}
-            whileTap={{ scale: 0.96 }}
             disabled={
               isProcessing ||
               Boolean(cafe.isEmergencyMode) ||
               Boolean(cafe.bookingsPaused) ||
               windowRemainingSeats < seatsCount
             }
-            className="rounded-2xl bg-secondary px-8 sm:px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="rounded-2xl bg-secondary px-8 sm:px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-secondary/90 active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {isProcessing
               ? 'Processing...'
@@ -546,7 +543,7 @@ function BookingWizardContent() {
               : windowRemainingSeats < seatsCount
               ? `Only ${windowRemainingSeats} Seat${windowRemainingSeats > 1 ? 's' : ''} Left`
               : 'Continue to Payment'}
-          </motion.button>
+          </button>
         </div>
       </div>
     </div>

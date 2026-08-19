@@ -23,8 +23,11 @@ export const useLocationStore = create<LocationState>()(
       setUserCoords: (lat, lng) => set({ userLat: lat, userLng: lng }),
     }),
     {
+      // localStorage, not sessionStorage — a detected/selected city should
+      // survive closing the app, not just the current tab session, or the
+      // user has to re-detect their location every single time they open it.
       name: 'khelo-location-storage',
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => localStorage),
     }
   )
 );
