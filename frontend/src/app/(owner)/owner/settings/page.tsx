@@ -9,6 +9,7 @@ import { getOwnerSettings, toggleEmergencyMode, toggleBookingsPaused, type Owner
 import { SettingsHeader } from '@/components/owner/SettingsHeader';
 import { EmergencyModeCard } from '@/components/owner/EmergencyModeCard';
 import { BookingsPauseCard } from '@/components/owner/BookingsPauseCard';
+import { PayoutSetupCard } from '@/components/owner/PayoutSetupCard';
 import { EditCafeModal } from '@/components/owner/EditCafeModal';
 
 export default function OwnerSettingsPage() {
@@ -153,6 +154,15 @@ export default function OwnerSettingsPage() {
           onToggle={handlePauseToggle}
           isLoading={isTogglingPause}
         />
+      </div>
+
+      {/* Section 1b: Payouts */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2 border-b border-border pb-2.5">
+          <SettingsIcon className="h-5 w-5 text-primary" />
+          <h2 className="font-heading text-h2 text-text-primary">Payouts</h2>
+        </div>
+        <PayoutSetupCard />
       </div>
 
       {/* Section 2: Café Information (Read only) */}

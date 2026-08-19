@@ -826,30 +826,56 @@ async def get_owner_payout_summary(
     recent_payout_items = []
 
     if cafe_ids:
-        # Sum payments & fee breakdowns
-        stmt_bookings = select(Booking).where(Booking.cafe_id.in_(cafe_ids), Booking.status == BookingStatus.COMPLETED)
+        # Join every paid booking (CONFIRMED/CHECKED_IN/ACTIVE/COMPLETED — a Route
+        # transfer fires on payment capture, not on session completion, so a
+        # booking's payout can already be settled well before its status reaches
+        # COMPLETED) with its real PlatformFee row. No fabricated numbers: the
+        # fee split, settlement amount, and transfer status all come straight
+        # from what was actually computed/attempted for that booking.
+        stmt_bookings = (
+            select(Booking, PlatformFee)
+            .join(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .where(
+                Booking.cafe_id.in_(cafe_ids),
+                Booking.status.in_([
+                    BookingStatus.CONFIRMED,
+                    BookingStatus.CHECKED_IN,
+                    BookingStatus.ACTIVE,
+                    BookingStatus.COMPLETED,
+                ]),
+            )
+            .order_by(Booking.created_at.desc())
+        )
         res_bookings = await db.execute(stmt_bookings)
-        bookings = res_bookings.scalars().all()
+        rows = res_bookings.all()
 
-        for b in bookings:
+        for b, fee in rows:
             gross = float(b.total_amount)
-            plat_fee = float(b.gateway_fee or (gross * 0.02))
-            net = gross - plat_fee
+            platform_fee = float(fee.gateway_fee)
+            net = float(fee.owner_settlement_amount)
+            transfer_status = fee.transfer_status
+
             total_gross += gross
             total_net_settlement += net
-            total_gateway_fees += plat_fee
-            completed_settlements += net
+            total_gateway_fees += platform_fee
+            total_platform_fees += platform_fee
+            if transfer_status == "transferred":
+                completed_settlements += net
+            else:
+                pending_settlements += net
 
             recent_payout_items.append({
                 "id": str(b.id),
                 "bookingReference": b.booking_reference,
                 "sessionDate": str(b.session_date),
                 "grossAmount": gross,
-                "platformFee": round(plat_fee * 0.5, 2),
-                "gatewayFee": round(plat_fee * 0.5, 2),
+                "platformFee": round(platform_fee, 2),
+                "gatewayFee": round(platform_fee, 2),
                 "netSettlement": round(net, 2),
-                "status": "settled",
-                "transferMethod": "Razorpay Route (Direct UPI/Bank)"
+                # transferred | pending | failed | skipped_no_linked_account
+                "status": transfer_status,
+                "transferId": fee.razorpay_transfer_id,
+                "transferMethod": "Razorpay Route (Direct Bank)"
             })
 
     # Fetch bank details

@@ -23,6 +23,7 @@ class PayoutAccountResponse(BaseModel):
     owner_id: UUID
     razorpay_account_id: Optional[str] = None
     kyc_status: str
+    business_pan: Optional[str] = None
     bank_account_number_masked: Optional[str] = None
     bank_ifsc: Optional[str] = None
     account_holder_name: Optional[str] = None
