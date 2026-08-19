@@ -48,7 +48,7 @@ export function ShareModal({ isOpen, onClose, title, url }: ShareModalProps) {
   ];
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(targetUrl);
+    navigator.clipboard.writeText(targetUrl).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

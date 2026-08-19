@@ -82,7 +82,7 @@ export default function OwnerStaffPage() {
   };
 
   const copyLink = (url: string, token: string) => {
-    navigator.clipboard.writeText(url);
+    navigator.clipboard.writeText(url).catch(() => {});
     setCopiedToken(token);
     setTimeout(() => setCopiedToken(null), 2000);
   };

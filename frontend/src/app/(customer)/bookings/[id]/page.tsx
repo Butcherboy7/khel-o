@@ -129,7 +129,7 @@ export default function BookingDetailPage() {
         // Share dismissed
       }
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(window.location.href).catch(() => {});
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
     }

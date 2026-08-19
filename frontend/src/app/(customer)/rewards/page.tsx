@@ -110,7 +110,7 @@ export default function RewardsPage() {
 
   const copyCouponCode = (code: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(code);
+      navigator.clipboard.writeText(code).catch(() => {});
     }
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2500);
