@@ -21,25 +21,28 @@ async def init_db():
         from app.database import engine, Base
         import app.models
         from sqlalchemy import text
-        
+
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+        # Each ALTER gets its own transaction. Postgres aborts the whole
+        # transaction after any failed statement (e.g. "column already
+        # exists" on a re-run) — sharing one transaction across all of
+        # these meant the first failure silently poisoned every ALTER
+        # after it, even though each was individually try/excepted.
+        alter_statements = [
+            "ALTER TABLE cafes ADD COLUMN is_emergency_mode BOOLEAN DEFAULT 0 NOT NULL;",
+            "ALTER TABLE platform_fees ADD COLUMN razorpay_transfer_id VARCHAR(100);",
+            "ALTER TABLE platform_fees ADD COLUMN transfer_status VARCHAR(30) DEFAULT 'pending' NOT NULL;",
+            "ALTER TABLE platform_fees ADD COLUMN transfer_error VARCHAR(500);",
+        ]
+        for stmt in alter_statements:
             try:
-                await conn.execute(text("ALTER TABLE cafes ADD COLUMN is_emergency_mode BOOLEAN DEFAULT 0 NOT NULL;"))
+                async with engine.begin() as conn:
+                    await conn.execute(text(stmt))
             except Exception:
                 pass
-            try:
-                await conn.execute(text("ALTER TABLE platform_fees ADD COLUMN razorpay_transfer_id VARCHAR(100);"))
-            except Exception:
-                pass
-            try:
-                await conn.execute(text("ALTER TABLE platform_fees ADD COLUMN transfer_status VARCHAR(30) DEFAULT 'pending' NOT NULL;"))
-            except Exception:
-                pass
-            try:
-                await conn.execute(text("ALTER TABLE platform_fees ADD COLUMN transfer_error VARCHAR(500);"))
-            except Exception:
-                pass
+
         logger.info("database_tables_initialized")
     except Exception as e:
         logger.error("database_init_failed", error=str(e))
