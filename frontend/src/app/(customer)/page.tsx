@@ -258,9 +258,12 @@ export default function ExplorePage() {
           )}
         </div>
 
-        <h1 className="font-heading text-h1 font-bold text-text-primary tracking-tight mt-1">
-          Hey {firstName}, find gaming stations near you
-        </h1>
+        <div className="flex items-baseline gap-2 mt-0.5">
+          <h1 className="font-heading text-h3 font-bold text-text-primary tracking-tight">
+            Hey {firstName}
+          </h1>
+          <span className="text-caption text-text-secondary">find gaming stations near you</span>
+        </div>
       </div>
 
       {/* Single Integrated Search Bar & Filter Chips */}
@@ -311,9 +314,11 @@ export default function ExplorePage() {
             <span className="text-caption text-text-secondary font-medium">• Handpicked recommendations</span>
           </div>
 
-          <div className={`grid grid-cols-1 ${featuredCafes.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-1 max-w-xl'} gap-6`}>
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             {featuredCafes.map((cafe) => (
-              <CafeCard key={`featured-${cafe.id}`} cafe={cafe} isFeatured={true} />
+              <div key={`featured-${cafe.id}`} className="w-[280px] flex-shrink-0">
+                <CafeCard cafe={cafe} isFeatured={true} />
+              </div>
             ))}
           </div>
         </section>
