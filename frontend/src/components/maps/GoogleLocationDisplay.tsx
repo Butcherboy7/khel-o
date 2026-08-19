@@ -2,6 +2,7 @@
 
 import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
 import { MapPin, ExternalLink } from 'lucide-react';
+import { GOOGLE_MAPS_SCRIPT_ID, GOOGLE_MAPS_LIBRARIES } from './mapsConfig';
 
 const mapContainerStyle = {
   width: '100%',
@@ -26,8 +27,9 @@ export function GoogleLocationDisplay({ lat, lng, venueName }: LocationDisplayPr
   const isAlreadyLoaded = typeof window !== 'undefined' && typeof window.google?.maps?.Map === 'function';
 
   const { isLoaded: isJsLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
+    id: GOOGLE_MAPS_SCRIPT_ID,
     googleMapsApiKey: apiKey,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const isLoaded = isJsLoaded || isAlreadyLoaded;

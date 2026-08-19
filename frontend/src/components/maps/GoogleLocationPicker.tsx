@@ -3,6 +3,7 @@
 import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { MapPin, Search } from 'lucide-react';
+import { GOOGLE_MAPS_SCRIPT_ID, GOOGLE_MAPS_LIBRARIES } from './mapsConfig';
 
 const mapContainerStyle = {
   width: '100%',
@@ -14,8 +15,6 @@ const defaultCenter = {
   lat: 12.9716, // Bengaluru
   lng: 77.5946,
 };
-
-const libraries: ('places' | 'drawing' | 'geometry' | 'visualization')[] = ['places'];
 
 const MAPS_ERROR_HINTS: Record<string, string> = {
   BillingNotEnabledMapError:
@@ -45,9 +44,9 @@ export function GoogleLocationPicker({
   const isAlreadyLoaded = typeof window !== 'undefined' && typeof window.google?.maps?.Map === 'function';
 
   const { isLoaded: isJsLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
+    id: GOOGLE_MAPS_SCRIPT_ID,
     googleMapsApiKey: apiKey,
-    libraries,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const isLoaded = isJsLoaded || isAlreadyLoaded;
