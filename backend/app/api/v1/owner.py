@@ -734,7 +734,6 @@ async def get_owner_occupancy(
         if cafes:
             cafe = cafes[0]
     elif role_val == "staff":
-        from sqlalchemy import select
         from app.models.user_role import UserRoleMapping
         stmt = select(UserRoleMapping).where(
             UserRoleMapping.user_id == current_user.id,

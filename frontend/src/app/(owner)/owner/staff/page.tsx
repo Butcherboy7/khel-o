@@ -51,7 +51,7 @@ export default function OwnerStaffPage() {
       
       // Auto-copy invite URL if possible
       if (res.invitation?.inviteUrl && navigator.clipboard) {
-        navigator.clipboard.writeText(res.invitation.inviteUrl);
+        navigator.clipboard.writeText(res.invitation.inviteUrl).catch(() => {});
       }
       loadData();
     } catch (err: any) {
