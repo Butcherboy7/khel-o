@@ -102,6 +102,8 @@ async def get_booking_qr_pass(
         from app.core.exceptions import NotFoundException
         raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
 
+    await BookingService(booking_repo, cafe_repo)._expire_if_past_due(booking)
+
     role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
     if str(booking.gamer_id) != str(current_user.id):
         from app.core.exceptions import ForbiddenException

@@ -304,7 +304,7 @@ export default function ExplorePage() {
           the same list into multiple sections just repeats the same cards
           under different labels. Real signals (rating, "New", active-promo
           badge) already surface per-card from real data. */}
-      <section className="min-h-[350px]" ref={cafesGridRef}>
+      <section className={isLoading ? 'min-h-[350px]' : undefined} ref={cafesGridRef}>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="font-heading text-h2 text-text-primary">Nearby Gaming Cafés</h2>

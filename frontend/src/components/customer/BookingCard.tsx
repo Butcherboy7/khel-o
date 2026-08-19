@@ -13,6 +13,7 @@ export function BookingCard({ booking }: BookingCardProps) {
   const isConfirmed = booking.status === 'confirmed' || booking.status === 'completed' || booking.status === 'checked_in';
   const isPendingOrFailed = booking.status === 'pending_payment' || booking.status === 'failed';
   const isCancelled = booking.status === 'cancelled';
+  const isNoShow = booking.status === 'no_show';
 
   return (
     <Card elevation="resting" interactive className="overflow-hidden">
@@ -113,6 +114,10 @@ export function BookingCard({ booking }: BookingCardProps) {
           ) : isCancelled ? (
             <span className="text-caption text-error font-medium">
               Cancelled session
+            </span>
+          ) : isNoShow ? (
+            <span className="text-caption text-error font-medium">
+              Session window expired — marked as no-show
             </span>
           ) : (
             <span className="text-caption text-text-secondary/70">

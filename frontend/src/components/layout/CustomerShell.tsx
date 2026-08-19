@@ -152,9 +152,6 @@ function CustomerBottomNav() {
 }
 
 export function CustomerShell({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const hideBottomNav = pathname.startsWith('/bookings/new');
-
   return (
     <div className="min-h-screen bg-surface/40">
       <CustomerHeader />
@@ -163,7 +160,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      {!hideBottomNav && <CustomerBottomNav />}
+      <CustomerBottomNav />
     </div>
   );
 }

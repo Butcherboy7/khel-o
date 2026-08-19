@@ -207,6 +207,8 @@ class BookingService:
         if not booking:
             raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
 
+        await self._expire_if_past_due(booking)
+
         is_owner = False
         if current_user.role == UserRole.ADMIN or str(booking.gamer_id) == str(current_user.id):
             is_owner = True
@@ -263,6 +265,23 @@ class BookingService:
 
         return resp
 
+    async def _expire_if_past_due(self, booking: Booking, grace_minutes: int = 15) -> None:
+        """Self-heals a CONFIRMED booking to NO_SHOW once its session end time
+        (+ grace period) has passed without a check-in. There is no background
+        scheduler in this service, so this runs lazily whenever a booking is
+        read — mirrors the manual confirmed->no_show transition owners can
+        already trigger in owner_service.advance_status."""
+        if booking.status != BookingStatus.CONFIRMED:
+            return
+
+        session_end = datetime.combine(booking.session_date, booking.end_time).replace(tzinfo=IST)
+        if datetime.now(IST) < session_end + timedelta(minutes=grace_minutes):
+            return
+
+        updated = await self.booking_repo.update(booking.id, {"status": BookingStatus.NO_SHOW})
+        if updated:
+            booking.status = BookingStatus.NO_SHOW
+
     async def list_gamer_bookings(
         self,
         gamer_id: UUID,
@@ -278,6 +297,7 @@ class BookingService:
 
         responses = []
         for b, c_name, c_addr, t_name in items_tuples:
+            await self._expire_if_past_due(b)
             res = BookingResponse.model_validate(b)
             res.cafe_name = c_name
             res.cafe_address = c_addr

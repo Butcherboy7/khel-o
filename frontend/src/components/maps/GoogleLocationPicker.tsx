@@ -17,6 +17,17 @@ const defaultCenter = {
 
 const libraries: ('places' | 'drawing' | 'geometry' | 'visualization')[] = ['places'];
 
+const MAPS_ERROR_HINTS: Record<string, string> = {
+  BillingNotEnabledMapError:
+    'Billing isn\'t enabled on the Google Cloud project for this API key.',
+  RefererNotAllowedMapError:
+    'This site\'s origin isn\'t in the key\'s HTTP referrer allowlist.',
+  ApiNotActivatedMapError:
+    'The Maps JavaScript API isn\'t enabled for this project.',
+  InvalidKeyMapError: 'The API key is invalid.',
+  MissingKeyMapError: 'No API key was provided.',
+};
+
 interface LocationPickerProps {
   initialLat?: number;
   initialLng?: number;
@@ -45,6 +56,28 @@ export function GoogleLocationPicker({
     lat: initialLat || defaultCenter.lat,
     lng: initialLng || defaultCenter.lng,
   });
+
+  // Google's Maps JS SDK reports auth/config failures (bad key, referrer not
+  // allowlisted, API not enabled, billing disabled) neither by rejecting the
+  // script load promise (useJsApiLoader's loadError misses them) nor via the
+  // legacy window.gm_authFailure callback (only invoked for a subset of error
+  // classes, not e.g. BillingNotEnabledMapError) — it only console.errors and
+  // paints its own "can't load Google Maps correctly" overlay. Intercepting
+  // console.error while this component is mounted is the only way to surface
+  // which specific error occurred.
+  const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
+  useEffect(() => {
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      const message = args.map(String).join(' ');
+      const match = message.match(/Google Maps JavaScript API error: (\w+)/);
+      if (match) setAuthErrorCode(match[1]);
+      originalError(...args);
+    };
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isLoaded || !inputRef.current || !window.google?.maps?.places) return;
@@ -121,11 +154,25 @@ export function GoogleLocationPicker({
     [onLocationSelect]
   );
 
-  if (loadError) {
+  if (loadError || authErrorCode) {
     return (
       <div className="h-72 w-full rounded-2xl bg-surface border border-border p-4 flex flex-col items-center justify-center text-center text-caption text-text-secondary gap-2">
         <MapPin className="h-6 w-6 text-error" />
-        <span>Failed to load Google Maps script. Check API Key configuration.</span>
+        {authErrorCode ? (
+          <>
+            <span>Google Maps configuration error: {authErrorCode}</span>
+            <span className="text-badge text-text-tertiary">
+              {MAPS_ERROR_HINTS[authErrorCode] ?? 'Check the API key setup in Google Cloud Console.'}
+            </span>
+          </>
+        ) : (
+          <>
+            <span>Failed to load Google Maps script.</span>
+            {loadError?.message && (
+              <span className="text-badge text-text-tertiary">{loadError.message}</span>
+            )}
+          </>
+        )}
       </div>
     );
   }
