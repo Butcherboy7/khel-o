@@ -14,7 +14,7 @@ export default function TermsPage() {
       <p>
         These Terms &amp; Conditions (&quot;Terms&quot;) govern your use of KHEL-O (&quot;we&quot;, &quot;us&quot;,
         &quot;our&quot;, the &quot;Platform&quot;), a website and mobile web application operated as a sole
-        proprietorship by Uzair, based in Hyderabad, Telangana, India. KHEL-O lets gamers (&quot;Gamers&quot;,
+        proprietorship by Mohammed Abdullah, based in Hyderabad, Telangana, India. KHEL-O lets gamers (&quot;Gamers&quot;,
         &quot;you&quot;) discover, compare, and book time-slots at gaming cafés (&quot;Café Partners&quot;) that
         list their stations on the Platform. By creating an account or making a booking, you agree to these Terms.
       </p>

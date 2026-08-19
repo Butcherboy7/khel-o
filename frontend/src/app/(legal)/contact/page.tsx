@@ -13,7 +13,7 @@ export default function ContactPage() {
       <p className="prose-legal-updated">We usually respond within 1–2 business days.</p>
 
       <p>
-        KHEL-O is operated as a sole proprietorship by Uzair, based in Hyderabad, Telangana, India. For booking,
+        KHEL-O is operated as a sole proprietorship by Mohammed Abdullah, based in Hyderabad, Telangana, India. For booking,
         payment, or account issues, the fastest path is the in-app Help &amp; Support ticket form (Profile → Help
         &amp; Support) since it&apos;s tied to your account and booking history. For everything else, reach us
         directly:

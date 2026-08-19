@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Search, MapPin, SlidersHorizontal, Navigation, X, Gamepad2, Layers } from 'lucide-react';
@@ -371,6 +372,15 @@ export default function ExplorePage() {
           </div>
         </section>
       )}
+
+      {/* Legal Footer Links */}
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 pt-4 pb-2 text-caption text-text-secondary border-t border-border/60">
+        <Link href="/terms" className="hover:text-primary transition-colors">Terms &amp; Conditions</Link>
+        <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+        <Link href="/refund-policy" className="hover:text-primary transition-colors">Cancellation &amp; Refunds</Link>
+        <Link href="/shipping-policy" className="hover:text-primary transition-colors">Service Delivery</Link>
+        <Link href="/contact" className="hover:text-primary transition-colors">Contact Us</Link>
+      </div>
     </div>
   );
 }
