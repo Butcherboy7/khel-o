@@ -276,11 +276,27 @@ class OwnerService:
         cancelled_bookings = []
         now_utc = datetime.now(timezone.utc)
         for b in bookings_to_cancel:
+            was_confirmed = b.status == BookingStatus.CONFIRMED
             updated = await self.booking_repo.update(b.id, {
                 "status": BookingStatus.CANCELLED,
                 "cancelled_at": now_utc,
                 "cancellation_reason": "Emergency café closure"
             })
             cancelled_bookings.append(BookingResponse.model_validate(updated))
+
+            # Café-initiated cancellations always refund in full, regardless of
+            # timing — unlike a gamer's own cancellation there's no 2-hour cutoff
+            # here, since the gamer didn't choose to cancel.
+            if was_confirmed:
+                try:
+                    from app.services.payment_service import PaymentService
+                    from app.repositories.payment_repository import PaymentRepository
+
+                    payment_repo = PaymentRepository(self.booking_repo.db)
+                    payment_service = PaymentService(payment_repo, self.booking_repo)
+                    await payment_service.process_refund(b.id, owner_id)
+                except Exception as e:
+                    from app.core.logging import logger
+                    logger.error(f"Failed to process refund for emergency-cancelled booking {b.id}: {e}")
 
         return cancelled_bookings

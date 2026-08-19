@@ -300,6 +300,15 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
+      {/* Legal Footer Links */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1 text-caption text-text-secondary">
+        <Link href="/terms" className="hover:text-primary transition-colors">Terms &amp; Conditions</Link>
+        <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+        <Link href="/refund-policy" className="hover:text-primary transition-colors">Cancellation &amp; Refunds</Link>
+        <Link href="/shipping-policy" className="hover:text-primary transition-colors">Service Delivery</Link>
+        <Link href="/contact" className="hover:text-primary transition-colors">Contact Us</Link>
+      </div>
+
       {/* Sign Out Button */}
       <Button
         variant="destructive"

@@ -1738,23 +1738,30 @@ async def cancel_booking_as_owner(
         )
     
     now_utc = datetime.now(timezone.utc)
-    from app.services.booking_service import IST
-    now_ist = datetime.now(IST)
-    start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
-    
-    if booking.status == BookingStatus.CONFIRMED:
-        if start_datetime - now_ist < timedelta(hours=2):
-            raise BadRequestException(
-                "Cannot cancel confirmed booking within 2 hours of session start",
-                error_code="CANCELLATION_WINDOW_EXPIRED"
-            )
-    
+    # No 2-hour-before-session cutoff here: that window protects the café from
+    # last-minute cancellations BY THE GAMER. When the owner is the one cancelling
+    # (hardware failure, venue issue, etc.) the gamer didn't choose this and should
+    # always be able to be cancelled + refunded, no matter how close to session time.
+    was_confirmed = booking.status == BookingStatus.CONFIRMED
+
     updated = await booking_repo.update(booking_id, {
         "status": BookingStatus.CANCELLED,
         "cancelled_at": now_utc,
         "cancellation_reason": reason or "Cancelled by cafe owner"
     })
-    
+
+    if was_confirmed:
+        try:
+            from app.services.payment_service import PaymentService
+            from app.repositories.payment_repository import PaymentRepository
+
+            payment_repo = PaymentRepository(db)
+            payment_service = PaymentService(payment_repo, booking_repo)
+            await payment_service.process_refund(booking_id, current_user.id)
+        except Exception as e:
+            from app.core.logging import logger
+            logger.error(f"Failed to process refund for owner-cancelled booking {booking_id}: {e}")
+
     return {
         "success": True,
         "data": {
