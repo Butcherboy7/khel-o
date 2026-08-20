@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import {
   MapPin,
   Clock,
@@ -23,6 +23,7 @@ import { queryKeys } from '@/hooks/queries/keys';
 import { Button, RatingDisplay, PriceDisplay, Badge, Skeleton, ErrorState } from '@/components/ui';
 import { GoogleLocationDisplay } from '@/components/maps/GoogleLocationDisplay';
 import { ShareModal } from '@/components/customer/ShareModal';
+import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
@@ -36,8 +37,11 @@ const DEFAULT_PHOTOS = [
 
 export default function CafeDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const cafeId = params.id as string;
   const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { userLat, userLng } = useLocationStore();
 
   const [activeTab, setActiveTab] = useState<'amenities' | 'games' | 'reviews'>('amenities');
@@ -48,6 +52,7 @@ export default function CafeDetailPage() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [submittedReview, setSubmittedReview] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.cafes.detail(cafeId),
@@ -333,7 +338,12 @@ export default function CafeDetailPage() {
                   onClick={async () => {
                     if (!newComment.trim()) return;
                     setReviewError(null);
-                    
+
+                    if (!isAuthenticated) {
+                      setShowLoginPrompt(true);
+                      return;
+                    }
+
                     const completedBooking = userBookingsData?.items?.find(
                       (b) => b.cafeId === cafeId && (b.status === 'completed' || b.status === 'checked_in' || b.status === 'confirmed')
                     );
@@ -457,6 +467,16 @@ export default function CafeDetailPage() {
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
         title={cafe.name}
+      />
+
+      <LoginRequiredDialog
+        isOpen={showLoginPrompt}
+        onCancel={() => setShowLoginPrompt(false)}
+        onLogin={() => {
+          router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+        }}
+        title="Login required"
+        description="Please log in to leave a review for this café."
       />
     </div>
   );

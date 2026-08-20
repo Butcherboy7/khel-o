@@ -21,6 +21,7 @@ import { useRazorpay } from '@/hooks/useRazorpay';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { useAuthStore } from '@/store/authStore';
 import { Card, CardContent, Skeleton, ErrorState } from '@/components/ui';
+import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
 import {
   getNext14Days,
@@ -111,6 +112,7 @@ function BookingWizardContent() {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   const { data: cafe, isLoading, isError, error: fetchError } = useQuery({
     queryKey: queryKeys.cafes.detail(cafeId),
@@ -341,6 +343,15 @@ function BookingWizardContent() {
     setSelectedDateOffset(dayOffset);
   };
 
+  const handleLoginFromPrompt = () => {
+    // Redirect URL construction is untouched from the original inline
+    // redirect — it already mirrors date/tier/time/seats via the URL sync
+    // effect above, so this round-trip continues to land back on the same
+    // slot after login.
+    const fullPath = `${pathname}?${searchParams.toString()}`;
+    router.push(`/login?redirect=${encodeURIComponent(fullPath)}`);
+  };
+
   const handleCheckout = async () => {
     if (!activeTier) {
       setError('Please select a hardware tier to proceed.');
@@ -349,11 +360,12 @@ function BookingWizardContent() {
     if (isProcessing) return;
 
     // Browsing and slot selection are public; login is only required at
-    // the point of payment. The URL already mirrors the current selection
-    // (see the sync effect above), so this redirect preserves it exactly.
+    // the point of payment. Rather than silently redirecting, explain why
+    // via LoginRequiredDialog — "Log in" there triggers the actual redirect
+    // (handleLoginFromPrompt below), which still preserves the current
+    // selection exactly as before via the URL sync effect above.
     if (!isAuthenticated) {
-      const fullPath = `${pathname}?${searchParams.toString()}`;
-      router.push(`/login?redirect=${encodeURIComponent(fullPath)}`);
+      setShowLoginPrompt(true);
       return;
     }
 
@@ -660,6 +672,14 @@ function BookingWizardContent() {
         </div>
       </div>
     </div>
+
+      {/* Login required prompt — shown instead of a silent redirect when an
+          unauthenticated visitor taps "Continue to Payment". */}
+      <LoginRequiredDialog
+        isOpen={showLoginPrompt}
+        onCancel={() => setShowLoginPrompt(false)}
+        onLogin={handleLoginFromPrompt}
+      />
 
       {/* Mock Payment Modal for Sandbox Mode */}
       <MockPaymentModal
