@@ -34,13 +34,15 @@ const customerNavItems: NavItem[] = [
 function CustomerHeader() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
-  
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
   const { data: unreadData } = useQuery<{ unreadCount: number }>({
     queryKey: ['unread-count'],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/notifications/unread-count');
       return response.data;
     },
+    enabled: isAuthenticated,
     staleTime: 60_000,
     refetchInterval: 30_000,
   });
@@ -91,25 +93,36 @@ function CustomerHeader() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
-          <RoleSwitcher />
-          <Link
-            href="/notifications"
-            className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition-all hover:bg-border/60 hover:text-text-primary active:scale-95"
-            aria-label="Notifications"
-          >
-            <Bell className="h-4 w-4" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-accent text-white text-badge font-bold">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <RoleSwitcher />
+              <Link
+                href="/notifications"
+                className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition-all hover:bg-border/60 hover:text-text-primary active:scale-95"
+                aria-label="Notifications"
+              >
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-accent text-white text-badge font-bold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Link>
 
-          <Link href="/profile">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary font-heading text-caption font-semibold text-white shadow-card transition-transform hover:scale-105">
-              {initial}
-            </div>
-          </Link>
+              <Link href="/profile">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary font-heading text-caption font-semibold text-white shadow-card transition-transform hover:scale-105">
+                  {initial}
+                </div>
+              </Link>
+            </>
+          ) : (
+            <Link
+              href={`/login?redirect=${encodeURIComponent(pathname)}`}
+              className="rounded-full bg-primary px-4 py-2 text-caption font-bold text-white shadow-card hover:bg-primary/90 transition-colors"
+            >
+              Log in
+            </Link>
+          )}
         </div>
       </div>
     </header>

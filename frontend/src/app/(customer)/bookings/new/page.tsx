@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
   ChevronLeft,
   Minus,
@@ -32,19 +32,20 @@ import {
   minutesToTimeString,
   calculateWindowRemainingSeats,
 } from '@/lib/format';
-import type { HardwareTier } from '@/types';
 
 function BookingWizardContent() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const cafeId = searchParams.get('cafeId') || '';
   const queryClient = useQueryClient();
 
   const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { displayRazorpay, mockModalState } = useRazorpay();
 
   const availableDates = getNext14Days();
-  const [selectedDate, setSelectedDate] = useState(availableDates[0] || getTodayString());
+  const [selectedDate, setSelectedDate] = useState(searchParams.get('date') || availableDates[0] || getTodayString());
 
   // Dynamically compute valid initial start time (at least current time + 30 mins)
   const getInitialValidTime = () => {
@@ -54,10 +55,22 @@ function BookingWizardContent() {
     return minutesToTimeString(validMin % 1440);
   };
 
-  const [selectedTime, setSelectedTime] = useState(getInitialValidTime());
-  const [durationHours, setDurationHours] = useState(2);
-  const [seatsCount, setSeatsCount] = useState(1);
-  const [selectedTier, setSelectedTier] = useState<HardwareTier | null>(null);
+  const [selectedTime, setSelectedTime] = useState(searchParams.get('time') || getInitialValidTime());
+  const [durationHours, setDurationHours] = useState(() => {
+    const d = parseFloat(searchParams.get('duration') || '');
+    return Number.isFinite(d) && d > 0 ? d : 2;
+  });
+  const [seatsCount, setSeatsCount] = useState(() => {
+    const s = parseInt(searchParams.get('seats') || '', 10);
+    return Number.isFinite(s) && s > 0 ? s : 1;
+  });
+  // Selections restore from the URL so a login redirect mid-flow (an
+  // unauthenticated visitor tapping "Continue to Payment") lands the user
+  // back on exactly what they'd picked, not a blank wizard. Tier is kept as
+  // just an id (not the resolved object) so the restored selection is valid
+  // synchronously on mount — no separate effect has to wait for the café's
+  // tiers to load and race against the URL-sync effect below.
+  const [selectedTierId, setSelectedTierId] = useState<string | null>(searchParams.get('tierId'));
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +83,23 @@ function BookingWizardContent() {
     refetchInterval: 4_000,
   });
 
-  const activeTier = selectedTier || (cafe?.tiers && cafe.tiers[0] ? cafe.tiers[0] : null);
+  const activeTier =
+    (cafe?.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
+    (cafe?.tiers && cafe.tiers[0] ? cafe.tiers[0] : null);
+
+  // Keep the URL in sync with the current selection so it survives a
+  // redirect to /login and back (see AuthGuard / handleCheckout).
+  useEffect(() => {
+    if (!cafeId) return;
+    const params = new URLSearchParams();
+    params.set('cafeId', cafeId);
+    params.set('date', selectedDate);
+    params.set('time', selectedTime);
+    params.set('duration', String(durationHours));
+    params.set('seats', String(seatsCount));
+    if (activeTier?.id) params.set('tierId', activeTier.id);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [cafeId, selectedDate, selectedTime, durationHours, seatsCount, activeTier?.id, pathname, router]);
 
   const { data: availabilityData } = useQuery({
     queryKey: ['cafe-availability', cafeId, activeTier?.id, selectedDate],
@@ -117,9 +146,25 @@ function BookingWizardContent() {
     };
   }, [cafeId, queryClient]);
 
-  // Automatically find and select the first available time slot when availability loads or date/tier changes
+  // Automatically find and select the first available time slot — but only
+  // when the user's actual inputs (date/tier/seats) change, not on every
+  // background availability poll (cafe/availabilityData refetch every few
+  // seconds and get new object references each time even when the data is
+  // unchanged, which would otherwise silently overwrite whatever slot the
+  // user — or a restored URL, after a login redirect mid-wizard — already
+  // has selected).
+  const initialAutoSelectKey = useRef(
+    searchParams.get('time')
+      ? `${searchParams.get('date') || ''}|${searchParams.get('tierId') || ''}|${searchParams.get('seats') || ''}`
+      : null
+  );
+  const lastAutoSelectKey = useRef<string | null>(initialAutoSelectKey.current);
   useEffect(() => {
     if (!cafe || !availabilityData) return;
+
+    const key = `${selectedDate}|${activeTier?.id || ''}|${seatsCount}`;
+    if (lastAutoSelectKey.current === key) return;
+    lastAutoSelectKey.current = key;
 
     const openingStr = cafe.openingTime || '09:00:00';
     const closingStr = cafe.closingTime || '23:00:00';
@@ -250,6 +295,15 @@ function BookingWizardContent() {
       return;
     }
     if (isProcessing) return;
+
+    // Browsing and slot selection are public; login is only required at
+    // the point of payment. The URL already mirrors the current selection
+    // (see the sync effect above), so this redirect preserves it exactly.
+    if (!isAuthenticated) {
+      const fullPath = `${pathname}?${searchParams.toString()}`;
+      router.push(`/login?redirect=${encodeURIComponent(fullPath)}`);
+      return;
+    }
 
     setError(null);
     setIsProcessing(true);
@@ -389,7 +443,7 @@ function BookingWizardContent() {
                 <button
                   key={tier.id}
                   type="button"
-                  onClick={() => setSelectedTier(tier)}
+                  onClick={() => setSelectedTierId(tier.id)}
                   className={`p-4 rounded-3xl text-left transition-all active:scale-[0.97] flex flex-col justify-between border ${
                     isSelected
                       ? 'border-accent bg-accent/5 ring-2 ring-accent/60 shadow-card'

@@ -59,6 +59,15 @@ export function TimelineRangePicker({
   const [containerWidth, setContainerWidth] = useState(360);
   const isUserScrolling = useRef(false);
   const scrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The programmatic smooth-scroll from centerSelectionInViewport fires the
+  // same native 'scroll' event as user interaction, at intermediate
+  // positions partway through its animation. Without this guard, that
+  // motion gets misread as the user dragging the timeline and spuriously
+  // calls onChange with whatever the mid-animation position decodes to
+  // (typically the venue's opening time), silently overwriting the actual
+  // selected slot on every mount.
+  const isProgrammaticScroll = useRef(false);
+  const programmaticScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Drag interaction states
   const [dragMode, setDragMode] = useState<'start' | 'end' | 'pan' | null>(null);
@@ -136,7 +145,12 @@ export function TimelineRangePicker({
     if (!scrollRef.current) return;
     const selCenterPx = startPx + rangePx / 2;
     const targetScroll = Math.max(0, selCenterPx - containerWidth / 2);
+    isProgrammaticScroll.current = true;
     scrollRef.current.scrollTo({ left: targetScroll, behavior: 'smooth' });
+    if (programmaticScrollTimer.current) clearTimeout(programmaticScrollTimer.current);
+    programmaticScrollTimer.current = setTimeout(() => {
+      isProgrammaticScroll.current = false;
+    }, 600);
   }, [startPx, rangePx, containerWidth]);
 
   // Auto-center on selection/duration changes
@@ -149,6 +163,7 @@ export function TimelineRangePicker({
   // ── Sync scroll position to startTime when swiping dial ────────────────────
   const handleScroll = useCallback(() => {
     if (!scrollRef.current || dragMode) return;
+    if (isProgrammaticScroll.current) return;
     isUserScrolling.current = true;
 
     const centerViewPx = scrollRef.current.scrollLeft + containerWidth / 2;
