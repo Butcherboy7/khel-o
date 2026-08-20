@@ -16,7 +16,7 @@ from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
-from app.services.owner_service import OwnerService
+from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
@@ -52,6 +52,13 @@ class StaffCreateRequest(BaseModel):
 
 class ValidateQRRequest(BaseModel):
     qr_data: str
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class CheckinRequest(BaseModel):
+    # How the staff member found this booking — an honest audit trail for
+    # dispute resolution, instead of always recording "owner_desk".
+    method: str = Field("manual", pattern="^(qr_camera|qr_upload|manual)$")
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -614,6 +621,7 @@ async def update_booking_status(
 @router.post("/bookings/{booking_id}/checkin", status_code=status.HTTP_200_OK)
 async def checkin_booking(
     booking_id: UUID,
+    payload: CheckinRequest = Body(default_factory=CheckinRequest),
     current_user: User = Depends(require_staff_or_owner),
     db: AsyncSession = Depends(get_db)
 ):
@@ -622,7 +630,8 @@ async def checkin_booking(
     service = OwnerService(booking_repo, cafe_repo)
     result = await service.checkin_booking(
         booking_id=booking_id,
-        current_user=current_user
+        current_user=current_user,
+        checkin_method=payload.method
     )
     return {
         "success": True,
@@ -718,6 +727,57 @@ async def validate_qr_code(
         }
     }
 
+@router.get("/bookings/search-checkin", status_code=status.HTTP_200_OK)
+async def search_checkin_candidates(
+    q: str = Query(..., min_length=2, max_length=100),
+    current_user: User = Depends(require_staff_or_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Manual scanner fallback: find today's booking by the customer's name
+    or phone number when the QR pass can't be scanned and they don't have
+    their booking reference handy. Scoped to the caller's own café and to
+    today only — never a global lookup."""
+    cafe_repo = CafeRepository(db)
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    cafe = None
+
+    if role_val in ("cafe_owner", "owner"):
+        cafes = await cafe_repo.get_by_owner_id(current_user.id)
+        if cafes:
+            cafe = cafes[0]
+    elif role_val == "staff":
+        from app.models.user_role import UserRoleMapping
+        stmt = select(UserRoleMapping).where(
+            UserRoleMapping.user_id == current_user.id,
+            UserRoleMapping.role == UserRole.STAFF
+        )
+        res = await db.execute(stmt)
+        mapping = res.scalars().first()
+        if mapping and mapping.cafe_id:
+            cafe = await cafe_repo.get_by_id(mapping.cafe_id)
+
+    if not cafe:
+        return {"success": True, "data": {"results": []}}
+
+    booking_repo = BookingRepository(db)
+    today = datetime.now(IST).date()
+    matches = await booking_repo.search_checkin_candidates(cafe.id, q, today)
+
+    results = [
+        {
+            "id": str(booking.id),
+            "bookingReference": booking.booking_reference,
+            "gamerName": gamer_name or "Gamer",
+            "gamerPhone": gamer_phone,
+            "startTime": booking.start_time.strftime("%H:%M"),
+            "endTime": booking.end_time.strftime("%H:%M"),
+            "status": booking.status.value,
+        }
+        for booking, gamer_name, gamer_phone in matches
+    ]
+
+    return {"success": True, "data": {"results": results}}
+
 @router.get("/occupancy", status_code=status.HTTP_200_OK)
 async def get_owner_occupancy(
     current_user: User = Depends(require_staff_or_owner),
@@ -748,7 +808,7 @@ async def get_owner_occupancy(
         return {"success": True, "data": {"tiers": []}}
 
     tiers = await tier_repo.get_by_cafe_id(cafe.id)
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(IST).date()
 
     stmt = select(Booking.hardware_tier_id, func.sum(Booking.seats_count)).where(
         Booking.cafe_id == cafe.id,
@@ -1712,6 +1772,8 @@ async def update_cafe_details(
     if payload.amenities is not None:
         cafe.amenities = payload.amenities
     if payload.photos is not None:
+        if len(payload.photos) > settings.CAFE_PHOTO_MAX_COUNT:
+            raise BadRequestException(f"A café can have at most {settings.CAFE_PHOTO_MAX_COUNT} photos")
         cafe.photos = payload.photos
     if payload.latitude is not None:
         cafe.latitude = payload.latitude
@@ -1736,6 +1798,68 @@ async def update_cafe_details(
             }
         }
     }
+
+
+class PhotoPresignRequest(BaseModel):
+    content_type: str = Field(..., min_length=1)
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class PhotoDeleteRequest(BaseModel):
+    url: str = Field(..., min_length=1)
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+@router.post("/cafes/{cafe_id}/photos/presign", status_code=status.HTTP_200_OK)
+async def presign_cafe_photo_upload(
+    cafe_id: UUID,
+    payload: PhotoPresignRequest,
+    cafe: Cafe = Depends(require_cafe_ownership),
+):
+    """Issue a short-lived, cafe-scoped presigned URL for a direct browser-to-S3 upload."""
+    from app.services.storage_service import create_presigned_upload
+
+    existing_count = len(cafe.photos) if isinstance(cafe.photos, list) else 0
+    if existing_count >= settings.CAFE_PHOTO_MAX_COUNT:
+        raise BadRequestException(f"A café can have at most {settings.CAFE_PHOTO_MAX_COUNT} photos")
+
+    result = create_presigned_upload(cafe.id, payload.content_type)
+    return {
+        "success": True,
+        "data": result
+    }
+
+
+@router.delete("/cafes/{cafe_id}/photos", status_code=status.HTTP_200_OK)
+async def delete_cafe_photo(
+    cafe_id: UUID,
+    payload: PhotoDeleteRequest,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Remove a photo from the café's gallery and delete the S3 object if it belongs to us."""
+    from app.services.storage_service import key_from_url, delete_object
+
+    current_photos = list(cafe.photos) if isinstance(cafe.photos, list) else []
+    if payload.url not in current_photos:
+        raise NotFoundException("Photo not found on this café")
+
+    cafe.photos = [p for p in current_photos if p != payload.url]
+    await db.commit()
+
+    key = key_from_url(payload.url)
+    if key:
+        delete_object(key)
+
+    return {
+        "success": True,
+        "data": {
+            "photos": cafe.photos
+        }
+    }
+
 
 @router.post("/bookings/{booking_id}/cancel", status_code=status.HTTP_200_OK)
 async def cancel_booking_as_owner(

@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     # Sentry Error Monitoring
     SENTRY_DSN: Optional[str] = None
 
+    # AWS S3 — café photo storage
+    AWS_REGION: str = "ap-south-1"
+    AWS_S3_BUCKET: Optional[str] = None
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    CAFE_PHOTO_MAX_MB: int = 8
+    CAFE_PHOTO_MAX_COUNT: int = 10
+
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def normalize_sqlite_url(cls, v: str) -> str:

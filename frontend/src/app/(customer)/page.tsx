@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -41,6 +41,14 @@ function findClosestCity(lat: number, lng: number): string {
 }
 
 export default function ExplorePage() {
+  return (
+    <Suspense fallback={null}>
+      <ExplorePageContent />
+    </Suspense>
+  );
+}
+
+function ExplorePageContent() {
   const user = useAuthStore((s) => s.user);
   const firstName = user?.fullName ? user.fullName.split(' ')[0] : 'Gamer';
   

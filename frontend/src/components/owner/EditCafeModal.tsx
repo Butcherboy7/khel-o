@@ -1,10 +1,14 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, X } from 'lucide-react';
+import { useState, useRef, type FormEvent } from 'react';
+import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, X, Upload, ChevronUp, ChevronDown, ImageOff } from 'lucide-react';
 import { Modal, Button, Input } from '@/components/ui';
-import { updateCafeDetails, updateOperatingHours, type OwnerSettings } from '@/lib/api/settings';
+import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, type OwnerSettings } from '@/lib/api/settings';
 import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
+
+const MAX_PHOTOS = 10;
+const MAX_PHOTO_MB = 8;
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 interface EditCafeModalProps {
   isOpen: boolean;
@@ -71,10 +75,15 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
   // Amenities & photos
   const [amenities, setAmenities] = useState<string[]>(settings.amenities || []);
   const [customAmenity, setCustomAmenity] = useState('');
-  const [photos, setPhotos] = useState<string[]>(settings.photos && settings.photos.length > 0 ? settings.photos : ['']);
+  const [photos, setPhotos] = useState<string[]>(settings.photos || []);
   const [amenitiesSaving, setAmenitiesSaving] = useState(false);
   const [amenitiesError, setAmenitiesError] = useState<string | null>(null);
   const [amenitiesSaved, setAmenitiesSaved] = useState(false);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleAmenity = (item: string) => {
     setAmenities((prev) => (prev.includes(item) ? prev.filter((a) => a !== item) : [...prev, item]));
@@ -135,17 +144,93 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
     }
   };
 
+  const persistPhotos = async (updated: string[]) => {
+    setPhotos(updated);
+    await updateCafeDetails(cafeId, { photos: updated });
+    onSaved({ photos: updated });
+  };
+
+  const handleFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadError(null);
+
+    const remainingSlots = MAX_PHOTOS - photos.length;
+    if (remainingSlots <= 0) {
+      setUploadError(`A café can have at most ${MAX_PHOTOS} photos`);
+      return;
+    }
+
+    const selected = Array.from(files).slice(0, remainingSlots);
+    let workingPhotos = photos;
+
+    for (const file of selected) {
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        setUploadError('Only JPEG, PNG, or WebP images are allowed');
+        continue;
+      }
+      if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
+        setUploadError(`"${file.name}" is larger than ${MAX_PHOTO_MB}MB`);
+        continue;
+      }
+
+      const tempKey = `${file.name}-${file.size}-${Date.now()}`;
+      setUploadingCount((c) => c + 1);
+      setUploadProgress((p) => ({ ...p, [tempKey]: 0 }));
+
+      try {
+        const publicUrl = await uploadCafePhoto(cafeId, file, (pct) => {
+          setUploadProgress((p) => ({ ...p, [tempKey]: pct }));
+        });
+        workingPhotos = [...workingPhotos, publicUrl];
+        await persistPhotos(workingPhotos);
+      } catch (err: unknown) {
+        setUploadError(err instanceof Error ? err.message : `Failed to upload "${file.name}"`);
+      } finally {
+        setUploadingCount((c) => c - 1);
+        setUploadProgress((p) => {
+          const { [tempKey]: _drop, ...rest } = p;
+          return rest;
+        });
+      }
+    }
+  };
+
+  const handleDeletePhoto = async (url: string) => {
+    setDeletingUrl(url);
+    setUploadError(null);
+    try {
+      const res = await deleteCafePhoto(cafeId, url);
+      setPhotos(res.photos);
+      onSaved({ photos: res.photos });
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to delete photo');
+    } finally {
+      setDeletingUrl(null);
+    }
+  };
+
+  const movePhoto = async (idx: number, direction: -1 | 1) => {
+    const target = idx + direction;
+    if (target < 0 || target >= photos.length) return;
+    const updated = [...photos];
+    [updated[idx], updated[target]] = [updated[target], updated[idx]];
+    try {
+      await persistPhotos(updated);
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to reorder photos');
+    }
+  };
+
   const handleAmenitiesSave = async () => {
     setAmenitiesSaving(true);
     setAmenitiesError(null);
     try {
-      const cleanPhotos = photos.map((p) => p.trim()).filter(Boolean);
-      await updateCafeDetails(cafeId, { amenities, photos: cleanPhotos });
-      onSaved({ amenities, photos: cleanPhotos });
+      await updateCafeDetails(cafeId, { amenities });
+      onSaved({ amenities });
       setAmenitiesSaved(true);
       setTimeout(() => setAmenitiesSaved(false), 2500);
     } catch (err: unknown) {
-      setAmenitiesError(err instanceof Error ? err.message : 'Failed to update amenities & photos');
+      setAmenitiesError(err instanceof Error ? err.message : 'Failed to update amenities');
     } finally {
       setAmenitiesSaving(false);
     }
@@ -315,43 +400,106 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
             </div>
 
             <div className="flex flex-col gap-2.5">
-              <label className="text-caption font-semibold text-text-primary">Venue Photos (URLs)</label>
-              {photos.map((photo, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <Input
-                    value={photo}
-                    placeholder="https://images.unsplash.com/..."
-                    onChange={(e) => {
-                      const updated = [...photos];
-                      updated[idx] = e.target.value;
-                      setPhotos(updated);
-                    }}
-                  />
-                  {photos.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setPhotos(photos.filter((_, i) => i !== idx))}
-                      className="h-11 w-11 flex-shrink-0 flex items-center justify-center rounded-xl text-error hover:bg-error/10"
-                      aria-label="Remove photo"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
+              <div className="flex items-center justify-between">
+                <label className="text-caption font-semibold text-text-primary">
+                  Venue Photos <span className="text-text-secondary font-normal">({photos.length}/{MAX_PHOTOS})</span>
+                </label>
+                {photos.length === 0 && (
+                  <span className="text-caption text-text-secondary">Using stock photos until you upload real ones</span>
+                )}
+              </div>
+
+              {uploadError && (
+                <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">{uploadError}</div>
+              )}
+
+              {photos.length === 0 && (
+                <div className="flex items-center gap-2 rounded-xl bg-warning/10 border border-warning/20 p-3 text-caption text-warning">
+                  <ImageOff className="h-4 w-4 flex-shrink-0" />
+                  <span>No real photos uploaded yet — customers currently see generic stock images.</span>
                 </div>
-              ))}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setPhotos([...photos, ''])}
-                className="self-start gap-1.5"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Photo URL</span>
-              </Button>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {photos.map((photo, idx) => (
+                  <div key={photo} className="relative aspect-square rounded-xl overflow-hidden border border-border group">
+                    <img src={photo} alt={`Café photo ${idx + 1}`} className="h-full w-full object-cover" />
+                    {idx === 0 && (
+                      <span className="absolute top-1.5 left-1.5 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
+                        Cover
+                      </span>
+                    )}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 sm:opacity-0 flex items-center justify-center gap-1.5 transition-opacity">
+                      {idx > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => movePhoto(idx, -1)}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-text-primary"
+                          aria-label="Move earlier / make cover"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </button>
+                      )}
+                      {idx < photos.length - 1 && (
+                        <button
+                          type="button"
+                          onClick={() => movePhoto(idx, 1)}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-text-primary"
+                          aria-label="Move later"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePhoto(photo)}
+                        disabled={deletingUrl === photo}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-error disabled:opacity-50"
+                        aria-label="Delete photo"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {Object.entries(uploadProgress).map(([key, pct]) => (
+                  <div key={key} className="aspect-square rounded-xl border border-border bg-surface flex flex-col items-center justify-center gap-1.5 text-caption text-text-secondary">
+                    <Upload className="h-5 w-5 animate-pulse" />
+                    <span>{pct}%</span>
+                  </div>
+                ))}
+
+                {photos.length < MAX_PHOTOS && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingCount > 0}
+                    className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 text-caption font-semibold text-text-secondary hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                  >
+                    <Plus className="h-5 w-5" />
+                    <span>Add Photo</span>
+                  </button>
+                )}
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  handleFilesSelected(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+              <p className="text-caption text-text-secondary">
+                JPEG, PNG, or WebP — up to {MAX_PHOTO_MB}MB each. First photo is the cover shown on listings.
+              </p>
             </div>
 
-            <SaveRow saving={amenitiesSaving} saved={amenitiesSaved} label="Save Amenities & Photos" onClick={handleAmenitiesSave} />
+            <SaveRow saving={amenitiesSaving} saved={amenitiesSaved} label="Save Amenities" onClick={handleAmenitiesSave} />
           </div>
         )}
       </div>
