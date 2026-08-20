@@ -99,12 +99,12 @@ export default function AdminPage() {
           />
           <StatCard
             label="Total GMV"
-            value={formatCurrencyCompact(analytics.totalRevenue || 0)}
+            value={formatCurrencyCompact(analytics.totalRevenueAllTime || 0)}
             subtext="Platform booking volume"
           />
           <StatCard
             label="Pending Queue"
-            value={analytics.pendingCafes || pendingCafes.length}
+            value={pendingCafes.length}
             subtext="Awaiting admin review"
           />
         </div>

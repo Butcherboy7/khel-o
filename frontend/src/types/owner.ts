@@ -29,10 +29,13 @@ export interface PayoutSetupRequest {
 }
 
 export interface AdminAnalytics {
-  totalUsers: number;
   totalCafes: number;
-  totalBookings: number;
-  totalRevenue: number;
-  pendingCafes: number;
-  activePromotions: number;
+  cafesByStatus: Record<string, number>;
+  totalUsers: number;
+  usersByRole: Record<string, number>;
+  totalBookingsThisMonth: number;
+  totalRevenueThisMonth: number;
+  totalBookingsAllTime: number;
+  totalRevenueAllTime: number;
+  topCafesThisMonth: Array<Record<string, unknown>>;
 }

@@ -20,6 +20,9 @@ import {
   Lock,
   ParkingCircle,
   Sparkles,
+  Droplets,
+  MessageCircle,
+  Accessibility,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -51,9 +54,12 @@ const AMENITY_MAP: Record<string, AmenityDisplay> = {
   fiber_network: { icon: Wifi, label: 'Fiber Network' },
   high_speed_fiber: { icon: Wifi, label: 'High-Speed Fiber' },
   dedicated_gigabit: { icon: Wifi, label: 'Dedicated Gigabit' },
+  free_wi_fi: { icon: Wifi, label: 'Wi-Fi' },
+  free_water: { icon: Droplets, label: 'Free Water' },
 
   ac: { icon: Snowflake, label: 'Air Conditioning' },
   air_conditioning: { icon: Snowflake, label: 'Air Conditioning' },
+  air_conditioned: { icon: Snowflake, label: 'Air Conditioning' },
 
   mechanical_keyboards: { icon: Keyboard, label: 'Mechanical Keyboards' },
 
@@ -70,6 +76,8 @@ const AMENITY_MAP: Record<string, AmenityDisplay> = {
   cafe_bar: { icon: Coffee, label: 'Café Bar' },
   gaming_cafeteria: { icon: Coffee, label: 'Gaming Cafeteria' },
   midnight_kitchen: { icon: Coffee, label: 'Midnight Kitchen' },
+  cafe_and_snacks: { icon: Coffee, label: 'Café & Snacks' },
+  discord_booth: { icon: MessageCircle, label: 'Discord Booth' },
 
   ps5_pods: { icon: Gamepad2, label: 'PS5 Pods' },
   ps5_zone: { icon: Gamepad2, label: 'PS5 Zone' },
@@ -80,6 +88,7 @@ const AMENITY_MAP: Record<string, AmenityDisplay> = {
   streaming_booth: { icon: Video, label: 'Streaming Booth' },
   streamer_pods: { icon: Video, label: 'Streamer Pods' },
   broadcast_studio: { icon: Video, label: 'Broadcast Studio' },
+  streaming_setup: { icon: Video, label: 'Streaming Setup' },
 
   tournament_stage: { icon: Trophy, label: 'Tournament Stage' },
   tournament_area: { icon: Trophy, label: 'Tournament Area' },
@@ -109,6 +118,8 @@ const AMENITY_MAP: Record<string, AmenityDisplay> = {
   locker_storage: { icon: Lock, label: 'Locker Storage' },
 
   restrooms: { icon: Sparkles, label: 'Restrooms' },
+  washroom: { icon: Sparkles, label: 'Restrooms' },
+  wheelchair_accessible: { icon: Accessibility, label: 'Wheelchair Accessible' },
 };
 
 const DEFAULT_DISPLAY: AmenityDisplay = { icon: Sparkles, label: '' };

@@ -5,6 +5,7 @@ import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, X, Upload, 
 import { Modal, Button, Input } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, type OwnerSettings } from '@/lib/api/settings';
 import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
+import { getAmenityDisplay } from '@/lib/amenities';
 
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_MB = 8;
@@ -85,8 +86,18 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Saved amenities may be seeded snake_case slugs ("ac", "ps5_zone") or these
+  // Title Case presets — both resolve to the same canonical label via
+  // getAmenityDisplay, so toggling/matching works regardless of which form
+  // is already stored for this cafe.
+  const canonicalOf = (raw: string) => getAmenityDisplay(raw).label;
+
   const toggleAmenity = (item: string) => {
-    setAmenities((prev) => (prev.includes(item) ? prev.filter((a) => a !== item) : [...prev, item]));
+    const itemCanonical = canonicalOf(item);
+    setAmenities((prev) => {
+      const existing = prev.find((a) => canonicalOf(a) === itemCanonical);
+      return existing ? prev.filter((a) => a !== existing) : [...prev, item];
+    });
   };
 
   const addCustomAmenity = () => {
@@ -351,7 +362,8 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
               <label className="text-caption font-semibold text-text-primary">Amenities</label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {PRESET_AMENITIES.map((item) => {
-                  const selected = amenities.includes(item);
+                  const itemCanonical = canonicalOf(item);
+                  const selected = amenities.some((a) => canonicalOf(a) === itemCanonical);
                   return (
                     <button
                       key={item}
@@ -368,17 +380,19 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                     </button>
                   );
                 })}
-                {amenities.filter((a) => !PRESET_AMENITIES.includes(a)).map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => toggleAmenity(item)}
-                    className="min-h-[44px] px-3 py-2 rounded-xl text-caption font-semibold flex items-center justify-between gap-1.5 border bg-primary/10 border-primary text-primary"
-                  >
-                    <span className="truncate">{item}</span>
-                    <X className="h-4 w-4 flex-shrink-0" />
-                  </button>
-                ))}
+                {amenities
+                  .filter((a) => !PRESET_AMENITIES.some((p) => canonicalOf(p) === canonicalOf(a)))
+                  .map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => toggleAmenity(item)}
+                      className="min-h-[44px] px-3 py-2 rounded-xl text-caption font-semibold flex items-center justify-between gap-1.5 border bg-primary/10 border-primary text-primary"
+                    >
+                      <span className="truncate">{canonicalOf(item)}</span>
+                      <X className="h-4 w-4 flex-shrink-0" />
+                    </button>
+                  ))}
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <Input
