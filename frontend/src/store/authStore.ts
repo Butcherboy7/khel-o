@@ -13,6 +13,20 @@ interface BookingDraft {
 
 export type UserActiveRole = 'gamer' | 'cafe_owner' | 'staff' | 'admin';
 
+// activeRole is a VIEW-MODE preference persisted in localStorage, which the user
+// can edit freely. It is never a permission. Any value not backed by the roles
+// the server returned is discarded — otherwise setting
+// localStorage.activeRole='admin' would render the admin shell.
+export function sanitizeActiveRole(
+  saved: string | null,
+  roles: string[] | undefined,
+): UserActiveRole {
+  const allowed = new Set(roles ?? []);
+  if (saved && saved !== 'admin' && allowed.has(saved)) return saved as UserActiveRole;
+  if (saved === 'admin' && allowed.has('admin')) return 'admin';
+  return 'gamer';
+}
+
 interface AuthState {
   user: User | null;
   accessToken: string | null;
@@ -130,7 +144,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const accessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
-    const savedActiveRole = (localStorage.getItem('activeRole') as UserActiveRole) || 'gamer';
+    const rawActiveRole = localStorage.getItem('activeRole');
 
     const draftStr = localStorage.getItem('khel_booking_draft');
     let cachedDraft = null;
@@ -157,6 +171,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }
 
+    const savedActiveRole = sanitizeActiveRole(rawActiveRole, cachedUser?.roles);
+
     if (cachedUser) {
       set({ user: cachedUser, accessToken, refreshToken, activeRole: savedActiveRole, isAuthenticated: true, isLoading: false, bookingDraft: cachedDraft, isHydrated: true });
     }
@@ -168,7 +184,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const rolesVal = user.roles || [user.role];
         localStorage.setItem('user', JSON.stringify(user));
         localStorage.setItem('roles', JSON.stringify(rolesVal));
-        set({ user, accessToken, refreshToken, activeRole: savedActiveRole, isAuthenticated: true, isLoading: false, isHydrated: true });
+        set({ user, accessToken, refreshToken, activeRole: sanitizeActiveRole(rawActiveRole, rolesVal), isAuthenticated: true, isLoading: false, isHydrated: true });
       } else if (!cachedUser) {
         throw new Error('No user in /me response');
       }
@@ -192,7 +208,7 @@ if (typeof window !== 'undefined') {
       const storedUser = localStorage.getItem('user');
       const storedToken = localStorage.getItem('accessToken');
       const storedRefreshToken = localStorage.getItem('refreshToken');
-      const storedRole = (localStorage.getItem('activeRole') as UserActiveRole) || 'gamer';
+      const rawStoredRole = localStorage.getItem('activeRole');
 
       if (storedUser && storedToken) {
         try {
@@ -201,7 +217,7 @@ if (typeof window !== 'undefined') {
             user: parsedUser,
             accessToken: storedToken,
             refreshToken: storedRefreshToken,
-            activeRole: storedRole,
+            activeRole: sanitizeActiveRole(rawStoredRole, parsedUser?.roles),
             isAuthenticated: true,
           });
         } catch {

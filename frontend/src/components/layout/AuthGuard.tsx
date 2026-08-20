@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuthStore } from '@/store/authStore';
+import { sanitizeActiveRole, useAuthStore } from '@/store/authStore';
 import type { UserRole } from '@/types';
 import { Loader2 } from 'lucide-react';
 
@@ -42,8 +42,11 @@ export function AuthGuard({
     // the account's single legacy "primary" DB column and never changes when
     // switching roles, so gating on it made every route bounce a multi-role
     // account straight back out the moment it switched to any non-primary role.
-    if (!allowedRoles.includes(activeRole as UserRole)) {
-      const redirect = fallbackPath ?? getRoleDefaultPath(activeRole as UserRole);
+    // activeRole is a client-persisted preference, not a permission — re-validate
+    // it against the server-issued roles before trusting it to gate a route.
+    const effectiveRole = sanitizeActiveRole(activeRole, user?.roles);
+    if (!allowedRoles.includes(effectiveRole as UserRole)) {
+      const redirect = fallbackPath ?? getRoleDefaultPath(effectiveRole as UserRole);
       router.replace(redirect);
     }
   }, [isHydrated, isLoading, isAuthenticated, user, activeRole, allowedRoles, fallbackPath, router, pathname]);
@@ -61,7 +64,7 @@ export function AuthGuard({
   }
 
   // Not authenticated or wrong role — guard will redirect
-  if (!isAuthenticated || !user || !allowedRoles.includes(activeRole as UserRole)) {
+  if (!isAuthenticated || !user || !allowedRoles.includes(sanitizeActiveRole(activeRole, user?.roles) as UserRole)) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-surface">
         <Loader2
