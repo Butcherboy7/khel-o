@@ -113,7 +113,16 @@ async def _setup_cafe_and_gamer(db_session):
 
 MATRIX = [
     # (now_time, session_date, start_time, expected_accepted, id)
-    (time(23, 0), BASE_DATE, "23:30:00", True, "20aug_2300_now__20aug_2330_start__accepted"),
+    # NOTE: the original version of this row used now=23:00, start=23:30 —
+    # with the fixed 1hr durationHours below, that session would run 23:30
+    # -> 00:30, crossing midnight. Since the CRITICAL 2 fix
+    # (booking_service.create_booking), a session whose computed end_time <=
+    # start_time is correctly refused with OVERNIGHT_BOOKING_UNSUPPORTED
+    # regardless of lead time — that guard runs before this row's actual
+    # target (the exact-30-minute lead-time boundary) can even be exercised.
+    # Shifted an hour earlier so it still tests the same boundary condition
+    # without incidentally crossing midnight.
+    (time(22, 0), BASE_DATE, "22:30:00", True, "20aug_2200_now__20aug_2230_start__accepted"),
     (time(23, 0), NEXT_DATE, "00:00:00", True, "20aug_2300_now__21aug_0000_start__accepted"),
     (time(23, 0), NEXT_DATE, "00:30:00", True, "20aug_2300_now__21aug_0030_start__accepted"),
     (time(23, 45), NEXT_DATE, "00:00:00", False, "20aug_2345_now__21aug_0000_start__rejected_15min"),

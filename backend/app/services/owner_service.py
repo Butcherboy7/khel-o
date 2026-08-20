@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone, timedelta, date, time
 
-from app.core.time import IST, now_ist, session_start_ist
+from app.core.time import IST, now_ist, session_start_ist, session_end_ist
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.schemas.owner import (
@@ -124,9 +124,9 @@ class OwnerService:
     async def auto_transition_booking(self, booking: Booking) -> Booking:
         """Lazy-write status transitions based on current time."""
         now_utc = datetime.now(timezone.utc)
-        session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
-        session_end = datetime.combine(booking.session_date, booking.end_time).replace(tzinfo=IST)
-        
+        session_start = session_start_ist(booking.session_date, booking.start_time)
+        session_end = session_end_ist(booking.session_date, booking.start_time, booking.end_time)
+
         if booking.status == BookingStatus.CONFIRMED:
             if now_utc >= session_end:
                 updated = await self.booking_repo.update(booking.id, {"status": BookingStatus.NO_SHOW})
@@ -239,9 +239,7 @@ class OwnerService:
         CHECKIN_EARLY_GRACE_MINUTES = 15
 
         start = session_start_ist(booking.session_date, booking.start_time)
-        end = session_start_ist(booking.session_date, booking.end_time)
-        if end <= start:  # overnight session (e.g. 23:00 -> 01:00)
-            end += timedelta(days=1)
+        end = session_end_ist(booking.session_date, booking.start_time, booking.end_time)
 
         current = now_ist()
         if current < start - timedelta(minutes=CHECKIN_EARLY_GRACE_MINUTES):

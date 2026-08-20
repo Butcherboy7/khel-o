@@ -156,6 +156,40 @@ function BookingWizardContent() {
     refetchInterval: 3_000,
   });
 
+  // Bookings that START after midnight are stored under `selectedDate + 1`
+  // (the backend's /availability filters `Booking.session_date ==
+  // parsed_date`), so the tail of the timeline past midnight is invisible
+  // unless we also fetch tomorrow's availability and merge it in below.
+  const nextDayDateStr = addDaysToDateString(selectedDate, 1);
+  const { data: nextDayAvailabilityData } = useQuery({
+    queryKey: ['cafe-availability', cafeId, activeTier?.id, nextDayDateStr],
+    queryFn: () => getCafeAvailability(cafeId, activeTier!.id, nextDayDateStr),
+    enabled: Boolean(cafeId && activeTier?.id && nextDayDateStr),
+    staleTime: 2_000,
+    refetchInterval: 3_000,
+  });
+
+  // Same-day slots plus tomorrow's slots shifted +1440 minutes so they land
+  // in the picker's "minutes past midnight of the opening day" space (e.g. a
+  // 00:30 booking stored under tomorrow becomes "24:30" here). Deliberately
+  // NOT using minutesToTimeString for the shift — it wraps hours via `% 24`,
+  // which would collapse the offset right back to a same-day-looking time.
+  const mergedBookedSlots = useMemo(() => {
+    const sameDay = availabilityData?.bookedSlots || [];
+    const nextDay = (nextDayAvailabilityData?.bookedSlots || []).map((bs) => {
+      const shiftedStart = timeToMinutes(bs.startTime) + 1440;
+      const shiftedEnd = timeToMinutes(bs.endTime) + 1440;
+      const toShiftedTimeStr = (m: number) =>
+        `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00`;
+      return {
+        ...bs,
+        startTime: toShiftedTimeStr(shiftedStart),
+        endTime: toShiftedTimeStr(shiftedEnd),
+      };
+    });
+    return [...sameDay, ...nextDay];
+  }, [availabilityData?.bookedSlots, nextDayAvailabilityData?.bookedSlots]);
+
   // Seats actually free for the currently selected time window — same calculation
   // TimelineRangePicker uses for its "Only N seats left!" badge, so the seats
   // stepper and the Book button below can never disagree with what's shown there.
@@ -168,11 +202,11 @@ function BookingWizardContent() {
     const windowEnd = windowStart + Math.round(durationHours * 60);
     return calculateWindowRemainingSeats(
       totalSeatsForTier,
-      availabilityData?.bookedSlots || [],
+      mergedBookedSlots,
       windowStart,
       windowEnd
     );
-  }, [totalSeatsForTier, availabilityData?.bookedSlots, selectedTime, durationHours, cafe?.openingTime]);
+  }, [totalSeatsForTier, mergedBookedSlots, selectedTime, durationHours, cafe?.openingTime]);
 
   // Listen for real-time seat cap updates from owner dashboard
   useEffect(() => {
@@ -220,7 +254,7 @@ function BookingWizardContent() {
     if (closeMin <= openMin) closeMin += 1440;
 
     const totalSeats = availabilityData.appBookableSeats || activeTier?.totalSeats || 10;
-    const bookedSlots = availabilityData.bookedSlots || [];
+    const bookedSlots = mergedBookedSlots;
 
     const today = getTodayString();
     let minValidStart = openMin;
@@ -294,7 +328,7 @@ function BookingWizardContent() {
       setSelectedTime(time);
       setSelectedDateOffset(dayOffset);
     }
-  }, [cafe, availabilityData, selectedDate, activeTier?.id, seatsCount]);
+  }, [cafe, availabilityData, mergedBookedSlots, selectedDate, activeTier?.id, seatsCount]);
 
   if (!cafeId) {
     return (
@@ -578,7 +612,7 @@ function BookingWizardContent() {
           startTime={selectedTime}
           durationHours={durationHours}
           onChange={handleTimelineChange}
-          bookedSlots={availabilityData?.bookedSlots || []}
+          bookedSlots={mergedBookedSlots}
           totalSeats={totalSeatsForTier}
           requestedSeats={seatsCount}
           remainingSeats={windowRemainingSeats}

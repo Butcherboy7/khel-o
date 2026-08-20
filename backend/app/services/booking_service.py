@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime, timezone, timedelta, date, time
 
-from app.core.time import IST
+from app.core.time import IST, session_end_ist
 from app.config import settings
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -104,7 +104,22 @@ class BookingService:
 
         end_datetime = start_datetime + timedelta(hours=booking_in.duration_hours)
         end_time = end_datetime.time()
-        
+
+        # Overnight sessions (end_time <= start_time, e.g. 22:30 -> 00:30) are
+        # not yet supported: the capacity overlap query in
+        # booking_repository.get_overlapping_bookings_count compares
+        # start_time/end_time as pure wall-clock values with no date
+        # component, so two overnight bookings that both wrap past midnight
+        # never register as overlapping and capacity can be oversold. Until
+        # that query is made date-aware, refuse the booking outright rather
+        # than risk taking payment for a slot that can't be honoured.
+        if end_time <= booking_in.start_time:
+            raise ValidationException(
+                message="This session would run past midnight, which isn't supported yet. "
+                        "Please choose a start time and duration that stay within the same day.",
+                error_code="OVERNIGHT_BOOKING_UNSUPPORTED"
+            )
+
         seats_requested = getattr(booking_in, 'seats_count', 1)
 
         # Seat Availability Checking (with locking) - uses tier app_bookable_seats for inventory
@@ -278,7 +293,13 @@ class BookingService:
         if booking.status != BookingStatus.CONFIRMED:
             return
 
-        session_end = datetime.combine(booking.session_date, booking.end_time).replace(tzinfo=IST)
+        # NOTE: session_end_ist internally calls datetime.combine (via
+        # session_start_ist in app.core.time) — a real, unpatched datetime,
+        # not this module's `datetime` name. Only "now" needs to be frozen in
+        # tests, so this is safe and keeps test_booking_time_validation.py's
+        # `monkeypatch.setattr(booking_service_module, "datetime", ...)`
+        # working exactly as before.
+        session_end = session_end_ist(booking.session_date, booking.start_time, booking.end_time)
         if datetime.now(IST) < session_end + timedelta(minutes=grace_minutes):
             return
 
