@@ -4,7 +4,7 @@ from uuid import UUID
 from datetime import datetime, timezone, timedelta, date, time
 
 # KHEL-O is an India-only platform. session_date/start_time/end_time are
-# stored as IST wall-clock values (see booking_service.py) - must be
+# stored as IST wall-clock values (see booking_service.py) — must be
 # interpreted as IST here too, not UTC, or every auto-transition and
 # no-show check runs 5.5 hours off from the real session time.
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -129,8 +129,8 @@ class OwnerService:
     async def auto_transition_booking(self, booking: Booking) -> Booking:
         """Lazy-write status transitions based on current time."""
         now_utc = datetime.now(timezone.utc)
-        session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=timezone.utc)
-        session_end = datetime.combine(booking.session_date, booking.end_time).replace(tzinfo=timezone.utc)
+        session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
+        session_end = datetime.combine(booking.session_date, booking.end_time).replace(tzinfo=IST)
         
         if booking.status == BookingStatus.CONFIRMED:
             if now_utc >= session_end:
@@ -172,7 +172,7 @@ class OwnerService:
             )
 
         now_utc = datetime.now(timezone.utc)
-        session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=timezone.utc)
+        session_start = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
 
         if new_status == "completed":
             target_enum = BookingStatus.COMPLETED
@@ -215,15 +215,23 @@ class OwnerService:
 
         return cafe
 
-    async def checkin_booking(self, booking_id: UUID, current_user: User) -> BookingResponse:
-        booking = await self.booking_repo.get_by_id(booking_id)
+    async def checkin_booking(self, booking_id: UUID, current_user: User, checkin_method: str = "manual") -> BookingResponse:
+        # Row lock: two staff scanning the same pass in the same instant must
+        # serialize here — the second one to acquire the lock sees the
+        # already-CHECKED_IN status and returns the original check-in
+        # untouched, instead of racing to overwrite checked_in_by/checked_in_at.
+        booking = await self.booking_repo.get_by_id_with_lock(booking_id)
         if not booking:
             raise NotFoundException(message="Booking not found", error_code="BOOKING_NOT_FOUND")
 
         await self._validate_user_cafe_access(current_user, booking.cafe_id)
 
-        # Allow check-in for confirmed and already checked-in bookings
-        if booking.status not in (BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN):
+        if booking.status == BookingStatus.CHECKED_IN:
+            # Already checked in — a benign duplicate scan, not an error.
+            # Return the existing record as-is rather than reprocessing.
+            return BookingResponse.model_validate(booking)
+
+        if booking.status != BookingStatus.CONFIRMED:
             raise ValidationException(
                 message=f"Cannot check in booking in status '{booking.status.value}'",
                 error_code="INVALID_BOOKING_STATUS"
@@ -235,7 +243,7 @@ class OwnerService:
             "checked_in_by": current_user.id,
             "checked_in_at": now_utc,
             "actual_start_time": now_utc,
-            "checkin_method": "owner_desk"
+            "checkin_method": checkin_method
         }
 
         updated = await self.booking_repo.update(booking_id, update_fields)

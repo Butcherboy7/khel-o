@@ -43,6 +43,23 @@ export async function validateQRCode(qrData: string): Promise<QRValidationRespon
   return call(() => apiClient.post('/api/v1/owner/bookings/validate-qr', { qrData }));
 }
 
+export interface CheckinCandidate {
+  id: string;
+  bookingReference: string;
+  gamerName: string;
+  gamerPhone: string | null;
+  startTime: string;
+  endTime: string;
+  status: string;
+}
+
+export async function searchCheckinCandidates(query: string): Promise<CheckinCandidate[]> {
+  const res = await call<{ results: CheckinCandidate[] }>(() =>
+    apiClient.get('/api/v1/owner/bookings/search-checkin', { params: { q: query } })
+  );
+  return res.results;
+}
+
 export async function getOwnerOccupancy(): Promise<OccupancyResponse> {
   return call(() => apiClient.get('/api/v1/owner/occupancy'));
 }

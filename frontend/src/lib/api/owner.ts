@@ -24,8 +24,11 @@ export async function updateOwnerBookingStatus(
   return call(() => apiClient.patch(`/api/v1/owner/bookings/${bookingId}/status`, { status }));
 }
 
-export async function checkinBooking(bookingId: string): Promise<{ booking: BookingDetail }> {
-  return call(() => apiClient.post(`/api/v1/owner/bookings/${bookingId}/checkin`));
+export async function checkinBooking(
+  bookingId: string,
+  method: 'qr_camera' | 'qr_upload' | 'manual' = 'manual',
+): Promise<{ booking: BookingDetail }> {
+  return call(() => apiClient.post(`/api/v1/owner/bookings/${bookingId}/checkin`, { method }));
 }
 
 export async function emergencyCloseCafe(cafeId: string, date: string): Promise<{ cancelledBookings: number }> {

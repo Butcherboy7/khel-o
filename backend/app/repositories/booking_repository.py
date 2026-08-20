@@ -19,9 +19,45 @@ class BookingRepository(BaseRepository[Booking]):
         result = await self.db.execute(select(Booking).where(Booking.id == booking_id))
         return result.scalars().first()
 
+    async def get_by_id_with_lock(self, booking_id: UUID) -> Optional[Booking]:
+        """Row-locked fetch — used for check-in, where two staff scanning the
+        same pass at the same instant must be serialized rather than one
+        silently overwriting the other's checked_in_by/checked_in_at."""
+        result = await self.db.execute(
+            select(Booking).where(Booking.id == booking_id).with_for_update()
+        )
+        return result.scalars().first()
+
     async def get_by_reference(self, reference: str) -> Optional[Booking]:
         result = await self.db.execute(select(Booking).where(Booking.booking_reference == reference))
         return result.scalars().first()
+
+    async def search_checkin_candidates(
+        self, cafe_id: UUID, query: str, session_date: date, limit: int = 10
+    ) -> List[Tuple[Booking, str, Optional[str]]]:
+        """Manual check-in lookup fallback: match today's bookings at this
+        café by gamer name, phone, or reference — scoped to one café and one
+        day, never a global user search, so a staff member can't browse
+        customer data outside their own venue's shift."""
+        like = f"%{query.strip()}%"
+        stmt = (
+            select(Booking, User.full_name, User.phone_number)
+            .join(User, Booking.gamer_id == User.id)
+            .where(
+                Booking.cafe_id == cafe_id,
+                Booking.session_date == session_date,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN]),
+                or_(
+                    User.full_name.ilike(like),
+                    User.phone_number.ilike(like),
+                    Booking.booking_reference.ilike(like),
+                ),
+            )
+            .order_by(Booking.start_time)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return [(row[0], row[1], row[2]) for row in result.all()]
 
     async def get_by_gamer_id(
         self,

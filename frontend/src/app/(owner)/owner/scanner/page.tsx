@@ -17,12 +17,19 @@ import {
   VideoOff,
   Upload,
   SwitchCamera,
+  WifiOff,
+  HelpCircle,
+  Phone,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
+import { useDebounce } from '@/hooks/useDebounce';
 import { Card, CardContent, Button, Input, Badge } from '@/components/ui';
 import { checkinBooking } from '@/lib/api/owner';
-import { validateQRCode, type QRValidationResponse } from '@/lib/api/scanner';
+import { validateQRCode, searchCheckinCandidates, type QRValidationResponse, type CheckinCandidate } from '@/lib/api/scanner';
+import { ApiError } from '@/lib/api/errors';
+
+type CheckinMethod = 'qr_camera' | 'qr_upload' | 'manual';
 
 interface Html5QrcodeCameraDevice {
   id: string;
@@ -78,8 +85,41 @@ export default function ScannerPage() {
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
   const [isProcessingFile, setIsProcessingFile] = useState(false);
 
+  // Which method produced the current validationResult — sent along with the
+  // check-in so the record honestly reflects how staff found this booking,
+  // instead of always saying "owner_desk".
+  const [checkinMethod, setCheckinMethod] = useState<CheckinMethod>('manual');
+  // Distinguishes "no internet" from "this pass is invalid" — staff need to
+  // know which one they're looking at, not read the same red banner for both.
+  const [isOffline, setIsOffline] = useState(false);
+  // Nudge shown after several seconds of the camera running with no
+  // successful scan — bad lighting or a damaged QR shouldn't leave staff
+  // stuck watching a live feed with no way out.
+  const [showScanStuckHint, setShowScanStuckHint] = useState(false);
+  const scanStuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Manual lookup — live search by name / phone / reference
+  const [manualResults, setManualResults] = useState<CheckinCandidate[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const debouncedManualQuery = useDebounce(manualQuery, 350);
+
   const scannerRef = useRef<Html5QrcodeInstance | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const clearScanStuckTimer = () => {
+    if (scanStuckTimerRef.current) {
+      clearTimeout(scanStuckTimerRef.current);
+      scanStuckTimerRef.current = null;
+    }
+    setShowScanStuckHint(false);
+  };
+
+  const startScanStuckTimer = () => {
+    clearScanStuckTimer();
+    scanStuckTimerRef.current = setTimeout(() => {
+      setShowScanStuckHint(true);
+    }, 8_000);
+  };
 
   const stopCamera = async () => {
     if (scannerRef.current) {
@@ -142,7 +182,8 @@ export default function ScannerPage() {
       };
 
       const handleScanSuccess = (decodedText: string) => {
-        handleValidate(decodedText);
+        clearScanStuckTimer();
+        handleValidate(decodedText, 'qr_camera');
       };
 
       // Determine camera target
@@ -180,6 +221,7 @@ export default function ScannerPage() {
       }
 
       setCameraState('active');
+      startScanStuckTimer();
     } catch (err: unknown) {
       console.error('Camera startup failed:', err);
       let msg = 'Could not access camera.';
@@ -203,6 +245,7 @@ export default function ScannerPage() {
       startCamera();
     } else {
       stopCamera();
+      clearScanStuckTimer();
       if (activeTab !== 'camera') {
         setCameraState('idle');
       }
@@ -210,6 +253,7 @@ export default function ScannerPage() {
 
     return () => {
       stopCamera();
+      clearScanStuckTimer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, scriptLoaded]);
@@ -222,10 +266,12 @@ export default function ScannerPage() {
     }
   };
 
-  const handleValidate = async (qrInput: string) => {
+  const handleValidate = async (qrInput: string, method: CheckinMethod = checkinMethod) => {
     if (!qrInput.trim()) return;
 
+    setCheckinMethod(method);
     setIsValidating(true);
+    setIsOffline(false);
     setErrorMessage(null);
     setCheckinSuccessMsg(null);
     setValidationResult(null);
@@ -238,8 +284,12 @@ export default function ScannerPage() {
         setValidationResult(res);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Validation failed. Please try again.';
-      setErrorMessage(msg);
+      if (err instanceof ApiError && err.status === 0) {
+        setIsOffline(true);
+      } else {
+        const msg = err instanceof Error ? err.message : 'Validation failed. Please try again.';
+        setErrorMessage(msg);
+      }
     } finally {
       setIsValidating(false);
     }
@@ -264,7 +314,7 @@ export default function ScannerPage() {
       const decodedText = await tempScanner.scanFile(file, false);
       tempScanner.clear();
       if (decodedText) {
-        await handleValidate(decodedText);
+        await handleValidate(decodedText, 'qr_upload');
       } else {
         setErrorMessage('No valid QR code found in the selected image.');
       }
@@ -281,19 +331,54 @@ export default function ScannerPage() {
 
   const handleManualSearchSubmit = (e: FormEvent) => {
     e.preventDefault();
-    handleValidate(manualQuery);
+    handleValidate(manualQuery, 'manual');
   };
+
+  const handleSelectCandidate = (candidate: CheckinCandidate) => {
+    setManualResults([]);
+    handleValidate(candidate.id, 'manual');
+  };
+
+  // Live search by name / phone / partial reference as the staff member
+  // types — the fallback for when a customer doesn't have their exact
+  // booking reference handy.
+  useEffect(() => {
+    if (activeTab !== 'manual') return;
+    const q = debouncedManualQuery.trim();
+    if (q.length < 2) {
+      setManualResults([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsSearching(true);
+    searchCheckinCandidates(q)
+      .then((results) => {
+        if (!cancelled) setManualResults(results);
+      })
+      .catch(() => {
+        if (!cancelled) setManualResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsSearching(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedManualQuery, activeTab]);
 
   const handleCheckIn = async (bookingId: string) => {
     setIsCheckinSubmitting(true);
     setCheckinSuccessMsg(null);
     setErrorMessage(null);
+    setIsOffline(false);
 
     try {
-      await checkinBooking(bookingId);
+      await checkinBooking(bookingId, checkinMethod);
       queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
-      setCheckinSuccessMsg('✅ Gamer checked in successfully!');
+      setCheckinSuccessMsg('Gamer checked in successfully!');
       if (validationResult?.booking) {
         setValidationResult({
           ...validationResult,
@@ -305,8 +390,12 @@ export default function ScannerPage() {
         });
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Check-in failed. Please try again.';
-      setErrorMessage(msg);
+      if (err instanceof ApiError && err.status === 0) {
+        setIsOffline(true);
+      } else {
+        const msg = err instanceof Error ? err.message : 'Check-in failed. Please try again.';
+        setErrorMessage(msg);
+      }
     } finally {
       setIsCheckinSubmitting(false);
     }
@@ -317,6 +406,8 @@ export default function ScannerPage() {
     setErrorMessage(null);
     setCheckinSuccessMsg(null);
     setManualQuery('');
+    setManualResults([]);
+    setIsOffline(false);
   };
 
   return (
@@ -461,6 +552,24 @@ export default function ScannerPage() {
               <p className="text-caption text-text-tertiary text-center">
                 Point your camera or laptop webcam directly at the customer&apos;s digital QR pass.
               </p>
+
+              {showScanStuckHint && cameraState === 'active' && (
+                <div className="w-full max-w-md p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center gap-3">
+                  <HelpCircle className="h-5 w-5 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-caption font-semibold">Having trouble scanning?</p>
+                    <p className="text-xs text-amber-600/80 mt-0.5">Bad lighting or a damaged pass? Try another way.</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab('upload')} className="gap-1.5 text-xs h-7">
+                      <Upload className="h-3.5 w-3.5" /> Upload
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab('manual')} className="gap-1.5 text-xs h-7">
+                      <Search className="h-3.5 w-3.5" /> Lookup
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -511,41 +620,115 @@ export default function ScannerPage() {
           )}
 
           {activeTab === 'manual' && (
-            <form onSubmit={handleManualSearchSubmit} className="flex flex-col gap-4">
-              <Input
-                label="Booking Reference Code or ID *"
-                placeholder="e.g. GC-2026-6R0NZF or booking reference"
-                value={manualQuery}
-                onChange={(e) => setManualQuery(e.target.value)}
-                leftIcon={<Search className="h-4 w-4 text-text-tertiary" />}
-                required
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                isLoading={isValidating}
-                loadingText="Searching Booking..."
-                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold gap-2"
-              >
-                <Search className="h-4 w-4" />
-                <span>Lookup Booking Pass</span>
+            <div className="flex flex-col gap-4">
+              <form onSubmit={handleManualSearchSubmit} className="flex flex-col gap-4">
+                <Input
+                  label="Name, Phone, or Booking Reference *"
+                  placeholder="e.g. Rahul, 98765 43210, or GC-2026-6R0NZF"
+                  value={manualQuery}
+                  onChange={(e) => setManualQuery(e.target.value)}
+                  leftIcon={<Search className="h-4 w-4 text-text-tertiary" />}
+                  required
+                />
+                <Button
+                  type="submit"
+                  variant="primary"
+                  isLoading={isValidating}
+                  loadingText="Searching Booking..."
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold gap-2"
+                >
+                  <Search className="h-4 w-4" />
+                  <span>Lookup Exact Reference</span>
+                </Button>
+              </form>
+
+              {/* Live results — matches today's bookings at this café by name/phone/reference */}
+              {manualQuery.trim().length >= 2 && (
+                <div className="flex flex-col gap-2">
+                  {isSearching && (
+                    <p className="text-caption text-text-tertiary flex items-center gap-2">
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Searching today&apos;s bookings…
+                    </p>
+                  )}
+
+                  {!isSearching && manualResults.length === 0 && (
+                    <p className="text-caption text-text-tertiary">
+                      No matching bookings today for &quot;{manualQuery.trim()}&quot;.
+                    </p>
+                  )}
+
+                  {manualResults.map((candidate) => (
+                    <button
+                      key={candidate.id}
+                      type="button"
+                      onClick={() => handleSelectCandidate(candidate)}
+                      className="w-full text-left p-3.5 rounded-2xl bg-card border border-border hover:border-emerald-500/50 hover:bg-surface-hover transition-all flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-9 w-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-sm shrink-0">
+                          {candidate.gamerName[0]?.toUpperCase() || 'G'}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-caption font-bold text-text-primary truncate">{candidate.gamerName}</span>
+                          <span className="text-xs text-text-tertiary flex items-center gap-1">
+                            {candidate.gamerPhone && (
+                              <span className="flex items-center gap-0.5">
+                                <Phone className="h-3 w-3" /> {candidate.gamerPhone}
+                              </span>
+                            )}
+                            <span>· {candidate.bookingReference}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs font-semibold text-text-secondary shrink-0">
+                        {candidate.startTime}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Offline — distinct from an invalid pass, so staff know it's their connection, not the customer's booking */}
+          {isOffline && (
+            <div className="p-4 rounded-2xl bg-slate-500/10 border border-slate-500/20 text-slate-600 text-caption font-semibold flex items-center gap-3">
+              <WifiOff className="h-5 w-5 shrink-0" />
+              <div className="flex-1">
+                <p>No internet connection.</p>
+                <p className="text-xs font-normal text-slate-500 mt-0.5">Check your connection, then try again.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setIsOffline(false)} className="gap-1.5 shrink-0">
+                <RefreshCw className="h-3.5 w-3.5" /> Dismiss
               </Button>
-            </form>
+            </div>
           )}
 
           {/* Validation Error Message */}
           {errorMessage && (
-            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 text-caption font-semibold flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 shrink-0" />
-              <span>{errorMessage}</span>
+            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 text-caption font-semibold flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-3 flex-1">
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+              {activeTab !== 'manual' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab('manual')}
+                  className="gap-1.5 shrink-0 border-rose-500/40 text-rose-600 hover:bg-rose-500/10"
+                >
+                  <Search className="h-3.5 w-3.5" /> Try Manual Lookup
+                </Button>
+              )}
             </div>
           )}
 
-          {/* Check-In Success Message */}
+          {/* Check-In Success Message — full-width and unmissable, not a small inline note */}
           {checkinSuccessMsg && (
-            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-caption font-semibold flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 shrink-0" />
-              <span>{checkinSuccessMsg}</span>
+            <div className="p-5 rounded-2xl bg-emerald-500 text-slate-950 flex items-center gap-3 shadow-float">
+              <CheckCircle2 className="h-8 w-8 shrink-0" />
+              <span className="font-heading text-body font-bold">{checkinSuccessMsg}</span>
             </div>
           )}
 
