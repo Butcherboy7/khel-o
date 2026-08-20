@@ -56,6 +56,23 @@ class PaymentService:
         except Exception as e:
             logger.error(f"Failed to write owner notification for cafe {cafe_id}: {e}")
 
+    async def _backfill_phone_from_payment(self, gamer_id: UUID, contact: Optional[str]) -> None:
+        """Razorpay's own checkout collects a phone number from the customer
+        (for its UPI/card verification) and includes it as `contact` on the
+        captured payment entity. If our own record has no phone number for
+        this user yet, save it here — no OTP, no extra step, just reusing
+        data the customer already gave Razorpay during checkout."""
+        if not contact:
+            return
+        try:
+            from app.repositories.user_repository import UserRepository
+            user_repo = UserRepository(self.payment_repo.db)
+            user = await user_repo.get_by_id(gamer_id)
+            if user and not user.phone_number:
+                await user_repo.update(gamer_id, {"phone_number": contact})
+        except Exception as e:
+            logger.error(f"Failed to backfill phone number for user {gamer_id} from payment: {e}")
+
     async def _create_route_transfer(self, booking, razorpay_payment_id: str) -> None:
         """Split a captured payment: transfer the café's share to its Razorpay Route
         linked account, leaving KHEL-O's service fee behind in the main account.
@@ -421,6 +438,7 @@ class PaymentService:
                         })
                         await notifier.send_booking_confirmation(self.payment_repo.db, booking.id)
                         await self._create_route_transfer(booking, payment_id)
+                        await self._backfill_phone_from_payment(booking.gamer_id, entity.get("contact"))
 
         elif event == "payment.failed":
             entity = payload_data.get("payment", {}).get("entity", {})

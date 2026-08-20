@@ -14,7 +14,7 @@ const registerSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  phoneNumber: z.string().regex(/^(\+91|0)?[6-9]\d{9}$/, 'Please enter a valid Indian phone number').optional().or(z.literal('')),
+  phoneNumber: z.string().regex(/^(\+91|0)?[6-9]\d{9}$/, 'Please enter a valid Indian phone number'),
 });
 
 function RegisterForm() {
@@ -111,13 +111,14 @@ function RegisterForm() {
           />
 
           <Input
-            label="Phone Number"
+            label="Phone Number *"
             type="tel"
             placeholder="+91 98765 43210"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
             leftIcon={<Phone className="h-4 w-4" />}
-            hint="Optional — used for SMS booking pass confirmation"
+            hint="Used for booking updates and offers"
+            required
             error={validationErrors.phoneNumber}
           />
 

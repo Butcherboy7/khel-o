@@ -17,6 +17,10 @@ export async function getMe(): Promise<{ user: User }> {
   return call(() => apiClient.get('/api/v1/auth/me'));
 }
 
+export async function updateMe(body: { fullName?: string; phoneNumber?: string }): Promise<{ user: User }> {
+  return call(() => apiClient.patch('/api/v1/auth/me', body));
+}
+
 export async function forgotPassword(email: string): Promise<{ message: string }> {
   return call(() => apiClient.post('/api/v1/auth/forgot-password', { email }));
 }

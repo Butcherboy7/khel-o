@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
+import { updateMe } from '@/lib/api/auth';
 import {
   Avatar,
   Card,
@@ -58,6 +59,8 @@ export default function ProfilePage() {
   );
   const [favGames, setFavGames] = useState<string[]>(['Valorant', 'EA FC 24']);
   const [preferredTier, setPreferredTier] = useState('Ultra RTX 4080 (240Hz)');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   if (!user) return null;
 
@@ -91,14 +94,22 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     if (phoneError || nameError || phoneNumber.length !== 10) return;
-    setUser({
-      ...user,
-      fullName,
-      phoneNumber: `+91 ${phoneNumber}`,
-    });
-    setIsEditOpen(false);
+    setSaveError('');
+    setIsSaving(true);
+    try {
+      const res = await updateMe({
+        fullName,
+        phoneNumber: `+91 ${phoneNumber}`,
+      });
+      setUser(res.user);
+      setIsEditOpen(false);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Failed to save profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -331,13 +342,24 @@ export default function ProfilePage() {
             <Button variant="ghost" onClick={() => setIsEditOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleSaveProfile} disabled={Boolean(phoneError || nameError)}>
+            <Button
+              variant="primary"
+              onClick={handleSaveProfile}
+              disabled={Boolean(phoneError || nameError)}
+              isLoading={isSaving}
+              loadingText="Saving…"
+            >
               Save Profile
             </Button>
           </div>
         }
       >
         <div className="flex flex-col gap-4">
+          {saveError && (
+            <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">
+              {saveError}
+            </div>
+          )}
           <div>
             <label className="text-caption font-semibold text-text-secondary mb-1 block">Full Name</label>
             <input

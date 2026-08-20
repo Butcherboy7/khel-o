@@ -11,7 +11,8 @@ from app.schemas.user import (
     GoogleAuthRequest,
     RefreshTokenRequest,
     SwitchRoleRequest,
-    UserResponse
+    UserResponse,
+    UserUpdateRequest
 )
 from app.repositories.user_repository import UserRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -132,6 +133,23 @@ async def get_me(
     user_dict["roles"] = roles
     user_dict["pendingInvitations"] = pending_invitations_list
     
+    return {
+        "success": True,
+        "data": {
+            "user": user_dict
+        }
+    }
+
+@router.patch("/me", status_code=status.HTTP_200_OK)
+async def update_me(
+    payload: UserUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    repo = UserRepository(db)
+    update_data = payload.model_dump(exclude_unset=True, exclude_none=True)
+    updated = await repo.update(current_user.id, update_data) if update_data else current_user
+    user_dict = UserResponse.model_validate(updated).model_dump(by_alias=True)
     return {
         "success": True,
         "data": {
