@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone, timedelta, date, time
 
-from app.core.time import IST
+from app.core.time import IST, now_ist, session_start_ist
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.schemas.owner import (
@@ -230,6 +230,30 @@ class OwnerService:
             raise ValidationException(
                 message=f"Cannot check in booking in status '{booking.status.value}'",
                 error_code="INVALID_BOOKING_STATUS"
+            )
+
+        # Server-side check-in window: allowed from CHECKIN_EARLY_GRACE_MINUTES
+        # before session start through session end. Placed after the
+        # already-CHECKED_IN early return above so a duplicate scan of a live
+        # session keeps returning cleanly instead of hitting this check.
+        CHECKIN_EARLY_GRACE_MINUTES = 15
+
+        start = session_start_ist(booking.session_date, booking.start_time)
+        end = session_start_ist(booking.session_date, booking.end_time)
+        if end <= start:  # overnight session (e.g. 23:00 -> 01:00)
+            end += timedelta(days=1)
+
+        current = now_ist()
+        if current < start - timedelta(minutes=CHECKIN_EARLY_GRACE_MINUTES):
+            raise ValidationException(
+                message=f"This session starts at {start.strftime('%d %b, %I:%M %p')}. "
+                        f"Check-in opens {CHECKIN_EARLY_GRACE_MINUTES} minutes before.",
+                error_code="CHECKIN_TOO_EARLY",
+            )
+        if current > end:
+            raise ValidationException(
+                message="This session has already ended.",
+                error_code="CHECKIN_WINDOW_CLOSED",
             )
 
         now_utc = datetime.now(timezone.utc)

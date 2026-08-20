@@ -392,6 +392,11 @@ export default function ScannerPage() {
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 0) {
         setIsOffline(true);
+      } else if (err instanceof ApiError && (err.code === 'CHECKIN_TOO_EARLY' || err.code === 'CHECKIN_WINDOW_CLOSED')) {
+        // The backend is the security boundary for the check-in window — the
+        // UI never computes this itself, it only echoes the server's message
+        // (which names the actual session start time) into the failure banner.
+        setErrorMessage(err.message);
       } else {
         const msg = err instanceof Error ? err.message : 'Check-in failed. Please try again.';
         setErrorMessage(msg);
