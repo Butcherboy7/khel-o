@@ -29,7 +29,8 @@ import {
   formatTime,
   getTodayString,
   timeToMinutes,
-  minutesToTimeString,
+  minutesToTimeAndDayOffset,
+  addDaysToDateString,
   calculateWindowRemainingSeats,
 } from '@/lib/format';
 
@@ -47,15 +48,35 @@ function BookingWizardContent() {
   const availableDates = getNext14Days();
   const [selectedDate, setSelectedDate] = useState(searchParams.get('date') || availableDates[0] || getTodayString());
 
-  // Dynamically compute valid initial start time (at least current time + 30 mins)
-  const getInitialValidTime = () => {
+  // Dynamically compute a valid initial start time (at least current time +
+  // 30 mins). When "now + 35 mins, rounded up to the next 30-min mark"
+  // overflows past midnight (e.g. it's 23:35), the computed time wraps to
+  // the small hours (e.g. "00:00:00") — that slot belongs to *tomorrow*,
+  // not `selectedDate`. dayOffset carries that rollover so callers can
+  // advance the effective session date instead of losing it (see
+  // effectiveSessionDate below).
+  const getInitialValidTimeAndOffset = () => {
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const validMin = Math.ceil((nowMin + 35) / 30) * 30;
-    return minutesToTimeString(validMin % 1440);
+    return minutesToTimeAndDayOffset(validMin);
   };
 
-  const [selectedTime, setSelectedTime] = useState(searchParams.get('time') || getInitialValidTime());
+  const initialValid = getInitialValidTimeAndOffset();
+  const [selectedTime, setSelectedTime] = useState(searchParams.get('time') || initialValid.time);
+  // How many calendar days past `selectedDate` the current `selectedTime`
+  // actually falls on (0 = same day, 1 = the overnight tail past
+  // midnight). The value ACTUALLY submitted to the backend and shown to the
+  // user is `addDaysToDateString(selectedDate, selectedDateOffset)` — see
+  // effectiveSessionDate below. Restored from the URL on a login round-trip
+  // so it stays coherent with `time`/`date` there too.
+  const [selectedDateOffset, setSelectedDateOffset] = useState(() => {
+    if (searchParams.get('time')) {
+      const parsed = parseInt(searchParams.get('dayOffset') || '0', 10);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return initialValid.dayOffset;
+  });
   const [durationHours, setDurationHours] = useState(() => {
     const d = parseFloat(searchParams.get('duration') || '');
     return Number.isFinite(d) && d > 0 ? d : 2;
@@ -87,6 +108,13 @@ function BookingWizardContent() {
     (cafe?.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
     (cafe?.tiers && cafe.tiers[0] ? cafe.tiers[0] : null);
 
+  // The calendar date actually submitted to the backend and shown to the
+  // user — `selectedDate` advanced by `selectedDateOffset` when the chosen
+  // start time is on the overnight tail past midnight. This must be used
+  // for BOTH the createBooking() call and the sticky bottom bar summary so
+  // what the user sees is exactly what gets sent (see handleCheckout below).
+  const effectiveSessionDate = addDaysToDateString(selectedDate, selectedDateOffset);
+
   // Keep the URL in sync with the current selection so it survives a
   // redirect to /login and back (see AuthGuard / handleCheckout).
   useEffect(() => {
@@ -95,11 +123,12 @@ function BookingWizardContent() {
     params.set('cafeId', cafeId);
     params.set('date', selectedDate);
     params.set('time', selectedTime);
+    params.set('dayOffset', String(selectedDateOffset));
     params.set('duration', String(durationHours));
     params.set('seats', String(seatsCount));
     if (activeTier?.id) params.set('tierId', activeTier.id);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [cafeId, selectedDate, selectedTime, durationHours, seatsCount, activeTier?.id, pathname, router]);
+  }, [cafeId, selectedDate, selectedTime, selectedDateOffset, durationHours, seatsCount, activeTier?.id, pathname, router]);
 
   const { data: availabilityData } = useQuery({
     queryKey: ['cafe-availability', cafeId, activeTier?.id, selectedDate],
@@ -203,7 +232,9 @@ function BookingWizardContent() {
       }
 
       if (isAvailable) {
-        setSelectedTime(minutesToTimeString(m));
+        const { time, dayOffset } = minutesToTimeAndDayOffset(m);
+        setSelectedTime(time);
+        setSelectedDateOffset(dayOffset);
         foundFirstSlot = true;
         break;
       }
@@ -230,7 +261,9 @@ function BookingWizardContent() {
         }
 
         if (isAvailable) {
-          setSelectedTime(minutesToTimeString(m));
+          const { time, dayOffset } = minutesToTimeAndDayOffset(m);
+          setSelectedTime(time);
+          setSelectedDateOffset(dayOffset);
           setDurationHours(1);
           foundFirstSlot = true;
           break;
@@ -239,7 +272,9 @@ function BookingWizardContent() {
     }
 
     if (!foundFirstSlot && minValidStart < closeMin) {
-      setSelectedTime(minutesToTimeString(minValidStart));
+      const { time, dayOffset } = minutesToTimeAndDayOffset(minValidStart);
+      setSelectedTime(time);
+      setSelectedDateOffset(dayOffset);
     }
   }, [cafe, availabilityData, selectedDate, activeTier?.id, seatsCount]);
 
@@ -284,9 +319,10 @@ function BookingWizardContent() {
   const serviceFee = Math.round(baseTotal * (SERVICE_FEE_PERCENT / 100) * 100) / 100;
   const finalTotal = baseTotal + serviceFee;
 
-  const handleTimelineChange = (newStartTime: string, newDurationHours: number) => {
+  const handleTimelineChange = (newStartTime: string, newDurationHours: number, dayOffset: number) => {
     setSelectedTime(newStartTime);
     setDurationHours(newDurationHours);
+    setSelectedDateOffset(dayOffset);
   };
 
   const handleCheckout = async () => {
@@ -313,7 +349,7 @@ function BookingWizardContent() {
       const bookingRes = await createBooking({
         cafeId: cafe.id,
         hardwareTierId: activeTier.id,
-        sessionDate: selectedDate,
+        sessionDate: effectiveSessionDate,
         startTime: selectedTime,
         durationHours: durationHours,
         seatsCount: seatsCount,
@@ -567,7 +603,7 @@ function BookingWizardContent() {
         <div className="max-w-content mx-auto flex items-center justify-between gap-4">
           <div>
             <span className="text-caption text-text-secondary block truncate max-w-[200px] sm:max-w-none">
-              {formatSessionDate(selectedDate)} • {formatTime(selectedTime)} • {durationHours} hr
+              {formatSessionDate(effectiveSessionDate)} • {formatTime(selectedTime)} • {durationHours} hr
             </span>
             <div className="font-heading text-h1 font-bold text-text-primary">
               <span className="rupee-symbol">₹</span>{finalTotal}

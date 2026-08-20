@@ -6,10 +6,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime, timezone, timedelta, date, time
 
-# KHEL-O is an India-only platform. All customer-submitted booking times
-# are in IST (UTC+5:30). We interpret them as IST for validation.
-IST = timezone(timedelta(hours=5, minutes=30))
-
+from app.core.time import IST
 from app.config import settings
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository

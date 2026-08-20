@@ -199,6 +199,37 @@ export function minutesToTimeString(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
 
+/**
+ * Convert minutes since midnight of the *opening* day to a wall-clock
+ * "HH:MM:SS" string plus how many calendar days past that opening day it
+ * falls on. The timeline works in "minutes past midnight of the opening
+ * day" space, so an overnight session's 00:30 slot is minute 1470 —
+ * `minutesToTimeString` alone would silently wrap that to "00:30:00" via
+ * `% 24`, losing the day boundary. Use this wherever `minutes` can exceed
+ * 1440 (any post-midnight/overnight slot) so callers can advance the
+ * booking's calendar date instead of losing the rollover.
+ */
+export function minutesToTimeAndDayOffset(minutes: number): { time: string; dayOffset: number } {
+  return {
+    time: minutesToTimeString(minutes),
+    dayOffset: Math.floor(minutes / 1440),
+  };
+}
+
+/** Add `days` (may be 0) to a "YYYY-MM-DD" date string, returning a new
+ *  "YYYY-MM-DD" string. Used to turn a selected calendar day + a
+ *  post-midnight day offset (see minutesToTimeAndDayOffset) into the
+ *  effective session date actually submitted to the backend. */
+export function addDaysToDateString(dateStr: string, days: number): string {
+  if (!days) return dateStr;
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 interface BookedSlotLike {
   startTime: string;
   endTime: string;

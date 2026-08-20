@@ -3,12 +3,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone, timedelta, date, time
 
-# KHEL-O is an India-only platform. session_date/start_time/end_time are
-# stored as IST wall-clock values (see booking_service.py) — must be
-# interpreted as IST here too, not UTC, or every auto-transition and
-# no-show check runs 5.5 hours off from the real session time.
-IST = timezone(timedelta(hours=5, minutes=30))
-
+from app.core.time import IST
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.schemas.owner import (

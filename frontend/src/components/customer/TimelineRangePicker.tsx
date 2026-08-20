@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react'
 import { AlertTriangle, Sparkles, Plus, Minus } from 'lucide-react';
 import {
   timeToMinutes,
-  minutesToTimeString,
+  minutesToTimeAndDayOffset,
   formatMinutesTo12h,
   getTodayString,
   calculateWindowRemainingSeats,
@@ -26,7 +26,11 @@ interface TimelineRangePickerProps {
   selectedDate: string;
   startTime: string;
   durationHours: number;
-  onChange: (newStartTime: string, newDurationHours: number) => void;
+  // dayOffset: how many calendar days past `selectedDate` the emitted
+  // startTime actually falls on (0 = same day, 1 = the overnight tail past
+  // midnight). Callers must add this to selectedDate to get the effective
+  // session date — see minutesToTimeAndDayOffset in lib/format.ts.
+  onChange: (newStartTime: string, newDurationHours: number, dayOffset: number) => void;
   bookedSlots?: BookedSlot[];
   totalSeats?: number;
   requestedSeats?: number;
@@ -173,7 +177,8 @@ export function TimelineRangePicker({
     const clampedMin = Math.max(minValidStart, Math.min(closeMin - durMin, snappedMin));
 
     if (clampedMin !== selStart) {
-      onChange(minutesToTimeString(clampedMin), durationHours);
+      const { time, dayOffset } = minutesToTimeAndDayOffset(clampedMin);
+      onChange(time, durationHours, dayOffset);
     }
 
     if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
@@ -200,14 +205,17 @@ export function TimelineRangePicker({
     if (dragMode === 'start') {
       const newStart = Math.max(minValidStart, Math.min(selEnd - 30, dragStartMin.current + deltaMin));
       const newDur = Math.max(0.5, (selEnd - newStart) / 60);
-      onChange(minutesToTimeString(newStart), newDur);
+      const startOffset = minutesToTimeAndDayOffset(newStart);
+      onChange(startOffset.time, newDur, startOffset.dayOffset);
     } else if (dragMode === 'end') {
       const newEnd = Math.max(selStart + 30, Math.min(closeMin, dragStartMin.current + dragDurMin.current + deltaMin));
       const newDur = Math.max(0.5, (newEnd - selStart) / 60);
-      onChange(minutesToTimeString(selStart), newDur);
+      const startOffset = minutesToTimeAndDayOffset(selStart);
+      onChange(startOffset.time, newDur, startOffset.dayOffset);
     } else if (dragMode === 'pan') {
       const newStart = Math.max(minValidStart, Math.min(closeMin - dragDurMin.current, dragStartMin.current + deltaMin));
-      onChange(minutesToTimeString(newStart), durationHours);
+      const startOffset = minutesToTimeAndDayOffset(newStart);
+      onChange(startOffset.time, durationHours, startOffset.dayOffset);
     }
   };
 
@@ -263,7 +271,8 @@ export function TimelineRangePicker({
   const adjustDuration = (deltaHours: number) => {
     const newDur = Math.max(0.5, Math.min(16, durationHours + deltaHours));
     if (selStart + newDur * 60 <= closeMin) {
-      onChange(minutesToTimeString(selStart), newDur);
+      const { time, dayOffset } = minutesToTimeAndDayOffset(selStart);
+      onChange(time, newDur, dayOffset);
     }
   };
 
@@ -273,7 +282,8 @@ export function TimelineRangePicker({
       const ok2 = segments.find((s) => s.start === m + 30)?.state === 'AVAILABLE';
       if (ok1 && ok2) {
         isUserScrolling.current = false;
-        onChange(minutesToTimeString(m), 2);
+        const { time, dayOffset } = minutesToTimeAndDayOffset(m);
+        onChange(time, 2, dayOffset);
         return;
       }
     }
