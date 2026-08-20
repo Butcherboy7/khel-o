@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore, type UserActiveRole } from '@/store/authStore';
 import { Gamepad2, Store, Shield, Headset, RefreshCw, AlertCircle } from 'lucide-react';
@@ -40,17 +41,19 @@ export function RoleSwitcher() {
   const [error, setError] = useState<string | null>(null);
 
   const availableRoles = (user?.roles || []) as UserActiveRole[];
-  const hasMultipleRoles = availableRoles.length > 1;
 
-  if (!user || !hasMultipleRoles) {
+  // Admin is deliberately NOT in the cycle: it is not a "mode" a user toggles
+  // into. Accounts that hold it get an explicit, separate Admin entry point.
+  const cycleOrder: UserActiveRole[] = ['gamer', 'cafe_owner', 'staff'];
+  const ownedInOrder = cycleOrder.filter((r) => availableRoles.includes(r));
+  const hasAdminRole = availableRoles.includes('admin');
+  const hasMultipleCyclableRoles = ownedInOrder.length > 1;
+
+  if (!user || (!hasMultipleCyclableRoles && !hasAdminRole)) {
     return null;
   }
 
   // Cycle to the next role the account actually has, in a stable order
-  // (gamer -> owner -> staff -> admin -> back to gamer), skipping any the
-  // account doesn't hold.
-  const cycleOrder: UserActiveRole[] = ['gamer', 'cafe_owner', 'staff', 'admin'];
-  const ownedInOrder = cycleOrder.filter((r) => availableRoles.includes(r));
   const currentIdx = ownedInOrder.indexOf(activeRole);
   const nextRole = ownedInOrder[(currentIdx + 1) % ownedInOrder.length] || ownedInOrder[0];
 
@@ -70,31 +73,53 @@ export function RoleSwitcher() {
 
   const meta = ROLE_META[activeRole] || ROLE_META.gamer;
   const Icon = meta.icon;
+  const adminMeta = ROLE_META.admin;
+  const AdminIcon = adminMeta.icon;
 
   return (
     <div className="relative inline-flex items-center gap-1.5">
-      <button
-        onClick={handleCycleRole}
-        disabled={isSwitching}
-        className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95 ${COLOR_CLASSES[meta.color]}`}
-        title={`Click to switch to ${ROLE_META[nextRole].label}`}
-      >
-        {isSwitching ? (
-          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <Icon className="h-3.5 w-3.5" />
-        )}
-
-        <span className="inline">{meta.label}</span>
-
-        <Badge
-          variant={BADGE_VARIANT[meta.color]}
-          size="sm"
-          className="hidden sm:inline-flex ml-1 text-[10px] uppercase py-0 px-1.5"
+      {hasMultipleCyclableRoles && (
+        <button
+          onClick={handleCycleRole}
+          disabled={isSwitching}
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95 ${COLOR_CLASSES[meta.color]}`}
+          title={`Click to switch to ${ROLE_META[nextRole].label}`}
         >
-          {meta.badge}
-        </Badge>
-      </button>
+          {isSwitching ? (
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Icon className="h-3.5 w-3.5" />
+          )}
+
+          <span className="inline">{meta.label}</span>
+
+          <Badge
+            variant={BADGE_VARIANT[meta.color]}
+            size="sm"
+            className="hidden sm:inline-flex ml-1 text-[10px] uppercase py-0 px-1.5"
+          >
+            {meta.badge}
+          </Badge>
+        </button>
+      )}
+
+      {hasAdminRole && (
+        <Link
+          href="/admin"
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95 ${COLOR_CLASSES[adminMeta.color]}`}
+          title={adminMeta.label}
+        >
+          <AdminIcon className="h-3.5 w-3.5" />
+          <span className="inline">{adminMeta.label}</span>
+          <Badge
+            variant={BADGE_VARIANT[adminMeta.color]}
+            size="sm"
+            className="hidden sm:inline-flex ml-1 text-[10px] uppercase py-0 px-1.5"
+          >
+            {adminMeta.badge}
+          </Badge>
+        </Link>
+      )}
 
       {error && (
         <span className="text-[10px] text-rose-400 flex items-center gap-1 font-medium">
