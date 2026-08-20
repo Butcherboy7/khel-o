@@ -68,14 +68,30 @@ function BookingWizardContent() {
   // actually falls on (0 = same day, 1 = the overnight tail past
   // midnight). The value ACTUALLY submitted to the backend and shown to the
   // user is `addDaysToDateString(selectedDate, selectedDateOffset)` — see
-  // effectiveSessionDate below. Restored from the URL on a login round-trip
-  // so it stays coherent with `time`/`date` there too.
+  // effectiveSessionDate below.
+  //
+  // Deliberately NOT seeded from `initialValid.dayOffset`: that guess comes
+  // from the wall clock alone, with no knowledge of the café's actual
+  // opening/closing hours, so it cannot tell "past midnight, overnight
+  // venue" apart from "past midnight, venue that's simply closed right
+  // now." Seeding it from the clock let a non-overnight café (e.g.
+  // 10:00-23:00) opened at 23:35 get stuck at dayOffset=1 with no later
+  // branch able to correct it — see the café-aware auto-select effect
+  // below, which is the only thing allowed to set this once real café
+  // hours are known. It starts at 0 (same day) and, until that effect
+  // runs, a stale initial time guess simply fails the backend's lead-time
+  // check the same way it did before this feature existed, instead of
+  // silently mis-dating the booking.
+  //
+  // Restored from the URL on a login round-trip so it stays coherent with
+  // `time`/`date` there too — clamped to [0, 1] since it's untrusted input
+  // (a crafted `?dayOffset=45` must not be able to shift the submitted
+  // sessionDate 45 days out).
   const [selectedDateOffset, setSelectedDateOffset] = useState(() => {
-    if (searchParams.get('time')) {
-      const parsed = parseInt(searchParams.get('dayOffset') || '0', 10);
-      return Number.isFinite(parsed) ? parsed : 0;
-    }
-    return initialValid.dayOffset;
+    if (!searchParams.get('time')) return 0;
+    const parsed = parseInt(searchParams.get('dayOffset') || '0', 10);
+    const safe = Number.isFinite(parsed) ? parsed : 0;
+    return Math.min(1, Math.max(0, safe));
   });
   const [durationHours, setDurationHours] = useState(() => {
     const d = parseFloat(searchParams.get('duration') || '');
@@ -451,7 +467,15 @@ function BookingWizardContent() {
             return (
               <button
                 key={dateStr}
-                onClick={() => setSelectedDate(dateStr)}
+                onClick={() => {
+                  setSelectedDate(dateStr);
+                  // A freshly picked calendar day always starts as "same
+                  // day" until the café-aware auto-select effect (keyed on
+                  // selectedDate) re-evaluates real availability and hours;
+                  // otherwise the sticky bar can show yesterday's leftover
+                  // +1-day offset for a moment during the refetch.
+                  setSelectedDateOffset(0);
+                }}
                 className={`flex flex-col items-center justify-center h-20 w-16 rounded-2xl flex-shrink-0 transition-all ${
                   isSelected
                     ? 'bg-secondary text-white shadow-float font-bold scale-105'
