@@ -1,12 +1,13 @@
 'use client';
 
-import { LogIn } from 'lucide-react';
+import { LogIn, UserPlus } from 'lucide-react';
 import { Modal, Button } from '@/components/ui';
 
 interface LoginRequiredDialogProps {
   isOpen: boolean;
   onCancel: () => void;
   onLogin: () => void;
+  onRegister?: () => void;
   title?: string;
   description?: string;
 }
@@ -15,15 +16,16 @@ interface LoginRequiredDialogProps {
  * Explains *why* a protected action was blocked instead of silently
  * redirecting to /login. Purely a UX affordance — the backend remains the
  * actual security boundary; this dialog just tells the visitor what
- * happened and lets them choose to log in (preserving whatever they were
- * doing) or stay put.
+ * happened and lets them choose to log in or create an account (preserving
+ * whatever they were doing) or stay put.
  */
 export function LoginRequiredDialog({
   isOpen,
   onCancel,
   onLogin,
+  onRegister,
   title = 'Login required',
-  description = "Please log in to continue with your booking. We'll bring you right back to this slot.",
+  description = 'Please log in or create an account to continue with your booking.',
 }: LoginRequiredDialogProps) {
   return (
     <Modal
@@ -31,11 +33,18 @@ export function LoginRequiredDialog({
       onClose={onCancel}
       title={title}
       footer={
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2 flex-wrap">
           <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
+          {onRegister && (
+            <Button variant="secondary" onClick={onRegister}>
+              <UserPlus className="h-4 w-4 mr-1.5" />
+              Create account
+            </Button>
+          )}
           <Button variant="primary" onClick={onLogin}>
+            <LogIn className="h-4 w-4 mr-1.5" />
             Log in
           </Button>
         </div>

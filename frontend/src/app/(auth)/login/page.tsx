@@ -9,6 +9,7 @@ import { Button, Input, Card, CardContent } from '@/components/ui';
 import { login } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { getBookingIntent, clearBookingIntent } from '@/lib/bookingIntent';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -50,8 +51,18 @@ function LoginForm() {
       setAuth(res.user, res.accessToken, res.refreshToken);
 
       if (redirectPath) {
+        clearBookingIntent();
         router.push(redirectPath);
       } else {
+        // No ?redirect= — the app may have crashed mid-navigation before it
+        // could attach one (see global-error.tsx). Fall back to a booking
+        // intent persisted in localStorage, which survives a crash + reload.
+        const intent = getBookingIntent();
+        if (intent) {
+          clearBookingIntent();
+          router.push(intent.returnPath);
+          return;
+        }
         switch (res.user.role) {
           case 'cafe_owner':
           case 'staff':

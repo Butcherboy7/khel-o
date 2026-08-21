@@ -39,9 +39,9 @@ export default function GlobalError({
     <html>
       <body style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif', background: '#F1EFEA', color: '#111318', padding: '24px', textAlign: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px' }}>Something went wrong</h1>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px' }}>Hold on a moment</h1>
           <p style={{ color: '#5A5E6B', marginBottom: '20px' }}>
-            Please refresh the page. If this keeps happening, try closing and reopening the app.
+            That didn&apos;t load right. Tap reload and you&apos;ll be right back where you left off — nothing you selected is lost.
           </p>
           <button
             onClick={() => window.location.reload()}

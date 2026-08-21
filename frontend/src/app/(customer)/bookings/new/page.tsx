@@ -22,6 +22,7 @@ import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { useAuthStore } from '@/store/authStore';
 import { Card, CardContent, Skeleton, ErrorState } from '@/components/ui';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
+import { saveBookingIntent } from '@/lib/bookingIntent';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
 import {
   getNext14Days,
@@ -377,14 +378,38 @@ function BookingWizardContent() {
     setSelectedDateOffset(dayOffset);
   };
 
-  const handleLoginFromPrompt = () => {
+  const navigateToAuth = (target: '/login' | '/register') => {
     // Redirect URL construction is untouched from the original inline
     // redirect — it already mirrors date/tier/time/seats via the URL sync
     // effect above, so this round-trip continues to land back on the same
-    // slot after login.
+    // slot after login/register.
     const fullPath = `${pathname}?${searchParams.toString()}`;
-    router.push(`/login?redirect=${encodeURIComponent(fullPath)}`);
+
+    // Also persist to localStorage so the selection survives a crash (see
+    // global-error.tsx) + reload, which would otherwise drop the ?redirect=
+    // param entirely. This is navigation intent only — never a source of
+    // truth for price/availability, which the backend always revalidates.
+    saveBookingIntent({
+      cafeId,
+      sessionDate: effectiveSessionDate,
+      startTime: selectedTime,
+      durationHours,
+      seatsCount,
+      tierId: activeTier?.id,
+      dayOffset: selectedDateOffset,
+      returnPath: fullPath,
+    });
+
+    const url = `${target}?redirect=${encodeURIComponent(fullPath)}`;
+    try {
+      router.push(url);
+    } catch {
+      window.location.assign(url);
+    }
   };
+
+  const handleLoginFromPrompt = () => navigateToAuth('/login');
+  const handleRegisterFromPrompt = () => navigateToAuth('/register');
 
   const handleCheckout = async () => {
     if (!activeTier) {
@@ -399,6 +424,7 @@ function BookingWizardContent() {
     // (handleLoginFromPrompt below), which still preserves the current
     // selection exactly as before via the URL sync effect above.
     if (!isAuthenticated) {
+      setError(null);
       setShowLoginPrompt(true);
       return;
     }
@@ -713,6 +739,7 @@ function BookingWizardContent() {
         isOpen={showLoginPrompt}
         onCancel={() => setShowLoginPrompt(false)}
         onLogin={handleLoginFromPrompt}
+        onRegister={handleRegisterFromPrompt}
       />
 
       {/* Mock Payment Modal for Sandbox Mode */}

@@ -9,6 +9,7 @@ import { Button, Input, Card, CardContent } from '@/components/ui';
 import { register } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { getBookingIntent, clearBookingIntent } from '@/lib/bookingIntent';
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
@@ -59,9 +60,19 @@ function RegisterForm() {
       setAuth(res.user, res.accessToken, res.refreshToken);
 
       if (redirectPath) {
+        clearBookingIntent();
         router.push(redirectPath);
       } else {
-        router.push('/');
+        // No ?redirect= — fall back to a booking intent persisted in
+        // localStorage, which survives a crash + reload (see
+        // global-error.tsx) that could otherwise drop the query param.
+        const intent = getBookingIntent();
+        if (intent) {
+          clearBookingIntent();
+          router.push(intent.returnPath);
+        } else {
+          router.push('/');
+        }
       }
     } catch (err: any) {
       setError(err?.message || 'Registration failed. Please check your inputs.');
