@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore, type UserActiveRole } from '@/store/authStore';
 import { Gamepad2, Store, Shield, Headset, RefreshCw, AlertCircle } from 'lucide-react';
@@ -71,10 +70,31 @@ export function RoleSwitcher() {
     }
   };
 
+  // Entering the admin workspace is a CONTEXT switch, not a navigation. It must
+  // go through /auth/switch-role so the backend re-verifies the admin
+  // entitlement against user_roles and issues a token whose activeRole is
+  // 'admin'. A bare <Link href="/admin"> left activeRole as 'cafe_owner', and
+  // AuthGuard (which gates on activeRole) bounced the user straight back out —
+  // that is why a legitimate admin lost access to /admin entirely.
+  const handleEnterAdmin = async () => {
+    setError(null);
+    setIsSwitching(true);
+
+    try {
+      await switchActiveRole('admin');
+      router.push(ROLE_META.admin.route);
+    } catch (err: any) {
+      setError(err?.message || "You don't have permission to access Admin");
+    } finally {
+      setIsSwitching(false);
+    }
+  };
+
   const meta = ROLE_META[activeRole] || ROLE_META.gamer;
   const Icon = meta.icon;
   const adminMeta = ROLE_META.admin;
   const AdminIcon = adminMeta.icon;
+  const isInAdminWorkspace = activeRole === 'admin';
 
   return (
     <div className="relative inline-flex items-center gap-1.5">
@@ -103,13 +123,19 @@ export function RoleSwitcher() {
         </button>
       )}
 
-      {hasAdminRole && (
-        <Link
-          href="/admin"
-          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95 ${COLOR_CLASSES[adminMeta.color]}`}
+      {hasAdminRole && !isInAdminWorkspace && (
+        <button
+          type="button"
+          onClick={handleEnterAdmin}
+          disabled={isSwitching}
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95 disabled:opacity-60 ${COLOR_CLASSES[adminMeta.color]}`}
           title={adminMeta.label}
         >
-          <AdminIcon className="h-3.5 w-3.5" />
+          {isSwitching ? (
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <AdminIcon className="h-3.5 w-3.5" />
+          )}
           <span className="inline">{adminMeta.label}</span>
           <Badge
             variant={BADGE_VARIANT[adminMeta.color]}
@@ -118,7 +144,7 @@ export function RoleSwitcher() {
           >
             {adminMeta.badge}
           </Badge>
-        </Link>
+        </button>
       )}
 
       {error && (

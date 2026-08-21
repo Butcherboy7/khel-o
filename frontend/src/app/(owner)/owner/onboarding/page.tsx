@@ -16,7 +16,8 @@ import {
   Gamepad2,
   FileText,
   Plus,
-  Trash2
+  Trash2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } from '@/lib/api/owner';
 import { useAuthStore } from '@/store/authStore';
@@ -1057,42 +1058,27 @@ export default function OnboardingWizardPage() {
                   </div>
                 </div>
 
+                {/* Photos are uploaded from the device AFTER the café exists: the
+                    presigned-upload endpoint is scoped to a real cafe_id
+                    (/owner/cafes/{cafe_id}/photos/presign), so there is nothing to
+                    sign against until this form is submitted. Asking an owner to
+                    paste an image URL here was the wrong ask — point them at the
+                    real uploader instead. */}
                 <div className="flex flex-col gap-2">
-                  <label className="text-caption font-semibold text-text-primary">Venue Photos (URLs)</label>
-                  {formData.photos.map((photo, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <Input
-                        value={photo}
-                        placeholder="https://images.unsplash.com/..."
-                        onChange={(e) => {
-                          const updated = [...formData.photos];
-                          updated[idx] = e.target.value;
-                          updateField('photos', updated);
-                        }}
-                      />
-                      {formData.photos.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            updateField('photos', formData.photos.filter((_, i) => i !== idx));
-                          }}
-                          className="text-rose-500 p-2"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
+                  <label className="text-caption font-semibold text-text-primary">Venue Photos</label>
+                  <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
+                    <div className="h-9 w-9 flex-shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                      <ImageIcon className="h-4 w-4" />
                     </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => updateField('photos', [...formData.photos, ''])}
-                    className="self-start gap-1 text-emerald-600"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Add Photo URL</span>
-                  </Button>
+                    <p className="text-caption text-text-secondary">
+                      You&apos;ll upload real photos straight from your phone or computer as soon as
+                      this café is created — head to{' '}
+                      <span className="font-semibold text-text-primary">
+                        Café Settings → Edit Profile → Amenities &amp; Photos
+                      </span>
+                      . Until then your listing shows a placeholder image.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
