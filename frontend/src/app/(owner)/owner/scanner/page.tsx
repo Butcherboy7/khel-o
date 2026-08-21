@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, FormEvent, ChangeEvent } from 'react';
 import Script from 'next/script';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   QrCode,
   Search,
@@ -20,11 +21,15 @@ import {
   WifiOff,
   HelpCircle,
   Phone,
+  XCircle,
+  Hash,
+  CalendarDays,
+  type LucideIcon,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useDebounce } from '@/hooks/useDebounce';
-import { Card, CardContent, Button, Input, Badge } from '@/components/ui';
+import { Card, CardContent, Button, Input } from '@/components/ui';
 import { checkinBooking } from '@/lib/api/owner';
 import { validateQRCode, searchCheckinCandidates, type QRValidationResponse, type CheckinCandidate } from '@/lib/api/scanner';
 import { ApiError } from '@/lib/api/errors';
@@ -69,6 +74,110 @@ declare global {
   }
 }
 
+// One overlay "kind" per server verdict. Everything here is a straight
+// presentation mapping of what the backend already told us — no new
+// eligibility rules are computed on the client.
+type OverlayKind =
+  | 'loading'
+  | 'offline'
+  | 'server_error'
+  | 'invalid_qr'
+  | 'forbidden'
+  | 'too_early'
+  | 'window_closed'
+  | 'invalid_status'
+  | 'already_checked_in'
+  | 'checked_in_now'
+  | 'ready';
+
+interface OverlayPresentation {
+  icon: LucideIcon;
+  headline: string;
+  bg: string;
+  iconColor: string;
+  textColor: string;
+}
+
+const OVERLAY_PRESENTATION: Record<OverlayKind, OverlayPresentation> = {
+  loading: {
+    icon: RefreshCw,
+    headline: 'Verifying Pass…',
+    bg: 'bg-surface-hover',
+    iconColor: 'text-text-tertiary',
+    textColor: 'text-text-primary',
+  },
+  offline: {
+    icon: WifiOff,
+    headline: "Couldn't Verify This Pass",
+    bg: 'bg-slate-500/10',
+    iconColor: 'text-slate-500',
+    textColor: 'text-slate-600',
+  },
+  server_error: {
+    icon: WifiOff,
+    headline: "Couldn't Verify This Pass",
+    bg: 'bg-slate-500/10',
+    iconColor: 'text-slate-500',
+    textColor: 'text-slate-600',
+  },
+  invalid_qr: {
+    icon: HelpCircle,
+    headline: 'Invalid or Unrecognized QR Code',
+    bg: 'bg-slate-500/10',
+    iconColor: 'text-slate-500',
+    textColor: 'text-slate-600',
+  },
+  forbidden: {
+    icon: XCircle,
+    headline: 'Wrong Café',
+    bg: 'bg-rose-500/10',
+    iconColor: 'text-rose-500',
+    textColor: 'text-rose-600',
+  },
+  too_early: {
+    icon: Clock,
+    headline: "Booking Hasn't Started Yet",
+    bg: 'bg-amber-500/10',
+    iconColor: 'text-amber-500',
+    textColor: 'text-amber-600',
+  },
+  window_closed: {
+    icon: XCircle,
+    headline: 'Booking Expired',
+    bg: 'bg-rose-500/10',
+    iconColor: 'text-rose-500',
+    textColor: 'text-rose-600',
+  },
+  invalid_status: {
+    icon: AlertCircle,
+    headline: "Can't Check In This Booking",
+    bg: 'bg-rose-500/10',
+    iconColor: 'text-rose-500',
+    textColor: 'text-rose-600',
+  },
+  already_checked_in: {
+    icon: ShieldCheck,
+    headline: 'Already Checked In',
+    bg: 'bg-sky-500/10',
+    iconColor: 'text-sky-500',
+    textColor: 'text-sky-600',
+  },
+  checked_in_now: {
+    icon: CheckCircle2,
+    headline: 'Checked In!',
+    bg: 'bg-emerald-500/10',
+    iconColor: 'text-emerald-500',
+    textColor: 'text-emerald-600',
+  },
+  ready: {
+    icon: CheckCircle2,
+    headline: 'Valid Pass',
+    bg: 'bg-emerald-500/10',
+    iconColor: 'text-emerald-500',
+    textColor: 'text-emerald-600',
+  },
+};
+
 export default function ScannerPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'camera' | 'upload' | 'manual'>('camera');
@@ -76,6 +185,14 @@ export default function ScannerPage() {
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<QRValidationResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // The backend's error code + HTTP status for the current errorMessage, so
+  // the overlay can pick the right headline/color/actions without inventing
+  // any client-side logic — it only ever branches on what the server said.
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  // Last thing we asked the server to validate — lets "Try Again" (network /
+  // 5xx) retry the exact same code instead of forcing a rescan.
+  const [lastAttempt, setLastAttempt] = useState<{ input: string; method: CheckinMethod } | null>(null);
   const [isCheckinSubmitting, setIsCheckinSubmitting] = useState(false);
   const [checkinSuccessMsg, setCheckinSuccessMsg] = useState<string | null>(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
@@ -105,6 +222,18 @@ export default function ScannerPage() {
 
   const scannerRef = useRef<Html5QrcodeInstance | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Whether a scan result (or an in-flight lookup) is currently occupying the
+  // overlay. Read from a ref inside the camera's onSuccess callback — that
+  // callback is captured once when the camera starts, so it can't see fresh
+  // render-scope state — to stop the camera from firing another validate
+  // call for every frame it re-reads the same still-visible QR pass.
+  const resultShowingRef = useRef(false);
+  useEffect(() => {
+    resultShowingRef.current = Boolean(
+      isValidating || isOffline || errorMessage || validationResult
+    );
+  }, [isValidating, isOffline, errorMessage, validationResult]);
 
   const clearScanStuckTimer = () => {
     if (scanStuckTimerRef.current) {
@@ -182,6 +311,7 @@ export default function ScannerPage() {
       };
 
       const handleScanSuccess = (decodedText: string) => {
+        if (resultShowingRef.current) return;
         clearScanStuckTimer();
         handleValidate(decodedText, 'qr_camera');
       };
@@ -266,13 +396,33 @@ export default function ScannerPage() {
     }
   };
 
+  // Shared by handleValidate and handleCheckIn — the server is the source of
+  // truth for every failure mode, so this only ever echoes its status/code/
+  // message into state; it never computes or overrides what went wrong.
+  const applyApiError = (err: unknown, fallbackMsg: string) => {
+    if (err instanceof ApiError && err.status === 0) {
+      setIsOffline(true);
+      return;
+    }
+    if (err instanceof ApiError) {
+      setErrorMessage(err.message);
+      setErrorCode(err.code ?? null);
+      setErrorStatus(err.status);
+      return;
+    }
+    setErrorMessage(err instanceof Error ? err.message : fallbackMsg);
+  };
+
   const handleValidate = async (qrInput: string, method: CheckinMethod = checkinMethod) => {
     if (!qrInput.trim()) return;
 
     setCheckinMethod(method);
+    setLastAttempt({ input: qrInput, method });
     setIsValidating(true);
     setIsOffline(false);
     setErrorMessage(null);
+    setErrorCode(null);
+    setErrorStatus(null);
     setCheckinSuccessMsg(null);
     setValidationResult(null);
 
@@ -284,15 +434,14 @@ export default function ScannerPage() {
         setValidationResult(res);
       }
     } catch (err: unknown) {
-      if (err instanceof ApiError && err.status === 0) {
-        setIsOffline(true);
-      } else {
-        const msg = err instanceof Error ? err.message : 'Validation failed. Please try again.';
-        setErrorMessage(msg);
-      }
+      applyApiError(err, 'Validation failed. Please try again.');
     } finally {
       setIsValidating(false);
     }
+  };
+
+  const handleRetry = () => {
+    if (lastAttempt) handleValidate(lastAttempt.input, lastAttempt.method);
   };
 
   const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -372,6 +521,8 @@ export default function ScannerPage() {
     setIsCheckinSubmitting(true);
     setCheckinSuccessMsg(null);
     setErrorMessage(null);
+    setErrorCode(null);
+    setErrorStatus(null);
     setIsOffline(false);
 
     try {
@@ -390,17 +541,11 @@ export default function ScannerPage() {
         });
       }
     } catch (err: unknown) {
-      if (err instanceof ApiError && err.status === 0) {
-        setIsOffline(true);
-      } else if (err instanceof ApiError && (err.code === 'CHECKIN_TOO_EARLY' || err.code === 'CHECKIN_WINDOW_CLOSED')) {
-        // The backend is the security boundary for the check-in window — the
-        // UI never computes this itself, it only echoes the server's message
-        // (which names the actual session start time) into the failure banner.
-        setErrorMessage(err.message);
-      } else {
-        const msg = err instanceof Error ? err.message : 'Check-in failed. Please try again.';
-        setErrorMessage(msg);
-      }
+      // The backend is the security boundary for the check-in window and café
+      // scoping — the UI never computes this itself, it only echoes the
+      // server's code/message (which names the actual session start time)
+      // into the overlay.
+      applyApiError(err, 'Check-in failed. Please try again.');
     } finally {
       setIsCheckinSubmitting(false);
     }
@@ -409,11 +554,46 @@ export default function ScannerPage() {
   const resetState = () => {
     setValidationResult(null);
     setErrorMessage(null);
+    setErrorCode(null);
+    setErrorStatus(null);
     setCheckinSuccessMsg(null);
     setManualQuery('');
     setManualResults([]);
     setIsOffline(false);
+    setLastAttempt(null);
   };
+
+  // Dismiss the overlay and re-arm the camera for the next scan.
+  const handleDismiss = () => {
+    resetState();
+    startScanStuckTimer();
+  };
+
+  // Translate current state into exactly one overlay kind. Priority order:
+  // an in-flight lookup, then a hard failure (offline/error), then a
+  // successful lookup's booking status. Every branch reads only fields the
+  // server already gave us.
+  const resolveOverlayKind = (): OverlayKind | null => {
+    if (isValidating) return 'loading';
+    if (isOffline) return 'offline';
+    if (errorMessage) {
+      if (errorCode === 'CHECKIN_TOO_EARLY') return 'too_early';
+      if (errorCode === 'CHECKIN_WINDOW_CLOSED') return 'window_closed';
+      if (errorCode === 'INVALID_BOOKING_STATUS') return 'invalid_status';
+      if (errorCode === 'FORBIDDEN') return 'forbidden';
+      if (errorStatus !== null && errorStatus >= 500) return 'server_error';
+      return 'invalid_qr';
+    }
+    if (validationResult?.booking) {
+      if (checkinSuccessMsg) return 'checked_in_now';
+      if (validationResult.alreadyCheckedIn) return 'already_checked_in';
+      return 'ready';
+    }
+    return null;
+  };
+
+  const overlayKind = resolveOverlayKind();
+  const overlayBooking = validationResult?.booking ?? null;
 
   return (
     <div className="max-w-3xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-6">
@@ -695,142 +875,215 @@ export default function ScannerPage() {
             </div>
           )}
 
-          {/* Offline — distinct from an invalid pass, so staff know it's their connection, not the customer's booking */}
-          {isOffline && (
-            <div className="p-4 rounded-2xl bg-slate-500/10 border border-slate-500/20 text-slate-600 text-caption font-semibold flex items-center gap-3">
-              <WifiOff className="h-5 w-5 shrink-0" />
-              <div className="flex-1">
-                <p>No internet connection.</p>
-                <p className="text-xs font-normal text-slate-500 mt-0.5">Check your connection, then try again.</p>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => setIsOffline(false)} className="gap-1.5 shrink-0">
-                <RefreshCw className="h-3.5 w-3.5" /> Dismiss
-              </Button>
-            </div>
-          )}
-
-          {/* Validation Error Message */}
-          {errorMessage && (
-            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 text-caption font-semibold flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex items-center gap-3 flex-1">
-                <AlertCircle className="h-5 w-5 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-              {activeTab !== 'manual' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveTab('manual')}
-                  className="gap-1.5 shrink-0 border-rose-500/40 text-rose-600 hover:bg-rose-500/10"
-                >
-                  <Search className="h-3.5 w-3.5" /> Try Manual Lookup
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Check-In Success Message — full-width and unmissable, not a small inline note */}
-          {checkinSuccessMsg && (
-            <div className="p-5 rounded-2xl bg-emerald-500 text-slate-950 flex items-center gap-3 shadow-float">
-              <CheckCircle2 className="h-8 w-8 shrink-0" />
-              <span className="font-heading text-body font-bold">{checkinSuccessMsg}</span>
-            </div>
-          )}
-
-          {/* Validation Result Card */}
-          {validationResult && validationResult.booking && (
-            <div className="flex flex-col gap-5 pt-2 border-t border-border mt-2">
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-hover border border-border">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-lg">
-                    {validationResult.booking.gamerName[0]?.toUpperCase() || 'G'}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-heading text-body font-bold text-text-primary">
-                      {validationResult.booking.gamerName}
-                    </span>
-                    <span className="text-caption text-text-secondary">
-                      Ref: <strong>{validationResult.booking.bookingReference}</strong>
-                    </span>
-                  </div>
-                </div>
-
-                <Badge
-                  variant={
-                    validationResult.alreadyCheckedIn
-                      ? 'success'
-                      : validationResult.booking.status === 'confirmed'
-                      ? 'success'
-                      : 'warning'
-                  }
-                >
-                  {validationResult.alreadyCheckedIn ? 'Checked In ✓' : validationResult.booking.status}
-                </Badge>
-              </div>
-
-              {validationResult.alreadyCheckedIn && (
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 text-caption flex items-center gap-2 font-medium">
-                  <Clock className="h-4 w-4 shrink-0" />
-                  <span>
-                    This pass was already checked in
-                    {validationResult.checkedInByName ? ` by ${validationResult.checkedInByName}` : ''}
-                    {validationResult.checkedInAt
-                      ? ` on ${new Date(validationResult.checkedInAt).toLocaleTimeString()}`
-                      : ''}
-                    .
-                  </span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 text-caption">
-                <div className="p-3.5 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
-                  <span className="text-text-tertiary text-xs flex items-center gap-1">
-                    <Monitor className="h-3.5 w-3.5" /> Hardware Tier
-                  </span>
-                  <span className="font-semibold text-text-primary">{validationResult.booking.tierName}</span>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
-                  <span className="text-text-tertiary text-xs flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" /> Session Window
-                  </span>
-                  <span className="font-semibold text-text-primary">
-                    {validationResult.booking.startTime} - {validationResult.booking.endTime} ({validationResult.booking.durationHours} hrs)
-                  </span>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
-                  <span className="text-text-tertiary text-xs flex items-center gap-1">
-                    <Layers className="h-3.5 w-3.5" /> Station Seats
-                  </span>
-                  <span className="font-semibold text-text-primary">{validationResult.booking.seatsCount} Seat(s)</span>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
-                  <span className="text-text-tertiary text-xs flex items-center gap-1">
-                    <User className="h-3.5 w-3.5" /> Amount Paid
-                  </span>
-                  <span className="font-semibold text-emerald-600 text-body">₹{validationResult.booking.totalAmount}</span>
-                </div>
-              </div>
-
-              {!validationResult.alreadyCheckedIn && (
-                <Button
-                  variant="primary"
-                  size="lg"
-                  fullWidth
-                  isLoading={isCheckinSubmitting}
-                  onClick={() => handleCheckIn(validationResult.booking!.id)}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold gap-2 mt-2"
-                >
-                  <ShieldCheck className="h-5 w-5" />
-                  <span>Confirm 1-Tap Station Check In</span>
-                </Button>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
+
+      {/* ── Full-screen scan result overlay ─────────────────────────────
+          Renders above the camera the instant a lookup starts, so staff
+          never scroll to see the verdict or the primary action. Every
+          headline/color/action below is keyed off `overlayKind`, which is
+          derived purely from state the backend already gave us. */}
+      <AnimatePresence>
+        {overlayKind && (
+          <div className="fixed inset-0 z-overlay flex items-end sm:items-center justify-center">
+            <motion.div
+              className="absolute inset-0 bg-secondary/70 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={overlayKind !== 'loading' ? handleDismiss : undefined}
+              aria-hidden="true"
+            />
+
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              className="relative z-10 w-full sm:max-w-lg mx-auto rounded-t-3xl sm:rounded-3xl bg-card shadow-overlay flex flex-col min-h-[62vh] max-h-[92vh] overflow-hidden"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+            >
+              {/* Drag handle */}
+              <div className="flex justify-center pt-3 pb-1 shrink-0">
+                <div className="h-1.5 w-12 rounded-full bg-border" />
+              </div>
+
+              {/* Scrollable status + details area */}
+              <div className="flex-1 overflow-y-auto px-5 pb-4 flex flex-col gap-5">
+                {/* Big status headline */}
+                <div className={`rounded-3xl p-6 flex flex-col items-center text-center gap-2 ${OVERLAY_PRESENTATION[overlayKind].bg}`}>
+                  {(() => {
+                    const Icon = OVERLAY_PRESENTATION[overlayKind].icon;
+                    return (
+                      <Icon
+                        className={`h-16 w-16 ${OVERLAY_PRESENTATION[overlayKind].iconColor} ${
+                          overlayKind === 'loading' ? 'animate-spin' : ''
+                        }`}
+                      />
+                    );
+                  })()}
+                  <h2 className={`font-heading text-h1 font-extrabold ${OVERLAY_PRESENTATION[overlayKind].textColor}`}>
+                    {OVERLAY_PRESENTATION[overlayKind].headline}
+                  </h2>
+
+                  {overlayKind === 'loading' && (
+                    <p className="text-caption font-medium text-text-secondary">Checking this pass with the server…</p>
+                  )}
+                  {overlayKind === 'checked_in_now' && checkinSuccessMsg && (
+                    <p className="text-caption font-semibold text-emerald-600/90">{checkinSuccessMsg}</p>
+                  )}
+                  {(overlayKind === 'too_early' ||
+                    overlayKind === 'window_closed' ||
+                    overlayKind === 'invalid_status' ||
+                    overlayKind === 'forbidden' ||
+                    overlayKind === 'invalid_qr' ||
+                    overlayKind === 'server_error' ||
+                    overlayKind === 'offline') &&
+                    errorMessage && (
+                      <p className={`text-caption font-medium ${OVERLAY_PRESENTATION[overlayKind].textColor}/90`}>
+                        {errorMessage}
+                      </p>
+                    )}
+                  {overlayKind === 'already_checked_in' && (
+                    <p className="text-caption font-medium text-sky-600/90">
+                      This pass was already checked in
+                      {validationResult?.checkedInByName ? ` by ${validationResult.checkedInByName}` : ''}
+                      {validationResult?.checkedInAt
+                        ? ` at ${new Date(validationResult.checkedInAt).toLocaleTimeString()}`
+                        : ''}
+                      .
+                    </p>
+                  )}
+                  {overlayKind === 'ready' && (
+                    <p className="text-caption font-medium text-emerald-600/90">Ready for station check-in.</p>
+                  )}
+                </div>
+
+                {/* Booking details — shown whenever we have a booking on hand,
+                    regardless of whether a later check-in attempt failed. */}
+                {overlayBooking && (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-surface-hover border border-border">
+                      <div className="h-11 w-11 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-lg shrink-0">
+                        {overlayBooking.gamerName[0]?.toUpperCase() || 'G'}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-heading text-body font-bold text-text-primary truncate">
+                          {overlayBooking.gamerName}
+                        </span>
+                        {overlayBooking.gamerPhone && (
+                          <span className="text-caption text-text-secondary flex items-center gap-1">
+                            <Phone className="h-3.5 w-3.5" /> {overlayBooking.gamerPhone}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5 text-caption">
+                      <div className="p-3 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
+                        <span className="text-text-tertiary text-xs flex items-center gap-1">
+                          <Hash className="h-3.5 w-3.5" /> Reference
+                        </span>
+                        <span className="font-semibold text-text-primary truncate">{overlayBooking.bookingReference}</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
+                        <span className="text-text-tertiary text-xs flex items-center gap-1">
+                          <AlertCircle className="h-3.5 w-3.5" /> Status
+                        </span>
+                        <span className="font-semibold text-text-primary capitalize">{overlayBooking.status.replace(/_/g, ' ')}</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
+                        <span className="text-text-tertiary text-xs flex items-center gap-1">
+                          <CalendarDays className="h-3.5 w-3.5" /> Date
+                        </span>
+                        <span className="font-semibold text-text-primary">{overlayBooking.sessionDate}</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
+                        <span className="text-text-tertiary text-xs flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" /> Time
+                        </span>
+                        <span className="font-semibold text-text-primary">
+                          {overlayBooking.startTime} - {overlayBooking.endTime}
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
+                        <span className="text-text-tertiary text-xs flex items-center gap-1">
+                          <Monitor className="h-3.5 w-3.5" /> Hardware Tier
+                        </span>
+                        <span className="font-semibold text-text-primary truncate">{overlayBooking.tierName}</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
+                        <span className="text-text-tertiary text-xs flex items-center gap-1">
+                          <Layers className="h-3.5 w-3.5" /> Seats
+                        </span>
+                        <span className="font-semibold text-text-primary">{overlayBooking.seatsCount} Seat(s)</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-surface-hover border border-border flex items-center justify-between">
+                      <span className="text-text-tertiary text-xs flex items-center gap-1">
+                        <User className="h-3.5 w-3.5" /> Amount Paid
+                      </span>
+                      <span className="font-bold text-emerald-600 text-body">₹{overlayBooking.totalAmount}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Thumb-reachable action bar, always pinned to the bottom */}
+              {overlayKind !== 'loading' && (
+                <div className="border-t border-border p-4 flex flex-col gap-2 shrink-0 safe-bottom bg-card">
+                  {overlayKind === 'ready' && (
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      fullWidth
+                      isLoading={isCheckinSubmitting}
+                      loadingText="Checking In..."
+                      onClick={() => overlayBooking && handleCheckIn(overlayBooking.id)}
+                      className="min-h-[56px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold gap-2"
+                    >
+                      <ShieldCheck className="h-5 w-5" />
+                      <span>Check In</span>
+                    </Button>
+                  )}
+
+                  {(overlayKind === 'offline' || overlayKind === 'server_error') && (
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      fullWidth
+                      onClick={handleRetry}
+                      className="min-h-[56px] font-bold gap-2"
+                    >
+                      <RefreshCw className="h-5 w-5" />
+                      <span>Try Again</span>
+                    </Button>
+                  )}
+
+                  <Button
+                    variant={overlayKind === 'ready' || overlayKind === 'offline' || overlayKind === 'server_error' ? 'secondary' : 'primary'}
+                    size="lg"
+                    fullWidth
+                    onClick={handleDismiss}
+                    className="min-h-[56px] font-bold gap-2"
+                  >
+                    <QrCode className="h-5 w-5" />
+                    <span>{overlayKind === 'ready' ? 'Cancel' : 'Scan Next'}</span>
+                  </Button>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
