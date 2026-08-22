@@ -55,7 +55,7 @@ export default function AdminBookingsPage() {
 
   const params = {
     ...(statusFilter !== 'all' ? { status: statusFilter as BookingStatus } : {}),
-    limit: 100,
+    limit: 50,
   };
 
   const { data, isLoading, isError, error, refetch } = useQuery({

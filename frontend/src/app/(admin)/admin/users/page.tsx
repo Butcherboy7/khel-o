@@ -62,7 +62,7 @@ export default function AdminUsersPage() {
 
   const params = {
     ...(roleFilter !== 'all' ? { role: roleFilter } : {}),
-    limit: 100,
+    limit: 50,
   };
 
   const { data, isLoading, isError, error, refetch } = useQuery({
