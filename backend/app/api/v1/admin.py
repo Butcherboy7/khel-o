@@ -881,3 +881,26 @@ async def update_platform_settings_admin(
         entity_id=str(updated.id),
     )
     return {"success": True, "data": {"settings": PlatformSettingsResponse.model_validate(updated)}}
+
+# --- OWNER PAYOUT OVERSIGHT (Razorpay Route linked accounts) ---
+
+@router.get("/payouts", status_code=status.HTTP_200_OK)
+async def list_owner_payouts_admin(
+    kycStatus: Optional[str] = Query(None, alias="kycStatus", description="pending|submitted|activated|suspended|rejected"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=50),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """List every café owner's Razorpay Route linked-account status, so an admin can
+    see who hasn't submitted payout details, whose KYC is stuck, and whose transfers
+    are failing — none of which was visible anywhere before this endpoint."""
+    service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db)
+    )
+    result = await service.list_owner_payouts(kyc_status=kycStatus, page=page, limit=limit)
+    return {"success": True, "data": result}

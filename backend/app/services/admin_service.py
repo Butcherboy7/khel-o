@@ -25,6 +25,8 @@ from app.models.cafe import Cafe, VerificationStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.hardware_tier import HardwareTier
 from app.models.promotion import Promotion
+from app.models.owner_payout_account import OwnerPayoutAccount
+from app.models.platform_fee import PlatformFee
 from app.core.exceptions import NotFoundException, ValidationException
 
 class AdminService:
@@ -671,6 +673,86 @@ class AdminService:
             }
             for r in rows
         ]
+
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "pageSize": limit,
+            "totalPages": math.ceil(total / limit) if total > 0 else 0,
+        }
+
+    async def list_owner_payouts(
+        self,
+        kyc_status: Optional[str] = None,
+        page: int = 1,
+        limit: int = 20
+    ) -> Dict[str, Any]:
+        """Admin oversight of café-owner Razorpay Route linked accounts: KYC status,
+        bank details on file, and whether any of their transfers have failed. Owners
+        submit these details themselves via Owner Portal > Payouts — this view exists
+        so an admin can see who's stuck and why, instead of that state being invisible
+        to anyone but the owner."""
+        limit = min(limit, 50)
+        stmt = (
+            select(
+                OwnerPayoutAccount,
+                User.email.label("owner_email"),
+                User.full_name.label("owner_full_name"),
+            )
+            .join(User, User.id == OwnerPayoutAccount.owner_id)
+        )
+        if kyc_status:
+            stmt = stmt.where(OwnerPayoutAccount.kyc_status == kyc_status)
+        stmt = stmt.order_by(OwnerPayoutAccount.submitted_at.desc().nullslast())
+
+        total = (await self.db.execute(
+            select(func.count()).select_from(stmt.subquery())
+        )).scalar() or 0
+
+        offset = (page - 1) * limit
+        rows = (await self.db.execute(stmt.offset(offset).limit(limit))).all()
+
+        items = []
+        for account, owner_email, owner_full_name in rows:
+            cafe_result = await self.db.execute(
+                select(Cafe.id, Cafe.name).where(Cafe.owner_id == account.owner_id).limit(1)
+            )
+            cafe_row = cafe_result.first()
+
+            failed_count = (await self.db.execute(
+                select(func.count())
+                .select_from(PlatformFee)
+                .join(Booking, Booking.id == PlatformFee.booking_id)
+                .join(Cafe, Cafe.id == Booking.cafe_id)
+                .where(Cafe.owner_id == account.owner_id, PlatformFee.transfer_status == "failed")
+            )).scalar() or 0
+
+            pending_settlement = (await self.db.execute(
+                select(func.coalesce(func.sum(PlatformFee.owner_settlement_amount), 0))
+                .select_from(PlatformFee)
+                .join(Booking, Booking.id == PlatformFee.booking_id)
+                .join(Cafe, Cafe.id == Booking.cafe_id)
+                .where(Cafe.owner_id == account.owner_id, PlatformFee.transfer_status != "transferred")
+            )).scalar() or 0
+
+            items.append({
+                "id": str(account.id),
+                "ownerId": str(account.owner_id),
+                "ownerEmail": owner_email,
+                "ownerFullName": owner_full_name,
+                "cafeId": str(cafe_row.id) if cafe_row else None,
+                "cafeName": cafe_row.name if cafe_row else None,
+                "razorpayAccountId": account.razorpay_account_id,
+                "kycStatus": account.kyc_status,
+                "accountHolderName": account.account_holder_name,
+                "bankAccountNumberMasked": account.bank_account_number_masked,
+                "bankIfsc": account.bank_ifsc,
+                "failedTransferCount": failed_count,
+                "pendingSettlementAmount": float(pending_settlement),
+                "submittedAt": account.submitted_at.isoformat() if account.submitted_at else None,
+                "updatedAt": account.updated_at.isoformat() if account.updated_at else None,
+            })
 
         return {
             "items": items,

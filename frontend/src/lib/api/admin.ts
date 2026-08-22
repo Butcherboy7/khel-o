@@ -211,6 +211,32 @@ export async function updateSupportTicket(
   return call(() => apiClient.patch(`/api/v1/admin/support/tickets/${ticketId}`, payload));
 }
 
+// ── Owner Payout Oversight (Razorpay Route linked accounts) ─────────────────────
+
+export interface AdminOwnerPayout {
+  id: string;
+  ownerId: string;
+  ownerEmail: string;
+  ownerFullName: string;
+  cafeId: string | null;
+  cafeName: string | null;
+  razorpayAccountId: string | null;
+  kycStatus: 'pending' | 'submitted' | 'activated' | 'suspended' | 'rejected';
+  accountHolderName: string | null;
+  bankAccountNumberMasked: string | null;
+  bankIfsc: string | null;
+  failedTransferCount: number;
+  pendingSettlementAmount: number;
+  submittedAt: string | null;
+  updatedAt: string | null;
+}
+
+export async function listOwnerPayouts(
+  params: { kycStatus?: string; page?: number; limit?: number } = {},
+): Promise<{ items: AdminOwnerPayout[]; total: number; page: number; pageSize: number; totalPages: number }> {
+  return call(() => apiClient.get('/api/v1/admin/payouts', { params }));
+}
+
 // ── Platform Settings ─────────────────────────────────────────────────────────
 
 export interface PlatformSettings {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react';
-import { AlertTriangle, Sparkles, Plus, Minus } from 'lucide-react';
+import { AlertTriangle, Sparkles, Plus, Minus, Move } from 'lucide-react';
 import {
   timeToMinutes,
   minutesToTimeAndDayOffset,
@@ -78,6 +78,28 @@ export function TimelineRangePicker({
   const dragStartX = useRef(0);
   const dragStartMin = useRef(0);
   const dragDurMin = useRef(0);
+
+  // First-time coachmark: shown once per browser so a new customer knows the
+  // triangles drag and the track swipes, then dismisses itself. Any real
+  // interaction with the timeline (drag or scroll) also dismisses it early.
+  const HINT_KEY = 'khelo_timeline_hint_seen';
+  const [showHint, setShowHint] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.localStorage.getItem(HINT_KEY)) {
+      setShowHint(true);
+      const timer = setTimeout(() => {
+        setShowHint(false);
+        window.localStorage.setItem(HINT_KEY, '1');
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+  const dismissHint = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    setShowHint(false);
+    window.localStorage.setItem(HINT_KEY, '1');
+  }, []);
 
   // Measure container width
   useEffect(() => {
@@ -169,6 +191,7 @@ export function TimelineRangePicker({
     if (!scrollRef.current || dragMode) return;
     if (isProgrammaticScroll.current) return;
     isUserScrolling.current = true;
+    dismissHint();
 
     const centerViewPx = scrollRef.current.scrollLeft + containerWidth / 2;
     const startViewPx = centerViewPx - rangePx / 2;
@@ -185,12 +208,13 @@ export function TimelineRangePicker({
     scrollEndTimer.current = setTimeout(() => {
       isUserScrolling.current = false;
     }, 200);
-  }, [containerWidth, rangePx, openMin, sidePadding, slotW, minValidStart, closeMin, durMin, selStart, durationHours, onChange, dragMode]);
+  }, [containerWidth, rangePx, openMin, sidePadding, slotW, minValidStart, closeMin, durMin, selStart, durationHours, onChange, dragMode, dismissHint]);
 
   // ── Drag & Handle Gesture Handlers ─────────────────────────────────────────
   const handlePointerDown = (mode: 'start' | 'end' | 'pan', e: React.PointerEvent) => {
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dismissHint();
     setDragMode(mode);
     dragStartX.current = e.clientX;
     dragStartMin.current = selStart;
@@ -376,6 +400,25 @@ export function TimelineRangePicker({
 
       {/* ── Dynamic Timeline Canvas (100% Unified Coordinates) ── */}
       <div ref={outerRef} className="relative overflow-hidden bg-white pt-5 pb-3" style={{ height: 95 }}>
+        {showHint && (
+          <div
+            className="absolute inset-x-3 top-1 z-30 flex items-start gap-2 rounded-xl bg-text-primary px-3 py-2 text-white shadow-lg"
+            role="status"
+          >
+            <Move className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-white/80" />
+            <p className="text-[11.5px] leading-snug font-medium">
+              Drag the two dots to adjust your start &amp; end time — swipe the timeline left or right to see other hours.
+            </p>
+            <button
+              type="button"
+              onClick={dismissHint}
+              className="ml-auto flex-shrink-0 text-white/60 hover:text-white text-[11px] font-bold px-1"
+              aria-label="Dismiss hint"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <div
           ref={scrollRef}
           onScroll={handleScroll}
@@ -473,42 +516,80 @@ export function TimelineRangePicker({
               }}
             />
 
-            {/* Left ▲ Arrow (Renders EXACTLY at startPx = minToPx(selStart)) */}
+            {/* Left handle (Renders EXACTLY at startPx = minToPx(selStart)) — a 44px
+                touch target wrapping a visible 26px thumb, so the tappable area meets
+                the mobile minimum even though the visible dot stays small and precise. */}
             <div
               onPointerDown={(e) => handlePointerDown('start', e)}
               style={{
                 position: 'absolute',
                 left: startPx,
-                top: 45,
-                transform: 'translateX(-50%)',
+                top: 46,
+                transform: 'translate(-50%, -50%)',
                 zIndex: 20,
                 cursor: 'ew-resize',
                 touchAction: 'none',
-                padding: '4px',
+                width: 44,
+                height: 44,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <svg width="14" height="11" viewBox="0 0 14 11" style={{ display: 'block' }}>
-                <path d="M7 0L14 11H0L7 0Z" fill="#374151" />
-              </svg>
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background: '#ffffff',
+                  border: `2.5px solid ${dragMode === 'start' ? '#2563eb' : '#374151'}`,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg width="8" height="10" viewBox="0 0 8 10">
+                  <path d="M5.5 0v10M2.5 0v10" stroke={dragMode === 'start' ? '#2563eb' : '#374151'} strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              </div>
             </div>
 
-            {/* Right ▲ Arrow (Renders EXACTLY at endPx = minToPx(selEnd)) */}
+            {/* Right handle (Renders EXACTLY at endPx = minToPx(selEnd)) */}
             <div
               onPointerDown={(e) => handlePointerDown('end', e)}
               style={{
                 position: 'absolute',
                 left: endPx,
-                top: 45,
-                transform: 'translateX(-50%)',
+                top: 46,
+                transform: 'translate(-50%, -50%)',
                 zIndex: 20,
                 cursor: 'ew-resize',
                 touchAction: 'none',
-                padding: '4px',
+                width: 44,
+                height: 44,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <svg width="14" height="11" viewBox="0 0 14 11" style={{ display: 'block' }}>
-                <path d="M7 0L14 11H0L7 0Z" fill={dragMode === 'end' ? '#2563eb' : '#374151'} />
-              </svg>
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background: '#ffffff',
+                  border: `2.5px solid ${dragMode === 'end' ? '#2563eb' : '#374151'}`,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg width="8" height="10" viewBox="0 0 8 10">
+                  <path d="M5.5 0v10M2.5 0v10" stroke={dragMode === 'end' ? '#2563eb' : '#374151'} strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              </div>
             </div>
 
             {/* Thin Connecting Line between the two ▲ arrows */}
