@@ -379,7 +379,7 @@ export function TimelineRangePicker({
               type="button"
               onClick={() => adjustDuration(-0.5)}
               disabled={durationHours <= 0.5}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="flex h-11 w-11 -m-1 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Minus className="h-3.5 w-3.5" />
             </button>
@@ -390,7 +390,7 @@ export function TimelineRangePicker({
               type="button"
               onClick={() => adjustDuration(0.5)}
               disabled={selEnd + 30 > closeMin || durationHours >= 16}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="flex h-11 w-11 -m-1 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>

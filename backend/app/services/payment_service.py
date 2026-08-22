@@ -94,8 +94,29 @@ class PaymentService:
             logger.error(f"No PlatformFee row for booking {booking.id}; cannot create Route transfer")
             return
 
-        if fee_row.transfer_status == "transferred":
-            return  # already split by the other confirmation path
+        if fee_row.transfer_status in ("transferred", "processing"):
+            return  # already split, or a concurrent call already claimed it
+
+        # Atomically claim this transfer before calling Razorpay. verify_payment
+        # (client-driven) and the payment.captured webhook (server-driven) both
+        # reach this function for the same payment on every booking — Razorpay
+        # fires the webhook independently of the browser, so this is the normal
+        # path, not a rare race. A plain read-then-write on transfer_status let
+        # both callers see "not yet transferred" and both call the real transfer
+        # API, paying the café owner twice. This UPDATE...WHERE only succeeds for
+        # whichever caller gets there first; Postgres serializes the two on the
+        # row lock and the loser's WHERE re-evaluates to zero rows.
+        from sqlalchemy import update as sa_update
+        claim_stmt = (
+            sa_update(PlatformFee)
+            .where(PlatformFee.id == fee_row.id, PlatformFee.transfer_status.notin_(["transferred", "processing"]))
+            .values(transfer_status="processing")
+        )
+        claim_result = await self.payment_repo.db.execute(claim_stmt)
+        await self.payment_repo.db.commit()
+        if claim_result.rowcount == 0:
+            logger.info(f"Route transfer for booking {booking.id} already claimed by a concurrent call; skipping")
+            return
 
         cafe_result = await self.payment_repo.db.execute(select(Cafe).where(Cafe.id == booking.cafe_id))
         cafe = cafe_result.scalars().first()
@@ -410,6 +431,22 @@ class PaymentService:
                 if payment:
                     booking = await self.booking_repo.get_by_id(payment.booking_id)
                     if booking:
+                        # Razorpay retries payment.captured on any non-2xx/timeout response, and
+                        # this webhook fires independently of (and often alongside) the client's
+                        # own verify_payment call for the same payment — so a booking that's
+                        # already confirmed reaching here is the normal case, not an anomaly.
+                        # Without this guard every retry/overlap re-sent the confirmation email
+                        # and rewrote the QR file for every booking, not just occasionally.
+                        already_confirmed = payment.status == PaymentStatus.CAPTURED or booking.status == BookingStatus.CONFIRMED
+                        if already_confirmed:
+                            logger.info(f"Webhook payment.captured for already-processed booking {booking.id}; skipping re-confirmation, still checking Route transfer")
+                            # _create_route_transfer has its own atomic claim, so it's safe to
+                            # call again here — this keeps the webhook as the reliable fallback
+                            # for the Route split even when verify_payment already confirmed
+                            # the booking but didn't get to run the transfer itself.
+                            await self._create_route_transfer(booking, payment_id)
+                            return {"status": "already_processed"}
+
                         now_utc = datetime.now(timezone.utc)
                         created_dt = booking.created_at.replace(tzinfo=timezone.utc) if (booking.created_at and booking.created_at.tzinfo is None) else (booking.created_at or now_utc)
                         
@@ -498,17 +535,14 @@ class PaymentService:
                 "message": "No Razorpay payment ID found; manual refund required"
             }
 
-        real_refund_id = None
-        refund_status = "pending_manual_refund"
-        
         if settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET:
             try:
                 import base64
                 import urllib.request
-                
+
                 auth_str = f"{settings.RAZORPAY_KEY_ID}:{settings.RAZORPAY_KEY_SECRET}"
                 encoded_auth = base64.b64encode(auth_str.encode('utf-8')).decode('utf-8')
-                
+
                 refund_url = f"https://api.razorpay.com/v1/payments/{payment.razorpay_payment_id}/refund"
                 payload_data = json.dumps({
                     "amount": int(round(payment.amount * 100)),
@@ -517,24 +551,41 @@ class PaymentService:
                         "refunded_by": str(admin_id)
                     }
                 }).encode('utf-8')
-                
+
                 headers = {
                     "Authorization": f"Basic {encoded_auth}",
                     "Content-Type": "application/json"
                 }
-                
+
                 req = urllib.request.Request(refund_url, data=payload_data, headers=headers, method="POST")
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     res_data = json.loads(resp.read().decode('utf-8'))
                     real_refund_id = res_data.get("id")
-                    refund_status = "processed"
                     logger.info(f"Razorpay refund initiated: {real_refund_id} for booking {booking_id}")
             except Exception as e:
-                logger.error(f"Razorpay refund API failed: {e}")
+                # Previously this fell through to mark_refunded + send_refund_confirmation
+                # regardless of whether the API call actually succeeded — meaning a failed
+                # refund still told the customer their money was on its way, and the
+                # fabricated "local_rfnd_..." ID made it look processed with nothing left
+                # to retry. Stop here instead: leave the payment CAPTURED (not falsely
+                # REFUNDED), record why on the payment row, and surface a status the caller
+                # can act on rather than a lie.
+                logger.error(f"Razorpay refund API failed for booking {booking_id}: {e}")
+                await self.payment_repo.update(payment.id, {
+                    "failure_reason": f"Refund API call failed: {str(e)[:400]} — needs manual refund"
+                })
+                return {
+                    "refundId": None,
+                    "status": "refund_api_failed",
+                    "amount": float(payment.amount),
+                    "message": "Automatic refund failed. The booking is cancelled but the customer has NOT been refunded or notified of a refund — process this manually in the Razorpay dashboard."
+                }
         else:
-            logger.warning("Razorpay credentials not configured; skipping real refund API call")
+            logger.warning("Razorpay credentials not configured; recording as pending manual refund")
+            real_refund_id = None
 
         refund_id = real_refund_id or f"local_rfnd_{uuid4().hex[:8]}"
+        refund_status = "processed" if real_refund_id else "pending_manual_refund"
         updated = await self.payment_repo.mark_refunded(payment.id, refund_id)
         await self.booking_repo.update(booking_id, {"status": BookingStatus.CANCELLED})
 

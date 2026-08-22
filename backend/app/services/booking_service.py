@@ -215,9 +215,9 @@ class BookingService:
         self.booking_repo.db.add(fee_obj)
         await self.booking_repo.db.commit()
 
-        # Atomic increment of promotion current_uses after booking is saved
-        if booking_in.promotion_id and self.promo_service:
-            await self.promo_service.increment_promotion_uses(booking_in.promotion_id)
+        # promotion_id's current_uses was already incremented inside
+        # apply_promotion_to_booking, atomically under the same row lock that
+        # served the max_uses check above — no separate increment here.
 
         return BookingResponse.model_validate(created)
 
@@ -383,7 +383,10 @@ class BookingService:
                 payment_service = PaymentService(payment_repo, self.booking_repo)
                 
                 refund_result = await payment_service.process_refund(booking_id, current_user.id)
-                logger.info(f"Refund initiated for booking {booking_id}: {refund_result}")
+                if refund_result.get("status") == "refund_api_failed":
+                    logger.error(f"Refund FAILED for cancelled booking {booking_id} — needs manual processing: {refund_result}")
+                else:
+                    logger.info(f"Refund initiated for booking {booking_id}: {refund_result}")
             except Exception as e:
                 logger.error(f"Failed to process refund for booking {booking_id}: {e}")
                 # Booking is still cancelled, but refund may need manual processing

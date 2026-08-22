@@ -185,30 +185,41 @@ class OwnerService:
         return BookingResponse.model_validate(updated)
 
     async def _validate_user_cafe_access(self, user: User, cafe_id: UUID):
-        role_val = user.role.value if hasattr(user.role, "value") else str(user.role)
+        # Authorization reads UserRoleMapping, never the legacy users.role single
+        # column — that column is not kept in sync with granted roles and trusting
+        # it here let a stale/incorrect value (e.g. a leftover "admin") bypass the
+        # café-scoping check entirely, letting any such account check in or modify
+        # bookings at a café they have no actual grant for. Same invariant already
+        # enforced everywhere else in app/api/deps.py.
+        from sqlalchemy import select
+        from app.models.user_role import UserRoleMapping
+        from app.models.user import UserRole
+
         cafe = await self.cafe_repo.get_by_id(cafe_id)
         if not cafe:
             raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
 
-        if role_val == "staff":
-            from sqlalchemy import select
-            from app.models.user_role import UserRoleMapping
-            from app.models.user import UserRole
-            stmt = select(UserRoleMapping).where(
+        if str(cafe.owner_id) == str(user.id):
+            return cafe
+
+        roles_stmt = select(UserRoleMapping.role).where(UserRoleMapping.user_id == user.id)
+        granted_roles = {r for (r,) in (await self.booking_repo.db.execute(roles_stmt)).all()}
+
+        if UserRole.ADMIN in granted_roles:
+            return cafe
+
+        if UserRole.STAFF in granted_roles:
+            staff_stmt = select(UserRoleMapping).where(
                 UserRoleMapping.user_id == user.id,
                 UserRoleMapping.role == UserRole.STAFF,
                 UserRoleMapping.cafe_id == cafe_id
             )
-            res = await self.booking_repo.db.execute(stmt)
-            if not res.scalars().first():
-                raise ForbiddenException(message="Staff members can only access bookings for their assigned café", error_code="FORBIDDEN")
-        elif role_val in ("cafe_owner", "owner"):
-            if str(cafe.owner_id) != str(user.id):
-                raise ForbiddenException(message="You can only manage bookings for your own café", error_code="FORBIDDEN")
-        elif role_val != "admin":
-            raise ForbiddenException(message="Forbidden", error_code="FORBIDDEN")
+            res = await self.booking_repo.db.execute(staff_stmt)
+            if res.scalars().first():
+                return cafe
+            raise ForbiddenException(message="Staff members can only access bookings for their assigned café", error_code="FORBIDDEN")
 
-        return cafe
+        raise ForbiddenException(message="Forbidden", error_code="FORBIDDEN")
 
     async def checkin_booking(self, booking_id: UUID, current_user: User, checkin_method: str = "manual") -> BookingResponse:
         # Row lock: two staff scanning the same pass in the same instant must

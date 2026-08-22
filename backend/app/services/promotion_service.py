@@ -213,7 +213,13 @@ class PromotionService:
         tier_id: UUID,
         base_amount: Decimal
     ) -> Decimal:
-        promo = await self.promo_repo.get_by_id(promotion_id)
+        # Row-locked so a concurrent booking applying the same promo can't read
+        # current_uses until this one commits — closes the race where N
+        # concurrent requests near max_uses could all pass validation before
+        # any of them incremented. Held for the rest of this DB transaction
+        # (i.e. until the caller's booking insert commits), same lifetime as
+        # the seat-capacity lock in booking_repository.
+        promo = await self.promo_repo.get_by_id_with_lock(promotion_id)
         if not promo:
             raise ValidationException(message="Promotion not found", error_code="PROMOTION_NOT_FOUND")
 
@@ -237,7 +243,22 @@ class PromotionService:
         discount_percentage = Decimal(str(promo.discount_percentage))
         discount_amount = (base_amount * (discount_percentage / Decimal('100'))).quantize(Decimal('0.01'))
 
+        # Increment now, while still holding the row lock acquired above —
+        # that gap between validation and increment was exactly where the
+        # race lived. Deliberately NOT committing here: this UPDATE rides in
+        # the same open transaction as the caller's booking insert, so if
+        # booking creation fails after this point, the increment rolls back
+        # with it instead of being wasted on a booking that never happened.
+        from sqlalchemy import update as sa_update
+        from app.models.promotion import Promotion
+        await self.promo_repo.db.execute(
+            sa_update(Promotion).where(Promotion.id == promotion_id).values(current_uses=Promotion.current_uses + 1)
+        )
+
         return discount_amount
 
     async def increment_promotion_uses(self, promotion_id: UUID) -> None:
+        """Deprecated as a separate step for the booking-creation path — apply_promotion_to_booking
+        now increments atomically under its own row lock. Left in place only for any other
+        caller that still applies a promo outside that flow."""
         await self.promo_repo.increment_uses(promotion_id)

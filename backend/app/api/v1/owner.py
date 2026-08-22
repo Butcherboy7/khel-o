@@ -738,14 +738,16 @@ async def search_checkin_candidates(
     their booking reference handy. Scoped to the caller's own café and to
     today only — never a global lookup."""
     cafe_repo = CafeRepository(db)
-    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
     cafe = None
 
-    if role_val in ("cafe_owner", "owner"):
-        cafes = await cafe_repo.get_by_owner_id(current_user.id)
-        if cafes:
-            cafe = cafes[0]
-    elif role_val == "staff":
+    # Resolved from UserRoleMapping, not the legacy users.role column — that
+    # column can be stale relative to actually-granted roles and using it here
+    # made a legitimate owner/staff account with a mismatched role value search
+    # nothing (silent empty results) instead of their real café.
+    owned_cafes = await cafe_repo.get_by_owner_id(current_user.id)
+    if owned_cafes:
+        cafe = owned_cafes[0]
+    else:
         from app.models.user_role import UserRoleMapping
         stmt = select(UserRoleMapping).where(
             UserRoleMapping.user_id == current_user.id,

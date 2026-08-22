@@ -14,6 +14,18 @@ class PromotionRepository(BaseRepository[Promotion]):
         result = await self.db.execute(select(Promotion).where(Promotion.id == promotion_id))
         return result.scalars().first()
 
+    async def get_by_id_with_lock(self, promotion_id: UUID) -> Optional[Promotion]:
+        """Row-locked fetch so a concurrent apply of the same promo can't read
+        current_uses before this transaction's increment commits — mirrors the
+        with_for_update() pattern booking_repository already uses for seat
+        capacity. Without this, N concurrent bookings near max_uses can all
+        pass the current_uses < max_uses check before any of them increments,
+        letting a "first 10 customers" promo go to more than 10 people."""
+        result = await self.db.execute(
+            select(Promotion).where(Promotion.id == promotion_id).with_for_update()
+        )
+        return result.scalars().first()
+
     async def get_by_cafe_id(self, cafe_id: UUID) -> List[Promotion]:
         result = await self.db.execute(
             select(Promotion).where(Promotion.cafe_id == cafe_id).order_by(Promotion.created_at.desc())
