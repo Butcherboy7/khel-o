@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -11,8 +12,13 @@ import {
   MapPin,
   User,
   AlertCircle,
+  Ban,
+  IndianRupee,
+  Hourglass,
+  LifeBuoy,
+  Landmark,
 } from 'lucide-react';
-import { listPendingCafes, verifyCafe, getAdminAnalytics } from '@/lib/api/admin';
+import { listPendingCafes, verifyCafe, getAdminAnalytics, getAdminActionItems } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
   Button,
@@ -41,6 +47,27 @@ export default function AdminPage() {
     queryFn: getAdminAnalytics,
     staleTime: 60_000,
   });
+
+  // "Needs attention" aggregate — failed transfers, failed refunds, stuck
+  // payments, open tickets, pending KYC — the things Payments/Payouts/Support
+  // would otherwise require separately checking to notice.
+  const { data: actionItems } = useQuery({
+    queryKey: [...queryKeys.admin.all, 'actionItems'],
+    queryFn: getAdminActionItems,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const actionCards = actionItems
+    ? [
+        { label: 'Failed Route transfers', value: actionItems.failedRouteTransfers, href: '/admin/payouts', icon: Ban, critical: true },
+        { label: 'Failed refunds', value: actionItems.failedRefunds, href: '/admin/payments', icon: IndianRupee, critical: true },
+        { label: 'Stuck pending payments', value: actionItems.stuckPendingPayments, href: '/admin/bookings', icon: Hourglass, critical: false },
+        { label: 'Open support tickets', value: actionItems.openSupportTickets, href: '/admin/support', icon: LifeBuoy, critical: false },
+        { label: 'Owner KYC pending', value: actionItems.ownersKycPending, href: '/admin/payouts', icon: Landmark, critical: false },
+      ]
+    : [];
+  const hasUrgentItems = actionCards.some((c) => c.critical && c.value > 0);
 
   // Fetch pending cafes queue
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -108,6 +135,40 @@ export default function AdminPage() {
             subtext="Awaiting admin review"
           />
         </div>
+      )}
+
+      {/* Needs Attention — the one place these otherwise-separate signals surface together */}
+      {actionItems && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className={`h-4 w-4 ${hasUrgentItems ? 'text-error' : 'text-text-tertiary'}`} />
+            <h2 className="font-heading text-h3 text-text-primary">Needs Attention</h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {actionCards.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`flex flex-col gap-2 rounded-2xl border p-4 transition-colors hover:bg-surface-hover ${
+                  item.critical && item.value > 0
+                    ? 'border-error/30 bg-error/5'
+                    : 'border-border bg-surface'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <item.icon className={`h-4 w-4 ${item.critical && item.value > 0 ? 'text-error' : 'text-text-tertiary'}`} />
+                  {item.critical && item.value > 0 && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-error animate-pulse" />
+                  )}
+                </div>
+                <span className={`text-h2 font-heading font-bold ${item.critical && item.value > 0 ? 'text-error' : 'text-text-primary'}`}>
+                  {item.value}
+                </span>
+                <span className="text-caption text-text-secondary leading-snug">{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Pending Applications Queue */}

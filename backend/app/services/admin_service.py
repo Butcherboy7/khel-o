@@ -1,7 +1,7 @@
 import math
 from typing import List, Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
@@ -27,6 +27,8 @@ from app.models.hardware_tier import HardwareTier
 from app.models.promotion import Promotion
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.platform_fee import PlatformFee
+from app.models.payment import Payment
+from app.models.support_ticket import SupportTicket, SupportTicketStatus
 from app.core.exceptions import NotFoundException, ValidationException
 
 class AdminService:
@@ -680,6 +682,56 @@ class AdminService:
             "page": page,
             "pageSize": limit,
             "totalPages": math.ceil(total / limit) if total > 0 else 0,
+        }
+
+    async def get_action_items(self) -> Dict[str, Any]:
+        """Single aggregated 'needs attention' view across everything an admin
+        would otherwise have to separately check Payments, Owner Payouts,
+        Support and Bookings to find. Every count here is something a real
+        admin can act on directly — not general stats (that's /analytics)."""
+        pending_cafes = (await self.db.execute(
+            select(func.count()).select_from(Cafe).where(Cafe.verification_status == VerificationStatus.PENDING)
+        )).scalar() or 0
+
+        failed_transfers = (await self.db.execute(
+            select(func.count()).select_from(PlatformFee).where(PlatformFee.transfer_status == "failed")
+        )).scalar() or 0
+
+        # Refund API failures are recorded on the Payment row's failure_reason
+        # while the payment itself stays CAPTURED (see payment_service.process_refund) —
+        # there's no dedicated status for this without a schema change, so we match
+        # on the reason text this codepath always writes.
+        failed_refunds = (await self.db.execute(
+            select(func.count()).select_from(Payment).where(Payment.failure_reason.ilike("Refund API call failed%"))
+        )).scalar() or 0
+
+        stuck_ttl = datetime.now(timezone.utc) - timedelta(minutes=20)
+        stuck_pending_payments = (await self.db.execute(
+            select(func.count()).select_from(Booking).where(
+                Booking.status == BookingStatus.PENDING_PAYMENT,
+                Booking.created_at < stuck_ttl
+            )
+        )).scalar() or 0
+
+        open_support_tickets = (await self.db.execute(
+            select(func.count()).select_from(SupportTicket).where(
+                SupportTicket.status.in_([SupportTicketStatus.OPEN, SupportTicketStatus.IN_PROGRESS])
+            )
+        )).scalar() or 0
+
+        owners_kyc_pending = (await self.db.execute(
+            select(func.count()).select_from(OwnerPayoutAccount).where(
+                OwnerPayoutAccount.kyc_status.in_(["pending", "submitted"])
+            )
+        )).scalar() or 0
+
+        return {
+            "pendingCafeVerifications": pending_cafes,
+            "failedRouteTransfers": failed_transfers,
+            "failedRefunds": failed_refunds,
+            "stuckPendingPayments": stuck_pending_payments,
+            "openSupportTickets": open_support_tickets,
+            "ownersKycPending": owners_kyc_pending,
         }
 
     async def list_owner_payouts(

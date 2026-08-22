@@ -18,6 +18,19 @@ export async function getAdminAnalytics(): Promise<AdminAnalytics> {
   return call(() => apiClient.get('/api/v1/admin/analytics'));
 }
 
+export interface AdminActionItems {
+  pendingCafeVerifications: number;
+  failedRouteTransfers: number;
+  failedRefunds: number;
+  stuckPendingPayments: number;
+  openSupportTickets: number;
+  ownersKycPending: number;
+}
+
+export async function getAdminActionItems(): Promise<AdminActionItems> {
+  return call(() => apiClient.get('/api/v1/admin/action-items'));
+}
+
 export async function listAdminCafes(params: AdminCafeListParams = {}): Promise<PaginatedResponse<AdminCafe>> {
   return call(() => apiClient.get('/api/v1/admin/cafes', { params }));
 }
@@ -58,6 +71,12 @@ export async function listAdminBookings(params: AdminBookingListParams = {}): Pr
 
 export async function deactivatePromotion(promotionId: string): Promise<{ promotion: Promotion }> {
   return call(() => apiClient.patch(`/api/v1/admin/promotions/${promotionId}/deactivate`));
+}
+
+export async function listAdminPromotions(
+  params: { cafeId?: string; isActive?: boolean; page?: number; limit?: number } = {},
+): Promise<PaginatedResponse<Promotion>> {
+  return call(() => apiClient.get('/api/v1/admin/promotions', { params }));
 }
 
 export async function setReviewVisibility(reviewId: string, isVisible: boolean): Promise<{ review: Review }> {

@@ -48,6 +48,27 @@ async def get_admin_analytics(
         "data": result
     }
 
+@router.get("/action-items", status_code=status.HTTP_200_OK)
+async def get_admin_action_items(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Aggregated 'needs attention' counts — failed transfers, failed refunds,
+    stuck payments, open support tickets, pending owner KYC — surfaced in one
+    place instead of requiring a separate check across four different pages."""
+    service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db)
+    )
+    result = await service.get_action_items()
+    return {
+        "success": True,
+        "data": result
+    }
+
 @router.get("/dashboard", status_code=status.HTTP_200_OK)
 async def get_admin_dashboard(
     current_admin: User = Depends(require_admin),
