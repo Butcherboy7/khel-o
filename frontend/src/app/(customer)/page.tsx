@@ -279,33 +279,40 @@ function ExplorePageContent() {
           onSelectTag={(tag) => setActiveTag(tag)}
         />
 
-        {/* Filter Chips Row */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1">
-          {FILTER_TAGS.map((tag) => {
-            const isSelected = activeTag === tag;
-            return (
-              <button
-                key={tag}
-                onClick={() => setActiveTag(tag)}
-                className={`rounded-full px-4 py-2 text-caption font-semibold flex-shrink-0 transition-all ${
-                  isSelected
-                    ? 'bg-secondary text-white shadow-card font-bold scale-105'
-                    : 'bg-card text-text-secondary border border-border hover:bg-surface'
-                }`}
-              >
-                {tag}
-              </button>
-            );
-          })}
+        {/* Filter Chips Row — edge-fades on the trailing side hint that the
+            row scrolls horizontally, since chips otherwise clip mid-word
+            at the viewport edge with no visual cue. */}
+        <div className="relative">
+          <div
+            className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1"
+            style={{ maskImage: 'linear-gradient(to right, black 92%, transparent)', WebkitMaskImage: 'linear-gradient(to right, black 92%, transparent)' }}
+          >
+            {FILTER_TAGS.map((tag) => {
+              const isSelected = activeTag === tag;
+              return (
+                <button
+                  key={tag}
+                  onClick={() => setActiveTag(tag)}
+                  className={`rounded-full px-4 py-2 text-caption font-semibold flex-shrink-0 transition-all ${
+                    isSelected
+                      ? 'bg-secondary text-white shadow-card font-bold scale-105'
+                      : 'bg-card text-text-secondary border border-border hover:bg-surface'
+                  }`}
+                >
+                  {tag}
+                </button>
+              );
+            })}
 
-          {(activeTag !== 'All' || searchQuery || selectedCity !== 'All Cities') && (
-            <button
-              onClick={handleResetFilters}
-              className="rounded-full px-3.5 py-2 text-caption font-bold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 flex-shrink-0 transition-all"
-            >
-              Clear filters ✕
-            </button>
-          )}
+            {(activeTag !== 'All' || searchQuery || selectedCity !== 'All Cities') && (
+              <button
+                onClick={handleResetFilters}
+                className="rounded-full px-3.5 py-2 text-caption font-bold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 flex-shrink-0 transition-all"
+              >
+                Clear filters ✕
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

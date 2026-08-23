@@ -19,11 +19,13 @@ const Avatar = forwardRef<HTMLDivElement, AvatarProps>(
   ({ className, src, alt, name, size = 'md', ...props }, ref) => {
     const initials = name
       ? name
+          .replace(/\(.*?\)/g, '') // strip role-suffix annotations like "(Gamer)"
           .split(' ')
-          .map((part) => part[0])
+          .map((part) => part.match(/[A-Za-z]/)?.[0] ?? '')
+          .filter(Boolean)
           .join('')
           .slice(0, 2)
-          .toUpperCase()
+          .toUpperCase() || '?'
       : '?';
 
     return (

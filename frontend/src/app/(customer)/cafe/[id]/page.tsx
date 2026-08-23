@@ -220,13 +220,14 @@ export default function CafeDetailPage() {
                     <Monitor className="h-5 w-5 text-accent" />
                   </div>
 
-                  <div className="flex flex-col gap-1.5 text-caption text-text-secondary mb-4">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-text-primary">⚙ {tier.specs?.gpu || 'RTX 3050'}</span>
-                    </div>
-                    <div>{tier.specs?.ram || '16GB RAM'}</div>
-                    <div>{tier.specs?.monitor || '144Hz display'}</div>
-                    <div>{tier.totalSeats || 18} seats</div>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-caption text-text-secondary mb-4">
+                    <span className="font-semibold text-text-primary">⚙ {tier.specs?.gpu || 'RTX 3050'}</span>
+                    <span className="text-text-secondary/50">·</span>
+                    <span>{tier.specs?.ram || '16GB RAM'}</span>
+                    <span className="text-text-secondary/50">·</span>
+                    <span>{tier.specs?.monitor || '144Hz display'}</span>
+                    <span className="text-text-secondary/50">·</span>
+                    <span>{tier.totalSeats || 18} seats</span>
                   </div>
                 </div>
 

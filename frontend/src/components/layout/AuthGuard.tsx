@@ -25,7 +25,7 @@ export function AuthGuard({
 }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, activeRole, isAuthenticated, isHydrated, isLoading } = useAuthStore();
+  const { user, activeRole, isAuthenticated, isHydrated, isLoading, setActiveRole } = useAuthStore();
 
   useEffect(() => {
     if (!isHydrated || isLoading) return;
@@ -46,10 +46,23 @@ export function AuthGuard({
     // it against the server-issued roles before trusting it to gate a route.
     const effectiveRole = sanitizeActiveRole(activeRole, user?.roles);
     if (!allowedRoles.includes(effectiveRole as UserRole)) {
+      // A multi-role account (e.g. same account is both cafe_owner and admin)
+      // landing on a route via bookmark/deep-link/fresh tab has activeRole
+      // stuck on whatever workspace it was last in, even though the server-
+      // issued user.roles already authorizes this route. Auto-switch the
+      // workspace instead of silently bouncing to the other workspace's
+      // dashboard — only redirect away when the account is genuinely
+      // unauthorized for every allowed role on this route.
+      const serverRoles = new Set(user?.roles ?? []);
+      const authorizedRole = allowedRoles.find((r) => serverRoles.has(r));
+      if (authorizedRole) {
+        setActiveRole(authorizedRole);
+        return;
+      }
       const redirect = fallbackPath ?? getRoleDefaultPath(effectiveRole as UserRole);
       router.replace(redirect);
     }
-  }, [isHydrated, isLoading, isAuthenticated, user, activeRole, allowedRoles, fallbackPath, router, pathname]);
+  }, [isHydrated, isLoading, isAuthenticated, user, activeRole, allowedRoles, fallbackPath, router, pathname, setActiveRole]);
 
   // Show loading spinner during hydration
   if (!isHydrated || isLoading) {

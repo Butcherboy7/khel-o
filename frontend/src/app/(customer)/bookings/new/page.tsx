@@ -659,7 +659,7 @@ function BookingWizardContent() {
           <button
             type="button"
             onClick={() => setSeatsCount((s) => Math.max(1, s - 1))}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 transition-colors"
           >
             <Minus className="h-4 w-4" />
           </button>
@@ -668,7 +668,7 @@ function BookingWizardContent() {
             type="button"
             onClick={() => setSeatsCount((s) => Math.min(windowRemainingSeats, 6, s + 1))}
             disabled={seatsCount >= windowRemainingSeats || seatsCount >= 6}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <Plus className="h-4 w-4" />
           </button>

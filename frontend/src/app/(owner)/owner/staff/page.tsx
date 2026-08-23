@@ -111,7 +111,7 @@ export default function OwnerStaffPage() {
   return (
     <div className="max-w-4xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-8">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
         <div>
           <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
             <Users className="h-6 w-6 text-emerald-500" />
@@ -125,7 +125,7 @@ export default function OwnerStaffPage() {
         <Button
           variant="primary"
           onClick={() => setIsInviteOpen(true)}
-          className="gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
+          className="gap-2 w-full sm:w-auto justify-center whitespace-nowrap bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
         >
           <UserPlus className="h-4 w-4" />
           <span>Invite Staff</span>

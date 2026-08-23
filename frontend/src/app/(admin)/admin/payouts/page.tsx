@@ -186,9 +186,13 @@ export default function AdminPayoutsPage() {
                   <p className="text-[11px] text-text-tertiary truncate">{p.ownerEmail}</p>
                 </div>
 
-                <span className="text-xs text-text-secondary truncate">{p.cafeName || '—'}</span>
+                <div className="min-w-0">
+                  <span className="md:hidden text-[10px] font-semibold text-text-tertiary uppercase tracking-wide block">Café</span>
+                  <span className="text-xs text-text-secondary truncate">{p.cafeName || '—'}</span>
+                </div>
 
                 <div className="min-w-0">
+                  <span className="md:hidden text-[10px] font-semibold text-text-tertiary uppercase tracking-wide block">Bank Account</span>
                   <p className="text-xs text-text-primary truncate">
                     {p.accountHolderName || '—'}
                   </p>
@@ -197,21 +201,30 @@ export default function AdminPayoutsPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <KycIcon s={p.kycStatus} />
-                  <Badge variant={kycVariant(p.kycStatus)} size="sm" className="whitespace-nowrap w-fit">
-                    {p.kycStatus}
-                  </Badge>
+                <div className="min-w-0">
+                  <span className="md:hidden text-[10px] font-semibold text-text-tertiary uppercase tracking-wide block">KYC</span>
+                  <div className="flex items-center gap-1.5">
+                    <KycIcon s={p.kycStatus} />
+                    <Badge variant={kycVariant(p.kycStatus)} size="sm" className="whitespace-nowrap w-fit">
+                      {p.kycStatus}
+                    </Badge>
+                  </div>
                 </div>
 
-                <span className="text-xs font-bold font-data text-text-primary whitespace-nowrap">
-                  ₹{p.pendingSettlementAmount.toFixed(2)}
-                </span>
+                <div className="min-w-0">
+                  <span className="md:hidden text-[10px] font-semibold text-text-tertiary uppercase tracking-wide block">Pending Settlement</span>
+                  <span className="text-xs font-bold font-data text-text-primary whitespace-nowrap">
+                    ₹{p.pendingSettlementAmount.toFixed(2)}
+                  </span>
+                </div>
 
-                <span className={`text-xs font-bold font-data whitespace-nowrap flex items-center gap-1 ${p.failedTransferCount > 0 ? 'text-red-600' : 'text-text-tertiary'}`}>
-                  {p.failedTransferCount > 0 && <Ban className="h-3 w-3" />}
-                  {p.failedTransferCount}
-                </span>
+                <div className="min-w-0">
+                  <span className="md:hidden text-[10px] font-semibold text-text-tertiary uppercase tracking-wide block">Failed Transfers</span>
+                  <span className={`text-xs font-bold font-data whitespace-nowrap flex items-center gap-1 ${p.failedTransferCount > 0 ? 'text-red-600' : 'text-text-tertiary'}`}>
+                    {p.failedTransferCount > 0 && <Ban className="h-3 w-3" />}
+                    {p.failedTransferCount}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

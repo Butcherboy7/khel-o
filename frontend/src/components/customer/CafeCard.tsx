@@ -75,7 +75,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
         }`}
       >
         {/* Photo Header */}
-        <CardImage aspectClass="aspect-[16/10]" className="relative">
+        <CardImage aspectClass="aspect-[16/10]" className="relative max-h-56 sm:max-h-64">
           {currentPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img

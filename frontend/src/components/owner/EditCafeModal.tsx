@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, type FormEvent } from 'react';
-import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, X, Upload, ChevronUp, ChevronDown, ImageOff } from 'lucide-react';
+import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff } from 'lucide-react';
 import { Modal, Button, Input } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, type OwnerSettings } from '@/lib/api/settings';
 import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
@@ -390,7 +390,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                       className="min-h-[44px] px-3 py-2 rounded-xl text-caption font-semibold flex items-center justify-between gap-1.5 border bg-primary/10 border-primary text-primary"
                     >
                       <span className="truncate">{canonicalOf(item)}</span>
-                      <X className="h-4 w-4 flex-shrink-0" />
+                      <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                     </button>
                   ))}
               </div>

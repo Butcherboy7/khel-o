@@ -60,11 +60,11 @@ export default function AdminPage() {
 
   const actionCards = actionItems
     ? [
-        { label: 'Failed Route transfers', value: actionItems.failedRouteTransfers, href: '/admin/payouts', icon: Ban, critical: true },
-        { label: 'Failed refunds', value: actionItems.failedRefunds, href: '/admin/payments', icon: IndianRupee, critical: true },
-        { label: 'Stuck pending payments', value: actionItems.stuckPendingPayments, href: '/admin/bookings', icon: Hourglass, critical: false },
-        { label: 'Open support tickets', value: actionItems.openSupportTickets, href: '/admin/support', icon: LifeBuoy, critical: false },
-        { label: 'Owner KYC pending', value: actionItems.ownersKycPending, href: '/admin/payouts', icon: Landmark, critical: false },
+        { label: 'Failed Route transfers', value: actionItems.failedRouteTransfers, href: '/admin/payouts', icon: Ban, critical: true, tooltip: 'Payout transfers to café owners that failed and need manual retry' },
+        { label: 'Failed refunds', value: actionItems.failedRefunds, href: '/admin/payments', icon: IndianRupee, critical: true, tooltip: 'Refund API calls that failed — the customer was not actually refunded' },
+        { label: 'Stuck pending payments', value: actionItems.stuckPendingPayments, href: '/admin/bookings', icon: Hourglass, critical: false, tooltip: 'Bookings stuck in PENDING_PAYMENT for over 20 minutes — likely abandoned checkouts' },
+        { label: 'Open support tickets', value: actionItems.openSupportTickets, href: '/admin/support', icon: LifeBuoy, critical: false, tooltip: 'Customer support tickets awaiting a response' },
+        { label: 'Owner KYC pending', value: actionItems.ownersKycPending, href: '/admin/payouts', icon: Landmark, critical: false, tooltip: "Café owners who haven't completed Razorpay payout KYC yet" },
       ]
     : [];
   const hasUrgentItems = actionCards.some((c) => c.critical && c.value > 0);
@@ -149,6 +149,7 @@ export default function AdminPage() {
               <Link
                 key={item.label}
                 href={item.href}
+                title={item.tooltip}
                 className={`flex flex-col gap-2 rounded-2xl border p-4 transition-colors hover:bg-surface-hover ${
                   item.critical && item.value > 0
                     ? 'border-error/30 bg-error/5'

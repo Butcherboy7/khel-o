@@ -164,7 +164,15 @@ export default function OwnerSettingsPage() {
           <SettingsIcon className="h-5 w-5 text-primary" />
           <h2 className="font-heading text-h2 text-text-primary">Payouts</h2>
         </div>
-        <PayoutSetupCard />
+        {/* min-h reserves roughly the "account already set up" card's real
+            height so PayoutSetupCard's own internal data fetch (which starts
+            from a much shorter h-16 skeleton) doesn't grow the page under the
+            controls below once it resolves — that growth previously shifted
+            "Edit Profile" down far enough that a fast click landed on
+            "Resume Bookings" instead, silently un-pausing live bookings. */}
+        <div className="min-h-[300px] sm:min-h-[240px]">
+          <PayoutSetupCard />
+        </div>
       </div>
 
       {/* Section 2: Café Information (Read only) */}

@@ -28,6 +28,7 @@ import type { OwnerDashboard, OwnerBookingItem } from '@/types';
 import { getOwnerStatus, getOwnerDashboard, getOwnerBookings, checkinBooking, updateOwnerBookingStatus } from '@/lib/api/owner';
 import { getOwnerOccupancy, type TierOccupancy } from '@/lib/api/scanner';
 import { getOwnerSettings, toggleBookingsPaused, updateBookingControls } from '@/lib/api/settings';
+import { formatCurrency } from '@/lib/format';
 import { Card, CardContent, Button, Badge, Modal } from '@/components/ui';
 import { PendingApprovalView } from '@/components/owner/PendingApprovalView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
@@ -300,7 +301,9 @@ export default function OwnerDashboardPage() {
 
   const upcomingCount = todayBookings.filter((b) => b.status === 'confirmed' || b.status === 'pending_payment').length;
   const checkedInCount = todayBookings.filter((b) => b.status === 'checked_in' || b.status === 'active' || b.status === 'completed').length;
-  const totalEarningsToday = todayBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+  const totalEarningsToday = Math.round(
+    todayBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0) * 100,
+  ) / 100;
 
   const isPaused = Boolean(cafeSettings?.bookingsPaused);
   // activeRole (the sanitized current workspace from authStore) is the same
@@ -421,7 +424,7 @@ export default function OwnerDashboardPage() {
           </div>
           <div className="min-w-0">
             <span className="text-overline text-text-secondary block truncate">Today&apos;s Earnings</span>
-            <span className="font-heading text-h2 font-bold text-emerald-600">₹{totalEarningsToday || dashboardData?.revenueThisMonth || 4250}</span>
+            <span className="font-heading text-h2 font-bold text-emerald-600">{formatCurrency(totalEarningsToday || dashboardData?.revenueThisMonth || 4250)}</span>
           </div>
         </div>
 
