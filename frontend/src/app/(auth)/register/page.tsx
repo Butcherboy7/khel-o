@@ -140,6 +140,7 @@ function RegisterForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             leftIcon={<Lock className="h-4 w-4" />}
+            hint="Must be at least 8 characters"
             required
             autoComplete="new-password"
             error={validationErrors.password}

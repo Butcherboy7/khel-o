@@ -14,7 +14,6 @@ import { EditCafeModal } from '@/components/owner/EditCafeModal';
 
 export default function OwnerSettingsPage() {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
   const activeRole = useAuthStore((s) => s.activeRole);
 
   const [settings, setSettings] = useState<OwnerSettings | null>(null);
@@ -24,12 +23,15 @@ export default function OwnerSettingsPage() {
   const [isTogglingPause, setIsTogglingPause] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // Staff role guard — Staff cannot access Café Settings
+  // Staff role guard — Staff cannot access Café Settings. Gated on activeRole
+  // alone: the legacy user.role single-value column can be stale (e.g. an
+  // account originally invited as staff and later granted ownership) and was
+  // wrongly bouncing a real owner out of their own settings page.
   useEffect(() => {
-    if (user?.role === 'staff' || activeRole === 'staff') {
+    if (activeRole === 'staff') {
       router.push('/owner/dashboard');
     }
-  }, [user, activeRole, router]);
+  }, [activeRole, router]);
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -82,7 +84,7 @@ export default function OwnerSettingsPage() {
   };
 
   // If staff user, do not render page
-  if (user?.role === 'staff' || activeRole === 'staff') {
+  if (activeRole === 'staff') {
     return null;
   }
 

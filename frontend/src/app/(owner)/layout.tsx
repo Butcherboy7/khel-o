@@ -18,8 +18,16 @@ import { useAuthStore } from '@/store/authStore';
  */
 function OwnerLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const user = useAuthStore((s) => s.user);
-  const isStaff = user?.role === 'staff';
+  // activeRole (the sanitized, server-validated current workspace — see
+  // sanitizeActiveRole in authStore.ts) is the correct signal here, not
+  // user.role. user.role is the legacy single-value column that the rest of
+  // this codebase already treats as untrustworthy/stale for authorization —
+  // using it here meant a staff account whose stale role column didn't say
+  // "staff" saw the FULL owner shell (Payouts & Razorpay, Staff Management,
+  // Café Settings), none of which they're actually allowed to use, which is
+  // exactly the "confusing staff dashboard" problem this fixes.
+  const activeRole = useAuthStore((s) => s.activeRole);
+  const isStaff = activeRole === 'staff';
 
   // If user is undergoing onboarding, hide sidebar navigation
   if (pathname === '/owner/onboarding') {

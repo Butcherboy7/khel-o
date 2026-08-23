@@ -29,10 +29,65 @@ const POPULAR_GPUS = [
   'NVIDIA RTX 3070 Ti (8GB VRAM)',
   'NVIDIA RTX 3060 (12GB VRAM)',
   'AMD Radeon RX 7900 XTX (24GB)',
-  'PlayStation 5 Console',
-  'Xbox Series X Console',
   'Custom GPU (Type custom GPU below)',
 ];
+
+type Platform = 'pc' | 'playstation' | 'xbox' | 'nintendo' | 'other';
+
+const PLATFORM_LABELS: Record<Platform, string> = {
+  pc: 'PC',
+  playstation: 'PlayStation',
+  xbox: 'Xbox',
+  nintendo: 'Nintendo',
+  other: 'Other',
+};
+
+const PLATFORM_FIELD_LABELS: Record<Platform, string> = {
+  pc: 'GPU / Graphics Card *',
+  playstation: 'Console Model *',
+  xbox: 'Console Model *',
+  nintendo: 'Console Model *',
+  other: 'Hardware / Console Model *',
+};
+
+const CONSOLE_MODELS_BY_PLATFORM: Record<Exclude<Platform, 'pc'>, string[]> = {
+  playstation: [
+    'PlayStation 5 Console',
+    'PlayStation 5 Pro Console',
+    'PlayStation 4 Pro Console',
+    'PlayStation 4 Console',
+    'PlayStation 3 Console',
+    'PlayStation 2 Console',
+    'Custom Console (Type below)',
+  ],
+  xbox: [
+    'Xbox Series X Console',
+    'Xbox Series S Console',
+    'Xbox One X Console',
+    'Xbox One S Console',
+    'Xbox 360 Console',
+    'Custom Console (Type below)',
+  ],
+  nintendo: [
+    'Nintendo Switch',
+    'Nintendo Switch OLED',
+    'Nintendo Switch Lite',
+    'Custom Console (Type below)',
+  ],
+  other: ['Custom Console (Type below)'],
+};
+
+/** Same detection used in onboarding — infers platform from a saved `specs.gpu`
+ * string so editing an existing console tier opens on the right tab, without a
+ * separate platform column server-side. */
+function detectPlatform(gpu: string): Platform {
+  const lower = (gpu || '').toLowerCase();
+  if (lower.includes('playstation') || lower.includes('ps5') || lower.includes('ps4') || lower.includes('ps3') || lower.includes('ps2')) return 'playstation';
+  if (lower.includes('xbox')) return 'xbox';
+  if (lower.includes('switch') || lower.includes('nintendo')) return 'nintendo';
+  if (lower.includes('nvidia') || lower.includes('rtx') || lower.includes('gtx') || lower.includes('radeon') || lower.includes('amd radeon')) return 'pc';
+  return 'other';
+}
 
 const POPULAR_CPUS = [
   'Intel Core i9-14900KS (5.9GHz)',
@@ -63,6 +118,7 @@ export default function HardwareTiersPage() {
   // Form State
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [platform, setPlatform] = useState<Platform>('pc');
   const [gpu, setGpu] = useState('NVIDIA RTX 4070');
   const [cpu, setCpu] = useState('Intel Core i7-13700K');
   const [ram, setRam] = useState('32GB DDR5');
@@ -177,6 +233,7 @@ export default function HardwareTiersPage() {
   const resetForm = () => {
     setEditingTierId(null);
     setName('');
+    setPlatform('pc');
     setGpu('NVIDIA RTX 4070');
     setCpu('Intel Core i7-13700K');
     setRam('32GB DDR5');
@@ -190,6 +247,7 @@ export default function HardwareTiersPage() {
   const handleOpenEdit = (tier: HardwareTier) => {
     setEditingTierId(tier.id);
     setName(tier.name);
+    setPlatform(detectPlatform(tier.specs?.gpu || ''));
     setGpu(tier.specs?.gpu || 'NVIDIA RTX 4070');
     setCpu(tier.specs?.cpu || 'Intel Core i7-13700K');
     setRam(tier.specs?.ram || '32GB DDR5');
@@ -394,30 +452,62 @@ export default function HardwareTiersPage() {
             required
           />
 
-          {/* Dropdowns for GPU, CPU, Monitor matching Onboarding */}
+          {/* Platform: PC vs. which console family */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-caption font-semibold text-text-primary">Platform</label>
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.keys(PLATFORM_LABELS) as Platform[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => {
+                    setPlatform(p);
+                    setGpu(p === 'pc' ? POPULAR_GPUS[0] : CONSOLE_MODELS_BY_PLATFORM[p][0]);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    platform === p
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-surface text-text-secondary border-border hover:border-primary/60'
+                  }`}
+                >
+                  {PLATFORM_LABELS[p]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Dropdowns for Hardware Model, CPU, Monitor matching Onboarding */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* GPU Selector */}
+            {/* Hardware / Console Model Selector — list swaps with Platform above */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-caption font-semibold text-text-primary">GPU / Graphics Card *</label>
-              <select
-                value={POPULAR_GPUS.includes(gpu) ? gpu : 'Custom GPU (Type custom GPU below)'}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setGpu(val.includes('Custom') ? 'NVIDIA RTX 4070' : val);
-                }}
-                className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-              >
-                {POPULAR_GPUS.map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
-              {!POPULAR_GPUS.includes(gpu) && (
-                <Input
-                  placeholder="Type custom GPU..."
-                  value={gpu}
-                  onChange={(e) => setGpu(e.target.value)}
-                />
-              )}
+              <label className="text-caption font-semibold text-text-primary">{PLATFORM_FIELD_LABELS[platform]}</label>
+              {(() => {
+                const modelList = platform === 'pc' ? POPULAR_GPUS : CONSOLE_MODELS_BY_PLATFORM[platform];
+                const isKnown = modelList.includes(gpu);
+                return (
+                  <>
+                    <select
+                      value={isKnown ? gpu : modelList[modelList.length - 1]}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setGpu(val.includes('Custom') ? modelList[0] : val);
+                      }}
+                      className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                    >
+                      {modelList.map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                    {!isKnown && (
+                      <Input
+                        placeholder={platform === 'pc' ? 'Type custom GPU...' : 'Type custom console/hardware...'}
+                        value={gpu}
+                        onChange={(e) => setGpu(e.target.value)}
+                      />
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* CPU Selector */}

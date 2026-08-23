@@ -21,7 +21,7 @@ from app.services.auth_service import AuthService
 from app.api.deps import get_current_user
 from app.models.user import User, UserRole
 from app.core.security import get_password_hash, verify_password
-from app.core.exceptions import BadRequestException, NotFoundException
+from app.core.exceptions import BadRequestException, NotFoundException, AuthException
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -41,6 +41,16 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=6)
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    # Matches UserCreateRequest.password (registration) — reset-password and
+    # accept-invitation use min_length=6, a pre-existing inconsistency this
+    # doesn't fix; using registration's actual rule here since that's the
+    # primary account-creation path.
+    new_password: str = Field(..., min_length=8)
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -106,6 +116,31 @@ async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depen
         "data": {"message": "Password has been reset. You can now log in."}
     }
 
+@router.post("/change-password", status_code=status.HTTP_200_OK)
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Change password for a logged-in user. Previously the only path to a new
+    password was the logged-out forgot-password email flow — there was no way
+    to change it from within Profile/Settings while authenticated."""
+    if not current_user.password_hash:
+        raise BadRequestException(
+            "This account signs in with Google — there's no KHEL-O password to change."
+        )
+
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise AuthException("Current password is incorrect")
+
+    repo = UserRepository(db)
+    await repo.update(current_user.id, {"password_hash": get_password_hash(payload.new_password)})
+
+    return {
+        "success": True,
+        "data": {"message": "Password changed successfully."}
+    }
+
 @router.get("/me", status_code=status.HTTP_200_OK)
 async def get_me(
     current_user: User = Depends(get_current_user),
@@ -132,6 +167,7 @@ async def get_me(
     user_dict = UserResponse.model_validate(current_user).model_dump(by_alias=True)
     user_dict["roles"] = roles
     user_dict["pendingInvitations"] = pending_invitations_list
+    user_dict["hasPassword"] = current_user.password_hash is not None
     
     return {
         "success": True,

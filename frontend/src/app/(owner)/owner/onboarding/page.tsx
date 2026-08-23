@@ -34,6 +34,7 @@ const HARDWARE_PRESETS = [
     hourlyRate: 250,
     totalSeats: 10,
     appBookableSeats: 8,
+    platform: 'pc' as const,
   },
   {
     name: 'High-End RTX 4070 Pods',
@@ -43,6 +44,7 @@ const HARDWARE_PRESETS = [
     hourlyRate: 150,
     totalSeats: 10,
     appBookableSeats: 8,
+    platform: 'pc' as const,
   },
   {
     name: 'Standard RTX 3060 Pods',
@@ -52,6 +54,7 @@ const HARDWARE_PRESETS = [
     hourlyRate: 100,
     totalSeats: 12,
     appBookableSeats: 10,
+    platform: 'pc' as const,
   },
   {
     name: 'PS5 Console Lounge',
@@ -61,8 +64,57 @@ const HARDWARE_PRESETS = [
     hourlyRate: 200,
     totalSeats: 4,
     appBookableSeats: 3,
+    platform: 'playstation' as const,
+  },
+  {
+    name: 'PS4 Pro Console Corner',
+    gpu: 'PlayStation 4 Pro Console',
+    cpu: 'PS4 Pro Custom AMD Jaguar CPU',
+    monitor: '43" Full HD LED TV (PS4)',
+    hourlyRate: 100,
+    totalSeats: 4,
+    appBookableSeats: 3,
+    platform: 'playstation' as const,
+  },
+  {
+    name: 'Xbox Series X Zone',
+    gpu: 'Xbox Series X Console',
+    cpu: 'Xbox Series X Custom AMD Zen 2 CPU',
+    monitor: 'LG 55" 4K OLED HDR TV (Xbox)',
+    hourlyRate: 180,
+    totalSeats: 4,
+    appBookableSeats: 3,
+    platform: 'xbox' as const,
+  },
+  {
+    name: 'Nintendo Switch Corner',
+    gpu: 'Nintendo Switch OLED',
+    cpu: 'Switch Custom NVIDIA Tegra X1',
+    monitor: '32" Full HD LED TV (Switch)',
+    hourlyRate: 80,
+    totalSeats: 4,
+    appBookableSeats: 3,
+    platform: 'nintendo' as const,
   },
 ];
+
+type Platform = 'pc' | 'playstation' | 'xbox' | 'nintendo' | 'other';
+
+const PLATFORM_LABELS: Record<Platform, string> = {
+  pc: 'PC',
+  playstation: 'PlayStation',
+  xbox: 'Xbox',
+  nintendo: 'Nintendo',
+  other: 'Other',
+};
+
+const PLATFORM_FIELD_LABELS: Record<Platform, string> = {
+  pc: 'GPU / Graphics Card',
+  playstation: 'Console Model',
+  xbox: 'Console Model',
+  nintendo: 'Console Model',
+  other: 'Hardware / Console Model',
+};
 
 const POPULAR_GPUS = [
   'NVIDIA RTX 4090 (24GB VRAM)',
@@ -72,10 +124,50 @@ const POPULAR_GPUS = [
   'NVIDIA RTX 3070 Ti (8GB VRAM)',
   'NVIDIA RTX 3060 (12GB VRAM)',
   'AMD Radeon RX 7900 XTX (24GB)',
-  'PlayStation 5 Console',
-  'Xbox Series X Console',
   'Custom GPU (Type custom GPU below)',
 ];
+
+const CONSOLE_MODELS_BY_PLATFORM: Record<Exclude<Platform, 'pc'>, string[]> = {
+  playstation: [
+    'PlayStation 5 Console',
+    'PlayStation 5 Pro Console',
+    'PlayStation 4 Pro Console',
+    'PlayStation 4 Console',
+    'PlayStation 3 Console',
+    'PlayStation 2 Console',
+    'Custom Console (Type below)',
+  ],
+  xbox: [
+    'Xbox Series X Console',
+    'Xbox Series S Console',
+    'Xbox One X Console',
+    'Xbox One S Console',
+    'Xbox 360 Console',
+    'Custom Console (Type below)',
+  ],
+  nintendo: [
+    'Nintendo Switch',
+    'Nintendo Switch OLED',
+    'Nintendo Switch Lite',
+    'Custom Console (Type below)',
+  ],
+  other: [
+    'Custom Console (Type below)',
+  ],
+};
+
+/** Which platform a preset/GPU string belongs to — used to pick the right
+ * dropdown and label when a tier is loaded from a preset, a saved draft, or
+ * typed in as custom text, without storing a separate platform field
+ * server-side (the backend only ever sees the resulting free-text string). */
+function detectPlatform(gpu: string): Platform {
+  const lower = (gpu || '').toLowerCase();
+  if (lower.includes('playstation') || lower.includes('ps5') || lower.includes('ps4') || lower.includes('ps3') || lower.includes('ps2')) return 'playstation';
+  if (lower.includes('xbox')) return 'xbox';
+  if (lower.includes('switch') || lower.includes('nintendo')) return 'nintendo';
+  if (lower.includes('nvidia') || lower.includes('rtx') || lower.includes('gtx') || lower.includes('radeon') || lower.includes('amd radeon')) return 'pc';
+  return 'other';
+}
 
 const POPULAR_CPUS = [
   'Intel Core i9-14900KS (5.9GHz)',
@@ -143,6 +235,9 @@ interface OnboardingState {
     hourlyRate: number;
     totalSeats: number;
     appBookableSeats: number;
+    /** UI-only — which preset list/label to show. Never sent to the backend;
+     * the backend only receives the resulting `gpu` free-text string. */
+    platform?: Platform;
   }>;
   supportedGames: string[];
   amenities: string[];
@@ -835,7 +930,9 @@ export default function OnboardingWizardPage() {
                   </div>
 
                   {formData.hardwareTiers.map((tier, idx) => {
-                    const isKnownGpu = POPULAR_GPUS.includes(tier.gpu || '');
+                    const platform: Platform = tier.platform || detectPlatform(tier.gpu);
+                    const modelList = platform === 'pc' ? POPULAR_GPUS : CONSOLE_MODELS_BY_PLATFORM[platform];
+                    const isKnownGpu = modelList.includes(tier.gpu || '');
                     const isKnownCpu = POPULAR_CPUS.includes(tier.cpu || '');
                     const isKnownMonitor = POPULAR_MONITORS.includes(tier.monitor || '');
 
@@ -884,28 +981,57 @@ export default function OnboardingWizardPage() {
                           />
                         </div>
 
-                        {/* Row 2: 3 Separate Dropdowns for GPU, CPU, Monitor */}
+                        {/* Platform: PC vs. which console family — old-city cafés running
+                            PS3/PS4-only setups need those as real, direct choices, not
+                            buried behind a PC-flavoured GPU dropdown. */}
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-caption font-semibold text-text-primary">Platform</label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(Object.keys(PLATFORM_LABELS) as Platform[]).map((p) => (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...formData.hardwareTiers];
+                                  const defaultModel = p === 'pc' ? POPULAR_GPUS[0] : CONSOLE_MODELS_BY_PLATFORM[p][0];
+                                  updated[idx].platform = p;
+                                  updated[idx].gpu = defaultModel;
+                                  updateField('hardwareTiers', updated);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                  platform === p
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-500'
+                                    : 'bg-surface text-text-secondary border-border hover:border-emerald-500/60'
+                                }`}
+                              >
+                                {PLATFORM_LABELS[p]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Row 2: 3 Separate Dropdowns for Hardware Model, CPU, Monitor */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          {/* GPU Selector */}
+                          {/* Hardware / Console Model Selector — list swaps with Platform above */}
                           <div className="flex flex-col gap-1.5">
-                            <label className="text-caption font-semibold text-text-primary">GPU / Graphics Card</label>
+                            <label className="text-caption font-semibold text-text-primary">{PLATFORM_FIELD_LABELS[platform]}</label>
                             <select
-                              value={isKnownGpu ? tier.gpu : 'Custom GPU (Type custom GPU below)'}
+                              value={isKnownGpu ? tier.gpu : modelList[modelList.length - 1]}
                               onChange={(e) => {
                                 const updated = [...formData.hardwareTiers];
                                 const val = e.target.value;
-                                updated[idx].gpu = val.includes('Custom') ? 'NVIDIA RTX 4070' : val;
+                                updated[idx].gpu = val.includes('Custom') ? modelList[0] : val;
                                 updateField('hardwareTiers', updated);
                               }}
                               className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                             >
-                              {POPULAR_GPUS.map((g) => (
+                              {modelList.map((g) => (
                                 <option key={g} value={g}>{g}</option>
                               ))}
                             </select>
                             {!isKnownGpu && (
                               <Input
-                                placeholder="Type custom GPU..."
+                                placeholder={platform === 'pc' ? 'Type custom GPU...' : 'Type custom console/hardware...'}
                                 value={tier.gpu}
                                 onChange={(e) => {
                                   const updated = [...formData.hardwareTiers];

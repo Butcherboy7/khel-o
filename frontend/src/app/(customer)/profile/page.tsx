@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
-import { updateMe } from '@/lib/api/auth';
+import { updateMe, changePassword } from '@/lib/api/auth';
+import { apiClient } from '@/lib/api/client';
 import {
   Avatar,
   Card,
@@ -12,6 +14,7 @@ import {
   Button,
   Badge,
   Modal,
+  Input,
 } from '@/components/ui';
 import {
   User,
@@ -31,6 +34,8 @@ import {
   Cpu,
   Users,
   LifeBuoy,
+  KeyRound,
+  Lock,
 } from 'lucide-react';
 
 const CITIES = ['Bengaluru', 'Hyderabad', 'Mumbai', 'Delhi', 'Pune', 'Chennai'];
@@ -61,6 +66,59 @@ export default function ProfilePage() {
   const [preferredTier, setPreferredTier] = useState('Ultra RTX 4080 (240Hz)');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const closePasswordModal = () => {
+    setIsPasswordModalOpen(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setPasswordError('');
+    setPasswordSuccess(false);
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError('');
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('New password and confirmation do not match.');
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (err: any) {
+      setPasswordError(err?.message || 'Failed to change password. Please try again.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // The header badge used to just say "Level 4" unconditionally — same rewards
+  // data that already powers the real level/XP on the Rewards page, not a
+  // second/fake source of truth.
+  const { data: rewardsData } = useQuery<{ level: number }>({
+    queryKey: ['rewards'],
+    queryFn: async () => {
+      const response = await apiClient.get('/api/v1/rewards');
+      return response.data.data;
+    },
+    staleTime: 30_000,
+  });
 
   if (!user) return null;
 
@@ -123,7 +181,7 @@ export default function ProfilePage() {
             <div className="flex items-center gap-2">
               <h1 className="font-heading text-h3 font-bold text-text-primary truncate">{fullName}</h1>
               <Badge variant="primary" size="sm" className="flex-shrink-0">
-                Level 4
+                Level {rewardsData?.level ?? 1}
               </Badge>
             </div>
             <p className="text-caption text-text-secondary truncate">{user.email}</p>
@@ -308,6 +366,26 @@ export default function ProfilePage() {
             </div>
             <ChevronRight className="h-4 w-4 text-text-secondary" />
           </Link>
+
+          {user.hasPassword === false ? (
+            <div className="flex items-center justify-between p-3.5 rounded-xl opacity-60">
+              <div className="flex items-center gap-3 text-text-secondary font-semibold text-body">
+                <KeyRound className="h-4 w-4" />
+                <span>Password — Managed by Google Sign-In</span>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsPasswordModalOpen(true)}
+              className="flex items-center justify-between p-3.5 hover:bg-surface rounded-xl transition-colors text-left"
+            >
+              <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
+                <KeyRound className="h-4 w-4 text-text-secondary" />
+                <span>Change Password</span>
+              </div>
+              <ChevronRight className="h-4 w-4 text-text-secondary" />
+            </button>
+          )}
         </CardContent>
       </Card>
 
@@ -462,6 +540,85 @@ export default function ProfilePage() {
         <p className="text-caption text-text-secondary">
           You will need to sign back in to access your digital gaming passes and active sessions.
         </p>
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal
+        isOpen={isPasswordModalOpen}
+        onClose={closePasswordModal}
+        title="Change Password"
+        description="Use a password you don't use anywhere else."
+        footer={
+          passwordSuccess ? (
+            <Button variant="primary" onClick={closePasswordModal} className="w-full">
+              Done
+            </Button>
+          ) : (
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" onClick={closePasswordModal}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleChangePassword}
+                disabled={!currentPassword || !newPassword || !confirmNewPassword}
+                isLoading={isChangingPassword}
+                loadingText="Changing…"
+              >
+                Change Password
+              </Button>
+            </div>
+          )
+        }
+      >
+        {passwordSuccess ? (
+          <div className="flex flex-col items-center gap-2 py-4 text-center">
+            <CheckCircle2 className="h-9 w-9 text-success" />
+            <p className="text-body font-semibold text-text-primary">Password changed</p>
+            <p className="text-caption text-text-secondary">
+              Your password has been updated. Use it next time you sign in.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {passwordError && (
+              <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">
+                {passwordError}
+              </div>
+            )}
+
+            <Input
+              label="Current Password"
+              type="password"
+              placeholder="••••••••"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              leftIcon={<Lock className="h-4 w-4" />}
+              autoComplete="current-password"
+            />
+
+            <Input
+              label="New Password"
+              type="password"
+              placeholder="At least 8 characters"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              leftIcon={<KeyRound className="h-4 w-4" />}
+              hint="Must be at least 8 characters"
+              autoComplete="new-password"
+            />
+
+            <Input
+              label="Confirm New Password"
+              type="password"
+              placeholder="Re-enter new password"
+              value={confirmNewPassword}
+              onChange={(e) => setConfirmNewPassword(e.target.value)}
+              leftIcon={<KeyRound className="h-4 w-4" />}
+              autoComplete="new-password"
+            />
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -10,6 +10,9 @@ export interface User {
   cafeId?: string;
   isActive: boolean;
   avatarUrl: string | null;
+  // false for accounts that only ever signed in via Google — they have no
+  // KHEL-O password to change.
+  hasPassword?: boolean;
   pendingInvitations?: Array<{
     id: string;
     venueName: string;

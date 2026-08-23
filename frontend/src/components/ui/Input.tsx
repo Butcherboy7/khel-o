@@ -1,4 +1,5 @@
-import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useId, useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 /* ── Input ───────────────────────────────────────────────────────── */
@@ -22,6 +23,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       rightElement,
       id,
       disabled,
+      type,
       ...props
     },
     ref,
@@ -30,6 +32,29 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     const inputId = id ?? generatedId;
     const errorId = `${inputId}-error`;
     const hintId = `${inputId}-hint`;
+
+    // Every password field in the app renders through this component — add
+    // the show/hide toggle once, here, instead of duplicating it at each of
+    // the six call sites (login, register, reset-password x2, accept-
+    // invitation x2). Only kicks in for type="password" and only when the
+    // caller hasn't already supplied a rightElement of their own.
+    const [isRevealed, setIsRevealed] = useState(false);
+    const isPasswordField = type === 'password';
+    const resolvedType = isPasswordField && isRevealed ? 'text' : type;
+    const resolvedRightElement =
+      isPasswordField && !rightElement ? (
+        <button
+          type="button"
+          onClick={() => setIsRevealed((v) => !v)}
+          tabIndex={-1}
+          aria-label={isRevealed ? 'Hide password' : 'Show password'}
+          className="flex items-center text-text-secondary transition-colors hover:text-text-primary"
+        >
+          {isRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      ) : (
+        rightElement
+      );
 
     return (
       <div className="flex flex-col gap-1.5">
@@ -55,6 +80,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
+            type={resolvedType}
             disabled={disabled}
             aria-describedby={
               [error ? errorId : '', hint ? hintId : '']
@@ -78,15 +104,15 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-surface',
               // Icon padding
               leftIcon && 'pl-11',
-              rightElement && 'pr-11',
+              resolvedRightElement && 'pr-11',
               className,
             )}
             {...props}
           />
 
-          {rightElement && (
+          {resolvedRightElement && (
             <span className="absolute right-4 flex items-center">
-              {rightElement}
+              {resolvedRightElement}
             </span>
           )}
         </div>

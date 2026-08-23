@@ -33,7 +33,7 @@ import { PendingApprovalView } from '@/components/owner/PendingApprovalView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
 
 export default function OwnerDashboardPage() {
-  const { user } = useAuthStore();
+  const { activeRole } = useAuthStore();
   const [statusState, setStatusState] = useState<{
     status: 'loading' | 'prospective' | 'draft' | 'pending' | 'verified' | 'suspended';
     role?: string;
@@ -303,7 +303,13 @@ export default function OwnerDashboardPage() {
   const totalEarningsToday = todayBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
   const isPaused = Boolean(cafeSettings?.bookingsPaused);
-  const isStaff = user?.role === ('staff' as any) || user?.roles?.includes('staff' as any) || statusState.role === 'staff';
+  // activeRole (the sanitized current workspace from authStore) is the same
+  // signal the owner shell/nav now uses — previously this checked the stale
+  // user.role column and user.roles (which an owner who ALSO holds a staff
+  // grant elsewhere would always match), so an owner viewing their own café
+  // could see the staff-only dashboard content while the sidebar still showed
+  // the full owner nav. Keeping both in sync on one signal fixes that split.
+  const isStaff = activeRole === 'staff';
 
   return (
     <div className="max-w-6xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-8">

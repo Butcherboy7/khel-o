@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   CreditCard,
   ShieldCheck,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { getOwnerPayoutSummary } from '@/lib/api/owner';
 import { Card, CardContent, Badge, Button, EmptyState } from '@/components/ui';
+import { useAuthStore } from '@/store/authStore';
 
 interface PayoutAccount {
   accountHolderName: string | null;
@@ -54,12 +56,23 @@ function statusBadge(status: string) {
 }
 
 export default function OwnerPayoutsPage() {
+  const router = useRouter();
+  const activeRole = useAuthStore((s) => s.activeRole);
   const [summary, setSummary] = useState<PayoutSummary | null>(null);
   const [account, setAccount] = useState<PayoutAccount | null>(null);
   const [transactions, setTransactions] = useState<PayoutTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [selectedTx, setSelectedTx] = useState<PayoutTransaction | null>(null);
+
+  // Staff cannot see the venue's financials — bounce to the dashboard instead
+  // of rendering a page whose data calls will just 403. Matches the same
+  // activeRole-based guard on Café Settings.
+  useEffect(() => {
+    if (activeRole === 'staff') {
+      router.push('/owner/dashboard');
+    }
+  }, [activeRole, router]);
 
   useEffect(() => {
     async function loadPayouts() {

@@ -28,6 +28,7 @@ class AuthService:
         roles = await get_user_roles(user.id, self.user_repo.db)
         user_dict = UserResponse.model_validate(user).model_dump(by_alias=True)
         user_dict["roles"] = roles
+        user_dict["hasPassword"] = user.password_hash is not None
         return user_dict
 
     def create_tokens(self, user: User) -> Tuple[str, str]:

@@ -1,12 +1,25 @@
 'use client';
 
 import { useState, useEffect, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { Users, UserPlus, EyeOff, Trash2, CheckCircle2, AlertCircle, Copy, Mail, Clock, XCircle } from 'lucide-react';
 import { listOwnerStaff, deleteOwnerStaff } from '@/lib/api/owner';
 import { createStaffInvitation, listStaffInvitations, cancelStaffInvitation, type StaffInvitation } from '@/lib/api/invitations';
 import { Card, CardContent, Button, Input, Badge } from '@/components/ui';
+import { useAuthStore } from '@/store/authStore';
 
 export default function OwnerStaffPage() {
+  const router = useRouter();
+  const activeRole = useAuthStore((s) => s.activeRole);
+
+  // Staff can't invite/manage other staff — only the owner can. Bounces to
+  // the dashboard instead of rendering a page whose actions would just 403.
+  useEffect(() => {
+    if (activeRole === 'staff') {
+      router.push('/owner/dashboard');
+    }
+  }, [activeRole, router]);
+
   const [staffList, setStaffList] = useState<any[]>([]);
   const [invitations, setInvitations] = useState<StaffInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);

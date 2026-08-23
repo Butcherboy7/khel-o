@@ -169,16 +169,17 @@ function ExplorePageContent() {
   // Enhanced Filter Logic
   const filteredCafes = cafes.filter((cafe) => {
     if (activeTag === 'PS5 & Consoles') {
-      const hasConsole =
-        cafe.tierNames?.some(
-          (t) =>
-            t.toLowerCase().includes('ps5') ||
-            t.toLowerCase().includes('console') ||
-            t.toLowerCase().includes('switch') ||
-            t.toLowerCase().includes('dualsense')
-        ) ||
-        cafe.name.toLowerCase().includes('lounge') ||
-        cafe.name.toLowerCase().includes('velocity');
+      // Matches on the tier's own name/hardware text, not the café's name — a
+      // café called "Velocity Lounge" isn't a console venue just because its
+      // name contains "lounge", which is what this filter used to do.
+      const CONSOLE_KEYWORDS = [
+        'ps5', 'ps4', 'ps3', 'ps2', 'playstation',
+        'xbox', 'switch', 'nintendo', 'dualsense', 'console',
+      ];
+      const hasConsole = cafe.tierNames?.some((t) => {
+        const lower = t.toLowerCase();
+        return CONSOLE_KEYWORDS.some((kw) => lower.includes(kw));
+      });
       if (!hasConsole) return false;
     }
 

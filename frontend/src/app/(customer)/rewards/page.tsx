@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Gift, Award, Flame, Zap, Check, Lock, Ticket, Sparkles, ChevronRight, Copy, CheckCircle2 } from 'lucide-react';
-import { Card, CardContent, Button, Badge, Skeleton } from '@/components/ui';
+import { Gift, Award, Flame, Zap, Check, Lock, Ticket, Sparkles, ChevronRight, Copy, CheckCircle2, Trophy } from 'lucide-react';
+import { Card, CardContent, Button, Badge, Skeleton, EmptyState } from '@/components/ui';
 import { apiClient } from '@/lib/api/client';
 import { useAuthStore } from '@/store/authStore';
 
@@ -61,6 +61,17 @@ const COUPONS: Omit<Coupon, 'isClaimed'>[] = [
 const LEVEL_TITLES = ['Rookie', 'Contender', 'Skilled Gamer', 'Veteran Gamer', 'Elite Gamer', 'Legend'];
 function getLevelTitle(level: number): string {
   return LEVEL_TITLES[Math.min(level - 1, LEVEL_TITLES.length - 1)] ?? 'Rookie';
+}
+
+// Achievement.progress is a "3 / 5"-style string from the backend — parse it
+// into a fill percentage for a visual bar instead of leaving it as text-only.
+function progressPercent(progress: string): number {
+  const match = progress.match(/(\d+)\s*\/\s*(\d+)/);
+  if (!match) return 0;
+  const [, done, total] = match;
+  const totalNum = Number(total);
+  if (!totalNum) return 0;
+  return Math.min(100, Math.round((Number(done) / totalNum) * 100));
 }
 
 export default function RewardsPage() {
@@ -283,6 +294,16 @@ export default function RewardsPage() {
                 </div>
 
                 <p className="text-caption text-text-secondary mt-0.5">{ach.description}</p>
+
+                {!ach.isUnlocked && (
+                  <div className="mt-2 h-1.5 w-full rounded-full bg-surface overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      style={{ width: `${progressPercent(ach.progress)}%` }}
+                    />
+                  </div>
+                )}
+
                 <div className="text-badge font-semibold text-text-secondary mt-2 flex items-center justify-between">
                   <span>Progress: {ach.progress}</span>
                   <span className="text-primary hover:underline">Details →</span>
@@ -290,6 +311,15 @@ export default function RewardsPage() {
               </div>
             </div>
           ))}
+          {!isLoading && achievements.length === 0 && (
+            <div className="sm:col-span-2">
+              <EmptyState
+                title="No badges yet"
+                description="Complete your first booking to start unlocking gamer badges and XP."
+                icon={<Trophy className="h-7 w-7" />}
+              />
+            </div>
+          )}
         </div>
       </div>
 

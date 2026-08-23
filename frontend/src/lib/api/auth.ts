@@ -28,3 +28,7 @@ export async function forgotPassword(email: string): Promise<{ message: string }
 export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
   return call(() => apiClient.post('/api/v1/auth/reset-password', { token, newPassword }));
 }
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+  return call(() => apiClient.post('/api/v1/auth/change-password', { currentPassword, newPassword }));
+}

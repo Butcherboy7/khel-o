@@ -9,7 +9,20 @@ GPU_SCORES = {
     "rtx 3070": 4.0, "rtx 3070 ti": 4.0, "rtx 4060 ti": 4.0,
     "rtx 3080": 4.5, "rtx 4070": 4.5, "rtx 4070 ti": 4.5,
     "rtx 3090": 5.0, "rtx 4080": 5.0, "rtx 4090": 5.0,
-    "ps5": 4.0, "xbox series x": 4.0,
+    # Consoles — the onboarding preset strings spell platforms out in full
+    # ("PlayStation 4 Pro Console"), but an owner typing a custom entry might
+    # write the short form ("PS4 Pro") instead, so both are listed. Order
+    # matters: `in name` is a substring check, so a more specific string (e.g.
+    # "playstation 5 pro") must come before a substring of it
+    # ("playstation 5") or the shorter/less specific key wins first.
+    "playstation 5 pro": 4.5, "ps5 pro": 4.5,
+    "xbox series x": 4.0, "playstation 5": 4.0, "ps5": 4.0,
+    "xbox series s": 3.0,
+    "switch oled": 2.0, "switch lite": 1.6, "nintendo switch": 1.8, "switch": 1.8,
+    "xbox one x": 2.0, "playstation 4 pro": 2.0, "ps4 pro": 2.0,
+    "xbox one s": 1.5, "playstation 4": 1.5, "ps4": 1.5,
+    "xbox 360": 1.0, "playstation 3": 1.0, "ps3": 1.0,
+    "playstation 2": 0.5, "ps2": 0.5,
 }
 
 def _score_gpu(gpu_name: str) -> float:
