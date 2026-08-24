@@ -148,16 +148,20 @@ function CustomerBottomNav() {
             key={item.href}
             href={item.href}
             className={cn(
-              'flex flex-col items-center gap-0.5 px-4 py-1.5 transition-all duration-fast relative',
+              'flex flex-col items-center gap-0.5 px-4 py-1.5 transition-all duration-fast',
               isActive ? 'text-primary font-bold' : 'text-text-secondary hover:text-text-primary',
             )}
             aria-current={isActive ? 'page' : undefined}
           >
-            <item.icon className={cn('h-5 w-5', isActive && 'scale-110')} />
+            <span
+              className={cn(
+                'flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast',
+                isActive && 'bg-primary/12',
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+            </span>
             <span className="text-badge">{item.label}</span>
-            {isActive && (
-              <span className="absolute bottom-1 h-1 w-1 rounded-full bg-primary" />
-            )}
           </Link>
         );
       })}

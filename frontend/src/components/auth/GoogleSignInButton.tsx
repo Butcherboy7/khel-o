@@ -74,7 +74,14 @@ export function GoogleSignInButton({ redirectPath, onError }: GoogleSignInButton
 
   const initialize = useCallback(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId || !window.google || !containerRef.current) return;
+    // Checking `window.google` alone isn't enough: this app also loads the
+    // Google Maps JS API, which shares the same `window.google` namespace.
+    // If Maps sets `window.google = { maps: {...} }` before (or without)
+    // Identity Services populating `.accounts.id`, `window.google` is truthy
+    // but `.accounts` is undefined — `window.google.accounts.id.initialize`
+    // then throws "Cannot read properties of undefined (reading 'id')",
+    // which crashed the whole login page for every logged-out visitor.
+    if (!clientId || !window.google?.accounts?.id || !containerRef.current) return;
 
     window.google.accounts.id.initialize({
       client_id: clientId,
@@ -94,7 +101,7 @@ export function GoogleSignInButton({ redirectPath, onError }: GoogleSignInButton
   }, [handleCredentialResponse]);
 
   useEffect(() => {
-    if (window.google) initialize();
+    if (window.google?.accounts?.id) initialize();
   }, [initialize]);
 
   if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) return null;
