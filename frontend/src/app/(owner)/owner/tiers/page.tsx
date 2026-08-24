@@ -279,7 +279,7 @@ export default function HardwareTiersPage() {
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-heading text-h1 text-text-primary">Hardware Tiers</h1>
           <p className="text-body text-text-secondary mt-0.5">
@@ -294,10 +294,10 @@ export default function HardwareTiersPage() {
             resetForm();
             setIsModalOpen(true);
           }}
-          className="gap-2"
+          className="gap-2 w-full sm:w-auto justify-center whitespace-nowrap"
         >
           <Plus className="h-4 w-4" />
-          <span>Add New Tier</span>
+          <span>+ Add Tier</span>
         </Button>
       </div>
 
@@ -388,25 +388,36 @@ export default function HardwareTiersPage() {
                     </div>
                   </div>
 
-                  {/* Spec List */}
-                  <div className="grid grid-cols-2 gap-2 text-caption bg-surface p-3 rounded-xl">
-                    <div className="flex items-center gap-1.5 font-semibold text-text-primary">
-                      <Zap className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                      <span>{tier.specs?.gpu || 'N/A'}</span>
+                  {/* Spec List — omit any chip whose value is unset rather than
+                      rendering a placeholder "N/A", which reads as broken data */}
+                  {(tier.specs?.gpu || tier.specs?.cpu || tier.specs?.ram || tier.specs?.monitor) && (
+                    <div className="grid grid-cols-2 gap-2 text-caption bg-surface p-3 rounded-xl">
+                      {tier.specs?.gpu && (
+                        <div className="flex items-center gap-1.5 font-semibold text-text-primary">
+                          <Zap className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                          <span>{tier.specs.gpu}</span>
+                        </div>
+                      )}
+                      {tier.specs?.cpu && (
+                        <div className="flex items-center gap-1.5 text-text-secondary">
+                          <Cpu className="h-3.5 w-3.5 text-text-secondary flex-shrink-0" />
+                          <span>{tier.specs.cpu}</span>
+                        </div>
+                      )}
+                      {tier.specs?.ram && (
+                        <div className="flex items-center gap-1.5 text-text-secondary">
+                          <HardDrive className="h-3.5 w-3.5 text-text-secondary flex-shrink-0" />
+                          <span>{tier.specs.ram}</span>
+                        </div>
+                      )}
+                      {tier.specs?.monitor && (
+                        <div className="flex items-center gap-1.5 text-text-secondary">
+                          <Monitor className="h-3.5 w-3.5 text-text-secondary flex-shrink-0" />
+                          <span>{tier.specs.monitor}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-text-secondary">
-                      <Cpu className="h-3.5 w-3.5 text-text-secondary flex-shrink-0" />
-                      <span>{tier.specs?.cpu || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-text-secondary">
-                      <HardDrive className="h-3.5 w-3.5 text-text-secondary flex-shrink-0" />
-                      <span>{tier.specs?.ram || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-text-secondary">
-                      <Monitor className="h-3.5 w-3.5 text-text-secondary flex-shrink-0" />
-                      <span>{tier.specs?.monitor || 'N/A'}</span>
-                    </div>
-                  </div>
+                  )}
 
                   <div className="flex items-center justify-between border-t border-border pt-3">
                     <PriceDisplay amount={tier.pricePerHour} size="md" />

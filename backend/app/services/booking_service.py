@@ -276,12 +276,12 @@ class BookingService:
             start_datetime = datetime.combine(booking.session_date, booking.start_time).replace(tzinfo=IST)
             now_ist = datetime.now(IST)
             if start_datetime - now_ist < timedelta(hours=2):
-                time_diff = start_datetime - now_ist
-                hours_left = time_diff.total_seconds() / 3600
-                resp.cancel_policy = CancelPolicy(
-                    allowed=False, 
-                    reason=f"Cancellation window expired (must be 2+ hours before session, currently {hours_left:.1f} hours remaining)"
-                )
+                hours_left = (start_datetime - now_ist).total_seconds() / 3600
+                if hours_left <= 0:
+                    reason = "Cancellation window has closed — this session has already started or passed."
+                else:
+                    reason = f"Cancellation window has closed — bookings can only be cancelled 2+ hours before the session ({hours_left:.1f}h remaining)."
+                resp.cancel_policy = CancelPolicy(allowed=False, reason=reason)
             else:
                 resp.cancel_policy = CancelPolicy(allowed=True, reason="")
 

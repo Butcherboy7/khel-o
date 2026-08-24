@@ -291,12 +291,12 @@ export default function BookingDetailPage() {
                 >
                   <XCircle className="h-4 w-4" />
                   <span>Cancel Booking</span>
-                  {!canCancel && cancelDisabledReason && (
-                    <span className="text-caption text-text-secondary ml-2">
-                      ({cancelDisabledReason})
-                    </span>
-                  )}
                 </Button>
+                {!canCancel && cancelDisabledReason && (
+                  <p className="text-caption text-text-secondary text-center">
+                    {cancelDisabledReason}
+                  </p>
+                )}
               </div>
             </div>
           ) : (
@@ -415,12 +415,12 @@ export default function BookingDetailPage() {
             >
               <XCircle className="h-4 w-4" />
               <span>Cancel Booking</span>
-              {!canCancel && cancelDisabledReason && (
-                <span className="text-caption text-text-secondary ml-2">
-                  ({cancelDisabledReason})
-                </span>
-              )}
             </Button>
+            {!canCancel && cancelDisabledReason && (
+              <p className="text-caption text-text-secondary text-center">
+                {cancelDisabledReason}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -39,27 +39,35 @@ export default function BookingsListPage() {
         </p>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide border-b border-border/60 pb-4">
-        {[
-          { id: 'all', label: 'All Passes' },
-          { id: 'confirmed', label: 'Upcoming' },
-          { id: 'checked_in', label: 'Active Session' },
-          { id: 'completed', label: 'Completed' },
-          { id: 'cancelled', label: 'Cancelled' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setSelectedStatus(tab.id)}
-            className={`px-4 py-2 rounded-full text-caption font-bold flex-shrink-0 transition-all active:scale-95 ${
-              selectedStatus === tab.id
-                ? 'bg-primary text-white shadow-float'
-                : 'bg-surface text-text-secondary border border-border/80 hover:border-primary/30 hover:text-primary'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Filter Tabs — edge-fades on the trailing side hint that the row
+          scrolls horizontally, since tabs otherwise clip mid-word at the
+          viewport edge with no visual cue (same pattern as the homepage
+          filter chip row). */}
+      <div className="relative border-b border-border/60 pb-4">
+        <div
+          className="flex items-center gap-2 overflow-x-auto scrollbar-hide"
+          style={{ maskImage: 'linear-gradient(to right, black 92%, transparent)', WebkitMaskImage: 'linear-gradient(to right, black 92%, transparent)' }}
+        >
+          {[
+            { id: 'all', label: 'All Passes' },
+            { id: 'confirmed', label: 'Upcoming' },
+            { id: 'checked_in', label: 'Active Session' },
+            { id: 'completed', label: 'Completed' },
+            { id: 'cancelled', label: 'Cancelled' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setSelectedStatus(tab.id)}
+              className={`px-4 py-2 rounded-full text-caption font-bold flex-shrink-0 transition-all active:scale-95 ${
+                selectedStatus === tab.id
+                  ? 'bg-primary text-white shadow-float'
+                  : 'bg-surface text-text-secondary border border-border/80 hover:border-primary/30 hover:text-primary'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 4-State System Content */}

@@ -219,37 +219,43 @@ export default function AdminUsersPage() {
                     {u.isActive ? 'Active' : 'Suspended'}
                   </Badge>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1.5">
+                  {/* Actions — labeled, not icon-only: a title-only tooltip
+                      never shows on a touch device, so a first-time admin
+                      on a phone would otherwise have no way to know what
+                      these buttons do without risking a click. */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     {u.isActive ? (
                       <button
                         type="button"
                         onClick={() => deactivateMut.mutate(u.id)}
                         disabled={deactivateMut.isPending}
-                        title="Suspend account"
-                        className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors disabled:opacity-50"
+                        title="Suspend this account"
+                        className="flex items-center gap-1 h-8 px-3 rounded-xl border border-border bg-surface text-xs font-semibold text-text-secondary hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors disabled:opacity-50 whitespace-nowrap"
                       >
                         <UserX className="h-3.5 w-3.5" />
+                        Suspend
                       </button>
                     ) : (
                       <button
                         type="button"
                         onClick={() => activateMut.mutate(u.id)}
                         disabled={activateMut.isPending}
-                        title="Reactivate account"
-                        className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-600 transition-colors disabled:opacity-50"
+                        title="Reactivate this account"
+                        className="flex items-center gap-1 h-8 px-3 rounded-xl border border-border bg-surface text-xs font-semibold text-text-secondary hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-600 transition-colors disabled:opacity-50 whitespace-nowrap"
                       >
                         <UserCheck className="h-3.5 w-3.5" />
+                        Reactivate
                       </button>
                     )}
                     {u.role !== 'admin' && (
                       <button
                         type="button"
                         onClick={() => setConfirmPromoteId(u.id)}
-                        title="Promote to admin"
-                        className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors"
+                        title="Promote this user to admin — grants full platform access"
+                        className="flex items-center gap-1 h-8 px-3 rounded-xl border border-border bg-surface text-xs font-semibold text-text-secondary hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors whitespace-nowrap"
                       >
                         <ShieldPlus className="h-3.5 w-3.5" />
+                        Promote
                       </button>
                     )}
                   </div>

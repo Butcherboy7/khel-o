@@ -59,8 +59,8 @@ export default function OwnerAnalyticsPage() {
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border pb-6">
         <div>
-          <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-emerald-500" />
+          <h1 className="font-heading text-h1 text-text-primary flex items-start gap-2">
+            <BarChart3 className="h-6 w-6 text-emerald-500 flex-shrink-0 mt-0.5" />
             <span>Business Analytics & Demand Insights</span>
           </h1>
           <p className="text-caption text-text-secondary">Purposeful operational metrics to optimize hardware pricing and peak hours.</p>
@@ -68,9 +68,9 @@ export default function OwnerAnalyticsPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5">
         <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-5 flex flex-col gap-1">
+          <CardContent className="p-4 sm:p-5 flex flex-col gap-1">
             <span className="text-caption font-semibold text-text-secondary">Returning Customer Rate</span>
             <div className="font-heading text-h1 text-emerald-600">{analytics?.returningCustomerRate || 68.4}%</div>
             <span className="text-xs text-text-tertiary">Gamers who booked more than once</span>
@@ -78,15 +78,15 @@ export default function OwnerAnalyticsPage() {
         </Card>
 
         <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-5 flex flex-col gap-1">
+          <CardContent className="p-4 sm:p-5 flex flex-col gap-1">
             <span className="text-caption font-semibold text-text-secondary">Average Session Duration</span>
             <div className="font-heading text-h1 text-text-primary">{analytics?.averageDurationHours || 2.5} Hours</div>
             <span className="text-xs text-text-tertiary">Per booking session</span>
           </CardContent>
         </Card>
 
-        <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-5 flex flex-col gap-1">
+        <Card elevation="resting" className="bg-surface border border-border col-span-2 sm:col-span-1">
+          <CardContent className="p-4 sm:p-5 flex flex-col gap-1">
             <span className="text-caption font-semibold text-text-secondary">Peak Hours Occupancy</span>
             <div className="font-heading text-h1 text-amber-600">98%</div>
             <span className="text-xs text-text-tertiary">Busiest window (18:00 - 21:00)</span>

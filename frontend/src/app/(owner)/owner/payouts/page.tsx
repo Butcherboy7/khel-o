@@ -156,9 +156,9 @@ export default function OwnerPayoutsPage() {
       )}
 
       {/* Earnings & Settlement Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5">
         <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-5 flex flex-col gap-1">
+          <CardContent className="p-4 sm:p-5 flex flex-col gap-1">
             <span className="text-caption font-semibold text-text-secondary">Total Gross Earnings</span>
             <div className="font-heading text-h1 text-text-primary">₹{(summary?.totalEarnings ?? 0).toFixed(2)}</div>
             <span className="text-xs text-text-tertiary">Customer payment total</span>
@@ -166,15 +166,15 @@ export default function OwnerPayoutsPage() {
         </Card>
 
         <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-5 flex flex-col gap-1">
+          <CardContent className="p-4 sm:p-5 flex flex-col gap-1">
             <span className="text-caption font-semibold text-text-secondary">Transferred to Bank</span>
             <div className="font-heading text-h1 text-emerald-600">₹{(summary?.completedSettlements ?? 0).toFixed(2)}</div>
             <span className="text-xs text-text-tertiary">Confirmed via Razorpay Route</span>
           </CardContent>
         </Card>
 
-        <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-5 flex flex-col gap-1">
+        <Card elevation="resting" className="bg-surface border border-border col-span-2 sm:col-span-1">
+          <CardContent className="p-4 sm:p-5 flex flex-col gap-1">
             <span className="text-caption font-semibold text-text-secondary">Pending Settlement</span>
             <div className="font-heading text-h1 text-amber-600">₹{(summary?.pendingSettlements ?? 0).toFixed(2)}</div>
             <span className="text-xs text-text-tertiary">Not yet transferred</span>
