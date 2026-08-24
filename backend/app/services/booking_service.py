@@ -163,7 +163,10 @@ class BookingService:
                 promotion_id=booking_in.promotion_id,
                 cafe_id=booking_in.cafe_id,
                 tier_id=booking_in.hardware_tier_id,
-                base_amount=base_amount
+                base_amount=base_amount,
+                session_datetime=start_datetime  # IST-aware — promo hour/day
+                # windows are café-local, and this is the actual booked slot,
+                # not "now" (see promotion_service.apply_promotion_to_booking)
             )
 
         subtotal = base_amount - discount_amount

@@ -211,7 +211,8 @@ class PromotionService:
         promotion_id: UUID,
         cafe_id: UUID,
         tier_id: UUID,
-        base_amount: Decimal
+        base_amount: Decimal,
+        session_datetime: Optional[datetime] = None
     ) -> Decimal:
         # Row-locked so a concurrent booking applying the same promo can't read
         # current_uses until this one commits — closes the race where N
@@ -232,9 +233,16 @@ class PromotionService:
                 error_code="PROMOTION_EXHAUSTED"
             )
 
-        now = datetime.now(timezone.utc)
-        if not self._is_promotion_active(promo, now):
-            raise ValidationException(message="Promotion is no longer active", error_code="PROMOTION_INACTIVE")
+        # Eligibility (day-of-week, hour window, valid_from/until) must be
+        # checked against the booked SESSION's date/time, not the moment the
+        # customer happens to click "Pay Now" — a "weeknights after 6pm" promo
+        # browsed at 3pm for an 8pm slot must apply, and one browsed at 8pm
+        # for a booking next Tuesday afternoon must not. current_uses/max_uses
+        # is still checked against wall-clock reality (that's a real inventory
+        # count), only the schedule-window check uses the session's time.
+        check_time = session_datetime if session_datetime is not None else datetime.now(timezone.utc)
+        if not self._is_promotion_active(promo, check_time):
+            raise ValidationException(message="Promotion is not valid for the selected date/time", error_code="PROMOTION_INACTIVE")
 
         if promo.applicable_tier_id and str(promo.applicable_tier_id) != str(tier_id):
             raise ValidationException(message="Promotion does not apply to the selected hardware tier", error_code="PROMOTION_TIER_MISMATCH")

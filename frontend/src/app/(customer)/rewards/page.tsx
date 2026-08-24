@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Gift, Award, Flame, Zap, Check, Lock, Ticket, Sparkles, ChevronRight, Copy, CheckCircle2, Trophy } from 'lucide-react';
+import { Award, Zap, Lock, Tag, Trophy } from 'lucide-react';
 import { Card, CardContent, Button, Badge, Skeleton, EmptyState } from '@/components/ui';
 import { apiClient } from '@/lib/api/client';
-import { useAuthStore } from '@/store/authStore';
 
 interface Achievement {
   id: string;
@@ -25,39 +24,6 @@ interface RewardsResponse {
   achievements: Achievement[];
 }
 
-interface Coupon {
-  id: string;
-  code: string;
-  discount: string;
-  description: string;
-  requiredXp: number;
-  isClaimed: boolean;
-}
-
-const COUPONS: Omit<Coupon, 'isClaimed'>[] = [
-  {
-    id: 'c1',
-    code: 'FIRSTBLOOD50',
-    discount: '₹50 OFF',
-    description: 'Applicable on any station booking above ₹150.',
-    requiredXp: 0,
-  },
-  {
-    id: 'c2',
-    code: 'OFFPEAK50',
-    discount: '30% OFF',
-    description: 'Valid for afternoon sessions before 5 PM.',
-    requiredXp: 300,
-  },
-  {
-    id: 'c3',
-    code: 'PROGAMER100',
-    discount: '₹100 OFF',
-    description: 'Valid for RTX 4080 & RTX 4090 VIP Tiers.',
-    requiredXp: 1500,
-  },
-];
-
 const LEVEL_TITLES = ['Rookie', 'Contender', 'Skilled Gamer', 'Veteran Gamer', 'Elite Gamer', 'Legend'];
 function getLevelTitle(level: number): string {
   return LEVEL_TITLES[Math.min(level - 1, LEVEL_TITLES.length - 1)] ?? 'Rookie';
@@ -75,22 +41,7 @@ function progressPercent(progress: string): number {
 }
 
 export default function RewardsPage() {
-  const userId = useAuthStore((s) => s.user?.id);
-  const [claimedIds, setClaimedIds] = useState<Set<string>>(new Set());
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [activeAchievement, setActiveAchievement] = useState<Achievement | null>(null);
-
-  const storageKey = userId ? `khelo_claimed_coupons_${userId}` : null;
-
-  useEffect(() => {
-    if (!storageKey || typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      if (raw) setClaimedIds(new Set(JSON.parse(raw)));
-    } catch {
-      // ignore corrupted local state
-    }
-  }, [storageKey]);
 
   const { data, isLoading } = useQuery<RewardsResponse>({
     queryKey: ['rewards'],
@@ -106,26 +57,6 @@ export default function RewardsPage() {
   const nextLevelXp = data?.nextLevelXp ?? 500;
   const achievements = data?.achievements ?? [];
   const xpPercentage = Math.min(100, Math.round((currentXp / nextLevelXp) * 100));
-
-  const coupons: Coupon[] = COUPONS.map((c) => ({ ...c, isClaimed: claimedIds.has(c.id) }));
-
-  const claimCoupon = (id: string) => {
-    setClaimedIds((prev) => {
-      const next = new Set(prev).add(id);
-      if (storageKey && typeof window !== 'undefined') {
-        window.localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
-      }
-      return next;
-    });
-  };
-
-  const copyCouponCode = (code: string) => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(code).catch(() => {});
-    }
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2500);
-  };
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-24">
@@ -165,91 +96,26 @@ export default function RewardsPage() {
         </CardContent>
       </Card>
 
-      {/* Toast Feedback Banner */}
-      {copiedCode && (
-        <div className="sticky top-20 z-50 rounded-2xl bg-success text-white px-4 py-2.5 shadow-float flex items-center justify-between animate-in fade-in">
-          <span className="font-heading text-caption font-bold flex items-center gap-1.5">
-            <CheckCircle2 className="h-4 w-4" /> Code {copiedCode} copied to clipboard!
-          </span>
-          <span className="text-overline uppercase">Ready to paste</span>
-        </div>
-      )}
-
-      {/* Unlockable Coupons */}
-      <div className="flex flex-col gap-3">
-        <h2 className="font-heading text-h3 text-text-primary flex items-center gap-2">
-          <Ticket className="h-5 w-5 text-primary" />
-          <span>Reward Vouchers & Coupons</span>
-        </h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {coupons.map((c) => {
-            const canClaim = currentXp >= c.requiredXp;
-            return (
-              <div
-                key={c.id}
-                className="p-4 rounded-3xl bg-card border border-border/80 flex flex-col justify-between gap-3 shadow-card"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-data text-h3 font-bold text-primary flex items-center gap-0.5">
-                      {c.discount.includes('₹') ? (
-                        <>
-                          <span className="rupee-symbol">₹</span>
-                          {c.discount.replace('₹', '')}
-                        </>
-                      ) : (
-                        c.discount
-                      )}
-                    </span>
-                    <Badge variant={c.isClaimed ? 'success' : 'secondary'} size="sm">
-                      {c.isClaimed ? 'Claimed' : `${c.requiredXp} XP`}
-                    </Badge>
-                  </div>
-                  <p className="text-caption text-text-secondary">
-                    {c.description.includes('₹') ? (
-                      <>
-                        {c.description.split('₹')[0]}
-                        <span className="rupee-symbol">₹</span>
-                        {c.description.split('₹')[1]}
-                      </>
-                    ) : (
-                      c.description
-                    )}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between border-t border-border/60 pt-3">
-                  <span className="font-data text-caption font-bold text-text-primary bg-surface px-2.5 py-1 rounded-lg border border-border">
-                    {c.code}
-                  </span>
-
-                  {c.isClaimed ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyCouponCode(c.code)}
-                      className="text-caption gap-1 text-primary border-primary/40 hover:bg-primary/10"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      <span>{copiedCode === c.code ? 'Copied ✓' : 'Copy Code'}</span>
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      disabled={!canClaim}
-                      onClick={() => claimCoupon(c.id)}
-                      className="text-caption"
-                    >
-                      Claim Vouchers
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Café Offers — points at the real, café-specific discount system
+          instead of the old hardcoded fake voucher codes this section used
+          to show (which claimed to apply but never actually did anything
+          at checkout). Discounts here are real: café owners set them up,
+          and they apply automatically at checkout when a booking qualifies. */}
+      <Card elevation="resting" className="border border-border/80">
+        <CardContent className="p-5 flex items-start gap-3.5">
+          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Tag className="h-5 w-5" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <h2 className="font-heading text-h3 text-text-primary">Café Offers</h2>
+            <p className="text-caption text-text-secondary">
+              Participating cafés run their own time-boxed discounts. When you book a slot
+              that qualifies, the discount is applied automatically at checkout — no codes
+              to remember or claim.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Achievement Badges Grid */}
       <div className="flex flex-col gap-3">

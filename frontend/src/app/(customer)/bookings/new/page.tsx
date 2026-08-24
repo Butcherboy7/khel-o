@@ -12,6 +12,7 @@ import {
   Loader2,
   Monitor,
   CheckCircle,
+  Tag,
 } from 'lucide-react';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
 import { createBooking } from '@/lib/api/bookings';
@@ -369,8 +370,46 @@ function BookingWizardContent() {
   const pricePerHour = activeTier?.pricePerHour || 100;
   const baseTotal = Math.round(pricePerHour * durationHours * seatsCount);
   const SERVICE_FEE_PERCENT = 3.85;
-  const serviceFee = Math.round(baseTotal * (SERVICE_FEE_PERCENT / 100) * 100) / 100;
-  const finalTotal = baseTotal + serviceFee;
+
+  // Café-specific promotions are created by the owner (Owner → Promotional
+  // Offers) and apply automatically at checkout — no code to type. Eligibility
+  // is evaluated against the SELECTED slot (effectiveSessionDate +
+  // selectedTime), not "now": a promo browsed at 2pm for an 8pm slot must
+  // apply if 8pm is in its window, and vice versa. This mirrors
+  // PromotionService._is_promotion_active in
+  // backend/app/services/promotion_service.py exactly, including its Python
+  // datetime.weekday() convention (Monday=0…Sunday=6) — JS Date.getDay() uses
+  // Sunday=0…Saturday=6, hence the conversion below. The backend re-validates
+  // and is authoritative; this is a checkout-time estimate so what's shown
+  // here matches what Razorpay actually charges.
+  const activePromo = activeTier?.activePromotion || null;
+  let discountAmount = 0;
+  let promoEligible = false;
+  if (activePromo) {
+    const slotDate = new Date(`${effectiveSessionDate}T${selectedTime}`);
+    const validFrom = new Date(activePromo.validFrom);
+    const validUntil = new Date(activePromo.validUntil);
+    const pythonWeekday = (slotDate.getDay() + 6) % 7;
+    const slotHour = parseInt(selectedTime.split(':')[0], 10);
+    promoEligible =
+      activePromo.isActive &&
+      slotDate >= validFrom &&
+      slotDate <= validUntil &&
+      activePromo.daysOfWeek.includes(pythonWeekday) &&
+      slotHour >= activePromo.startHour &&
+      slotHour < activePromo.endHour &&
+      (activePromo.maxUses == null || activePromo.currentUses < activePromo.maxUses);
+    if (promoEligible) {
+      discountAmount = Math.round(baseTotal * (activePromo.discountPercentage / 100) * 100) / 100;
+    }
+  }
+
+  // Service fee applies to the POST-discount subtotal, matching
+  // booking_service.py (gateway_fee is computed off `subtotal`, i.e.
+  // base_amount - discount_amount, not off base_amount).
+  const subtotal = baseTotal - discountAmount;
+  const serviceFee = Math.round(subtotal * (SERVICE_FEE_PERCENT / 100) * 100) / 100;
+  const finalTotal = subtotal + serviceFee;
 
   const handleTimelineChange = (newStartTime: string, newDurationHours: number, dayOffset: number) => {
     setSelectedTime(newStartTime);
@@ -684,6 +723,27 @@ function BookingWizardContent() {
             </span>
             <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{baseTotal}</span>
           </div>
+
+          {discountAmount > 0 && activePromo && (
+            <div className="flex items-center justify-between text-success">
+              <span className="flex items-center gap-1.5 font-semibold">
+                <Tag className="h-4 w-4 flex-shrink-0" />
+                {activePromo.title} (-{activePromo.discountPercentage}%)
+              </span>
+              <span className="font-body font-bold text-body">
+                -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
+              </span>
+            </div>
+          )}
+
+          {activePromo && !promoEligible && (
+            <p className="text-xs text-text-tertiary flex items-start gap-1.5">
+              <Tag className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                {activePromo.title} available {activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, {activePromo.startHour}:00–{activePromo.endHour}:00 — pick a slot in that window to apply it.
+              </span>
+            </p>
+          )}
 
           <div className="flex items-center justify-between">
             <span>Platform service fee ({SERVICE_FEE_PERCENT}%)</span>
