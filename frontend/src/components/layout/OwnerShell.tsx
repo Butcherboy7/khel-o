@@ -25,6 +25,7 @@ import {
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
+import { PlatformReconfirmModal } from '@/components/owner/PlatformReconfirmModal';
 import { apiClient } from '@/lib/api/client';
 import type { User } from '@/types';
 
@@ -452,6 +453,12 @@ export function OwnerShell({
 
   return (
     <div className="min-h-screen bg-surface">
+      {/* Owner-only: confirms platform/model on tiers that pre-date this
+          redesign. Not shown to staff — the backing endpoint requires a
+          cafe_owner (or admin) role and always 403s for a staff-only
+          account, and platform identity isn't staff's call to make. */}
+      {!isStaff && <PlatformReconfirmModal />}
+
       <OwnerSidebar isStaff={isStaff} />
 
       {/* Main content — offset by owner sidebar on desktop */}
