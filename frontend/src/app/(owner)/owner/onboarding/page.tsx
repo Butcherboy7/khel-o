@@ -15,8 +15,6 @@ import {
   Monitor,
   Gamepad2,
   FileText,
-  Plus,
-  Trash2,
   Image as ImageIcon
 } from 'lucide-react';
 import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } from '@/lib/api/owner';
@@ -25,171 +23,8 @@ import { Button, Input, Textarea, Card, CardContent, Badge } from '@/components/
 import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
 import { INDIAN_STATES } from '@/constants/states';
 import { SUPPORTED_CITIES } from '@/constants/cities';
-
-const HARDWARE_PRESETS = [
-  {
-    name: 'Flagship RTX 4090 Arena',
-    gpu: 'NVIDIA RTX 4090 (24GB VRAM)',
-    cpu: 'Intel Core i9-14900KS (5.9GHz)',
-    monitor: 'BenQ ZOWIE XL2566K (360Hz Esports)',
-    hourlyRate: 250,
-    totalSeats: 10,
-    appBookableSeats: 8,
-    platform: 'pc' as const,
-  },
-  {
-    name: 'High-End RTX 4070 Pods',
-    gpu: 'NVIDIA RTX 4070 (12GB VRAM)',
-    cpu: 'Intel Core i7-14700K (20 Cores)',
-    monitor: 'ASUS ROG Swift 240Hz QHD OLED',
-    hourlyRate: 150,
-    totalSeats: 10,
-    appBookableSeats: 8,
-    platform: 'pc' as const,
-  },
-  {
-    name: 'Standard RTX 3060 Pods',
-    gpu: 'NVIDIA RTX 3060 (12GB VRAM)',
-    cpu: 'Intel Core i5-13400F',
-    monitor: 'BenQ ZOWIE 144Hz 1ms Gaming',
-    hourlyRate: 100,
-    totalSeats: 12,
-    appBookableSeats: 10,
-    platform: 'pc' as const,
-  },
-  {
-    name: 'PS5 Console Lounge',
-    gpu: 'PlayStation 5 Console',
-    cpu: 'PS5 Custom AMD Zen 2 CPU',
-    monitor: 'LG 55" 4K OLED HDR TV (PS5)',
-    hourlyRate: 200,
-    totalSeats: 4,
-    appBookableSeats: 3,
-    platform: 'playstation' as const,
-  },
-  {
-    name: 'PS4 Pro Console Corner',
-    gpu: 'PlayStation 4 Pro Console',
-    cpu: 'PS4 Pro Custom AMD Jaguar CPU',
-    monitor: '43" Full HD LED TV (PS4)',
-    hourlyRate: 100,
-    totalSeats: 4,
-    appBookableSeats: 3,
-    platform: 'playstation' as const,
-  },
-  {
-    name: 'Xbox Series X Zone',
-    gpu: 'Xbox Series X Console',
-    cpu: 'Xbox Series X Custom AMD Zen 2 CPU',
-    monitor: 'LG 55" 4K OLED HDR TV (Xbox)',
-    hourlyRate: 180,
-    totalSeats: 4,
-    appBookableSeats: 3,
-    platform: 'xbox' as const,
-  },
-  {
-    name: 'Nintendo Switch Corner',
-    gpu: 'Nintendo Switch OLED',
-    cpu: 'Switch Custom NVIDIA Tegra X1',
-    monitor: '32" Full HD LED TV (Switch)',
-    hourlyRate: 80,
-    totalSeats: 4,
-    appBookableSeats: 3,
-    platform: 'nintendo' as const,
-  },
-];
-
-type Platform = 'pc' | 'playstation' | 'xbox' | 'nintendo' | 'other';
-
-const PLATFORM_LABELS: Record<Platform, string> = {
-  pc: 'PC',
-  playstation: 'PlayStation',
-  xbox: 'Xbox',
-  nintendo: 'Nintendo',
-  other: 'Other',
-};
-
-const PLATFORM_FIELD_LABELS: Record<Platform, string> = {
-  pc: 'GPU / Graphics Card',
-  playstation: 'Console Model',
-  xbox: 'Console Model',
-  nintendo: 'Console Model',
-  other: 'Hardware / Console Model',
-};
-
-const POPULAR_GPUS = [
-  'NVIDIA RTX 4090 (24GB VRAM)',
-  'NVIDIA RTX 4080 Super (16GB VRAM)',
-  'NVIDIA RTX 4070 Ti Super (16GB VRAM)',
-  'NVIDIA RTX 4070 (12GB VRAM)',
-  'NVIDIA RTX 3070 Ti (8GB VRAM)',
-  'NVIDIA RTX 3060 (12GB VRAM)',
-  'AMD Radeon RX 7900 XTX (24GB)',
-  'Custom GPU (Type custom GPU below)',
-];
-
-const CONSOLE_MODELS_BY_PLATFORM: Record<Exclude<Platform, 'pc'>, string[]> = {
-  playstation: [
-    'PlayStation 5 Console',
-    'PlayStation 5 Pro Console',
-    'PlayStation 4 Pro Console',
-    'PlayStation 4 Console',
-    'PlayStation 3 Console',
-    'PlayStation 2 Console',
-    'Custom Console (Type below)',
-  ],
-  xbox: [
-    'Xbox Series X Console',
-    'Xbox Series S Console',
-    'Xbox One X Console',
-    'Xbox One S Console',
-    'Xbox 360 Console',
-    'Custom Console (Type below)',
-  ],
-  nintendo: [
-    'Nintendo Switch',
-    'Nintendo Switch OLED',
-    'Nintendo Switch Lite',
-    'Custom Console (Type below)',
-  ],
-  other: [
-    'Custom Console (Type below)',
-  ],
-};
-
-/** Which platform a preset/GPU string belongs to — used to pick the right
- * dropdown and label when a tier is loaded from a preset, a saved draft, or
- * typed in as custom text, without storing a separate platform field
- * server-side (the backend only ever sees the resulting free-text string). */
-function detectPlatform(gpu: string): Platform {
-  const lower = (gpu || '').toLowerCase();
-  if (lower.includes('playstation') || lower.includes('ps5') || lower.includes('ps4') || lower.includes('ps3') || lower.includes('ps2')) return 'playstation';
-  if (lower.includes('xbox')) return 'xbox';
-  if (lower.includes('switch') || lower.includes('nintendo')) return 'nintendo';
-  if (lower.includes('nvidia') || lower.includes('rtx') || lower.includes('gtx') || lower.includes('radeon') || lower.includes('amd radeon')) return 'pc';
-  return 'other';
-}
-
-const POPULAR_CPUS = [
-  'Intel Core i9-14900KS (5.9GHz)',
-  'Intel Core i7-14700K (20 Cores)',
-  'Intel Core i7-13700K (16 Cores)',
-  'AMD Ryzen 7 7800X3D (Esports King)',
-  'AMD Ryzen 9 7950X3D (16 Cores)',
-  'Intel Core i5-13400F',
-  'PS5 Custom AMD Zen 2 CPU',
-  'Custom CPU (Type custom CPU below)',
-];
-
-const POPULAR_MONITORS = [
-  'BenQ ZOWIE XL2566K (360Hz Esports)',
-  'ASUS ROG Swift 240Hz QHD OLED',
-  'LG Ultragear 240Hz 1ms IPS',
-  'BenQ ZOWIE 144Hz 1ms Gaming',
-  'Samsung Odyssey G7 240Hz Curved',
-  'LG 55" 4K OLED HDR TV (PS5)',
-  'Custom Monitor (Type custom monitor below)',
-];
+import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
+import type { TierConfig } from '@/types/tier';
 
 const PRESET_GAMES = [
   'Valorant',
@@ -228,18 +63,7 @@ interface OnboardingState {
   openingTime: string;
   closingTime: string;
   totalSeats: number;
-  hardwareTiers: Array<{
-    name: string;
-    gpu: string;
-    cpu?: string;
-    monitor?: string;
-    hourlyRate: number;
-    totalSeats: number;
-    appBookableSeats: number;
-    /** UI-only — which preset list/label to show. Never sent to the backend;
-     * the backend only receives the resulting `gpu` free-text string. */
-    platform?: Platform;
-  }>;
+  hardwareTiers: TierConfig[];
   supportedGames: string[];
   amenities: string[];
   photos: string[];
@@ -271,26 +95,7 @@ const INITIAL_STATE: OnboardingState = {
   openingTime: '09:00',
   closingTime: '23:00',
   totalSeats: 20,
-  hardwareTiers: [
-    {
-      name: 'High-End RTX 4070 Pods',
-      gpu: 'NVIDIA RTX 4070 (12GB VRAM)',
-      cpu: 'Intel Core i7-14700K (20 Cores)',
-      monitor: 'ASUS ROG Swift 240Hz QHD OLED',
-      hourlyRate: 150,
-      totalSeats: 10,
-      appBookableSeats: 8,
-    },
-    {
-      name: 'Standard RTX 3060 Pods',
-      gpu: 'NVIDIA RTX 3060 (12GB VRAM)',
-      cpu: 'Intel Core i5-13400F',
-      monitor: 'BenQ ZOWIE 144Hz 1ms Gaming',
-      hourlyRate: 100,
-      totalSeats: 10,
-      appBookableSeats: 8,
-    },
-  ],
+  hardwareTiers: [],
   supportedGames: ['Valorant', 'Counter-Strike 2', 'GTA V Online', 'EA Sports FC 24'],
   amenities: ['High-speed Wi-Fi', 'Air Conditioned', 'Snacks & Drinks'],
   photos: ['https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop'],
@@ -429,14 +234,12 @@ export default function OnboardingWizardPage() {
       return timeStr;
     };
 
-    const formattedHardwareTiers = (formData.hardwareTiers || []).map((t) => ({
-      name: t.name,
-      gpu: t.gpu,
-      cpu: t.cpu,
-      monitor: t.monitor,
-      hourlyRate: Number(t.hourlyRate) || 100,
-      totalSeats: Number(t.totalSeats) || 10,
-      appBookableSeats: Number(t.appBookableSeats) || Number(t.totalSeats) || 8,
+    const formattedHardwareTiers = (formData.hardwareTiers || []).map((c: TierConfig) => ({
+      platform: c.platform,
+      model: c.model,
+      hourlyRate: Number(c.pricePerHour) || 100,
+      totalSeats: Number(c.totalSeats) || 4,
+      appBookableSeats: Number(c.appBookableSeats) || Math.max(1, Math.round((Number(c.totalSeats) || 4) * 0.25)),
     }));
 
     try {
@@ -918,255 +721,14 @@ export default function OnboardingWizardPage() {
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-heading text-h3 text-text-primary">Hardware Tiers</h3>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        updateField('hardwareTiers', [
-                          { name: 'Custom Hardware Tier', gpu: 'NVIDIA RTX 4070 / 32GB RAM / 240Hz QHD', hourlyRate: 150, totalSeats: 5 },
-                          ...formData.hardwareTiers,
-                        ]);
-                      }}
-                      className="gap-1.5"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span>Add Tier to Top</span>
-                    </Button>
-                  </div>
-
-                  {/* Hardware Presets Selector */}
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    <span className="text-xs text-text-tertiary self-center">Quick Presets:</span>
-                    {HARDWARE_PRESETS.map((preset) => (
-                      <button
-                        key={preset.name}
-                        type="button"
-                        onClick={() => {
-                          if (!formData.hardwareTiers.some((t) => t.name === preset.name)) {
-                            updateField('hardwareTiers', [preset, ...formData.hardwareTiers]);
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-surface-hover hover:bg-border/60 text-xs font-medium text-text-secondary border border-border transition-all"
-                      >
-                        + {preset.name}
-                      </button>
-                    ))}
-                  </div>
-
-                  {formData.hardwareTiers.map((tier, idx) => {
-                    const platform: Platform = tier.platform || detectPlatform(tier.gpu);
-                    const modelList = platform === 'pc' ? POPULAR_GPUS : CONSOLE_MODELS_BY_PLATFORM[platform];
-                    const isKnownGpu = modelList.includes(tier.gpu || '');
-                    const isKnownCpu = POPULAR_CPUS.includes(tier.cpu || '');
-                    const isKnownMonitor = POPULAR_MONITORS.includes(tier.monitor || '');
-
-                    return (
-                      <div key={idx} className="p-5 rounded-2xl bg-surface-hover border border-border flex flex-col gap-4 shadow-sm">
-                        <div className="flex items-center justify-between border-b border-border/60 pb-2">
-                          <span className="font-heading text-caption font-bold text-emerald-600">Tier #{idx + 1}</span>
-                          {formData.hardwareTiers.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = formData.hardwareTiers.filter((_, i) => i !== idx);
-                                updateField('hardwareTiers', updated);
-                              }}
-                              className="text-rose-500 hover:text-rose-600 p-1 flex items-center gap-1 text-caption font-semibold"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span>Remove</span>
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Row 1: Tier Name & Hourly Price */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <Input
-                            label="Tier Name *"
-                            placeholder="e.g. RTX 4090 Ultra VIP Tier"
-                            value={tier.name}
-                            onChange={(e) => {
-                              const updated = [...formData.hardwareTiers];
-                              updated[idx].name = e.target.value;
-                              updateField('hardwareTiers', updated);
-                            }}
-                          />
-
-                          <Input
-                            label="Hourly Rate (₹) *"
-                            type="number"
-                            placeholder="200"
-                            value={tier.hourlyRate}
-                            onChange={(e) => {
-                              const updated = [...formData.hardwareTiers];
-                              updated[idx].hourlyRate = Number(e.target.value);
-                              updateField('hardwareTiers', updated);
-                            }}
-                          />
-                        </div>
-
-                        {/* Platform: PC vs. which console family — old-city cafés running
-                            PS3/PS4-only setups need those as real, direct choices, not
-                            buried behind a PC-flavoured GPU dropdown. */}
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-caption font-semibold text-text-primary">Platform</label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(Object.keys(PLATFORM_LABELS) as Platform[]).map((p) => (
-                              <button
-                                key={p}
-                                type="button"
-                                onClick={() => {
-                                  const updated = [...formData.hardwareTiers];
-                                  const defaultModel = p === 'pc' ? POPULAR_GPUS[0] : CONSOLE_MODELS_BY_PLATFORM[p][0];
-                                  updated[idx].platform = p;
-                                  updated[idx].gpu = defaultModel;
-                                  updateField('hardwareTiers', updated);
-                                }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                                  platform === p
-                                    ? 'bg-emerald-500 text-slate-950 border-emerald-500'
-                                    : 'bg-surface text-text-secondary border-border hover:border-emerald-500/60'
-                                }`}
-                              >
-                                {PLATFORM_LABELS[p]}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Row 2: 3 Separate Dropdowns for Hardware Model, CPU, Monitor */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          {/* Hardware / Console Model Selector — list swaps with Platform above */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-caption font-semibold text-text-primary">{PLATFORM_FIELD_LABELS[platform]}</label>
-                            <select
-                              value={isKnownGpu ? tier.gpu : modelList[modelList.length - 1]}
-                              onChange={(e) => {
-                                const updated = [...formData.hardwareTiers];
-                                const val = e.target.value;
-                                updated[idx].gpu = val.includes('Custom') ? modelList[0] : val;
-                                updateField('hardwareTiers', updated);
-                              }}
-                              className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                            >
-                              {modelList.map((g) => (
-                                <option key={g} value={g}>{g}</option>
-                              ))}
-                            </select>
-                            {!isKnownGpu && (
-                              <Input
-                                placeholder={platform === 'pc' ? 'Type custom GPU...' : 'Type custom console/hardware...'}
-                                value={tier.gpu}
-                                onChange={(e) => {
-                                  const updated = [...formData.hardwareTiers];
-                                  updated[idx].gpu = e.target.value;
-                                  updateField('hardwareTiers', updated);
-                                }}
-                              />
-                            )}
-                          </div>
-
-                          {/* CPU Selector */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-caption font-semibold text-text-primary">CPU / Processor</label>
-                            <select
-                              value={isKnownCpu ? (tier.cpu || POPULAR_CPUS[1]) : 'Custom CPU (Type custom CPU below)'}
-                              onChange={(e) => {
-                                const updated = [...formData.hardwareTiers];
-                                const val = e.target.value;
-                                updated[idx].cpu = val.includes('Custom') ? 'Intel Core i7' : val;
-                                updateField('hardwareTiers', updated);
-                              }}
-                              className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                            >
-                              {POPULAR_CPUS.map((c) => (
-                                <option key={c} value={c}>{c}</option>
-                              ))}
-                            </select>
-                            {!isKnownCpu && (
-                              <Input
-                                placeholder="Type custom CPU..."
-                                value={tier.cpu || ''}
-                                onChange={(e) => {
-                                  const updated = [...formData.hardwareTiers];
-                                  updated[idx].cpu = e.target.value;
-                                  updateField('hardwareTiers', updated);
-                                }}
-                              />
-                            )}
-                          </div>
-
-                          {/* Monitor Selector */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-caption font-semibold text-text-primary">Monitor / Display</label>
-                            <select
-                              value={isKnownMonitor ? (tier.monitor || POPULAR_MONITORS[1]) : 'Custom Monitor (Type custom monitor below)'}
-                              onChange={(e) => {
-                                const updated = [...formData.hardwareTiers];
-                                const val = e.target.value;
-                                updated[idx].monitor = val.includes('Custom') ? '240Hz Display' : val;
-                                updateField('hardwareTiers', updated);
-                              }}
-                              className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                            >
-                              {POPULAR_MONITORS.map((m) => (
-                                <option key={m} value={m}>{m}</option>
-                              ))}
-                            </select>
-                            {!isKnownMonitor && (
-                              <Input
-                                placeholder="Type custom monitor..."
-                                value={tier.monitor || ''}
-                                onChange={(e) => {
-                                  const updated = [...formData.hardwareTiers];
-                                  updated[idx].monitor = e.target.value;
-                                  updateField('hardwareTiers', updated);
-                                }}
-                              />
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Row 3: Total Seats Available vs Total Allowed for KHEL-O App */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-card p-3 rounded-xl border border-border/60">
-                          <Input
-                            label="Total Stations Built in Café *"
-                            type="number"
-                            min="1"
-                            value={tier.totalSeats}
-                            onChange={(e) => {
-                              const updated = [...formData.hardwareTiers];
-                              const val = Number(e.target.value);
-                              updated[idx].totalSeats = val;
-                              if (updated[idx].appBookableSeats > val) {
-                                updated[idx].appBookableSeats = val;
-                              }
-                              updateField('hardwareTiers', updated);
-                            }}
-                          />
-
-                          <Input
-                            label="Total Allowed to be Booked on KHEL-O App *"
-                            type="number"
-                            min="1"
-                            max={tier.totalSeats}
-                            value={tier.appBookableSeats}
-                            onChange={(e) => {
-                              const updated = [...formData.hardwareTiers];
-                              const val = Number(e.target.value);
-                              // Clamp typed value so it never exceeds totalSeats
-                              const clampedVal = Math.min(val, tier.totalSeats);
-                              updated[idx].appBookableSeats = clampedVal;
-                              updateField('hardwareTiers', updated);
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <h3 className="font-heading text-h3 text-text-primary">What does your café offer?</h3>
+                  <p className="text-caption text-text-secondary">
+                    Set up your stations by platform — no technical specs needed, just what you have and what it costs.
+                  </p>
+                  <PlatformTierConfigurator
+                    configs={formData.hardwareTiers}
+                    onChange={(configs) => updateField('hardwareTiers', configs)}
+                  />
                 </div>
               </div>
             )}
@@ -1230,6 +792,22 @@ export default function OnboardingWizardPage() {
                         Café Settings → Edit Profile → Amenities &amp; Photos
                       </span>
                       . Until then your listing shows a placeholder image.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-caption font-semibold text-text-primary">Menu (Optional)</label>
+                  <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
+                    <div className="h-9 w-9 flex-shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                      <ImageIcon className="h-4 w-4" />
+                    </div>
+                    <p className="text-caption text-text-secondary">
+                      Have food or drinks? You&apos;ll be able to upload your menu photo from{' '}
+                      <span className="font-semibold text-text-primary">
+                        Café Settings → Edit Profile → Menu
+                      </span>
+                      {' '}as soon as your café is approved.
                     </p>
                   </div>
                 </div>
