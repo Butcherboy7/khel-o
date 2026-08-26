@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Bell, CheckCheck, Ticket, Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
+import { Bell, CheckCheck, Ticket, Sparkles, AlertCircle, RefreshCw, X, Trash2 } from 'lucide-react';
 import { Badge, ErrorState, Skeleton } from '@/components/ui';
 import { apiClient } from '@/lib/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -55,6 +55,26 @@ export default function OwnerNotificationsPage() {
     },
   });
 
+  const deleteNotificationMutation = useMutation({
+    mutationFn: async (notificationId: string) => {
+      await apiClient.delete(`/api/v1/notifications/${notificationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-count'] });
+    },
+  });
+
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.delete('/api/v1/notifications/clear-all');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-count'] });
+    },
+  });
+
   const handleNotificationClick = (n: NotificationItem) => {
     markAsReadMutation.mutate(n.id);
     if (n.link) {
@@ -89,6 +109,15 @@ export default function OwnerNotificationsPage() {
             >
               <CheckCheck className="h-4 w-4" />
               <span>Mark all read</span>
+            </button>
+
+            <button
+              onClick={() => clearAllMutation.mutate()}
+              disabled={clearAllMutation.isPending}
+              className="flex items-center gap-1 text-caption font-medium text-red-600 hover:text-red-500 transition-colors px-3 py-2 rounded-full hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>Clear all</span>
             </button>
           </div>
         )}
@@ -181,6 +210,19 @@ export default function OwnerNotificationsPage() {
                     })}
                   </span>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteNotificationMutation.mutate(n.id);
+                  }}
+                  title="Dismiss"
+                  aria-label="Dismiss notification"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface hover:text-red-600 transition-colors flex-shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
           ))}

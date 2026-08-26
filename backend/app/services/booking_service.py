@@ -288,11 +288,33 @@ class BookingService:
         return resp
 
     async def _expire_if_past_due(self, booking: Booking, grace_minutes: int = 15) -> None:
-        """Self-heals a CONFIRMED booking to NO_SHOW once its session end time
-        (+ grace period) has passed without a check-in. There is no background
-        scheduler in this service, so this runs lazily whenever a booking is
-        read — mirrors the manual confirmed->no_show transition owners can
-        already trigger in owner_service.advance_status."""
+        """Self-heals stale bookings whenever one is read. There is no
+        background scheduler in this service, so this runs lazily on every
+        read path (get_booking, list_gamer_bookings).
+
+        Two independent transitions:
+        - CONFIRMED -> NO_SHOW once session end (+ grace) has passed without
+          a check-in. Mirrors the manual confirmed->no_show transition owners
+          can already trigger in owner_service.advance_status.
+        - PENDING_PAYMENT -> FAILED once the booking's 15-minute payment TTL
+          (from creation, not session time) has lapsed. Without this, a
+          booking whose payment window expired keeps showing "Pay Now"
+          indefinitely — payment_service already rejects late webhook
+          confirmations past this TTL, but nothing previously flipped the
+          booking's own status to match, so the stale action stayed visible
+          even after the session itself had passed."""
+        if booking.status == BookingStatus.PENDING_PAYMENT:
+            created_at = booking.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            ttl_deadline = created_at + timedelta(minutes=15)
+            if datetime.now(timezone.utc) < ttl_deadline:
+                return
+            updated = await self.booking_repo.update(booking.id, {"status": BookingStatus.FAILED})
+            if updated:
+                booking.status = BookingStatus.FAILED
+            return
+
         if booking.status != BookingStatus.CONFIRMED:
             return
 

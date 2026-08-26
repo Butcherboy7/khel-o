@@ -22,6 +22,8 @@ export interface CafeListItem {
   description?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  openingTime?: string | null;
+  closingTime?: string | null;
 }
 
 export interface Cafe {

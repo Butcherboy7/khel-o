@@ -106,15 +106,14 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
         )}
       </div>
 
-      {/* Dropdown Suggestions */}
-      {isOpen && (value.trim().length > 0 || suggestions.length > 0) && (
+      {/* Dropdown Suggestions — only rendered when there's something to
+          suggest. Search itself is already live (debounced against the
+          café list below), so there's nothing for the dropdown to say
+          when no game/tier keyword matches: the actual result count and
+          empty state are handled by the café grid, not duplicated here. */}
+      {isOpen && suggestions.length > 0 && (
         <div className="absolute top-14 left-0 right-0 z-dropdown rounded-3xl bg-card border border-border/80 shadow-overlay p-3 flex flex-col gap-1 max-h-72 overflow-y-auto animate-in fade-in">
-          {suggestions.length === 0 ? (
-            <div className="p-4 text-center text-caption text-text-secondary">
-              Press Enter to search for &quot;<span className="font-semibold text-text-primary">{value}</span>&quot;
-            </div>
-          ) : (
-            suggestions.map((s) => (
+          {suggestions.map((s) => (
               <button
                 key={s.id}
                 onClick={() => handleSelectSuggestion(s)}
@@ -137,8 +136,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
                 </div>
                 <Sparkles className="h-4 w-4 text-accent/60" />
               </button>
-            ))
-          )}
+          ))}
         </div>
       )}
     </div>

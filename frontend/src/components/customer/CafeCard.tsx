@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { MapPin, Star, Zap, Gamepad2 } from 'lucide-react';
 import { Card, CardImage } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
-import { calculateDistance, formatDistance } from '@/lib/format';
+import { calculateDistance, formatDistance, isCafeOpenNow } from '@/lib/format';
 import { getAmenityDisplay } from '@/lib/amenities';
 import type { CafeListItem } from '@/types';
 
@@ -40,6 +40,8 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
   }, [photosList.length]);
 
   const currentPhoto = photosList[photoIndex % photosList.length];
+
+  const isOpenNow = isCafeOpenNow(cafe.openingTime, cafe.closingTime);
 
   const hasConsole = cafe.tierNames?.some(
     (t) =>
@@ -121,8 +123,8 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               <div />
             )}
 
-            <span className="rounded-full bg-secondary/80 backdrop-blur-md px-3 py-1 text-badge font-semibold text-white">
-              Open now
+            <span className={`rounded-full backdrop-blur-md px-3 py-1 text-badge font-semibold text-white ${isOpenNow ? 'bg-secondary/80' : 'bg-text-tertiary/80'}`}>
+              {isOpenNow ? 'Open now' : 'Closed'}
             </span>
           </div>
         </CardImage>

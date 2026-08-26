@@ -173,7 +173,9 @@ class CafeRepository(BaseRepository[Cafe]):
                 "photos": photo_list,
                 "has_active_promotion": False,
                 "verification_status": c.verification_status,
-                "is_active": c.is_active
+                "is_active": c.is_active,
+                "opening_time": c.opening_time,
+                "closing_time": c.closing_time
             })
 
         return items, total

@@ -242,8 +242,17 @@ function BookingWizardContent() {
       : null
   );
   const lastAutoSelectKey = useRef<string | null>(initialAutoSelectKey.current);
+  const userHasSelectedSlot = useRef(initialAutoSelectKey.current !== null);
   useEffect(() => {
     if (!cafe || !availabilityData) return;
+    // Once the user has explicitly picked a slot (handleTimelineChange),
+    // never let a later seatsCount/date/tier change silently re-run
+    // auto-select and overwrite it — that was booking a different slot
+    // than what the user saw on screen when they e.g. added a participant.
+    // If the new seat count no longer fits the selected slot, the
+    // availability check further down the component disables checkout
+    // and explains why, instead of quietly picking a new time.
+    if (userHasSelectedSlot.current) return;
 
     const key = `${selectedDate}|${activeTier?.id || ''}|${seatsCount}`;
     if (lastAutoSelectKey.current === key) return;
@@ -412,6 +421,7 @@ function BookingWizardContent() {
   const finalTotal = subtotal + serviceFee;
 
   const handleTimelineChange = (newStartTime: string, newDurationHours: number, dayOffset: number) => {
+    userHasSelectedSlot.current = true;
     setSelectedTime(newStartTime);
     setDurationHours(newDurationHours);
     setSelectedDateOffset(dayOffset);

@@ -148,6 +148,32 @@ export function generateTimeSlots(openingTime: string, closingTime: string, _dat
   return slots;
 }
 
+/** Whether a café is open right now, given its opening/closing time strings.
+ *  Handles overnight hours the same way generateTimeSlots does (closing
+ *  hour <= opening hour means the café closes after midnight). Falls back
+ *  to true (assume open) when hours are missing, since "unknown" is a
+ *  worse UX default than a false "closed" for cafés that haven't set hours. */
+export function isCafeOpenNow(openingTime?: string | null, closingTime?: string | null): boolean {
+  if (!openingTime || !closingTime) return true;
+
+  const [openH, openM] = openingTime.split(':').map(Number);
+  const [rawCloseH, closeM] = closingTime.split(':').map(Number);
+
+  const now = new Date();
+  let nowMin = now.getHours() * 60 + now.getMinutes();
+  const openMin = openH * 60 + (openM || 0);
+  let closeMin = rawCloseH * 60 + (closeM || 0);
+
+  if (closeMin <= openMin) {
+    // Overnight: e.g. 10:00 open, 02:00 close means "closed" is only the
+    // narrow window between 02:00 and 10:00 the same calendar morning.
+    closeMin += 24 * 60;
+    if (nowMin < openMin) nowMin += 24 * 60;
+  }
+
+  return nowMin >= openMin && nowMin < closeMin;
+}
+
 /** Check if a time slot is in the past (with 30min buffer) */
 export function isSlotInPast(dateStr: string, timeStr: string, openingTimeStr?: string): boolean {
   const now = new Date();

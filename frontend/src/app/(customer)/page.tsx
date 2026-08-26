@@ -8,6 +8,7 @@ import { Search, MapPin, SlidersHorizontal, Navigation, X, Gamepad2, Layers } fr
 import { listCafes } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useDebounce } from '@/hooks/useDebounce';
+import { isCafeOpenNow } from '@/lib/format';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
@@ -189,6 +190,10 @@ function ExplorePageContent() {
           (t) => t.toLowerCase().includes('4080') || t.toLowerCase().includes('4090')
         ) || cafe.name.toLowerCase().includes('velocity') || cafe.name.toLowerCase().includes('overclock');
       if (!hasHighEndGpu) return false;
+    }
+
+    if (activeTag === 'Open Now' && !isCafeOpenNow(cafe.openingTime, cafe.closingTime)) {
+      return false;
     }
 
     if (activeTag === 'Offers' && !cafe.hasActivePromotion) {

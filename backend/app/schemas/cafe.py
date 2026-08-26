@@ -9,6 +9,21 @@ def to_camel(string: str) -> str:
     components = string.split('_')
     return components[0] + ''.join(x.title() for x in components[1:])
 
+def _parse_time_flexibly(v: Any) -> Any:
+    if v == "" or v is None:
+        return None
+    if isinstance(v, str):
+        v_clean = v.strip().upper()
+        if "AM" in v_clean or "PM" in v_clean:
+            try:
+                return datetime.strptime(v_clean, "%I:%M %p").time()
+            except ValueError:
+                try:
+                    return datetime.strptime(v_clean, "%I %p").time()
+                except ValueError:
+                    pass
+    return v
+
 class CafeBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
     description: Optional[str] = None
@@ -31,19 +46,7 @@ class CafeBase(BaseModel):
     @field_validator("opening_time", "closing_time", mode="before")
     @classmethod
     def parse_time_flexibly(cls, v: Any) -> Any:
-        if v == "" or v is None:
-            return None
-        if isinstance(v, str):
-            v_clean = v.strip().upper()
-            if "AM" in v_clean or "PM" in v_clean:
-                try:
-                    return datetime.strptime(v_clean, "%I:%M %p").time()
-                except ValueError:
-                    try:
-                        return datetime.strptime(v_clean, "%I %p").time()
-                    except ValueError:
-                        pass
-        return v
+        return _parse_time_flexibly(v)
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -104,6 +107,13 @@ class CafeListItem(BaseModel):
     has_active_promotion: bool = False
     verification_status: VerificationStatus
     is_active: bool
+    opening_time: Optional[time] = None
+    closing_time: Optional[time] = None
+
+    @field_validator("opening_time", "closing_time", mode="before")
+    @classmethod
+    def parse_time_flexibly(cls, v: Any) -> Any:
+        return _parse_time_flexibly(v)
 
     model_config = ConfigDict(
         from_attributes=True,

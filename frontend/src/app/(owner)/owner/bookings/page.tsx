@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search,
@@ -28,7 +29,12 @@ import { formatSessionDate, formatTime } from '@/lib/format';
 
 export default function OwnerBookingsPage() {
   const queryClient = useQueryClient();
-  const [searchRef, setSearchRef] = useState('');
+  const searchParams = useSearchParams();
+  // Seeds the search box when arriving from a notification's ?ref= link
+  // (e.g. "New booking confirmed") so the tap actually lands the owner on
+  // that booking instead of an unfiltered list indistinguishable from the
+  // link having done nothing.
+  const [searchRef, setSearchRef] = useState(() => searchParams.get('ref') || '');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
