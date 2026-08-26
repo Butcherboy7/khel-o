@@ -14,7 +14,7 @@ from app.schemas.owner import (
 )
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
-from app.repositories.hardware_tier_repository import HardwareTierRepository
+from app.repositories.hardware_tier_repository import HardwareTierRepository, guess_platform_and_model
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
@@ -1821,6 +1821,76 @@ async def delete_tier(
             "tierId": str(tier_id)
         }
     }
+
+
+class ConfirmPlatformRequest(BaseModel):
+    platform: str
+    model: str
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+@router.get("/tiers/needs-confirmation", status_code=status.HTTP_200_OK)
+async def get_tiers_needing_confirmation(
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Cafe).where(Cafe.owner_id == current_owner.id).order_by(Cafe.created_at.desc())
+    res = await db.execute(stmt)
+    cafe = res.scalars().first()
+    if not cafe:
+        return {"success": True, "data": {"needsConfirmation": False, "tiers": []}}
+
+    tier_repo = HardwareTierRepository(db)
+    tiers = await tier_repo.get_by_cafe_id(cafe.id, active_only=False)
+    unmigrated = [t for t in tiers if t.platform is None]
+
+    tiers_data = []
+    for t in unmigrated:
+        guessed_platform, guessed_model = guess_platform_and_model(t)
+        tiers_data.append({
+            "id": str(t.id),
+            "name": t.name,
+            "specs": t.specs,
+            "guessedPlatform": guessed_platform,
+            "guessedModel": guessed_model,
+        })
+
+    return {
+        "success": True,
+        "data": {"needsConfirmation": len(unmigrated) > 0, "tiers": tiers_data}
+    }
+
+
+@router.patch("/tiers/{tier_id}/confirm-platform", status_code=status.HTTP_200_OK)
+async def confirm_tier_platform(
+    tier_id: UUID,
+    payload: ConfirmPlatformRequest,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    tier_repo = HardwareTierRepository(db)
+    tier = await tier_repo.get_by_id(tier_id)
+    if not tier:
+        raise NotFoundException("Hardware tier not found", error_code="TIER_NOT_FOUND")
+
+    cafe_repo = CafeRepository(db)
+    cafe = await cafe_repo.get_by_id(tier.cafe_id)
+    if not cafe or str(cafe.owner_id) != str(current_owner.id):
+        raise ForbiddenException("You can only confirm tiers for your own café", error_code="FORBIDDEN")
+
+    platform = PlatformType(payload.platform)
+    derived_specs, suggested_name = derive_tier_display(platform, payload.model)
+
+    await tier_repo.update(tier_id, {
+        "platform": platform,
+        "model": payload.model,
+        "specs": derived_specs,
+        "name": suggested_name,
+    })
+
+    return {"success": True, "data": {"tierId": str(tier_id)}}
+
 
 @router.patch("/cafes/{cafe_id}/details", status_code=status.HTTP_200_OK)
 async def update_cafe_details(
