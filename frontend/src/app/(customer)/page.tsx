@@ -176,7 +176,7 @@ function ExplorePageContent() {
   // "lounge" — that was the root cause of BUG #3 (card showed "PS5 /
   // Consoles" with zero console tiers configured).
   const filteredCafes = cafes.filter((cafe) => {
-    if (activeTag === 'PS5 & Consoles' && !hasConsoleTier(cafe.tierNames, cafe.platforms)) {
+    if (activeTag === 'PS5 & Consoles' && !hasConsoleTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
       return false;
     }
 

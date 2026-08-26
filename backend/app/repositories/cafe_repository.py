@@ -161,6 +161,13 @@ class CafeRepository(BaseRepository[Cafe]):
             starting_price = min(prices) if prices else None
             tier_names = [t.name for t in cafe_tiers]
             platforms = sorted({t.platform.value for t in cafe_tiers if t.platform is not None})
+            # True only when every one of this café's active tiers has been
+            # migrated to a real platform. The frontend (lib/platformTags.ts)
+            # only trusts `platforms` exclusively when this is true; a
+            # partially-migrated café unions it with the legacy name-based
+            # fallback instead, so a still-unconfirmed tier can never make a
+            # real badge silently disappear (see final-review.md I1).
+            platforms_complete = all(t.platform is not None for t in cafe_tiers)
 
             photo_list = list(c.photos) if isinstance(c.photos, list) and c.photos else []
 
@@ -176,6 +183,7 @@ class CafeRepository(BaseRepository[Cafe]):
                 "starting_price": starting_price,
                 "tier_names": tier_names,
                 "platforms": platforms,
+                "platforms_complete": platforms_complete,
                 "photos": photo_list,
                 "has_active_promotion": False,
                 "verification_status": c.verification_status,

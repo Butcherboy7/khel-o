@@ -115,6 +115,9 @@ class CafeListItem(BaseModel):
     starting_price: Optional[float] = None
     tier_names: List[str] = Field(default_factory=list)
     platforms: List[str] = Field(default_factory=list)
+    # True only when every active tier has a confirmed real platform. See
+    # cafe_repository.py's computation and lib/platformTags.ts's consumer.
+    platforms_complete: bool = False
     photos: List[str] = Field(default_factory=list)
     has_active_promotion: bool = False
     verification_status: VerificationStatus

@@ -44,8 +44,8 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
 
   const isOpenNow = isCafeOpenNow(cafe.openingTime, cafe.closingTime);
 
-  const hasConsole = hasConsoleTier(cafe.tierNames, cafe.platforms);
-  const showPcGaming = hasPcTier(cafe.tierNames, cafe.platforms);
+  const hasConsole = hasConsoleTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete);
+  const showPcGaming = hasPcTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete);
 
   const handleOpenMap = (e: React.MouseEvent) => {
     e.preventDefault();

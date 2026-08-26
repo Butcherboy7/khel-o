@@ -14,6 +14,8 @@ export interface CafeListItem {
   startingPrice: number | null;
   tierNames: string[];
   platforms?: string[];
+  /** True only when every active tier has a confirmed real platform. */
+  platformsComplete?: boolean;
   photos: string[];
   hasActivePromotion: boolean;
   verificationStatus: VerificationStatus;
