@@ -33,7 +33,21 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column('cafes', 'menu_photos')
-    op.drop_column('hardware_tiers', 'model')
-    op.drop_column('hardware_tiers', 'platform')
-    PLATFORM_ENUM.drop(op.get_bind(), checkfirst=True)
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+
+    # Mirror upgrade()'s column-existence guards so downgrade() is safe to
+    # run against a partially-applied migration (e.g. upgrade() failed after
+    # adding some but not all columns) instead of erroring on the first
+    # column that was never added.
+    cafe_columns = [c['name'] for c in inspector.get_columns('cafes')]
+    if 'menu_photos' in cafe_columns:
+        op.drop_column('cafes', 'menu_photos')
+
+    tier_columns = [c['name'] for c in inspector.get_columns('hardware_tiers')]
+    if 'model' in tier_columns:
+        op.drop_column('hardware_tiers', 'model')
+    if 'platform' in tier_columns:
+        op.drop_column('hardware_tiers', 'platform')
+
+    PLATFORM_ENUM.drop(conn, checkfirst=True)
