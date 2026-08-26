@@ -114,6 +114,7 @@ class CafeListItem(BaseModel):
     total_reviews: int = 0
     starting_price: Optional[float] = None
     tier_names: List[str] = Field(default_factory=list)
+    platforms: List[str] = Field(default_factory=list)
     photos: List[str] = Field(default_factory=list)
     has_active_promotion: bool = False
     verification_status: VerificationStatus

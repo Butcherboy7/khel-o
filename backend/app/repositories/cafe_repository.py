@@ -160,7 +160,8 @@ class CafeRepository(BaseRepository[Cafe]):
             prices = [float(t.price_per_hour) for t in cafe_tiers]
             starting_price = min(prices) if prices else None
             tier_names = [t.name for t in cafe_tiers]
-            
+            platforms = sorted({t.platform.value for t in cafe_tiers if t.platform is not None})
+
             photo_list = list(c.photos) if isinstance(c.photos, list) and c.photos else []
 
             items.append({
@@ -174,6 +175,7 @@ class CafeRepository(BaseRepository[Cafe]):
                 "total_reviews": 12,
                 "starting_price": starting_price,
                 "tier_names": tier_names,
+                "platforms": platforms,
                 "photos": photo_list,
                 "has_active_promotion": False,
                 "verification_status": c.verification_status,
