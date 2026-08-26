@@ -1376,17 +1376,59 @@ async def test_update_cafe_details_persists_menu_photos():
         assert cafe.menu_photos == ["https://example.com/menu-new.jpg"]
 ```
 
-- [ ] **Step 7: Run tests to verify they pass**
+- [ ] **Step 7: Expose `menuPhotos` from `GET /owner/settings`**
+
+`EditCafeModal` (Task 12) reads `settings.menuPhotos` when it loads — this endpoint is where that initial value comes from, and it currently builds its response dict manually without menu photos. In `backend/app/api/v1/owner.py`, inside `get_owner_settings`, add to the existing `cafe_data` dict (alongside `"photos": cafe.photos or [],`):
+
+```python
+        "menuPhotos": cafe.menu_photos or [],
+```
+
+Add a test to `backend/tests/test_menu_photos.py`:
+
+```python
+@pytest.mark.asyncio
+async def test_owner_settings_includes_menu_photos():
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid4(), email=f"menu_settings_{uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("testpass123"), full_name="Menu Settings Owner",
+            role=UserRole.CAFE_OWNER, is_active=True
+        )
+        db.add(owner)
+        await db.flush()
+
+        cafe = Cafe(
+            id=uuid4(), owner_id=owner.id, name="Menu Settings Cafe",
+            address_line1="1 Menu Settings St", city="Bengaluru", state="Karnataka",
+            pincode="560001", phone_number="+919000000052",
+            verification_status=VerificationStatus.VERIFIED, is_active=True,
+            menu_photos=["https://example.com/menu-existing.jpg"],
+        )
+        db.add(cafe)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role=owner.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.get("/api/v1/owner/settings", headers=headers)
+            assert res.status_code == 200
+            assert res.json()["data"]["cafe"]["menuPhotos"] == ["https://example.com/menu-existing.jpg"]
+```
+
+- [ ] **Step 8: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_menu_photos.py -v`
-Expected: 2 passed
+Expected: 3 passed
 
-- [ ] **Step 8: Run full backend suite**
+- [ ] **Step 9: Run full backend suite**
 
 Run: `python -m pytest tests -q`
 Expected: all passing
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add backend/app/api/v1/owner.py backend/tests/test_menu_photos.py
@@ -1475,6 +1517,8 @@ Add to both `TierCreateRequest` and `TierUpdateRequest`:
   platform?: Platform;
   model?: string;
 ```
+
+Change `TierCreateRequest`'s existing `name: string;` to `name?: string;` — Task 3 made the backend's `name` optional (auto-derived from platform+model when omitted), and Task 10's create call sends no `name` at all. Leaving this required here would fail `tsc --noEmit` at Task 10's own type-check step. (`TierUpdateRequest.name` is already optional — no change needed there.)
 
 At the bottom of the file, add:
 
@@ -1712,8 +1756,10 @@ import {
 } from '@/components/ui';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import type { HardwareTier, TierConfig } from '@/types';
-import { Edit, AlertCircle, Power, PowerOff, Plus } from 'lucide-react';
+import { Edit, AlertCircle, Power, PowerOff, Plus, Zap } from 'lucide-react';
 ```
+
+(`Zap` is kept — Step 5 below still uses it for the tier card's model display. `Monitor`, `Cpu`, `HardDrive` are dropped since the spec-grid they rendered is fully replaced in Step 5.)
 
 - [ ] **Step 2: Replace the form state and mutations**
 
@@ -1886,41 +1932,81 @@ git commit -m "feat(platform): replace owner tiers page CPU/GPU form with Platfo
 **Interfaces:**
 - Consumes: `PlatformTierConfigurator`, `TierConfig` from Task 9.
 
-The onboarding wizard's existing "Hardware Tiers" step (`formData.hardwareTiers`, the "Add Tier to Top" / quick-preset / "Tier #1/#2" card UI, and its `formattedHardwareTiers` submit mapping) is replaced so the wizard now uses `TierConfig[]` end to end.
+This file has its own **third independent copy** of the CPU/GPU/console-model form logic already found and removed from `owner/tiers/page.tsx` in Task 10 — a local `type Platform`, `PLATFORM_LABELS`, `PLATFORM_FIELD_LABELS`, `CONSOLE_MODELS_BY_PLATFORM`, `detectPlatform`, plus `HARDWARE_PRESETS`, `POPULAR_GPUS`, `POPULAR_CPUS`, `POPULAR_MONITORS` — none of it discovered until this task's pre-flight check. All of it is deleted here. Note also: importing `Platform` from `@/constants/platforms` (Task 8) into this file without first deleting its local `type Platform` declaration (line 102) is a duplicate-identifier compile error — deleting the local one is not optional cleanup, it's required for this file to compile at all once the import is added.
 
-- [ ] **Step 1: Change the form state shape**
+The wizard's Step 4 ("Operating Hours & Hardware Tiers") bundles Opening/Closing Time and Total Station Capacity together with the hardware-tiers sub-section in one step — only the hardware-tiers sub-section is replaced; the time/capacity fields above it are untouched. Step 5 ("Games & Photos") already has real checkbox UI for games and an established "you'll upload after approval" placeholder pattern for venue photos — the new Menu block is added as a sibling within this existing step, not a new step (adding a 7th step would require touching this file's step-count/progress/navigation logic for a block that has no form fields to validate, which is unnecessary scope for a purely informational message).
 
-Find `hardwareTiers: []` (or equivalent) in the onboarding page's `formData` state and its type declaration; change the field's type from whatever ad-hoc shape it currently holds to `TierConfig[]`, and its initial value to `[]`. Add the import:
+- [ ] **Step 1: Delete the old platform/hardware constants and helper**
+
+Delete lines 29-192 of the current file in full — this spans `HARDWARE_PRESETS` (29-100), the local `type Platform`/`PLATFORM_LABELS`/`PLATFORM_FIELD_LABELS`/`POPULAR_GPUS`/`CONSOLE_MODELS_BY_PLATFORM`/`detectPlatform` block (102-171), and `POPULAR_CPUS`/`POPULAR_MONITORS` (173-192). Stop exactly before `const PRESET_GAMES = [` (line 194) — that constant and everything from it onward is untouched, it belongs to the existing Games step.
+
+- [ ] **Step 2: Change the `hardwareTiers` field type and default**
+
+In the `OnboardingState` interface, replace the `hardwareTiers` field (currently lines 231-242, the `Array<{ name, gpu, cpu?, monitor?, hourlyRate, totalSeats, appBookableSeats, platform? }>` block) with:
+
+```typescript
+  hardwareTiers: TierConfig[];
+```
+
+In `INITIAL_STATE`, replace the `hardwareTiers: [...]` block (currently lines 274-293, the two pre-seeded PC tier objects) with:
+
+```typescript
+  hardwareTiers: [],
+```
+
+(Empty by design — the owner explicitly picks platforms via the new UI rather than starting from pre-seeded PC tiers that don't match `TierConfig`'s shape.)
+
+Add the imports (alongside the existing `import { SUPPORTED_CITIES } from '@/constants/cities';`):
 
 ```tsx
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import type { TierConfig } from '@/types/tier';
 ```
 
-- [ ] **Step 2: Replace the Hardware Tiers step's JSX**
+- [ ] **Step 3: Replace the Hardware Tiers sub-section within Step 4**
 
-Find the onboarding step that currently renders "Hardware Tiers" (containing the "Add Tier to Top" button, quick presets, and per-tier CPU/GPU/monitor fields — this is the step whose description text at approximately line 889 reads "Define hardware tiers and pricing..."). Replace its entire body with:
+Inside `{step === 4 && (...)}`, the block runs: a heading ("4. Operating Hours & Hardware Tiers"), the Opening Time/Closing Time/Total Station Capacity grid, then a `<div className="flex flex-col gap-3">` containing the "Hardware Tiers" h3, the "+ Add Tier to Top" button, the quick-preset chips, and the per-tier cards with CPU/GPU/monitor fields (currently spanning from that `<div className="flex flex-col gap-3">` opening through its matching closing `</div>` immediately before Step 4's own closing `</div>` and `)}` — i.e. everything between the Opening/Closing/Total-Seats grid and the end of Step 4).
+
+Keep the heading and the Opening/Closing/Total-Seats grid exactly as they are. Replace only that "Hardware Tiers" sub-section with:
 
 ```tsx
-<div className="flex flex-col gap-4">
-  <div>
-    <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
-      <Monitor className="h-5 w-5 text-emerald-500" />
-      <span>What does your café offer?</span>
-    </h2>
-    <p className="text-caption text-text-secondary">
-      Set up your stations by platform — no technical specs needed, just what you have and what it costs.
-    </p>
-  </div>
-
-  <PlatformTierConfigurator
-    configs={formData.hardwareTiers}
-    onChange={(configs) => updateField('hardwareTiers', configs)}
-  />
-</div>
+                <div className="flex flex-col gap-3">
+                  <h3 className="font-heading text-h3 text-text-primary">What does your café offer?</h3>
+                  <p className="text-caption text-text-secondary">
+                    Set up your stations by platform — no technical specs needed, just what you have and what it costs.
+                  </p>
+                  <PlatformTierConfigurator
+                    configs={formData.hardwareTiers}
+                    onChange={(configs) => updateField('hardwareTiers', configs)}
+                  />
+                </div>
 ```
 
-- [ ] **Step 3: Update the submit mapping**
+- [ ] **Step 4: Add the Menu block to the existing Games & Photos step**
+
+Inside `{step === 5 && (...)}`, directly after the existing "Venue Photos" block (the `<div className="flex flex-col gap-2">` containing the `ImageIcon` and the "You'll upload real photos..." message) and before that step's closing `</div>` / `)}`, add:
+
+```tsx
+                <div className="flex flex-col gap-2">
+                  <label className="text-caption font-semibold text-text-primary">Menu (Optional)</label>
+                  <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
+                    <div className="h-9 w-9 flex-shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                      <ImageIcon className="h-4 w-4" />
+                    </div>
+                    <p className="text-caption text-text-secondary">
+                      Have food or drinks? You&apos;ll be able to upload your menu photo from{' '}
+                      <span className="font-semibold text-text-primary">
+                        Café Settings → Edit Profile → Menu
+                      </span>
+                      {' '}as soon as your café is approved.
+                    </p>
+                  </div>
+                </div>
+```
+
+(Mirrors the existing Venue Photos block's exact structure and copy pattern. No new form field or submit-payload change — purely informational, same as the photos block it sits beside.)
+
+- [ ] **Step 5: Update the submit mapping**
 
 Replace the `formattedHardwareTiers` block in `handleSubmit` with:
 
@@ -1936,37 +2022,17 @@ Replace the `formattedHardwareTiers` block in `handleSubmit` with:
 
 (This payload shape matches exactly what Task 4's updated backend loop expects: `platform`, `model`, `hourlyRate`, `totalSeats`, `appBookableSeats`.)
 
-- [ ] **Step 4: Add the menu photo step (placeholder, matching the existing café-photos step's established pattern)**
-
-Onboarding never does real file upload before the café exists (confirmed: the existing café-photos step just shows an explanatory message, since the presign endpoint needs a real `cafe_id`). Add a new step, modeled directly on that existing photos step's structure and copy:
-
-```tsx
-<div className="flex flex-col gap-4">
-  <div>
-    <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
-      <ImageIcon className="h-5 w-5 text-emerald-500" />
-      <span>Menu (Optional)</span>
-    </h2>
-    <p className="text-caption text-text-secondary">
-      Have food or drinks? You'll be able to upload your menu photo from your dashboard as soon as your café is approved.
-    </p>
-  </div>
-</div>
-```
-
-(No new form field or submit-payload change needed for this step — it is purely informational, exactly mirroring how the existing photos step behaves pre-approval. Real menu photo upload is Task 12, in the post-approval `EditCafeModal`.)
-
-- [ ] **Step 5: Type-check**
+- [ ] **Step 6: Type-check**
 
 Run: `npx tsc --noEmit`
-Expected: no errors
+Expected: no errors — this is where any leftover reference to the deleted `HARDWARE_PRESETS`/`Platform`/`detectPlatform`/`POPULAR_*` symbols would surface; resolve each by confirming it was inside the deleted range (Step 1) or the replaced sub-section (Step 3), not by re-adding the old symbols.
 
-- [ ] **Step 6: Build**
+- [ ] **Step 7: Build**
 
 Run: `timeout 150 npx next build`
 Expected: succeeds, `/owner/onboarding` route compiles
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add frontend/src/app/\(owner\)/owner/onboarding/page.tsx
