@@ -20,12 +20,23 @@ def derive_tier_display(
         return {"other": label}, label
 
     allowed = PLATFORM_MODELS.get(platform.value, [])
-    if model not in allowed and model != "Custom":
+    if model not in allowed:
         raise ValueError(f"'{model}' is not a valid model for platform '{platform.value}'")
 
     if platform == PlatformType.PC:
         gpu_label = _PC_GPU_LABELS.get(model, model)
         return {"gpu": gpu_label}, f"{model} PC"
+
+    # For console platforms, handle "Custom" specially to preserve platform identity
+    if model == "Custom":
+        platform_display_names = {
+            PlatformType.PLAYSTATION: "PlayStation",
+            PlatformType.XBOX: "Xbox",
+            PlatformType.NINTENDO: "Nintendo",
+        }
+        platform_name = platform_display_names.get(platform, "")
+        label = f"Custom {platform_name}" if platform_name else "Custom"
+        return {"console": label}, label
 
     console_label = _CONSOLE_LABELS.get(model, model)
     return {"console": console_label}, console_label
