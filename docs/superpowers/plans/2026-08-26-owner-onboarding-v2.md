@@ -977,6 +977,7 @@ from uuid import uuid4
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.models.user import User, UserRole
+from app.models.user_role import UserRoleMapping
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
 from app.core.security import create_access_token, get_password_hash
@@ -992,6 +993,10 @@ async def test_needs_confirmation_lists_unmigrated_tiers_with_guess():
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
+        await db.flush()
+        # require_cafe_owner resolves roles from user_roles, not User.role —
+        # without this row every request 403s regardless of the role set above.
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
         await db.flush()
 
         cafe = Cafe(
@@ -1045,6 +1050,8 @@ async def test_needs_confirmation_false_once_all_tiers_migrated():
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
         await db.flush()
 
         cafe = Cafe(
@@ -1220,6 +1227,7 @@ from uuid import uuid4
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.models.user import User, UserRole
+from app.models.user_role import UserRoleMapping
 from app.models.cafe import Cafe, VerificationStatus
 from app.core.security import create_access_token, get_password_hash
 from app.database import AsyncSessionLocal
@@ -1234,6 +1242,9 @@ async def test_delete_menu_photo_removes_url():
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
+        await db.flush()
+        # require_cafe_ownership resolves roles from user_roles, not User.role.
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
         await db.flush()
 
         cafe = Cafe(
@@ -1350,6 +1361,8 @@ async def test_update_cafe_details_persists_menu_photos():
         )
         db.add(owner)
         await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+        await db.flush()
 
         cafe = Cafe(
             id=uuid4(), owner_id=owner.id, name="Menu Add Cafe",
@@ -1396,6 +1409,8 @@ async def test_owner_settings_includes_menu_photos():
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
         await db.flush()
 
         cafe = Cafe(
