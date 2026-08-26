@@ -6,6 +6,7 @@ import { Modal, Button, Input } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, type OwnerSettings } from '@/lib/api/settings';
 import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
 import { getAmenityDisplay } from '@/lib/amenities';
+import { SUPPORTED_CITIES } from '@/constants/cities';
 
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_MB = 8;
@@ -289,7 +290,23 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
             <Input label="Phone Number" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
             <Input label="Address" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} required />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="City" value={city} onChange={(e) => setCity(e.target.value)} required />
+              <div className="flex flex-col gap-1.5">
+                <label className="text-caption font-semibold text-text-primary">City</label>
+                <select
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                  required
+                >
+                  <option value="">Select City</option>
+                  {SUPPORTED_CITIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                  {city && !SUPPORTED_CITIES.includes(city) && (
+                    <option value={city}>{city} (unsupported — please re-select)</option>
+                  )}
+                </select>
+              </div>
               <Input label="State" value={state} onChange={(e) => setState(e.target.value)} required />
             </div>
             <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} required />

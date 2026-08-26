@@ -16,6 +16,13 @@ class HardwareTier(Base):
     specs: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     total_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     app_bookable_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Set whenever an owner explicitly edits this tier's seat quota via the
+    # per-tier editor (PATCH /cafes/{cafe_id}/tiers/{tier_id}). The global
+    # booking-controls seat stepper must not silently overwrite a locked
+    # tier's app_bookable_seats via its proportional rescale — that overwrite
+    # was the root cause of a seat-quota bypass (a tier pinned to 1 seat was
+    # getting reset back toward total_seats by an unrelated global action).
+    app_bookable_seats_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     reserved_walkin_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     active_seats_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     preset_category: Mapped[str | None] = mapped_column(String(50), nullable=True)

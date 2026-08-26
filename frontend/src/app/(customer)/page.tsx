@@ -9,6 +9,8 @@ import { listCafes } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useDebounce } from '@/hooks/useDebounce';
 import { isCafeOpenNow } from '@/lib/format';
+import { hasConsoleTier } from '@/lib/platformTags';
+import { SUPPORTED_CITIES } from '@/constants/cities';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
@@ -16,7 +18,7 @@ import { SearchBarWithSuggestions } from '@/components/customer/SearchBarWithSug
 import { SkeletonCafeGrid, ErrorState, EmptyState } from '@/components/ui';
 
 const FILTER_TAGS = ['All', 'PC Gaming', 'PS5 & Consoles', 'RTX 4080 / 4090', 'Offers', 'Open Now'];
-const KNOWN_CITIES = ['All Cities', 'Bengaluru', 'Delhi', 'Mumbai', 'Hyderabad', 'Pune'];
+const KNOWN_CITIES = ['All Cities', ...SUPPORTED_CITIES];
 
 // Coordinates mapping for accurate Indian city detection
 const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
@@ -167,28 +169,21 @@ function ExplorePageContent() {
 
   const cafes = data?.items || [];
 
-  // Enhanced Filter Logic
+  // Enhanced Filter Logic — every branch derives from the café's actual
+  // configured hardware tier names (see lib/platformTags.ts), never from
+  // the café's own name. A café called "Velocity Lounge" isn't a console
+  // or high-end-GPU venue just because its name contains "velocity" or
+  // "lounge" — that was the root cause of BUG #3 (card showed "PS5 /
+  // Consoles" with zero console tiers configured).
   const filteredCafes = cafes.filter((cafe) => {
-    if (activeTag === 'PS5 & Consoles') {
-      // Matches on the tier's own name/hardware text, not the café's name — a
-      // café called "Velocity Lounge" isn't a console venue just because its
-      // name contains "lounge", which is what this filter used to do.
-      const CONSOLE_KEYWORDS = [
-        'ps5', 'ps4', 'ps3', 'ps2', 'playstation',
-        'xbox', 'switch', 'nintendo', 'dualsense', 'console',
-      ];
-      const hasConsole = cafe.tierNames?.some((t) => {
-        const lower = t.toLowerCase();
-        return CONSOLE_KEYWORDS.some((kw) => lower.includes(kw));
-      });
-      if (!hasConsole) return false;
+    if (activeTag === 'PS5 & Consoles' && !hasConsoleTier(cafe.tierNames)) {
+      return false;
     }
 
     if (activeTag === 'RTX 4080 / 4090') {
-      const hasHighEndGpu =
-        cafe.tierNames?.some(
-          (t) => t.toLowerCase().includes('4080') || t.toLowerCase().includes('4090')
-        ) || cafe.name.toLowerCase().includes('velocity') || cafe.name.toLowerCase().includes('overclock');
+      const hasHighEndGpu = cafe.tierNames?.some(
+        (t) => t.toLowerCase().includes('4080') || t.toLowerCase().includes('4090')
+      );
       if (!hasHighEndGpu) return false;
     }
 

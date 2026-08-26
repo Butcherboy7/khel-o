@@ -18,7 +18,8 @@ from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
+from app.constants import validate_city
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
@@ -82,6 +83,11 @@ class OnboardingSubmitRequest(BaseModel):
     phone_number: str = Field(..., max_length=20)
     email: Optional[str] = None
     opening_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Opening time in HH:MM:SS format (required)")
+
+    @field_validator("city")
+    @classmethod
+    def _validate_city(cls, v: str) -> str:
+        return validate_city(v)
     closing_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Closing time in HH:MM:SS format (required, can be earlier than opening for overnight)")
     total_seats: int = Field(20, ge=1)
     amenities: List[str] = Field(default_factory=list)
@@ -202,13 +208,45 @@ async def toggle_bookings_paused(
         target_val = not cafe.bookings_paused
 
     cafe.bookings_paused = target_val
+
+    # This toggle previously only flipped the flag, leaving actual seat
+    # capacity (cafe.bookable_stations and every tier's app_bookable_seats)
+    # untouched. If seats had been zeroed earlier (e.g. the "None (0)"
+    # preset), clicking Resume here flipped bookings_paused to False —
+    # dashboard showed "Live" — while real capacity stayed at 0, so the
+    # customer app kept showing "Bookings Paused / Walk-ins only" and the
+    # dashboard showed "Seats Free Right Now: 0" despite being "resumed".
+    # Mirror booking-controls' Mode 2 pause/resume capacity handling here,
+    # respecting locked tiers the same way BUG #1's fix does.
+    tier_repo = HardwareTierRepository(db)
+    tiers = await tier_repo.get_by_cafe_id(cafe.id)
+    total_cafe_seats = sum(t.total_seats for t in tiers) if tiers else (cafe.total_seats or 20)
+
+    if target_val:
+        cafe.bookable_stations = 0
+        cafe.app_bookable_seats = 0
+        for t in tiers:
+            await tier_repo.update(t.id, {"app_bookable_seats": 0})
+    elif cafe.bookable_stations == 0:
+        cafe.bookable_stations = max(1, round(total_cafe_seats * 0.7)) if total_cafe_seats > 0 else 1
+        cafe.app_bookable_seats = cafe.bookable_stations
+        ratio = cafe.bookable_stations / total_cafe_seats if total_cafe_seats > 0 else 1.0
+        for t in tiers:
+            if t.app_bookable_seats_locked:
+                continue
+            scaled_seats = max(0, min(t.total_seats, round(t.total_seats * ratio)))
+            if scaled_seats == 0 and ratio > 0 and t.total_seats >= 1:
+                scaled_seats = 1
+            await tier_repo.update(t.id, {"app_bookable_seats": scaled_seats})
+
     await db.commit()
     await db.refresh(cafe)
 
     return {
         "success": True,
         "data": {
-            "bookingsPaused": cafe.bookings_paused
+            "bookingsPaused": cafe.bookings_paused,
+            "bookableStations": cafe.bookable_stations
         },
         "bookingsPaused": cafe.bookings_paused
     }
@@ -1360,7 +1398,10 @@ async def update_owner_cafe_booking_controls(
     # Mode 1: Manual Per-Tier Allocation Updates
     if payload.tier_allocations is not None:
         for alloc in payload.tier_allocations:
-            await tier_repo.update(alloc.tier_id, {"app_bookable_seats": alloc.app_bookable_seats})
+            await tier_repo.update(alloc.tier_id, {
+                "app_bookable_seats": alloc.app_bookable_seats,
+                "app_bookable_seats_locked": True
+            })
         
         # Re-fetch tiers to calculate total app stations
         updated_t = await tier_repo.get_by_cafe_id(cafe.id)
@@ -1388,13 +1429,22 @@ async def update_owner_cafe_booking_controls(
             else:
                 cafe.bookings_paused = True
 
-        # Scale tier app_bookable_seats
+        # Scale tier app_bookable_seats. Pausing/emergency is an absolute
+        # safety action and zeroes every tier regardless of lock state — a
+        # locked tier must never stay bookable while the café is paused.
+        # Otherwise, a tier the owner explicitly pinned via the per-tier
+        # editor (app_bookable_seats_locked) is left untouched: this global
+        # ratio is a coarse convenience control and must not silently
+        # overwrite a deliberate per-tier seat cap (that overwrite was the
+        # root cause of a seat-quota bypass — see model comment).
         if cafe.bookings_paused or cafe.is_emergency_mode or cafe.bookable_stations == 0:
             for t in tiers:
                 await tier_repo.update(t.id, {"app_bookable_seats": 0})
         else:
             ratio = cafe.bookable_stations / total_cafe_seats if total_cafe_seats > 0 else 1.0
             for t in tiers:
+                if t.app_bookable_seats_locked:
+                    continue
                 scaled_seats = max(0, min(t.total_seats, round(t.total_seats * ratio)))
                 # Guarantee at least 1 app seat per tier if ratio > 0 and total_seats >= 1
                 if scaled_seats == 0 and ratio > 0 and t.total_seats >= 1:
@@ -1478,6 +1528,11 @@ class CafeDetailsUpdate(BaseModel):
     description: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+
+    @field_validator("city")
+    @classmethod
+    def _validate_city(cls, v: Optional[str]) -> Optional[str]:
+        return validate_city(v) if v is not None else v
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -1649,6 +1704,7 @@ async def create_tier(
         "price_per_hour": payload.price_per_hour,
         "total_seats": payload.total_seats,
         "app_bookable_seats": payload.app_bookable_seats,
+        "app_bookable_seats_locked": True,
         "active_seats_count": payload.total_seats,
         "preset_category": payload.preset_category,
         "is_active": payload.is_active
@@ -1698,6 +1754,9 @@ async def update_tier(
         update_data["total_seats"] = payload.total_seats
     if payload.app_bookable_seats is not None:
         update_data["app_bookable_seats"] = payload.app_bookable_seats
+        # Owner deliberately pinned this tier's seat quota here — the global
+        # seat stepper's proportional rescale must not silently overwrite it.
+        update_data["app_bookable_seats_locked"] = True
     if payload.is_active is not None:
         update_data["is_active"] = payload.is_active
     

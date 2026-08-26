@@ -24,6 +24,7 @@ import { useAuthStore } from '@/store/authStore';
 import { Button, Input, Textarea, Card, CardContent, Badge } from '@/components/ui';
 import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
 import { INDIAN_STATES } from '@/constants/states';
+import { SUPPORTED_CITIES } from '@/constants/cities';
 
 const HARDWARE_PRESETS = [
   {
@@ -654,7 +655,20 @@ export default function OnboardingWizardPage() {
                       updateField('latitude', res.lat);
                       updateField('longitude', res.lng);
                       if (res.addressLine1) updateField('addressLine1', res.addressLine1);
-                      if (res.city) updateField('city', res.city);
+                      // Google's geocoded "locality" is free text and often
+                      // doesn't match our fixed city list (e.g. it can return
+                      // a suburb/neighbouring municipality instead of the
+                      // metro city KHEL-O actually operates in) — this was
+                      // the root cause of cafés silently disappearing from
+                      // their own city's filter. Only auto-fill when it's an
+                      // exact (case-insensitive) match to a supported city;
+                      // otherwise leave the dropdown for the owner to pick.
+                      if (res.city) {
+                        const matched = SUPPORTED_CITIES.find(
+                          (c) => c.toLowerCase() === res.city!.trim().toLowerCase()
+                        );
+                        if (matched) updateField('city', matched);
+                      }
                       if (res.state) updateField('state', res.state);
                       if (res.pincode) updateField('pincode', res.pincode);
                     }}
@@ -677,12 +691,25 @@ export default function OnboardingWizardPage() {
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Input
-                    label="City *"
-                    value={formData.city}
-                    onChange={(e) => updateField('city', e.target.value)}
-                    required
-                  />
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-caption font-semibold text-text-primary">
+                      City *
+                    </label>
+                    <select
+                      value={formData.city}
+                      onChange={(e) => updateField('city', e.target.value)}
+                      className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                      required
+                    >
+                      <option value="">Select City</option>
+                      {SUPPORTED_CITIES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <p className="text-overline text-text-tertiary">
+                      Not seeing your city? KHEL-O isn&apos;t live there yet — contact support.
+                    </p>
+                  </div>
 
                   <div className="flex flex-col gap-1.5">
                     <label className="text-caption font-semibold text-text-primary">

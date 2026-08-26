@@ -7,6 +7,7 @@ import { MapPin, Star, Zap, Gamepad2 } from 'lucide-react';
 import { Card, CardImage } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow } from '@/lib/format';
+import { hasConsoleTier, hasPcTier } from '@/lib/platformTags';
 import { getAmenityDisplay } from '@/lib/amenities';
 import type { CafeListItem } from '@/types';
 
@@ -43,13 +44,8 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
 
   const isOpenNow = isCafeOpenNow(cafe.openingTime, cafe.closingTime);
 
-  const hasConsole = cafe.tierNames?.some(
-    (t) =>
-      t.toLowerCase().includes('ps5') ||
-      t.toLowerCase().includes('console') ||
-      t.toLowerCase().includes('xbox') ||
-      t.toLowerCase().includes('switch')
-  ) || cafe.name.toLowerCase().includes('lounge') || cafe.name.toLowerCase().includes('velocity');
+  const hasConsole = hasConsoleTier(cafe.tierNames);
+  const showPcGaming = hasPcTier(cafe.tierNames);
 
   const handleOpenMap = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -182,9 +178,11 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
 
           {/* Tags & Console Support Badges Row */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary">
-              PC Gaming
-            </span>
+            {showPcGaming && (
+              <span className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary">
+                PC Gaming
+              </span>
+            )}
 
             {hasConsole && (
               <span className="rounded-full bg-primary/10 px-2.5 py-1 text-overline font-bold text-primary flex items-center gap-1">

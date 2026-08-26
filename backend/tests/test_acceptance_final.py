@@ -248,8 +248,8 @@ async def test_3_direct_cafe_creation_dual_roles(client, db):
     cafe_data = {
         "name": "My New Cafe",
         "addressLine1": "123 Test St",
-        "city": "Chennai",
-        "state": "Tamil Nadu",
+        "city": "Bengaluru",
+        "state": "Karnataka",
         "pincode": "600001",
         "phoneNumber": f"+9166666{test_id[:6]}",
         "totalSeats": 20

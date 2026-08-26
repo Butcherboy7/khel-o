@@ -88,6 +88,191 @@ async def test_owner_can_set_bookable_stations(db_session):
 
 
 @pytest.mark.asyncio
+async def test_locked_tier_seat_quota_survives_global_rescale(db_session):
+    """Regression for a seat-quota bypass: an owner pins one tier (e.g. a
+    console corner with 4 physical stations) to 1 app-bookable seat via the
+    per-tier editor. A later, unrelated global seat-cap adjustment (the
+    dashboard's "Open for Online Booking" stepper / All-70%-None presets)
+    must not silently rescale that tier back up — customers could otherwise
+    book more seats than the café actually configured for that tier."""
+    owner = User(
+        id=uuid4(),
+        email=f"owner_lock_{uuid4().hex}@test.com",
+        full_name="Owner Lock",
+        password_hash=get_password_hash("testpass123"),
+        role=UserRole.CAFE_OWNER,
+        is_active=True
+    )
+    db_session.add(owner)
+    await db_session.flush()
+
+    db_session.add(UserRoleMapping(
+        id=uuid4(),
+        user_id=owner.id,
+        role=UserRole.CAFE_OWNER
+    ))
+
+    cafe = Cafe(
+        id=uuid4(),
+        owner_id=owner.id,
+        name="Locked Tier Café",
+        address_line1="1 Console Ave",
+        city="Bengaluru",
+        state="Karnataka",
+        pincode="560001",
+        phone_number="+919876543211",
+        verification_status=VerificationStatus.VERIFIED,
+        is_active=True,
+        bookable_stations=5,
+        total_seats=14,
+        bookings_paused=False
+    )
+    db_session.add(cafe)
+
+    other_tier = HardwareTier(
+        id=uuid4(),
+        cafe_id=cafe.id,
+        name="Custom Hardware Tier",
+        specs={"gpu": "RTX 4070"},
+        price_per_hour=150.0,
+        total_seats=5,
+        app_bookable_seats=5,
+        active_seats_count=5,
+        is_active=True
+    )
+    console_tier = HardwareTier(
+        id=uuid4(),
+        cafe_id=cafe.id,
+        name="PS4 Pro Console Corner",
+        specs={"gpu": "PS5"},
+        price_per_hour=100.0,
+        total_seats=4,
+        app_bookable_seats=1,
+        app_bookable_seats_locked=True,
+        active_seats_count=4,
+        is_active=True
+    )
+    db_session.add_all([other_tier, console_tier])
+    await db_session.commit()
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        headers = auth_headers(owner)
+
+        # Owner touches the global stepper (e.g. opens more seats overall
+        # on the unrelated "Custom Hardware Tier"), which recomputes the
+        # café-wide ratio and used to blindly rescale every tier by it.
+        response = await client.patch(
+            "/api/v1/owner/cafe/booking-controls",
+            json={"bookableStations": 9},
+            headers=headers
+        )
+        assert response.status_code == 200
+
+        await db_session.refresh(console_tier)
+        assert console_tier.app_bookable_seats == 1, (
+            "Locked tier's seat quota must not be rescaled by an unrelated "
+            "global booking-controls update"
+        )
+
+        # Sanity: the unlocked tier still participates in the global ratio.
+        await db_session.refresh(other_tier)
+        assert other_tier.app_bookable_seats > 0
+
+
+@pytest.mark.asyncio
+async def test_resume_toggle_restores_real_seat_capacity(db_session):
+    """Regression: the dashboard's Pause/Resume Online Booking button
+    (PATCH /cafe/bookings-pause) used to only flip the bookings_paused flag
+    and never touch cafe.bookable_stations or tier app_bookable_seats. If
+    seats had previously been zeroed, clicking Resume showed "Live" on the
+    dashboard while real capacity stayed at 0 — the customer app kept
+    showing "Bookings Paused / Walk-ins only" despite the owner having
+    resumed. Resume must actually restore bookable capacity, not just the
+    flag; pause must still zero every tier's seats, including locked ones,
+    as an absolute safety measure."""
+    owner = User(
+        id=uuid4(),
+        email=f"owner_resume_{uuid4().hex}@test.com",
+        full_name="Owner Resume",
+        password_hash=get_password_hash("testpass123"),
+        role=UserRole.CAFE_OWNER,
+        is_active=True
+    )
+    db_session.add(owner)
+    await db_session.flush()
+
+    db_session.add(UserRoleMapping(
+        id=uuid4(),
+        user_id=owner.id,
+        role=UserRole.CAFE_OWNER
+    ))
+
+    cafe = Cafe(
+        id=uuid4(),
+        owner_id=owner.id,
+        name="Resume Toggle Café",
+        address_line1="2 Resume Rd",
+        city="Bengaluru",
+        state="Karnataka",
+        pincode="560001",
+        phone_number="+919876543212",
+        verification_status=VerificationStatus.VERIFIED,
+        is_active=True,
+        bookable_stations=10,
+        total_seats=10,
+        bookings_paused=False
+    )
+    db_session.add(cafe)
+
+    tier = HardwareTier(
+        id=uuid4(),
+        cafe_id=cafe.id,
+        name="Standard",
+        specs={"gpu": "RTX 3060"},
+        price_per_hour=100.0,
+        total_seats=10,
+        app_bookable_seats=10,
+        active_seats_count=10,
+        is_active=True
+    )
+    db_session.add(tier)
+    await db_session.commit()
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        headers = auth_headers(owner)
+
+        pause_resp = await client.patch(
+            "/api/v1/owner/cafe/bookings-pause",
+            params={"bookingsPaused": "true"},
+            headers=headers
+        )
+        assert pause_resp.status_code == 200
+
+        await db_session.refresh(cafe)
+        await db_session.refresh(tier)
+        assert cafe.bookable_stations == 0
+        assert tier.app_bookable_seats == 0
+
+        resume_resp = await client.patch(
+            "/api/v1/owner/cafe/bookings-pause",
+            params={"bookingsPaused": "false"},
+            headers=headers
+        )
+        assert resume_resp.status_code == 200
+        assert resume_resp.json()["data"]["bookableStations"] > 0
+
+        await db_session.refresh(cafe)
+        await db_session.refresh(tier)
+        assert cafe.bookings_paused is False
+        assert cafe.bookable_stations > 0, (
+            "Resuming must restore real seat capacity, not just flip the flag"
+        )
+        assert tier.app_bookable_seats > 0, (
+            "Resuming must reopen tier seats, not leave them at 0 while showing 'Live'"
+        )
+
+
+@pytest.mark.asyncio
 async def test_pausing_bookings_blocks_new_bookings(db_session):
     """Pausing bookings on Café A blocks new bookings on Café A but does not affect Café B."""
     owner_a = User(

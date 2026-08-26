@@ -86,7 +86,11 @@ class CafeRepository(BaseRepository[Cafe]):
         )
 
         if city and city.strip():
-            stmt = stmt.where(func.lower(Cafe.city) == city.strip().lower())
+            # func.trim on both sides: new cafés are now validated against a
+            # canonical city list at write time (see app/constants.py), but
+            # this stays resilient to whitespace drift in already-stored rows
+            # rather than dropping them from their own city's filter.
+            stmt = stmt.where(func.lower(func.trim(Cafe.city)) == city.strip().lower())
 
         if query and query.strip():
             search_pattern = f"%{query.strip().lower()}%"

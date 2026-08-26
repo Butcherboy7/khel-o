@@ -505,6 +505,96 @@ async def test_owner_status_reflects_after_onboarding_submit(async_client: Async
         assert data_after["cafe"]["id"] == cafe_id
 
 
+@pytest.mark.asyncio
+async def test_cafe_city_must_be_a_supported_city(async_client: AsyncClient):
+    """Regression: city used to be accepted as arbitrary free text (typed by
+    the owner or taken verbatim from Google's geocoded locality), while the
+    discovery filter does an exact match against a fixed city list. A café
+    could end up displayed as "Hyderabad" but never match the "Hyderabad"
+    filter chip, appearing only under "All Cities". City submissions must
+    now be validated against the supported list, and accepted values must
+    normalize to canonical casing regardless of how they were typed."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"owner_city_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Owner City Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        gamer_token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        gamer_headers = {"Authorization": f"Bearer {gamer_token}"}
+
+        base_payload = {
+            "name": "City Regression Cafe",
+            "addressLine1": "1 Regression Rd",
+            "state": "Telangana",
+            "pincode": "500001",
+            "phoneNumber": "+919888888888",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00"
+        }
+
+        # An unsupported/unrecognized city must be rejected outright, not
+        # silently stored as free text.
+        bad_res = await async_client.post(
+            "/api/v1/owner/onboarding/submit",
+            json={**base_payload, "city": "Secunderabad"},
+            headers=gamer_headers
+        )
+        assert bad_res.status_code == 422
+
+        # A supported city typed in a different case must be accepted and
+        # normalized to canonical casing — this is what makes the discovery
+        # filter's exact match actually work regardless of how the owner
+        # (or a geocoding auto-fill) typed it.
+        ok_res = await async_client.post(
+            "/api/v1/owner/onboarding/submit",
+            json={**base_payload, "city": "hyderabad"},
+            headers=gamer_headers
+        )
+        assert ok_res.status_code == 200
+        cafe_id = ok_res.json()["data"]["cafeId"]
+
+        cafe = await db.get(Cafe, uuid.UUID(cafe_id))
+        assert cafe.city == "Hyderabad"
+
+        # Approve it so it's visible to the discovery endpoint, then confirm
+        # it shows under both "All Cities" (no filter) and its own city's
+        # filter — the exact contradiction reported: visible in one, absent
+        # from the other.
+        admin = User(
+            id=uuid.uuid4(),
+            email=f"admin_city_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Admin City Test",
+            role=UserRole.ADMIN,
+            is_active=True
+        )
+        db.add(admin)
+        await db.commit()
+        admin_token = create_access_token(subject=str(admin.id), role=admin.role.value)
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+        approve_res = await async_client.patch(
+            f"/api/v1/admin/cafes/{cafe_id}/verify",
+            json={"status": "verified"},
+            headers=admin_headers
+        )
+        assert approve_res.status_code == 200
+
+        all_cities_res = await async_client.get("/api/v1/cafes", headers=gamer_headers)
+        assert any(c["id"] == cafe_id for c in all_cities_res.json()["data"]["items"])
+
+        hyderabad_res = await async_client.get("/api/v1/cafes?city=Hyderabad", headers=gamer_headers)
+        assert any(c["id"] == cafe_id for c in hyderabad_res.json()["data"]["items"]), (
+            "Café must appear under its own city's filter, not only under All Cities"
+        )
+
 
 
 

@@ -4,6 +4,7 @@ from uuid import UUID
 from datetime import datetime, time
 from app.models.cafe import VerificationStatus
 from app.schemas.hardware_tier import HardwareTierResponse
+from app.constants import validate_city
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -48,6 +49,11 @@ class CafeBase(BaseModel):
     def parse_time_flexibly(cls, v: Any) -> Any:
         return _parse_time_flexibly(v)
 
+    @field_validator("city")
+    @classmethod
+    def _validate_city(cls, v: str) -> str:
+        return validate_city(v)
+
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True
@@ -76,6 +82,11 @@ class CafeUpdate(BaseModel):
     amenities: Optional[List[str]] = None
     photos: Optional[List[str]] = None
     is_active: Optional[bool] = None
+
+    @field_validator("city")
+    @classmethod
+    def _validate_city(cls, v: Optional[str]) -> Optional[str]:
+        return validate_city(v) if v is not None else v
 
     model_config = ConfigDict(
         alias_generator=to_camel,
