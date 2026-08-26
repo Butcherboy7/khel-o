@@ -13,6 +13,7 @@ export interface CafeListItem {
   totalReviews: number;
   startingPrice: number | null;
   tierNames: string[];
+  platforms?: string[];
   photos: string[];
   hasActivePromotion: boolean;
   verificationStatus: VerificationStatus;
