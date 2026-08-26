@@ -2,14 +2,12 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Monitor, Cpu, HardDrive, Zap, Tag, Edit, AlertCircle, Power, PowerOff } from 'lucide-react';
 import { listCafeTiers, createTier, updateTier, deleteTier } from '@/lib/api/tiers';
 import { getOwnerCafeId } from '@/lib/api/owner';
 import { useAuthStore } from '@/store/authStore';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
   Button,
-  Input,
   Card,
   CardContent,
   PriceDisplay,
@@ -19,96 +17,9 @@ import {
   ErrorState,
   EmptyState,
 } from '@/components/ui';
-import type { HardwareTier, PresetCategory } from '@/types';
-
-const POPULAR_GPUS = [
-  'NVIDIA RTX 4090 (24GB VRAM)',
-  'NVIDIA RTX 4080 Super (16GB VRAM)',
-  'NVIDIA RTX 4070 Ti Super (16GB VRAM)',
-  'NVIDIA RTX 4070 (12GB VRAM)',
-  'NVIDIA RTX 3070 Ti (8GB VRAM)',
-  'NVIDIA RTX 3060 (12GB VRAM)',
-  'AMD Radeon RX 7900 XTX (24GB)',
-  'Custom GPU (Type custom GPU below)',
-];
-
-type Platform = 'pc' | 'playstation' | 'xbox' | 'nintendo' | 'other';
-
-const PLATFORM_LABELS: Record<Platform, string> = {
-  pc: 'PC',
-  playstation: 'PlayStation',
-  xbox: 'Xbox',
-  nintendo: 'Nintendo',
-  other: 'Other',
-};
-
-const PLATFORM_FIELD_LABELS: Record<Platform, string> = {
-  pc: 'GPU / Graphics Card *',
-  playstation: 'Console Model *',
-  xbox: 'Console Model *',
-  nintendo: 'Console Model *',
-  other: 'Hardware / Console Model *',
-};
-
-const CONSOLE_MODELS_BY_PLATFORM: Record<Exclude<Platform, 'pc'>, string[]> = {
-  playstation: [
-    'PlayStation 5 Console',
-    'PlayStation 5 Pro Console',
-    'PlayStation 4 Pro Console',
-    'PlayStation 4 Console',
-    'PlayStation 3 Console',
-    'PlayStation 2 Console',
-    'Custom Console (Type below)',
-  ],
-  xbox: [
-    'Xbox Series X Console',
-    'Xbox Series S Console',
-    'Xbox One X Console',
-    'Xbox One S Console',
-    'Xbox 360 Console',
-    'Custom Console (Type below)',
-  ],
-  nintendo: [
-    'Nintendo Switch',
-    'Nintendo Switch OLED',
-    'Nintendo Switch Lite',
-    'Custom Console (Type below)',
-  ],
-  other: ['Custom Console (Type below)'],
-};
-
-/** Same detection used in onboarding — infers platform from a saved `specs.gpu`
- * string so editing an existing console tier opens on the right tab, without a
- * separate platform column server-side. */
-function detectPlatform(gpu: string): Platform {
-  const lower = (gpu || '').toLowerCase();
-  if (lower.includes('playstation') || lower.includes('ps5') || lower.includes('ps4') || lower.includes('ps3') || lower.includes('ps2')) return 'playstation';
-  if (lower.includes('xbox')) return 'xbox';
-  if (lower.includes('switch') || lower.includes('nintendo')) return 'nintendo';
-  if (lower.includes('nvidia') || lower.includes('rtx') || lower.includes('gtx') || lower.includes('radeon') || lower.includes('amd radeon')) return 'pc';
-  return 'other';
-}
-
-const POPULAR_CPUS = [
-  'Intel Core i9-14900KS (5.9GHz)',
-  'Intel Core i7-14700K (20 Cores)',
-  'Intel Core i7-13700K (16 Cores)',
-  'AMD Ryzen 7 7800X3D (Esports King)',
-  'AMD Ryzen 9 7950X3D (16 Cores)',
-  'Intel Core i5-13400F',
-  'PS5 Custom AMD Zen 2 CPU',
-  'Custom CPU (Type custom CPU below)',
-];
-
-const POPULAR_MONITORS = [
-  'BenQ ZOWIE XL2566K (360Hz Esports)',
-  'ASUS ROG Swift 240Hz QHD OLED',
-  'LG Ultragear 240Hz 1ms IPS',
-  'BenQ ZOWIE 144Hz 1ms Gaming',
-  'Samsung Odyssey G7 240Hz Curved',
-  'LG 55" 4K OLED HDR TV (PS5)',
-  'Custom Monitor (Type custom monitor below)',
-];
+import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
+import type { HardwareTier, TierConfig } from '@/types';
+import { Edit, AlertCircle, Power, PowerOff, Plus, Zap } from 'lucide-react';
 
 export default function HardwareTiersPage() {
   const queryClient = useQueryClient();
@@ -117,16 +28,7 @@ export default function HardwareTiersPage() {
 
   // Form State
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [platform, setPlatform] = useState<Platform>('pc');
-  const [gpu, setGpu] = useState('NVIDIA RTX 4070');
-  const [cpu, setCpu] = useState('Intel Core i7-13700K');
-  const [ram, setRam] = useState('32GB DDR5');
-  const [monitor, setMonitor] = useState('240Hz 1440p');
-  const [totalSeats, setTotalSeats] = useState(10);
-  const [appBookableSeats, setAppBookableSeats] = useState(8);
-  const [pricePerHour, setPricePerHour] = useState(120);
-  const [presetCategory, setPresetCategory] = useState<PresetCategory>('pro_gaming');
+  const [configs, setConfigs] = useState<TierConfig[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
   const storeCafeId = useAuthStore((s) => s.user?.cafeId);
@@ -166,13 +68,14 @@ export default function HardwareTiersPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const targetId = await getActiveCafeId();
+      const config = configs[0];
       return createTier(targetId, {
-        name,
-        specs: { gpu, cpu, ram, monitor },
-        totalSeats: Number(totalSeats),
-        appBookableSeats: Number(appBookableSeats),
-        presetCategory,
-        pricePerHour: Number(pricePerHour),
+        specs: {},
+        totalSeats: config.totalSeats,
+        appBookableSeats: config.appBookableSeats,
+        pricePerHour: config.pricePerHour,
+        platform: config.platform,
+        model: config.model,
       });
     },
     onSuccess: () => {
@@ -189,12 +92,13 @@ export default function HardwareTiersPage() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       const targetId = await getActiveCafeId();
+      const config = configs[0];
       return updateTier(targetId, editingTierId!, {
-        name,
-        specs: { gpu, cpu, ram, monitor },
-        totalSeats: Number(totalSeats),
-        appBookableSeats: Number(appBookableSeats),
-        pricePerHour: Number(pricePerHour),
+        totalSeats: config.totalSeats,
+        appBookableSeats: config.appBookableSeats,
+        pricePerHour: config.pricePerHour,
+        platform: config.platform,
+        model: config.model,
       });
     },
     onSuccess: () => {
@@ -232,40 +136,36 @@ export default function HardwareTiersPage() {
 
   const resetForm = () => {
     setEditingTierId(null);
-    setName('');
-    setPlatform('pc');
-    setGpu('NVIDIA RTX 4070');
-    setCpu('Intel Core i7-13700K');
-    setRam('32GB DDR5');
-    setMonitor('240Hz 1440p');
-    setTotalSeats(10);
-    setAppBookableSeats(8);
-    setPricePerHour(120);
+    setConfigs([]);
     setFormError(null);
   };
 
   const handleOpenEdit = (tier: HardwareTier) => {
     setEditingTierId(tier.id);
-    setName(tier.name);
-    setPlatform(detectPlatform(tier.specs?.gpu || ''));
-    setGpu(tier.specs?.gpu || 'NVIDIA RTX 4070');
-    setCpu(tier.specs?.cpu || 'Intel Core i7-13700K');
-    setRam(tier.specs?.ram || '32GB DDR5');
-    setMonitor(tier.specs?.monitor || '240Hz 1440p');
-    setTotalSeats(tier.totalSeats);
-    setAppBookableSeats(tier.appBookableSeats ?? tier.totalSeats);
-    setPricePerHour(tier.pricePerHour);
+    setConfigs([{
+      id: tier.id,
+      platform: tier.platform || 'other',
+      model: tier.model || tier.name,
+      totalSeats: tier.totalSeats,
+      appBookableSeats: tier.appBookableSeats,
+      pricePerHour: tier.pricePerHour,
+    }]);
     setFormError(null);
     setIsModalOpen(true);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !pricePerHour || !totalSeats) {
+    if (configs.length === 0) {
+      setFormError('Please configure at least one platform.');
+      return;
+    }
+    const config = configs[0];
+    if (!config.model || !config.pricePerHour || !config.totalSeats) {
       setFormError('Please fill in all required fields.');
       return;
     }
-    if (appBookableSeats > totalSeats) {
+    if (config.appBookableSeats > config.totalSeats) {
       setFormError('App bookable seats cannot exceed total seats.');
       return;
     }
@@ -388,34 +288,10 @@ export default function HardwareTiersPage() {
                     </div>
                   </div>
 
-                  {/* Spec List — omit any chip whose value is unset rather than
-                      rendering a placeholder "N/A", which reads as broken data */}
-                  {(tier.specs?.gpu || tier.specs?.cpu || tier.specs?.ram || tier.specs?.monitor) && (
-                    <div className="grid grid-cols-2 gap-2 text-caption bg-surface p-3 rounded-xl">
-                      {tier.specs?.gpu && (
-                        <div className="flex items-center gap-1.5 font-semibold text-text-primary">
-                          <Zap className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                          <span>{tier.specs.gpu}</span>
-                        </div>
-                      )}
-                      {tier.specs?.cpu && (
-                        <div className="flex items-center gap-1.5 text-text-secondary">
-                          <Cpu className="h-3.5 w-3.5 text-text-secondary flex-shrink-0" />
-                          <span>{tier.specs.cpu}</span>
-                        </div>
-                      )}
-                      {tier.specs?.ram && (
-                        <div className="flex items-center gap-1.5 text-text-secondary">
-                          <HardDrive className="h-3.5 w-3.5 text-text-secondary flex-shrink-0" />
-                          <span>{tier.specs.ram}</span>
-                        </div>
-                      )}
-                      {tier.specs?.monitor && (
-                        <div className="flex items-center gap-1.5 text-text-secondary">
-                          <Monitor className="h-3.5 w-3.5 text-text-secondary flex-shrink-0" />
-                          <span>{tier.specs.monitor}</span>
-                        </div>
-                      )}
+                  {tier.model && (
+                    <div className="flex items-center gap-1.5 text-caption font-semibold text-text-primary bg-surface p-3 rounded-xl">
+                      <Zap className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                      <span>{tier.model}</span>
                     </div>
                   )}
 
@@ -455,181 +331,10 @@ export default function HardwareTiersPage() {
             </div>
           )}
 
-          <Input
-            label="Tier Name *"
-            placeholder="e.g. RTX 4090 Ultra VIP Pod"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-
-          {/* Platform: PC vs. which console family */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-caption font-semibold text-text-primary">Platform</label>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(PLATFORM_LABELS) as Platform[]).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => {
-                    setPlatform(p);
-                    setGpu(p === 'pc' ? POPULAR_GPUS[0] : CONSOLE_MODELS_BY_PLATFORM[p][0]);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    platform === p
-                      ? 'bg-primary text-white border-primary'
-                      : 'bg-surface text-text-secondary border-border hover:border-primary/60'
-                  }`}
-                >
-                  {PLATFORM_LABELS[p]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Dropdowns for Hardware Model, CPU, Monitor matching Onboarding */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Hardware / Console Model Selector — list swaps with Platform above */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-caption font-semibold text-text-primary">{PLATFORM_FIELD_LABELS[platform]}</label>
-              {(() => {
-                const modelList = platform === 'pc' ? POPULAR_GPUS : CONSOLE_MODELS_BY_PLATFORM[platform];
-                const isKnown = modelList.includes(gpu);
-                return (
-                  <>
-                    <select
-                      value={isKnown ? gpu : modelList[modelList.length - 1]}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setGpu(val.includes('Custom') ? modelList[0] : val);
-                      }}
-                      className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                    >
-                      {modelList.map((g) => (
-                        <option key={g} value={g}>{g}</option>
-                      ))}
-                    </select>
-                    {!isKnown && (
-                      <Input
-                        placeholder={platform === 'pc' ? 'Type custom GPU...' : 'Type custom console/hardware...'}
-                        value={gpu}
-                        onChange={(e) => setGpu(e.target.value)}
-                      />
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* CPU Selector */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-caption font-semibold text-text-primary">CPU / Processor</label>
-              <select
-                value={POPULAR_CPUS.includes(cpu) ? cpu : 'Custom CPU (Type custom CPU below)'}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setCpu(val.includes('Custom') ? 'Intel Core i7-13700K' : val);
-                }}
-                className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-              >
-                {POPULAR_CPUS.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-              {!POPULAR_CPUS.includes(cpu) && (
-                <Input
-                  placeholder="Type custom CPU..."
-                  value={cpu}
-                  onChange={(e) => setCpu(e.target.value)}
-                />
-              )}
-            </div>
-
-            {/* Monitor Selector */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-caption font-semibold text-text-primary">Monitor / Display</label>
-              <select
-                value={POPULAR_MONITORS.includes(monitor) ? monitor : 'Custom Monitor (Type custom monitor below)'}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setMonitor(val.includes('Custom') ? '240Hz Display' : val);
-                }}
-                className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-              >
-                {POPULAR_MONITORS.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-              {!POPULAR_MONITORS.includes(monitor) && (
-                <Input
-                  placeholder="Type custom monitor..."
-                  value={monitor}
-                  onChange={(e) => setMonitor(e.target.value)}
-                />
-              )}
-            </div>
-          </div>
-
-          <Input
-            label="RAM Memory"
-            placeholder="e.g. 32GB DDR5"
-            value={ram}
-            onChange={(e) => setRam(e.target.value)}
-          />
-
-          <div className="p-3 bg-surface rounded-xl border border-border/80 flex flex-col gap-3">
-            <span className="text-xs font-semibold text-text-primary uppercase tracking-wider">
-              Seat Quota Allocation (App vs Walk-in)
-            </span>
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Total Physical Stations *"
-                type="number"
-                min="1"
-                value={totalSeats}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setTotalSeats(val);
-                  if (appBookableSeats > val) {
-                    setAppBookableSeats(val);
-                  }
-                }}
-                required
-              />
-              <Input
-                label="App-Bookable Seats *"
-                type="number"
-                min="0"
-                max={totalSeats}
-                value={appBookableSeats}
-                onChange={(e) => setAppBookableSeats(Number(e.target.value))}
-                required
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs text-text-secondary px-1">
-              <span>🚶 Walk-in Reserved: <strong className="text-amber-500 font-bold">{Math.max(0, totalSeats - appBookableSeats)} Stations</strong></span>
-              <span>📱 App Bookable: <strong className="text-emerald-500 font-bold">{appBookableSeats} Stations</strong></span>
-            </div>
-          </div>
-
-          <Input
-            label="Price per Hour (₹) *"
-            type="number"
-            min="1"
-            value={pricePerHour}
-            onChange={(e) => setPricePerHour(Number(e.target.value))}
-            required
-          />
+          <PlatformTierConfigurator configs={configs} onChange={setConfigs} />
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setIsModalOpen(false);
-                resetForm();
-              }}
-            >
+            <Button type="button" variant="ghost" onClick={() => { setIsModalOpen(false); resetForm(); }}>
               Cancel
             </Button>
             <Button

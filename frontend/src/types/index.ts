@@ -26,7 +26,7 @@ export type {
   AdminCafeVerifyRequest,
 } from './cafe';
 
-export type { HardwareTier, TierCreateRequest, TierUpdateRequest } from './tier';
+export type { HardwareTier, TierCreateRequest, TierUpdateRequest, TierConfig } from './tier';
 
 export type {
   Booking,
