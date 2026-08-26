@@ -20,3 +20,37 @@ def validate_city(city: str) -> str:
             f"'{city}' is not a supported city. Supported cities: {', '.join(SUPPORTED_CITIES)}"
         )
     return canonical
+
+
+# Platform-first hardware tier configuration (Owner Onboarding V2). Mirrors
+# the SUPPORTED_CITIES pattern above: a fixed picklist per platform, no
+# admin-editable list. "other" has no fixed model list — it's free text,
+# same escape-hatch convention as "Custom CPU (type below)" used elsewhere
+# in this codebase before this redesign.
+PLATFORM_MODELS = {
+    "pc": ["RTX 4090", "RTX 4070", "RTX 3060", "Budget", "Custom"],
+    "playstation": ["PS5 Pro", "PS5", "PS4 Pro", "PS4", "Custom"],
+    "xbox": ["Series X", "Series S", "One X", "One S", "Custom"],
+    "nintendo": ["Switch OLED", "Switch", "Switch Lite", "Custom"],
+}
+
+_PC_GPU_LABELS = {
+    "RTX 4090": "NVIDIA RTX 4090",
+    "RTX 4070": "NVIDIA RTX 4070",
+    "RTX 3060": "NVIDIA RTX 3060",
+    "Budget": "Entry-level GPU",
+}
+
+_CONSOLE_LABELS = {
+    "PS5 Pro": "PlayStation 5 Pro",
+    "PS5": "PlayStation 5",
+    "PS4 Pro": "PlayStation 4 Pro",
+    "PS4": "PlayStation 4",
+    "Series X": "Xbox Series X",
+    "Series S": "Xbox Series S",
+    "One X": "Xbox One X",
+    "One S": "Xbox One S",
+    "Switch OLED": "Nintendo Switch OLED",
+    "Switch": "Nintendo Switch",
+    "Switch Lite": "Nintendo Switch Lite",
+}
