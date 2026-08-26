@@ -48,6 +48,7 @@ class Cafe(Base):
     amenities: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     photos: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     supported_games: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
+    menu_photos: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     business_pan: Mapped[str | None] = mapped_column(String(20), nullable=True)
     gstin: Mapped[str | None] = mapped_column(String(20), nullable=True)
     legal_document_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

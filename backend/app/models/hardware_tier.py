@@ -1,10 +1,18 @@
 import uuid
+import enum
 from datetime import datetime, timezone
 from typing import Any
-from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, Numeric, Integer, JSON
+from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, Numeric, Integer, JSON, Enum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+
+class PlatformType(str, enum.Enum):
+    PC = "pc"
+    PLAYSTATION = "playstation"
+    XBOX = "xbox"
+    NINTENDO = "nintendo"
+    OTHER = "other"
 
 class HardwareTier(Base):
     __tablename__ = "hardware_tiers"
@@ -23,6 +31,11 @@ class HardwareTier(Base):
     # was the root cause of a seat-quota bypass (a tier pinned to 1 seat was
     # getting reset back toward total_seats by an unrelated global action).
     app_bookable_seats_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    platform: Mapped[PlatformType | None] = mapped_column(
+        Enum(PlatformType, values_callable=lambda x: [e.value for e in x]),
+        nullable=True
+    )
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     reserved_walkin_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     active_seats_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     preset_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
