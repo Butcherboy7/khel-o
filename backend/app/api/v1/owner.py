@@ -146,6 +146,7 @@ async def get_owner_settings(
         "pincode": cafe.pincode,
         "amenities": cafe.amenities or [],
         "photos": cafe.photos or [],
+        "menuPhotos": cafe.menu_photos or [],
         "latitude": cafe.latitude,
         "longitude": cafe.longitude,
     }
@@ -1543,6 +1544,7 @@ class CafeDetailsUpdate(BaseModel):
     email: Optional[str] = None
     amenities: Optional[List[str]] = None
     photos: Optional[List[str]] = None
+    menu_photos: Optional[List[str]] = None
     description: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -1927,6 +1929,10 @@ async def update_cafe_details(
         if len(payload.photos) > settings.CAFE_PHOTO_MAX_COUNT:
             raise BadRequestException(f"A café can have at most {settings.CAFE_PHOTO_MAX_COUNT} photos")
         cafe.photos = payload.photos
+    if payload.menu_photos is not None:
+        if len(payload.menu_photos) > settings.CAFE_PHOTO_MAX_COUNT:
+            raise BadRequestException(f"A café can have at most {settings.CAFE_PHOTO_MAX_COUNT} menu photos")
+        cafe.menu_photos = payload.menu_photos
     if payload.latitude is not None:
         cafe.latitude = payload.latitude
     if payload.longitude is not None:
@@ -2011,6 +2017,50 @@ async def delete_cafe_photo(
             "photos": cafe.photos
         }
     }
+
+
+@router.post("/cafes/{cafe_id}/menu-photos/presign", status_code=status.HTTP_200_OK)
+async def presign_menu_photo_upload(
+    cafe_id: UUID,
+    payload: PhotoPresignRequest,
+    cafe: Cafe = Depends(require_cafe_ownership),
+):
+    """Issue a short-lived, cafe-scoped presigned URL for a menu photo upload."""
+    from app.services.storage_service import create_presigned_upload
+
+    existing_count = len(cafe.menu_photos) if isinstance(cafe.menu_photos, list) else 0
+    if existing_count >= settings.CAFE_PHOTO_MAX_COUNT:
+        raise BadRequestException(f"A café can have at most {settings.CAFE_PHOTO_MAX_COUNT} menu photos")
+
+    result = create_presigned_upload(cafe.id, payload.content_type)
+    return {
+        "success": True,
+        "data": result
+    }
+
+
+@router.delete("/cafes/{cafe_id}/menu-photos", status_code=status.HTTP_200_OK)
+async def delete_menu_photo(
+    cafe_id: UUID,
+    payload: PhotoDeleteRequest,
+    cafe: Cafe = Depends(require_cafe_ownership),
+    db: AsyncSession = Depends(get_db)
+):
+    """Remove a menu photo from the café and delete the S3 object if it belongs to us."""
+    from app.services.storage_service import key_from_url, delete_object
+
+    current_photos = list(cafe.menu_photos) if isinstance(cafe.menu_photos, list) else []
+    if payload.url not in current_photos:
+        raise NotFoundException("Menu photo not found on this café")
+
+    cafe.menu_photos = [p for p in current_photos if p != payload.url]
+    await db.commit()
+
+    key = key_from_url(payload.url)
+    if key:
+        delete_object(key)
+
+    return {"success": True, "data": {"menuPhotos": cafe.menu_photos}}
 
 
 @router.post("/bookings/{booking_id}/cancel", status_code=status.HTTP_200_OK)
