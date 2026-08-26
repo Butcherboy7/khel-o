@@ -645,7 +645,10 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                       multiple
                       className="hidden"
                       disabled={menuUploadingCount > 0}
-                      onChange={(e) => handleMenuFilesSelected(e.target.files)}
+                      onChange={(e) => {
+                        handleMenuFilesSelected(e.target.files);
+                        e.target.value = '';
+                      }}
                     />
                   </label>
                 )}
