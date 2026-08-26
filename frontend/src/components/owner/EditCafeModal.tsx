@@ -3,7 +3,7 @@
 import { useState, useRef, type FormEvent } from 'react';
 import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff } from 'lucide-react';
 import { Modal, Button, Input } from '@/components/ui';
-import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, type OwnerSettings } from '@/lib/api/settings';
+import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings } from '@/lib/api/settings';
 import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { SUPPORTED_CITIES } from '@/constants/cities';
@@ -86,6 +86,11 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [menuPhotos, setMenuPhotos] = useState<string[]>(settings.menuPhotos || []);
+  const [menuUploadProgress, setMenuUploadProgress] = useState<Record<string, number>>({});
+  const [menuUploadError, setMenuUploadError] = useState<string | null>(null);
+  const [deletingMenuUrl, setDeletingMenuUrl] = useState<string | null>(null);
+  const [menuUploadingCount, setMenuUploadingCount] = useState(0);
 
   // Saved amenities may be seeded snake_case slugs ("ac", "ps5_zone") or these
   // Title Case presets — both resolve to the same canonical label via
@@ -218,6 +223,71 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
       setUploadError(err instanceof Error ? err.message : 'Failed to delete photo');
     } finally {
       setDeletingUrl(null);
+    }
+  };
+
+  const persistMenuPhotos = async (updated: string[]) => {
+    setMenuPhotos(updated);
+    await updateCafeDetails(cafeId, { menuPhotos: updated });
+    onSaved({ menuPhotos: updated });
+  };
+
+  const handleMenuFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setMenuUploadError(null);
+
+    const remainingSlots = MAX_PHOTOS - menuPhotos.length;
+    if (remainingSlots <= 0) {
+      setMenuUploadError(`A café can have at most ${MAX_PHOTOS} menu photos`);
+      return;
+    }
+
+    const selected = Array.from(files).slice(0, remainingSlots);
+    let workingPhotos = menuPhotos;
+
+    for (const file of selected) {
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        setMenuUploadError('Only JPEG, PNG, or WebP images are allowed');
+        continue;
+      }
+      if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
+        setMenuUploadError(`"${file.name}" is larger than ${MAX_PHOTO_MB}MB`);
+        continue;
+      }
+
+      const tempKey = `${file.name}-${file.size}-${Date.now()}`;
+      setMenuUploadingCount((c) => c + 1);
+      setMenuUploadProgress((p) => ({ ...p, [tempKey]: 0 }));
+
+      try {
+        const publicUrl = await uploadMenuPhoto(cafeId, file, (pct) => {
+          setMenuUploadProgress((p) => ({ ...p, [tempKey]: pct }));
+        });
+        workingPhotos = [...workingPhotos, publicUrl];
+        await persistMenuPhotos(workingPhotos);
+      } catch (err: unknown) {
+        setMenuUploadError(err instanceof Error ? err.message : `Failed to upload "${file.name}"`);
+      } finally {
+        setMenuUploadingCount((c) => c - 1);
+        setMenuUploadProgress((p) => {
+          const { [tempKey]: _drop, ...rest } = p;
+          return rest;
+        });
+      }
+    }
+  };
+
+  const handleDeleteMenuPhoto = async (url: string) => {
+    setDeletingMenuUrl(url);
+    setMenuUploadError(null);
+    try {
+      const res = await deleteMenuPhoto(cafeId, url);
+      setMenuPhotos(res.menuPhotos);
+      onSaved({ menuPhotos: res.menuPhotos });
+    } catch (err: unknown) {
+      setMenuUploadError(err instanceof Error ? err.message : 'Failed to delete menu photo');
+    } finally {
+      setDeletingMenuUrl(null);
     }
   };
 
@@ -528,6 +598,58 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
               <p className="text-caption text-text-secondary">
                 JPEG, PNG, or WebP — up to {MAX_PHOTO_MB}MB each. First photo is the cover shown on listings.
               </p>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              <label className="text-caption font-semibold text-text-primary">
+                Menu Photos <span className="text-text-secondary font-normal">({menuPhotos.length}/{MAX_PHOTOS})</span>
+              </label>
+
+              {menuUploadError && (
+                <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">{menuUploadError}</div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {menuPhotos.map((photo) => (
+                  <div key={photo} className="relative aspect-square rounded-xl overflow-hidden border border-border group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photo} alt="Menu" className="h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 sm:opacity-0 flex items-center justify-center gap-1.5 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMenuPhoto(photo)}
+                        disabled={deletingMenuUrl === photo}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-error disabled:opacity-50"
+                        aria-label="Delete menu photo"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {Object.entries(menuUploadProgress).map(([key, pct]) => (
+                  <div key={key} className="aspect-square rounded-xl border border-border bg-surface flex flex-col items-center justify-center gap-1.5 text-caption text-text-secondary">
+                    <Upload className="h-5 w-5 animate-pulse" />
+                    <span>{pct}%</span>
+                  </div>
+                ))}
+
+                {menuPhotos.length < MAX_PHOTOS && (
+                  <label className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 text-caption font-semibold text-text-secondary hover:border-primary hover:text-primary transition-colors cursor-pointer">
+                    <Plus className="h-5 w-5" />
+                    <span>Add photo</span>
+                    <input
+                      type="file"
+                      accept={ALLOWED_TYPES.join(',')}
+                      multiple
+                      className="hidden"
+                      disabled={menuUploadingCount > 0}
+                      onChange={(e) => handleMenuFilesSelected(e.target.files)}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
 
             <SaveRow saving={amenitiesSaving} saved={amenitiesSaved} label="Save Amenities" onClick={handleAmenitiesSave} />

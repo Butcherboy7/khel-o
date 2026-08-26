@@ -15,6 +15,7 @@ export interface OwnerSettings {
   pincode: string;
   amenities: string[];
   photos: string[];
+  menuPhotos: string[];
   latitude: number | null;
   longitude: number | null;
 }
@@ -75,6 +76,7 @@ export interface CafeDetailsUpdateParams {
   email?: string;
   amenities?: string[];
   photos?: string[];
+  menuPhotos?: string[];
   latitude?: number;
   longitude?: number;
 }
@@ -128,6 +130,39 @@ export async function uploadCafePhoto(
 export async function deleteCafePhoto(cafeId: string, url: string): Promise<{ photos: string[] }> {
   return call(() =>
     apiClient.delete(`/api/v1/owner/cafes/${cafeId}/photos`, { data: { url } })
+  );
+}
+
+// POST /api/v1/owner/cafes/{cafeId}/menu-photos/presign
+export async function presignMenuPhotoUpload(
+  cafeId: string,
+  contentType: string
+): Promise<{ uploadUrl: string; publicUrl: string }> {
+  return call(() =>
+    apiClient.post(`/api/v1/owner/cafes/${cafeId}/menu-photos/presign`, { contentType })
+  );
+}
+
+// Uploads a file directly to S3 via a presigned URL, reporting progress.
+export async function uploadMenuPhoto(
+  cafeId: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  const { uploadUrl, publicUrl } = await presignMenuPhotoUpload(cafeId, file.type);
+  await axios.put(uploadUrl, file, {
+    headers: { 'Content-Type': file.type },
+    onUploadProgress: (evt) => {
+      if (onProgress && evt.total) onProgress(Math.round((evt.loaded / evt.total) * 100));
+    },
+  });
+  return publicUrl;
+}
+
+// DELETE /api/v1/owner/cafes/{cafeId}/menu-photos
+export async function deleteMenuPhoto(cafeId: string, url: string): Promise<{ menuPhotos: string[] }> {
+  return call(() =>
+    apiClient.delete(`/api/v1/owner/cafes/${cafeId}/menu-photos`, { data: { url } })
   );
 }
 
