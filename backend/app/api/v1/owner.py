@@ -1879,8 +1879,11 @@ async def confirm_tier_platform(
     if not cafe or str(cafe.owner_id) != str(current_owner.id):
         raise ForbiddenException("You can only confirm tiers for your own café", error_code="FORBIDDEN")
 
-    platform = PlatformType(payload.platform)
-    derived_specs, suggested_name = derive_tier_display(platform, payload.model)
+    try:
+        platform = PlatformType(payload.platform)
+        derived_specs, suggested_name = derive_tier_display(platform, payload.model)
+    except ValueError as e:
+        raise ValidationException(message=str(e), error_code="INVALID_PLATFORM_MODEL")
 
     await tier_repo.update(tier_id, {
         "platform": platform,
