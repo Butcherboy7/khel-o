@@ -6,6 +6,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { PLATFORMS, PLATFORM_MODELS, type Platform } from '@/constants/platforms';
 import { Input } from '@/components/ui';
 import type { TierConfig } from '@/types/tier';
+import { safeRandomUUID } from '@/lib/uuid';
 
 interface PlatformTierConfiguratorProps {
   configs: TierConfig[];
@@ -26,7 +27,7 @@ interface PlatformTierConfiguratorProps {
 function makeDefaultConfig(platform: Platform): TierConfig {
   const models = platform === 'other' ? [] : PLATFORM_MODELS[platform];
   return {
-    id: crypto.randomUUID(),
+    id: safeRandomUUID(),
     platform,
     model: platform === 'other' ? '' : models[0],
     totalSeats: 4,

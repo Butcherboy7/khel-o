@@ -25,6 +25,7 @@ import { INDIAN_STATES } from '@/constants/states';
 import { SUPPORTED_CITIES } from '@/constants/cities';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import type { TierConfig } from '@/types/tier';
+import { safeRandomUUID } from '@/lib/uuid';
 
 const PRESET_GAMES = [
   'Valorant',
@@ -122,7 +123,20 @@ export default function OnboardingWizardPage() {
       try {
         const res = await getOnboardingDraft();
         if (isMounted && res.draft && Object.keys(res.draft).length > 0) {
-          setFormData((prev) => ({ ...prev, ...res.draft }));
+          const draft: Record<string, any> = { ...res.draft };
+          // Sanitize pre-Platform-V2 drafts: the old hardwareTiers shape
+          // ({name, gpu, cpu, monitor, ...}, no `platform`) renders nothing
+          // in PlatformTierConfigurator but is still silently carried in
+          // formData and submitted as an invisible "ghost" tier with
+          // fabricated specs (see final-review.md C3). Drop any entry that
+          // isn't a real platform-shaped config, and mint an id for any
+          // survivor that's missing one.
+          if (Array.isArray(draft.hardwareTiers)) {
+            draft.hardwareTiers = draft.hardwareTiers
+              .filter((t: any) => t && typeof t.platform === 'string' && t.platform.length > 0)
+              .map((t: any) => (t.id ? t : { ...t, id: safeRandomUUID() }));
+          }
+          setFormData((prev) => ({ ...prev, ...draft }));
           if (res.draft.step && typeof res.draft.step === 'number') {
             setStep(res.draft.step);
           }
@@ -205,6 +219,23 @@ export default function OnboardingWizardPage() {
       }
       if (formData.bankIfsc && !formData.bankAccountNumber) {
         setError('Please enter bank account number along with IFSC code.');
+        return;
+      }
+    }
+
+    // Step 4: Hardware tiers. INITIAL_STATE seeds an empty array (this used
+    // to be unreachable because two tiers were pre-seeded) — an owner must
+    // not be able to click through to a live, unbookable, zero-tier café.
+    // Mirrors owner/tiers/page.tsx's blank-model guard so both consumers of
+    // PlatformTierConfigurator enforce the same guarantee.
+    if (step === 4) {
+      if (!formData.hardwareTiers || formData.hardwareTiers.length === 0) {
+        setError('Please add at least one hardware tier before continuing.');
+        return;
+      }
+      const hasBlankModel = formData.hardwareTiers.some((t) => !t.model || !t.model.trim());
+      if (hasBlankModel) {
+        setError('Please select a model for every hardware tier before continuing.');
         return;
       }
     }
