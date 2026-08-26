@@ -5,6 +5,7 @@ from app.repositories.cafe_repository import CafeRepository
 from app.repositories.promotion_repository import PromotionRepository
 from app.services.promotion_service import PromotionService
 from app.services.performance_rating import compute_rating, _score_gpu, _score_ram, _score_hz
+from app.services.platform_derivation import derive_tier_display
 from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpdateRequest, HardwareTierResponse
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
@@ -73,25 +74,37 @@ class HardwareTierService:
 
         reserved_walkin = tier_in.reserved_walkin_seats if tier_in.reserved_walkin_seats is not None else (tier_in.total_seats - tier_in.app_bookable_seats)
 
+        try:
+            derived_specs, suggested_name = derive_tier_display(tier_in.platform, tier_in.model)
+        except ValueError as e:
+            raise ValidationException(message=str(e), error_code="INVALID_PLATFORM_MODEL")
+        final_specs = derived_specs if tier_in.platform is not None else tier_in.specs
+        # When a platform is selected, the derived name always wins (mirrors
+        # final_specs above) so a stray/placeholder name typed by the client
+        # can never diverge from the platform+model that was actually chosen.
+        final_name = suggested_name if tier_in.platform is not None else (tier_in.name or suggested_name)
+
         tier_dict = {
             "id": uuid4(),
             "cafe_id": cafe_id,
-            "name": tier_in.name,
+            "name": final_name,
             "description": tier_in.description,
-            "specs": tier_in.specs,
+            "specs": final_specs,
             "total_seats": tier_in.total_seats,
             "app_bookable_seats": tier_in.app_bookable_seats,
             "reserved_walkin_seats": reserved_walkin,
             "active_seats_count": tier_in.total_seats,  # starts as equal to total seats
             "preset_category": tier_in.preset_category,
             "price_per_hour": tier_in.price_per_hour,
+            "platform": tier_in.platform,
+            "model": tier_in.model,
             "is_active": True
         }
 
         created = await self.tier_repo.create(tier_dict)
-        
-        warning = self._validate_preset_specs(tier_in.preset_category, tier_in.specs)
-        rating = compute_rating(tier_in.specs)
+
+        warning = self._validate_preset_specs(tier_in.preset_category, final_specs)
+        rating = compute_rating(final_specs)
 
         res = HardwareTierResponse.model_validate(created)
         res.performance_rating = rating
@@ -130,6 +143,18 @@ class HardwareTierService:
             raise ValidationException(message="App bookable seats cannot exceed total seats", error_code="INVALID_SEATS")
         if active > total:
             raise ValidationException(message="Active seats cannot exceed total seats", error_code="INVALID_SEATS")
+
+        if update_data.platform is not None or update_data.model is not None:
+            effective_platform = update_data.platform if update_data.platform is not None else tier.platform
+            effective_model = update_data.model if update_data.model is not None else tier.model
+            try:
+                derived_specs, suggested_name = derive_tier_display(effective_platform, effective_model)
+            except ValueError as e:
+                raise ValidationException(message=str(e), error_code="INVALID_PLATFORM_MODEL")
+            if update_data.specs is None:
+                update_data.specs = derived_specs
+            if update_data.name is None:
+                update_data.name = suggested_name
 
         update_dict = update_data.model_dump(exclude_unset=True)
         updated = await self.tier_repo.update(tier_id, update_dict)

@@ -2,13 +2,14 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
+from app.models.hardware_tier import PlatformType
 
 def to_camel(string: str) -> str:
     components = string.split('_')
     return components[0] + ''.join(x.title() for x in components[1:])
 
 class HardwareTierBase(BaseModel):
-    name: str = Field(..., max_length=100)
+    name: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
     specs: Dict[str, Any] = Field(default_factory=dict)
     total_seats: int = Field(..., gt=0)
@@ -16,6 +17,8 @@ class HardwareTierBase(BaseModel):
     reserved_walkin_seats: Optional[int] = Field(None, ge=0)
     preset_category: Optional[str] = Field(None, max_length=50)
     price_per_hour: float = Field(..., gt=0.0)
+    platform: Optional[PlatformType] = None
+    model: Optional[str] = Field(None, max_length=100)
 
     @model_validator(mode='after')
     def validate_seats(self) -> 'HardwareTierBase':
@@ -46,6 +49,8 @@ class HardwareTierUpdate(BaseModel):
     preset_category: Optional[str] = Field(None, max_length=50)
     price_per_hour: Optional[float] = Field(None, gt=0.0)
     is_active: Optional[bool] = None
+    platform: Optional[PlatformType] = None
+    model: Optional[str] = Field(None, max_length=100)
 
     @model_validator(mode='after')
     def validate_seats_update(self) -> 'HardwareTierUpdate':
