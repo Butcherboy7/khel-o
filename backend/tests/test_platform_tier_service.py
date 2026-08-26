@@ -170,3 +170,200 @@ async def test_create_tier_with_invalid_model_for_platform_rejected():
                 headers=headers
             )
             assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_tier_with_new_platform_rederives_specs_and_name():
+    """PATCH path: switching an existing tier's platform/model must re-derive
+    specs and name the same way the create path does."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid4(),
+            email=f"update_platform_{uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("testpass123"),
+            full_name="Update Platform Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+
+        cafe = Cafe(
+            id=uuid4(),
+            owner_id=owner.id,
+            name="Update Platform Cafe",
+            address_line1="1 Update St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000013",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True,
+        )
+        db.add(cafe)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role=owner.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            create_res = await client.post(
+                f"/api/v1/cafes/{cafe.id}/tiers",
+                json={
+                    "name": "Old Name",
+                    "specs": {"gpu": "NVIDIA RTX 3060"},
+                    "totalSeats": 10,
+                    "appBookableSeats": 8,
+                    "pricePerHour": 100,
+                },
+                headers=headers
+            )
+            assert create_res.status_code == 201
+            tier_id = create_res.json()["data"]["hardwareTier"]["id"]
+
+            patch_res = await client.patch(
+                f"/api/v1/cafes/{cafe.id}/tiers/{tier_id}",
+                json={
+                    "platform": "xbox",
+                    "model": "Series X",
+                },
+                headers=headers
+            )
+            assert patch_res.status_code == 200
+            tier = patch_res.json()["data"]["hardwareTier"]
+            assert tier["platform"] == "xbox"
+            assert tier["model"] == "Series X"
+            assert tier["specs"] == {"console": "Xbox Series X"}
+            assert tier["name"] == "Xbox Series X"
+
+
+@pytest.mark.asyncio
+async def test_update_tier_with_invalid_model_for_platform_rejected():
+    """PATCH path: an invalid model for the given platform must be rejected
+    with 422, proving the ValueError->ValidationException catch also applies
+    to update_hardware_tier, not just add_hardware_tier."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid4(),
+            email=f"update_invalid_{uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("testpass123"),
+            full_name="Update Invalid Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+
+        cafe = Cafe(
+            id=uuid4(),
+            owner_id=owner.id,
+            name="Update Invalid Cafe",
+            address_line1="1 Update Invalid St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000014",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True,
+        )
+        db.add(cafe)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role=owner.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            create_res = await client.post(
+                f"/api/v1/cafes/{cafe.id}/tiers",
+                json={
+                    "name": "Legacy Tier",
+                    "specs": {"gpu": "NVIDIA RTX 3060"},
+                    "totalSeats": 10,
+                    "appBookableSeats": 8,
+                    "pricePerHour": 100,
+                },
+                headers=headers
+            )
+            assert create_res.status_code == 201
+            tier_id = create_res.json()["data"]["hardwareTier"]["id"]
+
+            patch_res = await client.patch(
+                f"/api/v1/cafes/{cafe.id}/tiers/{tier_id}",
+                json={
+                    "platform": "playstation",
+                    "model": "Xbox Series X",
+                },
+                headers=headers
+            )
+            assert patch_res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_tier_with_platform_overrides_explicit_empty_specs():
+    """A PATCH that sends platform/model alongside an explicit empty specs:{}
+    must still get the derived specs, not the empty dict the client sent --
+    otherwise a future caller could silently lose derived specs (the
+    asymmetry with add_hardware_tier's unconditional override)."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid4(),
+            email=f"update_override_{uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("testpass123"),
+            full_name="Update Override Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+
+        cafe = Cafe(
+            id=uuid4(),
+            owner_id=owner.id,
+            name="Update Override Cafe",
+            address_line1="1 Update Override St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000015",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True,
+        )
+        db.add(cafe)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role=owner.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            create_res = await client.post(
+                f"/api/v1/cafes/{cafe.id}/tiers",
+                json={
+                    "name": "Old Name",
+                    "specs": {"gpu": "NVIDIA RTX 3060"},
+                    "totalSeats": 10,
+                    "appBookableSeats": 8,
+                    "pricePerHour": 100,
+                },
+                headers=headers
+            )
+            assert create_res.status_code == 201
+            tier_id = create_res.json()["data"]["hardwareTier"]["id"]
+
+            patch_res = await client.patch(
+                f"/api/v1/cafes/{cafe.id}/tiers/{tier_id}",
+                json={
+                    "platform": "playstation",
+                    "model": "PS5",
+                    "specs": {},
+                },
+                headers=headers
+            )
+            assert patch_res.status_code == 200
+            tier = patch_res.json()["data"]["hardwareTier"]
+            assert tier["specs"] == {"console": "PlayStation 5"}

@@ -151,7 +151,11 @@ class HardwareTierService:
                 derived_specs, suggested_name = derive_tier_display(effective_platform, effective_model)
             except ValueError as e:
                 raise ValidationException(message=str(e), error_code="INVALID_PLATFORM_MODEL")
-            if update_data.specs is None:
+            # Mirrors add_hardware_tier's final_specs rule: once a platform is
+            # effective, derived specs always win (even over an explicit
+            # specs:{} sent alongside platform/model in the same PATCH), so
+            # changing platform can never silently leave stale/empty specs.
+            if effective_platform is not None:
                 update_data.specs = derived_specs
             if update_data.name is None:
                 update_data.name = suggested_name
