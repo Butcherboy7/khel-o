@@ -12,19 +12,43 @@ CONSOLE_GUESS_KEYWORDS = {
 }
 PC_GUESS_KEYWORDS = ["rtx", "gtx", "radeon", "nvidia", "amd"]
 
+# Keyword -> real PLATFORM_MODELS[platform] entry, most-specific keyword
+# first (e.g. "ps5 pro" must be checked before "ps5"). Used only to guess a
+# *model* that derive_tier_display will actually accept — see _guess_model.
+_MODEL_GUESS_KEYWORDS = {
+    "playstation": [("ps5 pro", "PS5 Pro"), ("ps5", "PS5"), ("ps4 pro", "PS4 Pro"), ("ps4", "PS4")],
+    "xbox": [("series x", "Series X"), ("series s", "Series S"), ("one x", "One X"), ("one s", "One S")],
+    "nintendo": [("switch oled", "Switch OLED"), ("switch lite", "Switch Lite"), ("switch", "Switch")],
+    "pc": [("4090", "RTX 4090"), ("4070", "RTX 4070"), ("3060", "RTX 3060")],
+}
+
+
+def _guess_model(platform: str, haystack: str) -> str:
+    """Keyword-map to the closest real model in PLATFORM_MODELS[platform];
+    fall back to 'Custom' (present in every platform's picklist) rather than
+    ever returning free text. The guess is shown to the owner as an editable
+    draft, but derive_tier_display rejects any model not in the picklist —
+    returning free text here is what made the "accept the guess as-is" path
+    always 422 (see final-review.md C1)."""
+    for keyword, model in _MODEL_GUESS_KEYWORDS.get(platform, []):
+        if keyword in haystack:
+            return model
+    return "Custom"
+
 
 def guess_platform_and_model(tier: "HardwareTier") -> tuple[str, str]:
     """Best-effort guess for the re-confirmation prompt only — this value
     is always shown to the owner as an editable draft, never saved without
     explicit confirmation (see Task 6). Mirrors the keyword logic already
-    used client-side in lib/platformTags.ts and owner/tiers/page.tsx's
-    detectPlatform()."""
+    used client-side in lib/platformTags.ts. The returned model is always a
+    member of PLATFORM_MODELS[platform] (or free text for "other", which has
+    no fixed picklist) — never the tier's raw name/gpu string."""
     haystack = f"{tier.name} {tier.specs.get('gpu', '')}".lower()
     for platform, keywords in CONSOLE_GUESS_KEYWORDS.items():
         if any(kw in haystack for kw in keywords):
-            return platform, tier.name
+            return platform, _guess_model(platform, haystack)
     if any(kw in haystack for kw in PC_GUESS_KEYWORDS):
-        return "pc", tier.specs.get("gpu", tier.name)
+        return "pc", _guess_model("pc", haystack)
     return "other", tier.name
 
 

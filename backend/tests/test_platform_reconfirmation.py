@@ -79,11 +79,21 @@ async def test_needs_confirmation_lists_unmigrated_tiers_with_guess():
             data = res.json()["data"]
             assert data["needsConfirmation"] is True
             assert len(data["tiers"]) == 1
-            assert data["tiers"][0]["guessedPlatform"] == "playstation"
+            guessed = data["tiers"][0]
+            assert guessed["guessedPlatform"] == "playstation"
+            # Regression guard for C1/I8: the guess-producing half and the
+            # guess-consuming half must actually agree. Driving the PATCH
+            # from the endpoint's own returned guess — not a hand-picked
+            # value — is what would have caught guess_platform_and_model
+            # returning free text (e.g. the tier's raw name) that
+            # derive_tier_display's picklist check then rejected with a 422
+            # on the single most common migration flow: "accept the guess
+            # as-is". This must fail before the C1 fix and pass after it.
+            assert guessed["guessedModel"] == "PS4 Pro"
 
             confirm_res = await client.patch(
                 f"/api/v1/owner/tiers/{tier.id}/confirm-platform",
-                json={"platform": "playstation", "model": "PS4 Pro"},
+                json={"platform": guessed["guessedPlatform"], "model": guessed["guessedModel"]},
                 headers=headers
             )
             assert confirm_res.status_code == 200
@@ -91,6 +101,17 @@ async def test_needs_confirmation_lists_unmigrated_tiers_with_guess():
         await db.refresh(tier)
         assert tier.platform.value == "playstation"
         assert tier.model == "PS4 Pro"
+
+        # Recommendation 4: walk the migration all the way through to the
+        # customer-facing discovery surface. A café with exactly one tier,
+        # now fully confirmed, must expose it as complete and show the real
+        # platform — not the name-based fallback.
+        from app.repositories.cafe_repository import CafeRepository
+        cafe_repo = CafeRepository(db)
+        items, _ = await cafe_repo.search_verified(page=1, limit=20)
+        this_cafe = next(i for i in items if i["id"] == cafe.id)
+        assert this_cafe["platforms"] == ["playstation"]
+        assert this_cafe["platforms_complete"] is True
 
 
 @pytest.mark.asyncio
@@ -261,3 +282,36 @@ async def test_confirm_platform_rejects_cross_owner_tier():
         await db.refresh(tier_b)
         assert tier_b.platform is None
         assert tier_b.model is None
+
+
+@pytest.mark.asyncio
+async def test_confirm_platform_model_over_max_length_returns_422():
+    """I5: ConfirmPlatformRequest.model was an unbounded str against a
+    String(100) DB column — a value between the picklist's Field(max_length)
+    and the column length silently truncates nothing on SQLite (what tests
+    run on) but raises an unhandled Postgres DataError (production) as a 500.
+    A 422 here, not a crash, is the correct behaviour for oversized input."""
+    async with AsyncSessionLocal() as db:
+        owner, cafe, headers = await _make_owner_with_cafe(
+            db, email_prefix="reconfirm_toolong", phone_suffix="48", cafe_name="Too Long Model Cafe"
+        )
+
+        tier = HardwareTier(
+            id=uuid4(), cafe_id=cafe.id, name="Unmigrated Tier", specs={"gpu": "GTX 1660"},
+            total_seats=4, app_bookable_seats=1, active_seats_count=4,
+            price_per_hour=100.0, is_active=True,
+        )
+        db.add(tier)
+        await db.commit()
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.patch(
+                f"/api/v1/owner/tiers/{tier.id}/confirm-platform",
+                json={"platform": "other", "model": "X" * 101},
+                headers=headers
+            )
+            assert res.status_code == 422
+
+        await db.refresh(tier)
+        assert tier.platform is None
