@@ -47,7 +47,6 @@ async def test_create_tier_with_platform_derives_specs_and_name():
             res = await client.post(
                 f"/api/v1/cafes/{cafe.id}/tiers",
                 json={
-                    "name": "placeholder",
                     "specs": {},
                     "totalSeats": 4,
                     "appBookableSeats": 1,
@@ -63,6 +62,79 @@ async def test_create_tier_with_platform_derives_specs_and_name():
             assert tier["model"] == "PS5"
             assert tier["specs"] == {"console": "PlayStation 5"}
             assert tier["name"] == "PlayStation 5"
+
+
+@pytest.mark.asyncio
+async def test_create_tier_with_explicit_name_survives_platform_derivation():
+    """I7: the spec says the tier name is 'editable by the owner for a custom
+    corner name (VIP Zone)'. A non-blank, explicitly-supplied name must
+    survive even when platform/model are also set — the derived name may
+    only fill in when no real name was supplied."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid4(),
+            email=f"explicit_name_{uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("testpass123"),
+            full_name="Explicit Name Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+
+        cafe = Cafe(
+            id=uuid4(),
+            owner_id=owner.id,
+            name="Explicit Name Cafe",
+            address_line1="1 Explicit St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000016",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True,
+        )
+        db.add(cafe)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role=owner.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            create_res = await client.post(
+                f"/api/v1/cafes/{cafe.id}/tiers",
+                json={
+                    "name": "VIP Zone",
+                    "specs": {},
+                    "totalSeats": 4,
+                    "appBookableSeats": 1,
+                    "pricePerHour": 150,
+                    "platform": "playstation",
+                    "model": "PS5",
+                },
+                headers=headers
+            )
+            assert create_res.status_code == 201
+            tier = create_res.json()["data"]["hardwareTier"]
+            assert tier["name"] == "VIP Zone"
+            assert tier["specs"] == {"console": "PlayStation 5"}
+            tier_id = tier["id"]
+
+            # Saving again (e.g. a price change) without touching the name
+            # must keep "VIP Zone" — not silently rename it back to the
+            # derived "PlayStation 5" the moment platform/model round-trip
+            # through another PATCH.
+            patch_res = await client.patch(
+                f"/api/v1/cafes/{cafe.id}/tiers/{tier_id}",
+                json={"platform": "playstation", "model": "PS5 Pro", "name": "VIP Zone"},
+                headers=headers
+            )
+            assert patch_res.status_code == 200
+            patched = patch_res.json()["data"]["hardwareTier"]
+            assert patched["name"] == "VIP Zone"
+            assert patched["specs"] == {"console": "PlayStation 5 Pro"}
 
 
 @pytest.mark.asyncio
@@ -367,3 +439,138 @@ async def test_update_tier_with_platform_overrides_explicit_empty_specs():
             assert patch_res.status_code == 200
             tier = patch_res.json()["data"]["hardwareTier"]
             assert tier["specs"] == {"console": "PlayStation 5"}
+
+
+@pytest.mark.asyncio
+async def test_update_tier_single_field_platform_only_does_not_wipe_specs():
+    """I4: PATCH {"platform": "pc"} with no model must not wipe the tier's
+    real specs/name. derive_tier_display(platform, None) silently returns a
+    placeholder ({}, "Gaming Station") — applying that placeholder from a
+    single-field PATCH (not reachable from the current UI, but these are
+    owner-authenticated public routes) would destroy real data."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid4(),
+            email=f"single_field_platform_{uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("testpass123"),
+            full_name="Single Field Platform Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+
+        cafe = Cafe(
+            id=uuid4(),
+            owner_id=owner.id,
+            name="Single Field Platform Cafe",
+            address_line1="1 Single Field St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000017",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True,
+        )
+        db.add(cafe)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role=owner.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            create_res = await client.post(
+                f"/api/v1/cafes/{cafe.id}/tiers",
+                json={
+                    "name": "Legacy Tier",
+                    "specs": {"gpu": "NVIDIA RTX 3060"},
+                    "totalSeats": 10,
+                    "appBookableSeats": 8,
+                    "pricePerHour": 100,
+                },
+                headers=headers
+            )
+            assert create_res.status_code == 201
+            tier_id = create_res.json()["data"]["hardwareTier"]["id"]
+
+            patch_res = await client.patch(
+                f"/api/v1/cafes/{cafe.id}/tiers/{tier_id}",
+                json={"platform": "pc"},
+                headers=headers
+            )
+            assert patch_res.status_code == 200
+            tier = patch_res.json()["data"]["hardwareTier"]
+            # platform is recorded, but specs/name are untouched — no real
+            # model was ever given for derive_tier_display to act on.
+            assert tier["platform"] == "pc"
+            assert tier["model"] is None
+            assert tier["specs"] == {"gpu": "NVIDIA RTX 3060"}
+            assert tier["name"] == "Legacy Tier"
+
+
+@pytest.mark.asyncio
+async def test_update_tier_single_field_model_only_does_not_rename_unmigrated_tier():
+    """I4: PATCH {"model": "PS5"} on a tier whose platform is still NULL must
+    not rename the tier to the derive_tier_display placeholder while leaving
+    platform NULL — that would leave it permanently un-migrated under a
+    meaningless name."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid4(),
+            email=f"single_field_model_{uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("testpass123"),
+            full_name="Single Field Model Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+
+        cafe = Cafe(
+            id=uuid4(),
+            owner_id=owner.id,
+            name="Single Field Model Cafe",
+            address_line1="1 Single Field Model St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000018",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True,
+        )
+        db.add(cafe)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role=owner.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            create_res = await client.post(
+                f"/api/v1/cafes/{cafe.id}/tiers",
+                json={
+                    "name": "Legacy Tier",
+                    "specs": {"gpu": "NVIDIA RTX 3060"},
+                    "totalSeats": 10,
+                    "appBookableSeats": 8,
+                    "pricePerHour": 100,
+                },
+                headers=headers
+            )
+            assert create_res.status_code == 201
+            tier_id = create_res.json()["data"]["hardwareTier"]["id"]
+
+            patch_res = await client.patch(
+                f"/api/v1/cafes/{cafe.id}/tiers/{tier_id}",
+                json={"model": "PS5"},
+                headers=headers
+            )
+            assert patch_res.status_code == 200
+            tier = patch_res.json()["data"]["hardwareTier"]
+            assert tier["platform"] is None
+            assert tier["model"] == "PS5"
+            assert tier["specs"] == {"gpu": "NVIDIA RTX 3060"}
+            assert tier["name"] == "Legacy Tier"

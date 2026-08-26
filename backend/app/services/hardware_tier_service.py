@@ -79,10 +79,14 @@ class HardwareTierService:
         except ValueError as e:
             raise ValidationException(message=str(e), error_code="INVALID_PLATFORM_MODEL")
         final_specs = derived_specs if tier_in.platform is not None else tier_in.specs
-        # When a platform is selected, the derived name always wins (mirrors
-        # final_specs above) so a stray/placeholder name typed by the client
-        # can never diverge from the platform+model that was actually chosen.
-        final_name = suggested_name if tier_in.platform is not None else (tier_in.name or suggested_name)
+        # An explicitly-supplied, non-blank name must survive (spec: "editable
+        # by the owner for a custom corner name ('VIP Zone')") — the derived
+        # name only fills in when no real name was supplied at all, whether or
+        # not a platform is set. Previously the derived name always won once a
+        # platform was chosen, silently renaming an owner's custom tier name
+        # the next time platform/model was touched (final-review.md I7).
+        explicit_name = tier_in.name.strip() if tier_in.name else ""
+        final_name = explicit_name or suggested_name
 
         tier_dict = {
             "id": uuid4(),
@@ -151,14 +155,26 @@ class HardwareTierService:
                 derived_specs, suggested_name = derive_tier_display(effective_platform, effective_model)
             except ValueError as e:
                 raise ValidationException(message=str(e), error_code="INVALID_PLATFORM_MODEL")
-            # Mirrors add_hardware_tier's final_specs rule: once a platform is
-            # effective, derived specs always win (even over an explicit
-            # specs:{} sent alongside platform/model in the same PATCH), so
-            # changing platform can never silently leave stale/empty specs.
-            if effective_platform is not None:
+            # Only trust the derived specs/name when a real platform AND model
+            # are both actually in play. derive_tier_display silently returns
+            # a placeholder ({}, "Gaming Station") when either argument is
+            # None — a single-field PATCH (e.g. {"platform": "pc"} with no
+            # model, on a tier whose model is still NULL) would otherwise wipe
+            # real specs and rename the tier to that placeholder even though
+            # this path never gave the helper a complete platform+model pair
+            # (final-review.md I4).
+            if effective_platform is not None and effective_model is not None:
+                # Mirrors add_hardware_tier's final_specs rule: once a
+                # platform+model pair is effective, derived specs always win
+                # (even over an explicit specs:{} sent alongside them in the
+                # same PATCH), so changing platform can never silently leave
+                # stale/empty specs.
                 update_data.specs = derived_specs
-            if update_data.name is None:
-                update_data.name = suggested_name
+                # An explicitly-supplied, non-blank name in this PATCH must
+                # survive; the derived name only fills in when this PATCH
+                # didn't supply one (or supplied a blank one) — see I7.
+                if not (update_data.name and update_data.name.strip()):
+                    update_data.name = suggested_name
 
         update_dict = update_data.model_dump(exclude_unset=True)
         updated = await self.tier_repo.update(tier_id, update_dict)
