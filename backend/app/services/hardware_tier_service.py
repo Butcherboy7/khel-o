@@ -171,10 +171,20 @@ class HardwareTierService:
                 # stale/empty specs.
                 update_data.specs = derived_specs
                 # An explicitly-supplied, non-blank name in this PATCH must
-                # survive; the derived name only fills in when this PATCH
-                # didn't supply one (or supplied a blank one) — see I7.
+                # survive. No current consumer sends `name` on this route, and
+                # the tiers page resends the tier's unchanged platform+model
+                # on every edit (even a plain price/seat change) — so without
+                # this guard the derived name would silently overwrite an
+                # owner-authored name (e.g. "VIP Zone") on every save (I7,
+                # re-review finding Important 1). Only fall back to the fresh
+                # derived name when platform or model actually changed from
+                # what the tier already had (first-time assignment or a real
+                # platform switch); otherwise keep the tier's existing name.
                 if not (update_data.name and update_data.name.strip()):
-                    update_data.name = suggested_name
+                    platform_or_model_changed = (
+                        effective_platform != tier.platform or effective_model != tier.model
+                    )
+                    update_data.name = suggested_name if platform_or_model_changed else (tier.name or suggested_name)
 
         update_dict = update_data.model_dump(exclude_unset=True)
         updated = await self.tier_repo.update(tier_id, update_dict)

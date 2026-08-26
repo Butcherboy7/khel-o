@@ -312,6 +312,79 @@ async def test_update_tier_with_new_platform_rederives_specs_and_name():
 
 
 @pytest.mark.asyncio
+async def test_update_tier_resending_same_platform_model_preserves_owner_name():
+    """PATCH path: the tiers-page edit flow resends the tier's unchanged
+    platform+model on every save, even a plain price edit. That must not
+    silently rename an owner-authored tier name (final-review.md I7,
+    re-review finding Important 1) — the derived name should only replace it
+    when platform or model actually changes from what the tier already had."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid4(),
+            email=f"preserve_name_{uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("testpass123"),
+            full_name="Preserve Name Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+
+        cafe = Cafe(
+            id=uuid4(),
+            owner_id=owner.id,
+            name="Preserve Name Cafe",
+            address_line1="1 Preserve St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919000000014",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True,
+        )
+        db.add(cafe)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role=owner.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            create_res = await client.post(
+                f"/api/v1/cafes/{cafe.id}/tiers",
+                json={
+                    "name": "VIP Zone",
+                    "platform": "playstation",
+                    "model": "PS5",
+                    "totalSeats": 4,
+                    "appBookableSeats": 2,
+                    "pricePerHour": 150,
+                },
+                headers=headers
+            )
+            assert create_res.status_code == 201
+            tier_id = create_res.json()["data"]["hardwareTier"]["id"]
+            assert create_res.json()["data"]["hardwareTier"]["name"] == "VIP Zone"
+
+            # Mirrors the tiers page's real edit payload: unchanged platform
+            # and model resent alongside a plain price change, no name field.
+            patch_res = await client.patch(
+                f"/api/v1/cafes/{cafe.id}/tiers/{tier_id}",
+                json={
+                    "platform": "playstation",
+                    "model": "PS5",
+                    "pricePerHour": 180,
+                },
+                headers=headers
+            )
+            assert patch_res.status_code == 200
+            tier = patch_res.json()["data"]["hardwareTier"]
+            assert tier["pricePerHour"] == 180
+            assert tier["name"] == "VIP Zone"
+
+
+@pytest.mark.asyncio
 async def test_update_tier_with_invalid_model_for_platform_rejected():
     """PATCH path: an invalid model for the given platform must be rejected
     with 422, proving the ValueError->ValidationException catch also applies
