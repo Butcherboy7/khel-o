@@ -402,7 +402,19 @@ async def test_pausing_bookings_blocks_new_bookings(db_session):
 
 @pytest.mark.asyncio
 async def test_different_owner_cannot_edit_cafe(db_session):
-    """A different approved owner attempts to edit Café A's pricing/hours/tiers → 403 in all cases."""
+    """A different approved owner attempts to edit Café A's pricing/hours → 403 in all cases.
+
+    This used to also assert a 403 on POST /api/v1/owner/cafes/{cafe_id}/tiers,
+    but that route (and its PATCH sibling) was deleted as part of the final
+    review fix wave (I2): it was a third, never-updated tier-creation path
+    that bypassed derive_tier_display and could mint platform=NULL tiers with
+    free-text specs — the exact drift this project exists to eliminate. The
+    grep in the SDD ledger and a repo-wide grep here both confirmed no
+    frontend caller used it; the real tier-creation path the frontend uses is
+    POST /api/v1/cafes/{cafe_id}/tiers (app/api/v1/cafes.py), which already
+    goes through HardwareTierService and is covered by
+    test_platform_tier_service.py's ownership/validation tests.
+    """
     owner_a = User(
         id=uuid4(),
         email=f"owner_a_forbid_{uuid4().hex}@test.com",
@@ -473,18 +485,6 @@ async def test_different_owner_cannot_edit_cafe(db_session):
             headers=owner_b_headers
         )
         assert hours_response.status_code == 403, f"Expected 403 for hours, got {hours_response.status_code}"
-        
-        tier_response = await client.post(
-            f"/api/v1/owner/cafes/{cafe_a.id}/tiers",
-            json={
-                "name": "New Tier",
-                "pricePerHour": 150.0,
-                "totalSeats": 5,
-                "appBookableSeats": 4
-            },
-            headers=owner_b_headers
-        )
-        assert tier_response.status_code == 403, f"Expected 403 for tier creation, got {tier_response.status_code}"
 
 
 @pytest.mark.asyncio

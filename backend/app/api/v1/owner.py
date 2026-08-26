@@ -18,7 +18,7 @@ from app.repositories.hardware_tier_repository import HardwareTierRepository, gu
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, AliasChoices
 from app.constants import validate_city
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
@@ -71,6 +71,37 @@ class OnboardingDraftSaveRequest(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
+
+class OnboardingHardwareTierItem(BaseModel):
+    """Validated replacement for the previous unvalidated Dict[str, Any] tier
+    soup (final-review.md I5): a non-string/oversized `model` used to reach
+    `derive_tier_display` and crash with an unhandled AttributeError/500
+    (`model.strip()`) or a Postgres DataError (String(100) column overflow).
+    Every field stays optional/nullable, matching what the old dict-soup path
+    tolerated — including the legacy no-platform shape (owner.py's
+    submit_onboarding_application, free-text `gpu`) — so this only closes the
+    validation hole without narrowing what a client may send."""
+    platform: Optional[str] = None
+    model: Optional[str] = Field(None, max_length=100)
+    name: Optional[str] = Field(None, max_length=100)
+    gpu: Optional[str] = None
+    total_seats: Optional[int] = Field(
+        None, ge=1, validation_alias=AliasChoices("totalSeats", "total_seats")
+    )
+    app_bookable_seats: Optional[int] = Field(
+        None, ge=0, validation_alias=AliasChoices("appBookableSeats", "app_bookable_seats")
+    )
+    hourly_rate: Optional[float] = Field(
+        None,
+        validation_alias=AliasChoices("hourlyRate", "hourly_rate", "pricePerHour", "price_per_hour"),
+    )
+    preset_category: Optional[str] = Field(
+        None, max_length=50, validation_alias=AliasChoices("presetCategory", "preset_category")
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class OnboardingSubmitRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
     description: Optional[str] = None
@@ -103,7 +134,7 @@ class OnboardingSubmitRequest(BaseModel):
     cancellation_policy: Optional[str] = None
     house_rules: List[str] = Field(default_factory=list)
     social_links: Dict[str, str] = Field(default_factory=dict)
-    hardware_tiers: List[Dict[str, Any]] = Field(default_factory=list)
+    hardware_tiers: List[OnboardingHardwareTierItem] = Field(default_factory=list)
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -567,24 +598,28 @@ async def submit_onboarding_application(
     # Create Hardware Tiers if provided
     if payload.hardware_tiers:
         tier_repo = HardwareTierRepository(db)
-        for tier_data in payload.hardware_tiers:
-            tot = int(tier_data.get("totalSeats") or tier_data.get("total_seats") or 10)
-            app_b = int(tier_data.get("appBookableSeats") or tier_data.get("app_bookable_seats") or max(1, int(tot * 0.25)))
-            price = float(tier_data.get("hourlyRate") or tier_data.get("hourly_rate") or tier_data.get("price_per_hour") or 100)
+        for tier_item in payload.hardware_tiers:
+            tot = int(tier_item.total_seats or 10)
+            app_b = int(tier_item.app_bookable_seats if tier_item.app_bookable_seats is not None else max(1, int(tot * 0.25)))
+            price = float(tier_item.hourly_rate or 100)
 
-            raw_platform = tier_data.get("platform")
-            model = tier_data.get("model")
+            raw_platform = tier_item.platform
+            model = tier_item.model
             try:
                 platform = PlatformType(raw_platform) if raw_platform else None
                 if platform is not None:
                     derived_specs, suggested_name = derive_tier_display(platform, model)
                     specs = derived_specs
-                    name = tier_data.get("name") or suggested_name
+                    # An explicitly-supplied, non-blank name must survive —
+                    # the derived name only fills in when none was given (or
+                    # it was blank). See I7.
+                    explicit_name = tier_item.name.strip() if tier_item.name else ""
+                    name = explicit_name or suggested_name
                 else:
                     # Legacy shape (pre-Platform V2 clients): free-text gpu/cpu.
-                    gpu_str = tier_data.get("gpu") or "NVIDIA RTX 4060 / 16GB"
+                    gpu_str = tier_item.gpu or "NVIDIA RTX 4060 / 16GB"
                     specs = {"gpu": gpu_str, "ram": "16GB"}
-                    name = tier_data.get("name", "Standard Pod")
+                    name = tier_item.name or "Standard Pod"
             except ValueError as e:
                 raise ValidationException(message=str(e), error_code="INVALID_PLATFORM_MODEL")
 
@@ -596,7 +631,7 @@ async def submit_onboarding_application(
                 "total_seats": tot,
                 "app_bookable_seats": app_b,
                 "active_seats_count": tot,
-                "preset_category": tier_data.get("presetCategory") or tier_data.get("preset_category"),
+                "preset_category": tier_item.preset_category,
                 "platform": platform,
                 "model": model,
                 "is_active": True
@@ -1509,29 +1544,6 @@ class CafePricingUpdate(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
-class TierCreate(BaseModel):
-    name: str = Field(..., min_length=2, max_length=100)
-    description: Optional[str] = None
-    specs: Dict[str, Any] = Field(default_factory=dict)
-    price_per_hour: float = Field(..., ge=0)
-    total_seats: int = Field(10, ge=1)
-    app_bookable_seats: int = Field(7, ge=1)
-    preset_category: str = "custom"
-    is_active: bool = True
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-
-class TierUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=2, max_length=100)
-    description: Optional[str] = None
-    specs: Optional[Dict[str, Any]] = None
-    price_per_hour: Optional[float] = Field(None, ge=0)
-    total_seats: Optional[int] = Field(None, ge=1)
-    app_bookable_seats: Optional[int] = Field(None, ge=1)
-    is_active: Optional[bool] = None
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-
 class CafeDetailsUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=255)
     description: Optional[str] = None
@@ -1706,99 +1718,6 @@ async def update_pricing(
         }
     }
 
-@router.post("/cafes/{cafe_id}/tiers", status_code=status.HTTP_200_OK)
-async def create_tier(
-    cafe_id: UUID,
-    payload: TierCreate,
-    cafe: Cafe = Depends(require_cafe_ownership),
-    db: AsyncSession = Depends(get_db)
-):
-    """Add a new gaming tier to this cafe."""
-    tier_repo = HardwareTierRepository(db)
-    
-    tier_dict = {
-        "cafe_id": cafe_id,
-        "name": payload.name,
-        "description": payload.description,
-        "specs": payload.specs,
-        "price_per_hour": payload.price_per_hour,
-        "total_seats": payload.total_seats,
-        "app_bookable_seats": payload.app_bookable_seats,
-        "app_bookable_seats_locked": True,
-        "active_seats_count": payload.total_seats,
-        "preset_category": payload.preset_category,
-        "is_active": payload.is_active
-    }
-    
-    created_tier = await tier_repo.create(tier_dict)
-    await db.commit()
-    await db.refresh(created_tier)
-    
-    return {
-        "success": True,
-        "data": {
-            "tier": {
-                "id": str(created_tier.id),
-                "name": created_tier.name,
-                "pricePerHour": created_tier.price_per_hour,
-                "totalSeats": created_tier.total_seats
-            }
-        }
-    }
-
-@router.patch("/cafes/{cafe_id}/tiers/{tier_id}", status_code=status.HTTP_200_OK)
-async def update_tier(
-    cafe_id: UUID,
-    tier_id: UUID,
-    payload: TierUpdate,
-    cafe: Cafe = Depends(require_cafe_ownership),
-    db: AsyncSession = Depends(get_db)
-):
-    """Update an existing gaming tier."""
-    tier_repo = HardwareTierRepository(db)
-    tier = await tier_repo.get_by_id(tier_id)
-    
-    if not tier or str(tier.cafe_id) != str(cafe_id):
-        raise ForbiddenException("This tier does not belong to your café", error_code="TIER_NOT_OWNED")
-    
-    update_data = {}
-    if payload.name is not None:
-        update_data["name"] = payload.name
-    if payload.description is not None:
-        update_data["description"] = payload.description
-    if payload.specs is not None:
-        update_data["specs"] = payload.specs
-    if payload.price_per_hour is not None:
-        update_data["price_per_hour"] = payload.price_per_hour
-    if payload.total_seats is not None:
-        update_data["total_seats"] = payload.total_seats
-    if payload.app_bookable_seats is not None:
-        update_data["app_bookable_seats"] = payload.app_bookable_seats
-        # Owner deliberately pinned this tier's seat quota here — the global
-        # seat stepper's proportional rescale must not silently overwrite it.
-        update_data["app_bookable_seats_locked"] = True
-    if payload.is_active is not None:
-        update_data["is_active"] = payload.is_active
-    
-    if update_data:
-        await tier_repo.update(tier_id, update_data)
-        await db.commit()
-    
-    updated_tier = await tier_repo.get_by_id(tier_id)
-    
-    return {
-        "success": True,
-        "data": {
-            "tier": {
-                "id": str(updated_tier.id),
-                "name": updated_tier.name,
-                "pricePerHour": updated_tier.price_per_hour,
-                "totalSeats": updated_tier.total_seats,
-                "isActive": updated_tier.is_active
-            }
-        }
-    }
-
 @router.delete("/cafes/{cafe_id}/tiers/{tier_id}", status_code=status.HTTP_200_OK)
 async def delete_tier(
     cafe_id: UUID,
@@ -1827,7 +1746,7 @@ async def delete_tier(
 
 class ConfirmPlatformRequest(BaseModel):
     platform: str
-    model: str
+    model: str = Field(..., max_length=100)
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
