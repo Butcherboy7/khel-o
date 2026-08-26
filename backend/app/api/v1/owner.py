@@ -23,14 +23,15 @@ from app.constants import validate_city
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
-from app.models.hardware_tier import HardwareTier
+from app.models.hardware_tier import HardwareTier, PlatformType
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import Payment, PaymentStatus
 from app.models.platform_fee import PlatformFee
 from app.repositories.user_repository import UserRepository
 from app.core.security import get_password_hash
-from app.core.exceptions import BadRequestException, NotFoundException, ForbiddenException
+from app.core.exceptions import BadRequestException, NotFoundException, ForbiddenException, ValidationException
+from app.services.platform_derivation import derive_tier_display
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -567,19 +568,36 @@ async def submit_onboarding_application(
         tier_repo = HardwareTierRepository(db)
         for tier_data in payload.hardware_tiers:
             tot = int(tier_data.get("totalSeats") or tier_data.get("total_seats") or 10)
-            app_b = int(tier_data.get("appBookableSeats") or tier_data.get("app_bookable_seats") or max(1, int(tot * 0.7)))
-            gpu_str = tier_data.get("gpu") or (tier_data.get("specs") if isinstance(tier_data.get("specs"), str) else None) or "NVIDIA RTX 4060 / 16GB"
+            app_b = int(tier_data.get("appBookableSeats") or tier_data.get("app_bookable_seats") or max(1, int(tot * 0.25)))
             price = float(tier_data.get("hourlyRate") or tier_data.get("hourly_rate") or tier_data.get("price_per_hour") or 100)
-            
+
+            raw_platform = tier_data.get("platform")
+            model = tier_data.get("model")
+            try:
+                platform = PlatformType(raw_platform) if raw_platform else None
+                if platform is not None:
+                    derived_specs, suggested_name = derive_tier_display(platform, model)
+                    specs = derived_specs
+                    name = tier_data.get("name") or suggested_name
+                else:
+                    # Legacy shape (pre-Platform V2 clients): free-text gpu/cpu.
+                    gpu_str = tier_data.get("gpu") or "NVIDIA RTX 4060 / 16GB"
+                    specs = {"gpu": gpu_str, "ram": "16GB"}
+                    name = tier_data.get("name", "Standard Pod")
+            except ValueError as e:
+                raise ValidationException(message=str(e), error_code="INVALID_PLATFORM_MODEL")
+
             await tier_repo.create({
                 "cafe_id": cafe.id,
-                "name": tier_data.get("name", "Standard Pod"),
-                "specs": {"gpu": gpu_str, "ram": "16GB"},
+                "name": name,
+                "specs": specs,
                 "price_per_hour": price,
                 "total_seats": tot,
                 "app_bookable_seats": app_b,
                 "active_seats_count": tot,
-                "preset_category": tier_data.get("presetCategory") or tier_data.get("preset_category") or "PC Pod",
+                "preset_category": tier_data.get("presetCategory") or tier_data.get("preset_category"),
+                "platform": platform,
+                "model": model,
                 "is_active": True
             })
 
