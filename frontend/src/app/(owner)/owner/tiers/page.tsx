@@ -30,6 +30,17 @@ export default function HardwareTiersPage() {
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
   const [configs, setConfigs] = useState<TierConfig[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  // Set only when editing an un-migrated (platform=NULL) tier: the real
+  // seats/price to carry over onto whichever platform the owner explicitly
+  // picks next, since the configurator starts empty for these (see
+  // handleOpenEdit) and a fresh platform pick would otherwise default to
+  // the configurator's generic seats/price instead of this tier's actual
+  // values.
+  const [legacyTierDefaults, setLegacyTierDefaults] = useState<{
+    totalSeats: number;
+    appBookableSeats: number;
+    pricePerHour: number;
+  } | null>(null);
 
   const storeCafeId = useAuthStore((s) => s.user?.cafeId);
   const [resolvedCafeId, setResolvedCafeId] = useState<string>(storeCafeId || '');
@@ -138,18 +149,40 @@ export default function HardwareTiersPage() {
     setEditingTierId(null);
     setConfigs([]);
     setFormError(null);
+    setLegacyTierDefaults(null);
   };
 
   const handleOpenEdit = (tier: HardwareTier) => {
     setEditingTierId(tier.id);
-    setConfigs([{
-      id: tier.id,
-      platform: tier.platform || 'other',
-      model: tier.model || tier.name,
-      totalSeats: tier.totalSeats,
-      appBookableSeats: tier.appBookableSeats,
-      pricePerHour: tier.pricePerHour,
-    }]);
+    if (tier.platform && tier.model) {
+      setConfigs([{
+        id: tier.id,
+        platform: tier.platform,
+        model: tier.model,
+        totalSeats: tier.totalSeats,
+        appBookableSeats: tier.appBookableSeats,
+        pricePerHour: tier.pricePerHour,
+      }]);
+      setLegacyTierDefaults(null);
+    } else {
+      // Un-migrated tier: never default platform to 'other' — that silently
+      // coerces the tier to platform:'other', model: tier.name on save,
+      // overwriting its real specs with {"other": "<its own name>"} and
+      // flipping the customer-facing badge to a false console claim (see
+      // final-review.md I3, BUG #3's exact symptom via a new route). Leave
+      // the configurator empty; the owner must explicitly pick a real
+      // platform. handleFormSubmit already blocks Save while configs is
+      // empty. The tier's real seats/price are preserved in
+      // legacyTierDefaults and merged in once a platform is picked (see the
+      // PlatformTierConfigurator onChange below), so choosing a platform
+      // doesn't silently reset them to the configurator's generic defaults.
+      setConfigs([]);
+      setLegacyTierDefaults({
+        totalSeats: tier.totalSeats,
+        appBookableSeats: tier.appBookableSeats,
+        pricePerHour: tier.pricePerHour,
+      });
+    }
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -331,7 +364,20 @@ export default function HardwareTiersPage() {
             </div>
           )}
 
-          <PlatformTierConfigurator configs={configs} onChange={setConfigs} maxConfigs={1} />
+          <PlatformTierConfigurator
+            configs={configs}
+            onChange={(next) => {
+              if (legacyTierDefaults && next.length > 0) {
+                // First platform pick on a legacy tier: carry over its real
+                // seats/price instead of the configurator's generic defaults.
+                setConfigs(next.map((c) => ({ ...c, ...legacyTierDefaults })));
+                setLegacyTierDefaults(null);
+              } else {
+                setConfigs(next);
+              }
+            }}
+            maxConfigs={1}
+          />
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
             <Button type="button" variant="ghost" onClick={() => { setIsModalOpen(false); resetForm(); }}>
