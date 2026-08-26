@@ -10,6 +10,17 @@ import type { TierConfig } from '@/types/tier';
 interface PlatformTierConfiguratorProps {
   configs: TierConfig[];
   onChange: (configs: TierConfig[]) => void;
+  /**
+   * Caps the total number of configs across all platforms. When set (e.g.
+   * `1` for the owner/tiers page, which manages exactly one tier per modal
+   * open), the "Add configuration" button is hidden once the cap is
+   * reached, and selecting a new platform chip replaces the existing
+   * config(s) instead of adding alongside them — so the cap is enforced by
+   * making the extra state unreachable, not by silently dropping data on
+   * submit. Omit for uncapped multi-platform, multi-config behavior (e.g.
+   * the onboarding wizard).
+   */
+  maxConfigs?: number;
 }
 
 function makeDefaultConfig(platform: Platform): TierConfig {
@@ -24,8 +35,9 @@ function makeDefaultConfig(platform: Platform): TierConfig {
   };
 }
 
-export function PlatformTierConfigurator({ configs, onChange }: PlatformTierConfiguratorProps) {
+export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: PlatformTierConfiguratorProps) {
   const selectedPlatforms = Array.from(new Set(configs.map((c) => c.platform)));
+  const atCap = maxConfigs !== undefined && configs.length >= maxConfigs;
 
   // Tracks which config cards have had "Bookable on KHEL-O app" edited
   // directly by the owner in this session. Once a card is in this set, the
@@ -37,12 +49,18 @@ export function PlatformTierConfigurator({ configs, onChange }: PlatformTierConf
   const togglePlatform = (platform: Platform) => {
     if (selectedPlatforms.includes(platform)) {
       onChange(configs.filter((c) => c.platform !== platform));
+    } else if (maxConfigs !== undefined) {
+      // Capped mode: only one platform's config(s) may exist at a time, so
+      // switching platforms replaces the selection rather than adding a
+      // second platform alongside it.
+      onChange([makeDefaultConfig(platform)]);
     } else {
       onChange([...configs, makeDefaultConfig(platform)]);
     }
   };
 
   const addConfig = (platform: Platform) => {
+    if (atCap) return;
     onChange([...configs, makeDefaultConfig(platform)]);
   };
 
@@ -107,14 +125,16 @@ export function PlatformTierConfigurator({ configs, onChange }: PlatformTierConf
           <div key={p.value} className="flex flex-col gap-3 p-4 rounded-2xl border border-border bg-surface">
             <div className="flex items-center justify-between">
               <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{p.label}</h3>
-              <button
-                type="button"
-                onClick={() => addConfig(p.value)}
-                className="flex items-center gap-1 text-caption font-semibold text-primary hover:text-primary/80"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add configuration
-              </button>
+              {!atCap && (
+                <button
+                  type="button"
+                  onClick={() => addConfig(p.value)}
+                  className="flex items-center gap-1 text-caption font-semibold text-primary hover:text-primary/80"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add configuration
+                </button>
+              )}
             </div>
 
             {platformConfigs.map((config) => (

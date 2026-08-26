@@ -331,7 +331,7 @@ export default function HardwareTiersPage() {
             </div>
           )}
 
-          <PlatformTierConfigurator configs={configs} onChange={setConfigs} />
+          <PlatformTierConfigurator configs={configs} onChange={setConfigs} maxConfigs={1} />
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
             <Button type="button" variant="ghost" onClick={() => { setIsModalOpen(false); resetForm(); }}>
