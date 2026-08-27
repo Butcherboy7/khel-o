@@ -635,7 +635,9 @@ function BookingWizardContent() {
                     <div>
                       <h4 className="font-heading text-h3 font-bold text-text-primary">{tier.name}</h4>
                       <p className="text-caption text-text-secondary mt-0.5">
-                        {tier.specs?.gpu || 'RTX 3050'} • {tier.specs?.ram || '16GB RAM'}
+                        {tier.specs?.gpu
+                          ? `${tier.specs.gpu}${tier.specs?.ram ? ` • ${tier.specs.ram}` : ''}`
+                          : tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station'}
                       </p>
                     </div>
                     <div
