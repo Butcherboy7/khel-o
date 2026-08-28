@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Ticket, AlertCircle } from 'lucide-react';
+import { Calendar, CalendarX, AlertCircle } from 'lucide-react';
 import { listBookings } from '@/lib/api/bookings';
 import { queryKeys } from '@/hooks/queries/keys';
 import { BookingCard } from '@/components/customer/BookingCard';
@@ -83,7 +83,7 @@ export default function BookingsListPage() {
         {isError && (
           <ErrorState
             title="Failed to load bookings"
-            message={(error as Error)?.message || 'Could not fetch your booking passes.'}
+            message={(error as Error)?.message || 'Could not fetch your bookings.'}
             onRetry={() => refetch()}
           />
         )}
@@ -96,7 +96,7 @@ export default function BookingsListPage() {
                 ? `You don't have any ${selectedStatus.replace('_', ' ')} bookings.`
                 : "You haven't booked any gaming stations yet. Explore verified cafés near you to get started."
             }
-            icon={<Ticket className="h-7 w-7 text-primary" />}
+            icon={<CalendarX className="h-7 w-7 text-primary" />}
             actionLabel="Explore Gaming Cafés"
             onAction={() => (window.location.href = '/')}
           />

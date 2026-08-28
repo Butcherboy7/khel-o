@@ -26,14 +26,14 @@ export default function ShippingPolicyPage() {
       <h2>2. Delivery Timing</h2>
       <p>
         Delivery is instant: as soon as your payment is confirmed, your booking status updates to{' '}
-        <strong>Confirmed</strong> and a QR check-in pass is generated immediately in the &quot;My Booking
-        Passes&quot; section of the app. There is nothing further to wait for — you can show up at the venue at
+        <strong>Confirmed</strong> and a QR check-in code is generated immediately in the &quot;My
+        Bookings&quot; section of the app. There is nothing further to wait for — you can show up at the venue at
         your booked time.
       </p>
 
       <h2>3. Redeeming Your Booking</h2>
       <p>
-        Arrive at the Café Partner&apos;s venue within your booked time window and show your QR pass at the
+        Arrive at the Café Partner&apos;s venue within your booked time window and show your QR code at the
         counter, or have venue staff scan it / look it up by your booking reference. This checks you in and
         starts your session.
       </p>

@@ -129,7 +129,7 @@ async def get_booking_qr_pass(
     from app.models.booking import BookingStatus
     if booking.status not in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED):
         from app.core.exceptions import ForbiddenException
-        raise ForbiddenException(message="QR check-in pass is only available after payment confirmation", error_code="PAYMENT_REQUIRED")
+        raise ForbiddenException(message="QR check-in code is only available after payment confirmation", error_code="PAYMENT_REQUIRED")
 
     if not booking.qr_code_url:
         from app.background.qr_generator import generate_and_save_qr_code

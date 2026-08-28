@@ -40,7 +40,7 @@ export default function TermsPage() {
         <li>A booking reserves a specific hardware tier, seat count, date, and time window at a Café Partner.</li>
         <li>Prices shown at checkout include the station&apos;s hourly rate, a 2% payment gateway fee, and a flat ₹10 convenience fee — the full breakdown is always shown before you pay.</li>
         <li>A booking is confirmed only after successful payment. Unpaid/pending bookings are not held indefinitely and may be released.</li>
-        <li>You must check in at the venue within your booked window. A QR check-in pass is issued on confirmation and can be shown to venue staff or scanned by them.</li>
+        <li>You must check in at the venue within your booked window. A QR check-in code is issued on confirmation and can be shown to venue staff or scanned by them.</li>
         <li>If a booked window ends without a check-in, the booking is automatically marked as a no-show (see Section 4).</li>
       </ul>
 

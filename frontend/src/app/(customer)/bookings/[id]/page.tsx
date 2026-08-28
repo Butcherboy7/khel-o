@@ -118,8 +118,8 @@ export default function BookingDetailPage() {
 
   const handleShare = async () => {
     const shareData = {
-      title: 'KHEL-O Digital Gaming Pass',
-      text: `Check out my booking pass for ${data?.cafeName || 'Gaming Café'} on KHEL-O!`,
+      title: 'KHEL-O Booking Confirmation',
+      text: `Check out my booking at ${data?.cafeName || 'Gaming Café'} on KHEL-O!`,
       url: window.location.href,
     };
     if (navigator.share) {
@@ -138,7 +138,7 @@ export default function BookingDetailPage() {
   const handleAddToCalendar = () => {
     if (!data) return;
     const title = encodeURIComponent(`Gaming Session at ${data.cafeName || 'KHEL-O Venue'}`);
-    const details = encodeURIComponent(`Pass Ref: ${data.bookingReference}. Tier: ${data.tierName || 'Gaming Station'}`);
+    const details = encodeURIComponent(`Booking Ref: ${data.bookingReference}. Tier: ${data.tierName || 'Gaming Station'}`);
     const location = encodeURIComponent(data.cafeAddress || 'Gaming Café');
     const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
     window.open(googleCalendarUrl, '_blank');
@@ -156,8 +156,8 @@ export default function BookingDetailPage() {
   if (isError || !data) {
     return (
       <ErrorState
-        title="Pass Not Found"
-        message={(error as Error)?.message || 'Could not retrieve your digital booking pass.'}
+        title="Booking Not Found"
+        message={(error as Error)?.message || 'Could not retrieve your booking details.'}
         onRetry={() => refetch()}
       />
     );
@@ -194,13 +194,13 @@ export default function BookingDetailPage() {
         <Link href="/bookings">
           <Button variant="ghost" size="sm" className="gap-1 text-text-secondary">
             <ChevronLeft className="h-4 w-4" />
-            <span>My Passes</span>
+            <span>My Bookings</span>
           </Button>
         </Link>
         <BookingStatusBadge status={booking.status} size="md" />
       </div>
 
-      {/* Digital Pass Card */}
+      {/* Booking Confirmation Card */}
       <Card
         elevation="raised"
         className={`overflow-hidden border-2 bg-card ${
@@ -211,7 +211,7 @@ export default function BookingDetailPage() {
             : 'border-primary/20'
         }`}
       >
-        {/* Pass Header */}
+        {/* Booking Header */}
         <div
           className={`${
             isCancelled
@@ -223,10 +223,10 @@ export default function BookingDetailPage() {
         >
           <span className="text-overline text-white/80 tracking-widest uppercase">
             {isCancelled
-              ? 'Cancelled Pass'
+              ? 'Cancelled Booking'
               : isPendingOrFailed
               ? 'Payment Not Completed'
-              : 'Official Gaming Pass'}
+              : 'Confirmed Booking'}
           </span>
           <h1 className="font-heading text-h2 text-white">{booking.cafeName || 'Gaming Café'}</h1>
           <p className="text-caption text-white/90">{booking.tierName || 'Hardware Tier'}</p>
@@ -244,9 +244,9 @@ export default function BookingDetailPage() {
             <div className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl bg-error/10 border border-error/20 text-center w-full">
               <XCircle className="h-16 w-16 text-error" />
               <div>
-                <h3 className="font-heading text-h3 font-bold text-error">Pass Voided</h3>
+                <h3 className="font-heading text-h3 font-bold text-error">Booking Cancelled</h3>
                 <p className="text-caption text-text-secondary mt-1">
-                  This booking was cancelled and its QR pass is no longer active for desk check-in.
+                  This booking was cancelled and its QR check-in code is no longer active.
                 </p>
               </div>
               <div className="text-center mt-2">
@@ -262,7 +262,7 @@ export default function BookingDetailPage() {
               <div>
                 <h3 className="font-heading text-h3 font-bold text-text-primary">Payment Required</h3>
                 <p className="text-caption text-text-secondary mt-1">
-                  Payment was not completed for this booking. Complete payment now to generate your official QR check-in pass.
+                  Payment was not completed for this booking. Complete payment now to generate your QR check-in code.
                 </p>
               </div>
 
@@ -305,7 +305,7 @@ export default function BookingDetailPage() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={qrCodeSrc}
-                  alt={`QR Pass ${booking.bookingReference}`}
+                  alt={`QR Check-in Code ${booking.bookingReference}`}
                   className="h-48 w-48 object-contain"
                   onError={(e) => {
                     e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
@@ -382,13 +382,13 @@ export default function BookingDetailPage() {
               className="gap-2 text-caption font-semibold"
             >
               <Share2 className="h-4 w-4 text-accent" />
-              <span>{copiedLink ? 'Link Copied!' : 'Share Pass'}</span>
+              <span>{copiedLink ? 'Link Copied!' : 'Share Booking'}</span>
             </Button>
           </div>
 
           <div className="flex items-center gap-2 text-caption text-text-secondary text-center pt-2">
             <ShieldCheck className="h-4 w-4 text-primary flex-shrink-0" />
-            <span>Show this QR pass at the café desk for instant check-in.</span>
+            <span>Show this QR code at the café desk for instant check-in.</span>
           </div>
 
           {/* Navigation & Cancel Actions */}
