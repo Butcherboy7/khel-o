@@ -26,8 +26,8 @@ interface NavItem {
 }
 
 const customerNavItems: NavItem[] = [
-  { label: 'Explore', href: '/', icon: Search, matchPrefix: false },
-  { label: 'Bookings', href: '/bookings', icon: CalendarDays, matchPrefix: true },
+  { label: 'Find Café', href: '/', icon: Search, matchPrefix: false },
+  { label: 'My Bookings', href: '/bookings', icon: CalendarDays, matchPrefix: true },
   { label: 'Rewards', href: '/rewards', icon: Gift, matchPrefix: false },
   { label: 'Profile', href: '/profile', icon: UserCircle, matchPrefix: false },
 ];
@@ -119,7 +119,7 @@ function CustomerHeader() {
           ) : (
             <Link
               href={`/login?redirect=${encodeURIComponent(pathname)}`}
-              className="rounded-full bg-primary px-4 py-2 text-caption font-bold text-white shadow-card hover:bg-primary/90 transition-colors"
+              className="px-2 text-caption font-semibold text-text-secondary hover:text-primary transition-colors"
             >
               Log in
             </Link>

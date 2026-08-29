@@ -173,7 +173,7 @@ export default function LoginPage() {
         </div>
         <h1 className="font-heading text-display text-text-primary">KHEL-O</h1>
         <p className="text-body text-text-secondary mt-1">
-          India&apos;s Premier Gaming Café Marketplace
+          Book PC & console gaming cafés near you
         </p>
       </div>
 

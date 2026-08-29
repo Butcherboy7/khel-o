@@ -29,22 +29,24 @@ const jetbrainsMono = JetBrains_Mono({
 
 /* ── Metadata ────────────────────────────────────────────────────── */
 
+const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://khel-o.online';
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? 'https://khelo.app',
-  ),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'KHEL-O — Book Gaming Cafés Near You',
     template: '%s | KHEL-O',
   },
   description:
-    'Discover and book verified gaming cafés across India. Premium PCs, consoles, and immersive setups — one tap away.',
+    'Find and book PC and console gaming cafés near you. Check real-time seat availability, compare prices, and pay online — no calling ahead.',
   keywords: [
     'gaming café',
     'book gaming PC',
     'esports café India',
     'KHEL-O',
     'gaming lounge booking',
+    'PS5 café booking',
+    'gaming café near me',
   ],
   authors: [{ name: 'KHEL-O' }],
   manifest: '/manifest.json',
@@ -57,13 +59,48 @@ export const metadata: Metadata = {
     icon: '/icons/icon-192x192.png',
     apple: '/icons/icon-192x192.png',
   },
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
     type: 'website',
     locale: 'en_IN',
     siteName: 'KHEL-O',
+    url: SITE_URL,
     title: 'KHEL-O — Book Gaming Cafés Near You',
     description:
-      'Discover and book verified gaming cafés across India. Premium PCs, consoles, and immersive setups — one tap away.',
+      'Find and book PC and console gaming cafés near you. Check real-time seat availability, compare prices, and pay online — no calling ahead.',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'KHEL-O — Book Gaming Cafés Near You',
+    description:
+      'Find and book PC and console gaming cafés near you. Check real-time seat availability, compare prices, and pay online.',
+  },
+};
+
+const organizationJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'KHEL-O',
+  url: SITE_URL,
+  description:
+    'KHEL-O is a booking platform for gaming cafés in India. Gamers search for a café, check real-time station availability, book a time slot, and pay online.',
+  areaServed: 'IN',
+};
+
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'KHEL-O',
+  url: SITE_URL,
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: `${SITE_URL}/?search={search_term_string}`,
+    },
+    'query-input': 'required name=search_term_string',
   },
 };
 
@@ -87,6 +124,14 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable}`}
     >
       <body className="font-body bg-surface text-text-primary antialiased">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
         <Providers>{children}</Providers>
       </body>
     </html>
