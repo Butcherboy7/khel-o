@@ -14,6 +14,7 @@ import {
   Monitor,
   Navigation,
   Gamepad2,
+  CheckCircle2,
 } from 'lucide-react';
 import { getCafe } from '@/lib/api/cafes';
 import { listCafeReviews, createReview } from '@/lib/api/reviews';
@@ -47,6 +48,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const { userLat, userLng } = useLocationStore();
 
   const [activeTab, setActiveTab] = useState<'amenities' | 'games' | 'reviews'>('amenities');
+  const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [newRating, setNewRating] = useState(5);
@@ -109,6 +111,14 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : [];
   const currentPhoto = photosList[photoIndex % photosList.length];
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : 100;
+  // Picking the tier here (instead of only on the booking page) removes an
+  // entire duplicate step — the booking page shows the exact same tier
+  // cards, so a user reads specs once here rather than twice. Defaults to
+  // the first tier so "Book now" always has one selected.
+  const activeTier =
+    (cafe.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
+    (cafe.tiers && cafe.tiers[0]) ||
+    null;
 
   const nextPhoto = () => setPhotoIndex((prev) => (prev + 1) % photosList.length);
   const prevPhoto = () => setPhotoIndex((prev) => (prev - 1 + photosList.length) % photosList.length);
@@ -214,55 +224,77 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         </div>
       </div>
 
-      {/* Hardware Tiers Section */}
+      {/* Hardware Tiers Section — selectable here so "Book now" already
+          knows which tier the user wants, instead of asking again on the
+          booking page with an identical set of cards. */}
       <section className="flex flex-col gap-4">
-        <h2 className="font-heading text-h2 text-text-primary">Hardware tiers</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-heading text-h2 text-text-primary">Hardware tiers</h2>
+          {cafe.tiers && cafe.tiers.length > 1 && (
+            <span className="text-caption text-text-secondary">Tap to select</span>
+          )}
+        </div>
 
         {cafe.tiers && cafe.tiers.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {cafe.tiers.map((tier) => (
-              <div
-                key={tier.id}
-                className="flex flex-col justify-between p-5 rounded-3xl bg-card border border-border/80 shadow-card hover:shadow-float transition-all"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-heading text-h3 text-text-primary">{tier.name}</h3>
-                    <Monitor className="h-5 w-5 text-accent" />
+            {cafe.tiers.map((tier) => {
+              const isSelected = activeTier?.id === tier.id;
+              return (
+                <button
+                  key={tier.id}
+                  type="button"
+                  onClick={() => setSelectedTierId(tier.id)}
+                  className={`flex flex-col justify-between p-5 rounded-3xl text-left border transition-all active:scale-[0.98] ${
+                    isSelected
+                      ? 'border-accent bg-accent/5 ring-2 ring-accent/60 shadow-card'
+                      : 'border-border/80 bg-card hover:shadow-float hover:bg-surface'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-heading text-h3 text-text-primary">{tier.name}</h3>
+                      {isSelected ? (
+                        <div className="h-5 w-5 rounded-full border-2 border-accent bg-accent flex items-center justify-center flex-shrink-0">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                        </div>
+                      ) : (
+                        <Monitor className="h-5 w-5 text-accent flex-shrink-0" />
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-caption text-text-secondary mb-4">
+                      {tier.specs?.gpu ? (
+                        <>
+                          <span className="font-semibold text-text-primary">⚙ {tier.specs.gpu}</span>
+                          {tier.specs?.ram && (
+                            <>
+                              <span className="text-text-secondary/50">·</span>
+                              <span>{tier.specs.ram}</span>
+                            </>
+                          )}
+                          {tier.specs?.monitor && (
+                            <>
+                              <span className="text-text-secondary/50">·</span>
+                              <span>{tier.specs.monitor}</span>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <span className="font-semibold text-text-primary">
+                          🎮 {tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station'}
+                        </span>
+                      )}
+                      <span className="text-text-secondary/50">·</span>
+                      <span>{tier.totalSeats || 18} seats</span>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-caption text-text-secondary mb-4">
-                    {tier.specs?.gpu ? (
-                      <>
-                        <span className="font-semibold text-text-primary">⚙ {tier.specs.gpu}</span>
-                        {tier.specs?.ram && (
-                          <>
-                            <span className="text-text-secondary/50">·</span>
-                            <span>{tier.specs.ram}</span>
-                          </>
-                        )}
-                        {tier.specs?.monitor && (
-                          <>
-                            <span className="text-text-secondary/50">·</span>
-                            <span>{tier.specs.monitor}</span>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <span className="font-semibold text-text-primary">
-                        🎮 {tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station'}
-                      </span>
-                    )}
-                    <span className="text-text-secondary/50">·</span>
-                    <span>{tier.totalSeats || 18} seats</span>
+                  <div className="font-data text-h3 font-bold text-text-primary border-t border-border/60 pt-3">
+                    <span className="rupee-symbol">₹</span>{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
                   </div>
-                </div>
-
-                <div className="font-data text-h3 font-bold text-text-primary border-t border-border/60 pt-3">
-                  <span className="rupee-symbol">₹</span>{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
-                </div>
-              </div>
-            ))}
+                </button>
+              );
+            })}
           </div>
         ) : (
           <p className="text-body text-text-secondary italic">No hardware tiers listed.</p>
@@ -477,16 +509,22 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       <div className="fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
         <div className="max-w-content mx-auto flex items-center justify-between gap-4">
           <div>
-            <span className="text-overline text-text-secondary">Starting from</span>
+            <span className="text-overline text-text-secondary">{activeTier ? activeTier.name : 'Starting from'}</span>
             <div className="font-data text-price-lg font-bold text-text-primary">
-              <span className="rupee-symbol">₹</span>{minPrice}<span className="text-caption font-normal text-text-secondary">/hr</span>
+              <span className="rupee-symbol">₹</span>{activeTier?.pricePerHour ?? minPrice}<span className="text-caption font-normal text-text-secondary">/hr</span>
             </div>
           </div>
 
-          <Link href={`/bookings/new?cafeId=${cafe.id}`}>
-            <button className="rounded-2xl bg-secondary px-8 py-3.5 font-heading text-btn font-semibold text-white shadow-float hover:bg-secondary/90 transition-colors">
-              Book now
-            </button>
+          {/* A <button> nested inside this Link (the previous markup) is
+              interactive-content-in-interactive-content — invalid HTML that
+              iOS Safari resolves by requiring a second tap to actually
+              navigate, even though Chrome/Android tolerate it fine. Styling
+              the Link itself as the button avoids the nesting entirely. */}
+          <Link
+            href={`/bookings/new?cafeId=${cafe.id}${activeTier ? `&tierId=${activeTier.id}` : ''}`}
+            className="inline-flex items-center justify-center rounded-2xl bg-secondary px-8 py-3.5 font-heading text-btn font-semibold text-white shadow-float hover:bg-secondary/90 transition-colors"
+          >
+            Book now
           </Link>
         </div>
       </div>

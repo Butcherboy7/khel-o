@@ -423,7 +423,11 @@ export function TimelineRangePicker({
           ref={scrollRef}
           onScroll={handleScroll}
           className="absolute inset-0 overflow-x-auto scrollbar-hide"
-          style={{ WebkitOverflowScrolling: 'touch' }}
+          // overscrollBehaviorX: without this, dragging near either edge of
+          // this horizontal scroller gets misread by mobile Safari/Chrome as
+          // the browser's own edge-swipe back/forward gesture, popping the
+          // nav chrome up mid-drag.
+          style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
         >
           <div
             style={{ width: trackWidthPx + sidePadding * 2, height: 95, position: 'relative' }}
@@ -470,14 +474,29 @@ export function TimelineRangePicker({
               />
             ))}
 
-            {/* Baseline Track Line at y=42: Green for Available, Red for Booked (Omitted for Selected Range) */}
+            {/* Baseline Track Line at y=42: Available / Booked / Past — each
+                state also gets its own fill pattern (solid / diagonal hatch /
+                dotted), not just a different color, so the state still reads
+                for colorblind users or under bad sunlight glare. */}
             <div style={{ position: 'absolute', top: 42, left: sidePadding, width: trackWidthPx, height: 3 }}>
               {segments.map((seg) => {
                 const x = ((seg.start - openMin) / 30) * slotW;
-                // If segment is within selected range, hide the baseline green/red line so greyish striped bar replaces it
-                let bgColor = '#22c55e'; // Green for Available
-                if (seg.state === 'BOOKED') bgColor = '#ef4444'; // Red for Booked
-                else if (seg.state === 'PAST') bgColor = '#d1d5db'; // Grey for Past
+                let style: React.CSSProperties = {
+                  backgroundColor: '#22c55e', // Available: solid green
+                };
+                if (seg.state === 'BOOKED') {
+                  style = {
+                    backgroundColor: '#ef4444',
+                    backgroundImage:
+                      'repeating-linear-gradient(135deg, rgba(255,255,255,0.9) 0, rgba(255,255,255,0.9) 1.5px, transparent 0, transparent 4px)',
+                  };
+                } else if (seg.state === 'PAST') {
+                  style = {
+                    backgroundColor: '#d1d5db',
+                    backgroundImage:
+                      'repeating-linear-gradient(90deg, rgba(107,114,128,0.9) 0, rgba(107,114,128,0.9) 1.5px, transparent 0, transparent 5px)',
+                  };
+                }
 
                 return (
                   <div
@@ -488,8 +507,8 @@ export function TimelineRangePicker({
                       width: slotW,
                       top: 0,
                       height: 4,
-                      backgroundColor: bgColor,
                       borderRadius: 1,
+                      ...style,
                     }}
                   />
                 );

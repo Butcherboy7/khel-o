@@ -115,6 +115,7 @@ function BookingWizardContent() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [showTierSwitcher, setShowTierSwitcher] = useState(false);
 
   const { data: cafe, isLoading, isError, error: fetchError } = useQuery({
     queryKey: queryKeys.cafes.detail(cafeId),
@@ -550,9 +551,66 @@ function BookingWizardContent() {
         </button>
         <div>
           <h1 className="font-heading text-h2 font-bold text-text-primary">{cafe.name}</h1>
-          <p className="text-caption text-text-secondary">{cafe.city}, Bengaluru</p>
+          <p className="text-caption text-text-secondary">{cafe.city}, {cafe.state}</p>
         </div>
       </div>
+
+      {/* Tier switcher — the tier itself is picked on the café page (one
+          fewer full step here, no re-reading the same specs twice); this
+          chip is only for the rarer case of changing your mind, and doing
+          it in place keeps the date/time/seats already chosen below. */}
+      {cafe.tiers && cafe.tiers.length > 0 && (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowTierSwitcher((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 p-3.5 rounded-2xl bg-surface border border-border/60 text-left"
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <Monitor className="h-4 w-4 text-accent flex-shrink-0" />
+              <span className="font-heading text-body font-bold text-text-primary truncate">
+                {activeTier?.name || 'Select hardware'}
+              </span>
+              {activeTier && (
+                <span className="text-caption text-text-secondary flex-shrink-0">
+                  <span className="rupee-symbol">₹</span>{activeTier.pricePerHour}/hr
+                </span>
+              )}
+            </span>
+            <span className="text-caption font-semibold text-primary flex-shrink-0">
+              {showTierSwitcher ? 'Close' : 'Change'}
+            </span>
+          </button>
+
+          {showTierSwitcher && (
+            <div className="mt-2 flex flex-col gap-2 p-2 rounded-2xl bg-card border border-border/80 shadow-card">
+              {cafe.tiers.map((tier) => (
+                <button
+                  key={tier.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTierId(tier.id);
+                    setShowTierSwitcher(false);
+                  }}
+                  className={`flex items-center justify-between gap-2 p-3 rounded-xl text-left transition-colors ${
+                    activeTier?.id === tier.id ? 'bg-accent/10 border border-accent/40' : 'hover:bg-surface border border-transparent'
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block font-heading text-body font-bold text-text-primary truncate">{tier.name}</span>
+                    <span className="block text-caption text-text-secondary">
+                      {tier.appBookableSeats !== undefined ? tier.appBookableSeats : (tier.totalSeats || 10)} app seats ({tier.totalSeats || 10} total)
+                    </span>
+                  </span>
+                  <span className="font-data text-body-emphasis font-bold text-text-primary flex-shrink-0">
+                    <span className="rupee-symbol">₹</span>{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {(cafe.isEmergencyMode || cafe.bookingsPaused || cafe.bookableStations === 0 || availabilityData?.appBookableSeats === 0) && (
         <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-600 font-medium text-caption flex items-center gap-3 shadow-card">
@@ -611,77 +669,18 @@ function BookingWizardContent() {
         </div>
       </div>
 
-      {/* Step 2: Select Hardware Tier (Before timeline, simplifies model) */}
-      <div className="flex flex-col gap-3">
-        <h2 className="font-heading text-h3 font-bold text-text-primary">2. Hardware Tier</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {cafe.tiers && cafe.tiers.length > 0 ? (
-            cafe.tiers.map((tier) => {
-              const isSelected = activeTier?.id === tier.id;
-              const isTierPaused = cafe.bookingsPaused || cafe.isEmergencyMode || cafe.bookableStations === 0 || tier.appBookableSeats === 0;
-
-              return (
-                <button
-                  key={tier.id}
-                  type="button"
-                  onClick={() => setSelectedTierId(tier.id)}
-                  className={`p-4 rounded-3xl text-left transition-all active:scale-[0.97] flex flex-col justify-between border ${
-                    isSelected
-                      ? 'border-accent bg-accent/5 ring-2 ring-accent/60 shadow-card'
-                      : 'border-border/80 bg-card hover:bg-surface'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h4 className="font-heading text-h3 font-bold text-text-primary">{tier.name}</h4>
-                      <p className="text-caption text-text-secondary mt-0.5">
-                        {tier.specs?.gpu
-                          ? `${tier.specs.gpu}${tier.specs?.ram ? ` • ${tier.specs.ram}` : ''}`
-                          : tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station'}
-                      </p>
-                    </div>
-                    <div
-                      className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        isSelected ? 'border-accent bg-accent text-white' : 'border-border'
-                      }`}
-                    >
-                      {isSelected && <CheckCircle className="h-4 w-4 fill-accent text-white" />}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between border-t border-border/50 pt-2.5 mt-2">
-                    {isTierPaused ? (
-                      <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-600">
-                        Walk-Ins Only
-                      </span>
-                    ) : isSelected ? (
-                      <span className="text-caption text-text-secondary">
-                        <span className={windowRemainingSeats <= 2 ? 'font-bold text-error' : windowRemainingSeats <= 10 ? 'font-bold text-warning' : ''}>
-                          {windowRemainingSeats}
-                        </span>{' '}
-                        free for this slot ({tier.totalSeats || 10} total)
-                      </span>
-                    ) : (
-                      <span className="text-caption text-text-secondary">
-                        {tier.appBookableSeats !== undefined ? tier.appBookableSeats : (tier.totalSeats || 10)} app seats ({tier.totalSeats || 10} total)
-                      </span>
-                    )}
-                    <div className="font-data text-body-emphasis font-bold text-text-primary">
-                      <span className="rupee-symbol">₹</span>{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })
-          ) : (
-            <p className="text-body text-text-secondary italic">No hardware tiers listed.</p>
-          )}
+      {/* Walk-in-only notice for the selected tier specifically (the card-level
+          version above covers the whole café; a single paused tier needs its
+          own callout since the tier switcher no longer shows this inline). */}
+      {activeTier && !cafe.isEmergencyMode && !cafe.bookingsPaused && cafe.bookableStations !== 0 && activeTier.appBookableSeats === 0 && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-caption font-semibold text-amber-600">
+          {activeTier.name} is walk-ins only right now — pick a different tier above, or visit in person.
         </div>
-      </div>
+      )}
 
-      {/* Step 3: Time Range (Playo-style drag slider) */}
+      {/* Step 2: Time Range (Playo-style drag slider) */}
       <div className="rounded-3xl bg-surface border border-border/50 px-4 pt-2 pb-4 overflow-hidden">
-        <h2 className="font-heading text-h3 font-bold text-text-primary mb-1">3. Time Range</h2>
+        <h2 className="font-heading text-h3 font-bold text-text-primary mb-1">2. Time Range</h2>
         <TimelineRangePicker
           openingTime={cafe.openingTime || '09:00:00'}
           closingTime={cafe.closingTime || '23:00:00'}
@@ -696,38 +695,43 @@ function BookingWizardContent() {
         />
       </div>
 
-      {/* Step 4: Number of Seats Stepper */}
-      <div className="p-4 rounded-3xl bg-card border border-border/80 flex items-center justify-between">
-        <div>
-          <span className="text-overline text-text-secondary uppercase">Seats Required</span>
-          <div className="font-heading text-h3 font-bold text-text-primary flex items-center gap-1.5 mt-0.5">
-            <User className="h-4 w-4 text-primary" />
-            <span>{seatsCount} {seatsCount === 1 ? 'Seat' : 'Seats'}</span>
+      {/* Step 3: Number of Seats Stepper */}
+      <div className="flex flex-col gap-3">
+        <h2 className="font-heading text-h3 font-bold text-text-primary">3. Seats</h2>
+        <div className="p-4 rounded-3xl bg-card border border-border/80 flex items-center justify-between">
+          <div>
+            <span className="text-overline text-text-secondary uppercase">Seats Required</span>
+            <div className="font-heading text-h3 font-bold text-text-primary flex items-center gap-1.5 mt-0.5">
+              <User className="h-4 w-4 text-primary" />
+              <span>{seatsCount} {seatsCount === 1 ? 'Seat' : 'Seats'}</span>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setSeatsCount((s) => Math.max(1, s - 1))}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 transition-colors"
-          >
-            <Minus className="h-4 w-4" />
-          </button>
-          <span className="w-6 text-center font-heading text-body font-bold">{seatsCount}</span>
-          <button
-            type="button"
-            onClick={() => setSeatsCount((s) => Math.min(windowRemainingSeats, 6, s + 1))}
-            disabled={seatsCount >= windowRemainingSeats || seatsCount >= 6}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSeatsCount((s) => Math.max(1, s - 1))}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 transition-colors"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <span className="w-6 text-center font-heading text-body font-bold">{seatsCount}</span>
+            <button
+              type="button"
+              onClick={() => setSeatsCount((s) => Math.min(windowRemainingSeats, 6, s + 1))}
+              disabled={seatsCount >= windowRemainingSeats || seatsCount >= 6}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Step 5: Dynamic Price Breakdown Card */}
-      <Card elevation="resting" className="rounded-3xl border border-border/80">
+      {/* Step 4: Review Price */}
+      <div className="flex flex-col gap-3">
+        <h2 className="font-heading text-h3 font-bold text-text-primary">4. Review Price</h2>
+        <Card elevation="resting" className="rounded-3xl border border-border/80">
         <CardContent className="p-5 flex flex-col gap-2.5 text-body text-text-secondary">
           <div className="flex items-center justify-between">
             <span>
@@ -762,7 +766,8 @@ function BookingWizardContent() {
             <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
 
       {/* Trust signals at the point of payment — this is where reassurance
           actually matters, not buried on a separate policy page. */}

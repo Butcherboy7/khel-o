@@ -94,14 +94,17 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             : 'border-border/80 bg-card'
         }`}
       >
-        {/* Photo Header */}
-        <CardImage aspectClass="aspect-[16/10]" className="relative max-h-56 sm:max-h-64">
+        {/* Photo Header — flex-shrink-0 works around a WebKit bug where a
+            flex child sizing itself via aspect-ratio plus a max-height cap
+            can render a few px short of its box at certain widths (seen on
+            iPhone Pro Max's screen width; Chrome/Android unaffected). */}
+        <CardImage aspectClass="aspect-[16/10]" className="relative max-h-56 sm:max-h-64 flex-shrink-0">
           {currentPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={currentPhoto}
               alt={cafe.name}
-              className="h-full w-full object-cover transition-all duration-700 group-hover:scale-105"
+              className="block h-full w-full object-cover transition-all duration-700 group-hover:scale-105"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
