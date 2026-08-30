@@ -263,7 +263,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
                 isSelected
                   ? `${dark ? 'bg-primary' : 'bg-secondary'} text-white shadow-card font-bold scale-105`
                   : dark
-                    ? 'bg-white/95 text-text-secondary border border-white/40 hover:bg-white'
+                    ? 'bg-white/12 text-white border border-white/25 hover:bg-white/20'
                     : 'bg-card text-text-secondary border border-border hover:bg-surface'
               }`}
             >
