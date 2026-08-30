@@ -30,12 +30,6 @@ import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance } from '@/lib/format';
 import type { CafeDetail } from '@/types';
 
-const DEFAULT_PHOTOS = [
-  'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
-  'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1200&q=80',
-  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=1200&q=80',
-];
-
 interface CafeDetailClientProps {
   /** Fetched server-side so the first paint (and search-engine crawlers) see
       real café content instead of a loading skeleton. Undefined when the
@@ -110,7 +104,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     userLat != null && userLng != null && cafe.latitude != null && cafe.longitude != null
       ? formatDistance(calculateDistance(userLat, userLng, cafe.latitude, cafe.longitude))
       : null;
-  const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : DEFAULT_PHOTOS;
+  // Real photos only — a café with none gets the branded gradient fallback
+  // below, never a stock photo of an unrelated venue standing in as "its" photo.
+  const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : [];
   const currentPhoto = photosList[photoIndex % photosList.length];
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : 100;
 
@@ -121,12 +117,18 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     <div className="flex flex-col gap-8 max-w-4xl mx-auto pb-28">
       {/* Hero Header Image with Gallery Arrows */}
       <div className="relative h-72 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={currentPhoto}
-          alt={`${cafe.name} photo ${photoIndex + 1}`}
-          className="h-full w-full object-cover transition-all duration-300"
-        />
+        {currentPhoto ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={currentPhoto}
+            alt={`${cafe.name} photo ${photoIndex + 1}`}
+            className="h-full w-full object-cover transition-all duration-300"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-6 text-center">
+            <span className="font-heading text-h1 text-white opacity-80">{cafe.name}</span>
+          </div>
+        )}
 
         <div className="absolute inset-0 bg-gradient-to-t from-secondary/80 via-transparent to-black/30" />
 

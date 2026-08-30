@@ -16,12 +16,6 @@ interface CafeCardProps {
   isFeatured?: boolean;
 }
 
-const DEFAULT_CARD_PHOTOS = [
-  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=800&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=800&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=800&auto=format&fit=crop',
-];
-
 export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
   const { userLat, userLng } = useLocationStore();
   const distanceLabel =
@@ -29,7 +23,9 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
       ? formatDistance(calculateDistance(userLat, userLng, cafe.latitude, cafe.longitude))
       : null;
 
-  const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : DEFAULT_CARD_PHOTOS;
+  // Real photos only — a café with none gets the branded gradient fallback
+  // below, never a stock photo of an unrelated venue standing in as "its" photo.
+  const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : [];
   const [photoIndex, setPhotoIndex] = useState(0);
 
   useEffect(() => {

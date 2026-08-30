@@ -764,6 +764,19 @@ function BookingWizardContent() {
         </CardContent>
       </Card>
 
+      {/* Trust signals at the point of payment — this is where reassurance
+          actually matters, not buried on a separate policy page. */}
+      <div className="flex flex-col gap-2 px-1 text-caption text-text-secondary">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-success flex-shrink-0" />
+          <span>Payments secured by Razorpay — your card and UPI details are never stored by KHEL-O.</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />
+          <span>Free cancellation up to 2 hours before your session — full refund to your original payment method.</span>
+        </div>
+      </div>
+
       {/* Sticky Bottom Action & Total Price Bar — sits above the mobile bottom nav
           (bottom-nav is z-nav/40, fixed bottom-0) rather than underneath it, otherwise
           the nav bar silently eats the first tap on this button on mobile. */}

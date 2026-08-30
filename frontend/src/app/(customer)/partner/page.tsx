@@ -13,8 +13,8 @@ const PARTNER_BENEFITS = [
   },
   {
     icon: Users,
-    title: 'Reach 50,000+ Gamers',
-    description: 'Join India\'s fastest-growing gaming café discovery platform with verified reviews.',
+    title: 'Get Discovered by Nearby Gamers',
+    description: 'Show up in search when gamers near your city look for a café with your hardware and pricing.',
   },
   {
     icon: Clock,
@@ -62,8 +62,8 @@ export default function PartnerIntroPage() {
         </h1>
         
         <p className="text-body-lg text-text-secondary max-w-2xl mx-auto">
-          Transform your gaming café into a fully automated booking destination. 
-          Join 50+ partner venues across India.
+          Transform your gaming café into a fully automated booking destination —
+          free to list, with online payments and QR check-in built in.
         </p>
       </div>
 
