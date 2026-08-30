@@ -3,13 +3,41 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { MapPin, Star, Zap, Gamepad2 } from 'lucide-react';
+import { MapPin, Star, Zap } from 'lucide-react';
 import { Card, CardImage } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow } from '@/lib/format';
 import { hasConsoleTier, hasPcTier } from '@/lib/platformTags';
-import { getAmenityDisplay } from '@/lib/amenities';
+import type { Platform } from '@/constants/platforms';
 import type { CafeListItem } from '@/types';
+
+// Short labels for the card's one-line platform summary. 'other' is
+// deliberately excluded — it isn't a specific claim worth surfacing here.
+const PLATFORM_SHORT_LABELS: Partial<Record<Platform, string>> = {
+  pc: 'PC',
+  playstation: 'PS5',
+  xbox: 'Xbox',
+  nintendo: 'Switch',
+};
+
+function getPlatformSummary(cafe: CafeListItem): string | null {
+  if (cafe.platforms && cafe.platforms.length > 0) {
+    const labels = Array.from(
+      new Set(
+        cafe.platforms
+          .map((p) => PLATFORM_SHORT_LABELS[p as Platform])
+          .filter((label): label is string => Boolean(label))
+      )
+    );
+    if (labels.length > 0) return labels.join(' • ');
+  }
+  // Not yet migrated to confirmed per-tier platforms — fall back to the
+  // same generic, non-overclaiming tier-name heuristic used elsewhere.
+  const parts: string[] = [];
+  if (hasPcTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) parts.push('PC');
+  if (hasConsoleTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) parts.push('Console');
+  return parts.length > 0 ? parts.join(' • ') : null;
+}
 
 interface CafeCardProps {
   cafe: CafeListItem;
@@ -39,9 +67,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
   const currentPhoto = photosList[photoIndex % photosList.length];
 
   const isOpenNow = isCafeOpenNow(cafe.openingTime, cafe.closingTime);
-
-  const hasConsole = hasConsoleTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete);
-  const showPcGaming = hasPcTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete);
+  const platformSummary = getPlatformSummary(cafe);
 
   const handleOpenMap = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -80,12 +106,11 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
                 e.currentTarget.style.display = 'none';
               }}
             />
-          ) : null}
-
-          {/* Gradient Fallback when image fails */}
-          <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-4 text-center -z-10">
-            <span className="font-heading text-h3 text-white opacity-80">{cafe.name}</span>
-          </div>
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-4 text-center">
+              <span className="font-heading text-h3 text-white opacity-80">{cafe.name}</span>
+            </div>
+          )}
 
           {/* Carousel Dot Indicators */}
           {photosList.length > 1 && (
@@ -121,19 +146,13 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
           </div>
         </CardImage>
 
-        {/* Card Body Details */}
-        <div className="p-5 flex flex-1 flex-col justify-between gap-3">
-          <div>
-            {/* Title & Rating Row */}
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <h3 className="font-heading text-h3 font-bold text-text-primary group-hover:text-primary transition-colors truncate">
-                {cafe.name}
-              </h3>
-              <div className="flex items-center gap-1 font-heading text-body-emphasis font-bold text-text-primary flex-shrink-0">
-                <Star className="h-4 w-4 fill-warning text-warning" />
-                <span>{cafe.averageRating && cafe.averageRating > 0 ? cafe.averageRating.toFixed(1) : 'New'}</span>
-              </div>
-            </div>
+        {/* Card Body Details — one scan-line per fact, so two cards can be
+            compared at a glance without opening either one. */}
+        <div className="p-5 flex flex-1 flex-col justify-between gap-2.5">
+          <div className="flex flex-col gap-1">
+            <h3 className="font-heading text-h3 font-bold text-text-primary group-hover:text-primary transition-colors truncate">
+              {cafe.name}
+            </h3>
 
             {/* Location Row (Clickable for directions — sized to content so the rest of the card row still opens the cafe page) */}
             <button
@@ -143,74 +162,44 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             >
               <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
               <span className="truncate hover:underline">
-                {cafe.city}, {cafe.state}
-                {distanceLabel ? ` • ${distanceLabel}` : ''}
+                {distanceLabel ? `${distanceLabel} away` : `${cafe.city}, ${cafe.state}`}
               </span>
             </button>
-          </div>
 
-          {/* Amenity Icons Row */}
-          {cafe.amenities && cafe.amenities.length > 0 && (
-            <div className="flex items-center gap-2.5">
-              {cafe.amenities.slice(0, 5).map((amenity) => {
-                const { icon: AmenityIcon, label } = getAmenityDisplay(amenity);
-                return (
-                  <span
-                    key={amenity}
-                    title={label}
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-surface text-text-secondary flex-shrink-0"
-                  >
-                    <AmenityIcon className="h-3.5 w-3.5" />
-                  </span>
-                );
-              })}
-              {cafe.amenities.length > 5 && (
-                <span className="text-overline font-semibold text-text-tertiary">
-                  +{cafe.amenities.length - 5}
-                </span>
+            {/* Rating + Review Count Row */}
+            <div className="flex items-center gap-1.5 text-caption">
+              <Star className="h-3.5 w-3.5 fill-warning text-warning flex-shrink-0" />
+              <span className="font-heading font-bold text-text-primary">
+                {cafe.averageRating && cafe.averageRating > 0 ? cafe.averageRating.toFixed(1) : 'New'}
+              </span>
+              {cafe.totalReviews > 0 && (
+                <span className="text-text-secondary">({cafe.totalReviews})</span>
+              )}
+              {platformSummary && (
+                <>
+                  <span className="text-text-secondary/50">·</span>
+                  <span className="text-text-secondary truncate">{platformSummary}</span>
+                </>
               )}
             </div>
-          )}
-
-          {/* Tags & Console Support Badges Row */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {showPcGaming && (
-              <span className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary">
-                PC Gaming
-              </span>
-            )}
-
-            {hasConsole && (
-              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-overline font-bold text-primary flex items-center gap-1">
-                <Gamepad2 className="h-3 w-3" />
-                <span>PS5 / Consoles</span>
-              </span>
-            )}
-
-            {cafe.tierNames && cafe.tierNames.length > 0
-              ? cafe.tierNames.slice(0, 1).map((tier) => (
-                  <span
-                    key={tier}
-                    className="rounded-full bg-surface px-2.5 py-1 text-overline font-semibold text-text-secondary truncate max-w-[120px]"
-                  >
-                    {tier}
-                  </span>
-                ))
-              : null}
           </div>
 
-          {/* Footer: Price Row */}
-          <div className="flex items-center justify-between border-t border-border/60 pt-3 mt-1">
-            <div className="flex items-center gap-1 text-caption font-semibold text-text-secondary">
-              <Zap className="h-3.5 w-3.5 text-accent" />
-              <span>from</span>
-              <span className="font-data text-body-emphasis font-bold text-text-primary">
-                <span className="rupee-symbol">₹</span>{cafe.startingPrice || 90}/hr
-              </span>
-            </div>
+          {/* Footer: Price + Primary CTA */}
+          <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-3 mt-1">
+            {cafe.startingPrice ? (
+              <div className="flex items-center gap-1 text-caption font-semibold text-text-secondary">
+                <Zap className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+                <span>from</span>
+                <span className="font-data text-body-emphasis font-bold text-text-primary">
+                  <span className="rupee-symbol">₹</span>{cafe.startingPrice}/hr
+                </span>
+              </div>
+            ) : (
+              <span className="text-caption font-semibold text-text-secondary">Pricing inside</span>
+            )}
 
-            <span className="text-caption font-bold text-primary group-hover:translate-x-0.5 transition-transform">
-              Book station →
+            <span className="rounded-full bg-primary/10 px-4 py-1.5 text-caption font-bold text-primary group-hover:bg-primary group-hover:text-white transition-colors flex-shrink-0">
+              View Café
             </span>
           </div>
         </div>
