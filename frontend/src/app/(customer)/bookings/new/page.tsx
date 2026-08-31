@@ -147,9 +147,15 @@ function BookingWizardContent() {
     params.set('dayOffset', String(selectedDateOffset));
     params.set('duration', String(durationHours));
     params.set('seats', String(seatsCount));
-    if (activeTier?.id) params.set('tierId', activeTier.id);
+    // Fall back to selectedTierId (set synchronously from the URL on mount)
+    // so this effect — which also runs while `cafe` is still loading and
+    // `activeTier` is briefly undefined — never overwrites the URL with the
+    // tierId momentarily missing, which would drop it on a reload/crash
+    // during that window.
+    const tierIdToPersist = activeTier?.id || selectedTierId;
+    if (tierIdToPersist) params.set('tierId', tierIdToPersist);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [cafeId, selectedDate, selectedTime, selectedDateOffset, durationHours, seatsCount, activeTier?.id, pathname, router]);
+  }, [cafeId, selectedDate, selectedTime, selectedDateOffset, durationHours, seatsCount, activeTier?.id, selectedTierId, pathname, router]);
 
   const { data: availabilityData } = useQuery({
     queryKey: ['cafe-availability', cafeId, activeTier?.id, selectedDate],
@@ -540,18 +546,21 @@ function BookingWizardContent() {
 
   return (
     <>
-      <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-32">
+      {/* pb is taller than the sticky bar's own height on mobile (where price
+          + CTA stack into two rows, ~140px tall) so page content never sits
+          underneath it; sm+ reverts to the shorter single-row bar. */}
+      <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-44 sm:pb-28">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-secondary hover:bg-border/60 transition-colors"
+          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-surface text-secondary hover:bg-border/60 transition-colors"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <div>
-          <h1 className="font-heading text-h2 font-bold text-text-primary">{cafe.name}</h1>
-          <p className="text-caption text-text-secondary">{cafe.city}, {cafe.state}</p>
+        <div className="min-w-0 flex-1">
+          <h1 className="font-heading text-h2 font-bold text-text-primary truncate">{cafe.name}</h1>
+          <p className="text-caption text-text-secondary truncate">{cafe.city}, {cafe.state}</p>
         </div>
       </div>
 
@@ -733,20 +742,20 @@ function BookingWizardContent() {
         <h2 className="font-heading text-h3 font-bold text-text-primary">4. Review Price</h2>
         <Card elevation="resting" className="rounded-3xl border border-border/80">
         <CardContent className="p-5 flex flex-col gap-2.5 text-body text-text-secondary">
-          <div className="flex items-center justify-between">
-            <span>
+          <div className="flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate">
               {activeTier?.name || 'Standard'} ({durationHours} hr × {seatsCount} seat{seatsCount > 1 ? 's' : ''})
             </span>
-            <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{baseTotal}</span>
+            <span className="flex-shrink-0 font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{baseTotal}</span>
           </div>
 
           {discountAmount > 0 && activePromo && (
-            <div className="flex items-center justify-between text-success">
-              <span className="flex items-center gap-1.5 font-semibold">
+            <div className="flex items-center justify-between gap-3 text-success">
+              <span className="min-w-0 flex items-center gap-1.5 font-semibold">
                 <Tag className="h-4 w-4 flex-shrink-0" />
-                {activePromo.title} (-{activePromo.discountPercentage}%)
+                <span className="truncate">{activePromo.title} (-{activePromo.discountPercentage}%)</span>
               </span>
-              <span className="font-body font-bold text-body">
+              <span className="flex-shrink-0 font-body font-bold text-body">
                 -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
               </span>
             </div>
@@ -786,9 +795,9 @@ function BookingWizardContent() {
           (bottom-nav is z-nav/40, fixed bottom-0) rather than underneath it, otherwise
           the nav bar silently eats the first tap on this button on mobile. */}
       <div className="fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
-        <div className="max-w-content mx-auto flex items-center justify-between gap-4">
-          <div>
-            <span className="text-caption text-text-secondary block truncate max-w-[200px] sm:max-w-none">
+        <div className="max-w-content mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <span className="text-caption text-text-secondary block truncate">
               {formatSessionDate(effectiveSessionDate)} • {formatTime(selectedTime)} • {durationHours} hr
             </span>
             <div className="font-heading text-h1 font-bold text-text-primary">
@@ -805,7 +814,7 @@ function BookingWizardContent() {
               Boolean(cafe.bookingsPaused) ||
               windowRemainingSeats < seatsCount
             }
-            className="rounded-2xl bg-secondary px-8 sm:px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-secondary/90 active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="w-full sm:w-auto min-h-btn rounded-2xl bg-secondary px-8 sm:px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-secondary/90 active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {isProcessing
               ? 'Processing...'
