@@ -48,6 +48,10 @@ try {
 
 const nextConfig = {
   reactStrictMode: true,
+  // Traces the actual dependency graph into .next/standalone instead of
+  // shipping the whole node_modules in the runtime Docker image — see
+  // frontend/Dockerfile runner stage.
+  output: 'standalone',
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion', '@tanstack/react-query'],
   },
