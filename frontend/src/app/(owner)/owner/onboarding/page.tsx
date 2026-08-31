@@ -20,7 +20,19 @@ import {
 import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } from '@/lib/api/owner';
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, Textarea, Card, CardContent, Badge } from '@/components/ui';
-import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
+import dynamic from 'next/dynamic';
+
+const GoogleLocationPicker = dynamic(
+  () => import('@/components/maps/GoogleLocationPicker').then((m) => m.GoogleLocationPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 w-full rounded-2xl bg-surface border border-border flex items-center justify-center text-caption text-text-secondary animate-pulse">
+        Loading map picker...
+      </div>
+    ),
+  }
+);
 import { INDIAN_STATES } from '@/constants/states';
 import { SUPPORTED_CITIES } from '@/constants/cities';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';

@@ -4,7 +4,19 @@ import { useState, useRef, type FormEvent } from 'react';
 import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff } from 'lucide-react';
 import { Modal, Button, Input } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings } from '@/lib/api/settings';
-import { GoogleLocationPicker } from '@/components/maps/GoogleLocationPicker';
+import dynamic from 'next/dynamic';
+
+const GoogleLocationPicker = dynamic(
+  () => import('@/components/maps/GoogleLocationPicker').then((m) => m.GoogleLocationPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 w-full rounded-2xl bg-surface border border-border flex items-center justify-center text-caption text-text-secondary animate-pulse">
+        Loading map picker...
+      </div>
+    ),
+  }
+);
 import { getAmenityDisplay } from '@/lib/amenities';
 import { SUPPORTED_CITIES } from '@/constants/cities';
 

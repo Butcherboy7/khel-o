@@ -22,7 +22,19 @@ import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Button, RatingDisplay, PriceDisplay, Badge, Skeleton, ErrorState } from '@/components/ui';
-import { GoogleLocationDisplay } from '@/components/maps/GoogleLocationDisplay';
+import dynamic from 'next/dynamic';
+
+const GoogleLocationDisplay = dynamic(
+  () => import('@/components/maps/GoogleLocationDisplay').then((m) => m.GoogleLocationDisplay),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-44 w-full rounded-2xl bg-surface border border-border flex items-center justify-center text-caption text-text-secondary animate-pulse">
+        Loading interactive map...
+      </div>
+    ),
+  }
+);
 import { ShareModal } from '@/components/customer/ShareModal';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 
