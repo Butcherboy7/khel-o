@@ -252,7 +252,7 @@ export default function AdminUsersPage() {
                         type="button"
                         onClick={() => setConfirmPromoteId(u.id)}
                         title="Promote this user to admin — grants full platform access"
-                        className="flex items-center gap-1 h-8 px-3 rounded-xl border border-border bg-surface text-xs font-semibold text-text-secondary hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors whitespace-nowrap"
+                        className="flex items-center gap-1 h-8 px-3 rounded-xl border border-border bg-surface text-xs font-semibold text-text-secondary hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-colors whitespace-nowrap"
                       >
                         <ShieldPlus className="h-3.5 w-3.5" />
                         Promote

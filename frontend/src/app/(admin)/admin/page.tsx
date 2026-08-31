@@ -245,13 +245,12 @@ export default function AdminPage() {
                   {/* Inline Action Buttons */}
                   <div className="flex items-center justify-end gap-3 border-t border-border pt-3">
                     <Button
-                      variant="outline"
+                      variant="destructive-outline"
                       size="sm"
                       onClick={() => {
                         setSelectedCafe(cafe);
                         setIsRejectModalOpen(true);
                       }}
-                      className="text-error border-error/30 hover:bg-error/10"
                     >
                       Reject
                     </Button>
