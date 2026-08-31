@@ -336,10 +336,13 @@ class PaymentService:
         ).hexdigest()
 
         if payload.razorpay_signature != expected_signature:
-            if payload.razorpay_signature == 'mock_signature_valid' and settings.ENVIRONMENT != "production":
-                logger.info("Mock signature accepted in development mode")
-            elif payload.razorpay_signature == 'mock_signature_valid':
-                raise ValidationException(message="Invalid payment signature", error_code="INVALID_SIGNATURE")
+            # P0-A6: signature verification must fail closed in EVERY environment.
+            # ENVIRONMENT alone must never decide whether a payment is trusted —
+            # a misconfigured staging box pointed at the production DB must still
+            # reject forged signatures. The only bypass is this explicit,
+            # dedicated flag (never implied by "not production").
+            if payload.razorpay_signature == 'mock_signature_valid' and settings.ENABLE_SANDBOX_MOCK_PAYMENTS:
+                logger.info("Mock signature accepted: ENABLE_SANDBOX_MOCK_PAYMENTS is on")
             elif payload.razorpay_signature.startswith('mock_signature_INVALID'):
                 await self.payment_repo.update_status(
                     payment_id=payment.id,
@@ -359,21 +362,28 @@ class PaymentService:
                     link=f"/owner/bookings?ref={booking.booking_reference}"
                 )
                 raise ValidationException(message="Payment verification failed: Invalid signature", error_code="PAYMENT_FAILED")
-            elif settings.ENVIRONMENT == "production":
-                raise ValidationException(message="Invalid payment signature", error_code="INVALID_SIGNATURE")
             else:
-                logger.warning(f"Signature mismatch in dev mode (Expected {expected_signature}, got {payload.razorpay_signature}); allowing for testing.")
+                raise ValidationException(message="Invalid payment signature", error_code="INVALID_SIGNATURE")
 
         # Verify 15-minute TTL window has not expired
         now_utc = datetime.now(timezone.utc)
         if booking.created_at:
             created_dt = booking.created_at.replace(tzinfo=timezone.utc) if booking.created_at.tzinfo is None else booking.created_at
             if (now_utc - created_dt).total_seconds() > 900:
-                await self.booking_repo.update(booking.id, {
-                    "status": BookingStatus.FAILED,
-                    "cancellation_reason": "Payment completed after 15-minute TTL window"
-                })
-                raise ValidationException(message="Payment session expired after 15 minutes. Auto-refund initiated.", error_code="PAYMENT_TTL_EXPIRED")
+                # P0-B4: the signature above already proved Razorpay actually
+                # captured this payment — "expiring" the booking without
+                # refunding it left the customer's money captured with
+                # nothing to show for it. Record the capture, then run the
+                # same refund path admin/owner cancellations use, so the
+                # customer's money doesn't just sit there.
+                await self.payment_repo.update_status(
+                    payment_id=payment.id,
+                    status=PaymentStatus.CAPTURED,
+                    razorpay_payment_id=payload.razorpay_payment_id,
+                    signature=payload.razorpay_signature
+                )
+                await self._refund_and_close_expired_booking(booking.id)
+                raise ValidationException(message="Payment session expired after 15 minutes. A refund has been issued.", error_code="PAYMENT_TTL_EXPIRED")
 
         # Update Payment
         updated_payment = await self.payment_repo.update_status(
@@ -473,15 +483,12 @@ class PaymentService:
                         
                         # Check TTL expiry before confirmation (> 900 seconds = 15 mins)
                         if booking.status == BookingStatus.PENDING_PAYMENT and (now_utc - created_dt).total_seconds() > 900:
-                            logger.warning(f"Rejecting late webhook confirmation for expired booking {booking.id}")
-                            await self.payment_repo.update(payment.id, {
-                                "status": PaymentStatus.FAILED,
-                                "failure_reason": "Late webhook payment received after 15-minute TTL expiry"
-                            })
-                            await self.booking_repo.update(booking.id, {
-                                "status": BookingStatus.FAILED,
-                                "cancellation_reason": "Payment captured after 15-minute TTL window"
-                            })
+                            logger.warning(f"Late webhook confirmation for expired booking {booking.id}; refunding the captured payment")
+                            # P0-B4: Razorpay just told us this payment was actually
+                            # captured — record that fact, then run the real refund
+                            # path instead of just labeling the booking FAILED.
+                            await self.payment_repo.update_status(payment.id, PaymentStatus.CAPTURED, razorpay_payment_id=payment_id)
+                            await self._refund_and_close_expired_booking(booking.id)
                             return {"status": "ttl_expired_refunded"}
 
                         await self.payment_repo.update_status(payment.id, PaymentStatus.CAPTURED, razorpay_payment_id=payment_id)
@@ -523,10 +530,45 @@ class PaymentService:
 
         return {"status": "ok"}
 
-    async def process_refund(self, booking_id: UUID, admin_id: UUID) -> Dict[str, Any]:
+    async def _refund_and_close_expired_booking(self, booking_id: UUID) -> None:
+        """Shared by verify_payment and handle_webhook's TTL-expiry paths
+        (P0-B4). The payment row must already be marked CAPTURED with a real
+        razorpay_payment_id before calling this.
+
+        On a successful refund, process_refund itself sets the booking to
+        CANCELLED. If the Razorpay API call fails, process_refund leaves the
+        booking untouched — this must not be silently left in
+        PENDING_PAYMENT (a customer's booking looking "still awaiting
+        payment" while their money is actually captured and stuck), so on
+        failure this puts it in FAILED with a reason flagging it needs a
+        manual refund.
+        """
+        refund_result = await self.process_refund(booking_id)
+        if refund_result["status"] in ("processed", "already_refunded"):
+            reason = "Payment captured after 15-minute TTL window; auto-refunded"
+        else:
+            await self.booking_repo.update(booking_id, {"status": BookingStatus.FAILED})
+            reason = (
+                f"Payment captured after 15-minute TTL window; automatic refund did NOT "
+                f"complete ({refund_result['status']}) — needs manual refund"
+            )
+        await self.booking_repo.update(booking_id, {"cancellation_reason": reason})
+
+    async def process_refund(self, booking_id: UUID, admin_id: Optional[UUID] = None) -> Dict[str, Any]:
         payment = await self.payment_repo.get_by_booking_id(booking_id)
         if not payment:
             raise NotFoundException(message="Payment not found for booking", error_code="PAYMENT_NOT_FOUND")
+
+        # P0-B4: idempotent — a retried call (duplicate cron tick, a webhook
+        # retry, a double-click) must not fire a second real refund against
+        # Razorpay for a payment this service already refunded.
+        if payment.status == PaymentStatus.REFUNDED:
+            logger.info(f"Payment for booking {booking_id} already refunded (refund_id={payment.refund_id}); skipping duplicate refund")
+            return {
+                "refundId": payment.refund_id,
+                "status": "already_refunded",
+                "amount": float(payment.amount)
+            }
 
         # NOTE (Route, deliberately not auto-handled yet — needs live testing first):
         # if this booking's payment was already split to the café's linked account

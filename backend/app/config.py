@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_ID: str = "rzp_test_placeholder_key_id"
     RAZORPAY_KEY_SECRET: str = "rzp_test_placeholder_key_secret"
     RAZORPAY_WEBHOOK_SECRET: str = "rzp_test_webhook_secret"
+
+    # Server-side mirror of the frontend's NEXT_PUBLIC_ENABLE_SANDBOX_MOCK_PAYMENTS
+    # flag. Signature verification NEVER depends on ENVIRONMENT (a staging box
+    # accidentally pointed at prod must still reject forged signatures) — this
+    # is the only switch that unlocks the literal 'mock_signature_valid' test
+    # marker, and it must be turned on explicitly, never implied by "not prod".
+    ENABLE_SANDBOX_MOCK_PAYMENTS: bool = False
     
     # Resend Email Service
     RESEND_API_KEY: Optional[str] = None

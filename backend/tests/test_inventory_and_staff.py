@@ -465,8 +465,21 @@ async def test_payment_webhook_idempotency(async_client: AsyncClient):
         assert booking.status == BookingStatus.CONFIRMED
 
 @pytest.mark.asyncio
-async def test_late_webhook_after_ttl_expired_rejected(async_client: AsyncClient):
+async def test_late_webhook_after_ttl_expired_rejected(async_client: AsyncClient, monkeypatch):
     """Verify that a payment webhook arriving AFTER 15-min TTL is rejected and auto-refunded to prevent double bookings."""
+    import json as _json
+
+    class _FakeRazorpayRefundResponse:
+        def read(self):
+            return _json.dumps({"id": "rfnd_test123", "status": "processed"}).encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=10: _FakeRazorpayRefundResponse())
     async with AsyncSessionLocal() as db:
         gamer = User(
             id=uuid.uuid4(),
@@ -544,8 +557,16 @@ async def test_late_webhook_after_ttl_expired_rejected(async_client: AsyncClient
         assert resp.json().get("status") == "ttl_expired_refunded"
 
         await db.refresh(expired_booking)
-        assert expired_booking.status == BookingStatus.FAILED
+        # P0-B4: the payment was actually captured (that's what this webhook
+        # says), so a real refund is issued and the booking lands CANCELLED —
+        # not FAILED, which would incorrectly imply no charge ever succeeded.
+        assert expired_booking.status == BookingStatus.CANCELLED
         assert "15-minute TTL window" in (expired_booking.cancellation_reason or "")
+        assert "auto-refunded" in (expired_booking.cancellation_reason or "")
+
+        await db.refresh(payment)
+        assert payment.status == PaymentStatus.REFUNDED
+        assert payment.refund_id == "rfnd_test123"
 
 @pytest.mark.asyncio
 async def test_cancelled_booking_releases_seat():

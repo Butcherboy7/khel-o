@@ -274,8 +274,17 @@ async def accept_invitation(
     user = await user_repo.get_by_email(invitation.email)
 
     if user:
-        if payload.password:
-            await user_repo.update(user.id, {"password_hash": get_password_hash(payload.password)})
+        # P0-A5: possessing the invitation token is not proof of owning this
+        # account — the café owner only supplied an email address, which may
+        # already belong to someone else on the platform. Require the caller
+        # to prove they know the account's real password (i.e. they ARE that
+        # user) before granting the staff role; never let the token holder
+        # set/reset a password on an account that isn't theirs.
+        if not user.password_hash or not verify_password(payload.password, user.password_hash):
+            raise AuthException(
+                message="An account already exists for this email. Log in with your existing password to accept this invitation.",
+                error_code="EXISTING_ACCOUNT_AUTH_REQUIRED"
+            )
         await user_repo.update_role(user.id, UserRole.STAFF, cafe_id=invitation.venue_id)
     else:
         new_user_dict = {

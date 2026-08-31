@@ -5,6 +5,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useState, useEffect, type ReactNode } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { RoleSyncProvider } from '@/components/providers/RoleSyncProvider';
+import { PwaUpdatePrompt } from '@/components/PwaUpdatePrompt';
 
 /* ── QueryClient Factory ─────────────────────────────────────────── */
 
@@ -65,6 +66,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <AuthInitializer>
         <RoleSyncProvider>
           <AnimatePresence mode="wait">{children}</AnimatePresence>
+          <PwaUpdatePrompt />
         </RoleSyncProvider>
       </AuthInitializer>
     </QueryClientProvider>
