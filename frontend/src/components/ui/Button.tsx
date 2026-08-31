@@ -35,6 +35,10 @@ const buttonVariants = cva(
           'bg-error text-white',
           'hover:bg-red-600',
         ],
+        'destructive-outline': [
+          'border border-error/30 text-error bg-transparent',
+          'hover:bg-error/10',
+        ],
         accent: [
           'bg-accent text-white',
           'hover:opacity-90',

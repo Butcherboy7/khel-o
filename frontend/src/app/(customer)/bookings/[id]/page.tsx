@@ -323,13 +323,13 @@ export default function BookingDetailPage() {
                 </Button>
 
                 <Button
-                  variant="outline"
+                  variant="destructive-outline"
                   size="md"
                   fullWidth
                   disabled={!canCancel}
                   title={!canCancel ? cancelDisabledReason : ''}
                   onClick={() => setIsCancelModalOpen(true)}
-                  className={`gap-2 ${!canCancel ? 'opacity-50 cursor-not-allowed' : 'text-error border-error/30 hover:bg-error/10'}`}
+                  className="gap-2"
                 >
                   <XCircle className="h-4 w-4" />
                   <span>Cancel Booking</span>
@@ -469,13 +469,13 @@ export default function BookingDetailPage() {
             </Button>
 
             <Button
-              variant="outline"
+              variant="destructive-outline"
               size="md"
               fullWidth
               disabled={!canCancel}
               title={!canCancel ? cancelDisabledReason : ''}
               onClick={() => setIsCancelModalOpen(true)}
-              className={`gap-2 ${!canCancel ? 'opacity-50 cursor-not-allowed' : 'text-error border-error/30 hover:bg-error/10'}`}
+              className="gap-2"
             >
               <XCircle className="h-4 w-4" />
               <span>Cancel Booking</span>

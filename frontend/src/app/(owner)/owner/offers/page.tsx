@@ -310,10 +310,10 @@ export default function OwnerOffersPage() {
                     </Button>
                     {p.isActive ? (
                       <Button
-                        variant="outline"
+                        variant="destructive-outline"
                         size="sm"
                         onClick={() => setDeactivateTarget(p)}
-                        className="flex-1 gap-1.5 text-error border-error/30 hover:bg-error/10"
+                        className="flex-1 gap-1.5"
                       >
                         <Ban className="h-3.5 w-3.5" />
                         Pause
