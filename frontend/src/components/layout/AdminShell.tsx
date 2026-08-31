@@ -77,7 +77,7 @@ function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
               className={cn(
                 'flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2.5 text-body-emphasis transition-colors duration-fast',
                 isActive
-                  ? 'bg-white/15 text-white'
+                  ? 'bg-white/15 text-white font-bold'
                   : 'text-white/60 hover:bg-white/10 hover:text-white',
               )}
               aria-current={isActive ? 'page' : undefined}

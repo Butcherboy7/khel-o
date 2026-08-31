@@ -44,21 +44,23 @@ interface NavItem {
 
 const ownerNavSections: NavSection[] = [
   {
-    heading: 'Overview',
+    // Day-to-day operating tasks first: this is what an owner opens the
+    // portal to do (check the dashboard, scan a pass, look at a booking).
+    heading: 'Operations',
     items: [
       { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
-      { label: 'Analytics', href: '/owner/analytics', icon: BarChart3 },
-      { label: 'Notifications', href: '/owner/notifications', icon: Bell },
+      { label: 'Pass Scanner', href: '/owner/scanner', icon: QrCode },
+      { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
     ],
   },
   {
-    heading: 'Operations',
+    heading: 'Grow & Manage',
     items: [
-      { label: 'Pass Scanner', href: '/owner/scanner', icon: QrCode },
-      { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
       { label: 'Hardware Tiers', href: '/owner/tiers', icon: Monitor },
       { label: 'Promotions & Offers', href: '/owner/offers', icon: Tag },
       { label: 'Reviews', href: '/owner/reviews', icon: Store },
+      { label: 'Analytics', href: '/owner/analytics', icon: BarChart3 },
+      { label: 'Notifications', href: '/owner/notifications', icon: Bell },
     ],
   },
   {
@@ -238,7 +240,7 @@ function OwnerMobileMenu({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 active:scale-95"
             aria-label="Close menu"
           >
             <X className="h-6 w-6" />
@@ -342,7 +344,7 @@ function OwnerTopBar({
       <div className="flex items-center gap-3 lg:hidden">
         <button
           onClick={onOpenMobileMenu}
-          className="p-1.5 rounded-lg text-text-primary hover:bg-surface-hover transition-colors"
+          className="flex h-11 w-11 items-center justify-center rounded-lg text-text-primary hover:bg-surface-hover transition-colors active:scale-95"
           aria-label="Open navigation menu"
         >
           <Menu className="h-6 w-6" />
@@ -431,7 +433,14 @@ function OwnerBottomNav({
             )}
             aria-current={isActive ? 'page' : undefined}
           >
-            <item.icon className="h-5 w-5" />
+            <span
+              className={cn(
+                'flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast',
+                isActive && 'bg-primary/12',
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+            </span>
             <span className="text-badge">{item.label}</span>
           </Link>
         );
