@@ -37,14 +37,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      # P0-A3: only the Sentry DSN is still a build ARG (see Dockerfile
+      # comment for why). Everything else in NEXT_PUBLIC_* is read from
+      # env_file below at container start, not baked into the image.
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
-        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
-        NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID}
-        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
-        NEXT_PUBLIC_ENABLE_SANDBOX_MOCK_PAYMENTS: ${NEXT_PUBLIC_ENABLE_SANDBOX_MOCK_PAYMENTS:-false}
     container_name: khel_o_frontend
     restart: unless-stopped
     env_file:

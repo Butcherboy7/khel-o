@@ -6,8 +6,9 @@ import axios, {
 } from 'axios';
 import * as Sentry from '@sentry/nextjs';
 import { ApiError } from './errors';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const API_URL = getPublicEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000');
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_URL,

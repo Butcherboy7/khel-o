@@ -26,6 +26,7 @@ import { SUPPORTED_CITIES } from '@/constants/cities';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import type { TierConfig } from '@/types/tier';
 import { safeRandomUUID } from '@/lib/uuid';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 
 const PRESET_GAMES = [
   'Valorant',
@@ -362,7 +363,7 @@ export default function OnboardingWizardPage() {
             try {
               const refreshToken = localStorage.getItem('refreshToken');
               if (refreshToken) {
-                const refreshRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/refresh`, {
+                const refreshRes = await fetch(`${getPublicEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')}/api/v1/auth/refresh`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ refreshToken })
@@ -371,7 +372,7 @@ export default function OnboardingWizardPage() {
                   const data = await refreshRes.json();
                   localStorage.setItem('accessToken', data.data.accessToken);
                   localStorage.setItem('refreshToken', data.data.refreshToken);
-                  const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/refresh`, {
+                  const userRes = await fetch(`${getPublicEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')}/api/v1/auth/refresh`, {
                     headers: { Authorization: `Bearer ${data.data.accessToken}` }
                   });
                   if (userRes.ok) {

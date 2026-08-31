@@ -2,6 +2,7 @@ import Script from 'next/script';
 import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import { Providers } from './providers';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 import '../globals.css';
 
 /* ── Font Loading ────────────────────────────────────────────────── */
@@ -29,7 +30,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 /* ── Metadata ────────────────────────────────────────────────────── */
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://khel-o.online';
+const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -124,6 +125,11 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable}`}
     >
       <body className="font-body bg-surface text-text-primary antialiased">
+        {/* Injects window.__ENV__ from the container's real runtime env.
+            beforeInteractive guarantees this runs before any other script
+            (including Sentry's instrumentation-client), so nothing reads a
+            stale/missing value. See src/lib/runtimeEnv.ts. */}
+        <Script src="/api/runtime-env" strategy="beforeInteractive" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}

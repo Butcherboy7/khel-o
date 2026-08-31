@@ -36,6 +36,7 @@ import {
 } from '@/components/ui';
 import { formatSessionDate, formatTime } from '@/lib/format';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 
 export default function BookingDetailPage() {
   const params = useParams();
@@ -176,7 +177,7 @@ export default function BookingDetailPage() {
       if (booking.qrCodeUrl.startsWith('http')) {
         return booking.qrCodeUrl;
       }
-      const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const rawApiUrl = getPublicEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000');
       const apiHost = rawApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
       return `${apiHost}${booking.qrCodeUrl.startsWith('/') ? '' : '/'}${booking.qrCodeUrl}`;
     }

@@ -14,21 +14,20 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
-ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
-ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id
-ARG NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_mock_khelo_key
-ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
+# P0-A3: API_URL / APP_URL / GOOGLE_CLIENT_ID / RAZORPAY_KEY_ID /
+# GOOGLE_MAPS_API_KEY / ENABLE_SANDBOX_MOCK_PAYMENTS are no longer passed as
+# build ARGs — baking them here meant the value was frozen into this image
+# (visible in `docker history`, and requiring a rebuild to rotate). They're
+# now read at request time from the container's real runtime env by
+# GET /api/runtime-env and injected into the browser as window.__ENV__ — see
+# src/lib/runtimeEnv.ts and docs/audit/frontend-env-audit.md.
+#
+# NEXT_PUBLIC_SENTRY_DSN is the one exception, still build-time: Sentry's
+# client bootstrap (instrumentation-client.ts) runs before our injected
+# runtime-env script can reliably execute, and a DSN is meant to be public
+# (it only allows submitting events, not reading data) — see the audit doc.
 ARG NEXT_PUBLIC_SENTRY_DSN=
-ARG NEXT_PUBLIC_ENABLE_SANDBOX_MOCK_PAYMENTS=false
-
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
-ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
-ENV NEXT_PUBLIC_RAZORPAY_KEY_ID=$NEXT_PUBLIC_RAZORPAY_KEY_ID
-ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
-ENV NEXT_PUBLIC_ENABLE_SANDBOX_MOCK_PAYMENTS=$NEXT_PUBLIC_ENABLE_SANDBOX_MOCK_PAYMENTS
 ENV NEXT_TELEMETRY_DISABLED 1
 
 RUN npm run build

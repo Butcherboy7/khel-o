@@ -4,6 +4,7 @@ import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { MapPin, Search } from 'lucide-react';
 import { GOOGLE_MAPS_SCRIPT_ID, GOOGLE_MAPS_LIBRARIES } from './mapsConfig';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 
 const mapContainerStyle = {
   width: '100%',
@@ -38,7 +39,7 @@ export function GoogleLocationPicker({
   initialLng,
   onLocationSelect,
 }: LocationPickerProps) {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  const apiKey = getPublicEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const isAlreadyLoaded = typeof window !== 'undefined' && typeof window.google?.maps?.Map === 'function';

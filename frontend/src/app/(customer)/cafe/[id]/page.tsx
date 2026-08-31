@@ -4,7 +4,9 @@ import { getCafe } from '@/lib/api/cafes';
 import type { CafeDetail } from '@/types';
 import { CafeDetailClient } from './CafeDetailClient';
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://khel-o.online';
+import { getPublicEnv } from '@/lib/runtimeEnv';
+
+const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
 interface PageProps {
   params: Promise<{ id: string }>;

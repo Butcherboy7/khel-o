@@ -32,6 +32,7 @@ import { formatCurrency } from '@/lib/format';
 import { Card, CardContent, Button, Badge, Modal } from '@/components/ui';
 import { PendingApprovalView } from '@/components/owner/PendingApprovalView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 
 export default function OwnerDashboardPage() {
   const { activeRole } = useAuthStore();
@@ -73,7 +74,7 @@ export default function OwnerDashboardPage() {
           try {
             const refreshToken = localStorage.getItem('refreshToken');
             if (refreshToken) {
-              const refreshRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/refresh`, {
+              const refreshRes = await fetch(`${getPublicEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')}/api/v1/auth/refresh`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refreshToken })
@@ -82,7 +83,7 @@ export default function OwnerDashboardPage() {
                 const data = await refreshRes.json();
                 localStorage.setItem('accessToken', data.data.accessToken);
                 localStorage.setItem('refreshToken', data.data.refreshToken);
-                const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/me`, {
+                const userRes = await fetch(`${getPublicEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')}/api/v1/auth/me`, {
                   headers: { Authorization: `Bearer ${data.data.accessToken}` }
                 });
                 if (userRes.ok) {

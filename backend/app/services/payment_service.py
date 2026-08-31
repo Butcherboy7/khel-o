@@ -6,6 +6,8 @@ from typing import Optional, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
+
 from app.config import settings
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.booking_repository import BookingRepository
@@ -270,7 +272,26 @@ class PaymentService:
             "currency": "INR",
             "status": PaymentStatus.CREATED
         }
-        created = await self.payment_repo.create(payment_dict)
+        try:
+            created = await self.payment_repo.create(payment_dict)
+        except IntegrityError:
+            # UNIQUE(payments.booking_id) fired: a concurrent request created the
+            # payment between our duplicate check above and this insert. Return
+            # that payment instead of charging the booking twice.
+            await self.payment_repo.db.rollback()
+            existing_payment = await self.payment_repo.get_by_booking_id(booking_id)
+            if not existing_payment:
+                raise
+            logger.warning(
+                f"Concurrent payment creation for booking {booking_id}; "
+                f"returning existing order {existing_payment.razorpay_order_id}"
+            )
+            return PaymentCreateResponse(
+                razorpay_order_id=existing_payment.razorpay_order_id,
+                amount=float(existing_payment.amount),
+                currency=existing_payment.currency,
+                key_id=settings.RAZORPAY_KEY_ID
+            )
 
         return PaymentCreateResponse(
             razorpay_order_id=created.razorpay_order_id,

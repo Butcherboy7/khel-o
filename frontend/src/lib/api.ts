@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { CafeListItem, CafeDetail, PaginatedResponse, BookingDetail, User, HardwareTier, TierSpecs, PromotionDetail, AdminCafe, OwnerPayoutAccount } from '@/types';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = getPublicEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000');
 
 export const api = axios.create({
   baseURL: API_URL,

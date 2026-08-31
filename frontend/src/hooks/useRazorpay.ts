@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 
 interface RazorpayOptions {
   key: string;
@@ -67,10 +68,10 @@ export function useRazorpay() {
   ) => {
     const razorpayKey =
       options.key ||
-      process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
+      getPublicEnv('NEXT_PUBLIC_RAZORPAY_KEY_ID') ||
       'rzp_test_mock_khelo_key';
 
-    const enableSandboxMock = process.env.NEXT_PUBLIC_ENABLE_SANDBOX_MOCK_PAYMENTS === 'true';
+    const enableSandboxMock = getPublicEnv('NEXT_PUBLIC_ENABLE_SANDBOX_MOCK_PAYMENTS') === 'true';
 
     const isMockKey =
       enableSandboxMock ||

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { googleAuth } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 
 declare global {
   interface Window {
@@ -73,7 +74,7 @@ export function GoogleSignInButton({ redirectPath, onError }: GoogleSignInButton
   );
 
   const initialize = useCallback(() => {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    const clientId = getPublicEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID');
     // Checking `window.google` alone isn't enough: this app also loads the
     // Google Maps JS API, which shares the same `window.google` namespace.
     // If Maps sets `window.google = { maps: {...} }` before (or without)
@@ -104,7 +105,7 @@ export function GoogleSignInButton({ redirectPath, onError }: GoogleSignInButton
     if (window.google?.accounts?.id) initialize();
   }, [initialize]);
 
-  if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) return null;
+  if (!getPublicEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID')) return null;
 
   return (
     <>

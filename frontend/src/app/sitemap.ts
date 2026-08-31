@@ -1,7 +1,9 @@
 import type { MetadataRoute } from 'next';
 import { listCafes } from '@/lib/api/cafes';
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://khel-o.online';
+import { getPublicEnv } from '@/lib/runtimeEnv';
+
+const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/`, changeFrequency: 'daily', priority: 1 },

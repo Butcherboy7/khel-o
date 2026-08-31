@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import { listCafes } from '@/lib/api/cafes';
 import { ExploreClient } from '@/components/customer/ExploreClient';
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://khel-o.online';
+import { getPublicEnv } from '@/lib/runtimeEnv';
+
+const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
 export const metadata: Metadata = {
   alternates: {

@@ -1,3 +1,5 @@
+import { getPublicEnv } from '@/lib/runtimeEnv';
+
 // ── Cities ──────────────────────────────────────────────────────────────────
 export const CITIES = [
   'Bengaluru',
@@ -101,8 +103,7 @@ export const ROUTES = {
 } as const;
 
 // ── API Config ───────────────────────────────────────────────────────────────
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+export const API_BASE_URL = getPublicEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000');
 
 // ── Pagination Defaults ──────────────────────────────────────────────────────
 export const DEFAULT_PAGE_SIZE = 20;
