@@ -398,6 +398,39 @@ export function TimelineRangePicker({
         </div>
       </div>
 
+      {/* ── Pattern Legend — the track below differentiates Available/Booked/Past
+          by fill pattern (solid/hatch/dotted), not color alone; spell that out
+          for sighted users who'd otherwise have no way to learn what the
+          patterns mean, since the patterns alone aren't self-explanatory. ── */}
+      <div className="flex items-center gap-3.5 px-3.5 pt-2 pb-0.5" aria-hidden="true">
+        <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary">
+          <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+          Available
+        </span>
+        <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary">
+          <span
+            className="h-1.5 w-4 rounded-full"
+            style={{
+              backgroundColor: '#ef4444',
+              backgroundImage:
+                'repeating-linear-gradient(135deg, rgba(255,255,255,0.9) 0, rgba(255,255,255,0.9) 1.5px, transparent 0, transparent 4px)',
+            }}
+          />
+          Booked
+        </span>
+        <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary">
+          <span
+            className="h-1.5 w-4 rounded-full"
+            style={{
+              backgroundColor: '#d1d5db',
+              backgroundImage:
+                'repeating-linear-gradient(90deg, rgba(107,114,128,0.9) 0, rgba(107,114,128,0.9) 1.5px, transparent 0, transparent 5px)',
+            }}
+          />
+          Past
+        </span>
+      </div>
+
       {/* ── Dynamic Timeline Canvas (100% Unified Coordinates) ── */}
       <div ref={outerRef} className="relative overflow-hidden bg-white pt-5 pb-3" style={{ height: 95 }}>
         {showHint && (
@@ -478,29 +511,38 @@ export function TimelineRangePicker({
                 state also gets its own fill pattern (solid / diagonal hatch /
                 dotted), not just a different color, so the state still reads
                 for colorblind users or under bad sunlight glare. */}
-            <div style={{ position: 'absolute', top: 42, left: sidePadding, width: trackWidthPx, height: 3 }}>
+            <div
+              role="group"
+              aria-label="Slot availability"
+              style={{ position: 'absolute', top: 42, left: sidePadding, width: trackWidthPx, height: 3 }}
+            >
               {segments.map((seg) => {
                 const x = ((seg.start - openMin) / 30) * slotW;
                 let style: React.CSSProperties = {
                   backgroundColor: '#22c55e', // Available: solid green
                 };
+                let stateLabel = 'Available';
                 if (seg.state === 'BOOKED') {
                   style = {
                     backgroundColor: '#ef4444',
                     backgroundImage:
                       'repeating-linear-gradient(135deg, rgba(255,255,255,0.9) 0, rgba(255,255,255,0.9) 1.5px, transparent 0, transparent 4px)',
                   };
+                  stateLabel = 'Booked';
                 } else if (seg.state === 'PAST') {
                   style = {
                     backgroundColor: '#d1d5db',
                     backgroundImage:
                       'repeating-linear-gradient(90deg, rgba(107,114,128,0.9) 0, rgba(107,114,128,0.9) 1.5px, transparent 0, transparent 5px)',
                   };
+                  stateLabel = 'Past';
                 }
 
                 return (
                   <div
                     key={seg.start}
+                    role="img"
+                    aria-label={`${formatMinutesTo12h(seg.start)} to ${formatMinutesTo12h(seg.start + 30)}: ${stateLabel}`}
                     style={{
                       position: 'absolute',
                       left: x,
