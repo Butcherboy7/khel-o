@@ -34,6 +34,21 @@ function statusVariant(
   return 'default';
 }
 
+// Mirrors BOOKING_STATUS_CONFIG in components/ui/Badge.tsx so the wording a
+// gamer sees on their booking (e.g. "Payment Pending") matches what admins
+// see in this table — only the color grouping differs (ops-focused here),
+// never the label text for the same status.
+const STATUS_LABELS: Record<BookingStatus, string> = {
+  pending_payment: 'Payment Pending',
+  confirmed: 'Confirmed',
+  checked_in: 'Checked In',
+  active: 'In Session',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  no_show: 'No Show',
+  failed: 'Payment Failed',
+};
+
 const STATUS_FILTERS: Array<{ label: string; value: BookingStatus | 'all' }> = [
   { label: 'All', value: 'all' },
   { label: 'Confirmed', value: 'confirmed' },
@@ -226,7 +241,7 @@ export default function AdminBookingsPage() {
 
                 {/* Status */}
                 <Badge variant={statusVariant(b.status)} size="sm" className="whitespace-nowrap w-fit">
-                  {b.status.replace('_', ' ')}
+                  {STATUS_LABELS[b.status] ?? b.status.replace('_', ' ')}
                 </Badge>
 
                 {/* QR check-in indicator */}
