@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Navigation } from 'lucide-react';
+import { MapPin, Navigation, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { listCafes } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SearchBarWithSuggestions } from '@/components/customer/SearchBarWithSuggestions';
+import { CafeFilterBar } from '@/components/customer/CafeFilterBar';
 import { SkeletonCafeGrid, ErrorState, EmptyState } from '@/components/ui';
 import type { CafeListItem, PaginatedResponse } from '@/types';
 
@@ -57,7 +58,13 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const firstName = user?.fullName ? user.fullName.split(' ')[0] : 'Gamer';
 
-  const { selectedCity: persistedCity, setSelectedCity: setPersistedCity, setUserCoords } = useLocationStore();
+  const {
+    selectedCity: persistedCity,
+    setSelectedCity: setPersistedCity,
+    setUserCoords,
+    isPreciseLocation,
+    clearLocation,
+  } = useLocationStore();
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -68,6 +75,10 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
   const [activeTag, setActiveTag] = useState<string>('All');
   const [isLocating, setIsLocating] = useState(false);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [minPriceInput, setMinPriceInput] = useState('');
+  const [maxPriceInput, setMaxPriceInput] = useState('');
+  const [minRating, setMinRating] = useState<number | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const cafesGridRef = useRef<HTMLDivElement>(null);
@@ -83,9 +94,9 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     }
   }, [searchParams, setPersistedCity]);
 
-  const handleCityChange = (city: string) => {
+  const handleCityChange = (city: string, precise: boolean = false) => {
     setSelectedCity(city);
-    setPersistedCity(city);
+    setPersistedCity(city, { precise });
     const params = new URLSearchParams(searchParams.toString());
     if (city && city !== 'All Cities') {
       params.set('city', city);
@@ -142,7 +153,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         const { latitude, longitude } = pos.coords;
         setUserCoords(latitude, longitude);
         const detected = findClosestCity(latitude, longitude);
-        handleCityChange(detected);
+        handleCityChange(detected, true);
       },
       () => {
         setIsLocating(false);
@@ -154,21 +165,32 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
 
   const effectiveCity = selectedCity === 'All Cities' ? undefined : selectedCity;
 
+  // Price range is sent straight through to the café list endpoint, which
+  // already accepts minPrice/maxPrice (see backend/app/api/v1/cafes.py) —
+  // no invented backend capability, just wiring up what's already there.
+  const minPrice = minPriceInput.trim() ? Number(minPriceInput) : undefined;
+  const maxPrice = maxPriceInput.trim() ? Number(maxPriceInput) : undefined;
+
   // initialData only applies when the visitor's current filters exactly match
   // the unfiltered query fetched server-side — otherwise it would seed a
   // filtered/searched view with the wrong (unfiltered) café list.
-  const matchesServerFetchedDefault = !effectiveCity && !debouncedQuery;
+  const matchesServerFetchedDefault =
+    !effectiveCity && !debouncedQuery && minPrice === undefined && maxPrice === undefined;
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.cafes.list({
       query: debouncedQuery || undefined,
       city: effectiveCity,
+      minPrice,
+      maxPrice,
       limit: 30,
     }),
     queryFn: () =>
       listCafes({
         query: debouncedQuery || undefined,
         city: effectiveCity,
+        minPrice,
+        maxPrice,
         limit: 30,
       }),
     staleTime: 30_000,
@@ -204,13 +226,35 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
       return cafe.hasActivePromotion || cafe.name.toLowerCase().includes('lxg');
     }
 
+    if (minRating != null && !(cafe.averageRating >= minRating)) {
+      return false;
+    }
+
     return true;
   });
+
+  const hasActiveFilters =
+    activeTag !== 'All' ||
+    Boolean(searchQuery) ||
+    selectedCity !== 'All Cities' ||
+    minPrice !== undefined ||
+    maxPrice !== undefined ||
+    minRating != null;
 
   const handleResetFilters = () => {
     setSearchQuery('');
     handleCityChange('All Cities');
     setActiveTag('All');
+    setMinPriceInput('');
+    setMaxPriceInput('');
+    setMinRating(null);
+    clearLocation();
+  };
+
+  const handleClearAdvancedFilters = () => {
+    setMinPriceInput('');
+    setMaxPriceInput('');
+    setMinRating(null);
   };
 
   const handleBrowseOffers = () => {
@@ -244,6 +288,8 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     </div>
   );
 
+  const advancedFilterCount = (minPrice !== undefined ? 1 : 0) + (maxPrice !== undefined ? 1 : 0) + (minRating != null ? 1 : 0);
+
   const filterChipsRow = (dark: boolean) => (
     <div className="relative">
       {/* Edge-fades on the trailing side hint that the row scrolls
@@ -272,7 +318,26 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           );
         })}
 
-        {(activeTag !== 'All' || searchQuery || selectedCity !== 'All Cities') && (
+        {/* Everything most people never touch (price range, minimum rating)
+            lives behind this one toggle instead of adding permanent chips
+            for filters most searches don't need. */}
+        <button
+          onClick={() => setShowMoreFilters((v) => !v)}
+          className={`flex items-center gap-1.5 rounded-full px-4 min-h-[44px] text-caption font-semibold flex-shrink-0 transition-all ${
+            showMoreFilters || advancedFilterCount > 0
+              ? `${dark ? 'bg-primary' : 'bg-secondary'} text-white shadow-card font-bold`
+              : dark
+                ? 'bg-white/12 text-white border border-white/25 hover:bg-white/20'
+                : 'bg-card text-text-secondary border border-border hover:bg-surface'
+          }`}
+          aria-expanded={showMoreFilters}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          <span>More filters{advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ''}</span>
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showMoreFilters ? 'rotate-180' : ''}`} />
+        </button>
+
+        {hasActiveFilters && (
           <button
             onClick={handleResetFilters}
             className={`rounded-full px-3.5 py-2 text-caption font-bold flex-shrink-0 transition-all ${
@@ -285,12 +350,36 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           </button>
         )}
       </div>
+
+      {showMoreFilters && (
+        <div className="mt-3">
+          <CafeFilterBar
+            minPrice={minPriceInput}
+            maxPrice={maxPriceInput}
+            onMinPriceChange={setMinPriceInput}
+            onMaxPriceChange={setMaxPriceInput}
+            minRating={minRating}
+            onMinRatingChange={setMinRating}
+            onClear={handleClearAdvancedFilters}
+          />
+        </div>
+      )}
     </div>
   );
 
   const scrollToResults = () => {
     cafesGridRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // The current search location must always be visible, not just implied by
+  // an unlabeled pill — so this spells out whether it's the "no location
+  // picked yet" state, a GPS fix, or a manually-chosen city.
+  const locationLabel =
+    selectedCity === 'All Cities'
+      ? 'Choose location'
+      : isPreciseLocation
+        ? `Using current location: ${selectedCity}`
+        : `Near: ${selectedCity}`;
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto">
@@ -317,16 +406,28 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
             <div className="relative flex items-center gap-2 flex-wrap pt-2" ref={dropdownRef}>
               <button
                 onClick={() => setShowCityDropdown(!showCityDropdown)}
-                className="flex items-center gap-1.5 text-caption font-bold text-white bg-white/15 hover:bg-white/25 px-3.5 py-1.5 rounded-full transition-colors"
+                className="flex items-center gap-1.5 text-caption font-bold text-white bg-white/15 hover:bg-white/25 px-3.5 min-h-[44px] rounded-full transition-colors"
+                aria-haspopup="listbox"
+                aria-expanded={showCityDropdown}
               >
                 <MapPin className="h-4 w-4" />
-                <span>{selectedCity} ▼</span>
+                <span>{locationLabel} ▼</span>
               </button>
+
+              {selectedCity !== 'All Cities' && (
+                <button
+                  onClick={clearLocation}
+                  className="flex items-center text-caption font-medium text-white/70 hover:text-white transition-colors min-h-[44px] px-2"
+                  aria-label="Clear location and search all cities"
+                >
+                  Clear
+                </button>
+              )}
 
               <button
                 onClick={handleDetectLocation}
                 disabled={isLocating}
-                className="flex items-center gap-1 text-caption font-medium text-white/90 hover:text-white transition-colors bg-white/10 px-3 py-1.5 rounded-full border border-white/20"
+                className="flex items-center gap-1 text-caption font-medium text-white/90 hover:text-white transition-colors bg-white/10 px-3 min-h-[44px] rounded-full border border-white/20"
               >
                 <Navigation className={`h-3.5 w-3.5 ${isLocating ? 'animate-spin' : ''}`} />
                 <span>{isLocating ? 'Detecting...' : 'Use exact location'}</span>
@@ -362,16 +463,28 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => setShowCityDropdown(!showCityDropdown)}
-                  className="flex items-center gap-1.5 text-caption font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3.5 py-1.5 rounded-full transition-colors"
+                  className="flex items-center gap-1.5 text-caption font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3.5 min-h-[44px] rounded-full transition-colors"
+                  aria-haspopup="listbox"
+                  aria-expanded={showCityDropdown}
                 >
                   <MapPin className="h-4 w-4" />
-                  <span>{selectedCity} ▼</span>
+                  <span>{locationLabel} ▼</span>
                 </button>
+
+                {selectedCity !== 'All Cities' && (
+                  <button
+                    onClick={clearLocation}
+                    className="flex items-center text-caption font-medium text-text-secondary hover:text-text-primary transition-colors min-h-[44px] px-2"
+                    aria-label="Clear location and search all cities"
+                  >
+                    Clear
+                  </button>
+                )}
 
                 <button
                   onClick={handleDetectLocation}
                   disabled={isLocating}
-                  className="flex items-center gap-1 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors bg-surface px-3 py-1.5 rounded-full border border-border/60"
+                  className="flex items-center gap-1 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors bg-surface px-3 min-h-[44px] rounded-full border border-border/60"
                 >
                   <Navigation className={`h-3.5 w-3.5 text-primary ${isLocating ? 'animate-spin' : ''}`} />
                   <span>{isLocating ? 'Detecting...' : 'Use exact location'}</span>
@@ -412,7 +525,8 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           <div>
             <h2 className="font-heading text-h2 text-text-primary">Nearby Gaming Cafés</h2>
             <p className="text-caption text-text-secondary">
-              Verified PCs, 240Hz setups, ping checks, and PS5 lounges in {selectedCity}
+              Verified PCs, 240Hz setups, ping checks, and PS5 lounges
+              {selectedCity !== 'All Cities' ? ` in ${selectedCity}` : ' near you'}
             </p>
           </div>
         </div>

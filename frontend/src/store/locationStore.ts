@@ -6,9 +6,17 @@ interface LocationState {
   lastVisitedCafeId: string | null;
   userLat: number | null;
   userLng: number | null;
-  setSelectedCity: (city: string) => void;
+  /** True only when selectedCity was set from the device's actual GPS
+      position (handleDetectLocation), not a manual city pick — lets the UI
+      say "Using current location" instead of implying every city label came
+      from geolocation. */
+  isPreciseLocation: boolean;
+  setSelectedCity: (city: string, opts?: { precise?: boolean }) => void;
   setLastVisitedCafeId: (cafeId: string | null) => void;
   setUserCoords: (lat: number, lng: number) => void;
+  /** Resets to the "no location chosen" state — the explicit, easy way to
+      back out of a city/GPS pick rather than digging through the dropdown. */
+  clearLocation: () => void;
 }
 
 export const useLocationStore = create<LocationState>()(
@@ -18,9 +26,13 @@ export const useLocationStore = create<LocationState>()(
       lastVisitedCafeId: null,
       userLat: null,
       userLng: null,
-      setSelectedCity: (city) => set({ selectedCity: city }),
+      isPreciseLocation: false,
+      setSelectedCity: (city, opts) =>
+        set({ selectedCity: city, isPreciseLocation: opts?.precise ?? false }),
       setLastVisitedCafeId: (cafeId) => set({ lastVisitedCafeId: cafeId }),
       setUserCoords: (lat, lng) => set({ userLat: lat, userLng: lng }),
+      clearLocation: () =>
+        set({ selectedCity: 'All Cities', userLat: null, userLng: null, isPreciseLocation: false }),
     }),
     {
       // localStorage, not sessionStorage — a detected/selected city should
