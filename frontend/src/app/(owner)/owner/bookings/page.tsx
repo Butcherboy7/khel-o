@@ -67,6 +67,11 @@ export default function OwnerBookingsPage() {
     },
   });
 
+  const actionError =
+    (checkinMutation.error as Error | null)?.message ||
+    (updateStatusMutation.error as Error | null)?.message ||
+    null;
+
   const rawBookings = data?.items || [];
   const bookings = searchRef
     ? rawBookings.filter((b) =>
@@ -120,6 +125,12 @@ export default function OwnerBookingsPage() {
           </select>
         </div>
       </div>
+
+      {actionError && (
+        <div className="p-3.5 rounded-xl bg-error/10 border border-error/20 text-caption text-error">
+          {actionError}
+        </div>
+      )}
 
       {/* Bookings List */}
       <div className="flex flex-col gap-4">

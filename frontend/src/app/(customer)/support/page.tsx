@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LifeBuoy, Send, Clock, CheckCircle2, MessageCircle } from 'lucide-react';
-import { Card, CardContent, Button, Badge, SkeletonCard, EmptyState } from '@/components/ui';
+import { Card, CardContent, Button, Badge, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { createSupportTicket, listMySupportTickets, type SupportTicket } from '@/lib/api/support';
 
 const CATEGORIES = [
@@ -28,7 +28,7 @@ export default function SupportPage() {
   const [category, setCategory] = useState('general');
   const [submitted, setSubmitted] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['support', 'my-tickets'],
     queryFn: () => listMySupportTickets({ limit: 20 }),
     staleTime: 15_000,
@@ -129,7 +129,15 @@ export default function SupportPage() {
           </div>
         )}
 
-        {!isLoading && (data?.items?.length ?? 0) === 0 && (
+        {isError && (
+          <ErrorState
+            title="Couldn't load your tickets"
+            message={(error as Error)?.message || 'Failed to fetch your support tickets. Please check your connection.'}
+            onRetry={() => refetch()}
+          />
+        )}
+
+        {!isLoading && !isError && (data?.items?.length ?? 0) === 0 && (
           <EmptyState
             title="No tickets yet"
             description="Anything you report will show up here."
@@ -137,7 +145,7 @@ export default function SupportPage() {
           />
         )}
 
-        {!isLoading && (data?.items?.length ?? 0) > 0 && (
+        {!isLoading && !isError && (data?.items?.length ?? 0) > 0 && (
           <div className="flex flex-col gap-2">
             {data!.items.map((t) => (
               <Card key={t.id} elevation="resting">

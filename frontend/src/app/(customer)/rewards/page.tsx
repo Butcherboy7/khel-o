@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Award, Zap, Lock, Tag, Trophy } from 'lucide-react';
-import { Card, CardContent, Button, Badge, Skeleton, EmptyState } from '@/components/ui';
+import { Card, CardContent, Button, Badge, Skeleton, EmptyState, ErrorState } from '@/components/ui';
 import { apiClient } from '@/lib/api/client';
 
 interface Achievement {
@@ -41,9 +42,10 @@ function progressPercent(progress: string): number {
 }
 
 export default function RewardsPage() {
+  const router = useRouter();
   const [activeAchievement, setActiveAchievement] = useState<Achievement | null>(null);
 
-  const { data, isLoading } = useQuery<RewardsResponse>({
+  const { data, isLoading, isError, error, refetch } = useQuery<RewardsResponse>({
     queryKey: ['rewards'],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/rewards');
@@ -57,6 +59,18 @@ export default function RewardsPage() {
   const nextLevelXp = data?.nextLevelXp ?? 500;
   const achievements = data?.achievements ?? [];
   const xpPercentage = Math.min(100, Math.round((currentXp / nextLevelXp) * 100));
+
+  if (isError) {
+    return (
+      <div className="max-w-2xl mx-auto pb-24">
+        <ErrorState
+          title="Couldn't load your rewards"
+          message={(error as Error)?.message || 'Failed to fetch your XP and badges. Please check your connection.'}
+          onRetry={() => refetch()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-24">
@@ -183,6 +197,8 @@ export default function RewardsPage() {
                 title="No badges yet"
                 description="Complete your first booking to start unlocking gamer badges and XP."
                 icon={<Trophy className="h-7 w-7" />}
+                actionLabel="Find a Gaming Café"
+                onAction={() => router.push('/')}
               />
             </div>
           )}

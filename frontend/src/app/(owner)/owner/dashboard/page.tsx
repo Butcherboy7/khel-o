@@ -29,7 +29,7 @@ import { getOwnerStatus, getOwnerDashboard, getOwnerBookings, checkinBooking, up
 import { getOwnerOccupancy, type TierOccupancy } from '@/lib/api/scanner';
 import { getOwnerSettings, toggleBookingsPaused, updateBookingControls } from '@/lib/api/settings';
 import { formatCurrency } from '@/lib/format';
-import { Card, CardContent, Button, Badge, Modal } from '@/components/ui';
+import { Card, CardContent, Button, Badge, BookingStatusBadge, Modal } from '@/components/ui';
 import { PendingApprovalView } from '@/components/owner/PendingApprovalView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
 import { getPublicEnv } from '@/lib/runtimeEnv';
@@ -766,9 +766,7 @@ export default function OwnerDashboardPage() {
                   <span className="text-caption text-text-secondary">{((selectedBooking as unknown as Record<string, unknown>).gamerEmail as string) || ((selectedBooking as unknown as Record<string, unknown>).gamerPhone as string) || 'Registered Gamer'}</span>
                 </div>
               </div>
-              <Badge variant={selectedBooking.status === 'confirmed' ? 'success' : 'default'}>
-                {selectedBooking.status}
-              </Badge>
+              <BookingStatusBadge status={selectedBooking.status} size="md" />
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-caption">
