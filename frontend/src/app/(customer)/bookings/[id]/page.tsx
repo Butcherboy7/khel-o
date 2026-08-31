@@ -18,8 +18,11 @@ import {
   AlertCircle,
   CreditCard,
   RefreshCw,
+  Navigation,
+  Phone,
 } from 'lucide-react';
 import { getBooking, cancelBooking } from '@/lib/api/bookings';
+import { getCafe } from '@/lib/api/cafes';
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useRazorpay } from '@/hooks/useRazorpay';
@@ -33,10 +36,12 @@ import {
   Skeleton,
   ErrorState,
   Modal,
+  buttonVariants,
 } from '@/components/ui';
 import { formatSessionDate, formatTime } from '@/lib/format';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { getPublicEnv } from '@/lib/runtimeEnv';
+import { cn } from '@/lib/cn';
 
 export default function BookingDetailPage() {
   const params = useParams();
@@ -58,6 +63,17 @@ export default function BookingDetailPage() {
     queryFn: () => getBooking(bookingId).then((res) => res.booking),
     enabled: Boolean(bookingId),
     staleTime: 0,
+  });
+
+  // Café phone number and precise coordinates aren't included on the booking
+  // response — fetch the real café record (same endpoint the booking wizard
+  // uses) so "Get Directions" and "Contact Café" can use real data instead
+  // of being fabricated or omitted outright.
+  const { data: cafeDetail } = useQuery({
+    queryKey: queryKeys.cafes.detail(data?.cafeId || ''),
+    queryFn: () => getCafe(data!.cafeId).then((res) => res.cafe),
+    enabled: Boolean(data?.cafeId),
+    staleTime: 60_000,
   });
 
   const cancelMutation = useMutation({
@@ -141,7 +157,17 @@ export default function BookingDetailPage() {
     const title = encodeURIComponent(`Gaming Session at ${data.cafeName || 'KHEL-O Venue'}`);
     const details = encodeURIComponent(`Booking Ref: ${data.bookingReference}. Tier: ${data.tierName || 'Gaming Station'}`);
     const location = encodeURIComponent(data.cafeAddress || 'Gaming Café');
-    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
+
+    // Real event window from the booking's own session date + start/end
+    // time, formatted for the Google Calendar TEMPLATE action
+    // (YYYYMMDDTHHMMSS/YYYYMMDDTHHMMSS). ctz pins the floating times to IST
+    // so the event lands at the correct wall-clock slot regardless of the
+    // viewer's device timezone.
+    const toGCalStamp = (dateStr: string, timeStr: string) =>
+      `${dateStr.replace(/-/g, '')}T${timeStr.replace(/:/g, '').padEnd(6, '0').slice(0, 6)}`;
+    const dates = `${toGCalStamp(data.sessionDate, data.startTime)}/${toGCalStamp(data.sessionDate, data.endTime)}`;
+
+    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}&dates=${dates}&ctz=Asia/Kolkata`;
     window.open(googleCalendarUrl, '_blank');
   };
 
@@ -171,6 +197,21 @@ export default function BookingDetailPage() {
 
   const canCancel = booking.cancelPolicy?.allowed ?? false;
   const cancelDisabledReason = booking.cancelPolicy?.reason ?? '';
+
+  // Directions: prefer the café's real lat/lng (from the café record) for a
+  // precise pin, falling back to a text search on the real address string.
+  // Omit the action entirely if neither is available rather than link
+  // somewhere fabricated.
+  const directionsUrl =
+    cafeDetail?.latitude != null && cafeDetail?.longitude != null
+      ? `https://www.google.com/maps/search/?api=1&query=${cafeDetail.latitude},${cafeDetail.longitude}`
+      : booking.cafeAddress
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.cafeAddress)}`
+      : null;
+
+  // Only a real café phone number (from the café record) unlocks Contact
+  // Café — never show a dead/placeholder action.
+  const cafePhone = cafeDetail?.phoneNumber || null;
 
   const getQrSrc = () => {
     if (booking.qrCodeUrl) {
@@ -339,10 +380,10 @@ export default function BookingDetailPage() {
             <div className="flex items-center justify-between p-3 rounded-xl bg-surface">
               <div className="flex items-center gap-2 text-text-secondary">
                 <Clock className="h-4 w-4 text-primary" />
-                <span>Slot & Duration</span>
+                <span>Start &ndash; End</span>
               </div>
               <span className="font-semibold text-text-primary">
-                {formatTime(booking.startTime)} ({booking.durationHours}h)
+                {formatTime(booking.startTime)} &ndash; {formatTime(booking.endTime)} ({booking.durationHours}h)
               </span>
             </div>
 
@@ -359,7 +400,7 @@ export default function BookingDetailPage() {
             )}
 
             <div className="flex items-center justify-between p-3 rounded-xl bg-surface">
-              <span className="text-text-secondary">Total Amount</span>
+              <span className="text-text-secondary">{isConfirmed ? 'Amount Paid' : 'Total Amount'}</span>
               <PriceDisplay amount={booking.totalAmount} period="" size="md" />
             </div>
           </div>
@@ -375,6 +416,28 @@ export default function BookingDetailPage() {
               <CalendarPlus className="h-4 w-4 text-primary" />
               <span>Add Calendar</span>
             </Button>
+
+            {directionsUrl && (
+              <a
+                href={directionsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-2 text-caption font-semibold')}
+              >
+                <Navigation className="h-4 w-4 text-primary" />
+                <span>Get Directions</span>
+              </a>
+            )}
+
+            {cafePhone && (
+              <a
+                href={`tel:${cafePhone}`}
+                className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-2 text-caption font-semibold')}
+              >
+                <Phone className="h-4 w-4 text-primary" />
+                <span>Contact Café</span>
+              </a>
+            )}
 
             <Button
               variant="outline"
