@@ -8,18 +8,25 @@ import * as Sentry from '@sentry/nextjs';
 import { ApiError } from './errors';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
-const API_URL = getPublicEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000');
+// Resolved fresh per request rather than captured once at module load — the
+// window.__ENV__ injection script (see runtimeEnv.ts) races against this
+// module's own script chunk on initial page load, so a value read here at
+// import time can freeze on the 'http://localhost:8000' fallback for the
+// whole page lifetime if this chunk happens to evaluate first.
+function currentApiUrl(): string {
+  return getPublicEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000');
+}
 
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
   timeout: 15_000,
 });
 
-// ── Request Interceptor — Token Injection ────────────────────────────────────
+// ── Request Interceptor — Base URL + Token Injection ─────────────────────────
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    config.baseURL = currentApiUrl();
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('accessToken');
       if (token) {
@@ -104,7 +111,7 @@ apiClient.interceptors.response.use(
         const currentToken = localStorage.getItem('accessToken');
         if (currentToken) {
           const meRes = await axios.get<{ success: boolean; data: { user: any } }>(
-            `${API_URL}/api/v1/auth/me`,
+            `${currentApiUrl()}/api/v1/auth/me`,
             { headers: { Authorization: `Bearer ${currentToken}` } }
           );
           
@@ -159,7 +166,7 @@ apiClient.interceptors.response.use(
 
       try {
         const res = await axios.post<{ success: boolean; data: { accessToken: string; refreshToken: string } }>(
-          `${API_URL}/api/v1/auth/refresh`,
+          `${currentApiUrl()}/api/v1/auth/refresh`,
           { refreshToken },
         );
 
@@ -173,7 +180,7 @@ apiClient.interceptors.response.use(
         // Update user object after role upgrade
         try {
           const userRes = await axios.get<{ success: boolean; data: { user: any } }>(
-            `${API_URL}/api/v1/auth/me`,
+            `${currentApiUrl()}/api/v1/auth/me`,
             { headers: { Authorization: `Bearer ${newAccess}` } }
           );
           if (userRes.data?.data?.user) {
@@ -210,4 +217,4 @@ export async function call<T>(
   return res.data.data;
 }
 
-export { API_URL };
+export { currentApiUrl as getApiUrl };
