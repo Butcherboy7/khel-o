@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { MapPin, Star, Zap } from 'lucide-react';
-import { Card, CardImage } from '@/components/ui';
+import { Card, CardImage, CardContent, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow } from '@/lib/format';
 import { hasConsoleTier, hasPcTier } from '@/lib/platformTags';
@@ -88,7 +88,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
       <Card
         interactive
         elevation="resting"
-        className={`h-full flex flex-col overflow-hidden rounded-3xl border transition-all duration-normal hover:shadow-float ${
+        className={`h-full flex flex-col overflow-hidden border transition-all duration-normal hover:shadow-float ${
           isFeatured
             ? 'border-primary/40 ring-2 ring-primary/30 shadow-card bg-gradient-to-b from-card via-card to-primary/5'
             : 'border-border/80 bg-card'
@@ -151,7 +151,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
 
         {/* Card Body Details — one scan-line per fact, so two cards can be
             compared at a glance without opening either one. */}
-        <div className="p-5 flex flex-1 flex-col justify-between gap-2.5">
+        <CardContent className="flex flex-1 flex-col justify-between gap-2.5">
           <div className="flex flex-col gap-1">
             <h3 className="font-heading text-h3 font-bold text-text-primary group-hover:text-primary transition-colors truncate">
               {cafe.name}
@@ -193,9 +193,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               <div className="flex items-center gap-1 text-caption font-semibold text-text-secondary">
                 <Zap className="h-3.5 w-3.5 text-accent flex-shrink-0" />
                 <span>from</span>
-                <span className="font-data text-body-emphasis font-bold text-text-primary">
-                  <span className="rupee-symbol">₹</span>{cafe.startingPrice}/hr
-                </span>
+                <PriceDisplay amount={cafe.startingPrice} size="sm" />
               </div>
             ) : (
               <span className="text-caption font-semibold text-text-secondary">Pricing inside</span>
@@ -205,7 +203,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               View Café
             </span>
           </div>
-        </div>
+        </CardContent>
       </Card>
       </motion.div>
     </Link>
