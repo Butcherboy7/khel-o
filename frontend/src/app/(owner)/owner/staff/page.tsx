@@ -212,6 +212,7 @@ export default function OwnerStaffPage() {
                           onClick={() => handleCancelInvitation(inv.id)}
                           className="text-rose-500 hover:text-rose-600 p-1.5"
                           title="Cancel Invitation"
+                          aria-label="Cancel invitation"
                         >
                           <XCircle className="h-4 w-4" />
                         </button>
@@ -269,6 +270,7 @@ export default function OwnerStaffPage() {
                       onClick={() => handleDeleteStaff(member.id)}
                       className="text-rose-500 hover:text-rose-600 p-2"
                       title="Deactivate staff account"
+                      aria-label="Deactivate staff account"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

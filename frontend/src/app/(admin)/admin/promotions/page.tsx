@@ -238,6 +238,7 @@ export default function AdminPromotionsPage() {
                       <button
                         type="button"
                         title="Deactivate promotion"
+                        aria-label="Deactivate promotion"
                         onClick={() => setDeactivateTarget(p)}
                         className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors"
                       >

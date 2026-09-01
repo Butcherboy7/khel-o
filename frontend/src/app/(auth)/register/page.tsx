@@ -93,7 +93,10 @@ function RegisterForm() {
           </div>
 
           {error && (
-            <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">
+            <div
+              role="alert"
+              className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error"
+            >
               {error}
             </div>
           )}

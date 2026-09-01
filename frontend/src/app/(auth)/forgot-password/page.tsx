@@ -50,7 +50,11 @@ export default function ForgotPasswordPage() {
       <Card elevation="raised">
         <CardContent className="p-6 md:p-8">
           {submitted ? (
-            <div className="flex flex-col items-center text-center gap-3 py-2">
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex flex-col items-center text-center gap-3 py-2"
+            >
               <CheckCircle2 className="h-10 w-10 text-success" />
               <h2 className="font-heading text-h2 text-text-primary">Check your inbox</h2>
               <p className="text-body text-text-secondary">

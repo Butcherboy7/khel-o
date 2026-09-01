@@ -97,6 +97,7 @@ export default function OwnerNotificationsPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => refetch()}
+              aria-label="Refresh notifications"
               className="flex items-center gap-1 text-caption text-text-secondary hover:text-text-primary transition-colors p-2 rounded-full hover:bg-surface"
             >
               <RefreshCw className="h-4 w-4" />

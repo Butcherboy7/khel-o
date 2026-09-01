@@ -84,6 +84,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
         <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
         <input
           type="text"
+          aria-label="Search cafés, areas, games or hardware"
           placeholder="Search cafés, areas, games or hardware (e.g. Valorant, RTX 4080)"
           value={value}
           onFocus={() => setIsOpen(true)}
@@ -99,6 +100,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
               onChange('');
               setIsOpen(false);
             }}
+            aria-label="Clear search"
             className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary p-1"
           >
             <X className="h-4 w-4" />

@@ -160,13 +160,14 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         {/* Top Controls */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
           <Link href="/">
-            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-colors">
+            <button aria-label="Back to search" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-colors">
               <ChevronLeft className="h-5 w-5" />
             </button>
           </Link>
 
           <button
             onClick={() => setIsShareOpen(true)}
+            aria-label="Share this café"
             className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-colors"
           >
             <Share2 className="h-4 w-4" />
@@ -178,12 +179,14 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <>
             <button
               onClick={prevPhoto}
+              aria-label="Previous photo"
               className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors opacity-0 group-hover:opacity-100"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
             <button
               onClick={nextPhoto}
+              aria-label="Next photo"
               className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors opacity-0 group-hover:opacity-100"
             >
               <ChevronRight className="h-5 w-5" />
@@ -388,6 +391,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                     key={star}
                     type="button"
                     onClick={() => setNewRating(star)}
+                    aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                    aria-pressed={star <= newRating}
                     className="p-1 text-warning transition-transform hover:scale-110"
                   >
                     <Star className={`h-6 w-6 ${star <= newRating ? 'fill-warning text-warning' : 'text-text-secondary/40'}`} />
