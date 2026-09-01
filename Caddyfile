@@ -1,6 +1,14 @@
 {$DOMAIN} {
 	encode gzip
 
+	# Next.js frontend route (injects window.__ENV__ for the browser) —
+	# must win over the /api/* backend proxy below despite sharing the
+	# prefix. Caddy sorts `handle` blocks by path specificity, so this
+	# more specific match takes priority regardless of file order.
+	handle /api/runtime-env {
+		reverse_proxy frontend:3000
+	}
+
 	handle /api/* {
 		reverse_proxy backend:8000
 	}
