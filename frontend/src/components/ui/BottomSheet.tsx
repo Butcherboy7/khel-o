@@ -32,6 +32,7 @@ export function BottomSheet({
   preventBackdropClose = false,
 }: BottomSheetProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -59,10 +60,13 @@ export function BottomSheet({
 
   useEffect(() => {
     if (isOpen) {
+      previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
       document.body.style.overflow = 'hidden';
       panelRef.current?.focus();
     } else {
       document.body.style.overflow = '';
+      previouslyFocusedRef.current?.focus();
+      previouslyFocusedRef.current = null;
     }
     return () => {
       document.body.style.overflow = '';

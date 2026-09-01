@@ -522,6 +522,7 @@ export default function OwnerDashboardPage() {
                         type="button"
                         onClick={() => setSelectedBooking(b)}
                         title="View Details"
+                        aria-label="View booking details"
                         className="h-9 w-9 rounded-xl border border-border bg-surface flex items-center justify-center hover:bg-surface-hover transition-colors"
                       >
                         <Eye className="h-4 w-4 text-primary" />

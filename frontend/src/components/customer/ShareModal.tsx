@@ -63,6 +63,7 @@ export function ShareModal({ isOpen, onClose, title, url }: ShareModalProps) {
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface"
           >
             <X className="h-4 w-4" />

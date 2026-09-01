@@ -300,6 +300,7 @@ export default function HardwareTiersPage() {
                           type="button"
                           onClick={() => setDeactivateTarget(tier)}
                           title="Deactivate tier — hides it from booking, doesn't delete data"
+                          aria-label="Deactivate tier"
                           className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:bg-error/10 hover:text-error transition-colors"
                         >
                           <PowerOff className="h-4 w-4" />
@@ -310,6 +311,7 @@ export default function HardwareTiersPage() {
                           onClick={() => reactivateMutation.mutate(tier.id)}
                           disabled={reactivateMutation.isPending && reactivateMutation.variables === tier.id}
                           title="Reactivate tier"
+                          aria-label="Reactivate tier"
                           className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:bg-success/10 hover:text-success transition-colors disabled:opacity-50"
                         >
                           <Power className="h-4 w-4" />

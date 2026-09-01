@@ -261,6 +261,7 @@ export default function AdminBookingsPage() {
                     <button
                       type="button"
                       title="Force-cancel booking"
+                      aria-label="Force-cancel booking"
                       onClick={() => { setActionTarget({ booking: b, kind: 'cancel' }); setReason(''); }}
                       className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors"
                     >
@@ -271,6 +272,7 @@ export default function AdminBookingsPage() {
                     <button
                       type="button"
                       title="Issue refund"
+                      aria-label="Issue refund"
                       onClick={() => { setActionTarget({ booking: b, kind: 'refund' }); setReason(''); }}
                       className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-600 transition-colors"
                     >

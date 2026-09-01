@@ -45,6 +45,7 @@ export function Modal({
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   // Trap focus within modal
   const handleKeyDown = useCallback(
@@ -83,10 +84,14 @@ export function Modal({
     };
   }, [isOpen]);
 
-  // Focus the modal panel on open
+  // Focus the modal panel on open; restore focus to the trigger on close
   useEffect(() => {
     if (isOpen) {
+      previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
       panelRef.current?.focus();
+    } else {
+      previouslyFocusedRef.current?.focus();
+      previouslyFocusedRef.current = null;
     }
   }, [isOpen]);
 

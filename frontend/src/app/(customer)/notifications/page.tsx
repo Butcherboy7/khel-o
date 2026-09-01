@@ -105,6 +105,7 @@ export default function NotificationsPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
+              aria-label="Go back"
               className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary hover:bg-surface hover:text-text-primary transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -119,6 +120,7 @@ export default function NotificationsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => refetch()}
+                aria-label="Refresh notifications"
                 className="flex items-center gap-1 text-caption text-text-secondary hover:text-text-primary transition-colors p-2 rounded-full hover:bg-surface"
               >
                 <RefreshCw className="h-4 w-4" />
