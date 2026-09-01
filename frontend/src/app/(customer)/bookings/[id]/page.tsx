@@ -245,7 +245,7 @@ export default function BookingDetailPage() {
       {/* Booking Confirmation Card */}
       <Card
         elevation="raised"
-        className={`overflow-hidden border-2 bg-card ${
+        className={`overflow-hidden border-2 bg-card animate-fade-in-up ${
           isCancelled
             ? 'border-error/30'
             : isPendingOrFailed
