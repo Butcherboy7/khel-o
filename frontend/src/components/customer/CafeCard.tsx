@@ -105,6 +105,8 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               src={currentPhoto}
               alt={cafe.name}
               className="block h-full w-full object-cover transition-all duration-700 group-hover:scale-105"
+              loading={isFeatured ? 'eager' : 'lazy'}
+              decoding="async"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
