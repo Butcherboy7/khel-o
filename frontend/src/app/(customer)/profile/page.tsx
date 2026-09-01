@@ -246,7 +246,7 @@ export default function ProfilePage() {
       <Card elevation="resting">
         <CardContent className="p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-heading text-body font-bold text-text-primary flex items-center gap-1.5">
+            <h3 className="font-heading text-h4 text-text-primary flex items-center gap-1.5">
               <Sparkles className="h-4 w-4 text-accent" />
               <span>Gamer Profile & Hardware Preferences</span>
             </h3>
@@ -314,7 +314,7 @@ export default function ProfilePage() {
                 <Store className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-heading text-body font-bold text-text-primary">Own a Gaming Café?</h3>
+                <h3 className="font-heading text-h4 text-text-primary">Own a Gaming Café?</h3>
                 <p className="text-caption text-text-secondary">
                   List your venue on KHEL-O to automate station bookings.
                 </p>

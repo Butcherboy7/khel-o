@@ -116,7 +116,7 @@ export function RoleSwitcher() {
           <Badge
             variant={BADGE_VARIANT[meta.color]}
             size="sm"
-            className="hidden sm:inline-flex ml-1 text-[10px] uppercase py-0 px-1.5"
+            className="hidden sm:inline-flex ml-1 py-0 px-1.5"
           >
             {meta.badge}
           </Badge>
@@ -140,7 +140,7 @@ export function RoleSwitcher() {
           <Badge
             variant={BADGE_VARIANT[adminMeta.color]}
             size="sm"
-            className="hidden sm:inline-flex ml-1 text-[10px] uppercase py-0 px-1.5"
+            className="hidden sm:inline-flex ml-1 py-0 px-1.5"
           >
             {adminMeta.badge}
           </Badge>
@@ -148,7 +148,7 @@ export function RoleSwitcher() {
       )}
 
       {error && (
-        <span className="text-[10px] text-rose-400 flex items-center gap-1 font-medium">
+        <span className="text-caption text-rose-400 flex items-center gap-1 font-medium">
           <AlertCircle className="h-3 w-3" />
           <span>{error}</span>
         </span>

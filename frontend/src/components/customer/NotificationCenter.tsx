@@ -131,7 +131,7 @@ export function NotificationCenter({
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <h4 className="font-heading text-body font-semibold text-text-primary truncate">
+                    <h4 className="font-heading text-h4 text-text-primary truncate">
                       {n.title}
                     </h4>
                     <span className="text-caption text-text-secondary/70 flex-shrink-0">

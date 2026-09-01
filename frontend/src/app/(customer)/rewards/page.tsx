@@ -161,7 +161,7 @@ export default function RewardsPage() {
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1">
-                  <h3 className="font-heading text-body font-bold text-text-primary truncate">
+                  <h3 className="font-heading text-h4 text-text-primary truncate">
                     {ach.title}
                   </h3>
                   {ach.isUnlocked ? (

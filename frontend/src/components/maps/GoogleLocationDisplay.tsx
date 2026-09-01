@@ -49,7 +49,7 @@ export function GoogleLocationDisplay({ lat, lng, venueName }: LocationDisplayPr
           <MapPin className="h-5 w-5" />
         </div>
         <div>
-          <h4 className="font-heading text-body font-bold text-text-primary">{venueName}</h4>
+          <h4 className="font-heading text-h4 text-text-primary">{venueName}</h4>
           <p className="text-caption text-text-secondary">Coordinates: {center.lat.toFixed(4)}, {center.lng.toFixed(4)}</p>
         </div>
         <a

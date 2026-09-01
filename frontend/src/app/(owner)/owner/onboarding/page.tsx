@@ -445,7 +445,7 @@ export default function OnboardingWizardPage() {
                     isDone ? 'bg-emerald-500' : isCurrent ? 'bg-primary' : 'bg-border'
                   }`}
                 />
-                <span className={`text-[10px] hidden md:block font-medium truncate ${isCurrent ? 'text-primary font-bold' : 'text-text-tertiary'}`}>
+                <span className={`text-badge hidden md:block truncate ${isCurrent ? 'text-primary font-bold' : 'text-text-tertiary'}`}>
                   {s.title}
                 </span>
               </div>
