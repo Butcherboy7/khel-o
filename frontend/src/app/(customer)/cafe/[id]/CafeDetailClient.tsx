@@ -145,6 +145,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             src={currentPhoto}
             alt={`${cafe.name} photo ${photoIndex + 1}`}
             className="h-full w-full object-cover transition-all duration-300"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-6 text-center">

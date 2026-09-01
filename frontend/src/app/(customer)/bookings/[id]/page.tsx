@@ -349,6 +349,8 @@ export default function BookingDetailPage() {
                   src={qrCodeSrc}
                   alt={`QR Check-in Code ${booking.bookingReference}`}
                   className="h-48 w-48 object-contain"
+                  loading="lazy"
+                  decoding="async"
                   onError={(e) => {
                     e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
                       booking.bookingReference

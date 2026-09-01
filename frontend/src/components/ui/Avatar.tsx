@@ -44,6 +44,8 @@ const Avatar = forwardRef<HTMLDivElement, AvatarProps>(
             src={src}
             alt={alt || name || 'Avatar'}
             className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
             onError={(e) => {
               // Hide image on error to fallback to initials
               e.currentTarget.style.display = 'none';

@@ -536,7 +536,14 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {photos.map((photo, idx) => (
                   <div key={photo} className="relative aspect-square rounded-xl overflow-hidden border border-border group">
-                    <img src={photo} alt={`Café photo ${idx + 1}`} className="h-full w-full object-cover" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo}
+                      alt={`Café photo ${idx + 1}`}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
                     {idx === 0 && (
                       <span className="absolute top-1.5 left-1.5 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
                         Cover
@@ -625,7 +632,13 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                 {menuPhotos.map((photo) => (
                   <div key={photo} className="relative aspect-square rounded-xl overflow-hidden border border-border group">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo} alt="Menu" className="h-full w-full object-cover" />
+                    <img
+                      src={photo}
+                      alt="Menu"
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 sm:opacity-0 flex items-center justify-center gap-1.5 transition-opacity">
                       <button
                         type="button"
