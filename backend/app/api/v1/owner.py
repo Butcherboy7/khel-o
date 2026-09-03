@@ -935,6 +935,169 @@ async def get_owner_occupancy(
         }
     }
 
+async def _resolve_owner_cafe(current_user: User, db: AsyncSession) -> Optional[Cafe]:
+    """Owner -> their café; staff -> the café they're mapped to. Shared by the
+    live-capacity endpoints below (occupancy uses its own inline copy of this
+    for now — not touched here to keep this change scoped)."""
+    cafe_repo = CafeRepository(db)
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+
+    if role_val in ("cafe_owner", "owner"):
+        cafes = await cafe_repo.get_by_owner_id(current_user.id)
+        return cafes[0] if cafes else None
+    elif role_val == "staff":
+        from app.models.user_role import UserRoleMapping
+        stmt = select(UserRoleMapping).where(
+            UserRoleMapping.user_id == current_user.id,
+            UserRoleMapping.role == UserRole.STAFF
+        )
+        res = await db.execute(stmt)
+        mapping = res.scalars().first()
+        if mapping and mapping.cafe_id:
+            return await cafe_repo.get_by_id(mapping.cafe_id)
+    return None
+
+@router.get("/availability-timeline", status_code=status.HTTP_200_OK)
+async def get_owner_availability_timeline(
+    session_date: Optional[str] = Query(None, alias="date"),
+    tier_id: Optional[UUID] = Query(None, alias="tierId"),
+    current_user: User = Depends(require_staff_or_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Live-capacity view for the owner Availability screen: per-tier totals
+    for 'right now', an hourly capacity timeline for the selected date/tier,
+    and the real bookings behind the selected tier/date (the drill-down —
+    there is no per-seat identity in the schema, so this lists bookings
+    rather than fabricating individual station labels)."""
+    cafe = await _resolve_owner_cafe(current_user, db)
+    if not cafe:
+        return {"success": True, "data": {"tiers": [], "date": None, "selectedTierId": None, "now": None, "timeline": [], "bookings": []}}
+
+    tier_repo = HardwareTierRepository(db)
+    tiers = await tier_repo.get_by_cafe_id(cafe.id)
+    tiers = [t for t in tiers if t.is_active]
+
+    tiers_summary = [
+        {
+            "id": str(t.id),
+            "name": t.name,
+            "platform": t.platform.value if t.platform else None,
+            "model": t.model,
+            "totalSeats": t.total_seats,
+            "activeSeatsCount": t.active_seats_count,
+            "blockedSeats": max(0, t.total_seats - t.active_seats_count),
+            "appBookableSeats": t.app_bookable_seats,
+            "pricePerHour": float(t.price_per_hour),
+        }
+        for t in tiers
+    ]
+
+    if not tiers:
+        return {"success": True, "data": {"cafeId": str(cafe.id), "tiers": [], "date": None, "selectedTierId": None, "now": None, "timeline": [], "bookings": []}}
+
+    selected_tier = next((t for t in tiers if str(t.id) == str(tier_id)), None) if tier_id else tiers[0]
+    if not selected_tier:
+        selected_tier = tiers[0]
+
+    try:
+        parsed_date = datetime.strptime(session_date, "%Y-%m-%d").date() if session_date else datetime.now(IST).date()
+    except ValueError:
+        parsed_date = datetime.now(IST).date()
+
+    stmt = select(Booking.start_time, Booking.end_time, Booking.seats_count, Booking.status).where(
+        Booking.hardware_tier_id == selected_tier.id,
+        Booking.session_date == parsed_date,
+        Booking.status.in_([
+            BookingStatus.PENDING_PAYMENT,
+            BookingStatus.CONFIRMED,
+            BookingStatus.CHECKED_IN,
+            BookingStatus.ACTIVE,
+        ]),
+    )
+    res = await db.execute(stmt)
+    rows = res.all()
+
+    total_seats = selected_tier.total_seats
+    blocked_seats = max(0, total_seats - selected_tier.active_seats_count)
+
+    def overlap_seats(window_start: time, window_end: time, statuses: set) -> int:
+        count = 0
+        for start_t, end_t, seats, st in rows:
+            if st not in statuses:
+                continue
+            if start_t < window_end and end_t > window_start:
+                count += seats or 1
+        return count
+
+    booked_statuses = {BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.ACTIVE}
+    pending_statuses = {BookingStatus.PENDING_PAYMENT}
+
+    open_time = cafe.opening_time or time(9, 0)
+    close_time = cafe.closing_time or time(23, 0)
+    if close_time <= open_time:
+        open_time, close_time = time(9, 0), time(23, 0)
+
+    timeline = []
+    hour = open_time.hour
+    while hour < close_time.hour:
+        slot_start = time(hour, 0)
+        slot_end = time(min(hour + 1, 23), 59, 59) if hour + 1 >= 24 else time(hour + 1, 0)
+        booked = overlap_seats(slot_start, slot_end, booked_statuses)
+        pending = overlap_seats(slot_start, slot_end, pending_statuses)
+        available = max(0, total_seats - blocked_seats - booked - pending)
+        timeline.append({
+            "label": f"{hour % 24:02d}:00",
+            "startTime": slot_start.strftime("%H:%M"),
+            "endTime": slot_end.strftime("%H:%M"),
+            "available": available,
+            "booked": booked,
+            "pending": pending,
+            "blocked": blocked_seats,
+            "total": total_seats,
+        })
+        hour += 1
+
+    now_ist = datetime.now(IST)
+    now_time = now_ist.time()
+    is_today = parsed_date == now_ist.date()
+    if is_today:
+        # Point-in-time overlap: a booking covers "now" if now falls inside [start, end).
+        now_booked = sum((seats or 1) for start_t, end_t, seats, st in rows if st in booked_statuses and start_t <= now_time < end_t)
+        now_pending = sum((seats or 1) for start_t, end_t, seats, st in rows if st in pending_statuses and start_t <= now_time < end_t)
+        now_available = max(0, total_seats - blocked_seats - now_booked - now_pending)
+        now_stats = {
+            "available": now_available,
+            "occupied": now_booked,
+            "pending": now_pending,
+            "blocked": blocked_seats,
+            "total": total_seats,
+        }
+    else:
+        now_stats = None
+
+    booking_list = [
+        {
+            "startTime": start_t.strftime("%H:%M"),
+            "endTime": end_t.strftime("%H:%M"),
+            "seatsCount": seats or 1,
+            "status": st.value,
+        }
+        for start_t, end_t, seats, st in sorted(rows, key=lambda r: r[0])
+    ]
+
+    return {
+        "success": True,
+        "data": {
+            "cafeId": str(cafe.id),
+            "tiers": tiers_summary,
+            "date": parsed_date.isoformat(),
+            "selectedTierId": str(selected_tier.id),
+            "now": now_stats,
+            "timeline": timeline,
+            "bookings": booking_list,
+        }
+    }
+
 @router.post("/cafes/{cafe_id}/emergency-close", status_code=status.HTTP_200_OK)
 async def emergency_close_cafe(
     cafe_id: UUID,

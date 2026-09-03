@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "frontend/src/app/(owner)/owner/availability/page.tsx"
+        ],
+        "createdAt": "2026-09-03T10:47:56.844Z",
+        "reason": "text-slate-950 on bg-emerald-500 is near-black on bright green, high contrast; matches the existing emerald action-button convention already shipped in dashboard/page.tsx"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "frontend/src/app/(owner)/owner/availability/page.tsx"
+        ],
+        "createdAt": "2026-09-03T10:49:11.452Z",
+        "reason": "border-b-2 on a rounded-full spinner is the standard CSS spin-illusion technique, copied from the existing dashboard/page.tsx loading spinner, not an accent border clashing with corners"
+      }
+    ]
+  }
+}

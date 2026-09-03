@@ -13,6 +13,61 @@ export async function getOwnerDashboard(): Promise<OwnerDashboard> {
   return call(() => apiClient.get('/api/v1/owner/dashboard'));
 }
 
+export interface AvailabilityTierSummary {
+  id: string;
+  name: string;
+  platform: string | null;
+  model: string | null;
+  totalSeats: number;
+  activeSeatsCount: number;
+  blockedSeats: number;
+  appBookableSeats: number;
+  pricePerHour: number;
+}
+
+export interface AvailabilityTimelineSlot {
+  label: string;
+  startTime: string;
+  endTime: string;
+  available: number;
+  booked: number;
+  pending: number;
+  blocked: number;
+  total: number;
+}
+
+export interface AvailabilityNowStats {
+  available: number;
+  occupied: number;
+  pending: number;
+  blocked: number;
+  total: number;
+}
+
+export interface AvailabilityBooking {
+  startTime: string;
+  endTime: string;
+  seatsCount: number;
+  status: string;
+}
+
+export interface OwnerAvailabilityTimeline {
+  cafeId: string | null;
+  tiers: AvailabilityTierSummary[];
+  date: string | null;
+  selectedTierId: string | null;
+  now: AvailabilityNowStats | null;
+  timeline: AvailabilityTimelineSlot[];
+  bookings: AvailabilityBooking[];
+}
+
+export async function getOwnerAvailabilityTimeline(params: {
+  date?: string;
+  tierId?: string;
+}): Promise<OwnerAvailabilityTimeline> {
+  return call(() => apiClient.get('/api/v1/owner/availability-timeline', { params }));
+}
+
 export async function listOwnerBookings(params: OwnerBookingParams = {}): Promise<OwnerBookingListResponse> {
   return call(() => apiClient.get('/api/v1/owner/bookings', { params }));
 }

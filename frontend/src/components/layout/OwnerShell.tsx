@@ -9,6 +9,7 @@ import {
   Store,
   Monitor,
   CalendarDays,
+  CalendarClock,
   Tag,
   Users,
   Wallet,
@@ -49,6 +50,7 @@ const ownerNavSections: NavSection[] = [
     heading: 'Operations',
     items: [
       { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
+      { label: 'Availability', href: '/owner/availability', icon: CalendarClock },
       { label: 'Pass Scanner', href: '/owner/scanner', icon: QrCode },
       { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
     ],
@@ -76,6 +78,7 @@ const ownerNavSections: NavSection[] = [
 // Staff sees a dedicated operational view
 const staffNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
+  { label: 'Availability', href: '/owner/availability', icon: CalendarClock },
   { label: 'Pass Scanner', href: '/owner/scanner', icon: QrCode },
   { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
 ];
@@ -389,13 +392,14 @@ function OwnerBottomNav({
   const ownerQuickItems: (NavItem & { isMenu?: boolean })[] = [
     { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
     { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
+    { label: 'Availability', href: '/owner/availability', icon: CalendarClock },
     { label: 'Scanner', href: '/owner/scanner', icon: QrCode },
-    { label: 'Settings', href: '/owner/settings', icon: Settings },
     { label: 'More', href: '#menu', icon: MoreHorizontal, isMenu: true },
   ];
 
   const staffQuickItems: (NavItem & { isMenu?: boolean })[] = [
     { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
+    { label: 'Availability', href: '/owner/availability', icon: CalendarClock },
     { label: 'Scanner', href: '/owner/scanner', icon: QrCode },
     { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
     { label: 'More', href: '#menu', icon: MoreHorizontal, isMenu: true },
