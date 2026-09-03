@@ -455,12 +455,19 @@ export function TimelineRangePicker({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="absolute inset-0 overflow-x-auto scrollbar-hide"
+          className="absolute inset-0 overflow-x-auto overflow-y-hidden scrollbar-hide"
           // overscrollBehaviorX: without this, dragging near either edge of
           // this horizontal scroller gets misread by mobile Safari/Chrome as
           // the browser's own edge-swipe back/forward gesture, popping the
           // nav chrome up mid-drag.
-          style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
+          // touchAction 'pan-x': this container's content (95px) is taller
+          // than its clipped box (86px), which lets iOS Safari treat a
+          // vertical drag anywhere on it as a rubber-band scroll of the
+          // scroller itself — the whole timeline visibly slides down under
+          // the thumb before snapping back. Restricting touch panning to the
+          // x-axis stops that; vertical drags fall through to the page's own
+          // scroll instead.
+          style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', touchAction: 'pan-x' }}
         >
           <div
             style={{ width: trackWidthPx + sidePadding * 2, height: 95, position: 'relative' }}
@@ -557,25 +564,37 @@ export function TimelineRangePicker({
               })}
             </div>
 
-            {/* GREYISH STRIPED SELECTION OVERLAY (Replaces green line for selected interval) */}
+            {/* GREYISH STRIPED SELECTION OVERLAY (Replaces green line for selected interval) —
+                the outer div is the drag hit target, sized well past the thin visible bar
+                (same padded-hit-target trick as the two handles below) so thumbs on small
+                screens don't have to land on a precise 7px line to pan the selection. */}
             <div
               onPointerDown={(e) => handlePointerDown('pan', e)}
               style={{
                 position: 'absolute',
                 left: startPx,
                 width: rangePx,
-                top: 40,
-                height: 7,
-                backgroundColor: '#ffffff',
-                backgroundImage:
-                  'repeating-linear-gradient(135deg, #374151 0, #374151 3px, #e5e7eb 0, #e5e7eb 7px)',
-                borderRadius: 2,
-                border: isSelectionValid ? '1px solid #374151' : '1px solid #ef4444',
+                top: 26,
+                height: 36,
+                display: 'flex',
+                alignItems: 'center',
                 zIndex: 12,
                 cursor: 'grab',
                 touchAction: 'none',
               }}
-            />
+            >
+              <div
+                style={{
+                  width: '100%',
+                  height: 7,
+                  backgroundColor: '#ffffff',
+                  backgroundImage:
+                    'repeating-linear-gradient(135deg, #374151 0, #374151 3px, #e5e7eb 0, #e5e7eb 7px)',
+                  borderRadius: 2,
+                  border: isSelectionValid ? '1px solid #374151' : '1px solid #ef4444',
+                }}
+              />
+            </div>
 
             {/* Left handle (Renders EXACTLY at startPx = minToPx(selStart)) — a 44px
                 touch target wrapping a visible 26px thumb, so the tappable area meets
