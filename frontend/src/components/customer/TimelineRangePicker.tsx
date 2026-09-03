@@ -347,9 +347,9 @@ export function TimelineRangePicker({
   }, [openMin, closeMin, labelStepMinutes]);
 
   return (
-    <div className="flex flex-col gap-0 select-none">
+    <div className="flex flex-col gap-0 select-none rounded-3xl border border-border/50 bg-surface overflow-hidden">
       {/* ── Playo Header Bar (TIME + Duration Stepper) ── */}
-      <div className="flex items-center justify-between rounded-t-3xl bg-[#e0f2fe]/75 p-3.5 border-b border-border/30">
+      <div className="flex items-center justify-between bg-[#e0f2fe]/75 p-3 border-b border-border/30">
         <div className="flex flex-col pl-1">
           <span className="text-[12px] font-extrabold tracking-wider text-text-primary uppercase">TIME</span>
           <span className="text-[13px] font-semibold text-text-secondary mt-0.5">
@@ -402,7 +402,7 @@ export function TimelineRangePicker({
           by fill pattern (solid/hatch/dotted), not color alone; spell that out
           for sighted users who'd otherwise have no way to learn what the
           patterns mean, since the patterns alone aren't self-explanatory. ── */}
-      <div className="flex items-center gap-3.5 px-3.5 pt-2 pb-0.5" aria-hidden="true">
+      <div className="flex items-center gap-3 px-3.5 pt-1.5 pb-0" aria-hidden="true">
         <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary">
           <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: '#22c55e' }} />
           Available
@@ -432,7 +432,7 @@ export function TimelineRangePicker({
       </div>
 
       {/* ── Dynamic Timeline Canvas (100% Unified Coordinates) ── */}
-      <div ref={outerRef} className="relative overflow-hidden bg-white pt-5 pb-3" style={{ height: 95 }}>
+      <div ref={outerRef} className="relative overflow-hidden bg-white pt-3 pb-2" style={{ height: 86 }}>
         {showHint && (
           <div
             className="absolute inset-x-3 top-1 z-30 flex items-start gap-2 rounded-xl bg-text-primary px-3 py-2 text-white shadow-lg"

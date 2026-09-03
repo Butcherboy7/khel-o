@@ -5,13 +5,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
   ChevronLeft,
+  ChevronDown,
   Minus,
   Plus,
-  User,
+  Users,
   ShieldCheck,
   Loader2,
   Monitor,
-  CheckCircle,
   Tag,
 } from 'lucide-react';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
@@ -21,7 +21,7 @@ import { queryKeys } from '@/hooks/queries/keys';
 import { useRazorpay } from '@/hooks/useRazorpay';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { useAuthStore } from '@/store/authStore';
-import { Card, CardContent, Skeleton, ErrorState } from '@/components/ui';
+import { Skeleton, ErrorState } from '@/components/ui';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { saveBookingIntent } from '@/lib/bookingIntent';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
@@ -116,6 +116,7 @@ function BookingWizardContent() {
   const [error, setError] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [showTierSwitcher, setShowTierSwitcher] = useState(false);
+  const [showTrustDetails, setShowTrustDetails] = useState(false);
 
   const { data: cafe, isLoading, isError, error: fetchError } = useQuery({
     queryKey: queryKeys.cafes.detail(cafeId),
@@ -546,20 +547,25 @@ function BookingWizardContent() {
 
   return (
     <>
-      {/* pb is taller than the sticky bar's own height on mobile (where price
-          + CTA stack into two rows, ~140px tall) so page content never sits
-          underneath it; sm+ reverts to the shorter single-row bar. */}
-      <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-44 sm:pb-28">
-      {/* Header */}
+      {/* pb clears the fixed bar's own height (price + CTA stack into two
+          rows on mobile, ~140px) PLUS the bottom-nav-height it sits above
+          on mobile (the bar's own `bottom` offset) — 140 + 64 + safe-area
+          margin — so page content, including the trust-details expansion,
+          never sits underneath it. sm+ reverts to the shorter single-row
+          bar with no bottom-nav beneath it. */}
+      <div className="flex flex-col gap-3.5 max-w-2xl mx-auto pb-60 sm:pb-28">
+      {/* Compact contextual header — replaces the global brand header once
+          a customer is inside the booking flow. */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-surface text-secondary hover:bg-border/60 transition-colors"
+          aria-label="Back"
+          className="flex h-11 w-11 -m-1 flex-shrink-0 items-center justify-center rounded-full bg-surface text-secondary hover:bg-border/60 transition-colors"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="font-heading text-h2 font-bold text-text-primary truncate">{cafe.name}</h1>
+          <h1 className="font-heading text-h3 font-bold text-text-primary truncate">{cafe.name}</h1>
           <p className="text-caption text-text-secondary truncate">{cafe.city}, {cafe.state}</p>
         </div>
       </div>
@@ -573,7 +579,7 @@ function BookingWizardContent() {
           <button
             type="button"
             onClick={() => setShowTierSwitcher((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 p-3.5 rounded-2xl bg-surface border border-border/60 text-left"
+            className="flex w-full items-center justify-between gap-2 p-3 rounded-2xl bg-surface border border-border/60 text-left"
           >
             <span className="flex items-center gap-2 min-w-0">
               <Monitor className="h-4 w-4 text-accent flex-shrink-0" />
@@ -643,39 +649,38 @@ function BookingWizardContent() {
         </div>
       )}
 
-      {/* Step 1: Select Date */}
-      <div className="flex flex-col gap-3">
-        <h2 className="font-heading text-h3 font-bold text-text-primary">1. Select Date</h2>
-        <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
-          {availableDates.map((dateObj: any) => {
-            const dateStr = typeof dateObj === 'string' ? dateObj : dateObj.dateString;
-            const { day, date } = formatDateStrip(dateStr);
-            const isSelected = dateStr === selectedDate;
+      {/* Date — compact strip, no instructional heading; the layout order
+          (tier → date → time → players → price) already communicates the
+          sequence. */}
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+        {availableDates.map((dateObj: any) => {
+          const dateStr = typeof dateObj === 'string' ? dateObj : dateObj.dateString;
+          const { day, date } = formatDateStrip(dateStr);
+          const isSelected = dateStr === selectedDate;
 
-            return (
-              <button
-                key={dateStr}
-                onClick={() => {
-                  setSelectedDate(dateStr);
-                  // A freshly picked calendar day always starts as "same
-                  // day" until the café-aware auto-select effect (keyed on
-                  // selectedDate) re-evaluates real availability and hours;
-                  // otherwise the sticky bar can show yesterday's leftover
-                  // +1-day offset for a moment during the refetch.
-                  setSelectedDateOffset(0);
-                }}
-                className={`flex flex-col items-center justify-center h-20 w-16 rounded-2xl flex-shrink-0 transition-all ${
-                  isSelected
-                    ? 'bg-secondary text-white shadow-float font-bold scale-105'
-                    : 'bg-card text-text-primary border border-border/80 hover:bg-surface'
-                }`}
-              >
-                <span className="text-caption font-semibold">{day}</span>
-                <span className="text-h2 font-heading mt-0.5">{date}</span>
-              </button>
-            );
-          })}
-        </div>
+          return (
+            <button
+              key={dateStr}
+              onClick={() => {
+                setSelectedDate(dateStr);
+                // A freshly picked calendar day always starts as "same
+                // day" until the café-aware auto-select effect (keyed on
+                // selectedDate) re-evaluates real availability and hours;
+                // otherwise the sticky bar can show yesterday's leftover
+                // +1-day offset for a moment during the refetch.
+                setSelectedDateOffset(0);
+              }}
+              className={`flex flex-col items-center justify-center h-14 w-12 rounded-xl flex-shrink-0 transition-all ${
+                isSelected
+                  ? 'bg-secondary text-white shadow-float font-bold'
+                  : 'bg-card text-text-primary border border-border/80 hover:bg-surface'
+              }`}
+            >
+              <span className="text-[10px] font-semibold leading-none">{day}</span>
+              <span className="text-body font-heading font-bold leading-none mt-1">{date}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Walk-in-only notice for the selected tier specifically (the card-level
@@ -687,108 +692,117 @@ function BookingWizardContent() {
         </div>
       )}
 
-      {/* Step 2: Time Range (Playo-style drag slider) */}
-      <div className="rounded-3xl bg-surface border border-border/50 px-4 pt-2 pb-4 overflow-hidden">
-        <h2 className="font-heading text-h3 font-bold text-text-primary mb-1">2. Time Range</h2>
-        <TimelineRangePicker
-          openingTime={cafe.openingTime || '09:00:00'}
-          closingTime={cafe.closingTime || '23:00:00'}
-          selectedDate={selectedDate}
-          startTime={selectedTime}
-          durationHours={durationHours}
-          onChange={handleTimelineChange}
-          bookedSlots={mergedBookedSlots}
-          totalSeats={totalSeatsForTier}
-          requestedSeats={seatsCount}
-          remainingSeats={windowRemainingSeats}
-        />
-      </div>
+      {/* Time + duration + availability — one unified component (the
+          Playo-style drag slider already combines all of these). */}
+      <TimelineRangePicker
+        openingTime={cafe.openingTime || '09:00:00'}
+        closingTime={cafe.closingTime || '23:00:00'}
+        selectedDate={selectedDate}
+        startTime={selectedTime}
+        durationHours={durationHours}
+        onChange={handleTimelineChange}
+        bookedSlots={mergedBookedSlots}
+        totalSeats={totalSeatsForTier}
+        requestedSeats={seatsCount}
+        remainingSeats={windowRemainingSeats}
+      />
 
-      {/* Step 3: Number of Seats Stepper */}
-      <div className="flex flex-col gap-3">
-        <h2 className="font-heading text-h3 font-bold text-text-primary">3. Seats</h2>
-        <div className="p-4 rounded-3xl bg-card border border-border/80 flex items-center justify-between">
-          <div>
-            <span className="text-overline text-text-secondary uppercase">Seats Required</span>
-            <div className="font-heading text-h3 font-bold text-text-primary flex items-center gap-1.5 mt-0.5">
-              <User className="h-4 w-4 text-primary" />
-              <span>{seatsCount} {seatsCount === 1 ? 'Seat' : 'Seats'}</span>
-            </div>
-          </div>
+      {/* Players — compact horizontal row. Renamed from "Seats": this count
+          is how many people are using the tier's gaming capacity, not a
+          specific physical seat assignment. */}
+      <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <span className="font-heading text-body font-bold text-text-primary flex items-center gap-1.5">
+            <Users className="h-4 w-4 text-primary flex-shrink-0" />
+            Players
+          </span>
+          <p className="text-caption text-text-secondary truncate">How many people are playing?</p>
+        </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSeatsCount((s) => Math.max(1, s - 1))}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 transition-colors"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-            <span className="w-6 text-center font-heading text-body font-bold">{seatsCount}</span>
-            <button
-              type="button"
-              onClick={() => setSeatsCount((s) => Math.min(windowRemainingSeats, 6, s + 1))}
-              disabled={seatsCount >= windowRemainingSeats || seatsCount >= 6}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setSeatsCount((s) => Math.max(1, s - 1))}
+            aria-label="Decrease players"
+            className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 transition-colors"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          <span className="w-6 text-center font-heading text-body font-bold">{seatsCount}</span>
+          <button
+            type="button"
+            onClick={() => setSeatsCount((s) => Math.min(windowRemainingSeats, 6, s + 1))}
+            disabled={seatsCount >= windowRemainingSeats || seatsCount >= 6}
+            aria-label="Increase players"
+            className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      {/* Step 4: Review Price */}
-      <div className="flex flex-col gap-3">
-        <h2 className="font-heading text-h3 font-bold text-text-primary">4. Review Price</h2>
-        <Card elevation="resting" className="rounded-3xl border border-border/80">
-        <CardContent className="p-5 flex flex-col gap-2.5 text-body text-text-secondary">
-          <div className="flex items-center justify-between gap-3">
-            <span className="min-w-0 truncate">
-              {activeTier?.name || 'Standard'} ({durationHours} hr × {seatsCount} seat{seatsCount > 1 ? 's' : ''})
+      {/* Price summary — compact breakdown, total kept visually prominent
+          and repeated on the fixed payment bar below. */}
+      <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex flex-col gap-1.5 text-caption text-text-secondary">
+        <div className="flex items-center justify-between gap-3">
+          <span className="min-w-0 truncate">
+            {activeTier?.name || 'Standard'} · {durationHours} hr · {seatsCount} player{seatsCount > 1 ? 's' : ''}
+          </span>
+          <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{baseTotal}</span>
+        </div>
+
+        {discountAmount > 0 && activePromo && (
+          <div className="flex items-center justify-between gap-3 text-success">
+            <span className="min-w-0 flex items-center gap-1.5 font-semibold">
+              <Tag className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{activePromo.title} (-{activePromo.discountPercentage}%)</span>
             </span>
-            <span className="flex-shrink-0 font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{baseTotal}</span>
+            <span className="flex-shrink-0 font-bold">
+              -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
+            </span>
           </div>
+        )}
 
-          {discountAmount > 0 && activePromo && (
-            <div className="flex items-center justify-between gap-3 text-success">
-              <span className="min-w-0 flex items-center gap-1.5 font-semibold">
-                <Tag className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate">{activePromo.title} (-{activePromo.discountPercentage}%)</span>
-              </span>
-              <span className="flex-shrink-0 font-body font-bold text-body">
-                -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
-              </span>
-            </div>
-          )}
+        {activePromo && !promoEligible && (
+          <p className="text-xs text-text-tertiary flex items-start gap-1.5">
+            <Tag className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+            <span>
+              {activePromo.title} available {activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, {activePromo.startHour}:00–{activePromo.endHour}:00 — pick a slot in that window to apply it.
+            </span>
+          </p>
+        )}
 
-          {activePromo && !promoEligible && (
-            <p className="text-xs text-text-tertiary flex items-start gap-1.5">
-              <Tag className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-              <span>
-                {activePromo.title} available {activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, {activePromo.startHour}:00–{activePromo.endHour}:00 — pick a slot in that window to apply it.
-              </span>
-            </p>
-          )}
+        <div className="flex items-center justify-between">
+          <span>Platform service fee ({SERVICE_FEE_PERCENT}%)</span>
+          <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
+        </div>
 
-          <div className="flex items-center justify-between">
-            <span>Platform service fee ({SERVICE_FEE_PERCENT}%)</span>
-            <span className="font-body font-semibold text-text-primary text-body"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
-          </div>
-        </CardContent>
-        </Card>
+        <div className="flex items-center justify-between pt-1.5 mt-0.5 border-t border-border/60">
+          <span className="font-heading font-bold text-text-primary">Total</span>
+          <span className="font-heading font-bold text-body-emphasis text-text-primary"><span className="rupee-symbol">₹</span>{finalTotal}</span>
+        </div>
       </div>
 
-      {/* Trust signals at the point of payment — this is where reassurance
-          actually matters, not buried on a separate policy page. */}
-      <div className="flex flex-col gap-2 px-1 text-caption text-text-secondary">
-        <div className="flex items-center gap-2">
+      {/* Security / cancellation — collapsed to one line; tap to expand the
+          full reassurance copy instead of always showing it. */}
+      <div className="rounded-2xl bg-surface/60 border border-border/50">
+        <button
+          type="button"
+          onClick={() => setShowTrustDetails((v) => !v)}
+          className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left"
+        >
           <ShieldCheck className="h-4 w-4 text-success flex-shrink-0" />
-          <span>Payments secured by Razorpay — your card and UPI details are never stored by KHEL-O.</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />
-          <span>Free cancellation up to 2 hours before your session — full refund to your original payment method.</span>
-        </div>
+          <span className="min-w-0 flex-1 truncate text-caption font-medium text-text-secondary">
+            Secure via Razorpay · Free cancellation ≤2 hrs
+          </span>
+          <ChevronDown className={`h-4 w-4 flex-shrink-0 text-text-secondary transition-transform ${showTrustDetails ? 'rotate-180' : ''}`} />
+        </button>
+        {showTrustDetails && (
+          <div className="px-3.5 pb-3 flex flex-col gap-1.5 text-xs text-text-secondary">
+            <p>Payments secured by Razorpay — your card and UPI details are never stored by KHEL-O.</p>
+            <p>Free cancellation up to 2 hours before your session — full refund to your original payment method.</p>
+          </div>
+        )}
       </div>
 
       {/* Sticky Bottom Action & Total Price Bar — sits above the mobile bottom nav

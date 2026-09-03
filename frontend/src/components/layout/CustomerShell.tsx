@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -56,9 +57,14 @@ function CustomerHeader() {
       <div className="mx-auto flex h-16 max-w-content items-center justify-between px-4 md:px-6">
         {/* Brand Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary font-heading font-bold text-white shadow-card">
-            k
-          </div>
+          <Image
+            src="/brand/khelo-logo-64.png"
+            alt=""
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-xl shadow-card"
+            priority
+          />
           <span className="font-heading text-h2 font-bold tracking-tight text-text-primary lowercase">
             khel-o
           </span>
@@ -169,12 +175,28 @@ function CustomerBottomNav() {
   );
 }
 
+// Café detail and the booking wizard carry their own compact, contextual
+// header (← café name / city) so the global brand header — logo, nav,
+// login — doesn't repeat once a customer has already picked a café from
+// discovery. It stays for every other route, including discovery itself.
+function hasContextualHeader(pathname: string): boolean {
+  return pathname.startsWith('/cafe/') || pathname === '/bookings/new';
+}
+
 export function CustomerShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const skipGlobalHeader = hasContextualHeader(pathname);
+
   return (
     <div className="min-h-screen bg-surface/40">
-      <CustomerHeader />
+      {!skipGlobalHeader && <CustomerHeader />}
 
-      <main className="mx-auto w-full max-w-content px-4 py-6 md:px-6 md:py-8 pb-24 md:pb-12">
+      <main
+        className={cn(
+          'mx-auto w-full max-w-content px-4 md:px-6 pb-24 md:pb-12',
+          skipGlobalHeader ? 'py-3 md:py-4' : 'py-6 md:py-8'
+        )}
+      >
         {children}
       </main>
 

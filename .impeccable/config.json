@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-09-03T10:49:11.452Z",
         "reason": "border-b-2 on a rounded-full spinner is the standard CSS spin-illusion technique, copied from the existing dashboard/page.tsx loading spinner, not an accent border clashing with corners"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "frontend/src/app/(customer)/bookings/new/page.tsx"
+        ],
+        "createdAt": "2026-09-03T12:27:45.116Z",
+        "reason": "false positive: text-slate-950 (near-black) on bg-amber-500 has strong contrast, not washed-out gray; pre-existing 'Bookings Paused' banner, unrelated to booking-flow redesign"
       }
     ]
   }
