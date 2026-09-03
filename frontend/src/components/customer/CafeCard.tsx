@@ -91,19 +91,24 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             : 'border-border/80 bg-card'
         }`}
       >
-        {/* Photo Header — kept short on purpose: it identifies the café at a
-            glance, it does not carry the decision. flex-shrink-0 works
-            around a WebKit bug where a flex child sizing itself via
-            aspect-ratio plus a max-height cap can render a few px short of
-            its box at certain widths (seen on iPhone Pro Max's screen
-            width; Chrome/Android unaffected). */}
-        <CardImage aspectClass="aspect-[3/1]" className="relative max-h-24 sm:max-h-28 flex-shrink-0">
+        {/* Photo Header — kept compact on purpose: it identifies the café at
+            a glance, it does not carry the decision. But not so short that
+            object-cover has to crop real photos down to a sliver — a 3:1
+            banner ratio on a normal landscape photo pushes the actual
+            subject to one edge and leaves bare background filling the rest
+            of the frame, which is what "wrapped around the pic" looked like.
+            16:9 gives cover enough room to keep the subject centered.
+            flex-shrink-0 works around a WebKit bug where a flex child sizing
+            itself via aspect-ratio plus a max-height cap can render a few px
+            short of its box at certain widths (seen on iPhone Pro Max's
+            screen width; Chrome/Android unaffected). */}
+        <CardImage aspectClass="aspect-[16/9]" className="relative max-h-36 sm:max-h-40 flex-shrink-0">
           {currentPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={currentPhoto}
               alt={cafe.name}
-              className="block h-full w-full object-cover transition-all duration-700 group-hover:scale-105"
+              className="block h-full w-full object-cover object-center transition-all duration-700 group-hover:scale-105"
               loading={isFeatured ? 'eager' : 'lazy'}
               decoding="async"
               onError={(e) => {
