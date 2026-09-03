@@ -34,8 +34,8 @@ function SkeletonCard({ className }: SkeletonProps) {
       className={cn('rounded-2xl bg-card shadow-card overflow-hidden', className)}
       aria-hidden="true"
     >
-      {/* Image area */}
-      <Skeleton className="h-24 w-full rounded-none" />
+      {/* Image area — matches CafeCard's aspect-[16/9] max-h-36 sm:max-h-40 photo header */}
+      <Skeleton className="aspect-[16/9] max-h-36 w-full rounded-none sm:max-h-40" />
       {/* Content */}
       <div className="px-3.5 py-2.5 flex flex-col gap-2">
         <Skeleton className="h-4 w-3/4 rounded-lg" />
