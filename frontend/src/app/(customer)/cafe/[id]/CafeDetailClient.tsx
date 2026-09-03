@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter, usePathname } from 'next/navigation';
@@ -10,18 +10,21 @@ import {
   Star,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Share2,
   Monitor,
   Navigation,
   Gamepad2,
   CheckCircle2,
+  Images,
 } from 'lucide-react';
 import { getCafe } from '@/lib/api/cafes';
 import { listCafeReviews, createReview } from '@/lib/api/reviews';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
 import { queryKeys } from '@/hooks/queries/keys';
-import { Button, RatingDisplay, PriceDisplay, Badge, Skeleton, ErrorState } from '@/components/ui';
+import { Button, Skeleton, ErrorState } from '@/components/ui';
+import { PLATFORMS, type Platform } from '@/constants/platforms';
 import dynamic from 'next/dynamic';
 
 const GoogleLocationDisplay = dynamic(
@@ -40,7 +43,7 @@ import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
-import { calculateDistance, formatDistance } from '@/lib/format';
+import { calculateDistance, formatDistance, isCafeOpenNow, formatTime } from '@/lib/format';
 import type { CafeDetail } from '@/types';
 
 interface CafeDetailClientProps {
@@ -58,9 +61,11 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { userLat, userLng } = useLocationStore();
+  const heroRef = useRef<HTMLDivElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'amenities' | 'games' | 'reviews'>('amenities');
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
+  const [showAllTierSpecs, setShowAllTierSpecs] = useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [newRating, setNewRating] = useState(5);
@@ -80,7 +85,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
 
   const { data: serverReviewsData, refetch: refetchReviews } = useQuery({
     queryKey: ['cafe-reviews', cafeId],
-    queryFn: () => listCafeReviews(cafeId),
+    queryFn: () => listCafeReviews(cafeId, { limit: 100 }),
     enabled: Boolean(cafeId),
   });
 
@@ -123,17 +128,45 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : [];
   const currentPhoto = photosList[photoIndex % photosList.length];
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : 100;
+  const cheapestTier =
+    cafe.tiers && cafe.tiers.length > 0
+      ? [...cafe.tiers].sort((a, b) => a.pricePerHour - b.pricePerHour)[0]
+      : null;
   // Picking the tier here (instead of only on the booking page) removes an
   // entire duplicate step — the booking page shows the exact same tier
   // cards, so a user reads specs once here rather than twice. Defaults to
-  // the first tier so "Book now" always has one selected.
+  // the cheapest tier so "Book now" opens on the lowest price a gamer would
+  // expect, not whatever order the API happens to return.
   const activeTier =
     (cafe.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
-    (cafe.tiers && cafe.tiers[0]) ||
-    null;
+    cheapestTier;
+
+  const isOpenNow = isCafeOpenNow(cafe.openingTime, cafe.closingTime);
+  const openStatusLabel = isOpenNow
+    ? 'Open now'
+    : cafe.openingTime
+      ? `Opens ${formatTime(cafe.openingTime)}`
+      : 'Closed';
+
+  const platformBadges = Array.from(
+    new Set((cafe.tiers ?? []).map((t) => t.platform).filter((p): p is Platform => Boolean(p)))
+  ).map((p) => PLATFORMS.find((entry) => entry.value === p)?.label || p);
+
+  const amenityBadges = (cafe.amenities ?? []).slice(0, 3).map((a) => getAmenityDisplay(a));
+
+  const fetchedReviews = serverReviewsData?.items ?? [];
+  const ratingCounts = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: fetchedReviews.filter((r) => Math.round(r.rating) === star).length,
+  }));
+  const maxRatingCount = Math.max(1, ...ratingCounts.map((r) => r.count));
 
   const nextPhoto = () => setPhotoIndex((prev) => (prev + 1) % photosList.length);
   const prevPhoto = () => setPhotoIndex((prev) => (prev - 1 + photosList.length) % photosList.length);
+  const jumpToPhoto = (idx: number) => {
+    setPhotoIndex(idx);
+    heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     // CustomerShell's <main> already reserves pb-24/md:pb-12 for the mobile
@@ -145,7 +178,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     // height, not the bar-plus-nav total the shell already covers.
     <div className="flex flex-col gap-8 max-w-4xl mx-auto pb-20 md:pb-12">
       {/* Hero Header Image with Gallery Arrows */}
-      <div className="relative h-72 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group">
+      <div ref={heroRef} className="relative h-72 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4">
         {currentPhoto ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -235,23 +268,48 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="rounded-full bg-success/10 px-3 py-1 text-caption font-semibold text-success">
-            Open now
+          <span
+            className={`rounded-full px-3 py-1 text-caption font-semibold ${
+              isOpenNow ? 'bg-success/10 text-success' : 'bg-surface text-text-secondary'
+            }`}
+          >
+            {openStatusLabel}
           </span>
           {distanceLabel && (
             <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary">
               {distanceLabel} away
             </span>
           )}
-          <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary">
-            PC Gaming
-          </span>
+          {platformBadges.map((label) => (
+            <span
+              key={label}
+              className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary flex items-center gap-1.5"
+            >
+              {label === 'PC Gaming' ? (
+                <Monitor className="h-3.5 w-3.5 text-primary" />
+              ) : (
+                <Gamepad2 className="h-3.5 w-3.5 text-primary" />
+              )}
+              {label}
+            </span>
+          ))}
+          {amenityBadges.map(({ icon: AmenityIcon, label }) => (
+            <span
+              key={label}
+              className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary flex items-center gap-1.5"
+            >
+              <AmenityIcon className="h-3.5 w-3.5 text-primary" />
+              {label}
+            </span>
+          ))}
         </div>
       </div>
 
       {/* Hardware Tiers Section — selectable here so "Book now" already
           knows which tier the user wants, instead of asking again on the
-          booking page with an identical set of cards. */}
+          booking page with an identical set of cards. Rows, not a grid of
+          cards: a list scans in one pass regardless of how many tiers a
+          café lists, where a 3-up grid starts wrapping awkwardly past three. */}
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="font-heading text-h2 text-text-primary">Hardware tiers</h2>
@@ -261,233 +319,213 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         </div>
 
         {cafe.tiers && cafe.tiers.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {cafe.tiers.map((tier) => {
-              const isSelected = activeTier?.id === tier.id;
-              return (
-                <button
-                  key={tier.id}
-                  type="button"
-                  onClick={() => setSelectedTierId(tier.id)}
-                  className={`flex flex-col justify-between p-5 rounded-3xl text-left border transition-all active:scale-[0.98] ${
-                    isSelected
-                      ? 'border-accent bg-accent/5 ring-2 ring-accent/60 shadow-card'
-                      : 'border-border/80 bg-card hover:shadow-float hover:bg-surface'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-heading text-h3 text-text-primary">{tier.name}</h3>
+          <>
+            <div className="flex flex-col gap-2.5">
+              {cafe.tiers.map((tier) => {
+                const isSelected = activeTier?.id === tier.id;
+                const isPc = Boolean(tier.specs?.gpu);
+                return (
+                  <button
+                    key={tier.id}
+                    type="button"
+                    onClick={() => setSelectedTierId(tier.id)}
+                    className={`flex items-center gap-4 p-4 rounded-2xl text-left border transition-all active:scale-[0.99] ${
+                      isSelected
+                        ? 'border-accent bg-accent/5 ring-2 ring-accent/60 shadow-card'
+                        : 'border-border/80 bg-card hover:shadow-float hover:bg-surface'
+                    }`}
+                  >
+                    <div
+                      className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${
+                        isSelected ? 'bg-accent/15 text-accent' : 'bg-surface text-text-secondary'
+                      }`}
+                    >
+                      {isPc ? <Monitor className="h-5 w-5" /> : <Gamepad2 className="h-5 w-5" />}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-text-secondary">
+                        {isPc ? (
+                          <>
+                            <span className="font-semibold text-text-primary">{tier.specs.gpu}</span>
+                            {tier.specs?.ram && (
+                              <>
+                                <span className="text-text-secondary/50">·</span>
+                                <span>{tier.specs.ram}</span>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <span className="font-semibold text-text-primary">
+                            {tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station'}
+                          </span>
+                        )}
+                        <span className="text-text-secondary/50">·</span>
+                        <span>{tier.totalSeats || 18} seats</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       {isSelected ? (
-                        <div className="h-5 w-5 rounded-full border-2 border-accent bg-accent flex items-center justify-center flex-shrink-0">
+                        <div className="h-5 w-5 rounded-full border-2 border-accent bg-accent flex items-center justify-center">
                           <CheckCircle2 className="h-3.5 w-3.5 text-white" />
                         </div>
                       ) : (
-                        <Monitor className="h-5 w-5 text-accent flex-shrink-0" />
+                        <div className="h-5 w-5" />
                       )}
+                      <div className="font-data text-body-emphasis font-bold text-text-primary">
+                        <span className="rupee-symbol">₹</span>{tier.pricePerHour}
+                        <span className="text-caption font-normal text-text-secondary">/hr</span>
+                      </div>
                     </div>
+                  </button>
+                );
+              })}
+            </div>
 
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-caption text-text-secondary mb-4">
-                      {tier.specs?.gpu ? (
-                        <>
-                          <span className="font-semibold text-text-primary">⚙ {tier.specs.gpu}</span>
-                          {tier.specs?.ram && (
-                            <>
-                              <span className="text-text-secondary/50">·</span>
-                              <span>{tier.specs.ram}</span>
-                            </>
-                          )}
-                          {tier.specs?.monitor && (
-                            <>
-                              <span className="text-text-secondary/50">·</span>
-                              <span>{tier.specs.monitor}</span>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        <span className="font-semibold text-text-primary">
-                          🎮 {tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station'}
-                        </span>
-                      )}
-                      <span className="text-text-secondary/50">·</span>
-                      <span>{tier.totalSeats || 18} seats</span>
-                    </div>
-                  </div>
+            {cafe.tiers.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setShowAllTierSpecs((v) => !v)}
+                className="self-start flex items-center gap-1.5 text-caption font-semibold text-primary hover:underline"
+              >
+                {showAllTierSpecs ? 'Hide tier comparison' : 'Compare all tiers'}
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showAllTierSpecs ? 'rotate-180' : ''}`} />
+              </button>
+            )}
 
-                  <div className="font-data text-h3 font-bold text-text-primary border-t border-border/60 pt-3">
-                    <span className="rupee-symbol">₹</span>{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+            {showAllTierSpecs && cafe.tiers.length > 1 && (
+              <div className="overflow-x-auto rounded-2xl border border-border/80">
+                <table className="w-full text-caption">
+                  <thead>
+                    <tr className="bg-surface">
+                      <th className="p-3 text-left font-semibold text-text-secondary">Spec</th>
+                      {cafe.tiers.map((tier) => (
+                        <th key={tier.id} className="p-3 text-left font-heading font-bold text-text-primary whitespace-nowrap">
+                          {tier.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { label: 'Hardware', get: (t: (typeof cafe.tiers)[number]) => t.specs?.gpu || t.specs?.console || t.specs?.other || t.model || '—' },
+                      { label: 'RAM', get: (t: (typeof cafe.tiers)[number]) => t.specs?.ram || '—' },
+                      { label: 'Monitor', get: (t: (typeof cafe.tiers)[number]) => t.specs?.monitor || '—' },
+                      { label: 'Seats', get: (t: (typeof cafe.tiers)[number]) => String(t.totalSeats || 18) },
+                      { label: 'Price', get: (t: (typeof cafe.tiers)[number]) => `₹${t.pricePerHour}/hr` },
+                    ].map((row) => (
+                      <tr key={row.label} className="border-t border-border/60">
+                        <td className="p-3 font-semibold text-text-secondary">{row.label}</td>
+                        {cafe.tiers!.map((tier) => (
+                          <td key={tier.id} className="p-3 text-text-primary whitespace-nowrap">
+                            {row.get(tier)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         ) : (
           <p className="text-body text-text-secondary italic">No hardware tiers listed.</p>
         )}
       </section>
 
-      {/* Tabs: Amenities / Games / Reviews */}
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center rounded-2xl bg-surface p-1.5">
-          {[
-            { id: 'amenities', label: 'Amenities' },
-            { id: 'games', label: 'Games' },
-            { id: 'reviews', label: 'Reviews' },
-          ].map((tab) => (
+      {/* About */}
+      {cafe.description && (
+        <section className="flex flex-col gap-2">
+          <h2 className="font-heading text-h2 text-text-primary">About this café</h2>
+          <p className={`text-body text-text-secondary ${showFullDescription ? '' : 'line-clamp-3'}`}>
+            {cafe.description}
+          </p>
+          {cafe.description.length > 160 && (
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 py-2.5 rounded-xl text-body font-semibold transition-all ${
-                activeTab === tab.id
-                  ? 'bg-card text-text-primary shadow-card'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
+              type="button"
+              onClick={() => setShowFullDescription((v) => !v)}
+              className="self-start text-caption font-semibold text-primary hover:underline"
             >
-              {tab.label}
+              {showFullDescription ? 'Read less' : 'Read more'}
             </button>
-          ))}
-        </div>
+          )}
+        </section>
+      )}
 
-        {activeTab === 'amenities' && (
-          cafe.amenities && cafe.amenities.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {cafe.amenities.map((item) => {
-                const { icon: AmenityIcon, label } = getAmenityDisplay(item);
-                return (
-                  <div
-                    key={item}
-                    className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary flex items-center gap-2"
-                  >
-                    <AmenityIcon className="h-4 w-4 text-primary flex-shrink-0" />
-                    <span>{label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-body text-text-secondary italic">No amenities listed by this café yet.</p>
-          )
-        )}
-
-        {activeTab === 'games' && (
-          cafe.supportedGames && cafe.supportedGames.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {cafe.supportedGames.map((game) => (
+      {/* Amenities */}
+      <section className="flex flex-col gap-4">
+        <h2 className="font-heading text-h2 text-text-primary">Amenities</h2>
+        {cafe.amenities && cafe.amenities.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {cafe.amenities.map((item) => {
+              const { icon: AmenityIcon, label } = getAmenityDisplay(item);
+              return (
                 <div
-                  key={game}
-                  className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-2.5 font-medium text-body text-text-primary"
+                  key={item}
+                  className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary flex items-center gap-2"
                 >
-                  <Gamepad2 className="h-4 w-4 text-accent" />
-                  <span>{game}</span>
+                  <AmenityIcon className="h-4 w-4 text-primary flex-shrink-0" />
+                  <span>{label}</span>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-body text-text-secondary italic">No supported games listed by this café yet.</p>
-          )
-        )}
-
-        {activeTab === 'reviews' && (
-          <div className="flex flex-col gap-4">
-            {/* Submit Review Card */}
-            <div className="p-5 rounded-2xl bg-card border border-border/80 flex flex-col gap-3">
-              <h4 className="font-heading text-body font-bold text-text-primary">Leave a Rating & Review</h4>
-              <div className="flex items-center gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setNewRating(star)}
-                    aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
-                    aria-pressed={star <= newRating}
-                    className="p-1 text-warning transition-transform hover:scale-110"
-                  >
-                    <Star className={`h-6 w-6 ${star <= newRating ? 'fill-warning text-warning' : 'text-text-secondary/40'}`} />
-                  </button>
-                ))}
-              </div>
-
-              {reviewError && (
-                <p className="text-caption text-rose-500 font-medium">{reviewError}</p>
-              )}
-
-              <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Share your experience (ping, seats, setup cleanliness, food)..."
-                className="w-full rounded-xl bg-surface border border-border p-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[80px]"
-              />
-              <Button
-                variant="primary"
-                size="md"
-                className="self-end"
-                disabled={isSubmittingReview}
-                  onClick={async () => {
-                    if (!newComment.trim()) return;
-                    setReviewError(null);
-
-                    if (!isAuthenticated) {
-                      setShowLoginPrompt(true);
-                      return;
-                    }
-
-                    const completedBooking = userBookingsData?.items?.find(
-                      (b) => b.cafeId === cafeId && (b.status === 'completed' || b.status === 'checked_in' || b.status === 'confirmed')
-                    );
-
-                    if (!completedBooking) {
-                      setReviewError('You must have an active or completed booking at this venue to leave a review.');
-                      return;
-                    }
-
-                    setIsSubmittingReview(true);
-                    try {
-                      await createReview({
-                        bookingId: completedBooking.id,
-                        rating: newRating,
-                        comment: newComment,
-                      });
-                      setNewComment('');
-                      setSubmittedReview(true);
-                      refetchReviews();
-                      refetch();
-                    } catch (err: any) {
-                      setReviewError(err?.message || 'Failed to submit review.');
-                    } finally {
-                      setIsSubmittingReview(false);
-                    }
-                  }}
-              >
-                {isSubmittingReview ? 'Submitting...' : submittedReview ? 'Review Posted ✓' : 'Submit Review'}
-              </Button>
-            </div>
-
-            {/* List Reviews */}
-            {serverReviewsData && serverReviewsData.items && serverReviewsData.items.length > 0 ? (
-              serverReviewsData.items.map((rev) => (
-                <div key={rev.id} className="p-4 rounded-2xl bg-card border border-border/80 flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-heading text-body font-bold text-text-primary">
-                      {rev.gamerName || 'Verified Gamer'}
-                    </span>
-                    <div className="flex items-center text-warning">
-                      <Star className="h-4 w-4 fill-warning" />
-                      <span className="text-caption font-bold ml-1">{rev.rating}.0</span>
-                    </div>
-                  </div>
-                  <p className="text-caption text-text-secondary">{rev.comment}</p>
-                </div>
-              ))
-            ) : (
-              <div className="p-6 rounded-2xl bg-card border border-border/60 text-center">
-                <Star className="h-8 w-8 text-warning/40 mx-auto mb-2" />
-                <p className="font-heading text-body font-bold text-text-primary">No Reviews Yet</p>
-                <p className="text-caption text-text-secondary">Be the first gamer to leave a review for this café after your session!</p>
-              </div>
-            )}
+              );
+            })}
           </div>
+        ) : (
+          <p className="text-body text-text-secondary italic">No amenities listed by this café yet.</p>
         )}
       </section>
+
+      {/* Games */}
+      <section className="flex flex-col gap-4">
+        <h2 className="font-heading text-h2 text-text-primary">Games available</h2>
+        {cafe.supportedGames && cafe.supportedGames.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {cafe.supportedGames.map((game) => (
+              <div
+                key={game}
+                className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-2.5 font-medium text-body text-text-primary"
+              >
+                <Gamepad2 className="h-4 w-4 text-accent" />
+                <span>{game}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-body text-text-secondary italic">No supported games listed by this café yet.</p>
+        )}
+      </section>
+
+      {/* Photos */}
+      {photosList.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <h2 className="font-heading text-h2 text-text-primary">Photos</h2>
+          <div className="grid grid-cols-4 gap-2">
+            {photosList.slice(0, 3).map((photo, idx) => (
+              <button
+                key={photo + idx}
+                type="button"
+                onClick={() => jumpToPhoto(idx)}
+                className="relative aspect-square overflow-hidden rounded-xl"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photo} alt={`${cafe.name} photo ${idx + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+              </button>
+            ))}
+            {photosList.length > 3 && (
+              <button
+                type="button"
+                onClick={() => jumpToPhoto(3)}
+                className="relative aspect-square overflow-hidden rounded-xl bg-secondary/90 flex flex-col items-center justify-center gap-1 text-white"
+              >
+                <Images className="h-5 w-5" />
+                <span className="text-caption font-bold">+{photosList.length - 3} More</span>
+              </button>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Opening Hours & Interactive Google Map Row */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -497,7 +535,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             <span>Opening hours</span>
           </div>
           <p className="text-body text-text-secondary mt-1">
-            Mon - Sun: 10:00 AM - 2:00 AM
+            {cafe.openingTime && cafe.closingTime
+              ? `Daily: ${formatTime(cafe.openingTime)} - ${formatTime(cafe.closingTime)}`
+              : 'Hours not listed by this café yet.'}
           </p>
         </div>
 
@@ -528,6 +568,137 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             <span>Get directions on Google Maps</span>
           </Button>
         </div>
+      </section>
+
+      {/* Reviews */}
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-heading text-h2 text-text-primary">Reviews</h2>
+          {cafe.totalReviews > 0 && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="font-heading text-h3 font-bold text-text-primary flex items-center gap-1">
+                <Star className="h-4 w-4 fill-warning text-warning" />
+                {cafe.averageRating.toFixed(1)}
+              </span>
+              <span className="text-caption text-text-secondary">({cafe.totalReviews} reviews)</span>
+            </div>
+          )}
+        </div>
+
+        {fetchedReviews.length > 0 && (
+          <div className="flex flex-col gap-1.5 p-4 rounded-2xl bg-card border border-border/80">
+            {ratingCounts.map(({ star, count }) => (
+              <div key={star} className="flex items-center gap-2">
+                <span className="w-3 text-caption font-semibold text-text-secondary">{star}</span>
+                <Star className="h-3 w-3 fill-warning text-warning flex-shrink-0" />
+                <div className="flex-1 h-1.5 rounded-full bg-surface overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-warning"
+                    style={{ width: `${(count / maxRatingCount) * 100}%` }}
+                  />
+                </div>
+                <span className="w-6 text-right text-caption text-text-secondary">{count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Submit Review Card */}
+        <div className="p-5 rounded-2xl bg-card border border-border/80 flex flex-col gap-3">
+          <h4 className="font-heading text-body font-bold text-text-primary">Leave a Rating & Review</h4>
+          <div className="flex items-center gap-2">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => setNewRating(star)}
+                aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                aria-pressed={star <= newRating}
+                className="p-1 text-warning transition-transform hover:scale-110"
+              >
+                <Star className={`h-6 w-6 ${star <= newRating ? 'fill-warning text-warning' : 'text-text-secondary/40'}`} />
+              </button>
+            ))}
+          </div>
+
+          {reviewError && (
+            <p className="text-caption text-rose-500 font-medium">{reviewError}</p>
+          )}
+
+          <textarea
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder="Share your experience (ping, seats, setup cleanliness, food)..."
+            className="w-full rounded-xl bg-surface border border-border p-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[80px]"
+          />
+          <Button
+            variant="primary"
+            size="md"
+            className="self-end"
+            disabled={isSubmittingReview}
+              onClick={async () => {
+                if (!newComment.trim()) return;
+                setReviewError(null);
+
+                if (!isAuthenticated) {
+                  setShowLoginPrompt(true);
+                  return;
+                }
+
+                const completedBooking = userBookingsData?.items?.find(
+                  (b) => b.cafeId === cafeId && (b.status === 'completed' || b.status === 'checked_in' || b.status === 'confirmed')
+                );
+
+                if (!completedBooking) {
+                  setReviewError('You must have an active or completed booking at this venue to leave a review.');
+                  return;
+                }
+
+                setIsSubmittingReview(true);
+                try {
+                  await createReview({
+                    bookingId: completedBooking.id,
+                    rating: newRating,
+                    comment: newComment,
+                  });
+                  setNewComment('');
+                  setSubmittedReview(true);
+                  refetchReviews();
+                  refetch();
+                } catch (err: any) {
+                  setReviewError(err?.message || 'Failed to submit review.');
+                } finally {
+                  setIsSubmittingReview(false);
+                }
+              }}
+          >
+            {isSubmittingReview ? 'Submitting...' : submittedReview ? 'Review Posted ✓' : 'Submit Review'}
+          </Button>
+        </div>
+
+        {/* List Reviews */}
+        {fetchedReviews.length > 0 ? (
+          fetchedReviews.map((rev) => (
+            <div key={rev.id} className="p-4 rounded-2xl bg-card border border-border/80 flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span className="font-heading text-body font-bold text-text-primary">
+                  {rev.gamerName || 'Verified Gamer'}
+                </span>
+                <div className="flex items-center text-warning">
+                  <Star className="h-4 w-4 fill-warning" />
+                  <span className="text-caption font-bold ml-1">{rev.rating}.0</span>
+                </div>
+              </div>
+              <p className="text-caption text-text-secondary">{rev.comment}</p>
+            </div>
+          ))
+        ) : (
+          <div className="p-6 rounded-2xl bg-card border border-border/60 text-center">
+            <Star className="h-8 w-8 text-warning/40 mx-auto mb-2" />
+            <p className="font-heading text-body font-bold text-text-primary">No Reviews Yet</p>
+            <p className="text-caption text-text-secondary">Be the first gamer to leave a review for this café after your session!</p>
+          </div>
+        )}
       </section>
 
       {/* Sticky Bottom Action Bar — offset must include the safe-area inset too,
