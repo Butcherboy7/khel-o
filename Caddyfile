@@ -1,4 +1,8 @@
-{$DOMAIN} {
+khel-o.online, www.khel-o.online {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+{$DOMAIN}, www.{$DOMAIN} {
 	encode gzip
 
 	# Next.js frontend route (injects window.__ENV__ for the browser) —
