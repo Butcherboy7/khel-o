@@ -34,14 +34,14 @@ function SkeletonCard({ className }: SkeletonProps) {
       className={cn('rounded-2xl bg-card shadow-card overflow-hidden', className)}
       aria-hidden="true"
     >
-      {/* Image area — matches CafeCard's aspect-[16/9] max-h-36 sm:max-h-40 photo header */}
-      <Skeleton className="aspect-[16/9] max-h-36 w-full rounded-none sm:max-h-40" />
-      {/* Content */}
-      <div className="px-3.5 py-2.5 flex flex-col gap-2">
+      {/* Image area — matches CafeCard's aspect-[16/9] max-h-32 sm:max-h-36 photo header */}
+      <Skeleton className="aspect-[16/9] max-h-32 w-full rounded-none sm:max-h-36" />
+      {/* Content — three rows: name, rating, location+price (the last two
+          share a row in the real card, see CafeCard.tsx) */}
+      <div className="px-3 py-2 flex flex-col gap-1.5">
         <Skeleton className="h-4 w-3/4 rounded-lg" />
         <Skeleton className="h-3.5 w-1/2 rounded-lg" />
-        <Skeleton className="h-3.5 w-2/5 rounded-lg" />
-        <Skeleton className="h-4 w-20 rounded-lg mt-0.5" />
+        <Skeleton className="h-3.5 w-4/5 rounded-lg mt-0.5" />
       </div>
     </div>
   );

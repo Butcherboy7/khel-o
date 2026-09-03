@@ -170,6 +170,7 @@ class CafeRepository(BaseRepository[Cafe]):
             platforms_complete = all(t.platform is not None for t in cafe_tiers)
 
             photo_list = list(c.photos) if isinstance(c.photos, list) and c.photos else []
+            amenity_list = list(c.amenities) if isinstance(c.amenities, list) and c.amenities else []
 
             items.append({
                 "id": c.id,
@@ -185,6 +186,7 @@ class CafeRepository(BaseRepository[Cafe]):
                 "platforms": platforms,
                 "platforms_complete": platforms_complete,
                 "photos": photo_list,
+                "amenities": amenity_list,
                 "has_active_promotion": False,
                 "verification_status": c.verification_status,
                 "is_active": c.is_active,

@@ -136,7 +136,14 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const prevPhoto = () => setPhotoIndex((prev) => (prev - 1 + photosList.length) % photosList.length);
 
   return (
-    <div className="flex flex-col gap-8 max-w-4xl mx-auto pb-28">
+    // CustomerShell's <main> already reserves pb-24/md:pb-12 for the mobile
+    // bottom nav. This page also has its own fixed "Book now" bar stacked
+    // above that nav, so it needs clearance beyond the shell's default — but
+    // adding a full bar-height's worth on top of the shell's padding (as the
+    // old pb-28 did) double-counts and leaves a visible empty gap before you
+    // hit the fixed bars. pb-20/md:pb-12 here is sized to the bar's own
+    // height, not the bar-plus-nav total the shell already covers.
+    <div className="flex flex-col gap-8 max-w-4xl mx-auto pb-20 md:pb-12">
       {/* Hero Header Image with Gallery Arrows */}
       <div className="relative h-72 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group">
         {currentPhoto ? (

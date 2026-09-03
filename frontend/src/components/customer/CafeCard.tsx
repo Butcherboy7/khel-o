@@ -97,12 +97,19 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             banner ratio on a normal landscape photo pushes the actual
             subject to one edge and leaves bare background filling the rest
             of the frame, which is what "wrapped around the pic" looked like.
-            16:9 gives cover enough room to keep the subject centered.
+            16:9 gives cover enough room to keep the subject centered; max-h
+            trims it further for density but deliberately stops short of
+            drifting back toward that same ~3:1 crop on a full-width mobile
+            card (~358px wide, so max-h-32's 128px still keeps it under 2.8:1).
             flex-shrink-0 works around a WebKit bug where a flex child sizing
             itself via aspect-ratio plus a max-height cap can render a few px
             short of its box at certain widths (seen on iPhone Pro Max's
-            screen width; Chrome/Android unaffected). */}
-        <CardImage aspectClass="aspect-[16/9]" className="relative max-h-36 sm:max-h-40 flex-shrink-0">
+            screen width; Chrome/Android unaffected). w-full is load-bearing
+            for the same reason at a larger scale: without an explicit width,
+            mobile Safari solves the aspect-ratio from the clamped max-height
+            instead of stretching to the flex parent's width, leaving a wide
+            blank strip beside the photo in production. */}
+        <CardImage aspectClass="aspect-[16/9]" className="relative w-full max-h-32 sm:max-h-36 flex-shrink-0">
           {currentPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -161,8 +168,11 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
         </CardImage>
 
         {/* Card Body — one scan-line per fact, so two cards can be compared
-            at a glance without opening either one. */}
-        <div className="flex flex-1 flex-col justify-center gap-1 px-3.5 py-2.5">
+            at a glance without opening either one. Location and price share
+            a row (was two) since neither needs its own line to read — that's
+            where the compaction comes from, not from dropping the platform
+            tag or shrinking the photo further. */}
+        <div className="flex flex-1 flex-col justify-center gap-0.5 px-3 py-2">
           <h3 className="font-heading text-body-emphasis font-bold text-text-primary group-hover:text-primary transition-colors truncate leading-tight">
             {cafe.name}
           </h3>
@@ -184,29 +194,27 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             )}
           </div>
 
-          {/* Location (clickable for directions — sized to content so the
-              rest of the card row still opens the café page) */}
-          <button
-            onClick={handleOpenMap}
-            className="inline-flex max-w-full items-center gap-1 text-caption text-text-secondary hover:text-primary transition-colors text-left"
-            title="Get directions on Google Maps"
-          >
-            <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
-            <span className="truncate hover:underline">
-              {distanceLabel ? `${distanceLabel} away` : `${cafe.city}, ${cafe.state}`}
-            </span>
-          </button>
+          {/* Location (clickable for directions) + Price, sharing one row */}
+          <div className="flex items-center justify-between gap-2 mt-0.5">
+            <button
+              onClick={handleOpenMap}
+              className="inline-flex min-w-0 items-center gap-1 text-caption text-text-secondary hover:text-primary transition-colors text-left"
+              title="Get directions on Google Maps"
+            >
+              <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
+              <span className="truncate hover:underline">
+                {distanceLabel ? `${distanceLabel} away` : `${cafe.city}, ${cafe.state}`}
+              </span>
+            </button>
 
-          {/* Footer: Price */}
-          <div className="flex items-center mt-0.5">
             {cafe.startingPrice ? (
-              <div className="flex items-center gap-1 text-caption font-semibold text-text-secondary">
+              <div className="flex items-center gap-1 text-caption font-semibold text-text-secondary flex-shrink-0">
                 <Zap className="h-3.5 w-3.5 text-accent flex-shrink-0" />
                 <span>from</span>
                 <PriceDisplay amount={cafe.startingPrice} size="sm" />
               </div>
             ) : (
-              <span className="text-caption font-semibold text-text-secondary">Pricing inside</span>
+              <span className="text-caption font-semibold text-text-secondary flex-shrink-0">Pricing inside</span>
             )}
           </div>
         </div>

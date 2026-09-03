@@ -174,6 +174,27 @@ export function isCafeOpenNow(openingTime?: string | null, closingTime?: string 
   return nowMin >= openMin && nowMin < closeMin;
 }
 
+/** Three-state open status for the discovery filter's "Open status" section
+ *  (Any / Open now / Opening soon) — "opening soon" means closed right now
+ *  but the café's own opening time is within the next 3 hours, so it's still
+ *  worth surfacing to someone browsing ahead of a session. Cafés with no
+ *  opening time fall back to 'closed' rather than a fabricated soon-ness. */
+export function getCafeOpenStatus(
+  openingTime?: string | null,
+  closingTime?: string | null
+): 'open' | 'opening_soon' | 'closed' {
+  if (isCafeOpenNow(openingTime, closingTime)) return 'open';
+  if (!openingTime) return 'closed';
+
+  const [openH, openM] = openingTime.split(':').map(Number);
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const openMin = openH * 60 + (openM || 0);
+  const minutesUntilOpen = openMin >= nowMin ? openMin - nowMin : openMin + 24 * 60 - nowMin;
+
+  return minutesUntilOpen <= 180 ? 'opening_soon' : 'closed';
+}
+
 /** Check if a time slot is in the past (with 30min buffer) */
 export function isSlotInPast(dateStr: string, timeStr: string, openingTimeStr?: string): boolean {
   const now = new Date();

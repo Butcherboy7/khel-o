@@ -119,6 +119,7 @@ class CafeListItem(BaseModel):
     # cafe_repository.py's computation and lib/platformTags.ts's consumer.
     platforms_complete: bool = False
     photos: List[str] = Field(default_factory=list)
+    amenities: List[str] = Field(default_factory=list)
     has_active_promotion: bool = False
     verification_status: VerificationStatus
     is_active: bool

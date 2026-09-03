@@ -225,4 +225,46 @@
     color: var(--primary);
     text-decoration: underline;
   }
+
+  /* Dual-handle range slider (café filter price range): two overlapping
+     native <input type="range"> elements share one track, each rendering
+     only its own thumb (via transparent track + pointer-events scoped to
+     the thumb) so both stay keyboard- and screen-reader-accessible instead
+     of a from-scratch pointer-drag widget. */
+  .range-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    pointer-events: none;
+  }
+  .range-slider-thumb::-webkit-slider-runnable-track {
+    -webkit-appearance: none;
+    background: transparent;
+  }
+  .range-slider-thumb::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    pointer-events: auto;
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 2.5px solid var(--primary);
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    margin-top: 0;
+  }
+  .range-slider-thumb::-moz-range-track {
+    background: transparent;
+    border: none;
+  }
+  .range-slider-thumb::-moz-range-thumb {
+    pointer-events: auto;
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 2.5px solid var(--primary);
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+  }
 }

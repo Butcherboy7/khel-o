@@ -8,19 +8,32 @@ import { MapPin, Navigation, SlidersHorizontal, ChevronDown } from 'lucide-react
 import { listCafes } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useDebounce } from '@/hooks/useDebounce';
-import { calculateDistance, isCafeOpenNow } from '@/lib/format';
+import { calculateDistance, isCafeOpenNow, getCafeOpenStatus } from '@/lib/format';
 import { hasPcTier, hasPlatformTier } from '@/lib/platformTags';
 import { SUPPORTED_CITIES } from '@/constants/cities';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SearchBarWithSuggestions } from '@/components/customer/SearchBarWithSuggestions';
-import { CafeFilterBar } from '@/components/customer/CafeFilterBar';
+import {
+  CafeFilterSheet,
+  AMENITY_BUCKETS,
+  cafeHasAmenityBucket,
+  PRICE_MIN,
+  PRICE_MAX,
+  type PlatformFilter,
+  type OpenStatusFilter,
+  type DistanceFilter,
+} from '@/components/customer/CafeFilterSheet';
 import { SkeletonCafeGrid, ErrorState, EmptyState } from '@/components/ui';
 import type { CafeListItem, PaginatedResponse } from '@/types';
 
-type PlatformFilter = 'All' | 'PC' | 'PS5' | 'Xbox' | 'Open now';
-const FILTER_TAGS: PlatformFilter[] = ['All', 'PC', 'PS5', 'Xbox', 'Open now'];
+const PLATFORM_TAGS: { key: PlatformFilter; label: string }[] = [
+  { key: 'All', label: 'All' },
+  { key: 'PC', label: 'PC' },
+  { key: 'PS5', label: 'PS5' },
+  { key: 'Xbox', label: 'Xbox' },
+];
 
 type SortOption = 'recommended' | 'rating' | 'price' | 'distance';
 const SORT_LABELS: Record<SortOption, string> = {
@@ -84,15 +97,16 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState(persistedCity || 'All Cities');
-  const [activeTag, setActiveTag] = useState<PlatformFilter>('All');
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('All');
+  const [openStatus, setOpenStatus] = useState<OpenStatusFilter>('any');
   const [sortBy, setSortBy] = useState<SortOption>('recommended');
   const [isLocating, setIsLocating] = useState(false);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [minPriceInput, setMinPriceInput] = useState('');
-  const [maxPriceInput, setMaxPriceInput] = useState('');
-  const [minRating, setMinRating] = useState<number | null>(null);
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [distance, setDistance] = useState<DistanceFilter>('any');
+  const [priceRange, setPriceRange] = useState<[number, number]>([PRICE_MIN, PRICE_MAX]);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const sortRef = useRef<HTMLDivElement>(null);
@@ -186,8 +200,10 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
   // Price range is sent straight through to the café list endpoint, which
   // already accepts minPrice/maxPrice (see backend/app/api/v1/cafes.py) —
   // no invented backend capability, just wiring up what's already there.
-  const minPrice = minPriceInput.trim() ? Number(minPriceInput) : undefined;
-  const maxPrice = maxPriceInput.trim() ? Number(maxPriceInput) : undefined;
+  // The slider's max end is "500+" (no ceiling), so a max still at PRICE_MAX
+  // means "no upper bound" rather than a literal ₹500 cutoff.
+  const minPrice = priceRange[0] > PRICE_MIN ? priceRange[0] : undefined;
+  const maxPrice = priceRange[1] < PRICE_MAX ? priceRange[1] : undefined;
 
   // initialData only applies when the visitor's current filters exactly match
   // the unfiltered query fetched server-side — otherwise it would seed a
@@ -217,39 +233,55 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
 
   const cafes = data?.items || [];
 
-  // Filter Logic — every branch derives from the café's actual configured
+  const hasLocation = userLat != null && userLng != null;
+  const distanceOf = (cafe: CafeListItem): number =>
+    hasLocation && cafe.latitude != null && cafe.longitude != null
+      ? calculateDistance(userLat!, userLng!, cafe.latitude, cafe.longitude)
+      : Infinity;
+
+  // Filter Logic — platform branches derive from the café's actual configured
   // hardware tier names (see lib/platformTags.ts), never from the café's own
   // name. A café called "Velocity Lounge" isn't a console venue just because
   // its name contains "velocity" — that was the root cause of BUG #3 (card
   // showed "PS5 / Consoles" with zero console tiers configured).
   const filteredCafes = cafes.filter((cafe) => {
-    if (activeTag === 'PC' && !hasPcTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
+    if (platformFilter === 'PC' && !hasPcTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
       return false;
     }
 
-    if (activeTag === 'PS5' && !hasPlatformTier('playstation', cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
+    if (platformFilter === 'PS5' && !hasPlatformTier('playstation', cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
       return false;
     }
 
-    if (activeTag === 'Xbox' && !hasPlatformTier('xbox', cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
+    if (platformFilter === 'Xbox' && !hasPlatformTier('xbox', cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
       return false;
     }
 
-    if (activeTag === 'Open now' && !isCafeOpenNow(cafe.openingTime, cafe.closingTime)) {
+    if (platformFilter === 'Other' && !cafe.platforms?.some((p) => p === 'nintendo' || p === 'other')) {
       return false;
     }
 
-    if (minRating != null && !(cafe.averageRating >= minRating)) {
+    if (openStatus === 'open_now' && !isCafeOpenNow(cafe.openingTime, cafe.closingTime)) {
       return false;
+    }
+
+    if (openStatus === 'opening_soon' && getCafeOpenStatus(cafe.openingTime, cafe.closingTime) !== 'opening_soon') {
+      return false;
+    }
+
+    if (distance !== 'any' && distanceOf(cafe) > distance) {
+      return false;
+    }
+
+    if (selectedAmenities.length > 0) {
+      const matchesAny = AMENITY_BUCKETS.some(
+        (bucket) => selectedAmenities.includes(bucket.id) && cafeHasAmenityBucket(cafe, bucket)
+      );
+      if (!matchesAny) return false;
     }
 
     return true;
   });
-
-  const distanceOf = (cafe: CafeListItem): number =>
-    userLat != null && userLng != null && cafe.latitude != null && cafe.longitude != null
-      ? calculateDistance(userLat, userLng, cafe.latitude, cafe.longitude)
-      : Infinity;
 
   const sortedCafes = [...filteredCafes];
   if (sortBy === 'rating') {
@@ -261,30 +293,38 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
   }
 
   const hasActiveFilters =
-    activeTag !== 'All' ||
+    platformFilter !== 'All' ||
+    openStatus !== 'any' ||
+    distance !== 'any' ||
     Boolean(searchQuery) ||
     selectedCity !== 'All Cities' ||
     minPrice !== undefined ||
     maxPrice !== undefined ||
-    minRating != null;
+    selectedAmenities.length > 0;
 
   const handleResetFilters = () => {
     setSearchQuery('');
     handleCityChange('All Cities');
-    setActiveTag('All');
-    setMinPriceInput('');
-    setMaxPriceInput('');
-    setMinRating(null);
+    setPlatformFilter('All');
+    setOpenStatus('any');
+    setDistance('any');
+    setPriceRange([PRICE_MIN, PRICE_MAX]);
+    setSelectedAmenities([]);
     clearLocation();
   };
 
   const handleClearAdvancedFilters = () => {
-    setMinPriceInput('');
-    setMaxPriceInput('');
-    setMinRating(null);
+    setDistance('any');
+    setOpenStatus('any');
+    setPriceRange([PRICE_MIN, PRICE_MAX]);
+    setSelectedAmenities([]);
   };
 
-  const advancedFilterCount = (minPrice !== undefined ? 1 : 0) + (maxPrice !== undefined ? 1 : 0) + (minRating != null ? 1 : 0);
+  const advancedFilterCount =
+    (distance !== 'any' ? 1 : 0) +
+    (openStatus === 'opening_soon' ? 1 : 0) +
+    (minPrice !== undefined || maxPrice !== undefined ? 1 : 0) +
+    selectedAmenities.length;
 
   const cityDropdownPanel = showCityDropdown && (
     <div className="absolute top-10 left-0 z-50 w-52 rounded-2xl bg-card border border-border/80 shadow-overlay p-2 flex flex-col gap-1 animate-in fade-in">
@@ -350,38 +390,49 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1"
         style={{ maskImage: 'linear-gradient(to right, black 92%, transparent)', WebkitMaskImage: 'linear-gradient(to right, black 92%, transparent)' }}
       >
-        {FILTER_TAGS.map((tag) => {
-          const isSelected = activeTag === tag;
+        {PLATFORM_TAGS.map(({ key, label }) => {
+          const isSelected = platformFilter === key;
           return (
             <button
-              key={tag}
-              onClick={() => setActiveTag(tag)}
+              key={key}
+              onClick={() => setPlatformFilter(key)}
               className={`rounded-full px-4 min-h-[36px] text-caption font-semibold flex-shrink-0 transition-all ${
                 isSelected
                   ? 'bg-secondary text-white shadow-card font-bold'
                   : 'bg-card text-text-secondary border border-border hover:bg-surface'
               }`}
             >
-              {tag}
+              {label}
             </button>
           );
         })}
 
-        {/* Everything most people never touch (platform-agnostic price
-            range, minimum rating) lives behind this one toggle instead of
-            adding permanent chips for filters most searches don't need. */}
         <button
-          onClick={() => setShowMoreFilters((v) => !v)}
-          className={`flex items-center gap-1.5 rounded-full px-4 min-h-[36px] text-caption font-semibold flex-shrink-0 transition-all ${
-            showMoreFilters || advancedFilterCount > 0
+          onClick={() => setOpenStatus((v) => (v === 'open_now' ? 'any' : 'open_now'))}
+          className={`rounded-full px-4 min-h-[36px] text-caption font-semibold flex-shrink-0 transition-all ${
+            openStatus === 'open_now'
               ? 'bg-secondary text-white shadow-card font-bold'
               : 'bg-card text-text-secondary border border-border hover:bg-surface'
           }`}
-          aria-expanded={showMoreFilters}
+        >
+          Open now
+        </button>
+
+        {/* Everything most people never touch (distance, opening-soon,
+            price range, amenities) lives behind this one sheet instead of
+            adding permanent chips for filters most searches don't need. */}
+        <button
+          onClick={() => setIsFilterSheetOpen(true)}
+          className={`flex items-center gap-1.5 rounded-full px-4 min-h-[36px] text-caption font-semibold flex-shrink-0 transition-all ${
+            advancedFilterCount > 0
+              ? 'bg-secondary text-white shadow-card font-bold'
+              : 'bg-card text-text-secondary border border-border hover:bg-surface'
+          }`}
+          aria-haspopup="dialog"
+          aria-expanded={isFilterSheetOpen}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           <span>Filters{advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ''}</span>
-          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showMoreFilters ? 'rotate-180' : ''}`} />
         </button>
 
         {hasActiveFilters && (
@@ -394,19 +445,25 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         )}
       </div>
 
-      {showMoreFilters && (
-        <div className="mt-3">
-          <CafeFilterBar
-            minPrice={minPriceInput}
-            maxPrice={maxPriceInput}
-            onMinPriceChange={setMinPriceInput}
-            onMaxPriceChange={setMaxPriceInput}
-            minRating={minRating}
-            onMinRatingChange={setMinRating}
-            onClear={handleClearAdvancedFilters}
-          />
-        </div>
-      )}
+      <CafeFilterSheet
+        isOpen={isFilterSheetOpen}
+        onClose={() => setIsFilterSheetOpen(false)}
+        hasLocation={hasLocation}
+        onRequestLocation={handleDetectLocation}
+        distance={distance}
+        onDistanceChange={setDistance}
+        openStatus={openStatus}
+        onOpenStatusChange={setOpenStatus}
+        platform={platformFilter}
+        onPlatformChange={setPlatformFilter}
+        priceRange={priceRange}
+        onPriceRangeChange={setPriceRange}
+        selectedAmenities={selectedAmenities}
+        onAmenitiesChange={setSelectedAmenities}
+        resultCount={sortedCafes.length}
+        hasAdvancedFilters={advancedFilterCount > 0}
+        onClearAll={handleClearAdvancedFilters}
+      />
     </div>
   );
 
@@ -497,7 +554,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         {!isLoading && !isError && sortedCafes.length === 0 && (
           <EmptyState
             title="No gaming cafés found"
-            description={`No cafés match "${searchQuery || activeTag}" in ${selectedCity}.`}
+            description={`No cafés match "${searchQuery || platformFilter}" in ${selectedCity}.`}
             actionLabel="Clear All Filters"
             onAction={handleResetFilters}
           />
