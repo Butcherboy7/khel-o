@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { MapPin, Star, Zap } from 'lucide-react';
-import { Card, CardImage, CardContent, PriceDisplay } from '@/components/ui';
+import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
-import { calculateDistance, formatDistance, isCafeOpenNow } from '@/lib/format';
+import { calculateDistance, formatDistance, isCafeOpenNow, formatTime } from '@/lib/format';
 import { hasConsoleTier, hasPcTier } from '@/lib/platformTags';
 import type { Platform } from '@/constants/platforms';
 import type { CafeListItem } from '@/types';
@@ -29,14 +28,14 @@ function getPlatformSummary(cafe: CafeListItem): string | null {
           .filter((label): label is string => Boolean(label))
       )
     );
-    if (labels.length > 0) return labels.join(' • ');
+    if (labels.length > 0) return labels.join(' · ');
   }
   // Not yet migrated to confirmed per-tier platforms — fall back to the
   // same generic, non-overclaiming tier-name heuristic used elsewhere.
   const parts: string[] = [];
   if (hasPcTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) parts.push('PC');
   if (hasConsoleTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) parts.push('Console');
-  return parts.length > 0 ? parts.join(' • ') : null;
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 interface CafeCardProps {
@@ -67,6 +66,11 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
   const currentPhoto = photosList[photoIndex % photosList.length];
 
   const isOpenNow = isCafeOpenNow(cafe.openingTime, cafe.closingTime);
+  const statusLabel = isOpenNow
+    ? 'Open now'
+    : cafe.openingTime
+      ? `Opens ${formatTime(cafe.openingTime)}`
+      : 'Closed';
   const platformSummary = getPlatformSummary(cafe);
 
   const handleOpenMap = (e: React.MouseEvent) => {
@@ -78,13 +82,6 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
 
   return (
     <Link href={`/cafe/${cafe.id}`} className="block h-full group">
-      <motion.div
-        className="h-full"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: 'easeOut' }}
-        whileTap={{ scale: 0.98 }}
-      >
       <Card
         interactive
         elevation="resting"
@@ -94,11 +91,13 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             : 'border-border/80 bg-card'
         }`}
       >
-        {/* Photo Header — flex-shrink-0 works around a WebKit bug where a
-            flex child sizing itself via aspect-ratio plus a max-height cap
-            can render a few px short of its box at certain widths (seen on
-            iPhone Pro Max's screen width; Chrome/Android unaffected). */}
-        <CardImage aspectClass="aspect-[16/10]" className="relative max-h-56 sm:max-h-64 flex-shrink-0">
+        {/* Photo Header — kept short on purpose: it identifies the café at a
+            glance, it does not carry the decision. flex-shrink-0 works
+            around a WebKit bug where a flex child sizing itself via
+            aspect-ratio plus a max-height cap can render a few px short of
+            its box at certain widths (seen on iPhone Pro Max's screen
+            width; Chrome/Android unaffected). */}
+        <CardImage aspectClass="aspect-[3/1]" className="relative max-h-24 sm:max-h-28 flex-shrink-0">
           {currentPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -112,85 +111,89 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               }}
             />
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-4 text-center">
-              <span className="font-heading text-h3 text-white opacity-80">{cafe.name}</span>
+            <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-3 text-center">
+              <span className="font-heading text-caption font-bold text-white opacity-80 line-clamp-2">{cafe.name}</span>
             </div>
           )}
 
           {/* Carousel Dot Indicators */}
           {photosList.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 z-10">
+            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1 z-10">
               {photosList.map((_, idx) => (
                 <span
                   key={idx}
-                  className={`h-1.5 rounded-full transition-all ${
-                    idx === photoIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
+                  className={`h-1 rounded-full transition-all ${
+                    idx === photoIndex ? 'w-3 bg-white' : 'w-1 bg-white/50'
                   }`}
                 />
               ))}
             </div>
           )}
 
-          {/* Overlay Badges */}
-          <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
+          {/* Overlay Badges — small status pills, not a full-width bar: the
+              image identifies the café, it shouldn't carry a headline. */}
+          <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between pointer-events-none z-10">
             {isFeatured ? (
-              <span className="rounded-full bg-accent px-3 py-1 text-badge font-bold uppercase tracking-wider text-white shadow-card flex items-center gap-1">
+              <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-card">
                 ★ Featured
               </span>
             ) : cafe.hasActivePromotion ? (
-              <span className="rounded-full bg-accent px-3 py-1 text-badge font-bold uppercase tracking-wider text-white shadow-card">
-                Buy 2 hrs get 1 free
+              <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-card">
+                Offer
               </span>
             ) : (
-              <div />
+              <span />
             )}
 
-            <span className={`rounded-full backdrop-blur-md px-3 py-1 text-badge font-semibold text-white ${isOpenNow ? 'bg-secondary/80' : 'bg-text-tertiary/80'}`}>
-              {isOpenNow ? 'Open now' : 'Closed'}
+            <span
+              className={`rounded-full backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white ${
+                isOpenNow ? 'bg-secondary/85' : 'bg-text-tertiary/80'
+              }`}
+            >
+              {statusLabel}
             </span>
           </div>
         </CardImage>
 
-        {/* Card Body Details — one scan-line per fact, so two cards can be
-            compared at a glance without opening either one. */}
-        <CardContent className="flex flex-1 flex-col justify-between gap-2.5">
-          <div className="flex flex-col gap-1">
-            <h3 className="font-heading text-h3 font-bold text-text-primary group-hover:text-primary transition-colors truncate">
-              {cafe.name}
-            </h3>
+        {/* Card Body — one scan-line per fact, so two cards can be compared
+            at a glance without opening either one. */}
+        <div className="flex flex-1 flex-col justify-center gap-1 px-3.5 py-2.5">
+          <h3 className="font-heading text-body-emphasis font-bold text-text-primary group-hover:text-primary transition-colors truncate leading-tight">
+            {cafe.name}
+          </h3>
 
-            {/* Location Row (Clickable for directions — sized to content so the rest of the card row still opens the cafe page) */}
-            <button
-              onClick={handleOpenMap}
-              className="inline-flex max-w-full items-center gap-1 text-caption text-text-secondary hover:text-primary transition-colors text-left"
-              title="Get directions on Google Maps"
-            >
-              <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
-              <span className="truncate hover:underline">
-                {distanceLabel ? `${distanceLabel} away` : `${cafe.city}, ${cafe.state}`}
-              </span>
-            </button>
-
-            {/* Rating + Review Count Row */}
-            <div className="flex items-center gap-1.5 text-caption">
-              <Star className="h-3.5 w-3.5 fill-warning text-warning flex-shrink-0" />
-              <span className="font-heading font-bold text-text-primary">
-                {cafe.averageRating && cafe.averageRating > 0 ? cafe.averageRating.toFixed(1) : 'New'}
-              </span>
-              {cafe.totalReviews > 0 && (
-                <span className="text-text-secondary">({cafe.totalReviews})</span>
-              )}
-              {platformSummary && (
-                <>
-                  <span className="text-text-secondary/50">·</span>
-                  <span className="text-text-secondary truncate">{platformSummary}</span>
-                </>
-              )}
-            </div>
+          {/* Rating + platform summary */}
+          <div className="flex items-center gap-1.5 text-caption min-w-0">
+            <Star className="h-3.5 w-3.5 fill-warning text-warning flex-shrink-0" />
+            <span className="font-heading font-bold text-text-primary">
+              {cafe.averageRating && cafe.averageRating > 0 ? cafe.averageRating.toFixed(1) : 'New'}
+            </span>
+            {cafe.totalReviews > 0 && (
+              <span className="text-text-secondary">({cafe.totalReviews})</span>
+            )}
+            {platformSummary && (
+              <>
+                <span className="text-text-secondary/50">·</span>
+                <span className="text-text-secondary truncate">{platformSummary}</span>
+              </>
+            )}
           </div>
 
-          {/* Footer: Price + Primary CTA */}
-          <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-3 mt-1">
+          {/* Location (clickable for directions — sized to content so the
+              rest of the card row still opens the café page) */}
+          <button
+            onClick={handleOpenMap}
+            className="inline-flex max-w-full items-center gap-1 text-caption text-text-secondary hover:text-primary transition-colors text-left"
+            title="Get directions on Google Maps"
+          >
+            <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
+            <span className="truncate hover:underline">
+              {distanceLabel ? `${distanceLabel} away` : `${cafe.city}, ${cafe.state}`}
+            </span>
+          </button>
+
+          {/* Footer: Price */}
+          <div className="flex items-center mt-0.5">
             {cafe.startingPrice ? (
               <div className="flex items-center gap-1 text-caption font-semibold text-text-secondary">
                 <Zap className="h-3.5 w-3.5 text-accent flex-shrink-0" />
@@ -200,14 +203,9 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             ) : (
               <span className="text-caption font-semibold text-text-secondary">Pricing inside</span>
             )}
-
-            <span className="rounded-full bg-primary/10 px-4 py-1.5 text-caption font-bold text-primary group-hover:bg-primary group-hover:text-white transition-colors flex-shrink-0">
-              View Café
-            </span>
           </div>
-        </CardContent>
+        </div>
       </Card>
-      </motion.div>
     </Link>
   );
 }

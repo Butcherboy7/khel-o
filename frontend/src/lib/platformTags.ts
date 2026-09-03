@@ -59,3 +59,33 @@ export function hasPcTier(tierNames: string[] | undefined, platforms?: string[],
   }
   return nameBasedHasPc(tierNames);
 }
+
+const PLAYSTATION_KEYWORDS = ['ps5', 'ps4', 'ps3', 'ps2', 'playstation', 'dualsense'];
+const XBOX_KEYWORDS = ['xbox'];
+
+function nameBasedHasKeyword(tierNames: string[] | undefined, keywords: string[]): boolean {
+  if (!tierNames || tierNames.length === 0) return false;
+  return tierNames.some((t) => {
+    const lower = t.toLowerCase();
+    return keywords.some((kw) => lower.includes(kw));
+  });
+}
+
+/** Same real-data-first, name-fallback pattern as hasConsoleTier/hasPcTier,
+ *  narrowed to one specific console family for the discovery platform chips
+ *  (PS5 / Xbox), which need to distinguish consoles from each other rather
+ *  than just "has a console". */
+export function hasPlatformTier(
+  platform: 'playstation' | 'xbox',
+  tierNames: string[] | undefined,
+  platforms?: string[],
+  platformsComplete?: boolean,
+): boolean {
+  const keywords = platform === 'playstation' ? PLAYSTATION_KEYWORDS : XBOX_KEYWORDS;
+  if (platforms && platforms.length > 0) {
+    const fromReal = platforms.includes(platform);
+    if (platformsComplete) return fromReal;
+    return fromReal || nameBasedHasKeyword(tierNames, keywords);
+  }
+  return nameBasedHasKeyword(tierNames, keywords);
+}

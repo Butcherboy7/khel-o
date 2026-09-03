@@ -35,15 +35,13 @@ function SkeletonCard({ className }: SkeletonProps) {
       aria-hidden="true"
     >
       {/* Image area */}
-      <Skeleton className="h-40 w-full rounded-none" />
+      <Skeleton className="h-24 w-full rounded-none" />
       {/* Content */}
-      <div className="p-4 flex flex-col gap-3">
-        <Skeleton className="h-5 w-3/4 rounded-lg" />
-        <Skeleton className="h-4 w-1/2 rounded-lg" />
-        <div className="flex items-center justify-between mt-1">
-          <Skeleton className="h-4 w-20 rounded-lg" />
-          <Skeleton className="h-6 w-16 rounded-lg" />
-        </div>
+      <div className="px-3.5 py-2.5 flex flex-col gap-2">
+        <Skeleton className="h-4 w-3/4 rounded-lg" />
+        <Skeleton className="h-3.5 w-1/2 rounded-lg" />
+        <Skeleton className="h-3.5 w-2/5 rounded-lg" />
+        <Skeleton className="h-4 w-20 rounded-lg mt-0.5" />
       </div>
     </div>
   );
@@ -60,7 +58,7 @@ function SkeletonCafeGrid({ count = 6, className }: SkeletonCafeGridProps) {
   return (
     <div
       className={cn(
-        'grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3',
+        'grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
         className,
       )}
       aria-label="Loading cafés"

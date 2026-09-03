@@ -8,8 +8,8 @@ import { MapPin, Navigation, SlidersHorizontal, ChevronDown } from 'lucide-react
 import { listCafes } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useDebounce } from '@/hooks/useDebounce';
-import { isCafeOpenNow } from '@/lib/format';
-import { hasConsoleTier } from '@/lib/platformTags';
+import { calculateDistance, isCafeOpenNow } from '@/lib/format';
+import { hasPcTier, hasPlatformTier } from '@/lib/platformTags';
 import { SUPPORTED_CITIES } from '@/constants/cities';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
@@ -19,7 +19,17 @@ import { CafeFilterBar } from '@/components/customer/CafeFilterBar';
 import { SkeletonCafeGrid, ErrorState, EmptyState } from '@/components/ui';
 import type { CafeListItem, PaginatedResponse } from '@/types';
 
-const FILTER_TAGS = ['All', 'PC Gaming', 'PS5 & Consoles', 'RTX 4080 / 4090', 'Offers', 'Open Now'];
+type PlatformFilter = 'All' | 'PC' | 'PS5' | 'Xbox' | 'Open now';
+const FILTER_TAGS: PlatformFilter[] = ['All', 'PC', 'PS5', 'Xbox', 'Open now'];
+
+type SortOption = 'recommended' | 'rating' | 'price' | 'distance';
+const SORT_LABELS: Record<SortOption, string> = {
+  recommended: 'Recommended',
+  rating: 'Top rated',
+  price: 'Price: Low to high',
+  distance: 'Nearest',
+};
+
 const KNOWN_CITIES = ['All Cities', ...SUPPORTED_CITIES];
 
 // Coordinates mapping for accurate Indian city detection
@@ -56,13 +66,15 @@ interface ExploreClientProps {
 export function ExploreClient({ initialCafes }: ExploreClientProps) {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const firstName = user?.fullName ? user.fullName.split(' ')[0] : 'Gamer';
+  const firstName = user?.fullName ? user.fullName.split(' ')[0] : null;
 
   const {
     selectedCity: persistedCity,
     setSelectedCity: setPersistedCity,
     setUserCoords,
     isPreciseLocation,
+    userLat,
+    userLng,
     clearLocation,
   } = useLocationStore();
 
@@ -72,15 +84,18 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState(persistedCity || 'All Cities');
-  const [activeTag, setActiveTag] = useState<string>('All');
+  const [activeTag, setActiveTag] = useState<PlatformFilter>('All');
+  const [sortBy, setSortBy] = useState<SortOption>('recommended');
   const [isLocating, setIsLocating] = useState(false);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [minPriceInput, setMinPriceInput] = useState('');
   const [maxPriceInput, setMaxPriceInput] = useState('');
   const [minRating, setMinRating] = useState<number | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const sortRef = useRef<HTMLDivElement>(null);
   const cafesGridRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<number>(0);
 
@@ -132,11 +147,14 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     };
   }, []);
 
-  // Click-outside listener for city dropdown
+  // Click-outside listeners for the two floating panels
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowCityDropdown(false);
+      }
+      if (sortRef.current && !sortRef.current.contains(event.target as Node)) {
+        setShowSortDropdown(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -199,31 +217,26 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
 
   const cafes = data?.items || [];
 
-  // Enhanced Filter Logic — every branch derives from the café's actual
-  // configured hardware tier names (see lib/platformTags.ts), never from
-  // the café's own name. A café called "Velocity Lounge" isn't a console
-  // or high-end-GPU venue just because its name contains "velocity" or
-  // "lounge" — that was the root cause of BUG #3 (card showed "PS5 /
-  // Consoles" with zero console tiers configured).
+  // Filter Logic — every branch derives from the café's actual configured
+  // hardware tier names (see lib/platformTags.ts), never from the café's own
+  // name. A café called "Velocity Lounge" isn't a console venue just because
+  // its name contains "velocity" — that was the root cause of BUG #3 (card
+  // showed "PS5 / Consoles" with zero console tiers configured).
   const filteredCafes = cafes.filter((cafe) => {
-    if (activeTag === 'PS5 & Consoles' && !hasConsoleTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
+    if (activeTag === 'PC' && !hasPcTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
       return false;
     }
 
-    if (activeTag === 'RTX 4080 / 4090') {
-      const hasHighEndGpu = cafe.tierNames?.some(
-        (t) => t.toLowerCase().includes('4080') || t.toLowerCase().includes('4090')
-      );
-      if (!hasHighEndGpu) return false;
-    }
-
-    if (activeTag === 'Open Now' && !isCafeOpenNow(cafe.openingTime, cafe.closingTime)) {
+    if (activeTag === 'PS5' && !hasPlatformTier('playstation', cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
       return false;
     }
 
-    if (activeTag === 'Offers' && !cafe.hasActivePromotion) {
-      // In test env, show cafes with promotions or tagged offers
-      return cafe.hasActivePromotion || cafe.name.toLowerCase().includes('lxg');
+    if (activeTag === 'Xbox' && !hasPlatformTier('xbox', cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
+      return false;
+    }
+
+    if (activeTag === 'Open now' && !isCafeOpenNow(cafe.openingTime, cafe.closingTime)) {
+      return false;
     }
 
     if (minRating != null && !(cafe.averageRating >= minRating)) {
@@ -232,6 +245,20 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
 
     return true;
   });
+
+  const distanceOf = (cafe: CafeListItem): number =>
+    userLat != null && userLng != null && cafe.latitude != null && cafe.longitude != null
+      ? calculateDistance(userLat, userLng, cafe.latitude, cafe.longitude)
+      : Infinity;
+
+  const sortedCafes = [...filteredCafes];
+  if (sortBy === 'rating') {
+    sortedCafes.sort((a, b) => b.averageRating - a.averageRating);
+  } else if (sortBy === 'price') {
+    sortedCafes.sort((a, b) => (a.startingPrice ?? Infinity) - (b.startingPrice ?? Infinity));
+  } else if (sortBy === 'distance') {
+    sortedCafes.sort((a, b) => distanceOf(a) - distanceOf(b));
+  }
 
   const hasActiveFilters =
     activeTag !== 'All' ||
@@ -257,14 +284,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     setMinRating(null);
   };
 
-  const handleBrowseOffers = () => {
-    setActiveTag('Offers');
-    if (cafesGridRef.current) {
-      cafesGridRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const hasAnyActivePromotion = filteredCafes.some((cafe) => cafe.hasActivePromotion);
+  const advancedFilterCount = (minPrice !== undefined ? 1 : 0) + (maxPrice !== undefined ? 1 : 0) + (minRating != null ? 1 : 0);
 
   const cityDropdownPanel = showCityDropdown && (
     <div className="absolute top-10 left-0 z-50 w-52 rounded-2xl bg-card border border-border/80 shadow-overlay p-2 flex flex-col gap-1 animate-in fade-in">
@@ -285,12 +305,43 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           {selectedCity === city && <span>✓</span>}
         </button>
       ))}
+      <button
+        onClick={() => {
+          handleDetectLocation();
+          setShowCityDropdown(false);
+        }}
+        disabled={isLocating}
+        className="flex items-center gap-1.5 p-2.5 rounded-xl text-caption font-semibold text-left text-primary hover:bg-primary/5 transition-colors border-t border-border/60 mt-1 pt-2.5"
+      >
+        <Navigation className={`h-3.5 w-3.5 ${isLocating ? 'animate-spin' : ''}`} />
+        <span>{isLocating ? 'Detecting…' : 'Use exact location'}</span>
+      </button>
     </div>
   );
 
-  const advancedFilterCount = (minPrice !== undefined ? 1 : 0) + (maxPrice !== undefined ? 1 : 0) + (minRating != null ? 1 : 0);
+  const sortDropdownPanel = showSortDropdown && (
+    <div className="absolute top-10 right-0 z-50 w-44 rounded-2xl bg-card border border-border/80 shadow-overlay p-2 flex flex-col gap-1 animate-in fade-in">
+      {(Object.keys(SORT_LABELS) as SortOption[]).map((option) => (
+        <button
+          key={option}
+          onClick={() => {
+            setSortBy(option);
+            setShowSortDropdown(false);
+          }}
+          className={`p-2.5 rounded-xl text-caption font-semibold text-left transition-colors flex items-center justify-between ${
+            sortBy === option
+              ? 'bg-primary/10 text-primary font-bold'
+              : 'text-text-primary hover:bg-surface'
+          }`}
+        >
+          <span>{SORT_LABELS[option]}</span>
+          {sortBy === option && <span>✓</span>}
+        </button>
+      ))}
+    </div>
+  );
 
-  const filterChipsRow = (dark: boolean) => (
+  const filterChipsRow = (
     <div className="relative">
       {/* Edge-fades on the trailing side hint that the row scrolls
           horizontally, since chips otherwise clip mid-word at the viewport
@@ -305,12 +356,10 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
             <button
               key={tag}
               onClick={() => setActiveTag(tag)}
-              className={`rounded-full px-4 py-2 text-caption font-semibold flex-shrink-0 transition-all ${
+              className={`rounded-full px-4 min-h-[36px] text-caption font-semibold flex-shrink-0 transition-all ${
                 isSelected
-                  ? `${dark ? 'bg-primary' : 'bg-secondary'} text-white shadow-card font-bold scale-105`
-                  : dark
-                    ? 'bg-white/12 text-white border border-white/25 hover:bg-white/20'
-                    : 'bg-card text-text-secondary border border-border hover:bg-surface'
+                  ? 'bg-secondary text-white shadow-card font-bold'
+                  : 'bg-card text-text-secondary border border-border hover:bg-surface'
               }`}
             >
               {tag}
@@ -318,35 +367,29 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           );
         })}
 
-        {/* Everything most people never touch (price range, minimum rating)
-            lives behind this one toggle instead of adding permanent chips
-            for filters most searches don't need. */}
+        {/* Everything most people never touch (platform-agnostic price
+            range, minimum rating) lives behind this one toggle instead of
+            adding permanent chips for filters most searches don't need. */}
         <button
           onClick={() => setShowMoreFilters((v) => !v)}
-          className={`flex items-center gap-1.5 rounded-full px-4 min-h-[44px] text-caption font-semibold flex-shrink-0 transition-all ${
+          className={`flex items-center gap-1.5 rounded-full px-4 min-h-[36px] text-caption font-semibold flex-shrink-0 transition-all ${
             showMoreFilters || advancedFilterCount > 0
-              ? `${dark ? 'bg-primary' : 'bg-secondary'} text-white shadow-card font-bold`
-              : dark
-                ? 'bg-white/12 text-white border border-white/25 hover:bg-white/20'
-                : 'bg-card text-text-secondary border border-border hover:bg-surface'
+              ? 'bg-secondary text-white shadow-card font-bold'
+              : 'bg-card text-text-secondary border border-border hover:bg-surface'
           }`}
           aria-expanded={showMoreFilters}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
-          <span>More filters{advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ''}</span>
+          <span>Filters{advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ''}</span>
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showMoreFilters ? 'rotate-180' : ''}`} />
         </button>
 
         {hasActiveFilters && (
           <button
             onClick={handleResetFilters}
-            className={`rounded-full px-3.5 py-2 text-caption font-bold flex-shrink-0 transition-all ${
-              dark
-                ? 'text-white bg-white/15 border border-white/30 hover:bg-white/25'
-                : 'text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20'
-            }`}
+            className="rounded-full px-3.5 min-h-[36px] text-caption font-bold flex-shrink-0 transition-all text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20"
           >
-            Clear filters ✕
+            Clear ✕
           </button>
         )}
       </div>
@@ -367,10 +410,6 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     </div>
   );
 
-  const scrollToResults = () => {
-    cafesGridRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   // The current search location must always be visible, not just implied by
   // an unlabeled pill — so this spells out whether it's the "no location
   // picked yet" state, a GPS fix, or a manually-chosen city.
@@ -378,159 +417,73 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     selectedCity === 'All Cities'
       ? 'Choose location'
       : isPreciseLocation
-        ? `Using current location: ${selectedCity}`
-        : `Near: ${selectedCity}`;
+        ? `Near you · ${selectedCity}`
+        : `Near · ${selectedCity}`;
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto">
-      {/* First-visit hero — this page is public (see (customer)/layout.tsx
-          isPublicPath), so a signed-out visitor or crawler lands here
-          directly. The product action (search a café, pick a platform, find
-          one) is the hero itself, not something buried below an account nav
-          — a returning/logged-in gamer skips this and gets the compact
-          "Hey {firstName}" + search layout below instead. */}
-      {!isAuthenticated ? (
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#18191E] via-[#241F23] to-[#4A2322] p-6 md:p-10 text-white shadow-float border border-border/40">
-          <div className="relative z-10 flex flex-col gap-4 max-w-2xl">
-            <span className="w-fit rounded-full bg-white/10 px-3 py-1 text-overline font-bold uppercase tracking-wider text-white/80">
-              Gaming Café Booking
-            </span>
-            <h1 className="font-heading text-h1 md:text-display font-bold text-white leading-tight">
-              Find a gaming café near you. See real seat availability. Book in minutes.
-            </h1>
-            <p className="text-body text-white/75 max-w-xl">
-              KHEL-O lists verified PC and console gaming cafés with live pricing and open slots.
-              Pick a time, pay online, and show your QR pass at the counter — no calling ahead.
-            </p>
+    <div className="flex flex-col gap-4 max-w-5xl mx-auto">
+      {/* Discovery header — one compact block covering brand tagline,
+          search, platform filters, and location/sort, whether or not the
+          visitor is signed in. This page is public (see
+          (customer)/layout.tsx isPublicPath), so a signed-out visitor or
+          crawler lands here directly; the product action (search a café,
+          pick a platform, find one) is the page itself, not something
+          buried below a marketing hero. */}
+      <div className="flex flex-col gap-2.5">
+        <div>
+          <h1 className="font-heading text-h2 md:text-h1 font-bold text-text-primary tracking-tight">
+            {firstName ? `Hey ${firstName}` : 'Find the best gaming cafés'}
+          </h1>
+          <p className="text-caption text-text-secondary">
+            {firstName ? 'Find gaming stations near you' : 'Book your rig. Play more.'}
+          </p>
+        </div>
 
-            <div className="relative flex items-center gap-2 flex-wrap pt-2" ref={dropdownRef}>
-              <button
-                onClick={() => setShowCityDropdown(!showCityDropdown)}
-                className="flex items-center gap-1.5 text-caption font-bold text-white bg-white/15 hover:bg-white/25 px-3.5 min-h-[44px] rounded-full transition-colors"
-                aria-haspopup="listbox"
-                aria-expanded={showCityDropdown}
-              >
-                <MapPin className="h-4 w-4" />
-                <span>{locationLabel} ▼</span>
-              </button>
+        <SearchBarWithSuggestions
+          value={searchQuery}
+          onChange={setSearchQuery}
+          onSelectCity={setSelectedCity}
+          onSelectTag={() => {}}
+        />
 
-              {selectedCity !== 'All Cities' && (
-                <button
-                  onClick={clearLocation}
-                  className="flex items-center text-caption font-medium text-white/70 hover:text-white transition-colors min-h-[44px] px-2"
-                  aria-label="Clear location and search all cities"
-                >
-                  Clear
-                </button>
-              )}
+        {filterChipsRow}
 
-              <button
-                onClick={handleDetectLocation}
-                disabled={isLocating}
-                className="flex items-center gap-1 text-caption font-medium text-white/90 hover:text-white transition-colors bg-white/10 px-3 min-h-[44px] rounded-full border border-white/20"
-              >
-                <Navigation className={`h-3.5 w-3.5 ${isLocating ? 'animate-spin' : ''}`} />
-                <span>{isLocating ? 'Detecting...' : 'Use exact location'}</span>
-              </button>
-
-              {cityDropdownPanel}
-            </div>
-
-            <div className="pt-1">
-              <SearchBarWithSuggestions
-                value={searchQuery}
-                onChange={setSearchQuery}
-                onSelectCity={setSelectedCity}
-                onSelectTag={(tag) => setActiveTag(tag)}
-              />
-            </div>
-
-            {filterChipsRow(true)}
-
+        <div className="flex items-center justify-between gap-2">
+          <div className="relative" ref={dropdownRef}>
             <button
-              onClick={scrollToResults}
-              className="w-fit mt-1 rounded-full bg-white px-6 py-3 text-btn font-bold text-secondary shadow-card hover:bg-surface transition-colors"
+              onClick={() => setShowCityDropdown(!showCityDropdown)}
+              className="flex items-center gap-1 text-caption font-semibold text-text-secondary hover:text-primary transition-colors min-h-[32px]"
+              aria-haspopup="listbox"
+              aria-expanded={showCityDropdown}
             >
-              Find Gaming Cafés
+              <MapPin className="h-3.5 w-3.5 text-primary" />
+              <span>{locationLabel}</span>
+              <ChevronDown className="h-3 w-3" />
             </button>
-          </div>
-        </section>
-      ) : (
-        <>
-          {/* Top Header & City Selector Bar */}
-          <div className="flex flex-col gap-2">
-            <div className="relative flex items-center justify-between gap-2" ref={dropdownRef}>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => setShowCityDropdown(!showCityDropdown)}
-                  className="flex items-center gap-1.5 text-caption font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3.5 min-h-[44px] rounded-full transition-colors"
-                  aria-haspopup="listbox"
-                  aria-expanded={showCityDropdown}
-                >
-                  <MapPin className="h-4 w-4" />
-                  <span>{locationLabel} ▼</span>
-                </button>
-
-                {selectedCity !== 'All Cities' && (
-                  <button
-                    onClick={clearLocation}
-                    className="flex items-center text-caption font-medium text-text-secondary hover:text-text-primary transition-colors min-h-[44px] px-2"
-                    aria-label="Clear location and search all cities"
-                  >
-                    Clear
-                  </button>
-                )}
-
-                <button
-                  onClick={handleDetectLocation}
-                  disabled={isLocating}
-                  className="flex items-center gap-1 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors bg-surface px-3 min-h-[44px] rounded-full border border-border/60"
-                >
-                  <Navigation className={`h-3.5 w-3.5 text-primary ${isLocating ? 'animate-spin' : ''}`} />
-                  <span>{isLocating ? 'Detecting...' : 'Use exact location'}</span>
-                </button>
-              </div>
-
-              {cityDropdownPanel}
-            </div>
-
-            <div className="flex items-baseline gap-2 mt-0.5">
-              <h2 className="font-heading text-h3 font-bold text-text-primary tracking-tight">
-                Hey {firstName}
-              </h2>
-              <span className="text-caption text-text-secondary">find gaming stations near you</span>
-            </div>
+            {cityDropdownPanel}
           </div>
 
-          {/* Single Integrated Search Bar & Filter Chips */}
-          <div className="flex flex-col gap-3">
-            <SearchBarWithSuggestions
-              value={searchQuery}
-              onChange={setSearchQuery}
-              onSelectCity={setSelectedCity}
-              onSelectTag={(tag) => setActiveTag(tag)}
-            />
-            {filterChipsRow(false)}
+          <div className="relative" ref={sortRef}>
+            <button
+              onClick={() => setShowSortDropdown(!showSortDropdown)}
+              className="flex items-center gap-1 text-caption font-semibold text-text-secondary hover:text-primary transition-colors min-h-[32px]"
+              aria-haspopup="listbox"
+              aria-expanded={showSortDropdown}
+            >
+              <span>Sort: {SORT_LABELS[sortBy]}</span>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            {sortDropdownPanel}
           </div>
-        </>
-      )}
+        </div>
+      </div>
 
       {/* Gaming Cafés Grid — one honest list. No fake "featured"/"recommended"
           curation layers: with a handful of cafés live right now, splitting
           the same list into multiple sections just repeats the same cards
-          under different labels. Real signals (rating, "New", active-promo
-          badge) already surface per-card from real data. */}
+          under different labels. Real signals (rating, active-promo badge)
+          already surface per-card from real data. */}
       <section className={isLoading ? 'min-h-[350px]' : undefined} ref={cafesGridRef}>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="font-heading text-h2 text-text-primary">Nearby Gaming Cafés</h2>
-            <p className="text-caption text-text-secondary">
-              Verified PCs, 240Hz setups, ping checks, and PS5 lounges
-              {selectedCity !== 'All Cities' ? ` in ${selectedCity}` : ' near you'}
-            </p>
-          </div>
-        </div>
-
         {isLoading && <SkeletonCafeGrid count={6} />}
 
         {isError && (
@@ -541,7 +494,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           />
         )}
 
-        {!isLoading && !isError && filteredCafes.length === 0 && (
+        {!isLoading && !isError && sortedCafes.length === 0 && (
           <EmptyState
             title="No gaming cafés found"
             description={`No cafés match "${searchQuery || activeTag}" in ${selectedCity}.`}
@@ -550,43 +503,22 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           />
         )}
 
-        {!isLoading && !isError && filteredCafes.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredCafes.map((cafe) => (
+        {!isLoading && !isError && sortedCafes.length > 0 && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {sortedCafes.map((cafe) => (
               <CafeCard key={cafe.id} cafe={cafe} />
             ))}
           </div>
         )}
       </section>
 
-      {/* Discovery Hierarchy 3: Promotional Off-Peak Banner */}
-      {hasAnyActivePromotion && (
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#18191E] via-[#241F23] to-[#4A2322] p-6 md:p-8 text-white shadow-float border border-border/40 my-2">
-          <div className="relative z-10 max-w-lg flex flex-col gap-3">
-            <div className="w-fit">
-              <span className="rounded-full bg-card/90 px-3 py-1 text-overline font-bold uppercase tracking-wider text-primary">
-                Active Offers
-              </span>
-            </div>
-
-            <h2 className="font-heading text-h2 font-bold text-white">
-              Some cafés have active offers right now
-            </h2>
-
-            <p className="text-body text-white/80">
-              Look for the offer badge on a café&apos;s card — no code needed, it applies automatically at checkout.
-            </p>
-
-            <div className="pt-2">
-              <button
-                onClick={handleBrowseOffers}
-                className="rounded-full bg-white px-6 py-2.5 text-btn font-bold text-secondary shadow-card hover:bg-surface transition-colors"
-              >
-                Browse offer cafés →
-              </button>
-            </div>
-          </div>
-        </section>
+      {!isAuthenticated && (
+        <p className="text-center text-caption text-text-secondary -mt-2">
+          <Link href={`/login?redirect=${encodeURIComponent(pathname)}`} className="font-semibold text-primary hover:underline">
+            Log in
+          </Link>{' '}
+          to book a slot and track your bookings.
+        </p>
       )}
 
       {/* Legal Footer Links */}

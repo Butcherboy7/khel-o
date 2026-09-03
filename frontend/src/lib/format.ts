@@ -321,8 +321,11 @@ export function calculateDistance(
   return R * c;
 }
 
-/** Format a distance in km for display, e.g. "0.8 km" or "12 km" */
+/** Format a distance in km for display, e.g. "800 m", "2.4 km", "48 km".
+ *  Precision drops as distance grows — a fractional km at inter-city range
+ *  (e.g. "501.3 km") reads as false precision, not useful accuracy. */
 export function formatDistance(km: number): string {
   if (km < 1) return `${Math.round(km * 1000)} m`;
-  return `${km.toFixed(1)} km`;
+  if (km < 10) return `${km.toFixed(1)} km`;
+  return `${Math.round(km)} km`;
 }
