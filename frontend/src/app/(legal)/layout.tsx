@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 
 const LEGAL_LINKS = [
+  { href: '/about', label: 'About Us' },
   { href: '/terms', label: 'Terms & Conditions' },
   { href: '/privacy', label: 'Privacy Policy' },
   { href: '/refund-policy', label: 'Cancellation & Refunds' },

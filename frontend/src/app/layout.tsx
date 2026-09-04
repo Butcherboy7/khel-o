@@ -88,6 +88,18 @@ const organizationJsonLd = {
   description:
     'KHEL-O is a booking platform for gaming cafés in India. Gamers search for a café, check real-time station availability, book a time slot, and pay online.',
   areaServed: 'IN',
+  founder: {
+    '@type': 'Person',
+    name: 'Mohammed Abdullah',
+  },
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: 'Prajay Apartment, Kompally',
+    addressLocality: 'Hyderabad',
+    addressRegion: 'Telangana',
+    addressCountry: 'IN',
+  },
+  email: 'hello@khel-o.com',
 };
 
 const websiteJsonLd = {

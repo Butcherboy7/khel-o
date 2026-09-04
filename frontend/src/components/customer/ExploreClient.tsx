@@ -580,6 +580,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
 
       {/* Legal Footer Links */}
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 pt-4 pb-2 text-caption text-text-secondary border-t border-border/60">
+        <Link href="/about" className="hover:text-primary transition-colors">About Us</Link>
         <Link href="/terms" className="hover:text-primary transition-colors">Terms &amp; Conditions</Link>
         <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
         <Link href="/refund-policy" className="hover:text-primary transition-colors">Cancellation &amp; Refunds</Link>
