@@ -21,14 +21,14 @@ export default function ContactPage() {
 
       <div className="not-prose grid grid-cols-1 sm:grid-cols-3 gap-4 my-8">
         <a
-          href="mailto:mallareddyuniversity010003@gmail.com"
+          href="mailto:hello@khel-o.com"
           className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-card p-5 hover:border-primary/40 transition-colors"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Mail className="h-5 w-5" />
           </div>
           <span className="text-caption font-semibold text-text-primary">Email</span>
-          <span className="text-caption text-text-secondary break-all">mallareddyuniversity010003@gmail.com</span>
+          <span className="text-caption text-text-secondary break-all">hello@khel-o.com</span>
         </a>
 
         <a
@@ -47,7 +47,7 @@ export default function ContactPage() {
             <MapPin className="h-5 w-5" />
           </div>
           <span className="text-caption font-semibold text-text-primary">Location</span>
-          <span className="text-caption text-text-secondary">Hyderabad, Telangana, India</span>
+          <span className="text-caption text-text-secondary">Prajay Apartment, Kompally, Hyderabad, Telangana, India</span>
         </div>
       </div>
 
