@@ -147,8 +147,12 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
     setLocationSaving(true);
     setLocationError(null);
     try {
-      await updateCafeDetails(cafeId, { latitude: lat, longitude: lng });
-      onSaved({ latitude: lat, longitude: lng });
+      // Bundled with address/city/state/pincode (not just lat/lng) so a
+      // Google Maps pick on this tab updates the café card immediately,
+      // instead of requiring a second save on the Basic Info tab.
+      const update = { latitude: lat, longitude: lng, addressLine1, city, state, pincode };
+      await updateCafeDetails(cafeId, update);
+      onSaved(update);
       setLocationSaved(true);
       setTimeout(() => setLocationSaved(false), 2500);
     } catch (err: unknown) {
@@ -411,8 +415,29 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
               onLocationSelect={(loc) => {
                 setLat(loc.lat);
                 setLng(loc.lng);
+                if (loc.addressLine1) setAddressLine1(loc.addressLine1);
+                if (loc.state) setState(loc.state);
+                if (loc.pincode) setPincode(loc.pincode);
+                // Google's geocoded "locality" is free text and often doesn't
+                // match our fixed city list (e.g. a suburb instead of the
+                // metro city KHEL-O actually operates in) — only auto-fill
+                // when it's an exact (case-insensitive) match to a supported
+                // city, same guard the onboarding form uses, otherwise leave
+                // the Basic Info dropdown for the owner to pick.
+                if (loc.city) {
+                  const matched = SUPPORTED_CITIES.find(
+                    (c) => c.toLowerCase() === loc.city!.trim().toLowerCase()
+                  );
+                  if (matched) setCity(matched);
+                }
               }}
             />
+            {(addressLine1 || city || state || pincode) && (
+              <div className="rounded-xl bg-surface border border-border/80 p-3 text-caption text-text-secondary">
+                <span className="font-semibold text-text-primary">Will save as: </span>
+                {[addressLine1, city, state, pincode].filter(Boolean).join(', ')}
+              </div>
+            )}
             <SaveRow saving={locationSaving} saved={locationSaved} label="Save Location" onClick={handleLocationSave} disabled={lat == null || lng == null} />
           </div>
         )}

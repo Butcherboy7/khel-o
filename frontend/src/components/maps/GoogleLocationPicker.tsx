@@ -79,6 +79,50 @@ export function GoogleLocationPicker({
     };
   }, []);
 
+  // Shared with the Places Autocomplete listener below and with the
+  // reverse-geocode path so a map click/drag reports the same
+  // addressLine1/city/state/pincode shape as a search selection, instead of
+  // handing back bare coordinates that the caller has to geocode itself.
+  const parseAddressComponents = (
+    components: google.maps.GeocoderAddressComponent[] | undefined
+  ) => {
+    let city = '';
+    let state = '';
+    let pincode = '';
+    if (components) {
+      for (const comp of components) {
+        if (comp.types.includes('locality')) city = comp.long_name;
+        if (comp.types.includes('administrative_area_level_1')) state = comp.long_name;
+        if (comp.types.includes('postal_code')) pincode = comp.long_name;
+      }
+    }
+    return { city, state, pincode };
+  };
+
+  const reverseGeocode = useCallback(
+    (lat: number, lng: number) => {
+      if (!window.google?.maps) return;
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+        if (status !== 'OK' || !results || results.length === 0) {
+          onLocationSelect({ lat, lng });
+          return;
+        }
+        const result = results[0];
+        const { city, state, pincode } = parseAddressComponents(result.address_components);
+        onLocationSelect({
+          lat,
+          lng,
+          addressLine1: result.formatted_address,
+          city,
+          state,
+          pincode,
+        });
+      });
+    },
+    [onLocationSelect]
+  );
+
   useEffect(() => {
     if (!isLoaded || !inputRef.current || !window.google?.maps?.places) return;
 
@@ -96,23 +140,12 @@ export function GoogleLocationPicker({
           const newPos = { lat: newLat, lng: newLng };
           setPosition(newPos);
 
-          let addressLine1 = place.name || '';
-          let city = '';
-          let state = '';
-          let pincode = '';
-
-          if (place.address_components) {
-            for (const comp of place.address_components) {
-              if (comp.types.includes('locality')) city = comp.long_name;
-              if (comp.types.includes('administrative_area_level_1')) state = comp.long_name;
-              if (comp.types.includes('postal_code')) pincode = comp.long_name;
-            }
-          }
+          const { city, state, pincode } = parseAddressComponents(place.address_components);
 
           onLocationSelect({
             lat: newLat,
             lng: newLng,
-            addressLine1: addressLine1 || place.formatted_address,
+            addressLine1: place.name || place.formatted_address,
             city,
             state,
             pincode,
@@ -133,12 +166,11 @@ export function GoogleLocationPicker({
       if (e.latLng) {
         const newLat = e.latLng.lat();
         const newLng = e.latLng.lng();
-        const newPos = { lat: newLat, lng: newLng };
-        setPosition(newPos);
-        onLocationSelect(newPos);
+        setPosition({ lat: newLat, lng: newLng });
+        reverseGeocode(newLat, newLng);
       }
     },
-    [onLocationSelect]
+    [reverseGeocode]
   );
 
   const handleMarkerDragEnd = useCallback(
@@ -146,12 +178,11 @@ export function GoogleLocationPicker({
       if (e.latLng) {
         const newLat = e.latLng.lat();
         const newLng = e.latLng.lng();
-        const newPos = { lat: newLat, lng: newLng };
-        setPosition(newPos);
-        onLocationSelect(newPos);
+        setPosition({ lat: newLat, lng: newLng });
+        reverseGeocode(newLat, newLng);
       }
     },
-    [onLocationSelect]
+    [reverseGeocode]
   );
 
   if (loadError || authErrorCode) {
