@@ -85,7 +85,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
 
   const { data: serverReviewsData, refetch: refetchReviews } = useQuery({
     queryKey: ['cafe-reviews', cafeId],
-    queryFn: () => listCafeReviews(cafeId, { limit: 100 }),
+    queryFn: () => listCafeReviews(cafeId, { limit: 50 }),
     enabled: Boolean(cafeId),
   });
 
