@@ -1,3 +1,4 @@
+import logging
 import math
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
@@ -15,6 +16,8 @@ from app.schemas.admin import AdminCafeDetailResponse
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.user import User, UserRole
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
+
+logger = logging.getLogger(__name__)
 
 class CafeService:
     def __init__(
@@ -176,9 +179,15 @@ class CafeService:
     async def get_pending_cafes(self, page: int = 1, limit: int = 20) -> Dict[str, Any]:
         items, total = await self.cafe_repo.get_pending_verification(page=page, limit=limit)
         limit = min(limit, 50)
+        rendered_items = []
+        for c in items:
+            try:
+                rendered_items.append(await self._build_cafe_response(c, response_cls=AdminCafeDetailResponse))
+            except Exception:
+                logger.error("Skipping unrenderable pending café %s", c.id, exc_info=True)
         total_pages = math.ceil(total / limit) if total > 0 else 0
         return {
-            "items": [await self._build_cafe_response(c, response_cls=AdminCafeDetailResponse) for c in items],
+            "items": rendered_items,
             "total": total,
             "page": page,
             "pageSize": limit,

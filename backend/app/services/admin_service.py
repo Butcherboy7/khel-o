@@ -1,3 +1,4 @@
+import logging
 import math
 from typing import List, Optional, Dict, Any
 from uuid import UUID
@@ -30,6 +31,8 @@ from app.models.platform_fee import PlatformFee
 from app.models.payment import Payment
 from app.models.support_ticket import SupportTicket, SupportTicketStatus
 from app.core.exceptions import NotFoundException, ValidationException
+
+logger = logging.getLogger(__name__)
 
 class AdminService:
     def __init__(
@@ -144,9 +147,14 @@ class AdminService:
 
         item_responses: List[AdminCafeListItem] = []
         for cafe, owner_email in items_tuples:
-            cd = CafeResponse.model_validate(cafe).model_dump()
-            cd["owner_email"] = owner_email
-            item_responses.append(AdminCafeListItem.model_validate(cd))
+            try:
+                cd = CafeResponse.model_validate(cafe).model_dump()
+                cd["owner_email"] = owner_email
+                item_responses.append(AdminCafeListItem.model_validate(cd))
+            except Exception:
+                # A single malformed legacy row (e.g. a city value that predates
+                # SUPPORTED_CITIES) must not 500 the entire admin café list.
+                logger.error("Skipping unrenderable café %s in admin list", cafe.id, exc_info=True)
 
         total_pages = math.ceil(total / limit) if total > 0 else 0
         return {
