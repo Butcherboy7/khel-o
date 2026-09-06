@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestException
 from app.models.booking import Booking
+from app.models.cafe import Cafe
 from app.models.cafe_payout import CafePayout, CafePayoutStatus
 from app.models.cafe_payout_item import CafePayoutItem
 from app.models.payment import Payment, PaymentStatus
@@ -83,3 +84,67 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         await self.db.commit()
         await self.db.refresh(payout)
         return payout
+
+    async def get_outstanding_breakdown(self, cafe_id: UUID) -> list[dict]:
+        rows = await self.get_outstanding_fee_rows(cafe_id)
+        return [
+            {
+                "bookingId": str(booking.id),
+                "bookingReference": booking.booking_reference,
+                "sessionDate": str(booking.session_date),
+                "grossAmount": float(booking.total_amount),
+                "ownerSettlementAmount": float(fee.owner_settlement_amount),
+            }
+            for fee, booking in rows
+        ]
+
+    async def list_cafes_with_outstanding(self) -> list[dict]:
+        cafes_result = await self.db.execute(select(Cafe.id, Cafe.name))
+        out = []
+        for cafe_id, cafe_name in cafes_result.all():
+            amount = await self.get_outstanding_amount(cafe_id)
+            if amount > 0:
+                out.append({
+                    "cafeId": str(cafe_id),
+                    "cafeName": cafe_name,
+                    "outstandingAmount": float(amount),
+                })
+        return out
+
+    async def list_payouts(
+        self,
+        cafe_id: Optional[UUID] = None,
+        status: Optional[str] = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> dict:
+        limit = min(limit, 50)
+        stmt = select(CafePayout)
+        if cafe_id:
+            stmt = stmt.where(CafePayout.cafe_id == cafe_id)
+        if status:
+            stmt = stmt.where(CafePayout.status == status)
+        stmt = stmt.order_by(CafePayout.created_at.desc())
+
+        total = (await self.db.execute(
+            select(func.count()).select_from(stmt.subquery())
+        )).scalar() or 0
+
+        offset = (page - 1) * limit
+        rows = (await self.db.execute(stmt.offset(offset).limit(limit))).scalars().all()
+
+        items = [
+            {
+                "id": str(p.id),
+                "cafeId": str(p.cafe_id),
+                "amount": float(p.amount),
+                "utrReference": p.utr_reference,
+                "paymentMethod": p.payment_method,
+                "status": p.status.value if hasattr(p.status, "value") else str(p.status),
+                "notes": p.notes,
+                "paidAt": p.paid_at.isoformat() if p.paid_at else None,
+                "createdAt": p.created_at.isoformat(),
+            }
+            for p in rows
+        ]
+        return {"items": items, "total": total, "page": page, "pageSize": limit}
