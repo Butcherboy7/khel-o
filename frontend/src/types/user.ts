@@ -29,6 +29,11 @@ export interface RegisterRequest {
   password: string;
   fullName: string;
   phoneNumber?: string;
+  city?: string;
+  acquisitionSource?: string;
+  acquisitionMedium?: string;
+  acquisitionCampaign?: string;
+  sessionId?: string;
 }
 
 export interface LoginRequest {
