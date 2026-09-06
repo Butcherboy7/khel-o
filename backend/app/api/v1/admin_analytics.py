@@ -38,3 +38,13 @@ async def get_setup_performance(
     service = AdminAnalyticsService(db)
     result = await service.get_setup_performance()
     return {"success": True, "data": result}
+
+
+@router.get("/geography", status_code=status.HTTP_200_OK)
+async def get_geography(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    service = AdminAnalyticsService(db)
+    result = await service.get_geography()
+    return {"success": True, "data": result}

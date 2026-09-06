@@ -46,3 +46,14 @@ export interface SetupPerformanceItem {
 export async function getSetupPerformance(): Promise<SetupPerformanceItem[]> {
   return call(() => apiClient.get('/api/v1/admin/analytics/setups'));
 }
+
+export interface CityGeographyItem {
+  city: string;
+  cafeCount: number;
+  bookings: number;
+  gmv: number;
+}
+
+export async function getGeography(): Promise<CityGeographyItem[]> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/geography'));
+}

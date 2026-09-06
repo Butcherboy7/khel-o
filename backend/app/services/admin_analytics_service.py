@@ -7,7 +7,7 @@ from app.models.cafe import Cafe, VerificationStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.platform_fee import PlatformFee
 from app.models.hardware_tier import HardwareTier
-from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem
 
 
 class AdminAnalyticsService:
@@ -175,4 +175,29 @@ class AdminAnalyticsService:
                 utilization_hours=float(hours or 0.0),
             )
             for platform, bookings, gmv, hours in rows
+        ]
+
+    async def get_geography(self) -> list[CityGeographyItem]:
+        counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+
+        cafe_counts = dict((await self.db.execute(
+            select(Cafe.city, func.count(Cafe.id)).group_by(Cafe.city)
+        )).all())
+
+        booking_rows = (await self.db.execute(
+            select(Cafe.city, func.count(Booking.id), func.sum(Booking.total_amount))
+            .join(Booking, Booking.cafe_id == Cafe.id)
+            .where(Booking.status.in_(counted))
+            .group_by(Cafe.city)
+        )).all()
+        booking_by_city = {city: (cnt, float(gmv or 0.0)) for city, cnt, gmv in booking_rows}
+
+        return [
+            CityGeographyItem(
+                city=city,
+                cafe_count=count,
+                bookings=booking_by_city.get(city, (0, 0.0))[0],
+                gmv=booking_by_city.get(city, (0, 0.0))[1],
+            )
+            for city, count in cafe_counts.items()
         ]

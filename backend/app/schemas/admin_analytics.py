@@ -55,3 +55,15 @@ class SetupPerformanceItem(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class CityGeographyItem(BaseModel):
+    city: str
+    cafe_count: int
+    bookings: int
+    gmv: float
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
