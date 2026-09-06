@@ -25,6 +25,7 @@ import { listBookings } from '@/lib/api/bookings';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Button, Skeleton, ErrorState } from '@/components/ui';
 import { PLATFORMS, type Platform } from '@/constants/platforms';
+import { PlayStationIcon, XboxIcon } from '@/components/icons/PlatformIcons';
 import dynamic from 'next/dynamic';
 
 const GoogleLocationDisplay = dynamic(
@@ -158,7 +159,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
 
   const platformBadges = Array.from(
     new Set((cafe.tiers ?? []).map((t) => t.platform).filter((p): p is Platform => Boolean(p)))
-  ).map((p) => PLATFORMS.find((entry) => entry.value === p)?.label || p);
+  ).map((p) => ({ value: p, label: PLATFORMS.find((entry) => entry.value === p)?.label || p }));
 
   const amenityBadges = (cafe.amenities ?? []).slice(0, 3).map((a) => getAmenityDisplay(a));
 
@@ -288,13 +289,17 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               {distanceLabel} away
             </span>
           )}
-          {platformBadges.map((label) => (
+          {platformBadges.map(({ value, label }) => (
             <span
-              key={label}
+              key={value}
               className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary flex items-center gap-1.5"
             >
-              {label === 'PC Gaming' ? (
+              {value === 'pc' ? (
                 <Monitor className="h-3.5 w-3.5 text-primary" />
+              ) : value === 'playstation' ? (
+                <PlayStationIcon className="h-3.5 w-3.5 text-primary" />
+              ) : value === 'xbox' ? (
+                <XboxIcon className="h-3.5 w-3.5 text-primary" />
               ) : (
                 <Gamepad2 className="h-3.5 w-3.5 text-primary" />
               )}
@@ -348,7 +353,15 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                         isSelected ? 'bg-accent/15 text-accent' : 'bg-surface text-text-secondary'
                       }`}
                     >
-                      {isPc ? <Monitor className="h-5 w-5" /> : <Gamepad2 className="h-5 w-5" />}
+                      {isPc ? (
+                        <Monitor className="h-5 w-5" />
+                      ) : tier.platform === 'playstation' ? (
+                        <PlayStationIcon className="h-5 w-5" />
+                      ) : tier.platform === 'xbox' ? (
+                        <XboxIcon className="h-5 w-5" />
+                      ) : (
+                        <Gamepad2 className="h-5 w-5" />
+                      )}
                     </div>
 
                     <div className="flex-1 min-w-0">
