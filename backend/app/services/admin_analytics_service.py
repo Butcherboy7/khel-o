@@ -60,14 +60,16 @@ class AdminAnalyticsService:
             select(func.count())
             .select_from(
                 select(Booking.gamer_id)
-                .where(Booking.status.in_(counted_statuses))
+                .where(Booking.status.in_(counted_statuses), Booking.created_at >= cutoff)
                 .group_by(Booking.gamer_id)
                 .having(func.count(Booking.id) > 1)
                 .subquery()
             )
         )).scalar() or 0
         distinct_gamers_row = (await self.db.execute(
-            select(func.count(func.distinct(Booking.gamer_id))).where(Booking.status.in_(counted_statuses))
+            select(func.count(func.distinct(Booking.gamer_id))).where(
+                Booking.status.in_(counted_statuses), Booking.created_at >= cutoff
+            )
         )).scalar() or 0
         repeat_booking_rate = (repeat_gamers_row / distinct_gamers_row * 100) if distinct_gamers_row else 0.0
 
