@@ -57,3 +57,15 @@ export interface CityGeographyItem {
 export async function getGeography(): Promise<CityGeographyItem[]> {
   return call(() => apiClient.get('/api/v1/admin/analytics/geography'));
 }
+
+export interface RevenueBreakdown {
+  gmv: number;
+  khelRevenue: number;
+  ownerSettlements: number;
+  revenueByCity: Record<string, number>;
+  revenueByPlatform: Record<string, number>;
+}
+
+export async function getRevenueBreakdown(): Promise<RevenueBreakdown> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/revenue'));
+}

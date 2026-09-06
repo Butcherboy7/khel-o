@@ -48,3 +48,13 @@ async def get_geography(
     service = AdminAnalyticsService(db)
     result = await service.get_geography()
     return {"success": True, "data": result}
+
+
+@router.get("/revenue", status_code=status.HTTP_200_OK)
+async def get_revenue_breakdown(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    service = AdminAnalyticsService(db)
+    result = await service.get_revenue_breakdown()
+    return {"success": True, "data": result}

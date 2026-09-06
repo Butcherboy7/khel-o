@@ -7,7 +7,7 @@ from app.models.cafe import Cafe, VerificationStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.platform_fee import PlatformFee
 from app.models.hardware_tier import HardwareTier
-from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse
 
 
 class AdminAnalyticsService:
@@ -201,3 +201,46 @@ class AdminAnalyticsService:
             )
             for city, count in cafe_counts.items()
         ]
+
+    async def get_revenue_breakdown(self) -> RevenueBreakdownResponse:
+        counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+
+        totals_row = (await self.db.execute(
+            select(
+                func.sum(Booking.total_amount),
+                func.sum(PlatformFee.convenience_fee + PlatformFee.gateway_fee),
+                func.sum(PlatformFee.owner_settlement_amount),
+            )
+            .join(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .where(Booking.status.in_(counted))
+        )).first()
+        gmv = float(totals_row[0] or 0.0)
+        khel_revenue = float(totals_row[1] or 0.0)
+        owner_settlements = float(totals_row[2] or 0.0)
+
+        by_city_rows = (await self.db.execute(
+            select(Cafe.city, func.sum(Booking.total_amount))
+            .join(Booking, Booking.cafe_id == Cafe.id)
+            .where(Booking.status.in_(counted))
+            .group_by(Cafe.city)
+        )).all()
+        revenue_by_city = {city: float(total or 0.0) for city, total in by_city_rows}
+
+        by_platform_rows = (await self.db.execute(
+            select(HardwareTier.platform, func.sum(Booking.total_amount))
+            .join(Booking, Booking.hardware_tier_id == HardwareTier.id)
+            .where(Booking.status.in_(counted))
+            .group_by(HardwareTier.platform)
+        )).all()
+        revenue_by_platform = {
+            (platform.value if platform else "unspecified"): float(total or 0.0)
+            for platform, total in by_platform_rows
+        }
+
+        return RevenueBreakdownResponse(
+            gmv=gmv,
+            khel_revenue=khel_revenue,
+            owner_settlements=owner_settlements,
+            revenue_by_city=revenue_by_city,
+            revenue_by_platform=revenue_by_platform,
+        )

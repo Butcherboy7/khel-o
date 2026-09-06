@@ -67,3 +67,16 @@ class CityGeographyItem(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class RevenueBreakdownResponse(BaseModel):
+    gmv: float
+    khel_revenue: float
+    owner_settlements: float
+    revenue_by_city: Dict[str, float]
+    revenue_by_platform: Dict[str, float]
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
