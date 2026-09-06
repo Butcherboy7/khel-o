@@ -34,3 +34,16 @@ async def test_post_event_rejects_oversized_metadata(async_client):
         json={"sessionId": "sess-abc", "eventType": "venue_viewed", "metadata": {"pad": "x" * 3000}},
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_post_event_rejects_nonexistent_cafe_id(async_client):
+    resp = await async_client.post(
+        "/api/v1/analytics/events",
+        json={
+            "sessionId": "sess-abc",
+            "eventType": "venue_viewed",
+            "cafeId": "00000000-0000-0000-0000-000000000000",
+        },
+    )
+    assert resp.status_code == 422
