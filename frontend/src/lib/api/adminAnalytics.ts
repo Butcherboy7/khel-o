@@ -18,3 +18,19 @@ export interface ExecutiveDashboard {
 export async function getExecutiveDashboard(periodDays = 30): Promise<ExecutiveDashboard> {
   return call(() => apiClient.get('/api/v1/admin/analytics/executive', { params: { periodDays } }));
 }
+
+export interface CafePerformanceItem {
+  cafeId: string;
+  cafeName: string;
+  city: string;
+  bookings: number;
+  gmv: number;
+  cancellations: number;
+  repeatCustomers: number;
+  avgBookingValue: number;
+  topGame: string | null;
+}
+
+export async function getCafePerformance(): Promise<CafePerformanceItem[]> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/cafes'));
+}

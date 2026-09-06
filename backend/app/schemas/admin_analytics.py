@@ -25,3 +25,20 @@ class ExecutiveDashboardResponse(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class CafePerformanceItem(BaseModel):
+    cafe_id: str
+    cafe_name: str
+    city: str
+    bookings: int
+    gmv: float
+    cancellations: int
+    repeat_customers: int
+    avg_booking_value: float
+    top_game: str | None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )

@@ -6,7 +6,7 @@ from app.models.user import User
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.platform_fee import PlatformFee
-from app.schemas.admin_analytics import ExecutiveDashboardResponse
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem
 
 
 class AdminAnalyticsService:
@@ -87,3 +87,59 @@ class AdminAnalyticsService:
             repeat_booking_rate=round(repeat_booking_rate, 2),
             period_days=period_days,
         )
+
+    async def get_cafe_performance(self) -> list[CafePerformanceItem]:
+        counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+
+        rows = (await self.db.execute(
+            select(
+                Cafe.id, Cafe.name, Cafe.city,
+                func.count(Booking.id).label("bookings"),
+                func.sum(Booking.total_amount).label("gmv"),
+            )
+            .join(Booking, Booking.cafe_id == Cafe.id)
+            .where(Booking.status.in_(counted))
+            .group_by(Cafe.id, Cafe.name, Cafe.city)
+            .order_by(func.sum(Booking.total_amount).desc())
+        )).all()
+
+        results = []
+        for cafe_id, name, city, bookings, gmv in rows:
+            cancellations = (await self.db.execute(
+                select(func.count(Booking.id)).where(
+                    Booking.cafe_id == cafe_id,
+                    Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
+                )
+            )).scalar() or 0
+
+            repeat_customers = (await self.db.execute(
+                select(func.count()).select_from(
+                    select(Booking.gamer_id)
+                    .where(Booking.cafe_id == cafe_id, Booking.status.in_(counted))
+                    .group_by(Booking.gamer_id)
+                    .having(func.count(Booking.id) > 1)
+                    .subquery()
+                )
+            )).scalar() or 0
+
+            top_game_row = (await self.db.execute(
+                select(Booking.game, func.count(Booking.id).label("cnt"))
+                .where(Booking.cafe_id == cafe_id, Booking.status.in_(counted), Booking.game.is_not(None))
+                .group_by(Booking.game)
+                .order_by(func.count(Booking.id).desc())
+                .limit(1)
+            )).first()
+            top_game = top_game_row[0] if top_game_row else None
+
+            results.append(CafePerformanceItem(
+                cafe_id=str(cafe_id),
+                cafe_name=name,
+                city=city,
+                bookings=bookings,
+                gmv=float(gmv or 0.0),
+                cancellations=cancellations,
+                repeat_customers=repeat_customers,
+                avg_booking_value=round(float(gmv or 0.0) / bookings, 2) if bookings else 0.0,
+                top_game=top_game,
+            ))
+        return results

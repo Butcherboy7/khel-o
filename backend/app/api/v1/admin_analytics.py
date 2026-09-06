@@ -18,3 +18,13 @@ async def get_executive_dashboard(
     service = AdminAnalyticsService(db)
     result = await service.get_executive_dashboard(period_days=periodDays)
     return {"success": True, "data": result}
+
+
+@router.get("/cafes", status_code=status.HTTP_200_OK)
+async def get_cafe_performance(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    service = AdminAnalyticsService(db)
+    result = await service.get_cafe_performance()
+    return {"success": True, "data": result}
