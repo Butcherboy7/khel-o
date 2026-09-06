@@ -15,6 +15,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
+import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
 import { createBooking } from '@/lib/api/bookings';
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
@@ -348,6 +349,19 @@ function BookingWizardContent() {
       setSelectedDateOffset(dayOffset);
     }
   }, [cafe, availabilityData, mergedBookedSlots, selectedDate, activeTier?.id, seatsCount]);
+
+  // Fire once per (cafe, tier) selection, not on every render — this must
+  // stay above the early returns below (rules of hooks: this component
+  // returns early while isLoading/isError, so a hook placed after those
+  // checks would be called conditionally).
+  useEffect(() => {
+    if (!activeTier) return;
+    fireAnalyticsEvent('booking_flow_started', {
+      cafeId,
+      metadata: { tierId: activeTier.id },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cafeId, activeTier?.id]);
 
   if (!cafeId) {
     return (
