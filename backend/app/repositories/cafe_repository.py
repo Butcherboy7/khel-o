@@ -232,7 +232,35 @@ class CafeRepository(BaseRepository[Cafe]):
         }
         if reason is not None:
             update_fields["rejection_reason"] = reason
-        return await self.update(cafe_id, update_fields)
+        updated = await self.update(cafe_id, update_fields)
+
+        # bookable_stations defaults to 0 at café creation and is otherwise
+        # only ever initialized by the owner's pause/resume toggle (see
+        # owner.py's toggle_bookings_paused). A café approved here without
+        # ever going through that toggle stays at 0, which the booking
+        # eligibility checks (cafes.py, owner.py) read as "bookings paused"
+        # even though nothing was explicitly paused. Initialize it the same
+        # way that toggle does — 70% of total seats, rescaled per tier.
+        if updated and is_active and updated.bookable_stations == 0:
+            tiers_result = await self.db.execute(
+                select(HardwareTier).where(HardwareTier.cafe_id == cafe_id)
+            )
+            tiers = list(tiers_result.scalars().all())
+            total_seats = sum(t.total_seats for t in tiers) if tiers else (updated.total_seats or 20)
+            if total_seats > 0:
+                updated.bookable_stations = max(1, round(total_seats * 0.7))
+                updated.app_bookable_seats = updated.bookable_stations
+                ratio = updated.bookable_stations / total_seats
+                for t in tiers:
+                    if t.app_bookable_seats_locked:
+                        continue
+                    scaled_seats = max(0, min(t.total_seats, round(t.total_seats * ratio)))
+                    if scaled_seats == 0 and t.total_seats >= 1:
+                        scaled_seats = 1
+                    t.app_bookable_seats = scaled_seats
+                await self.db.commit()
+                await self.db.refresh(updated)
+        return updated
 
     async def get_pending_verification(self, page: int = 1, limit: int = 20) -> Tuple[List[Cafe], int]:
         stmt = select(Cafe).where(Cafe.verification_status == VerificationStatus.PENDING)
