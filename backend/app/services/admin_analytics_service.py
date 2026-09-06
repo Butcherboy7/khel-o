@@ -206,18 +206,20 @@ class AdminAnalyticsService:
     async def get_revenue_breakdown(self) -> RevenueBreakdownResponse:
         counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
 
+        gmv = float((await self.db.execute(
+            select(func.sum(Booking.total_amount)).where(Booking.status.in_(counted))
+        )).scalar() or 0.0)
+
         totals_row = (await self.db.execute(
             select(
-                func.sum(Booking.total_amount),
                 func.sum(PlatformFee.convenience_fee + PlatformFee.gateway_fee),
                 func.sum(PlatformFee.owner_settlement_amount),
             )
-            .join(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .join(Booking, Booking.id == PlatformFee.booking_id)
             .where(Booking.status.in_(counted))
         )).first()
-        gmv = float(totals_row[0] or 0.0)
-        khel_revenue = float(totals_row[1] or 0.0)
-        owner_settlements = float(totals_row[2] or 0.0)
+        khel_revenue = float(totals_row[0] or 0.0)
+        owner_settlements = float(totals_row[1] or 0.0)
 
         by_city_rows = (await self.db.execute(
             select(Cafe.city, func.sum(Booking.total_amount))
