@@ -1,5 +1,5 @@
 from uuid import UUID
-from typing import Optional
+from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -10,29 +10,45 @@ from app.models.user import User
 from app.models.cafe import Cafe
 from app.models.hardware_tier import HardwareTier
 
-class NotificationService:
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or settings.RESEND_API_KEY
+_ses_client: Any = None
 
+
+def _get_ses_client() -> Any:
+    global _ses_client
+    if _ses_client is None:
+        import boto3
+        _ses_client = boto3.client(
+            "ses",
+            region_name=settings.AWS_REGION,
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        )
+    return _ses_client
+
+
+class NotificationService:
     async def _send_resend_email(self, to_email: str, subject: str, html_body: str, booking_ref: str) -> bool:
-        if not self.api_key:
-            logger.warning("resend_api_key_missing", message="RESEND_API_KEY is missing or empty. Email notification skipped.", booking_ref=booking_ref)
+        """Sends via AWS SES. Named after the old Resend integration it replaced —
+        auth_service and the booking flows call this method name, not worth
+        renaming everywhere for a provider swap."""
+        if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY:
+            logger.warning("ses_credentials_missing", message="AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY missing. Email notification skipped.", booking_ref=booking_ref)
             return False
 
         try:
-            import resend
-            resend.api_key = self.api_key
-            params = {
-                "from": "KHEL-O <notifications@khelo.in>",
-                "to": [to_email],
-                "subject": subject,
-                "html": html_body
-            }
-            resend.Emails.send(params)
-            logger.info("resend_email_sent_success", to_email=to_email, subject=subject, booking_ref=booking_ref)
+            client = _get_ses_client()
+            client.send_email(
+                Source=settings.SES_SENDER_EMAIL,
+                Destination={"ToAddresses": [to_email]},
+                Message={
+                    "Subject": {"Data": subject, "Charset": "UTF-8"},
+                    "Body": {"Html": {"Data": html_body, "Charset": "UTF-8"}},
+                },
+            )
+            logger.info("ses_email_sent_success", to_email=to_email, subject=subject, booking_ref=booking_ref)
             return True
         except Exception as e:
-            logger.error("resend_email_send_failed", error=str(e), to_email=to_email, booking_ref=booking_ref)
+            logger.error("ses_email_send_failed", error=str(e), to_email=to_email, booking_ref=booking_ref)
             return False
 
     async def send_booking_confirmation(self, db: AsyncSession, booking_id: UUID):

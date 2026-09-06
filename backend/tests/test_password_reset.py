@@ -34,7 +34,7 @@ async def _make_user(db_session, role: UserRole = UserRole.GAMER) -> User:
 
 @pytest.mark.asyncio
 async def test_forgot_password_creates_token_for_existing_user(db_session):
-    """No RESEND_API_KEY is configured in tests, so the email send is a no-op —
+    """No AWS credentials are configured in tests, so the email send is a no-op —
     what matters is that a usable token is persisted."""
     user = await _make_user(db_session)
 

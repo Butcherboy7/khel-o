@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     # marker, and it must be turned on explicitly, never implied by "not prod".
     ENABLE_SANDBOX_MOCK_PAYMENTS: bool = False
     
-    # Resend Email Service
-    RESEND_API_KEY: Optional[str] = None
+    # Transactional email — AWS SES (reuses the AWS_* credentials/region below)
+    SES_SENDER_EMAIL: str = "KHEL-O <notifications@khel-o.com>"
 
     # KHEL-O V2 Configurations
     RAZORPAY_ROUTE_ENABLED: bool = False
@@ -55,12 +55,12 @@ class Settings(BaseSettings):
     # margin. Bump PLATFORM_MARGIN_PERCENT via env var to change pricing without
     # a code change — no redeploy of logic needed, just the env var.
     RAZORPAY_COST_PERCENT: float = 2.65
-    PLATFORM_MARGIN_PERCENT: float = 1.20
+    PLATFORM_MARGIN_PERCENT: float = 1.35
     
     # Sentry Error Monitoring
     SENTRY_DSN: Optional[str] = None
 
-    # AWS S3 — café photo storage
+    # AWS — shared by S3 (café photos) and SES (transactional email)
     AWS_REGION: str = "ap-south-1"
     AWS_S3_BUCKET: Optional[str] = None
     AWS_ACCESS_KEY_ID: Optional[str] = None
