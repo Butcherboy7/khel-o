@@ -7,7 +7,8 @@ from app.models.cafe import Cafe, VerificationStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.platform_fee import PlatformFee
 from app.models.hardware_tier import HardwareTier
-from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse
+from app.models.analytics_event import AnalyticsEvent
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse
 
 
 class AdminAnalyticsService:
@@ -243,4 +244,27 @@ class AdminAnalyticsService:
             owner_settlements=owner_settlements,
             revenue_by_city=revenue_by_city,
             revenue_by_platform=revenue_by_platform,
+        )
+
+    async def get_marketplace_health(self) -> MarketplaceHealthResponse:
+        status_rows = (await self.db.execute(
+            select(Booking.status, func.count(Booking.id)).group_by(Booking.status)
+        )).all()
+        by_status = {status: count for status, count in status_rows}
+        total_bookings = sum(by_status.values())
+
+        search_rows = (await self.db.execute(
+            select(AnalyticsEvent.event_metadata).where(AnalyticsEvent.event_type == "search_performed")
+        )).all()
+        total_searches = len(search_rows)
+        searches_with_no_results = sum(1 for (meta,) in search_rows if (meta or {}).get("resultCount") == 0)
+
+        return MarketplaceHealthResponse(
+            total_bookings=total_bookings,
+            completed_count=by_status.get(BookingStatus.COMPLETED, 0),
+            cancelled_count=by_status.get(BookingStatus.CANCELLED, 0),
+            no_show_count=by_status.get(BookingStatus.NO_SHOW, 0),
+            failed_count=by_status.get(BookingStatus.FAILED, 0),
+            total_searches=total_searches,
+            searches_with_no_results=searches_with_no_results,
         )

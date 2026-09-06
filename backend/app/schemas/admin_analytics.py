@@ -80,3 +80,18 @@ class RevenueBreakdownResponse(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class MarketplaceHealthResponse(BaseModel):
+    total_bookings: int
+    completed_count: int
+    cancelled_count: int
+    no_show_count: int
+    failed_count: int
+    total_searches: int
+    searches_with_no_results: int
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )

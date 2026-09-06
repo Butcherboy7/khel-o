@@ -69,3 +69,17 @@ export interface RevenueBreakdown {
 export async function getRevenueBreakdown(): Promise<RevenueBreakdown> {
   return call(() => apiClient.get('/api/v1/admin/analytics/revenue'));
 }
+
+export interface MarketplaceHealth {
+  totalBookings: number;
+  completedCount: number;
+  cancelledCount: number;
+  noShowCount: number;
+  failedCount: number;
+  totalSearches: number;
+  searchesWithNoResults: number;
+}
+
+export async function getMarketplaceHealth(): Promise<MarketplaceHealth> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/marketplace-health'));
+}
