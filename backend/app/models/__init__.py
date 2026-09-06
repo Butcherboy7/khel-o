@@ -14,6 +14,7 @@ from app.models.admin_audit_log import AdminAuditLog
 from app.models.support_ticket import SupportTicket, SupportTicketStatus, SupportTicketPriority
 from app.models.platform_setting import PlatformSetting
 from app.models.password_reset_token import PasswordResetToken
+from app.models.analytics_event import AnalyticsEvent
 
 __all__ = [
     "User",
@@ -39,4 +40,5 @@ __all__ = [
     "SupportTicketPriority",
     "PlatformSetting",
     "PasswordResetToken",
+    "AnalyticsEvent",
 ]
