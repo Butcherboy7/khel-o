@@ -1,14 +1,14 @@
-import uuid as _uuid
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
+from app.core.exceptions import BadRequestException
 from app.database import get_db
-from app.models.admin_audit_log import AdminAuditLog
 from app.models.user import User
 from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -50,32 +50,38 @@ async def create_cafe_payout(
     current_admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    repo = CafePayoutRepository(db)
-    payout = await repo.create_payout(
-        cafe_id=cafe_id,
-        admin_id=current_admin.id,
-        utr_reference=payload.utrReference,
-        payment_method=payload.paymentMethod,
-        notes=payload.notes,
-    )
-
     cafe = await CafeRepository(db).get_by_id(cafe_id)
 
-    # Write the audit log entry directly (mirrors AdminService.write_audit_log's
-    # implementation) since AdminService's constructor mandates repositories
-    # (user_repo, cafe_repo, booking_repo, promo_repo) that are irrelevant here.
-    audit_entry = AdminAuditLog(
-        id=_uuid.uuid4(),
-        admin_id=current_admin.id,
-        admin_email=current_admin.email,
-        action="cafe_payout.create",
-        entity_type="cafe_payout",
-        entity_id=str(payout.id),
-        entity_name=cafe.name if cafe else None,
-        reason=payload.notes,
-    )
-    db.add(audit_entry)
-    await db.commit()
+    repo = CafePayoutRepository(db)
+    try:
+        # The audit log entry is built and committed inside create_payout,
+        # atomically with the CafePayout/CafePayoutItem rows: either all of
+        # it persists, or none of it does (mirrors AdminService.write_audit_log's
+        # field shape since AdminService's constructor mandates repositories
+        # — user_repo, cafe_repo, booking_repo, promo_repo — irrelevant here).
+        payout = await repo.create_payout(
+            cafe_id=cafe_id,
+            admin_id=current_admin.id,
+            utr_reference=payload.utrReference,
+            payment_method=payload.paymentMethod,
+            notes=payload.notes,
+            audit_log_data={
+                "admin_id": current_admin.id,
+                "admin_email": current_admin.email,
+                "action": "cafe_payout.create",
+                "entity_type": "cafe_payout",
+                "entity_name": cafe.name if cafe else None,
+                "reason": payload.notes,
+            },
+        )
+    except IntegrityError:
+        # Two concurrent requests racing to pay out the same café: the loser
+        # hits the platform_fee_id unique constraint. The money stays safe
+        # (constraint already prevented double-pay) — surface a clean 400
+        # instead of an opaque 500, and roll back so the session isn't left
+        # in an aborted state.
+        await db.rollback()
+        raise BadRequestException("This café's balance was just paid out by another request.")
 
     return {
         "success": True,

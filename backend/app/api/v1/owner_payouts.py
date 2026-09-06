@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,19 +35,30 @@ async def get_owner_cafe_payouts(
     current_owner: User = Depends(require_cafe_owner),
     db: AsyncSession = Depends(get_db),
 ):
+    # An owner can have multiple cafés. This must aggregate across ALL of
+    # them (outstanding balance summed, history merged) to agree with
+    # /payouts/summary on the same owner payouts screen, which already
+    # aggregates across every café the owner owns — picking just the
+    # most-recently-created café here would silently hide any other café's
+    # balance/history.
     cafe_stmt = (
         select(Cafe)
         .where(Cafe.owner_id == current_owner.id)
         .order_by(Cafe.created_at.desc())
     )
-    cafe = (await db.execute(cafe_stmt)).scalars().first()
+    cafes = (await db.execute(cafe_stmt)).scalars().all()
 
-    if not cafe:
+    if not cafes:
         return {"success": True, "data": {"outstandingAmount": 0.0, "history": []}}
 
+    cafe_ids = [c.id for c in cafes]
     repo = CafePayoutRepository(db)
-    outstanding = await repo.get_outstanding_amount(cafe.id)
-    history = await repo.list_payouts(cafe_id=cafe.id)
+
+    outstanding = Decimal("0")
+    for cafe_id in cafe_ids:
+        outstanding += await repo.get_outstanding_amount(cafe_id)
+
+    history = await repo.list_payouts(cafe_id=cafe_ids)
 
     return {
         "success": True,

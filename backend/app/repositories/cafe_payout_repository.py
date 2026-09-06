@@ -1,11 +1,12 @@
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Union
 from uuid import UUID
 
 from sqlalchemy import select, func, not_, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestException
+from app.models.admin_audit_log import AdminAuditLog
 from app.models.booking import Booking
 from app.models.cafe import Cafe
 from app.models.cafe_payout import CafePayout, CafePayoutStatus
@@ -28,6 +29,12 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
             .where(
                 Booking.cafe_id == cafe_id,
                 Payment.status == PaymentStatus.CAPTURED,
+                # A booking already auto-settled to the café via Razorpay Route
+                # must never also show as an outstanding manual-payout balance
+                # (Route is currently disabled, so this is a no-op today, but
+                # keeps the admin and owner "pending settlement" views agreeing
+                # once Route is re-enabled).
+                PlatformFee.transfer_status != "transferred",
                 not_(already_paid),
             )
         )
@@ -48,7 +55,19 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         utr_reference: str,
         payment_method: str,
         notes: Optional[str] = None,
+        audit_log_data: Optional[dict] = None,
     ) -> CafePayout:
+        """Create a CafePayout + its CafePayoutItem rows in a single transaction.
+
+        When `audit_log_data` is provided, the AdminAuditLog entry for this
+        payout is added to the same session and committed atomically with the
+        payout/items — either all three persist, or none do. Callers that
+        don't need an audit trail (e.g. existing repository-level tests) can
+        omit it and behavior is unchanged.
+
+        Expected `audit_log_data` keys: admin_id, admin_email, and optionally
+        action, entity_type, entity_name, reason.
+        """
         from datetime import datetime, timezone
         import uuid as _uuid
 
@@ -79,6 +98,18 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
                 platform_fee_id=fee.id,
                 booking_id=booking.id,
                 amount_allocated=fee.owner_settlement_amount,
+            ))
+
+        if audit_log_data is not None:
+            self.db.add(AdminAuditLog(
+                id=_uuid.uuid4(),
+                admin_id=audit_log_data["admin_id"],
+                admin_email=audit_log_data["admin_email"],
+                action=audit_log_data.get("action", "cafe_payout.create"),
+                entity_type=audit_log_data.get("entity_type", "cafe_payout"),
+                entity_id=str(payout.id),
+                entity_name=audit_log_data.get("entity_name"),
+                reason=audit_log_data.get("reason"),
             ))
 
         await self.db.commit()
@@ -113,15 +144,18 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
 
     async def list_payouts(
         self,
-        cafe_id: Optional[UUID] = None,
+        cafe_id: Optional[Union[UUID, list[UUID]]] = None,
         status: Optional[str] = None,
         page: int = 1,
         limit: int = 20,
     ) -> dict:
         limit = min(limit, 50)
         stmt = select(CafePayout)
-        if cafe_id:
-            stmt = stmt.where(CafePayout.cafe_id == cafe_id)
+        if cafe_id is not None:
+            if isinstance(cafe_id, (list, tuple, set)):
+                stmt = stmt.where(CafePayout.cafe_id.in_(cafe_id))
+            else:
+                stmt = stmt.where(CafePayout.cafe_id == cafe_id)
         if status:
             stmt = stmt.where(CafePayout.status == status)
         stmt = stmt.order_by(CafePayout.created_at.desc())
