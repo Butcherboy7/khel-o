@@ -95,3 +95,15 @@ class MarketplaceHealthResponse(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class AttributionItem(BaseModel):
+    source: str
+    users: int
+    bookings: int
+    gmv: float
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )

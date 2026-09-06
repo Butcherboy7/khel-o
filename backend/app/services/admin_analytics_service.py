@@ -8,7 +8,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.platform_fee import PlatformFee
 from app.models.hardware_tier import HardwareTier
 from app.models.analytics_event import AnalyticsEvent
-from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse, AttributionItem
 
 
 class AdminAnalyticsService:
@@ -268,3 +268,31 @@ class AdminAnalyticsService:
             total_searches=total_searches,
             searches_with_no_results=searches_with_no_results,
         )
+
+    async def get_marketing_attribution(self) -> list[AttributionItem]:
+        counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+
+        user_rows = (await self.db.execute(
+            select(User.acquisition_source, func.count(User.id))
+            .where(User.acquisition_source.is_not(None))
+            .group_by(User.acquisition_source)
+        )).all()
+        users_by_source = {source: count for source, count in user_rows}
+
+        booking_rows = (await self.db.execute(
+            select(User.acquisition_source, func.count(Booking.id), func.sum(Booking.total_amount))
+            .join(Booking, Booking.gamer_id == User.id)
+            .where(User.acquisition_source.is_not(None), Booking.status.in_(counted))
+            .group_by(User.acquisition_source)
+        )).all()
+        bookings_by_source = {source: (cnt, float(gmv or 0.0)) for source, cnt, gmv in booking_rows}
+
+        return [
+            AttributionItem(
+                source=source,
+                users=count,
+                bookings=bookings_by_source.get(source, (0, 0.0))[0],
+                gmv=bookings_by_source.get(source, (0, 0.0))[1],
+            )
+            for source, count in users_by_source.items()
+        ]

@@ -83,3 +83,14 @@ export interface MarketplaceHealth {
 export async function getMarketplaceHealth(): Promise<MarketplaceHealth> {
   return call(() => apiClient.get('/api/v1/admin/analytics/marketplace-health'));
 }
+
+export interface AttributionItem {
+  source: string;
+  users: number;
+  bookings: number;
+  gmv: number;
+}
+
+export async function getMarketingAttribution(): Promise<AttributionItem[]> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/attribution'));
+}

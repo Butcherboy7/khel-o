@@ -68,3 +68,13 @@ async def get_marketplace_health(
     service = AdminAnalyticsService(db)
     result = await service.get_marketplace_health()
     return {"success": True, "data": result}
+
+
+@router.get("/attribution", status_code=status.HTTP_200_OK)
+async def get_marketing_attribution(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    service = AdminAnalyticsService(db)
+    result = await service.get_marketing_attribution()
+    return {"success": True, "data": result}
