@@ -1,5 +1,6 @@
 import logging
 import math
+from decimal import Decimal
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone, date, timedelta
@@ -788,13 +789,14 @@ class AdminService:
                 .where(Cafe.owner_id == account.owner_id, PlatformFee.transfer_status == "failed")
             )).scalar() or 0
 
-            pending_settlement = (await self.db.execute(
-                select(func.coalesce(func.sum(PlatformFee.owner_settlement_amount), 0))
-                .select_from(PlatformFee)
-                .join(Booking, Booking.id == PlatformFee.booking_id)
-                .join(Cafe, Cafe.id == Booking.cafe_id)
-                .where(Cafe.owner_id == account.owner_id, PlatformFee.transfer_status != "transferred")
-            )).scalar() or 0
+            from app.repositories.cafe_payout_repository import CafePayoutRepository
+            cafe_payout_repo = CafePayoutRepository(self.db)
+            owner_cafes = (await self.db.execute(
+                select(Cafe.id).where(Cafe.owner_id == account.owner_id)
+            )).scalars().all()
+            pending_settlement = Decimal("0")
+            for owner_cafe_id in owner_cafes:
+                pending_settlement += await cafe_payout_repo.get_outstanding_amount(owner_cafe_id)
 
             items.append({
                 "id": str(account.id),

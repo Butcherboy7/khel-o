@@ -13,7 +13,7 @@ import {
   Building2,
   Info,
 } from 'lucide-react';
-import { getOwnerPayoutSummary } from '@/lib/api/owner';
+import { getOwnerPayoutSummary, getOwnerCafePayouts, type OwnerCafePayoutHistoryItem } from '@/lib/api/owner';
 import { Card, CardContent, Badge, Button, EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
 
@@ -64,6 +64,8 @@ export default function OwnerPayoutsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [selectedTx, setSelectedTx] = useState<PayoutTransaction | null>(null);
+  const [outstandingAmount, setOutstandingAmount] = useState(0);
+  const [payoutHistory, setPayoutHistory] = useState<OwnerCafePayoutHistoryItem[]>([]);
 
   // Staff cannot see the venue's financials — bounce to the dashboard instead
   // of rendering a page whose data calls will just 403. Matches the same
@@ -88,6 +90,19 @@ export default function OwnerPayoutsPage() {
       }
     }
     loadPayouts();
+  }, []);
+
+  useEffect(() => {
+    async function loadCafePayouts() {
+      try {
+        const res = await getOwnerCafePayouts();
+        setOutstandingAmount(res?.outstandingAmount ?? 0);
+        setPayoutHistory(res?.history ?? []);
+      } catch {
+        // non-fatal: the rest of the page (Route settlement summary) still renders
+      }
+    }
+    loadCafePayouts();
   }, []);
 
   if (isLoading) {
@@ -271,6 +286,58 @@ export default function OwnerPayoutsPage() {
                       <td className="py-3.5 px-4 text-rose-500">-₹{tx.platformFee.toFixed(2)}</td>
                       <td className="py-3.5 px-4 font-bold text-emerald-600">₹{tx.netSettlement.toFixed(2)}</td>
                       <td className="py-3.5 px-4">{statusBadge(tx.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Manual Payout History */}
+      <Card elevation="raised" className="bg-surface border border-border">
+        <CardContent className="p-6 flex flex-col gap-6">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-emerald-500" />
+              <span>Manual Bank Payouts</span>
+            </h2>
+            <div className="text-right">
+              <span className="text-caption text-text-secondary block">Current Outstanding</span>
+              <span className="font-heading text-h3 text-amber-600">₹{outstandingAmount.toFixed(2)}</span>
+            </div>
+          </div>
+          <p className="text-xs text-text-secondary">
+            While Razorpay Route is unavailable, KHEL-O pays out via direct bank transfer instead of
+            automatic settlement. This is separate from the Route transfer status shown above.
+          </p>
+
+          {payoutHistory.length === 0 ? (
+            <EmptyState
+              title="No manual payouts yet"
+              description="Once KHEL-O sends a bank transfer for your outstanding balance, it'll appear here with the UTR reference."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-border text-caption text-text-secondary">
+                    <th className="py-3 px-4 font-semibold">Date</th>
+                    <th className="py-3 px-4 font-semibold">Amount</th>
+                    <th className="py-3 px-4 font-semibold">Method</th>
+                    <th className="py-3 px-4 font-semibold">UTR / Reference</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-caption">
+                  {payoutHistory.map((p) => (
+                    <tr key={p.id}>
+                      <td className="py-3.5 px-4 text-text-secondary">
+                        {p.paidAt ? new Date(p.paidAt).toLocaleDateString() : '—'}
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-emerald-600">₹{p.amount.toFixed(2)}</td>
+                      <td className="py-3.5 px-4 text-text-secondary uppercase">{p.paymentMethod}</td>
+                      <td className="py-3.5 px-4 font-mono text-xs text-text-primary">{p.utrReference}</td>
                     </tr>
                   ))}
                 </tbody>

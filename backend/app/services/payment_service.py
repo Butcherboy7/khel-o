@@ -589,6 +589,30 @@ class PaymentService:
                 f"automatic reversal is built and tested."
             )
 
+        # Phase 1 manual café payouts cannot claw back money that already left
+        # the bank: if this booking's platform fee was already covered by a
+        # manual CafePayout, refunding it now is invisible to KHEL-O staff
+        # unless we log it. This is purely an additive warning — no refund
+        # behavior changes, no schema change (spec Edge Cases: "Phase 1 logs a
+        # warning for manual follow-up at refund time when platform_fee_id
+        # already has a CafePayoutItem").
+        if fee_row:
+            from app.models.cafe_payout_item import CafePayoutItem
+            from sqlalchemy import select as _select
+            payout_item = (await self.payment_repo.db.execute(
+                _select(CafePayoutItem).where(CafePayoutItem.platform_fee_id == fee_row.id)
+            )).scalars().first()
+            if payout_item:
+                booking_for_log = await self.booking_repo.get_by_id(booking_id)
+                booking_ref = booking_for_log.booking_reference if booking_for_log else str(booking_id)
+                logger.warning(
+                    f"Refunding booking {booking_ref} ({booking_id}) whose platform fee {fee_row.id} was "
+                    f"already manually paid out via CafePayout {payout_item.payout_id} "
+                    f"(amount INR {payout_item.amount_allocated}) — the café has already been paid for "
+                    f"this booking's settlement. This refund does NOT claw that money back automatically; "
+                    f"follow up manually with the café to recover it."
+                )
+
         if not payment.razorpay_payment_id:
             logger.warning(f"Payment for booking {booking_id} has no razorpay_payment_id; cannot refund via Razorpay")
             return {
