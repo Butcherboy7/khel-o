@@ -53,6 +53,7 @@ export interface BookingCreateRequest {
   seatsCount?: number;
   promotionId?: string;
   notes?: string;
+  game?: string;
 }
 
 export interface BookingListParams {

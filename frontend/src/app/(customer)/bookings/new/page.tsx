@@ -113,6 +113,8 @@ function BookingWizardContent() {
   // tiers to load and race against the URL-sync effect below.
   const [selectedTierId, setSelectedTierId] = useState<string | null>(searchParams.get('tierId'));
 
+  const [selectedGame, setSelectedGame] = useState('');
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
@@ -513,6 +515,7 @@ function BookingWizardContent() {
         durationHours: durationHours,
         seatsCount: seatsCount,
         promotionId: activeTier.activePromotion?.id || undefined,
+        game: selectedGame || undefined,
       });
 
       const booking = bookingRes.booking;
@@ -753,6 +756,27 @@ function BookingWizardContent() {
             <Plus className="h-4 w-4" />
           </button>
         </div>
+      </div>
+
+      {/* Game — free-text combobox: types any name, datalist merely suggests
+          from this café's supportedGames. */}
+      <div className="p-3.5 rounded-2xl bg-card border border-border/80">
+        <label className="text-caption font-semibold text-text-secondary mb-1 block">
+          What are you playing? (optional)
+        </label>
+        <input
+          type="text"
+          list="cafe-games"
+          value={selectedGame}
+          onChange={(e) => setSelectedGame(e.target.value)}
+          placeholder="Type any game name"
+          className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-body text-text-primary"
+        />
+        <datalist id="cafe-games">
+          {(cafe?.supportedGames ?? []).map((g) => (
+            <option key={g} value={g} />
+          ))}
+        </datalist>
       </div>
 
       {/* Price summary — compact breakdown, total kept visually prominent
