@@ -1204,20 +1204,24 @@ async def get_owner_payout_summary(
         # from pending_settlements — those bookings are still "not transferred"
         # via Razorpay Route, but the owner has already been paid for them
         # through a manual café payout, so they shouldn't count as pending.
+        # Comparison is done at the booking-id level (not by diffing two sums)
+        # because "not transferred" and "still outstanding" are differently
+        # scoped sets: a booking can be transfer_status == "transferred" and
+        # never manually paid out, while another can be "pending" and already
+        # fully paid out via a CafePayoutItem — diffing the two totals would
+        # misattribute one café's already-paid amount to another's.
         cafe_payout_repo = CafePayoutRepository(db)
         already_paid_out = 0.0
         for c_id in cafe_ids:
-            fee_rows_for_cafe_all = [
-                (fee, b) for b, fee, ps in rows
-                if b.cafe_id == c_id and ps != PaymentStatus.REFUNDED
-            ]
-            outstanding_for_cafe = float(await cafe_payout_repo.get_outstanding_amount(c_id))
-            gross_pending_for_cafe = sum(
-                float(fee.owner_settlement_amount)
-                for fee, b in fee_rows_for_cafe_all
-                if fee.transfer_status != "transferred"
-            )
-            already_paid_out += max(0.0, gross_pending_for_cafe - outstanding_for_cafe)
+            outstanding_rows_for_cafe = await cafe_payout_repo.get_outstanding_fee_rows(c_id)
+            outstanding_booking_ids = {b.id for _fee, b in outstanding_rows_for_cafe}
+            for b, fee, ps in rows:
+                if b.cafe_id != c_id or ps == PaymentStatus.REFUNDED:
+                    continue
+                if fee.transfer_status == "transferred":
+                    continue
+                if b.id not in outstanding_booking_ids:
+                    already_paid_out += float(fee.owner_settlement_amount)
         pending_settlements -= already_paid_out
 
     # Fetch bank details
