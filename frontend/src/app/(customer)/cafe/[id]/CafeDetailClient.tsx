@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter, usePathname } from 'next/navigation';
@@ -44,6 +44,7 @@ import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow, formatTime } from '@/lib/format';
+import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
 import type { CafeDetail } from '@/types';
 
 interface CafeDetailClientProps {
@@ -58,6 +59,13 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const cafeId = params.id as string;
+
+  useEffect(() => {
+    fireAnalyticsEvent('venue_viewed', { cafeId });
+    // Fires exactly once per mount of a given café's detail page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cafeId]);
+
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { userLat, userLng } = useLocationStore();
