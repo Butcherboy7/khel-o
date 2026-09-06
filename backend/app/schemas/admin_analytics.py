@@ -42,3 +42,16 @@ class CafePerformanceItem(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class SetupPerformanceItem(BaseModel):
+    platform: str
+    bookings: int
+    gmv: float
+    total_seats: int
+    utilization_hours: float
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )

@@ -6,7 +6,8 @@ from app.models.user import User
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.platform_fee import PlatformFee
-from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem
+from app.models.hardware_tier import HardwareTier
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem
 
 
 class AdminAnalyticsService:
@@ -143,3 +144,35 @@ class AdminAnalyticsService:
                 top_game=top_game,
             ))
         return results
+
+    async def get_setup_performance(self) -> list[SetupPerformanceItem]:
+        counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+
+        rows = (await self.db.execute(
+            select(
+                HardwareTier.platform,
+                func.count(Booking.id).label("bookings"),
+                func.sum(Booking.total_amount).label("gmv"),
+                func.sum(Booking.duration_hours).label("hours"),
+            )
+            .join(Booking, Booking.hardware_tier_id == HardwareTier.id)
+            .where(Booking.status.in_(counted))
+            .group_by(HardwareTier.platform)
+            .order_by(func.sum(Booking.total_amount).desc())
+        )).all()
+
+        seats_by_platform = dict((await self.db.execute(
+            select(HardwareTier.platform, func.sum(HardwareTier.total_seats))
+            .group_by(HardwareTier.platform)
+        )).all())
+
+        return [
+            SetupPerformanceItem(
+                platform=(platform.value if platform else "unspecified"),
+                bookings=bookings,
+                gmv=float(gmv or 0.0),
+                total_seats=int(seats_by_platform.get(platform, 0) or 0),
+                utilization_hours=float(hours or 0.0),
+            )
+            for platform, bookings, gmv, hours in rows
+        ]

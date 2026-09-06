@@ -34,3 +34,15 @@ export interface CafePerformanceItem {
 export async function getCafePerformance(): Promise<CafePerformanceItem[]> {
   return call(() => apiClient.get('/api/v1/admin/analytics/cafes'));
 }
+
+export interface SetupPerformanceItem {
+  platform: string;
+  bookings: number;
+  gmv: number;
+  totalSeats: number;
+  utilizationHours: number;
+}
+
+export async function getSetupPerformance(): Promise<SetupPerformanceItem[]> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/setups'));
+}
