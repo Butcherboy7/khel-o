@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-09-03T12:27:45.116Z",
         "reason": "false positive: text-slate-950 (near-black) on bg-amber-500 has strong contrast, not washed-out gray; pre-existing 'Bookings Paused' banner, unrelated to booking-flow redesign"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "frontend/src/app/(owner)/owner/payouts/page.tsx"
+        ],
+        "createdAt": "2026-09-06T20:36:40.169Z",
+        "reason": "pre-existing CSS spin-loader (animate-spin rounded-full border-b-2), not a decorative border accent on a card; not touched by Task 10's diff"
       }
     ]
   }
