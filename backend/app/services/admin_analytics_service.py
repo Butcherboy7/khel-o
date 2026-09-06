@@ -8,7 +8,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.platform_fee import PlatformFee
 from app.models.hardware_tier import HardwareTier
 from app.models.analytics_event import AnalyticsEvent
-from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse, AttributionItem
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse, AttributionItem, FunnelResponse
 
 
 class AdminAnalyticsService:
@@ -296,3 +296,21 @@ class AdminAnalyticsService:
             )
             for source, count in users_by_source.items()
         ]
+
+    async def get_funnel(self) -> FunnelResponse:
+        counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+
+        event_counts = dict((await self.db.execute(
+            select(AnalyticsEvent.event_type, func.count(AnalyticsEvent.id)).group_by(AnalyticsEvent.event_type)
+        )).all())
+
+        bookings_confirmed = (await self.db.execute(
+            select(func.count(Booking.id)).where(Booking.status.in_(counted))
+        )).scalar() or 0
+
+        return FunnelResponse(
+            searches=event_counts.get("search_performed", 0),
+            venue_views=event_counts.get("venue_viewed", 0),
+            bookings_started=event_counts.get("booking_flow_started", 0),
+            bookings_confirmed_or_completed=bookings_confirmed,
+        )

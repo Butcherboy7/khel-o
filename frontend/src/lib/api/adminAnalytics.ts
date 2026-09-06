@@ -94,3 +94,14 @@ export interface AttributionItem {
 export async function getMarketingAttribution(): Promise<AttributionItem[]> {
   return call(() => apiClient.get('/api/v1/admin/analytics/attribution'));
 }
+
+export interface FunnelData {
+  searches: number;
+  venueViews: number;
+  bookingsStarted: number;
+  bookingsConfirmedOrCompleted: number;
+}
+
+export async function getFunnel(): Promise<FunnelData> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/funnels'));
+}

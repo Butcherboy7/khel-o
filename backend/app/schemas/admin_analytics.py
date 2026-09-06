@@ -107,3 +107,15 @@ class AttributionItem(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class FunnelResponse(BaseModel):
+    searches: int
+    venue_views: int
+    bookings_started: int
+    bookings_confirmed_or_completed: int
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
