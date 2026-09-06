@@ -273,3 +273,52 @@ export async function getPlatformSettings(): Promise<{ settings: PlatformSetting
 export async function updatePlatformSettings(payload: Partial<PlatformSettings>): Promise<{ settings: PlatformSettings }> {
   return call(() => apiClient.patch('/api/v1/admin/settings', payload));
 }
+
+// ── Café Payouts (Manual Payouts) ────────────────────────────────────────────
+
+export interface AdminOutstandingCafePayout {
+  cafeId: string;
+  cafeName: string;
+  outstandingAmount: number;
+}
+
+export interface CafePayoutBreakdownItem {
+  bookingId: string;
+  bookingReference: string;
+  sessionDate: string;
+  grossAmount: number;
+  ownerSettlementAmount: number;
+}
+
+export interface CafePayout {
+  id: string;
+  cafeId: string;
+  amount: number;
+  utrReference: string;
+  paymentMethod: string;
+  status: string;
+  notes: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export async function listOutstandingCafePayouts(): Promise<{ cafes: AdminOutstandingCafePayout[] }> {
+  return call(() => apiClient.get('/api/v1/admin/cafe-payouts/outstanding'));
+}
+
+export async function getCafePayoutBreakdown(cafeId: string): Promise<{ bookings: CafePayoutBreakdownItem[] }> {
+  return call(() => apiClient.get(`/api/v1/admin/cafe-payouts/${cafeId}/breakdown`));
+}
+
+export async function createCafePayout(
+  cafeId: string,
+  body: { utrReference: string; paymentMethod: string; notes?: string },
+): Promise<{ payout: CafePayout }> {
+  return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}`, body));
+}
+
+export async function listCafePayoutHistory(
+  params: { cafeId?: string; status?: string; page?: number; limit?: number } = {},
+): Promise<{ items: CafePayout[]; total: number; page: number; pageSize: number }> {
+  return call(() => apiClient.get('/api/v1/admin/cafe-payouts', { params }));
+}

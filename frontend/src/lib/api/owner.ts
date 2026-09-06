@@ -156,6 +156,23 @@ export async function setupPayout(body: PayoutSetupRequest): Promise<{ payoutAcc
   return call(() => apiClient.post('/api/v1/owner/payouts/setup', body));
 }
 
+export interface OwnerCafePayoutHistoryItem {
+  id: string;
+  amount: number;
+  utrReference: string;
+  paymentMethod: string;
+  status: string;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export async function getOwnerCafePayouts(): Promise<{
+  outstandingAmount: number;
+  history: OwnerCafePayoutHistoryItem[];
+}> {
+  return call(() => apiClient.get('/api/v1/owner/payouts/cafe-payouts'));
+}
+
 export async function getOwnerCafeId(): Promise<{ cafeId: string }> {
   const statusRes = await getOwnerStatus();
   if (!statusRes.cafe?.id) {
