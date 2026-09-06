@@ -26,6 +26,7 @@ class BookingBase(BaseModel):
     seats_count: int = Field(1, ge=1, le=6, description="Number of seats for this booking session (1 to 6)")
     notes: Optional[str] = None
     promotion_id: Optional[UUID] = None
+    game: Optional[str] = Field(None, max_length=100)
 
     @field_validator("promotion_id", mode="before")
     @classmethod

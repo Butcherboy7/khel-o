@@ -41,6 +41,7 @@ class Booking(Base):
     promotion_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("promotions.id"), nullable=True)
     qr_code_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    game: Mapped[str | None] = mapped_column(String(100), nullable=True)
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancellation_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)

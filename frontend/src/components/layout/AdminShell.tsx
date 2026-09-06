@@ -20,6 +20,12 @@ import {
   Settings,
   Menu,
   X,
+  Activity,
+  Monitor,
+  MapPin,
+  Megaphone,
+  Filter,
+  IndianRupee,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -33,20 +39,71 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-const adminNavItems: NavItem[] = [
-  { label: 'Verification Queue', href: '/admin', icon: ShieldCheck },
-  { label: 'All Cafés', href: '/admin/cafes', icon: Store },
-  { label: 'Users', href: '/admin/users', icon: Users },
-  { label: 'Staff', href: '/admin/staff', icon: UsersRound },
-  { label: 'Bookings', href: '/admin/bookings', icon: CalendarDays },
-  { label: 'Payments', href: '/admin/payments', icon: CreditCard },
-  { label: 'Owner Payouts', href: '/admin/payouts', icon: Landmark },
-  { label: 'Promotions', href: '/admin/promotions', icon: Tag },
-  { label: 'Reviews', href: '/admin/reviews', icon: MessageSquare },
-  { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-  { label: 'Support', href: '/admin/support', icon: LifeBuoy },
-  { label: 'Audit Log', href: '/admin/audit-log', icon: ScrollText },
-  { label: 'Settings', href: '/admin/settings', icon: Settings },
+interface NavGroup {
+  label: string | null;
+  items: NavItem[];
+}
+
+const adminNavGroups: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { label: 'Overview', href: '/admin', icon: BarChart3 },
+      { label: 'Verification Queue', href: '/admin/verification-queue', icon: ShieldCheck },
+    ],
+  },
+  {
+    label: 'Marketplace',
+    items: [
+      { label: 'Bookings', href: '/admin/bookings', icon: CalendarDays },
+      { label: 'Marketplace Health', href: '/admin/marketplace-health', icon: Activity },
+    ],
+  },
+  {
+    label: 'Cafés',
+    items: [
+      { label: 'All Cafés', href: '/admin/cafes', icon: Store },
+    ],
+  },
+  {
+    label: 'Inventory',
+    items: [
+      { label: 'Setup Performance', href: '/admin/inventory/setups', icon: Monitor },
+    ],
+  },
+  {
+    label: 'Analytics',
+    items: [
+      { label: 'Geography', href: '/admin/analytics/geography', icon: MapPin },
+      { label: 'Revenue', href: '/admin/analytics/revenue', icon: IndianRupee },
+      { label: 'Attribution', href: '/admin/analytics/attribution', icon: Megaphone },
+      { label: 'Funnels', href: '/admin/analytics/funnels', icon: Filter },
+    ],
+  },
+  {
+    label: 'Finance',
+    items: [
+      { label: 'Payments', href: '/admin/payments', icon: CreditCard },
+      { label: 'Owner Payouts', href: '/admin/payouts', icon: Landmark },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { label: 'Support', href: '/admin/support', icon: LifeBuoy },
+      { label: 'Audit Log', href: '/admin/audit-log', icon: ScrollText },
+    ],
+  },
+  {
+    label: 'Platform',
+    items: [
+      { label: 'Users', href: '/admin/users', icon: Users },
+      { label: 'Staff', href: '/admin/staff', icon: UsersRound },
+      { label: 'Promotions', href: '/admin/promotions', icon: Tag },
+      { label: 'Reviews', href: '/admin/reviews', icon: MessageSquare },
+      { label: 'Settings', href: '/admin/settings', icon: Settings },
+    ],
+  },
 ];
 
 /* ── Shared nav body (used by both the desktop sidebar and the mobile drawer) ── */
@@ -63,30 +120,39 @@ function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
     <>
       {/* Nav */}
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4" aria-label="Admin navigation">
-        {adminNavItems.map((item) => {
-          const isActive =
-            item.href === '/admin'
-              ? pathname === '/admin'
-              : pathname.startsWith(item.href);
+        {adminNavGroups.map((group, groupIdx) => (
+          <div key={group.label ?? `ungrouped-${groupIdx}`} className={groupIdx > 0 ? 'mt-4' : ''}>
+            {group.label && (
+              <div className="px-3 pb-1 text-overline text-white/40 uppercase tracking-wider font-semibold">
+                {group.label}
+              </div>
+            )}
+            {group.items.map((item) => {
+              const isActive =
+                item.href === '/admin'
+                  ? pathname === '/admin'
+                  : pathname.startsWith(item.href);
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={cn(
-                'flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2.5 text-body-emphasis transition-colors duration-fast',
-                isActive
-                  ? 'bg-white/15 text-white font-bold'
-                  : 'text-white/60 hover:bg-white/10 hover:text-white',
-              )}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <item.icon className="h-4 w-4 flex-shrink-0" />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  className={cn(
+                    'flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2.5 text-body-emphasis transition-colors duration-fast',
+                    isActive
+                      ? 'bg-white/15 text-white font-bold'
+                      : 'text-white/60 hover:bg-white/10 hover:text-white',
+                  )}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <item.icon className="h-4 w-4 flex-shrink-0" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
 
         <div className="mt-auto pt-2">
           <Link

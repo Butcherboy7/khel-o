@@ -15,6 +15,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
+import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
 import { createBooking } from '@/lib/api/bookings';
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
@@ -111,6 +112,8 @@ function BookingWizardContent() {
   // synchronously on mount — no separate effect has to wait for the café's
   // tiers to load and race against the URL-sync effect below.
   const [selectedTierId, setSelectedTierId] = useState<string | null>(searchParams.get('tierId'));
+
+  const [selectedGame, setSelectedGame] = useState('');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -349,6 +352,19 @@ function BookingWizardContent() {
     }
   }, [cafe, availabilityData, mergedBookedSlots, selectedDate, activeTier?.id, seatsCount]);
 
+  // Fire once per (cafe, tier) selection, not on every render — this must
+  // stay above the early returns below (rules of hooks: this component
+  // returns early while isLoading/isError, so a hook placed after those
+  // checks would be called conditionally).
+  useEffect(() => {
+    if (!activeTier) return;
+    fireAnalyticsEvent('booking_flow_started', {
+      cafeId,
+      metadata: { tierId: activeTier.id },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cafeId, activeTier?.id]);
+
   if (!cafeId) {
     return (
       <ErrorState
@@ -498,6 +514,7 @@ function BookingWizardContent() {
         durationHours: durationHours,
         seatsCount: seatsCount,
         promotionId: activeTier.activePromotion?.id || undefined,
+        game: selectedGame || undefined,
       });
 
       const booking = bookingRes.booking;
@@ -738,6 +755,27 @@ function BookingWizardContent() {
             <Plus className="h-4 w-4" />
           </button>
         </div>
+      </div>
+
+      {/* Game — free-text combobox: types any name, datalist merely suggests
+          from this café's supportedGames. */}
+      <div className="p-3.5 rounded-2xl bg-card border border-border/80">
+        <label className="text-caption font-semibold text-text-secondary mb-1 block">
+          What are you playing? (optional)
+        </label>
+        <input
+          type="text"
+          list="cafe-games"
+          value={selectedGame}
+          onChange={(e) => setSelectedGame(e.target.value)}
+          placeholder="Type any game name"
+          className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-body text-text-primary"
+        />
+        <datalist id="cafe-games">
+          {(cafe?.supportedGames ?? []).map((g) => (
+            <option key={g} value={g} />
+          ))}
+        </datalist>
       </div>
 
       {/* Price summary — compact breakdown, total kept visually prominent

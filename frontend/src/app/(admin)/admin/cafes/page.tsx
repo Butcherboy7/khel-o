@@ -19,6 +19,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { listAdminCafes, suspendCafe, reactivateCafe } from '@/lib/api/admin';
+import { PerformanceTab } from './PerformanceTab';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
   Button,
@@ -68,6 +69,7 @@ const STATUS_FILTERS: Array<{ label: string; value: VerificationStatus | 'all' }
 export default function AdminCafesPage() {
   const queryClient = useQueryClient();
 
+  const [activeCafesTab, setActiveCafesTab] = useState<'all' | 'performance'>('all');
   const [statusFilter, setStatusFilter] = useState<VerificationStatus | 'all'>('all');
   const [search, setSearch] = useState('');
   const [selectedCafe, setSelectedCafe] = useState<AdminCafe | null>(null);
@@ -117,6 +119,36 @@ export default function AdminCafesPage() {
 
   return (
     <div className="flex flex-col gap-6 pb-12">
+      {/* Tab switcher */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveCafesTab('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            activeCafesTab === 'all'
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
+          }`}
+        >
+          All Cafés
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveCafesTab('performance')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            activeCafesTab === 'performance'
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
+          }`}
+        >
+          Performance
+        </button>
+      </div>
+
+      {activeCafesTab === 'performance' ? (
+        <PerformanceTab />
+      ) : (
+        <>
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -387,6 +419,8 @@ export default function AdminCafesPage() {
           required
         />
       </Modal>
+        </>
+      )}
     </div>
   );
 }

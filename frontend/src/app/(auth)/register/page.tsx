@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense, type FormEvent } from 'react';
+import { useState, useEffect, Suspense, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { Button, Input, Card, CardContent } from '@/components/ui';
 import { register } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
+import { useLocationStore } from '@/store/locationStore';
+import { useAnalyticsStore } from '@/store/analyticsStore';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { getBookingIntent, clearBookingIntent } from '@/lib/bookingIntent';
 
@@ -25,14 +27,26 @@ function RegisterForm() {
   const redirectPath = searchParams.get('redirect');
 
   const setAuth = useAuthStore((s) => s.setAuth);
+  const selectedCity = useLocationStore((s) => s.selectedCity);
+  const isPreciseLocation = useLocationStore((s) => s.isPreciseLocation);
+  const sessionId = useAnalyticsStore((s) => s.sessionId);
+  const attribution = useAnalyticsStore((s) => s.attribution);
+  const captureAttributionFromUrl = useAnalyticsStore((s) => s.captureAttributionFromUrl);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [heardAboutUs, setHeardAboutUs] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ fullName?: string; email?: string; password?: string; phoneNumber?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    captureAttributionFromUrl(new URLSearchParams(searchParams.toString()));
+    // Runs once on mount to catch any utm_* params this landing carried.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -57,6 +71,11 @@ function RegisterForm() {
         email,
         password,
         phoneNumber: phoneNumber || undefined,
+        city: isPreciseLocation && selectedCity !== 'All Cities' ? selectedCity : undefined,
+        acquisitionSource: attribution?.source ?? (heardAboutUs || undefined),
+        acquisitionMedium: attribution?.medium ?? (heardAboutUs ? 'self_reported' : undefined),
+        acquisitionCampaign: attribution?.campaign ?? undefined,
+        sessionId,
       });
       setAuth(res.user, res.accessToken, res.refreshToken);
 
@@ -149,6 +168,26 @@ function RegisterForm() {
             autoComplete="new-password"
             error={validationErrors.password}
           />
+
+          {!attribution && (
+            <div>
+              <label className="text-caption font-semibold text-text-secondary mb-1 block">
+                How did you hear about us? (optional)
+              </label>
+              <select
+                value={heardAboutUs}
+                onChange={(e) => setHeardAboutUs(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-body text-text-primary"
+              >
+                <option value="">Select one</option>
+                <option value="instagram">Instagram</option>
+                <option value="google">Google</option>
+                <option value="referral">Friend/Referral</option>
+                <option value="college">College</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          )}
 
           <Button
             type="submit"

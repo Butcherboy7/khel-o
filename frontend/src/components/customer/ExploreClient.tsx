@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MapPin, Navigation, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { listCafes } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
+import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
 import { useDebounce } from '@/hooks/useDebounce';
 import { calculateDistance, isCafeOpenNow, getCafeOpenStatus } from '@/lib/format';
 import { hasPcTier, hasPlatformTier } from '@/lib/platformTags';
@@ -232,6 +233,25 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
   });
 
   const cafes = data?.items || [];
+
+  // Fire once per completed search, not on every render — the dependency
+  // array is exactly the search inputs that feed the useQuery above plus
+  // the resulting `data`, so a re-render caused by unrelated state (e.g.
+  // opening the sort dropdown) won't re-fire this.
+  useEffect(() => {
+    if (isLoading || !data) return;
+    fireAnalyticsEvent('search_performed', {
+      metadata: {
+        city: effectiveCity ?? null,
+        platformFilter: platformFilter ?? null,
+        minPrice: minPrice ?? null,
+        maxPrice: maxPrice ?? null,
+        queryText: debouncedQuery || null,
+        resultCount: data.items?.length ?? 0,
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveCity, debouncedQuery, minPrice, maxPrice, platformFilter, data]);
 
   const hasLocation = userLat != null && userLng != null;
   const distanceOf = (cafe: CafeListItem): number =>

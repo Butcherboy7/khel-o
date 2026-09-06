@@ -86,11 +86,22 @@ class AuthService:
             "role": UserRole.GAMER,
             "is_active": True,
             "google_id": None,
-            "avatar_url": None
+            "avatar_url": None,
+            "city": user_data.city,
+            "acquisition_source": user_data.acquisition_source,
+            "acquisition_medium": user_data.acquisition_medium,
+            "acquisition_campaign": user_data.acquisition_campaign,
         }
 
         created_user = await self.user_repo.create(user_dict)
         await self._claim_pending_staff_invitations(created_user)
+
+        if user_data.session_id:
+            from app.repositories.analytics_event_repository import AnalyticsEventRepository
+            await AnalyticsEventRepository(self.user_repo.db).backfill_session(
+                user_data.session_id, created_user.id
+            )
+
         access_token, refresh_token = self.create_tokens(created_user)
 
         return {
