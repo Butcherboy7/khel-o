@@ -2,7 +2,8 @@
 
 import { useState, useEffect, Suspense, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Gamepad2, Lock, Loader2, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
+import Image from 'next/image';
+import { Lock, Loader2, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
 import { Button, Input, Card, CardContent } from '@/components/ui';
 import { getInvitationByToken, acceptInvitation, type PublicInvitationDetails } from '@/lib/api/invitations';
 import { useAuthStore } from '@/store/authStore';
@@ -174,9 +175,14 @@ export default function AcceptInvitationPage() {
   return (
     <div className="w-full max-w-md">
       <div className="flex flex-col items-center text-center mb-8">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-white shadow-float mb-3">
-          <Gamepad2 className="h-7 w-7" />
-        </div>
+        <Image
+          src="/brand/khelo-logo-64.png"
+          alt=""
+          width={48}
+          height={48}
+          className="h-12 w-12 rounded-2xl shadow-float mb-3"
+          priority
+        />
         <h1 className="font-heading text-display text-text-primary">KHEL-O</h1>
         <p className="text-body text-text-secondary mt-1">
           Gaming Café Staff Onboarding

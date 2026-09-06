@@ -380,13 +380,12 @@ function BookingWizardContent() {
   }
 
   // Price calculations — this is a checkout-time estimate only, the server
-  // recomputes and is authoritative. Combined platform service fee (Razorpay's
+  // recomputes and is authoritative. Combined convenience fee (Razorpay's
   // real processing cost + KHEL-O's margin) must match backend Settings
-  // RAZORPAY_COST_PERCENT + PLATFORM_MARGIN_PERCENT (2.65% + 1.20% today).
-  // No separate flat convenience fee anymore.
+  // RAZORPAY_COST_PERCENT + PLATFORM_MARGIN_PERCENT (2.65% + 1.35% today).
   const pricePerHour = activeTier?.pricePerHour || 100;
   const baseTotal = Math.round(pricePerHour * durationHours * seatsCount);
-  const SERVICE_FEE_PERCENT = 3.85;
+  const SERVICE_FEE_PERCENT = 4;
 
   // Café-specific promotions are created by the owner (Owner → Promotional
   // Offers) and apply automatically at checkout — no code to type. Eligibility
@@ -773,7 +772,7 @@ function BookingWizardContent() {
         )}
 
         <div className="flex items-center justify-between">
-          <span>Platform service fee ({SERVICE_FEE_PERCENT}%)</span>
+          <span>Convenience fee ({SERVICE_FEE_PERCENT}%)</span>
           <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
         </div>
 
