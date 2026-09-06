@@ -273,3 +273,52 @@ async def test_pause_bookings_and_promotion_deactivate_are_now_audited(db_sessio
 
         audit_res = await client.get("/api/v1/admin/audit-log?action=cafe.pause_bookings", headers=admin_headers)
         assert audit_res.json()["data"]["total"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_admin_owner_payouts_pending_settlement_excludes_refunded(db_session):
+    """Both bookings must belong to the SAME café/owner, otherwise this test can't
+    actually exercise the bug: `_make_booking_with_payment` creates a brand-new
+    owner+café on every call, so two separate calls would never be summed together
+    by the (buggy or fixed) per-owner query below. The second booking is built
+    manually here, reusing the first café/tier, so both fees land under one owner."""
+    from app.models.platform_fee import PlatformFee
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from app.models.hardware_tier import HardwareTier
+    from sqlalchemy import select
+
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "settle_gamer")
+    paid_booking, paid_payment = await _make_booking_with_payment(db_session, gamer)
+
+    cafe = (await db_session.execute(select(Cafe).where(Cafe.id == paid_booking.cafe_id))).scalars().first()
+    tier = (await db_session.execute(select(HardwareTier).where(HardwareTier.cafe_id == cafe.id))).scalars().first()
+
+    refunded_booking = Booking(
+        id=uuid4(), booking_reference=f"GC-{uuid4().hex[:8].upper()}", gamer_id=gamer.id,
+        cafe_id=cafe.id, hardware_tier_id=tier.id, session_date=date.today() + timedelta(days=3),
+        start_time=time(18, 0), end_time=time(19, 0), duration_hours=1.0,
+        base_amount=100.0, discount_amount=0.0, gateway_fee=0.0, total_amount=100.0,
+        convenience_fee=0.0, status=BookingStatus.CONFIRMED,
+    )
+    db_session.add(refunded_booking)
+    await db_session.flush()
+    refunded_payment = Payment(
+        id=uuid4(), booking_id=refunded_booking.id, razorpay_order_id=f"order_{uuid4().hex}",
+        razorpay_payment_id=None, amount=100.0, status=PaymentStatus.CAPTURED,
+    )
+    db_session.add(refunded_payment)
+
+    db_session.add(PlatformFee(id=uuid4(), booking_id=paid_booking.id, owner_settlement_amount=95.0))
+    db_session.add(PlatformFee(id=uuid4(), booking_id=refunded_booking.id, owner_settlement_amount=95.0))
+    db_session.add(OwnerPayoutAccount(id=uuid4(), owner_id=cafe.owner_id, kyc_status="activated"))
+    refunded_payment.status = PaymentStatus.REFUNDED
+    await db_session.commit()
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        res = await client.get("/api/v1/admin/payouts", headers=auth_headers(admin, is_admin=True))
+        assert res.status_code == 200
+        matching = [i for i in res.json()["data"]["items"] if i["ownerId"] == str(cafe.owner_id)]
+        assert len(matching) == 1
+        assert matching[0]["pendingSettlementAmount"] == 95.0
