@@ -12,6 +12,7 @@ import {
   Ban,
 } from 'lucide-react';
 import { listAdminPromotions, deactivatePromotion, listAdminCafes } from '@/lib/api/admin';
+import { CampaignLinksTab } from './CampaignLinksTab';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
   Badge,
@@ -48,6 +49,7 @@ const STATUS_FILTERS: Array<{ label: string; value: 'all' | 'active' | 'inactive
 
 export default function AdminPromotionsPage() {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<'promotions' | 'campaignLinks'>('promotions');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [search, setSearch] = useState('');
   const [deactivateTarget, setDeactivateTarget] = useState<Promotion | null>(null);
@@ -93,6 +95,36 @@ export default function AdminPromotionsPage() {
 
   return (
     <div className="flex flex-col gap-6 pb-12">
+      {/* Tab switcher */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('promotions')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            activeTab === 'promotions'
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
+          }`}
+        >
+          Promotions
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('campaignLinks')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            activeTab === 'campaignLinks'
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
+          }`}
+        >
+          Campaign Links
+        </button>
+      </div>
+
+      {activeTab === 'campaignLinks' ? (
+        <CampaignLinksTab />
+      ) : (
+        <>
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -286,6 +318,8 @@ export default function AdminPromotionsPage() {
           </div>
         )}
       </Modal>
+        </>
+      )}
     </div>
   );
 }
