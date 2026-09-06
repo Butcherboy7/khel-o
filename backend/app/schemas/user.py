@@ -19,6 +19,11 @@ class UserCreateRequest(BaseModel):
     password: str = Field(..., min_length=8)
     full_name: str = Field(..., min_length=2, max_length=255)
     phone_number: Optional[str] = Field(None, max_length=20)
+    city: Optional[str] = Field(None, max_length=100)
+    acquisition_source: Optional[str] = Field(None, max_length=100)
+    acquisition_medium: Optional[str] = Field(None, max_length=100)
+    acquisition_campaign: Optional[str] = Field(None, max_length=100)
+    session_id: Optional[str] = Field(None, max_length=64)
 
     model_config = ConfigDict(
         alias_generator=to_camel,
