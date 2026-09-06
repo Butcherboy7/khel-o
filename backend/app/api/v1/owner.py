@@ -16,6 +16,7 @@ from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository, guess_platform_and_model
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
+from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, AliasChoices
@@ -1150,8 +1151,9 @@ async def get_owner_payout_summary(
         # fee split, settlement amount, and transfer status all come straight
         # from what was actually computed/attempted for that booking.
         stmt_bookings = (
-            select(Booking, PlatformFee)
+            select(Booking, PlatformFee, Payment.status)
             .join(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .join(Payment, Payment.booking_id == Booking.id)
             .where(
                 Booking.cafe_id.in_(cafe_ids),
                 Booking.status.in_([
@@ -1166,17 +1168,20 @@ async def get_owner_payout_summary(
         res_bookings = await db.execute(stmt_bookings)
         rows = res_bookings.all()
 
-        for b, fee in rows:
+        for b, fee, payment_status in rows:
             gross = float(b.total_amount)
             platform_fee = float(fee.gateway_fee)
             net = float(fee.owner_settlement_amount)
             transfer_status = fee.transfer_status
+            is_refunded = payment_status == PaymentStatus.REFUNDED
 
             total_gross += gross
             total_net_settlement += net
             total_gateway_fees += platform_fee
             total_platform_fees += platform_fee
-            if transfer_status == "transferred":
+            if is_refunded:
+                pass  # refunded bookings are excluded from both completed and pending settlement
+            elif transfer_status == "transferred":
                 completed_settlements += net
             else:
                 pending_settlements += net
@@ -1194,6 +1199,26 @@ async def get_owner_payout_summary(
                 "transferId": fee.razorpay_transfer_id,
                 "transferMethod": "Razorpay Route (Direct Bank)"
             })
+
+        # Subtract amounts already manually paid out (via CafePayoutRepository)
+        # from pending_settlements — those bookings are still "not transferred"
+        # via Razorpay Route, but the owner has already been paid for them
+        # through a manual café payout, so they shouldn't count as pending.
+        cafe_payout_repo = CafePayoutRepository(db)
+        already_paid_out = 0.0
+        for c_id in cafe_ids:
+            fee_rows_for_cafe_all = [
+                (fee, b) for b, fee, ps in rows
+                if b.cafe_id == c_id and ps != PaymentStatus.REFUNDED
+            ]
+            outstanding_for_cafe = float(await cafe_payout_repo.get_outstanding_amount(c_id))
+            gross_pending_for_cafe = sum(
+                float(fee.owner_settlement_amount)
+                for fee, b in fee_rows_for_cafe_all
+                if fee.transfer_status != "transferred"
+            )
+            already_paid_out += max(0.0, gross_pending_for_cafe - outstanding_for_cafe)
+        pending_settlements -= already_paid_out
 
     # Fetch bank details
     stmt_payout = select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == current_owner.id)
