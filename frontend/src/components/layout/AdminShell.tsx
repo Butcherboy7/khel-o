@@ -26,6 +26,7 @@ import {
   Megaphone,
   Filter,
   IndianRupee,
+  Banknote,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -85,6 +86,7 @@ const adminNavGroups: NavGroup[] = [
     items: [
       { label: 'Payments', href: '/admin/payments', icon: CreditCard },
       { label: 'Owner Payouts', href: '/admin/payouts', icon: Landmark },
+      { label: 'Café Payables', href: '/admin/cafe-payouts', icon: Banknote },
     ],
   },
   {
