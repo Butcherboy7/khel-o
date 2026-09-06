@@ -200,7 +200,8 @@ class BookingService:
             "total_amount": float(total_amount),
             "status": BookingStatus.PENDING_PAYMENT,
             "promotion_id": booking_in.promotion_id,
-            "notes": booking_in.notes
+            "notes": booking_in.notes,
+            "game": booking_in.game
         }
 
         created = await self.booking_repo.create(booking_dict)
