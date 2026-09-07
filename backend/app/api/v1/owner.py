@@ -20,7 +20,7 @@ from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, AliasChoices
-from app.constants import validate_city
+from app.constants import validate_city, validate_google_maps_url
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
@@ -113,6 +113,7 @@ class OnboardingSubmitRequest(BaseModel):
     pincode: str = Field(..., max_length=10)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    google_maps_url: Optional[str] = None
     phone_number: str = Field(..., max_length=20)
     email: Optional[str] = None
     opening_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Opening time in HH:MM:SS format (required)")
@@ -121,6 +122,11 @@ class OnboardingSubmitRequest(BaseModel):
     @classmethod
     def _validate_city(cls, v: str) -> str:
         return validate_city(v)
+
+    @field_validator("google_maps_url")
+    @classmethod
+    def _validate_google_maps_url(cls, v: Optional[str]) -> Optional[str]:
+        return validate_google_maps_url(v)
     closing_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Closing time in HH:MM:SS format (required, can be earlier than opening for overnight)")
     total_seats: int = Field(20, ge=1)
     amenities: List[str] = Field(default_factory=list)
@@ -181,6 +187,7 @@ async def get_owner_settings(
         "menuPhotos": cafe.menu_photos or [],
         "latitude": cafe.latitude,
         "longitude": cafe.longitude,
+        "googleMapsUrl": cafe.google_maps_url,
     }
 
     return {
@@ -520,6 +527,7 @@ async def submit_onboarding_application(
             pincode=payload.pincode,
             latitude=payload.latitude,
             longitude=payload.longitude,
+            google_maps_url=payload.google_maps_url,
             phone_number=payload.phone_number or current_user.phone_number or "+919876543210",
             email=payload.email or current_user.email,
             opening_time=opening_time_obj,
@@ -549,6 +557,7 @@ async def submit_onboarding_application(
         cafe.pincode = payload.pincode
         if payload.latitude: cafe.latitude = payload.latitude
         if payload.longitude: cafe.longitude = payload.longitude
+        if payload.google_maps_url: cafe.google_maps_url = payload.google_maps_url
         cafe.phone_number = payload.phone_number
         cafe.email = payload.email
         cafe.opening_time = opening_time_obj
@@ -1752,11 +1761,17 @@ class CafeDetailsUpdate(BaseModel):
     description: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    google_maps_url: Optional[str] = None
 
     @field_validator("city")
     @classmethod
     def _validate_city(cls, v: Optional[str]) -> Optional[str]:
         return validate_city(v) if v is not None else v
+
+    @field_validator("google_maps_url")
+    @classmethod
+    def _validate_google_maps_url(cls, v: Optional[str]) -> Optional[str]:
+        return validate_google_maps_url(v)
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -2048,6 +2063,8 @@ async def update_cafe_details(
         cafe.latitude = payload.latitude
     if payload.longitude is not None:
         cafe.longitude = payload.longitude
+    if payload.google_maps_url is not None:
+        cafe.google_maps_url = payload.google_maps_url
 
     await db.commit()
     await db.refresh(cafe)
@@ -2063,7 +2080,8 @@ async def update_cafe_details(
                 "amenities": cafe.amenities,
                 "photos": cafe.photos,
                 "latitude": cafe.latitude,
-                "longitude": cafe.longitude
+                "longitude": cafe.longitude,
+                "googleMapsUrl": cafe.google_maps_url
             }
         }
     }

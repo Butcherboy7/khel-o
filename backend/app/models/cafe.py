@@ -28,6 +28,7 @@ class Cafe(Base):
     pincode: Mapped[str] = mapped_column(String(10), nullable=False)
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
+    google_maps_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     phone_number: Mapped[str] = mapped_column(String(20), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     opening_time: Mapped[time | None] = mapped_column(Time, nullable=True)

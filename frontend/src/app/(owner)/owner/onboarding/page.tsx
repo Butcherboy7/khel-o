@@ -20,19 +20,7 @@ import {
 import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } from '@/lib/api/owner';
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, Textarea, Card, CardContent, Badge } from '@/components/ui';
-import dynamic from 'next/dynamic';
-
-const GoogleLocationPicker = dynamic(
-  () => import('@/components/maps/GoogleLocationPicker').then((m) => m.GoogleLocationPicker),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-64 w-full rounded-2xl bg-surface border border-border flex items-center justify-center text-caption text-text-secondary animate-pulse">
-        Loading map picker...
-      </div>
-    ),
-  }
-);
+import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 import { INDIAN_STATES } from '@/constants/states';
 import { SUPPORTED_CITIES } from '@/constants/cities';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
@@ -65,6 +53,7 @@ interface OnboardingState {
   pincode: string;
   latitude: number | null;
   longitude: number | null;
+  googleMapsUrl: string;
   phoneNumber: string;
   email: string;
   businessPan: string;
@@ -97,6 +86,7 @@ const INITIAL_STATE: OnboardingState = {
   pincode: '560001',
   latitude: 12.9716,
   longitude: 77.5946,
+  googleMapsUrl: '',
   phoneNumber: '',
   email: '',
   businessPan: 'ABCDE1234F',
@@ -297,6 +287,7 @@ export default function OnboardingWizardPage() {
         pincode: formData.pincode || '560001',
         latitude: formData.latitude,
         longitude: formData.longitude,
+        googleMapsUrl: formData.googleMapsUrl || undefined,
         phoneNumber: formData.phoneNumber || user?.phoneNumber || '+919876543210',
         email: formData.email || user?.email,
         openingTime: formatTimeString(formData.openingTime),
@@ -493,32 +484,15 @@ export default function OnboardingWizardPage() {
                 <div className="flex flex-col gap-1.5">
                   <label className="text-caption font-semibold text-text-primary flex items-center gap-1.5">
                     <MapPin className="h-4 w-4 text-emerald-500" />
-                    <span>Select Location Pin on Google Maps *</span>
+                    <span>Google Maps Link (Optional)</span>
                   </label>
-                  <GoogleLocationPicker
-                    initialLat={formData.latitude || 12.9716}
-                    initialLng={formData.longitude || 77.5946}
-                    onLocationSelect={(res) => {
-                      updateField('latitude', res.lat);
-                      updateField('longitude', res.lng);
-                      if (res.addressLine1) updateField('addressLine1', res.addressLine1);
-                      // Google's geocoded "locality" is free text and often
-                      // doesn't match our fixed city list (e.g. it can return
-                      // a suburb/neighbouring municipality instead of the
-                      // metro city KHEL-O actually operates in) — this was
-                      // the root cause of cafés silently disappearing from
-                      // their own city's filter. Only auto-fill when it's an
-                      // exact (case-insensitive) match to a supported city;
-                      // otherwise leave the dropdown for the owner to pick.
-                      if (res.city) {
-                        const matched = SUPPORTED_CITIES.find(
-                          (c) => c.toLowerCase() === res.city!.trim().toLowerCase()
-                        );
-                        if (matched) updateField('city', matched);
-                      }
-                      if (res.state) updateField('state', res.state);
-                      if (res.pincode) updateField('pincode', res.pincode);
-                    }}
+                  <p className="text-overline text-text-tertiary">
+                    Open Google Maps, search your café, tap Share → Copy link, and paste it here. You can add this later from Settings.
+                  </p>
+                  <Input
+                    placeholder="https://maps.app.goo.gl/..."
+                    value={formData.googleMapsUrl}
+                    onChange={(e) => updateField('googleMapsUrl', e.target.value)}
                   />
                 </div>
 

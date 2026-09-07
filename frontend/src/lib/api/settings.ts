@@ -18,6 +18,7 @@ export interface OwnerSettings {
   menuPhotos: string[];
   latitude: number | null;
   longitude: number | null;
+  googleMapsUrl: string | null;
 }
 
 export interface SettingsResponse {
@@ -79,6 +80,7 @@ export interface CafeDetailsUpdateParams {
   menuPhotos?: string[];
   latitude?: number;
   longitude?: number;
+  googleMapsUrl?: string;
 }
 
 // PATCH /api/v1/owner/cafes/{cafeId}/details

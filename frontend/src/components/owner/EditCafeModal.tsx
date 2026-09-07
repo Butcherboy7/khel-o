@@ -1,24 +1,12 @@
 'use client';
 
 import { useState, useRef, type FormEvent } from 'react';
-import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff } from 'lucide-react';
+import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff, ExternalLink } from 'lucide-react';
 import { Modal, Button, Input } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings } from '@/lib/api/settings';
-import dynamic from 'next/dynamic';
-
-const GoogleLocationPicker = dynamic(
-  () => import('@/components/maps/GoogleLocationPicker').then((m) => m.GoogleLocationPicker),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-64 w-full rounded-2xl bg-surface border border-border flex items-center justify-center text-caption text-text-secondary animate-pulse">
-        Loading map picker...
-      </div>
-    ),
-  }
-);
 import { getAmenityDisplay } from '@/lib/amenities';
 import { SUPPORTED_CITIES } from '@/constants/cities';
+import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_MB = 8;
@@ -72,9 +60,9 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
   const [basicError, setBasicError] = useState<string | null>(null);
   const [basicSaved, setBasicSaved] = useState(false);
 
-  // Location
-  const [lat, setLat] = useState<number | null>(settings.latitude);
-  const [lng, setLng] = useState<number | null>(settings.longitude);
+  // Location — a plain Google Maps share link, not the JS API. See
+  // GoogleLocationDisplay.tsx for why: avoids per-view Maps API billing.
+  const [googleMapsUrl, setGoogleMapsUrl] = useState(settings.googleMapsUrl || '');
   const [locationSaving, setLocationSaving] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationSaved, setLocationSaved] = useState(false);
@@ -143,14 +131,18 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
   };
 
   const handleLocationSave = async () => {
-    if (lat == null || lng == null) return;
+    const trimmed = googleMapsUrl.trim();
+    if (trimmed && !GOOGLE_MAPS_URL_PATTERN.test(trimmed)) {
+      setLocationError('Please paste a Google Maps share link (e.g. https://maps.app.goo.gl/...)');
+      return;
+    }
     setLocationSaving(true);
     setLocationError(null);
     try {
-      // Bundled with address/city/state/pincode (not just lat/lng) so a
-      // Google Maps pick on this tab updates the café card immediately,
-      // instead of requiring a second save on the Basic Info tab.
-      const update = { latitude: lat, longitude: lng, addressLine1, city, state, pincode };
+      // Backend PATCH semantics treat an omitted field as "leave unchanged"
+      // (same convention every other field on this endpoint uses), so an
+      // empty link is simply not sent rather than sent as "".
+      const update = trimmed ? { googleMapsUrl: trimmed } : {};
       await updateCafeDetails(cafeId, update);
       onSaved(update);
       setLocationSaved(true);
@@ -407,38 +399,27 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
               <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">{locationError}</div>
             )}
             <p className="text-caption text-text-secondary">
-              Search your café or drag the pin to set the exact spot shown to customers on the map.
+              Open Google Maps, search your café by its address, tap <span className="font-semibold text-text-primary">Share → Copy link</span>, and paste it below. Customers will see a &quot;Show in Map&quot; button that opens this exact link.
             </p>
-            <GoogleLocationPicker
-              initialLat={lat ?? undefined}
-              initialLng={lng ?? undefined}
-              onLocationSelect={(loc) => {
-                setLat(loc.lat);
-                setLng(loc.lng);
-                if (loc.addressLine1) setAddressLine1(loc.addressLine1);
-                if (loc.state) setState(loc.state);
-                if (loc.pincode) setPincode(loc.pincode);
-                // Google's geocoded "locality" is free text and often doesn't
-                // match our fixed city list (e.g. a suburb instead of the
-                // metro city KHEL-O actually operates in) — only auto-fill
-                // when it's an exact (case-insensitive) match to a supported
-                // city, same guard the onboarding form uses, otherwise leave
-                // the Basic Info dropdown for the owner to pick.
-                if (loc.city) {
-                  const matched = SUPPORTED_CITIES.find(
-                    (c) => c.toLowerCase() === loc.city!.trim().toLowerCase()
-                  );
-                  if (matched) setCity(matched);
-                }
-              }}
+            <Input
+              label="Google Maps Link"
+              placeholder="https://maps.app.goo.gl/..."
+              value={googleMapsUrl}
+              onChange={(e) => setGoogleMapsUrl(e.target.value)}
             />
-            {(addressLine1 || city || state || pincode) && (
-              <div className="rounded-xl bg-surface border border-border/80 p-3 text-caption text-text-secondary">
-                <span className="font-semibold text-text-primary">Will save as: </span>
-                {[addressLine1, city, state, pincode].filter(Boolean).join(', ')}
-              </div>
+            {googleMapsUrl.trim() && (
+              <a
+                href={googleMapsUrl.trim()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 self-start text-caption font-semibold text-primary hover:underline"
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                Preview this link
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
             )}
-            <SaveRow saving={locationSaving} saved={locationSaved} label="Save Location" onClick={handleLocationSave} disabled={lat == null || lng == null} />
+            <SaveRow saving={locationSaving} saved={locationSaved} label="Save Location" onClick={handleLocationSave} />
           </div>
         )}
 
