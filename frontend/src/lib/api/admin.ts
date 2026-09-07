@@ -260,6 +260,7 @@ export async function listOwnerPayouts(
 
 export interface PlatformSettings {
   commissionPercentage: number;
+  platformFeePercentage: number;
   supportEmail: string;
   maintenanceMode: boolean;
   maintenanceMessage: string | null;

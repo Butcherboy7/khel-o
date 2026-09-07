@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
-import { createBooking } from '@/lib/api/bookings';
+import { createBooking, getPlatformFeePercentage } from '@/lib/api/bookings';
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useRazorpay } from '@/hooks/useRazorpay';
@@ -132,6 +132,18 @@ function BookingWizardContent() {
   const activeTier =
     (cafe?.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
     (cafe?.tiers && cafe.tiers[0] ? cafe.tiers[0] : null);
+
+  // Super Admin-controlled rate (Admin → Platform Settings) — this is a
+  // checkout-time estimate only, the server recomputes and charges the
+  // authoritative amount using whatever rate is live at booking-creation
+  // time. Falls back to today's known rate while the request is in flight
+  // so the summary doesn't flash a $0 fee on first paint.
+  const { data: platformFeeData } = useQuery({
+    queryKey: ['platform-fee-percentage'],
+    queryFn: getPlatformFeePercentage,
+    staleTime: 60_000,
+  });
+  const SERVICE_FEE_PERCENT = platformFeeData?.platformFeePercentage ?? 4;
 
   // The calendar date actually submitted to the backend and shown to the
   // user — `selectedDate` advanced by `selectedDateOffset` when the chosen
@@ -396,12 +408,10 @@ function BookingWizardContent() {
   }
 
   // Price calculations — this is a checkout-time estimate only, the server
-  // recomputes and is authoritative. Combined convenience fee (Razorpay's
-  // real processing cost + KHEL-O's margin) must match backend Settings
-  // RAZORPAY_COST_PERCENT + PLATFORM_MARGIN_PERCENT (2.65% + 1.35% today).
+  // recomputes and is authoritative. SERVICE_FEE_PERCENT comes from the
+  // Super Admin-controlled platform fee rate fetched above.
   const pricePerHour = activeTier?.pricePerHour || 100;
   const baseTotal = Math.round(pricePerHour * durationHours * seatsCount);
-  const SERVICE_FEE_PERCENT = 4;
 
   // Café-specific promotions are created by the owner (Owner → Promotional
   // Offers) and apply automatically at checkout — no code to type. Eligibility
@@ -810,7 +820,7 @@ function BookingWizardContent() {
         )}
 
         <div className="flex items-center justify-between">
-          <span>Convenience fee ({SERVICE_FEE_PERCENT}%)</span>
+          <span>Platform Fee</span>
           <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
         </div>
 

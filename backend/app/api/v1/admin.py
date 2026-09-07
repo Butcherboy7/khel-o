@@ -916,6 +916,7 @@ async def update_platform_settings_admin(
     settings_repo = PlatformSettingsRepository(db)
     updated = await settings_repo.update({
         "commission_percentage": payload.commission_percentage,
+        "platform_fee_percentage": payload.platform_fee_percentage,
         "support_email": payload.support_email,
         "maintenance_mode": payload.maintenance_mode,
         "maintenance_message": payload.maintenance_message,

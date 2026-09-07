@@ -7,7 +7,6 @@ from uuid import UUID, uuid4
 from datetime import datetime, timezone, timedelta, date, time
 
 from app.core.time import IST, session_end_ist
-from app.config import settings
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
@@ -17,6 +16,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.user import User, UserRole
 from app.models.cafe import VerificationStatus
 from app.models.platform_fee import PlatformFee
+from app.repositories.platform_settings_repository import PlatformSettingsRepository
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 import logging
 
@@ -170,12 +170,16 @@ class BookingService:
             )
 
         subtotal = base_amount - discount_amount
-        # Single combined platform service fee (Razorpay's real cost + KHEL-O's
-        # margin) — see Settings.RAZORPAY_COST_PERCENT / PLATFORM_MARGIN_PERCENT.
+        # Single combined platform service fee, Super Admin-controlled via
+        # PlatformSetting.platform_fee_percentage (Admin → Platform Settings).
         # Stored in the `gateway_fee` column for backward compatibility; the old
         # separate flat convenience fee is retired (kept at 0, not removed from
-        # the schema, so historical bookings still read correctly).
-        service_fee_percent = Decimal(str(settings.RAZORPAY_COST_PERCENT)) + Decimal(str(settings.PLATFORM_MARGIN_PERCENT))
+        # the schema, so historical bookings still read correctly). The rate
+        # actually applied is snapshotted onto PlatformFee.fee_percentage_applied
+        # below — a later admin rate change must never alter what this booking
+        # is shown to have paid.
+        platform_settings = await PlatformSettingsRepository(self.booking_repo.db).get_or_create()
+        service_fee_percent = Decimal(str(platform_settings.platform_fee_percentage))
         gateway_fee = (subtotal * service_fee_percent / Decimal('100')).quantize(Decimal('0.01'))
         convenience_fee = Decimal('0.00')
         total_amount = subtotal + gateway_fee + convenience_fee
@@ -212,6 +216,7 @@ class BookingService:
             "booking_id": created.id,
             "convenience_fee": float(convenience_fee),
             "gateway_fee": float(gateway_fee),
+            "fee_percentage_applied": float(service_fee_percent),
             "tds_amount": 0.00,
             "owner_settlement_amount": float(subtotal)
         }

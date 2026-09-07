@@ -16,6 +16,11 @@ class PlatformSetting(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     commission_percentage: Mapped[float] = mapped_column(Numeric(5, 2), default=10.0, nullable=False)
+    # Customer-facing "Platform Fee" charged on top of the booking subtotal —
+    # the Super Admin-controlled rate booking_service.py reads at booking
+    # creation. Distinct from commission_percentage above, which is an
+    # unrelated, not-yet-wired reference value.
+    platform_fee_percentage: Mapped[float] = mapped_column(Numeric(5, 2), default=4.0, nullable=False)
     support_email: Mapped[str] = mapped_column(String(255), default="support@khelo.app", nullable=False)
     maintenance_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     maintenance_message: Mapped[str | None] = mapped_column(String(500), nullable=True)

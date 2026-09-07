@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { PLATFORMS, PLATFORM_MODELS, type Platform } from '@/constants/platforms';
+import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import { Input } from '@/components/ui';
 import type { TierConfig } from '@/types/tier';
 import { safeRandomUUID } from '@/lib/uuid';
@@ -106,12 +107,13 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
               key={p.value}
               type="button"
               onClick={() => togglePlatform(p.value)}
-              className={`px-4 py-2 rounded-full text-caption font-semibold border transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-caption font-semibold border transition-all ${
                 selectedPlatforms.includes(p.value)
                   ? 'bg-primary text-white border-primary'
                   : 'bg-surface text-text-secondary border-border hover:border-primary/60'
               }`}
             >
+              <PlatformIcon platform={p.value} className="h-4 w-4" />
               {p.label}
             </button>
           ))}
@@ -125,7 +127,10 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
         return (
           <div key={p.value} className="flex flex-col gap-3 p-4 rounded-2xl border border-border bg-surface">
             <div className="flex items-center justify-between">
-              <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{p.label}</h3>
+              <h3 className="flex items-center gap-2 font-heading text-body-emphasis font-bold text-text-primary">
+                <PlatformIcon platform={p.value} className="h-4 w-4 text-primary" />
+                {p.label}
+              </h3>
               {!atCap && (
                 <button
                   type="button"

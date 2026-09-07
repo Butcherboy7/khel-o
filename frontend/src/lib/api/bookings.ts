@@ -18,6 +18,10 @@ export async function getBooking(bookingId: string): Promise<{ booking: BookingD
   return call(() => apiClient.get(`/api/v1/bookings/${bookingId}`));
 }
 
+export async function getPlatformFeePercentage(): Promise<{ platformFeePercentage: number }> {
+  return call(() => apiClient.get('/api/v1/bookings/platform-fee'));
+}
+
 export async function cancelBooking(bookingId: string, reason?: string): Promise<{ booking: BookingDetail }> {
   return call(() => apiClient.post(`/api/v1/bookings/${bookingId}/cancel`, { reason }));
 }

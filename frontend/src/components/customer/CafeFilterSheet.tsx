@@ -2,8 +2,6 @@
 
 import {
   Monitor,
-  Gamepad2,
-  Gamepad,
   MoreHorizontal,
   Snowflake,
   Coffee,
@@ -15,6 +13,7 @@ import {
 } from 'lucide-react';
 import { BottomSheet, Button } from '@/components/ui';
 import { normalizeAmenityKey } from '@/lib/amenities';
+import { PlayStationIcon, XboxIcon } from '@/components/icons/PlatformIcons';
 import type { CafeListItem } from '@/types';
 
 export type PlatformFilter = 'All' | 'PC' | 'PS5' | 'Xbox' | 'Other';
@@ -52,10 +51,10 @@ export function cafeHasAmenityBucket(cafe: CafeListItem, bucket: AmenityBucket):
   return bucket.keys.some((k) => cafeKeys.has(k));
 }
 
-const PLATFORM_OPTIONS: { key: PlatformFilter; label: string; icon: LucideIcon }[] = [
+const PLATFORM_OPTIONS: { key: PlatformFilter; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: 'PC', label: 'PC', icon: Monitor },
-  { key: 'PS5', label: 'PS5', icon: Gamepad2 },
-  { key: 'Xbox', label: 'Xbox', icon: Gamepad },
+  { key: 'PS5', label: 'PS5', icon: PlayStationIcon },
+  { key: 'Xbox', label: 'Xbox', icon: XboxIcon },
   { key: 'Other', label: 'Other', icon: MoreHorizontal },
 ];
 

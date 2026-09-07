@@ -12,7 +12,6 @@ import {
   ChevronRight,
   ChevronDown,
   Share2,
-  Monitor,
   Navigation,
   Gamepad2,
   CheckCircle2,
@@ -25,7 +24,7 @@ import { listBookings } from '@/lib/api/bookings';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Button, Skeleton, ErrorState } from '@/components/ui';
 import { PLATFORMS, type Platform } from '@/constants/platforms';
-import { PlayStationIcon, XboxIcon } from '@/components/icons/PlatformIcons';
+import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import dynamic from 'next/dynamic';
 
 const GoogleLocationDisplay = dynamic(
@@ -294,15 +293,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               key={value}
               className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary flex items-center gap-1.5"
             >
-              {value === 'pc' ? (
-                <Monitor className="h-3.5 w-3.5 text-primary" />
-              ) : value === 'playstation' ? (
-                <PlayStationIcon className="h-3.5 w-3.5 text-primary" />
-              ) : value === 'xbox' ? (
-                <XboxIcon className="h-3.5 w-3.5 text-primary" />
-              ) : (
-                <Gamepad2 className="h-3.5 w-3.5 text-primary" />
-              )}
+              <PlatformIcon platform={value} className="h-3.5 w-3.5 text-primary" />
               {label}
             </span>
           ))}
@@ -353,15 +344,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                         isSelected ? 'bg-accent/15 text-accent' : 'bg-surface text-text-secondary'
                       }`}
                     >
-                      {isPc ? (
-                        <Monitor className="h-5 w-5" />
-                      ) : tier.platform === 'playstation' ? (
-                        <PlayStationIcon className="h-5 w-5" />
-                      ) : tier.platform === 'xbox' ? (
-                        <XboxIcon className="h-5 w-5" />
-                      ) : (
-                        <Gamepad2 className="h-5 w-5" />
-                      )}
+                      <PlatformIcon platform={isPc ? 'pc' : tier.platform} className="h-5 w-5" />
                     </div>
 
                     <div className="flex-1 min-w-0">

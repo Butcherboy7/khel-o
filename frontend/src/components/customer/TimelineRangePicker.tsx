@@ -432,7 +432,7 @@ export function TimelineRangePicker({
       </div>
 
       {/* ── Dynamic Timeline Canvas (100% Unified Coordinates) ── */}
-      <div ref={outerRef} className="relative overflow-hidden bg-white pt-3 pb-2" style={{ height: 86 }}>
+      <div ref={outerRef} className="relative overflow-hidden bg-white pt-3 pb-2" style={{ height: 104 }}>
         {showHint && (
           <div
             className="absolute inset-x-3 top-1 z-30 flex items-start gap-2 rounded-xl bg-text-primary px-3 py-2 text-white shadow-lg"
@@ -574,8 +574,8 @@ export function TimelineRangePicker({
                 position: 'absolute',
                 left: startPx,
                 width: rangePx,
-                top: 26,
-                height: 36,
+                top: 14,
+                height: 60,
                 display: 'flex',
                 alignItems: 'center',
                 zIndex: 12,
@@ -596,9 +596,10 @@ export function TimelineRangePicker({
               />
             </div>
 
-            {/* Left handle (Renders EXACTLY at startPx = minToPx(selStart)) — a 44px
-                touch target wrapping a visible 26px thumb, so the tappable area meets
-                the mobile minimum even though the visible dot stays small and precise. */}
+            {/* Left handle (Renders EXACTLY at startPx = minToPx(selStart)) — a 56px
+                touch target wrapping a visible 26px thumb, well past the mobile
+                minimum, so a thumb can land comfortably near the dot instead of
+                needing to hit it precisely; the visible dot itself stays small. */}
             <div
               onPointerDown={(e) => handlePointerDown('start', e)}
               style={{
@@ -609,8 +610,8 @@ export function TimelineRangePicker({
                 zIndex: 20,
                 cursor: 'ew-resize',
                 touchAction: 'none',
-                width: 44,
-                height: 44,
+                width: 56,
+                height: 56,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -646,8 +647,8 @@ export function TimelineRangePicker({
                 zIndex: 20,
                 cursor: 'ew-resize',
                 touchAction: 'none',
-                width: 44,
-                height: 44,
+                width: 56,
+                height: 56,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

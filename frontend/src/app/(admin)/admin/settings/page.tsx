@@ -16,6 +16,7 @@ export default function AdminSettingsPage() {
   });
 
   const [commission, setCommission] = useState('10');
+  const [platformFee, setPlatformFee] = useState('4');
   const [supportEmail, setSupportEmail] = useState('');
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
@@ -24,21 +25,29 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     if (data?.settings) {
       setCommission(String(data.settings.commissionPercentage));
+      setPlatformFee(String(data.settings.platformFeePercentage));
       setSupportEmail(data.settings.supportEmail);
       setMaintenanceMode(data.settings.maintenanceMode);
       setMaintenanceMessage(data.settings.maintenanceMessage ?? '');
     }
   }, [data]);
 
+  const platformFeeValue = Number(platformFee);
+  const isPlatformFeeValid = Number.isFinite(platformFeeValue) && platformFeeValue >= 0 && platformFeeValue <= 50;
+
   const saveMut = useMutation({
     mutationFn: () => updatePlatformSettings({
       commissionPercentage: Number(commission),
+      platformFeePercentage: platformFeeValue,
       supportEmail,
       maintenanceMode,
       maintenanceMessage: maintenanceMessage || null,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'platform-settings'] });
+      // Booking checkout reads this rate — make sure a fresh page load
+      // picks up the new value immediately instead of a stale cached one.
+      queryClient.invalidateQueries({ queryKey: ['platform-fee-percentage'] });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
@@ -92,6 +101,26 @@ export default function AdminSettingsPage() {
           </div>
 
           <div>
+            <label className="text-caption font-semibold text-text-primary mb-1.5 block">Platform Fee (%)</label>
+            <input
+              type="number"
+              min={0}
+              max={50}
+              step="0.05"
+              value={platformFee}
+              onChange={(e) => setPlatformFee(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl border border-border bg-surface text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            <p className="text-[11px] text-text-tertiary mt-1">
+              Charged to customers at checkout as &quot;Platform Fee&quot; on every new booking. Changing this never
+              touches past bookings — each one keeps the rate it was charged at.
+            </p>
+            {!isPlatformFeeValid && (
+              <p className="text-[11px] text-error mt-1">Enter a value between 0 and 50.</p>
+            )}
+          </div>
+
+          <div>
             <label className="text-caption font-semibold text-text-primary mb-1.5 block">Support email</label>
             <input
               type="email"
@@ -140,7 +169,7 @@ export default function AdminSettingsPage() {
         <Button
           variant="primary"
           size="md"
-          disabled={saveMut.isPending}
+          disabled={saveMut.isPending || !isPlatformFeeValid}
           onClick={() => saveMut.mutate()}
           className="gap-2 self-start"
         >
@@ -150,6 +179,11 @@ export default function AdminSettingsPage() {
         {saved && (
           <span className="flex items-center gap-1.5 text-caption text-success">
             <CheckCircle2 className="h-4 w-4" /> Saved
+          </span>
+        )}
+        {saveMut.isError && (
+          <span className="text-caption text-error">
+            {(saveMut.error as Error)?.message ?? 'Failed to save settings.'}
           </span>
         )}
       </div>
