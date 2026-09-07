@@ -183,7 +183,34 @@ export default function HardwareTiersPage() {
 
   const handleOpenEdit = (tier: HardwareTier) => {
     setEditingTierId(tier.id);
-    if (tier.platform && tier.model) {
+    if (tier.tierType === 'activity') {
+      // Activity tiers always have platform=null by design (they're not a
+      // gaming platform at all), so they must never fall into the
+      // legacy-migration "un-migrated tier" branch below — that branch
+      // opens an empty configurator with gaming platform chips and no
+      // activity data loaded (see final-review.md I3).
+      //
+      // individualUnits is create-only — HardwareTier (the read-back type)
+      // doesn't carry a units count, so there's no reliable signal here for
+      // whether this tier currently uses individual units or pooled
+      // capacity. Default to `true` (the more common/manageable choice for
+      // a multi-unit activity like Snooker tables); the toggle itself
+      // remains editable in the form, so this only affects the initial
+      // pre-filled state, not correctness of the tier's real name/
+      // quantity/price, which all load from the tier as-is.
+      setConfigs([{
+        id: tier.id,
+        platform: 'other',
+        model: tier.activityKind || tier.name,
+        totalSeats: tier.totalSeats,
+        appBookableSeats: tier.appBookableSeats,
+        pricePerHour: tier.pricePerHour,
+        tierType: 'activity',
+        activityKind: tier.activityKind ?? undefined,
+        individualUnits: true,
+      }]);
+      setLegacyTierDefaults(null);
+    } else if (tier.platform && tier.model) {
       setConfigs([{
         id: tier.id,
         platform: tier.platform,

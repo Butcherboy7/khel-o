@@ -24,7 +24,7 @@ from app.constants import validate_city, validate_google_maps_url
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
-from app.models.hardware_tier import HardwareTier, PlatformType
+from app.models.hardware_tier import HardwareTier, PlatformType, TierType
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import Payment, PaymentStatus
@@ -1971,7 +1971,9 @@ async def get_tiers_needing_confirmation(
 
     tier_repo = HardwareTierRepository(db)
     tiers = await tier_repo.get_by_cafe_id(cafe.id, active_only=False)
-    unmigrated = [t for t in tiers if t.platform is None]
+    # Activity tiers (Snooker, Arcade, etc.) always have platform=None by
+    # design — that's not a legacy-migration gap, so exclude them here.
+    unmigrated = [t for t in tiers if t.platform is None and t.tier_type != TierType.ACTIVITY]
 
     tiers_data = []
     for t in unmigrated:
@@ -2006,6 +2008,12 @@ async def confirm_tier_platform(
     cafe = await cafe_repo.get_by_id(tier.cafe_id)
     if not cafe or str(cafe.owner_id) != str(current_owner.id):
         raise ForbiddenException("You can only confirm tiers for your own café", error_code="FORBIDDEN")
+
+    if tier.tier_type == TierType.ACTIVITY:
+        raise ValidationException(
+            message="This tier is an activity, not a gaming platform — platform confirmation doesn't apply to it",
+            error_code="NOT_A_GAMING_TIER",
+        )
 
     try:
         platform = PlatformType(payload.platform)

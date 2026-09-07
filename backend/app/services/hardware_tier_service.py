@@ -161,7 +161,9 @@ class HardwareTierService:
         if active > total:
             raise ValidationException(message="Active seats cannot exceed total seats", error_code="INVALID_SEATS")
 
-        if tier.tier_type == TierType.ACTIVITY and update_data.total_seats is not None and update_data.total_seats < tier.total_seats:
+        shrinking_total_seats = update_data.total_seats is not None and update_data.total_seats < tier.total_seats
+        shrinking_bookable_seats = update_data.app_bookable_seats is not None and bookable < tier.app_bookable_seats
+        if tier.tier_type == TierType.ACTIVITY and (shrinking_total_seats or shrinking_bookable_seats):
             if self.booking_repo and self.unit_repo:
                 # Conservative: assume any units already in maintenance
                 # survive the resize (sync_units_to_quantity removes the

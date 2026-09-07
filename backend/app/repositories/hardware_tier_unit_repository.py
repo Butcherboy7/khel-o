@@ -12,9 +12,15 @@ class HardwareTierUnitRepository:
 
     async def list_by_tier(self, tier_id: UUID) -> List[HardwareTierUnit]:
         result = await self.db.execute(
-            select(HardwareTierUnit).where(HardwareTierUnit.tier_id == tier_id).order_by(HardwareTierUnit.label)
+            select(HardwareTierUnit)
+            .where(HardwareTierUnit.tier_id == tier_id)
+            .order_by(HardwareTierUnit.created_at, HardwareTierUnit.label)
         )
         return list(result.scalars().all())
+
+    async def get_by_id(self, unit_id: UUID) -> Optional[HardwareTierUnit]:
+        result = await self.db.execute(select(HardwareTierUnit).where(HardwareTierUnit.id == unit_id))
+        return result.scalars().first()
 
     async def count_in_maintenance(self, tier_id: UUID) -> int:
         result = await self.db.execute(

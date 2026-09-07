@@ -60,6 +60,13 @@ class HardwareTierRepository(BaseRepository[HardwareTier]):
         result = await self.db.execute(select(HardwareTier).where(HardwareTier.id == tier_id))
         return result.scalars().first()
 
+    async def get_by_id_with_lock(self, tier_id: UUID) -> Optional[HardwareTier]:
+        """Same as get_by_id but takes a row lock (SELECT ... FOR UPDATE), so
+        callers can serialize a check-then-write sequence against this tier
+        (e.g. a capacity-safety check followed by a unit status write)."""
+        result = await self.db.execute(select(HardwareTier).where(HardwareTier.id == tier_id).with_for_update())
+        return result.scalars().first()
+
     async def get_by_cafe_id(self, cafe_id: UUID, active_only: bool = True) -> List[HardwareTier]:
         stmt = select(HardwareTier).where(HardwareTier.cafe_id == cafe_id)
         if active_only:
