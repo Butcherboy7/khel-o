@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, and_
@@ -101,6 +101,25 @@ class ReviewRepository(BaseRepository[Review]):
         avg_rating = round(float(row[0]), 1)
         total_count = int(row[1])
         return avg_rating, total_count
+
+    async def get_average_ratings_for_cafes(self, cafe_ids: List[UUID]) -> Dict[UUID, Tuple[float, int]]:
+        """Batched form of get_average_rating_and_count — one GROUP BY query
+        for a whole page of cafés instead of one query per café."""
+        if not cafe_ids:
+            return {}
+        stmt = select(
+            Review.cafe_id,
+            func.avg(Review.rating),
+            func.count(Review.id)
+        ).where(
+            Review.cafe_id.in_(cafe_ids),
+            Review.is_visible == True
+        ).group_by(Review.cafe_id)
+        res = await self.db.execute(stmt)
+        return {
+            row[0]: (round(float(row[1]), 1), int(row[2]))
+            for row in res.all()
+        }
 
     async def create(self, review_data: dict[str, Any] | Review) -> Review:
         if isinstance(review_data, Review):
