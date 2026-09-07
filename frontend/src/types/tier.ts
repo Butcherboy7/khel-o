@@ -22,6 +22,8 @@ export interface HardwareTier {
   isActive: boolean;
   /** Populated when listing tiers via GET /cafes/{id}/tiers */
   activePromotion: Promotion | null;
+  tierType: 'gaming' | 'activity';
+  activityKind: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,6 +38,11 @@ export interface TierCreateRequest {
   pricePerHour: number;
   platform?: Platform;
   model?: string;
+  tierType?: 'gaming' | 'activity';
+  activityKind?: string;
+  /** Create-only — see backend HardwareTierCreate.individual_units. Absent
+   *  or false = pooled capacity, never sent/used again after creation. */
+  individualUnits?: boolean;
 }
 
 export interface TierUpdateRequest {
@@ -50,6 +57,7 @@ export interface TierUpdateRequest {
   activeSeatsCount?: number;
   platform?: Platform;
   model?: string;
+  activityKind?: string;
 }
 
 export interface TierConfig {
@@ -59,4 +67,9 @@ export interface TierConfig {
   totalSeats: number;
   appBookableSeats: number;
   pricePerHour: number;
+  tierType: 'gaming' | 'activity';
+  activityKind?: string;
+  /** This component's own working state for the create-time toggle — see
+   *  TierCreateRequest.individualUnits above for what it maps to on submit. */
+  individualUnits?: boolean;
 }
