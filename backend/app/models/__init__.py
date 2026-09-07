@@ -2,6 +2,7 @@ from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
+from app.models.hardware_tier_unit import HardwareTierUnit
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import Payment, PaymentStatus
 from app.models.promotion import Promotion
@@ -25,6 +26,7 @@ __all__ = [
     "Cafe",
     "VerificationStatus",
     "HardwareTier",
+    "HardwareTierUnit",
     "Booking",
     "BookingStatus",
     "Payment",

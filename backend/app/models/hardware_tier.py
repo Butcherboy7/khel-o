@@ -14,6 +14,10 @@ class PlatformType(str, enum.Enum):
     NINTENDO = "nintendo"
     OTHER = "other"
 
+class TierType(str, enum.Enum):
+    GAMING = "gaming"
+    ACTIVITY = "activity"
+
 class HardwareTier(Base):
     __tablename__ = "hardware_tiers"
 
@@ -36,6 +40,17 @@ class HardwareTier(Base):
         nullable=True
     )
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # 'gaming' = PC/console tier (existing behavior, platform/specs apply).
+    # 'activity' = non-gaming bookable inventory (snooker, arcade, etc.) —
+    # platform/specs are always unused/null for these; see activity_kind.
+    tier_type: Mapped[TierType] = mapped_column(
+        Enum(TierType, values_callable=lambda x: [e.value for e in x]),
+        default=TierType.GAMING, server_default=TierType.GAMING.value, nullable=False
+    )
+    # Free text ("Snooker", "Arcade", "Racing Simulator", or any custom
+    # name) — deliberately NOT a fixed enum. A new activity type must never
+    # require a backend change; see docs/superpowers/plans/2026-09-07-cafe-activities.md.
+    activity_kind: Mapped[str | None] = mapped_column(String(50), nullable=True)
     reserved_walkin_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     active_seats_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     preset_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
