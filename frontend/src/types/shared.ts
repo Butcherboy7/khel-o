@@ -37,7 +37,8 @@ export type BookingStatus =
   | 'cancelled'
   | 'completed'
   | 'no_show'
-  | 'failed';
+  | 'failed'
+  | 'released_by_owner';
 
 export type PaymentStatus = 'created' | 'captured' | 'failed' | 'refunded';
 

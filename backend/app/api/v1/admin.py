@@ -493,6 +493,41 @@ async def refund_booking_admin(
     )
     return {"success": True, "data": result}
 
+class BookingReleaseRequest(BaseModel):
+    reason: Optional[str] = Field(None, max_length=200)
+
+@router.patch("/bookings/{booking_id}/release", status_code=status.HTTP_200_OK)
+async def release_pending_booking_admin(
+    booking_id: UUID,
+    payload: BookingReleaseRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Admin override of the owner's "Release Slot" action — same safety
+    rules apply (see owner.py's _release_pending_booking): only a
+    PENDING_PAYMENT booking can be released, never deleted, and a late
+    Razorpay confirmation for the same payment is refunded rather than
+    silently confirming an already-released slot."""
+    from app.api.v1.owner import _release_pending_booking
+    result = await _release_pending_booking(booking_id, payload.reason, current_admin, db, is_admin=True)
+
+    admin_service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db)
+    )
+    await admin_service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="booking.release",
+        entity_type="booking",
+        entity_id=str(booking_id),
+        reason=result["data"]["booking"]["releaseReason"],
+    )
+    return result
+
 # --- PROMOTION OVERSIGHT ---
 @router.get("/promotions", status_code=status.HTTP_200_OK)
 async def list_promotions_admin(

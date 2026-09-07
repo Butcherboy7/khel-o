@@ -12,7 +12,7 @@ import {
   User,
   QrCode,
 } from 'lucide-react';
-import { listOwnerBookings, checkinBooking, updateOwnerBookingStatus } from '@/lib/api/owner';
+import { listOwnerBookings, checkinBooking, updateOwnerBookingStatus, releasePendingBooking } from '@/lib/api/owner';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
   Button,
@@ -66,6 +66,19 @@ export default function OwnerBookingsPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
     },
   });
+
+  const releaseMutation = useMutation({
+    mutationFn: (bookingId: string) => releasePendingBooking(bookingId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
+    },
+  });
+
+  const handleRelease = (bookingId: string) => {
+    if (confirm('This will release the held slot and make it available for other customers. Continue?')) {
+      releaseMutation.mutate(bookingId);
+    }
+  };
 
   const actionError =
     (checkinMutation.error as Error | null)?.message ||
@@ -209,6 +222,20 @@ export default function OwnerBookingsPage() {
                       >
                         <CheckCircle2 className="h-4 w-4" />
                         <span>Check In</span>
+                      </Button>
+                    )}
+
+                    {booking.status === 'pending_payment' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRelease(booking.id)}
+                        isLoading={releaseMutation.isPending && releaseMutation.variables === booking.id}
+                        loadingText="Releasing..."
+                        className="gap-1.5 text-error border-error/30 hover:bg-error/10"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        <span>Release Slot</span>
                       </Button>
                     )}
 
