@@ -22,6 +22,36 @@ def validate_city(city: str) -> str:
     return canonical
 
 
+_GOOGLE_MAPS_HOSTS = {"maps.app.goo.gl", "google.com", "www.google.com", "maps.google.com", "www.maps.google.com"}
+
+
+def validate_google_maps_url(url):
+    """Validate an owner-pasted Google Maps share link before it's stored.
+
+    Only accepts an allow-list of Google-owned hosts (real Maps share links,
+    not arbitrary URLs) so the "Show in Map" button on the café detail page
+    can safely open it in a new tab without us fetching or rendering it
+    ourselves. Returns the URL unchanged (or None) on success; raises
+    ValueError otherwise so it can be used as a Pydantic field_validator."""
+    if url is None:
+        return None
+    from urllib.parse import urlparse
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("Google Maps link must start with http:// or https://")
+    host = parsed.netloc.lower()
+    if host == "maps.app.goo.gl":
+        return url
+    if host == "goo.gl" and parsed.path.startswith("/maps/"):
+        return url
+    if host in _GOOGLE_MAPS_HOSTS and parsed.path.startswith("/maps"):
+        return url
+    raise ValueError(
+        "Please paste a Google Maps share link (e.g. https://maps.app.goo.gl/... "
+        "from Google Maps' Share button)"
+    )
+
+
 # Platform-first hardware tier configuration (Owner Onboarding V2). Mirrors
 # the SUPPORTED_CITIES pattern above: a fixed picklist per platform, no
 # admin-editable list. "other" has no fixed model list — it's free text,

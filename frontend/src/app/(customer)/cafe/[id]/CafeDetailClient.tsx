@@ -569,25 +569,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           </div>
 
           <GoogleLocationDisplay
-            lat={cafe.latitude}
-            lng={cafe.longitude}
-            venueName={cafe.name}
+            addressLine1={cafe.addressLine1}
+            city={cafe.city}
+            googleMapsUrl={cafe.googleMapsUrl}
           />
-
-          <Button
-            variant="secondary"
-            size="md"
-            fullWidth
-            className="gap-2"
-            onClick={() => {
-              const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                `${cafe.name}, ${cafe.addressLine1}, ${cafe.city}`
-              )}`;
-              window.open(url, '_blank');
-            }}
-          >
-            <span>Get directions on Google Maps</span>
-          </Button>
         </div>
       </section>
 

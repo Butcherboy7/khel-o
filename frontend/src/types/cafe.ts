@@ -62,6 +62,7 @@ export interface Cafe {
   draftData?: any;
   latitude?: number | null;
   longitude?: number | null;
+  googleMapsUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
