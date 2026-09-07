@@ -76,7 +76,7 @@ Investigated before finalizing this plan, not assumed:
 - Test: `backend/tests/test_cafe_activities.py`
 
 **Interfaces:**
-- Produces: `TierType` enum (`GAMING="gaming"`, `ACTIVITY="activity"`) and `UnitStatus` enum (`AVAILABLE="available"`, `MAINTENANCE="maintenance"`) in `app/models/hardware_tier.py` and `app/models/hardware_tier_unit.py` respectively; `HardwareTier.tier_type: Mapped[TierType]`, `HardwareTier.activity_kind: Mapped[str | None]`; `HardwareTierUnit(id, tier_id, label, status, created_at, updated_at)`.
+- Produces: `TierType` enum (`GAMING="gaming"`, `ACTIVITY="activity"`) and `UnitStatus` enum (`AVAILABLE="available"`, `MAINTENANCE="maintenance"`) in `app/models/hardware_tier.py` and `app/models/hardware_tier_unit.py` respectively — both are `(str, enum.Enum)` used for Python-side comparisons (`tier.tier_type == TierType.ACTIVITY`), but the columns backing them are plain `Mapped[str]`/`String`, not SQLAlchemy's `Enum()` type (see the code below for why); `HardwareTier.tier_type: Mapped[str]`, `HardwareTier.activity_kind: Mapped[str | None]`; `HardwareTierUnit(id, tier_id, label, status: Mapped[str], created_at, updated_at)`.
 
 - [ ] **Step 1: Write the failing model/migration test**
 
@@ -181,11 +181,19 @@ Add to the `HardwareTier` class body (after `platform`/`model`):
 
 ```python
     # 'gaming' = PC/console tier (existing behavior, platform/specs apply).
-    # 'activity' = non-gaming bookable inventory (snooker, arcade, etc.) —
+    # 'activity' = bookable Activities inventory (snooker, arcade, etc.) —
     # platform/specs are always unused/null for these; see activity_kind.
-    tier_type: Mapped[TierType] = mapped_column(
-        Enum(TierType, values_callable=lambda x: [e.value for e in x]),
-        default=TierType.GAMING, server_default=TierType.GAMING.value, nullable=False
+    # Plain str column, NOT SQLAlchemy's Enum() type — matches
+    # PlatformFee.transfer_status's precedent exactly, deliberately, so the
+    # migration's plain String column (see below) never diverges from what
+    # create_all would produce on a real Postgres DB (wrapping in Enum()
+    # there creates a native Postgres ENUM type, which the migration does
+    # NOT create — that mismatch is exactly the ALTER TYPE churn this was
+    # meant to avoid in the first place). TierType is still a (str, Enum)
+    # subclass, so `tier.tier_type == TierType.GAMING` still evaluates True
+    # against the plain string this column actually stores.
+    tier_type: Mapped[str] = mapped_column(
+        String(20), default=TierType.GAMING.value, server_default=TierType.GAMING.value, nullable=False
     )
     # Free text ("Snooker", "Arcade", "Racing Simulator", or any custom
     # name) — deliberately NOT a fixed enum. A new activity type must never
@@ -199,7 +207,7 @@ Create `backend/app/models/hardware_tier_unit.py`:
 import uuid
 import enum
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey, Enum
+from sqlalchemy import String, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -224,9 +232,10 @@ class HardwareTierUnit(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     tier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("hardware_tiers.id", ondelete="CASCADE"), nullable=False, index=True)
     label: Mapped[str] = mapped_column(String(50), nullable=False)
-    status: Mapped[UnitStatus] = mapped_column(
-        Enum(UnitStatus, values_callable=lambda x: [e.value for e in x]),
-        default=UnitStatus.AVAILABLE, server_default=UnitStatus.AVAILABLE.value, nullable=False
+    # Plain str column, NOT SQLAlchemy's Enum() type — see the identical
+    # note on HardwareTier.tier_type above; same reasoning applies here.
+    status: Mapped[str] = mapped_column(
+        String(20), default=UnitStatus.AVAILABLE.value, server_default=UnitStatus.AVAILABLE.value, nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
