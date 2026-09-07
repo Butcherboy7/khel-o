@@ -43,9 +43,8 @@ class HardwareTier(Base):
     # 'gaming' = PC/console tier (existing behavior, platform/specs apply).
     # 'activity' = non-gaming bookable inventory (snooker, arcade, etc.) —
     # platform/specs are always unused/null for these; see activity_kind.
-    tier_type: Mapped[TierType] = mapped_column(
-        Enum(TierType, values_callable=lambda x: [e.value for e in x]),
-        default=TierType.GAMING, server_default=TierType.GAMING.value, nullable=False
+    tier_type: Mapped[str] = mapped_column(
+        String(20), default=TierType.GAMING.value, server_default=TierType.GAMING.value, nullable=False
     )
     # Free text ("Snooker", "Arcade", "Racing Simulator", or any custom
     # name) — deliberately NOT a fixed enum. A new activity type must never
