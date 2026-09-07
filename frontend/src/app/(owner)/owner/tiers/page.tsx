@@ -18,13 +18,15 @@ import {
   EmptyState,
 } from '@/components/ui';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
-import type { HardwareTier, TierConfig } from '@/types';
-import { Edit, AlertCircle, Power, PowerOff, Plus, Zap } from 'lucide-react';
+import { ActivityUnitsManager } from '@/components/owner/ActivityUnitsManager';
+import type { HardwareTier, TierConfig, TierCreateRequest, TierUpdateRequest } from '@/types';
+import { Edit, AlertCircle, Power, PowerOff, Plus, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function HardwareTiersPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<HardwareTier | null>(null);
+  const [expandedUnitsTierId, setExpandedUnitsTierId] = useState<string | null>(null);
 
   // Form State
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
@@ -80,14 +82,27 @@ export default function HardwareTiersPage() {
     mutationFn: async () => {
       const targetId = await getActiveCafeId();
       const config = configs[0];
-      return createTier(targetId, {
-        specs: {},
-        totalSeats: config.totalSeats,
-        appBookableSeats: config.appBookableSeats,
-        pricePerHour: config.pricePerHour,
-        platform: config.platform,
-        model: config.model,
-      });
+      const payload: TierCreateRequest =
+        config.tierType === 'activity'
+          ? {
+              name: config.activityKind || 'Activity',
+              totalSeats: config.totalSeats,
+              appBookableSeats: config.appBookableSeats,
+              pricePerHour: config.pricePerHour,
+              specs: {},
+              tierType: 'activity',
+              activityKind: config.activityKind,
+              individualUnits: config.individualUnits,
+            }
+          : {
+              specs: {},
+              totalSeats: config.totalSeats,
+              appBookableSeats: config.appBookableSeats,
+              pricePerHour: config.pricePerHour,
+              platform: config.platform,
+              model: config.model,
+            };
+      return createTier(targetId, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
@@ -104,13 +119,27 @@ export default function HardwareTiersPage() {
     mutationFn: async () => {
       const targetId = await getActiveCafeId();
       const config = configs[0];
-      return updateTier(targetId, editingTierId!, {
-        totalSeats: config.totalSeats,
-        appBookableSeats: config.appBookableSeats,
-        pricePerHour: config.pricePerHour,
-        platform: config.platform,
-        model: config.model,
-      });
+      // Note: individualUnits is create-only (backend individual_units field
+      // has no effect after creation) and TierUpdateRequest deliberately has
+      // no tierType field, so neither is included here.
+      const payload: TierUpdateRequest =
+        config.tierType === 'activity'
+          ? {
+              name: config.activityKind || 'Activity',
+              totalSeats: config.totalSeats,
+              appBookableSeats: config.appBookableSeats,
+              pricePerHour: config.pricePerHour,
+              specs: {},
+              activityKind: config.activityKind,
+            }
+          : {
+              totalSeats: config.totalSeats,
+              appBookableSeats: config.appBookableSeats,
+              pricePerHour: config.pricePerHour,
+              platform: config.platform,
+              model: config.model,
+            };
+      return updateTier(targetId, editingTierId!, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
@@ -162,6 +191,8 @@ export default function HardwareTiersPage() {
         totalSeats: tier.totalSeats,
         appBookableSeats: tier.appBookableSeats,
         pricePerHour: tier.pricePerHour,
+        tierType: tier.tierType,
+        activityKind: tier.activityKind ?? undefined,
       }]);
       setLegacyTierDefaults(null);
     } else {
@@ -342,6 +373,32 @@ export default function HardwareTiersPage() {
                       <span>Edit Seats & Price</span>
                     </Button>
                   </div>
+
+                  {tier.tierType === 'activity' && (
+                    <div className="border-t border-border pt-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedUnitsTierId(expandedUnitsTierId === tier.id ? null : tier.id)
+                        }
+                        className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary hover:text-text-primary transition-colors"
+                      >
+                        {expandedUnitsTierId === tier.id ? (
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        )}
+                        <span>Manage Units</span>
+                      </button>
+                      {expandedUnitsTierId === tier.id && (
+                        <ActivityUnitsManager
+                          cafeId={tier.cafeId}
+                          tierId={tier.id}
+                          tierName={tier.name}
+                        />
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
