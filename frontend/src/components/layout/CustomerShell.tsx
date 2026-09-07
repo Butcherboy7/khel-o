@@ -54,7 +54,7 @@ function CustomerHeader() {
 
   return (
     <header className="sticky top-0 z-nav w-full border-b border-border/60 bg-card/95 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-content items-center justify-between px-4 md:px-6">
+      <div className="mx-auto flex h-16 max-w-wide items-center justify-between px-4 md:px-6">
         {/* Brand Logo */}
         <Link href="/" className="flex items-center gap-2">
           <Image
@@ -193,7 +193,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
 
       <main
         className={cn(
-          'mx-auto w-full max-w-content px-4 md:px-6 pb-24 md:pb-12',
+          'mx-auto w-full max-w-wide px-4 md:px-6 pb-24 md:pb-12',
           skipGlobalHeader ? 'py-3 md:py-4' : 'py-6 md:py-8'
         )}
       >

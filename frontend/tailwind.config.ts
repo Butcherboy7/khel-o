@@ -130,6 +130,7 @@ const config: Config = {
       /* ── Max Width ── */
       maxWidth: {
         content: 'var(--content-max-width)',
+        wide: 'var(--content-wide-max-width)',
         owner: 'var(--owner-max-width)',
         admin: 'var(--admin-max-width)',
       },

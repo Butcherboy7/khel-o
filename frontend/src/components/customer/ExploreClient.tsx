@@ -498,7 +498,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         : `Near · ${selectedCity}`;
 
   return (
-    <div className="flex flex-col gap-4 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-4 max-w-wide mx-auto">
       {/* Discovery header — one compact block covering brand tagline,
           search, platform filters, and location/sort, whether or not the
           visitor is signed in. This page is public (see

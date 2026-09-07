@@ -66,6 +66,14 @@
 
     /* ── Layout Constants ── */
     --content-max-width: 920px;
+    /* Wide customer container — the café grid/booking/detail pages want the
+       same breathing room owner/admin already get. content-max-width stays
+       920px on purpose for genuinely reading-width surfaces (legal pages),
+       but a browse/booking page capped at 920px on a 1920px monitor centers
+       into a near-square island with huge dead margins on both sides — this
+       is that fix. Matches --owner-max-width/--admin-max-width exactly so
+       "wide" means one consistent thing across the whole app. */
+    --content-wide-max-width: 1200px;
     --owner-max-width: 1200px;
     --admin-max-width: 1200px;
     --nav-height: 56px;
