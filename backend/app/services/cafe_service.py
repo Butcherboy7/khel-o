@@ -155,13 +155,21 @@ class CafeService:
             limit=limit
         )
 
+        ratings_by_cafe: Dict[UUID, Any] = {}
+        if self.review_repo:
+            cafe_ids = [item["id"] for item in items_dict if item.get("id")]
+            ratings_by_cafe = await self.review_repo.get_average_ratings_for_cafes(cafe_ids)
+
         items: List[CafeListItem] = []
         for item in items_dict:
             c_id = item.get("id")
-            if c_id and self.review_repo:
-                avg_r, tot_r = await self.review_repo.get_average_rating_and_count(c_id)
+            if c_id in ratings_by_cafe:
+                avg_r, tot_r = ratings_by_cafe[c_id]
                 item["average_rating"] = avg_r
                 item["total_reviews"] = tot_r
+            elif c_id and self.review_repo:
+                item["average_rating"] = 0.0
+                item["total_reviews"] = 0
             items.append(CafeListItem.model_validate(item))
 
         total_pages = math.ceil(total / limit) if total > 0 else 0

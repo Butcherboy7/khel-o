@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
@@ -402,6 +403,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Compress JSON responses over 1KB (café listings/detail payloads with
+# photo arrays benefit most) — added after CORS so it wraps the outermost,
+# compressing the final response including CORS headers.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Mount static files directory
 os.makedirs("static/qr", exist_ok=True)
