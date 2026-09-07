@@ -79,6 +79,16 @@ export async function updateOwnerBookingStatus(
   return call(() => apiClient.patch(`/api/v1/owner/bookings/${bookingId}/status`, { status }));
 }
 
+// Frees a still-PENDING_PAYMENT booking's held slot before the natural
+// 15-minute TTL. See backend/app/api/v1/owner.py::_release_pending_booking
+// for the race-condition-safe transition (RELEASED_BY_OWNER, never deleted).
+export async function releasePendingBooking(
+  bookingId: string,
+  reason?: string,
+): Promise<{ booking: { id: string; status: string; releasedAt: string | null; releaseReason: string | null } }> {
+  return call(() => apiClient.patch(`/api/v1/owner/bookings/${bookingId}/release`, { reason }));
+}
+
 export async function checkinBooking(
   bookingId: string,
   method: 'qr_camera' | 'qr_upload' | 'manual' = 'manual',

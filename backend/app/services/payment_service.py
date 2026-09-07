@@ -307,14 +307,23 @@ class PaymentService:
         if not payment:
             raise NotFoundException(message="Payment order not found", error_code="PAYMENT_NOT_FOUND")
 
-        booking = await self.booking_repo.get_by_id(payment.booking_id)
+        # Row-locked: an owner's "Release Slot" action (see owner.py's
+        # _release_pending_booking) locks this exact same row, so whichever
+        # of the two transactions commits first wins and this one observes
+        # the fresh status once it acquires the lock — no interleaving where
+        # both sides think they succeeded.
+        booking = await self.booking_repo.get_by_id_with_lock(payment.booking_id)
         if not booking:
             raise NotFoundException(message="Associated booking not found", error_code="BOOKING_NOT_FOUND")
 
         if str(booking.gamer_id) != str(gamer_id):
             raise ForbiddenException(message="You can only verify payments for your own bookings", error_code="FORBIDDEN")
 
-        if booking.status != BookingStatus.PENDING_PAYMENT:
+        # RELEASED_BY_OWNER falls through the same amount/signature checks
+        # below as a normal PENDING_PAYMENT booking would — only once the
+        # signature genuinely proves Razorpay captured this payment do we
+        # act on it (refund), just past the signature block below.
+        if booking.status not in (BookingStatus.PENDING_PAYMENT, BookingStatus.RELEASED_BY_OWNER):
             raise ValidationException(
                 message=f"Cannot verify payment for booking in status '{booking.status.value}'",
                 error_code="INVALID_BOOKING_STATUS"
@@ -364,6 +373,26 @@ class PaymentService:
                 raise ValidationException(message="Payment verification failed: Invalid signature", error_code="PAYMENT_FAILED")
             else:
                 raise ValidationException(message="Invalid payment signature", error_code="INVALID_SIGNATURE")
+
+        if booking.status == BookingStatus.RELEASED_BY_OWNER:
+            # The signature above just proved Razorpay genuinely captured this
+            # payment, but the owner released this slot before the confirmation
+            # arrived — someone else may already hold it. Never confirm; refund
+            # via the same path used for TTL-expired late payments, preserving
+            # released_by/released_at/release_reason on the booking.
+            await self.payment_repo.update_status(
+                payment_id=payment.id,
+                status=PaymentStatus.CAPTURED,
+                razorpay_payment_id=payload.razorpay_payment_id,
+                signature=payload.razorpay_signature
+            )
+            await self._refund_and_close_expired_booking(
+                booking.id, reason="Payment captured after the café owner released this slot; auto-refunded"
+            )
+            raise ValidationException(
+                message="This slot was released before your payment completed. A refund has been issued.",
+                error_code="SLOT_RELEASED_REFUNDED"
+            )
 
         # Verify 15-minute TTL window has not expired
         now_utc = datetime.now(timezone.utc)
@@ -460,7 +489,9 @@ class PaymentService:
             if order_id:
                 payment = await self.payment_repo.get_by_razorpay_order_id(order_id)
                 if payment:
-                    booking = await self.booking_repo.get_by_id(payment.booking_id)
+                    # Row-locked for the same reason as verify_payment: this must
+                    # not interleave with a concurrent owner "Release Slot" action.
+                    booking = await self.booking_repo.get_by_id_with_lock(payment.booking_id)
                     if booking:
                         # Razorpay retries payment.captured on any non-2xx/timeout response, and
                         # this webhook fires independently of (and often alongside) the client's
@@ -478,9 +509,17 @@ class PaymentService:
                             await self._create_route_transfer(booking, payment_id)
                             return {"status": "already_processed"}
 
+                        if booking.status == BookingStatus.RELEASED_BY_OWNER:
+                            logger.warning(f"Late webhook confirmation for owner-released booking {booking.id}; refunding the captured payment")
+                            await self.payment_repo.update_status(payment.id, PaymentStatus.CAPTURED, razorpay_payment_id=payment_id)
+                            await self._refund_and_close_expired_booking(
+                                booking.id, reason="Payment captured after the café owner released this slot; auto-refunded"
+                            )
+                            return {"status": "released_refunded"}
+
                         now_utc = datetime.now(timezone.utc)
                         created_dt = booking.created_at.replace(tzinfo=timezone.utc) if (booking.created_at and booking.created_at.tzinfo is None) else (booking.created_at or now_utc)
-                        
+
                         # Check TTL expiry before confirmation (> 900 seconds = 15 mins)
                         if booking.status == BookingStatus.PENDING_PAYMENT and (now_utc - created_dt).total_seconds() > 900:
                             logger.warning(f"Late webhook confirmation for expired booking {booking.id}; refunding the captured payment")
@@ -530,29 +569,33 @@ class PaymentService:
 
         return {"status": "ok"}
 
-    async def _refund_and_close_expired_booking(self, booking_id: UUID) -> None:
-        """Shared by verify_payment and handle_webhook's TTL-expiry paths
-        (P0-B4). The payment row must already be marked CAPTURED with a real
-        razorpay_payment_id before calling this.
+    async def _refund_and_close_expired_booking(self, booking_id: UUID, reason: Optional[str] = None) -> None:
+        """Shared by verify_payment/handle_webhook's TTL-expiry paths (P0-B4)
+        and the "released before payment confirmed" race (see RELEASED_BY_OWNER
+        handling above). The payment row must already be marked CAPTURED with
+        a real razorpay_payment_id before calling this.
 
         On a successful refund, process_refund itself sets the booking to
-        CANCELLED. If the Razorpay API call fails, process_refund leaves the
-        booking untouched — this must not be silently left in
-        PENDING_PAYMENT (a customer's booking looking "still awaiting
-        payment" while their money is actually captured and stuck), so on
-        failure this puts it in FAILED with a reason flagging it needs a
-        manual refund.
+        CANCELLED — this does not overwrite released_by/released_at/
+        release_reason, which stay on the row as the permanent record of why
+        it was released, independent of this final status/cancellation_reason.
+        If the Razorpay API call fails, process_refund leaves the booking
+        untouched — this must not be silently left in PENDING_PAYMENT (a
+        customer's booking looking "still awaiting payment" while their money
+        is actually captured and stuck), so on failure this puts it in FAILED
+        with a reason flagging it needs a manual refund.
         """
+        success_reason = reason or "Payment captured after 15-minute TTL window; auto-refunded"
         refund_result = await self.process_refund(booking_id)
         if refund_result["status"] in ("processed", "already_refunded"):
-            reason = "Payment captured after 15-minute TTL window; auto-refunded"
+            final_reason = success_reason
         else:
             await self.booking_repo.update(booking_id, {"status": BookingStatus.FAILED})
-            reason = (
-                f"Payment captured after 15-minute TTL window; automatic refund did NOT "
-                f"complete ({refund_result['status']}) — needs manual refund"
+            final_reason = (
+                f"{success_reason} — automatic refund did NOT complete "
+                f"({refund_result['status']}) — needs manual refund"
             )
-        await self.booking_repo.update(booking_id, {"cancellation_reason": reason})
+        await self.booking_repo.update(booking_id, {"cancellation_reason": final_reason})
 
     async def process_refund(self, booking_id: UUID, admin_id: Optional[UUID] = None) -> Dict[str, Any]:
         payment = await self.payment_repo.get_by_booking_id(booking_id)

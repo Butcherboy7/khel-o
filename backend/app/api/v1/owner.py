@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, status, Query, Body
 from typing import Optional, Dict, Any, List
-from uuid import UUID
+from uuid import UUID, uuid4
 import secrets
 from datetime import date, datetime, timezone, time, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -2254,3 +2254,76 @@ async def cancel_booking_as_owner(
             "message": "Booking cancelled successfully"
         }
     }
+
+
+async def _release_pending_booking(
+    booking_id: UUID,
+    reason: Optional[str],
+    current_user: User,
+    db: AsyncSession,
+    is_admin: bool = False,
+) -> dict:
+    """Shared by the owner and admin release endpoints. Never deletes the
+    booking or touches historical payment records — only transitions
+    PENDING_PAYMENT -> RELEASED_BY_OWNER so it stops counting toward
+    capacity immediately (see booking_repository.get_overlapping_bookings_count),
+    while released_by/released_at/release_reason keep it fully auditable.
+
+    Row-locks the booking (get_by_id_with_lock) so this can't interleave
+    with payment_service.verify_payment/handle_webhook confirming the same
+    booking concurrently — whichever transaction commits first wins, and
+    the other observes the fresh status once it acquires the lock. A late
+    Razorpay confirmation arriving after release is refunded, not
+    confirmed (see payment_service.py's RELEASED_BY_OWNER branches)."""
+    booking_repo = BookingRepository(db)
+    cafe_repo = CafeRepository(db)
+
+    booking = await booking_repo.get_by_id_with_lock(booking_id)
+    if not booking:
+        raise NotFoundException("Booking not found", error_code="BOOKING_NOT_FOUND")
+
+    if not is_admin:
+        cafe = await cafe_repo.get_by_id(booking.cafe_id)
+        if not cafe or str(cafe.owner_id) != str(current_user.id):
+            raise ForbiddenException("You can only release bookings for your own café", error_code="NOT_CAFE_OWNER")
+
+    if booking.status != BookingStatus.PENDING_PAYMENT:
+        raise BadRequestException(
+            f"Cannot release booking with status '{booking.status.value}' — only bookings awaiting payment can be released",
+            error_code="INVALID_BOOKING_STATUS"
+        )
+
+    now_utc = datetime.now(timezone.utc)
+    updated = await booking_repo.update(booking_id, {
+        "status": BookingStatus.RELEASED_BY_OWNER,
+        "released_by": current_user.id,
+        "released_at": now_utc,
+        "release_reason": reason or ("Released by admin" if is_admin else "Released by café owner — customer had not completed payment")
+    })
+
+    return {
+        "success": True,
+        "data": {
+            "booking": {
+                "id": str(updated.id),
+                "status": updated.status.value,
+                "releasedAt": updated.released_at.isoformat() if updated.released_at else None,
+                "releaseReason": updated.release_reason
+            },
+            "message": "Slot released and made available again"
+        }
+    }
+
+
+@router.patch("/bookings/{booking_id}/release", status_code=status.HTTP_200_OK)
+async def release_pending_booking(
+    booking_id: UUID,
+    reason: Optional[str] = Body(None, embed=True),
+    current_user: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Manually release a PENDING_PAYMENT booking's held slot before the
+    natural 15-minute TTL — e.g. the owner can see in person the customer
+    isn't paying and doesn't want to wait. See _release_pending_booking for
+    the safety details."""
+    return await _release_pending_booking(booking_id, reason, current_user, db, is_admin=False)

@@ -59,6 +59,7 @@ const BOOKING_STATUS_CONFIG: Record<
   cancelled: { label: 'Cancelled', variant: 'error', dotColor: 'bg-red-500' },
   no_show: { label: 'No Show', variant: 'error', dotColor: 'bg-red-600' },
   failed: { label: 'Payment Failed', variant: 'error', dotColor: 'bg-red-500' },
+  released_by_owner: { label: 'Slot Released', variant: 'default', dotColor: 'bg-gray-400' },
 };
 
 interface BookingStatusBadgeProps {

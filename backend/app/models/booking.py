@@ -15,6 +15,13 @@ class BookingStatus(str, enum.Enum):
     COMPLETED = "completed"
     NO_SHOW = "no_show"
     FAILED = "failed"
+    # Owner/admin manually freed a still-PENDING_PAYMENT slot before the
+    # natural 15-minute TTL — never used to delete/replace a booking, only
+    # as a terminal transition from PENDING_PAYMENT. See
+    # booking_repository.get_overlapping_bookings_count: this status isn't
+    # in the CONFIRMED/fresh-PENDING_PAYMENT OR-clause, so a released
+    # booking stops counting toward capacity the instant this is set.
+    RELEASED_BY_OWNER = "released_by_owner"
 
 class Booking(Base):
     __tablename__ = "bookings"
@@ -51,6 +58,9 @@ class Booking(Base):
     checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     checkin_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
     convenience_fee: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
+    released_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    release_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 

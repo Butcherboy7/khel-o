@@ -83,6 +83,9 @@ class BookingResponse(BookingBase):
     checked_in_by: Optional[UUID] = None
     checked_in_at: Optional[datetime] = None
     checkin_method: Optional[str] = None
+    released_by: Optional[UUID] = None
+    released_at: Optional[datetime] = None
+    release_reason: Optional[str] = None
     cancel_policy: Optional[CancelPolicy] = None
     created_at: datetime
     updated_at: datetime
