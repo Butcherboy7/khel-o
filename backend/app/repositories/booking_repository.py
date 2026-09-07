@@ -9,6 +9,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.models.cafe import Cafe
 from app.models.hardware_tier import HardwareTier
+from app.models.hardware_tier_unit import HardwareTierUnit, UnitStatus
 from app.repositories.base import BaseRepository
 
 class BookingRepository(BaseRepository[Booking]):
@@ -164,7 +165,17 @@ class BookingRepository(BaseRepository[Booking]):
             tier_result = await self.db.execute(tier_stmt)
             tier = tier_result.scalars().first()
             capacity = tier.app_bookable_seats if tier else 0
-        
+            # A unit in maintenance (owner-set — e.g. a broken snooker table)
+            # takes one seat out of the bookable pool without touching
+            # app_bookable_seats itself, so re-enabling the unit later
+            # restores capacity without the owner re-entering a number.
+            maintenance_stmt = select(func.count()).select_from(HardwareTierUnit).where(
+                HardwareTierUnit.tier_id == tier_id,
+                HardwareTierUnit.status == UnitStatus.MAINTENANCE,
+            )
+            maintenance_result = await self.db.execute(maintenance_stmt)
+            capacity = max(0, capacity - int(maintenance_result.scalar() or 0))
+
         count = await self.get_overlapping_bookings_count(
             tier_id=tier_id,
             session_date=session_date,
@@ -172,7 +183,49 @@ class BookingRepository(BaseRepository[Booking]):
             end_time=end_time
         )
         return count, capacity
-    
+
+    async def find_first_capacity_conflict(self, tier_id: UUID, new_capacity: int) -> Optional[Booking]:
+        """Would reducing this tier's effective capacity to `new_capacity`
+        oversell any already-committed future booking? Checked before both
+        a maintenance toggle and a quantity reduction (requirements 3–4) —
+        neither may ever silently make a confirmed booking's slot exceed
+        capacity.
+
+        Correctness note: peak concurrent demand across a set of time
+        intervals is always achieved at one of the intervals' own start
+        times (a standard interval-scheduling fact), so checking the
+        overlap count at each future booking's own window — via the
+        existing get_overlapping_bookings_count, unchanged — is sufficient
+        to find the true worst case without a separate sweep-line pass.
+        Returns the first conflicting Booking found, or None if the
+        reduction is safe."""
+        now_utc = datetime.now(timezone.utc)
+        today = now_utc.date()
+        stmt = select(Booking).where(
+            Booking.hardware_tier_id == tier_id,
+            Booking.session_date >= today,
+            or_(
+                Booking.status == BookingStatus.CONFIRMED,
+                and_(
+                    Booking.status == BookingStatus.PENDING_PAYMENT,
+                    Booking.created_at >= now_utc - timedelta(minutes=15)
+                )
+            ),
+        )
+        result = await self.db.execute(stmt)
+        future_bookings = result.scalars().all()
+
+        for booking in future_bookings:
+            overlap = await self.get_overlapping_bookings_count(
+                tier_id=tier_id,
+                session_date=booking.session_date,
+                start_time=booking.start_time,
+                end_time=booking.end_time,
+            )
+            if overlap > new_capacity:
+                return booking
+        return None
+
     async def get_gamer_daily_seats_count(
         self,
         gamer_id: UUID,

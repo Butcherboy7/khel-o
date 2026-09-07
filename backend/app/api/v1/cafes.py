@@ -9,6 +9,7 @@ from app.schemas.cafe import CafeCreateRequest, CafeUpdateRequest
 from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpdateRequest
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
+from app.repositories.hardware_tier_unit_repository import HardwareTierUnitRepository
 from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.review_repository import ReviewRepository
 from app.services.cafe_service import CafeService
@@ -115,6 +116,10 @@ async def get_cafe_availability(
         })
 
     app_bookable_seats = tier.app_bookable_seats or tier.total_seats or 10
+
+    unit_repo = HardwareTierUnitRepository(db)
+    maintenance_count = await unit_repo.count_in_maintenance(tier_id)
+    app_bookable_seats = max(0, app_bookable_seats - maintenance_count)
 
     cafe_repo = CafeRepository(db)
     cafe_obj = await cafe_repo.get_by_id(cafe_id)
