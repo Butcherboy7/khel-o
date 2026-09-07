@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.user import User
-from app.models.hardware_tier import HardwareTier
+from app.models.hardware_tier import HardwareTier, TierType
 from app.repositories.base import BaseRepository
 
 class CafeRepository(BaseRepository[Cafe]):
@@ -160,14 +160,19 @@ class CafeRepository(BaseRepository[Cafe]):
             prices = [float(t.price_per_hour) for t in cafe_tiers]
             starting_price = min(prices) if prices else None
             tier_names = [t.name for t in cafe_tiers]
-            platforms = sorted({t.platform.value for t in cafe_tiers if t.platform is not None})
+            gaming_tiers_for_platforms = [t for t in cafe_tiers if t.tier_type == TierType.GAMING]
+            platforms = sorted({t.platform.value for t in gaming_tiers_for_platforms if t.platform is not None})
             # True only when every one of this café's active tiers has been
             # migrated to a real platform. The frontend (lib/platformTags.ts)
             # only trusts `platforms` exclusively when this is true; a
             # partially-migrated café unions it with the legacy name-based
             # fallback instead, so a still-unconfirmed tier can never make a
             # real badge silently disappear (see final-review.md I1).
-            platforms_complete = all(t.platform is not None for t in cafe_tiers)
+            # Activity tiers (snooker, arcade, ...) have no platform by
+            # design and must never count against this — otherwise every
+            # café with even one activity tier would incorrectly report
+            # platforms_complete=False.
+            platforms_complete = all(t.platform is not None for t in gaming_tiers_for_platforms)
 
             photo_list = list(c.photos) if isinstance(c.photos, list) and c.photos else []
             amenity_list = list(c.amenities) if isinstance(c.amenities, list) and c.amenities else []

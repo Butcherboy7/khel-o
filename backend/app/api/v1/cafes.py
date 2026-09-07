@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status, Query, Request
+from pydantic import BaseModel
 from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,7 @@ from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpd
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.repositories.hardware_tier_unit_repository import HardwareTierUnitRepository
+from app.repositories.booking_repository import BookingRepository
 from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.review_repository import ReviewRepository
 from app.services.cafe_service import CafeService
@@ -216,7 +218,9 @@ async def add_hardware_tier(
 ):
     cafe_repo = CafeRepository(db)
     tier_repo = HardwareTierRepository(db)
-    service = HardwareTierService(tier_repo, cafe_repo)
+    unit_repo = HardwareTierUnitRepository(db)
+    booking_repo = BookingRepository(db)
+    service = HardwareTierService(tier_repo, cafe_repo, unit_repo=unit_repo, booking_repo=booking_repo)
     result = await service.add_hardware_tier(cafe_id, current_owner.id, payload)
     return {
         "success": True,
@@ -248,11 +252,85 @@ async def update_hardware_tier(
 ):
     cafe_repo = CafeRepository(db)
     tier_repo = HardwareTierRepository(db)
-    service = HardwareTierService(tier_repo, cafe_repo)
+    unit_repo = HardwareTierUnitRepository(db)
+    booking_repo = BookingRepository(db)
+    service = HardwareTierService(tier_repo, cafe_repo, unit_repo=unit_repo, booking_repo=booking_repo)
     result = await service.update_hardware_tier(tier_id, current_owner.id, payload)
     return {
         "success": True,
         "data": {
             "hardwareTier": result
         }
+    }
+
+
+@router.get("/{cafe_id}/tiers/{tier_id}/units", status_code=status.HTTP_200_OK)
+async def list_tier_units(cafe_id: UUID, tier_id: UUID, db: AsyncSession = Depends(get_db)):
+    unit_repo = HardwareTierUnitRepository(db)
+    units = await unit_repo.list_by_tier(tier_id)
+    return {
+        "success": True,
+        "data": {
+            "units": [
+                {"id": str(u.id), "label": u.label, "status": getattr(u.status, "value", u.status)}
+                for u in units
+            ]
+        }
+    }
+
+
+class TierUnitStatusUpdateRequest(BaseModel):
+    status: str  # 'available' | 'maintenance'
+
+
+@router.patch("/{cafe_id}/tiers/{tier_id}/units/{unit_id}", status_code=status.HTTP_200_OK)
+async def update_tier_unit_status(
+    cafe_id: UUID,
+    tier_id: UUID,
+    unit_id: UUID,
+    payload: TierUnitStatusUpdateRequest,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.models.hardware_tier_unit import UnitStatus
+    from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
+
+    tier_repo = HardwareTierRepository(db)
+    tier = await tier_repo.get_by_id(tier_id)
+    if not tier or str(tier.cafe_id) != str(cafe_id):
+        raise NotFoundException(message="Hardware tier not found", error_code="TIER_NOT_FOUND")
+
+    cafe_repo = CafeRepository(db)
+    cafe = await cafe_repo.get_by_id(cafe_id)
+    if not cafe or str(cafe.owner_id) != str(current_owner.id):
+        raise ForbiddenException(message="You can only manage your own café's activities", error_code="FORBIDDEN")
+
+    try:
+        status_enum = UnitStatus(payload.status)
+    except ValueError:
+        raise ValidationException(message="status must be 'available' or 'maintenance'", error_code="INVALID_UNIT_STATUS")
+
+    unit_repo = HardwareTierUnitRepository(db)
+
+    # Requirement 3: going INTO maintenance must never oversell a future
+    # booking. Coming back to 'available' only ever increases capacity, so
+    # it's always safe and skips this check.
+    if status_enum == UnitStatus.MAINTENANCE:
+        booking_repo = BookingRepository(db)
+        maintenance_count = await unit_repo.count_in_maintenance(tier_id)
+        new_capacity = max(0, tier.app_bookable_seats - (maintenance_count + 1))
+        conflict = await booking_repo.find_first_capacity_conflict(tier_id, new_capacity=new_capacity)
+        if conflict:
+            raise ValidationException(
+                message=f"Can't set this to maintenance — {conflict.booking_reference} on {conflict.session_date} needs the capacity. Schedule maintenance after that booking instead.",
+                error_code="MAINTENANCE_CAPACITY_CONFLICT"
+            )
+
+    updated_unit = await unit_repo.set_status(unit_id, status_enum)
+    if not updated_unit or str(updated_unit.tier_id) != str(tier_id):
+        raise NotFoundException(message="Unit not found", error_code="UNIT_NOT_FOUND")
+
+    return {
+        "success": True,
+        "data": {"unit": {"id": str(updated_unit.id), "label": updated_unit.label, "status": getattr(updated_unit.status, "value", updated_unit.status)}}
     }

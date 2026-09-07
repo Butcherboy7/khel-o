@@ -3,12 +3,14 @@ from uuid import UUID, uuid4
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.promotion_repository import PromotionRepository
+from app.repositories.hardware_tier_unit_repository import HardwareTierUnitRepository
+from app.repositories.booking_repository import BookingRepository
 from app.services.promotion_service import PromotionService
 from app.services.performance_rating import compute_rating, _score_gpu, _score_ram, _score_hz
 from app.services.platform_derivation import derive_tier_display
 from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpdateRequest, HardwareTierResponse
 from app.models.cafe import Cafe, VerificationStatus
-from app.models.hardware_tier import HardwareTier
+from app.models.hardware_tier import HardwareTier, TierType
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 
 class HardwareTierService:
@@ -16,11 +18,15 @@ class HardwareTierService:
         self,
         tier_repo: HardwareTierRepository,
         cafe_repo: Optional[CafeRepository] = None,
-        promo_repo: Optional[PromotionRepository] = None
+        promo_repo: Optional[PromotionRepository] = None,
+        unit_repo: Optional[HardwareTierUnitRepository] = None,
+        booking_repo: Optional[BookingRepository] = None,
     ):
         self.tier_repo = tier_repo
         self.cafe_repo = cafe_repo
         self.promo_repo = promo_repo
+        self.unit_repo = unit_repo
+        self.booking_repo = booking_repo
 
     def _validate_preset_specs(self, preset: Optional[str], specs: dict) -> Optional[str]:
         if not preset:
@@ -102,13 +108,20 @@ class HardwareTierService:
             "price_per_hour": tier_in.price_per_hour,
             "platform": tier_in.platform,
             "model": tier_in.model,
+            "tier_type": tier_in.tier_type,
+            "activity_kind": tier_in.activity_kind,
             "is_active": True
         }
 
         created = await self.tier_repo.create(tier_dict)
 
+        if created.tier_type == TierType.ACTIVITY and tier_in.individual_units and self.unit_repo:
+            await self.unit_repo.sync_units_to_quantity(
+                created.id, created.total_seats, created.activity_kind or created.name or "Unit"
+            )
+
         warning = self._validate_preset_specs(tier_in.preset_category, final_specs)
-        rating = compute_rating(final_specs)
+        rating = compute_rating(final_specs) if tier_in.tier_type == TierType.GAMING else None
 
         res = HardwareTierResponse.model_validate(created)
         res.performance_rating = rating
@@ -147,6 +160,23 @@ class HardwareTierService:
             raise ValidationException(message="App bookable seats cannot exceed total seats", error_code="INVALID_SEATS")
         if active > total:
             raise ValidationException(message="Active seats cannot exceed total seats", error_code="INVALID_SEATS")
+
+        if tier.tier_type == TierType.ACTIVITY and update_data.total_seats is not None and update_data.total_seats < tier.total_seats:
+            if self.booking_repo and self.unit_repo:
+                # Conservative: assume any units already in maintenance
+                # survive the resize (sync_units_to_quantity removes the
+                # highest-numbered rows first regardless of status, so an
+                # existing maintenance unit is not guaranteed to be one of
+                # the ones removed) — subtracting the current maintenance
+                # count keeps this check from ever under-estimating risk.
+                maintenance_count = await self.unit_repo.count_in_maintenance(tier_id)
+                new_effective_capacity = max(0, bookable - maintenance_count)
+                conflict = await self.booking_repo.find_first_capacity_conflict(tier_id, new_capacity=new_effective_capacity)
+                if conflict:
+                    raise ValidationException(
+                        message=f"Can't reduce quantity — {conflict.booking_reference} on {conflict.session_date} would no longer fit. Cancel or wait for that booking first.",
+                        error_code="CAPACITY_REDUCTION_CONFLICT"
+                    )
 
         if update_data.platform is not None or update_data.model is not None:
             effective_platform = update_data.platform if update_data.platform is not None else tier.platform
@@ -188,9 +218,16 @@ class HardwareTierService:
 
         update_dict = update_data.model_dump(exclude_unset=True)
         updated = await self.tier_repo.update(tier_id, update_dict)
-        
+
+        if updated.tier_type == TierType.ACTIVITY and self.unit_repo and "total_seats" in update_dict:
+            existing_units = await self.unit_repo.list_by_tier(updated.id)
+            if existing_units:  # only individual-unit-mode tiers ever have rows here
+                await self.unit_repo.sync_units_to_quantity(
+                    updated.id, updated.total_seats, updated.activity_kind or updated.name or "Unit"
+                )
+
         warning = self._validate_preset_specs(updated.preset_category, updated.specs)
-        rating = compute_rating(updated.specs)
+        rating = compute_rating(updated.specs) if updated.tier_type == TierType.GAMING else None
 
         res = HardwareTierResponse.model_validate(updated)
         res.performance_rating = rating
@@ -204,7 +241,7 @@ class HardwareTierService:
             raise NotFoundException(message="Hardware tier not found", error_code="TIER_NOT_FOUND")
         
         warning = self._validate_preset_specs(tier.preset_category, tier.specs)
-        rating = compute_rating(tier.specs)
+        rating = compute_rating(tier.specs) if tier.tier_type == TierType.GAMING else None
         
         res = HardwareTierResponse.model_validate(tier)
         res.performance_rating = rating
@@ -223,7 +260,7 @@ class HardwareTierService:
         result: List[HardwareTierResponse] = []
         for t in tiers:
             warning = self._validate_preset_specs(t.preset_category, t.specs)
-            rating = compute_rating(t.specs)
+            rating = compute_rating(t.specs) if t.tier_type == TierType.GAMING else None
             
             r = HardwareTierResponse.model_validate(t)
             r.performance_rating = rating
