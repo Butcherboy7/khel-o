@@ -674,3 +674,73 @@ async def test_shrinking_only_app_bookable_seats_runs_capacity_check():
             )
             assert res.status_code == 422
             assert res.json()["error"]["code"] == "CAPACITY_REDUCTION_CONFLICT"
+
+
+@pytest.mark.asyncio
+async def test_past_session_today_does_not_block_maintenance():
+    """Ultrareview finding: find_first_capacity_conflict must exclude a
+    booking whose session already ended earlier today — the lazy
+    CONFIRMED->COMPLETED/NO_SHOW transition means a finished session can sit
+    as CONFIRMED indefinitely, and it must never count as "still occupying a
+    seat" for a maintenance toggle or quantity reduction happening later the
+    same day."""
+    from app.models.booking import Booking, BookingStatus
+    from app.core.time import now_ist
+    from datetime import timedelta
+
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid4(), email=f"past_session_owner_{uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("testpass123"), full_name="Past Session Owner",
+            role=UserRole.CAFE_OWNER, is_active=True,
+        )
+        db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+        cafe = Cafe(
+            id=uuid4(), owner_id=owner.id, name="Past Session Cafe",
+            address_line1="9 Cue St", city="Hyderabad", state="Telangana",
+            pincode="500001", phone_number="+919000000091",
+            verification_status=VerificationStatus.VERIFIED, is_active=True,
+        )
+        db.add(cafe)
+        await db.flush()
+
+        tier = HardwareTier(
+            id=uuid4(), cafe_id=cafe.id, name="Snooker",
+            tier_type=TierType.ACTIVITY, activity_kind="Snooker",
+            total_seats=3, app_bookable_seats=3, price_per_hour=400,
+        )
+        db.add(tier)
+        await db.flush()
+
+        unit_repo = HardwareTierUnitRepository(db)
+        units = await unit_repo.sync_units_to_quantity(tier.id, 3, "Table")
+
+        # An hour-long session that ended an hour ago today, still CONFIRMED
+        # (nothing has read/auto-transitioned it) — must not block anything.
+        now = now_ist()
+        past_start = (now - timedelta(hours=2)).time().replace(microsecond=0)
+        past_end = (now - timedelta(hours=1)).time().replace(microsecond=0)
+        past_booking = Booking(
+            id=uuid4(), booking_reference=f"PAST{uuid4().hex[:8].upper()}",
+            gamer_id=owner.id, cafe_id=cafe.id, hardware_tier_id=tier.id,
+            seats_count=3, session_date=now.date(),
+            start_time=past_start, end_time=past_end, duration_hours=1,
+            base_amount=1200, total_amount=1200, status=BookingStatus.CONFIRMED,
+        )
+        db.add(past_booking)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role=owner.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.patch(
+                f"/api/v1/cafes/{cafe.id}/tiers/{tier.id}/units/{units[0].id}",
+                json={"status": "maintenance"},
+                headers=headers,
+            )
+            assert res.status_code == 200, res.text
+            assert res.json()["data"]["unit"]["status"] == "maintenance"

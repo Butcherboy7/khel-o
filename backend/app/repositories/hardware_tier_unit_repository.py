@@ -36,6 +36,13 @@ class HardwareTierUnitRepository:
         unit = result.scalars().first()
         if not unit:
             return None
+        return await self.apply_status(unit, status)
+
+    async def apply_status(self, unit: HardwareTierUnit, status: UnitStatus) -> HardwareTierUnit:
+        """Same write as set_status, but for a caller that already holds the
+        loaded unit (e.g. after its own ownership check) — skips the
+        redundant re-SELECT set_status would otherwise do for a unit already
+        in hand."""
         unit.status = status
         await self.db.commit()
         await self.db.refresh(unit)

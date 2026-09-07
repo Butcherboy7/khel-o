@@ -19,6 +19,7 @@ from app.services.hardware_tier_service import HardwareTierService
 from app.repositories.user_repository import UserRepository
 from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
+from app.models.hardware_tier import TierType
 from app.api.deps import require_cafe_owner, get_optional_user, get_current_active_user
 import uuid
 
@@ -119,9 +120,14 @@ async def get_cafe_availability(
 
     app_bookable_seats = tier.app_bookable_seats or tier.total_seats or 10
 
-    unit_repo = HardwareTierUnitRepository(db)
-    maintenance_count = await unit_repo.count_in_maintenance(tier_id)
-    app_bookable_seats = max(0, app_bookable_seats - maintenance_count)
+    # Gaming tiers never get hardware_tier_units rows (units only exist for
+    # individual-unit activities), so count_in_maintenance would always
+    # return 0 for them — skip the query outright on this hot, per-search
+    # path rather than pay for a COUNT that can never matter.
+    if tier.tier_type == TierType.ACTIVITY:
+        unit_repo = HardwareTierUnitRepository(db)
+        maintenance_count = await unit_repo.count_in_maintenance(tier_id)
+        app_bookable_seats = max(0, app_bookable_seats - maintenance_count)
 
     cafe_repo = CafeRepository(db)
     cafe_obj = await cafe_repo.get_by_id(cafe_id)
@@ -362,9 +368,10 @@ async def update_tier_unit_status(
                 error_code="MAINTENANCE_CAPACITY_CONFLICT"
             )
 
-    updated_unit = await unit_repo.set_status(unit_id, status_enum)
-    if not updated_unit or str(updated_unit.tier_id) != str(tier_id):
-        raise NotFoundException(message="Unit not found", error_code="UNIT_NOT_FOUND")
+    # `unit` above already proved this row exists and belongs to tier_id —
+    # apply_status writes on that same loaded object instead of set_status's
+    # unit_id-based re-SELECT, and there's nothing left to re-validate.
+    updated_unit = await unit_repo.apply_status(unit, status_enum)
 
     return {
         "success": True,

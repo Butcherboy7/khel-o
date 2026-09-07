@@ -132,7 +132,15 @@ class HardwareTierService:
     create_tier = add_hardware_tier
 
     async def update_hardware_tier(self, tier_id: UUID, owner_id: UUID, update_data: HardwareTierUpdateRequest) -> HardwareTierResponse:
-        tier = await self.tier_repo.get_by_id(tier_id)
+        # Row-locked (not a plain get_by_id): a capacity-reducing update runs
+        # a capacity-safety check below and then writes the shrunk value —
+        # without this lock, a concurrent booking creation (which locks this
+        # same row via get_overlapping_bookings_count_with_lock) could commit
+        # a new booking against the still-old, larger capacity in between
+        # this check and this write, oversell the freshly-shrunk tier, and
+        # this update would never see it. Mirrors the same lock the
+        # maintenance-toggle endpoint already takes for the identical reason.
+        tier = await self.tier_repo.get_by_id_with_lock(tier_id)
         if not tier:
             raise NotFoundException(message="Hardware tier not found", error_code="TIER_NOT_FOUND")
 

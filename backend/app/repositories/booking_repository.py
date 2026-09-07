@@ -11,6 +11,7 @@ from app.models.cafe import Cafe
 from app.models.hardware_tier import HardwareTier
 from app.models.hardware_tier_unit import HardwareTierUnit, UnitStatus
 from app.repositories.base import BaseRepository
+from app.core.time import now_ist, session_end_ist
 
 class BookingRepository(BaseRepository[Booking]):
     def __init__(self, db: AsyncSession):
@@ -213,14 +214,36 @@ class BookingRepository(BaseRepository[Booking]):
             ),
         )
         result = await self.db.execute(stmt)
-        future_bookings = result.scalars().all()
+        candidate_bookings = result.scalars().all()
 
-        for booking in future_bookings:
-            overlap = await self.get_overlapping_bookings_count(
-                tier_id=tier_id,
-                session_date=booking.session_date,
-                start_time=booking.start_time,
-                end_time=booking.end_time,
+        # A booking still stuck in CONFIRMED status doesn't necessarily mean
+        # it's still occupying a seat — the CONFIRMED->COMPLETED/NO_SHOW
+        # transition is lazy (see owner_service.auto_transition_booking,
+        # which only runs when something reads the booking), so a session
+        # that ended earlier today can sit as CONFIRMED indefinitely. Without
+        # this filter, that stale row would count toward "capacity in use"
+        # and could spuriously block a legitimate maintenance toggle or
+        # quantity reduction for a slot that's actually long over.
+        now = now_ist()
+        live_bookings = [
+            b for b in candidate_bookings
+            if session_end_ist(b.session_date, b.start_time, b.end_time) > now
+        ]
+
+        # Every booking that could overlap one of live_bookings' windows is
+        # itself in live_bookings (same tier, same status filter, same
+        # session_date >= today) — so the peak-overlap check can run
+        # entirely against this one already-fetched list instead of issuing
+        # a separate get_overlapping_bookings_count query per candidate.
+        # Mirrors that method's own filtering exactly: same tier (implicit,
+        # this whole list is already scoped to tier_id), same session_date,
+        # and the same start_time/end_time overlap test.
+        for booking in live_bookings:
+            overlap = sum(
+                b.seats_count for b in live_bookings
+                if b.session_date == booking.session_date
+                and b.start_time < booking.end_time
+                and b.end_time > booking.start_time
             )
             if overlap > new_capacity:
                 return booking

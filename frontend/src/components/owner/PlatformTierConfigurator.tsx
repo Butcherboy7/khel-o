@@ -102,16 +102,22 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
       configs.map((c) => {
         if (c.id !== id) return c;
         const next = { ...c, ...patch };
-        // Re-derive the 25% default only when totalSeats changes and the
+        // Re-derive appBookableSeats only when totalSeats changes and the
         // owner hasn't already set a custom appBookableSeats for this card
         // — once they touch appBookableSeats directly, this branch is
-        // skipped for the rest of the session.
-        if (
-          patch.totalSeats !== undefined &&
-          patch.appBookableSeats === undefined &&
-          !touchedSeatsIds.has(id)
-        ) {
-          next.appBookableSeats = Math.max(1, Math.round(patch.totalSeats * 0.25));
+        // skipped for the rest of the session. Activities never expose an
+        // appBookableSeats input of their own (see the activity card below),
+        // so touchedSeatsIds is never populated for them — the 25%
+        // walk-in-reservation heuristic below is a gaming-tier concept only
+        // and must never apply here, or an owner typing "8" into an
+        // activity's Quantity field would silently persist bookable
+        // capacity of 2 (25% of 8) instead of 8.
+        if (patch.totalSeats !== undefined && patch.appBookableSeats === undefined) {
+          if (next.tierType === 'activity') {
+            next.appBookableSeats = patch.totalSeats;
+          } else if (!touchedSeatsIds.has(id)) {
+            next.appBookableSeats = Math.max(1, Math.round(patch.totalSeats * 0.25));
+          }
         }
         return next;
       })

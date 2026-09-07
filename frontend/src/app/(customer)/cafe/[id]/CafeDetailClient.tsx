@@ -137,21 +137,26 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : [];
   const currentPhoto = photosList[photoIndex % photosList.length];
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : 100;
-  const cheapestTier =
-    cafe.tiers && cafe.tiers.length > 0
-      ? [...cafe.tiers].sort((a, b) => a.pricePerHour - b.pricePerHour)[0]
-      : null;
+  const gamingTiers = (cafe.tiers ?? []).filter((t) => t.tierType !== 'activity');
+  const activityTiers = (cafe.tiers ?? []).filter((t) => t.tierType === 'activity');
   // Picking the tier here (instead of only on the booking page) removes an
   // entire duplicate step — the booking page shows the exact same tier
   // cards, so a user reads specs once here rather than twice. Defaults to
-  // the cheapest tier so "Book now" opens on the lowest price a gamer would
-  // expect, not whatever order the API happens to return.
+  // the cheapest GAMING tier so "Book now" opens on the same card the
+  // visible "Hardware tiers" section shows as selected — defaulting to the
+  // cheapest tier overall let an Activity priced below every gaming tier
+  // win silently, sending a visitor into an Activity booking they never
+  // picked while nothing above looked selected. Falls back to the cheapest
+  // Activity only when the café has no gaming tiers at all, so a
+  // Snooker-only café still gets a sensible "Book now" default.
+  const defaultTierPool = gamingTiers.length > 0 ? gamingTiers : activityTiers;
+  const cheapestTier =
+    defaultTierPool.length > 0
+      ? [...defaultTierPool].sort((a, b) => a.pricePerHour - b.pricePerHour)[0]
+      : null;
   const activeTier =
     (cafe.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
     cheapestTier;
-
-  const gamingTiers = (cafe.tiers ?? []).filter((t) => t.tierType !== 'activity');
-  const activityTiers = (cafe.tiers ?? []).filter((t) => t.tierType === 'activity');
 
   const isOpenNow = isCafeOpenNow(cafe.openingTime, cafe.closingTime);
   const openStatusLabel = isOpenNow
