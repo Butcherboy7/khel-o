@@ -40,6 +40,7 @@ const GoogleLocationDisplay = dynamic(
 );
 import { ShareModal } from '@/components/customer/ShareModal';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
+import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
 
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
@@ -148,6 +149,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const activeTier =
     (cafe.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
     cheapestTier;
+
+  const gamingTiers = (cafe.tiers ?? []).filter((t) => t.tierType !== 'activity');
+  const activityTiers = (cafe.tiers ?? []).filter((t) => t.tierType === 'activity');
 
   const isOpenNow = isCafeOpenNow(cafe.openingTime, cafe.closingTime);
   const openStatusLabel = isOpenNow
@@ -317,15 +321,15 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="font-heading text-h2 text-text-primary">Hardware tiers</h2>
-          {cafe.tiers && cafe.tiers.length > 1 && (
+          {gamingTiers.length > 1 && (
             <span className="text-caption text-text-secondary">Tap to select</span>
           )}
         </div>
 
-        {cafe.tiers && cafe.tiers.length > 0 ? (
+        {gamingTiers.length > 0 ? (
           <>
             <div className="flex flex-col gap-2.5">
-              {cafe.tiers.map((tier) => {
+              {gamingTiers.map((tier) => {
                 const isSelected = activeTier?.id === tier.id;
                 const isPc = Boolean(tier.specs?.gpu);
                 return (
@@ -388,7 +392,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               })}
             </div>
 
-            {cafe.tiers.length > 1 && (
+            {gamingTiers.length > 1 && (
               <button
                 type="button"
                 onClick={() => setShowAllTierSpecs((v) => !v)}
@@ -399,13 +403,13 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               </button>
             )}
 
-            {showAllTierSpecs && cafe.tiers.length > 1 && (
+            {showAllTierSpecs && gamingTiers.length > 1 && (
               <div className="overflow-x-auto rounded-2xl border border-border/80">
                 <table className="w-full text-caption">
                   <thead>
                     <tr className="bg-surface">
                       <th className="p-3 text-left font-semibold text-text-secondary">Spec</th>
-                      {cafe.tiers.map((tier) => (
+                      {gamingTiers.map((tier) => (
                         <th key={tier.id} className="p-3 text-left font-heading font-bold text-text-primary whitespace-nowrap">
                           {tier.name}
                         </th>
@@ -414,15 +418,15 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                   </thead>
                   <tbody>
                     {[
-                      { label: 'Hardware', get: (t: (typeof cafe.tiers)[number]) => t.specs?.gpu || t.specs?.console || t.specs?.other || t.model || '—' },
-                      { label: 'RAM', get: (t: (typeof cafe.tiers)[number]) => t.specs?.ram || '—' },
-                      { label: 'Monitor', get: (t: (typeof cafe.tiers)[number]) => t.specs?.monitor || '—' },
-                      { label: 'Seats', get: (t: (typeof cafe.tiers)[number]) => String(t.totalSeats || 18) },
-                      { label: 'Price', get: (t: (typeof cafe.tiers)[number]) => `₹${t.pricePerHour}/hr` },
+                      { label: 'Hardware', get: (t: (typeof gamingTiers)[number]) => t.specs?.gpu || t.specs?.console || t.specs?.other || t.model || '—' },
+                      { label: 'RAM', get: (t: (typeof gamingTiers)[number]) => t.specs?.ram || '—' },
+                      { label: 'Monitor', get: (t: (typeof gamingTiers)[number]) => t.specs?.monitor || '—' },
+                      { label: 'Seats', get: (t: (typeof gamingTiers)[number]) => String(t.totalSeats || 18) },
+                      { label: 'Price', get: (t: (typeof gamingTiers)[number]) => `₹${t.pricePerHour}/hr` },
                     ].map((row) => (
                       <tr key={row.label} className="border-t border-border/60">
                         <td className="p-3 font-semibold text-text-secondary">{row.label}</td>
-                        {cafe.tiers!.map((tier) => (
+                        {gamingTiers.map((tier) => (
                           <td key={tier.id} className="p-3 text-text-primary whitespace-nowrap">
                             {row.get(tier)}
                           </td>
@@ -438,6 +442,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <p className="text-body text-text-secondary italic">No hardware tiers listed.</p>
         )}
       </section>
+
+      <ActivitiesSection cafeId={cafe.id} activities={activityTiers} />
 
       {/* About */}
       {cafe.description && (
