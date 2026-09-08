@@ -7,6 +7,7 @@ from botocore.exceptions import ClientError
 
 from app.config import settings
 from app.core.exceptions import BadRequestException
+from app.core.logging import logger
 
 ALLOWED_CONTENT_TYPES: dict[str, str] = {
     "image/jpeg": "jpg",
@@ -70,8 +71,50 @@ def create_presigned_upload(cafe_id: uuid.UUID, content_type: str) -> dict[str, 
 
 
 def delete_object(key: str) -> None:
+    """Delete one object. Never raises — callers have already committed the
+    database change, and a failed cleanup must not fail the user's request.
+
+    It does log, though. Callers remove the DB reference *before* calling this,
+    so a silently swallowed failure leaves an object in the bucket that nothing
+    will ever point at again — invisible, unbilled-for-nothing storage that
+    only a bucket audit could find. `scripts/reconcile_s3_orphans.py` sweeps up
+    whatever this misses.
+    """
     client = _get_client()
     try:
         client.delete_object(Bucket=settings.AWS_S3_BUCKET, Key=key)
-    except ClientError:
-        pass
+    except ClientError as exc:
+        logger.error(f"s3_delete_failed key={key} error={exc} (orphaned object left in bucket)")
+
+
+def iter_object_keys(prefix: str = "cafes/"):
+    """Yield (key, last_modified) for every object under `prefix`.
+
+    Paginated: a bucket with more than 1000 objects would otherwise silently
+    report only the first page, and an orphan sweep that sees a partial bucket
+    is worse than none — it would look clean while orphans accumulated.
+    """
+    client = _get_client()
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=settings.AWS_S3_BUCKET, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            yield obj["Key"], obj["LastModified"]
+
+
+def delete_objects(keys: list[str]) -> int:
+    """Batch-delete keys, 1000 at a time (the S3 API's per-call maximum).
+    Returns the number actually deleted."""
+    if not keys:
+        return 0
+    client = _get_client()
+    deleted = 0
+    for start in range(0, len(keys), 1000):
+        batch = keys[start:start + 1000]
+        response = client.delete_objects(
+            Bucket=settings.AWS_S3_BUCKET,
+            Delete={"Objects": [{"Key": k} for k in batch], "Quiet": True},
+        )
+        deleted += len(batch) - len(response.get("Errors", []))
+        for err in response.get("Errors", []):
+            logger.error(f"s3_batch_delete_failed key={err.get('Key')} code={err.get('Code')}")
+    return deleted
