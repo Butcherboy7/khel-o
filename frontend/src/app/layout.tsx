@@ -122,6 +122,12 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: '#10B981',
+  // Without this, iOS Safari letterboxes the page above the home indicator and
+  // every env(safe-area-inset-*) in the app resolves to 0px — which silently
+  // no-ops the offsets the sticky payment/booking bars are positioned with, so
+  // they sit at the wrong height and drift as the URL bar collapses. Any
+  // element that consumes a safe-area inset depends on this being set.
+  viewportFit: 'cover',
 };
 
 /* ── Root Layout ─────────────────────────────────────────────────── */

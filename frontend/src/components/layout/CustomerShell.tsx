@@ -141,7 +141,10 @@ function CustomerBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-nav flex h-bottom-nav items-center justify-around border-t border-border bg-card safe-bottom md:hidden shadow-overlay"
+      // min-h, not h: `safe-bottom` adds the home-indicator inset as padding,
+      // and with border-box a fixed height would absorb it and squash the
+      // icons into the remaining ~30px instead of growing the bar.
+      className="fixed bottom-0 left-0 right-0 z-nav flex min-h-bottom-nav items-center justify-around border-t border-border bg-card safe-bottom md:hidden shadow-overlay"
       aria-label="Mobile navigation"
     >
       {customerNavItems.map((item) => {

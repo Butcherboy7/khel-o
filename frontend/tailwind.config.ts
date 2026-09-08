@@ -157,6 +157,7 @@ const config: Config = {
       minHeight: {
         btn: 'var(--button-min-height)',
         input: 'var(--input-height)',
+        'bottom-nav': 'var(--bottom-nav-height)',
       },
 
       /* ── Keyframes for skeleton pulse & content entrance ── */

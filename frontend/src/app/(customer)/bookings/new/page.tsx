@@ -15,6 +15,7 @@ import {
   Tag,
   CheckCircle2,
   X,
+  PauseCircle,
 } from 'lucide-react';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
 import { previewKheloCode } from '@/lib/api/promotions';
@@ -751,8 +752,8 @@ function BookingWizardContent() {
 
       {(cafe.isEmergencyMode || cafe.bookingsPaused || cafe.bookableStations === 0 || availabilityData?.appBookableSeats === 0) && (
         <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-600 font-medium text-caption flex items-center gap-3 shadow-card">
-          <div className="h-10 w-10 rounded-xl bg-amber-500 text-slate-950 font-bold flex items-center justify-center flex-shrink-0 text-xl">
-            ⏸️
+          <div className="h-10 w-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center flex-shrink-0">
+            <PauseCircle className="h-5 w-5" strokeWidth={2.25} aria-hidden="true" />
           </div>
           <div>
             <h3 className="font-bold text-body text-text-primary">App Bookings Paused / Walk-Ins Only</h3>
@@ -863,6 +864,63 @@ function BookingWizardContent() {
         </div>
       </div>
 
+      {/* Price summary — sits directly under Players so the whole decision
+          (tier, date, slot, players, what it costs) resolves in the first
+          viewport. The two optional inputs below it are deliberately the
+          first thing you scroll to, not something you scroll past. Total is
+          repeated on the fixed payment bar. */}
+      <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex flex-col gap-1.5 text-caption text-text-secondary">
+        <div className="flex items-center justify-between gap-3">
+          <span className="min-w-0 truncate">
+            {activeTier?.name || 'Standard'} · {durationHours} hr · {seatsCount} player{seatsCount > 1 ? 's' : ''}
+          </span>
+          <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{baseTotal}</span>
+        </div>
+
+        {discountAmount > 0 && appliedCode && codeEligible && codeRedemption && (
+          <div className="flex items-center justify-between gap-3 text-success">
+            <span className="min-w-0 flex items-center gap-1.5 font-semibold">
+              <Tag className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{codeRedemption.title} (-{codeRedemption.discountPercentage}%)</span>
+            </span>
+            <span className="flex-shrink-0 font-bold">
+              -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
+            </span>
+          </div>
+        )}
+
+        {discountAmount > 0 && !appliedCode && activePromo && (
+          <div className="flex items-center justify-between gap-3 text-success">
+            <span className="min-w-0 flex items-center gap-1.5 font-semibold">
+              <Tag className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{activePromo.title} (-{activePromo.discountPercentage}%)</span>
+            </span>
+            <span className="flex-shrink-0 font-bold">
+              -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
+            </span>
+          </div>
+        )}
+
+        {!appliedCode && activePromo && !promoEligible && (
+          <p className="text-xs text-text-tertiary flex items-start gap-1.5">
+            <Tag className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+            <span>
+              {activePromo.title} available {activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, {activePromo.startHour}:00–{activePromo.endHour}:00 — pick a slot in that window to apply it.
+            </span>
+          </p>
+        )}
+
+        <div className="flex items-center justify-between">
+          <span>Platform Fee</span>
+          <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
+        </div>
+
+        <div className="flex items-center justify-between pt-1.5 mt-0.5 border-t border-border/60">
+          <span className="font-heading font-bold text-text-primary">Total</span>
+          <span className="font-heading font-bold text-body-emphasis text-text-primary"><span className="rupee-symbol">₹</span>{finalTotal}</span>
+        </div>
+      </div>
+
       {/* Game — free-text combobox: types any name, datalist merely suggests
           from this café's supportedGames. */}
       <div className="p-3.5 rounded-2xl bg-card border border-border/80">
@@ -947,60 +1005,6 @@ function BookingWizardContent() {
         )}
       </div>
 
-      {/* Price summary — compact breakdown, total kept visually prominent
-          and repeated on the fixed payment bar below. */}
-      <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex flex-col gap-1.5 text-caption text-text-secondary">
-        <div className="flex items-center justify-between gap-3">
-          <span className="min-w-0 truncate">
-            {activeTier?.name || 'Standard'} · {durationHours} hr · {seatsCount} player{seatsCount > 1 ? 's' : ''}
-          </span>
-          <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{baseTotal}</span>
-        </div>
-
-        {discountAmount > 0 && appliedCode && codeEligible && codeRedemption && (
-          <div className="flex items-center justify-between gap-3 text-success">
-            <span className="min-w-0 flex items-center gap-1.5 font-semibold">
-              <Tag className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{codeRedemption.title} (-{codeRedemption.discountPercentage}%)</span>
-            </span>
-            <span className="flex-shrink-0 font-bold">
-              -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
-            </span>
-          </div>
-        )}
-
-        {discountAmount > 0 && !appliedCode && activePromo && (
-          <div className="flex items-center justify-between gap-3 text-success">
-            <span className="min-w-0 flex items-center gap-1.5 font-semibold">
-              <Tag className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{activePromo.title} (-{activePromo.discountPercentage}%)</span>
-            </span>
-            <span className="flex-shrink-0 font-bold">
-              -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
-            </span>
-          </div>
-        )}
-
-        {!appliedCode && activePromo && !promoEligible && (
-          <p className="text-xs text-text-tertiary flex items-start gap-1.5">
-            <Tag className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-            <span>
-              {activePromo.title} available {activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, {activePromo.startHour}:00–{activePromo.endHour}:00 — pick a slot in that window to apply it.
-            </span>
-          </p>
-        )}
-
-        <div className="flex items-center justify-between">
-          <span>Platform Fee</span>
-          <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
-        </div>
-
-        <div className="flex items-center justify-between pt-1.5 mt-0.5 border-t border-border/60">
-          <span className="font-heading font-bold text-text-primary">Total</span>
-          <span className="font-heading font-bold text-body-emphasis text-text-primary"><span className="rupee-symbol">₹</span>{finalTotal}</span>
-        </div>
-      </div>
-
       {/* Security / cancellation — collapsed to one line; tap to expand the
           full reassurance copy instead of always showing it. */}
       <div className="rounded-2xl bg-surface/60 border border-border/50">
@@ -1026,7 +1030,7 @@ function BookingWizardContent() {
       {/* Sticky Bottom Action & Total Price Bar — sits above the mobile bottom nav
           (bottom-nav is z-nav/40, fixed bottom-0) rather than underneath it, otherwise
           the nav bar silently eats the first tap on this button on mobile. */}
-      <div className="fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
+      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
         <div className="max-w-content mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <span className="text-caption text-text-secondary block truncate">

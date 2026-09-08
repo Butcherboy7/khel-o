@@ -795,7 +795,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       {/* Sticky Bottom Action Bar — offset must include the safe-area inset too,
           not just the nav bar's base height, or the home-indicator padding on
           notched iPhones still overlaps this bar's bottom edge. */}
-      <div className="fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
+      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
         <div className="max-w-content mx-auto flex items-center justify-between gap-4">
           <div>
             <span className="text-overline text-text-secondary">{activeTier ? activeTier.name : 'Starting from'}</span>

@@ -76,12 +76,31 @@
     --content-wide-max-width: 1200px;
     --owner-max-width: 1200px;
     --admin-max-width: 1200px;
+    /* Browse surfaces keep growing past 1200px — see the step-ups below. */
     --nav-height: 56px;
     --bottom-nav-height: 64px;
     --sidebar-width: 240px;
     --owner-sidebar-width: 256px;
     --button-min-height: 48px;
     --input-height: 48px;
+  }
+
+  /* Large desktops: a browse grid capped at 1200px on a 1920px monitor leaves
+     ~360px of dead margin per side. Let the container keep growing so the extra
+     width becomes more cafés per row (the grid adds columns at the same
+     breakpoints) rather than wider cards or empty gutters. Reading-width
+     surfaces are unaffected — they use --content-max-width, and the booking
+     and café pages cap themselves below this. */
+  @media (min-width: 1280px) {
+    :root {
+      --content-wide-max-width: 1440px;
+    }
+  }
+
+  @media (min-width: 1536px) {
+    :root {
+      --content-wide-max-width: 1580px;
+    }
   }
 
   /* ── Base Styles ── */
@@ -179,6 +198,22 @@
 
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Fixed bottom action bars (booking CTA, café "Book now").
+     iOS Safari re-rasterises a fixed, backdrop-filtered element on every frame
+     of a momentum scroll, and its collapsing URL bar shifts the visual viewport
+     out from under it — together those read as the bar juddering or briefly
+     detaching mid-scroll. Promoting it to its own compositor layer pins it to
+     the viewport and takes the blur off the repaint path. Safe as a containing
+     block: these bars hold no positioned descendants of their own.
+     The safe-area offset these bars sit on only resolves because the root
+     viewport sets viewport-fit=cover. */
+  .action-bar-fixed {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
 
   .rupee-symbol {

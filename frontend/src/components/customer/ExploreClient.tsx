@@ -580,8 +580,13 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           />
         )}
 
+        {/* Caps at 5 columns on purpose. The container keeps widening past
+            1280px, so a 5th column absorbs some of it while each card still
+            gets ~270-300px — wider than the 279px it had at 1200px/4-col. A
+            6th column would take cards down to ~245px, which starts
+            truncating café names and city labels. */}
         {!isLoading && !isError && sortedCafes.length > 0 && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {sortedCafes.map((cafe) => (
               <CafeCard key={cafe.id} cafe={cafe} />
             ))}
