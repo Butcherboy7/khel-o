@@ -4,6 +4,7 @@ export interface OwnerDashboard {
   totalCafes: number;
   totalBookingsThisMonth: number;
   revenueThisMonth: number;
+  revenueToday: number;
   upcomingBookingsToday: number;
   occupancyRateThisWeek: number;
   mostPopularTier: string | null;

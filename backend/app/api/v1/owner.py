@@ -1267,6 +1267,19 @@ async def get_owner_payout_summary(
     }
 
 # --- ANALYTICS ---
+# Bookings counted toward analytics: same "paid-and-live-or-completed" set
+# used by /payouts/summary (a Route transfer/paid session is real revenue
+# the instant it's CONFIRMED, not only once COMPLETED), minus any booking
+# whose Payment was subsequently REFUNDED — refunded sessions are not real
+# revenue/demand and must not be counted here either.
+_ANALYTICS_COUNTED_STATUSES = [
+    BookingStatus.CONFIRMED,
+    BookingStatus.CHECKED_IN,
+    BookingStatus.ACTIVE,
+    BookingStatus.COMPLETED,
+]
+
+
 @router.get("/analytics", status_code=status.HTTP_200_OK)
 async def get_owner_analytics(
     current_owner: User = Depends(require_cafe_owner),
@@ -1277,40 +1290,103 @@ async def get_owner_analytics(
     cafes = cafes_res.scalars().all()
     cafe_ids = [c.id for c in cafes]
 
-    tier_revenue = []
-    busy_hours = []
-    top_games = []
+    tier_revenue: list[dict] = []
+    busy_hours: list[dict] = []
+    top_games: list[dict] = []
+    revenue_trend: list[dict] = []
+    returning_customer_rate = 0.0
+    average_duration_hours = 0.0
+    peak_occupancy_percent = 0.0
 
     if cafe_ids:
-        # Fetch tiers for cafe
         tier_stmt = select(HardwareTier).where(HardwareTier.cafe_id.in_(cafe_ids))
-        tier_res = await db.execute(tier_stmt)
-        tiers = tier_res.scalars().all()
+        tiers = (await db.execute(tier_stmt)).scalars().all()
+        tiers_by_id = {t.id: t for t in tiers}
+        total_seats = sum(t.total_seats for t in tiers) or 0
 
-        for tier in tiers:
-            # Calculate revenue per tier
-            tier_revenue.append({
-                "tierName": tier.name,
-                "seats": tier.total_seats,
-                "hourlyRate": float(tier.hourly_rate),
-                "revenue": float(tier.hourly_rate * 42) # Derived metrics
-            })
+        # Real, non-refunded bookings only — no fabricated numbers below.
+        stmt_bookings = (
+            select(Booking)
+            .join(Payment, Payment.booking_id == Booking.id)
+            .where(
+                Booking.cafe_id.in_(cafe_ids),
+                Booking.status.in_(_ANALYTICS_COUNTED_STATUSES),
+                Payment.status != PaymentStatus.REFUNDED,
+            )
+        )
+        bookings = (await db.execute(stmt_bookings)).scalars().all()
 
-        busy_hours = [
-            {"hour": "09:00 - 12:00", "occupancy": 35},
-            {"hour": "12:00 - 15:00", "occupancy": 65},
-            {"hour": "15:00 - 18:00", "occupancy": 92},
-            {"hour": "18:00 - 21:00", "occupancy": 98},
-            {"hour": "21:00 - 00:00", "occupancy": 84},
-        ]
+        if bookings:
+            # --- Returning customer rate: % of distinct gamers with >1 booking ---
+            bookings_per_gamer: Dict[Any, int] = {}
+            for b in bookings:
+                bookings_per_gamer[b.gamer_id] = bookings_per_gamer.get(b.gamer_id, 0) + 1
+            distinct_gamers = len(bookings_per_gamer)
+            repeat_gamers = sum(1 for c in bookings_per_gamer.values() if c > 1)
+            returning_customer_rate = round((repeat_gamers / distinct_gamers * 100), 1) if distinct_gamers else 0.0
 
-        top_games = [
-            {"name": "Valorant", "percentage": 42},
-            {"name": "Counter-Strike 2", "percentage": 28},
-            {"name": "GTA V Online", "percentage": 15},
-            {"name": "EA Sports FC 24", "percentage": 10},
-            {"name": "Dota 2", "percentage": 5},
-        ]
+            # --- Average session duration ---
+            total_hours = sum(float(b.duration_hours) for b in bookings)
+            average_duration_hours = round(total_hours / len(bookings), 2)
+
+            # --- Busiest operating hours (bucketed by booking start hour) ---
+            seats_by_hour: Dict[int, int] = {h: 0 for h in range(24)}
+            for b in bookings:
+                seats_by_hour[b.start_time.hour] += b.seats_count
+            capacity_basis = max(total_seats, 1)
+            hour_occupancy = [
+                {
+                    "hour": f"{h:02d}:00 - {(h + 1) % 24:02d}:00",
+                    "occupancy": min(round(seats_by_hour[h] / capacity_basis * 100), 100),
+                }
+                for h in range(24) if seats_by_hour[h] > 0
+            ]
+            hour_occupancy.sort(key=lambda x: x["occupancy"], reverse=True)
+            busy_hours = hour_occupancy[:6]
+            peak_occupancy_percent = busy_hours[0]["occupancy"] if busy_hours else 0.0
+
+            # --- Hardware tier revenue/bookings ---
+            revenue_by_tier: Dict[Any, dict] = {}
+            for b in bookings:
+                tier = tiers_by_id.get(b.hardware_tier_id)
+                if not tier:
+                    continue
+                entry = revenue_by_tier.setdefault(tier.id, {
+                    "tierName": tier.name,
+                    "seats": tier.total_seats,
+                    "hourlyRate": float(tier.price_per_hour),
+                    "revenue": 0.0,
+                    "bookings": 0,
+                })
+                entry["revenue"] += float(b.total_amount)
+                entry["bookings"] += 1
+            tier_revenue = sorted(revenue_by_tier.values(), key=lambda t: t["revenue"], reverse=True)
+            for t in tier_revenue:
+                t["revenue"] = round(t["revenue"], 2)
+
+            # --- Top requested games (only if bookings actually record a game) ---
+            games_count: Dict[str, int] = {}
+            for b in bookings:
+                if b.game:
+                    games_count[b.game] = games_count.get(b.game, 0) + 1
+            if games_count:
+                total_with_game = sum(games_count.values())
+                ranked_games = sorted(games_count.items(), key=lambda kv: kv[1], reverse=True)[:5]
+                top_games = [
+                    {"name": name, "percentage": round(count / total_with_game * 100, 1)}
+                    for name, count in ranked_games
+                ]
+
+            # --- Revenue trend, last 7 days ---
+            today = datetime.now(timezone.utc).date()
+            revenue_by_day: Dict[date, float] = {today - timedelta(days=i): 0.0 for i in range(6, -1, -1)}
+            for b in bookings:
+                if b.session_date in revenue_by_day:
+                    revenue_by_day[b.session_date] += float(b.total_amount)
+            revenue_trend = [
+                {"date": d.isoformat(), "revenue": round(v, 2)}
+                for d, v in revenue_by_day.items()
+            ]
 
     return {
         "success": True,
@@ -1318,8 +1394,10 @@ async def get_owner_analytics(
             "tierRevenue": tier_revenue,
             "busyHours": busy_hours,
             "topGames": top_games,
-            "returningCustomerRate": 68.4,
-            "averageDurationHours": 2.5
+            "revenueTrend": revenue_trend,
+            "returningCustomerRate": returning_customer_rate,
+            "averageDurationHours": average_duration_hours,
+            "peakOccupancyPercent": peak_occupancy_percent,
         }
     }
 

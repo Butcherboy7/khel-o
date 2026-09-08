@@ -52,6 +52,9 @@ export interface BookingCreateRequest {
   durationHours: number;
   seatsCount?: number;
   promotionId?: string;
+  /** KHELO code alternative to promotionId — see promo-code entry field on
+      the booking wizard and the /redeem/[code] QR deep-link page. */
+  promoCode?: string;
   notes?: string;
   game?: string;
 }

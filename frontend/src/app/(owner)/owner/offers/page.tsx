@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tag, Plus, Percent, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle } from 'lucide-react';
+import { Tag, Plus, Percent, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw } from 'lucide-react';
 import {
   listOwnerPromotions,
   createPromotion,
@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/promotions';
 import { listCafeTiers } from '@/lib/api/tiers';
 import { getOwnerCafeId } from '@/lib/api/owner';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 import {
   Card,
   CardContent,
@@ -23,6 +24,23 @@ import {
   ErrorState,
   EmptyState,
 } from '@/components/ui';
+
+const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
+
+function redeemUrl(code: string): string {
+  return `${SITE_URL}/redeem/${code}`;
+}
+
+function qrImageUrl(data: string): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(data)}`;
+}
+
+function generateCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
+  let out = '';
+  for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -49,6 +67,7 @@ interface FormState {
   startHour: number;
   endHour: number;
   maxUses: string;
+  kheloCode: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -62,6 +81,7 @@ const EMPTY_FORM: FormState = {
   startHour: 0,
   endHour: 24,
   maxUses: '',
+  kheloCode: '',
 };
 
 export default function OwnerOffersPage() {
@@ -71,6 +91,19 @@ export default function OwnerOffersPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Promotion | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [qrTargetId, setQrTargetId] = useState<string | null>(null);
+
+  const copyCode = async (id: string, code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 1500);
+    } catch {
+      // Clipboard API can be unavailable (insecure context, permissions) —
+      // the code is still visible on the card, so this is a soft failure.
+    }
+  };
 
   const { data: cafeData } = useQuery({
     queryKey: ['owner-cafe-id-offers'],
@@ -116,6 +149,7 @@ export default function OwnerOffersPage() {
       startHour: p.startHour,
       endHour: p.endHour,
       maxUses: p.maxUses != null ? String(p.maxUses) : '',
+      kheloCode: p.kheloCode ?? '',
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -135,6 +169,7 @@ export default function OwnerOffersPage() {
         startHour: Number(form.startHour),
         endHour: Number(form.endHour),
         maxUses: form.maxUses ? Number(form.maxUses) : null,
+        kheloCode: form.kheloCode || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['owner-promotions'] });
@@ -152,6 +187,7 @@ export default function OwnerOffersPage() {
         discountPercentage: Number(form.discountPercentage),
         validUntil: `${form.validUntil}T23:59:59`,
         maxUses: form.maxUses ? Number(form.maxUses) : null,
+        kheloCode: form.kheloCode || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['owner-promotions'] });
@@ -203,6 +239,10 @@ export default function OwnerOffersPage() {
     }
     if (form.daysOfWeek.length === 0) {
       setFormError('Select at least one day of the week.');
+      return;
+    }
+    if (form.kheloCode && form.kheloCode.length < 4) {
+      setFormError('KHELO code must be at least 4 characters.');
       return;
     }
     setFormError(null);
@@ -303,6 +343,50 @@ export default function OwnerOffersPage() {
                       </div>
                     )}
                   </div>
+
+                  {p.kheloCode && (
+                    <div className="flex flex-col gap-2 p-3 rounded-xl bg-accent/5 border border-accent/20">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Tag className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+                          <span className="font-data font-bold tracking-wider text-text-primary truncate">{p.kheloCode}</span>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => copyCode(p.id, p.kheloCode!)}
+                            className="flex items-center gap-1 h-8 px-2 rounded-lg text-[11px] font-semibold text-text-secondary hover:bg-surface transition-colors"
+                          >
+                            <Copy className="h-3 w-3" />
+                            {copiedId === p.id ? 'Copied!' : 'Copy'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setQrTargetId((cur) => (cur === p.id ? null : p.id))}
+                            className="flex items-center gap-1 h-8 px-2 rounded-lg text-[11px] font-semibold text-text-secondary hover:bg-surface transition-colors"
+                          >
+                            <QrCode className="h-3 w-3" />
+                            {qrTargetId === p.id ? 'Hide QR' : 'Show QR'}
+                          </button>
+                        </div>
+                      </div>
+                      {qrTargetId === p.id && (
+                        <div className="flex flex-col items-center gap-1.5 pt-1">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={qrImageUrl(redeemUrl(p.kheloCode))}
+                            alt={`QR code for KHELO code ${p.kheloCode}`}
+                            width={140}
+                            height={140}
+                            className="rounded-lg bg-white p-1.5 border border-border"
+                          />
+                          <span className="text-[11px] text-text-tertiary text-center">
+                            Scanning opens KHELO and applies this code after sign-in
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 pt-3 border-t border-border">
                     <Button variant="outline" size="sm" onClick={() => openEdit(p)} className="flex-1">
@@ -468,6 +552,34 @@ export default function OwnerOffersPage() {
             value={form.maxUses}
             onChange={(e) => setForm({ ...form, maxUses: e.target.value })}
           />
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-caption font-semibold text-text-primary">KHELO Code (optional)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="e.g. WEEKNIGHT15"
+                value={form.kheloCode}
+                onChange={(e) =>
+                  setForm({ ...form, kheloCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20) })
+                }
+                className="h-10 flex-1 min-w-0 rounded-xl border border-border bg-card px-3 font-data tracking-wider text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 flex-shrink-0"
+                onClick={() => setForm((f) => ({ ...f, kheloCode: generateCode() }))}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Generate
+              </Button>
+            </div>
+            <p className="text-[11px] text-text-tertiary">
+              Lets gamers redeem this offer by code or QR, in addition to it auto-applying at checkout. Uses the same validity window and redemption limit above. 4-20 letters/numbers.
+            </p>
+          </div>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
             <Button type="button" variant="ghost" onClick={() => { setIsModalOpen(false); resetForm(); }}>

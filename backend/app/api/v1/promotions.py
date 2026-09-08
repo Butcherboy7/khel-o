@@ -8,7 +8,8 @@ from app.schemas.promotion import (
     PromotionCreateRequest,
     PromotionUpdateRequest,
     PromotionResponse,
-    ActivePromotionResponse
+    ActivePromotionResponse,
+    CodeRedemptionResponse
 )
 from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -54,6 +55,26 @@ async def list_cafe_promotions(
         "success": True,
         "data": {
             "promotions": results
+        }
+    }
+
+@router.get("/redeem/{code}", status_code=status.HTTP_200_OK, response_model=None)
+async def preview_khelo_code(
+    code: str,
+    cafe_id: Optional[UUID] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Public lookup for the customer-side code-entry field and the QR
+    redeem deep link — previews what a KHELO code unlocks without requiring
+    login or creating a booking. Two path segments (not /{promotion_id})
+    so it never collides with that route below."""
+    promo_repo = PromotionRepository(db)
+    service = PromotionService(promo_repo)
+    result = await service.preview_code(code=code, cafe_id=cafe_id)
+    return {
+        "success": True,
+        "data": {
+            "redemption": result
         }
     }
 

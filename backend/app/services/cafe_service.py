@@ -71,6 +71,15 @@ class CafeService:
             promo_service = PromotionService(self.promo_repo, tier_repo=self.tier_repo)
             active_promos = await promo_service.get_active_promotions_for_cafe(cafe.id)
 
+            # Mirror HardwareTierService.get_cafe_tiers' per-tier promo matching so the
+            # café detail page (which renders tiers from here, not from /tiers) can show
+            # the same offer badge on each tier the owner's promotion applies to.
+            for t in tiers_res:
+                for p in active_promos:
+                    if p.applicable_tier_name is None or p.applicable_tier_name == t.name:
+                        t.active_promotion = p.model_dump(by_alias=True)
+                        break
+
         avg_rating, total_revs = 0.0, 0
         recent_revs: List[ReviewResponse] = []
         if self.review_repo:

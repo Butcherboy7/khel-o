@@ -42,6 +42,7 @@ import { formatSessionDate, formatTime } from '@/lib/format';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import { cn } from '@/lib/cn';
+import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 
 export default function BookingDetailPage() {
   const params = useParams();
@@ -198,12 +199,18 @@ export default function BookingDetailPage() {
   const canCancel = booking.cancelPolicy?.allowed ?? false;
   const cancelDisabledReason = booking.cancelPolicy?.reason ?? '';
 
-  // Directions: prefer the café's real lat/lng (from the café record) for a
-  // precise pin, falling back to a text search on the real address string.
-  // Omit the action entirely if neither is available rather than link
-  // somewhere fabricated.
+  // Directions: always prefer the exact Google Maps share link the café
+  // owner pasted during onboarding/editing — it points at the owner's
+  // intended pin (which may differ from a raw lat/lng or address text
+  // search, e.g. a specific building entrance). Only fall back to a
+  // generated search link when the owner never saved one. Validate the
+  // owner-supplied link against the same allow-list the backend enforces
+  // before using it, so a malformed/stale value can't produce a dead or
+  // unsafe link.
   const directionsUrl =
-    cafeDetail?.latitude != null && cafeDetail?.longitude != null
+    cafeDetail?.googleMapsUrl && GOOGLE_MAPS_URL_PATTERN.test(cafeDetail.googleMapsUrl)
+      ? cafeDetail.googleMapsUrl
+      : cafeDetail?.latitude != null && cafeDetail?.longitude != null
       ? `https://www.google.com/maps/search/?api=1&query=${cafeDetail.latitude},${cafeDetail.longitude}`
       : booking.cafeAddress
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.cafeAddress)}`

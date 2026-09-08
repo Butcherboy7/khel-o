@@ -356,6 +356,33 @@ class BookingRepository(BaseRepository[Booking]):
         res = await self.db.execute(stmt)
         return float(res.scalar() or 0.0)
 
+    async def sum_revenue_today(self, cafe_ids: List[UUID]) -> float:
+        """Sum of only successfully-paid bookings whose session falls today
+        (IST). Booking.status only ever reaches CONFIRMED (and the later
+        CHECKED_IN/ACTIVE/COMPLETED states it transitions through) after the
+        Razorpay payment for it was CAPTURED — see payment_service.py's
+        verify_payment/handle_webhook, the only two places that set
+        BookingStatus.CONFIRMED — so PENDING_PAYMENT, FAILED, CANCELLED,
+        NO_SHOW, and RELEASED_BY_OWNER bookings (unpaid, failed, or refunded)
+        never contribute here, matching sum_revenue_this_month's filter.
+        """
+        if not cafe_ids:
+            return 0.0
+        today = now_ist().date()
+
+        stmt = select(func.sum(Booking.total_amount)).select_from(Booking).where(
+            Booking.cafe_id.in_(cafe_ids),
+            Booking.status.in_([
+                BookingStatus.CONFIRMED,
+                BookingStatus.CHECKED_IN,
+                BookingStatus.ACTIVE,
+                BookingStatus.COMPLETED,
+            ]),
+            Booking.session_date == today,
+        )
+        res = await self.db.execute(stmt)
+        return float(res.scalar() or 0.0)
+
     async def count_upcoming_today(self, cafe_ids: List[UUID]) -> int:
         if not cafe_ids:
             return 0

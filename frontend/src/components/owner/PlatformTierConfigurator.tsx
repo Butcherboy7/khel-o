@@ -1,14 +1,81 @@
 // frontend/src/components/owner/PlatformTierConfigurator.tsx
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { PLATFORMS, PLATFORM_MODELS, type Platform } from '@/constants/platforms';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import { ACTIVITY_PRESETS, ActivityIcon } from '@/components/icons/ActivityIcons';
 import { Input } from '@/components/ui';
+import { cn } from '@/lib/cn';
 import type { TierConfig } from '@/types/tier';
 import { safeRandomUUID } from '@/lib/uuid';
+
+/**
+ * Numeric field for the tier form (total stations / bookable seats / price
+ * per hour). Binding a native `<input type="number">` straight to a
+ * `number` piece of state has a classic controlled-input bug: clearing the
+ * field to retype a value momentarily makes `e.target.value === ''`,
+ * `Number('')` coerces that to `0`, React snaps the DOM back to "0" mid-edit,
+ * and the next keystrokes land next to that phantom zero — so typing "10"
+ * after a clear ends up as "010"/"0010" instead of replacing the value.
+ *
+ * This keeps its own text buffer so the owner can freely clear/retype, only
+ * ever committing a clean, leading-zero-stripped integer upward, and
+ * clamping to [min, max] once a full number is present.
+ */
+interface NumericFieldProps {
+  label?: string;
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+}
+
+function NumericField({ label, value, onChange, min, max, placeholder }: NumericFieldProps) {
+  const [raw, setRaw] = useState(String(value));
+
+  // Keep the local buffer in sync with external changes (switching which
+  // tier is being edited, a sibling field's auto-fill recomputing this one,
+  // etc). Every keystroke below commits an already-normalized string, so
+  // this is a no-op during normal typing and never fights the caret.
+  useEffect(() => {
+    setRaw(String(value));
+  }, [value]);
+
+  const commit = (nextRaw: string) => {
+    if (nextRaw === '') return; // let the owner finish clearing/retyping first
+    let n = Number(nextRaw);
+    if (Number.isNaN(n)) return;
+    if (min !== undefined) n = Math.max(min, n);
+    if (max !== undefined) n = Math.min(max, n);
+    onChange(n);
+  };
+
+  return (
+    <Input
+      label={label}
+      type="text"
+      inputMode="numeric"
+      placeholder={placeholder}
+      value={raw}
+      onChange={(e) => {
+        const digitsOnly = e.target.value.replace(/[^\d]/g, '');
+        const stripped = digitsOnly.replace(/^0+(?=\d)/, '');
+        setRaw(stripped);
+        commit(stripped);
+      }}
+      onBlur={() => {
+        if (raw === '') {
+          const fallback = min ?? 0;
+          setRaw(String(fallback));
+          onChange(fallback);
+        }
+      }}
+    />
+  );
+}
 
 interface PlatformTierConfiguratorProps {
   configs: TierConfig[];
@@ -70,6 +137,16 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
   // "Total stations" would silently clobber a value the owner just typed.
   const [touchedSeatsIds, setTouchedSeatsIds] = useState<Set<string>>(new Set());
 
+  // Newly selected/added config card, briefly highlighted so picking a
+  // platform or activity visibly drops the owner straight into that card's
+  // details instead of looking like a no-op. Cleared automatically below.
+  const [justAddedId, setJustAddedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!justAddedId) return;
+    const t = setTimeout(() => setJustAddedId(null), 1400);
+    return () => clearTimeout(t);
+  }, [justAddedId]);
+
   const togglePlatform = (platform: Platform) => {
     if (selectedPlatforms.includes(platform)) {
       onChange(configs.filter((c) => c.tierType === 'activity' || c.platform !== platform));
@@ -78,15 +155,21 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
       // switching platforms replaces the selection rather than adding a
       // second platform alongside it. Activity configs aren't part of this
       // cap/replace behavior, so they're preserved across the swap.
-      onChange([...configs.filter((c) => c.tierType === 'activity'), makeDefaultConfig(platform)]);
+      const next = makeDefaultConfig(platform);
+      onChange([...configs.filter((c) => c.tierType === 'activity'), next]);
+      setJustAddedId(next.id);
     } else {
-      onChange([...configs, makeDefaultConfig(platform)]);
+      const next = makeDefaultConfig(platform);
+      onChange([...configs, next]);
+      setJustAddedId(next.id);
     }
   };
 
   const addConfig = (platform: Platform) => {
     if (atCap) return;
-    onChange([...configs, makeDefaultConfig(platform)]);
+    const next = makeDefaultConfig(platform);
+    onChange([...configs, next]);
+    setJustAddedId(next.id);
   };
 
   const removeConfig = (id: string) => {
@@ -158,7 +241,11 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
             <button
               key={key}
               type="button"
-              onClick={() => onChange([...configs, makeDefaultActivityConfig(key, defaultIndividualUnits)])}
+              onClick={() => {
+                const next = makeDefaultActivityConfig(key, defaultIndividualUnits);
+                onChange([...configs, next]);
+                setJustAddedId(next.id);
+              }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-full text-caption font-semibold border border-border bg-surface text-text-secondary hover:border-primary/60 transition-all"
             >
               <Icon className="h-4 w-4" />
@@ -167,7 +254,11 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
           ))}
           <button
             type="button"
-            onClick={() => onChange([...configs, makeDefaultActivityConfig('', true)])}
+            onClick={() => {
+              const next = makeDefaultActivityConfig('', true);
+              onChange([...configs, next]);
+              setJustAddedId(next.id);
+            }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-full text-caption font-semibold border border-border bg-surface text-text-secondary hover:border-primary/60 transition-all"
           >
             <ActivityIcon activityKind={null} className="h-4 w-4" />
@@ -176,7 +267,13 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
         </div>
 
         {configs.filter((c) => c.tierType === 'activity').map((config) => (
-          <div key={config.id} className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-card border border-border/80 mb-3">
+          <div
+            key={config.id}
+            className={cn(
+              'grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-card border mb-3 transition-all duration-500',
+              justAddedId === config.id ? 'border-primary ring-2 ring-primary/30' : 'border-border/80'
+            )}
+          >
             <div className="flex flex-col gap-1.5 sm:col-span-2">
               <label className="text-overline font-semibold text-text-secondary">Activity name</label>
               <Input
@@ -186,20 +283,18 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
               />
             </div>
 
-            <Input
+            <NumericField
               label={config.individualUnits ? 'Quantity (tables/machines)' : 'Capacity (people at once)'}
-              type="number"
-              min="1"
+              min={1}
               value={config.totalSeats}
-              onChange={(e) => updateConfig(config.id, { totalSeats: Number(e.target.value) })}
+              onChange={(n) => updateConfig(config.id, { totalSeats: n })}
             />
 
-            <Input
+            <NumericField
               label="Price per hour (₹)"
-              type="number"
-              min="1"
+              min={1}
               value={config.pricePerHour}
-              onChange={(e) => updateConfig(config.id, { pricePerHour: Number(e.target.value), appBookableSeats: config.totalSeats })}
+              onChange={(n) => updateConfig(config.id, { pricePerHour: n, appBookableSeats: config.totalSeats })}
             />
 
             <div className="flex flex-col gap-1.5 sm:col-span-2">
@@ -264,7 +359,13 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
             </div>
 
             {platformConfigs.map((config) => (
-              <div key={config.id} className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-card border border-border/80">
+              <div
+                key={config.id}
+                className={cn(
+                  'grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-card border transition-all duration-500',
+                  justAddedId === config.id ? 'border-primary ring-2 ring-primary/30' : 'border-border/80'
+                )}
+              >
                 <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <label className="text-overline font-semibold text-text-secondary">Model</label>
                   {p.value === 'other' ? (
@@ -286,29 +387,26 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                   )}
                 </div>
 
-                <Input
+                <NumericField
                   label="Total stations"
-                  type="number"
-                  min="1"
+                  min={1}
                   value={config.totalSeats}
-                  onChange={(e) => updateConfig(config.id, { totalSeats: Number(e.target.value) })}
+                  onChange={(n) => updateConfig(config.id, { totalSeats: n })}
                 />
 
-                <Input
+                <NumericField
                   label="Bookable on KHEL-O app"
-                  type="number"
-                  min="0"
+                  min={0}
                   max={config.totalSeats}
                   value={config.appBookableSeats}
-                  onChange={(e) => updateConfig(config.id, { appBookableSeats: Number(e.target.value) })}
+                  onChange={(n) => updateConfig(config.id, { appBookableSeats: n })}
                 />
 
-                <Input
+                <NumericField
                   label="Price per hour (₹)"
-                  type="number"
-                  min="1"
+                  min={1}
                   value={config.pricePerHour}
-                  onChange={(e) => updateConfig(config.id, { pricePerHour: Number(e.target.value) })}
+                  onChange={(n) => updateConfig(config.id, { pricePerHour: n })}
                 />
 
                 <div className="flex items-end justify-end">

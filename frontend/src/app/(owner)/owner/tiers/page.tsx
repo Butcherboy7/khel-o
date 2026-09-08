@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listCafeTiers, createTier, updateTier, deleteTier } from '@/lib/api/tiers';
 import { getOwnerCafeId } from '@/lib/api/owner';
 import { useAuthStore } from '@/store/authStore';
 import { queryKeys } from '@/hooks/queries/keys';
+import { cn } from '@/lib/cn';
 import {
   Button,
   Card,
@@ -20,13 +21,31 @@ import {
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import { ActivityUnitsManager } from '@/components/owner/ActivityUnitsManager';
 import type { HardwareTier, TierConfig, TierCreateRequest, TierUpdateRequest } from '@/types';
-import { Edit, AlertCircle, Power, PowerOff, Plus, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import { Edit, AlertCircle, Power, PowerOff, Plus, Zap, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
 
 export default function HardwareTiersPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<HardwareTier | null>(null);
   const [expandedUnitsTierId, setExpandedUnitsTierId] = useState<string | null>(null);
+
+  // Lightweight, dependency-free success feedback for create/update — the
+  // codebase has no toast library in place yet, so this is a small
+  // self-dismissing banner plus a brief highlight on the affected card
+  // (which lands at the top of the list — see the backend's newest-first
+  // ordering — so the highlight itself doubles as "look, it's right here").
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [highlightedTierId, setHighlightedTierId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!toastMessage) return;
+    const t = setTimeout(() => setToastMessage(null), 3000);
+    return () => clearTimeout(t);
+  }, [toastMessage]);
+  useEffect(() => {
+    if (!highlightedTierId) return;
+    const t = setTimeout(() => setHighlightedTierId(null), 2200);
+    return () => clearTimeout(t);
+  }, [highlightedTierId]);
 
   // Form State
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
@@ -104,10 +123,12 @@ export default function HardwareTiersPage() {
             };
       return createTier(targetId, payload);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
       setIsModalOpen(false);
       resetForm();
+      setToastMessage('Hardware tier created');
+      setHighlightedTierId(res.hardwareTier?.id ?? null);
     },
     onError: (err: any) => {
       setFormError(err?.message || 'Failed to create tier.');
@@ -141,10 +162,12 @@ export default function HardwareTiersPage() {
             };
       return updateTier(targetId, editingTierId!, payload);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
       setIsModalOpen(false);
       resetForm();
+      setToastMessage('Hardware tier updated');
+      setHighlightedTierId(res.hardwareTier?.id ?? null);
     },
     onError: (err: any) => {
       setFormError(err?.message || 'Failed to update tier.');
@@ -269,6 +292,17 @@ export default function HardwareTiersPage() {
 
   return (
     <div className="flex flex-col gap-6 pb-12">
+      {/* Success toast */}
+      {toastMessage && (
+        <div
+          role="status"
+          className="fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl bg-success text-white shadow-float animate-in fade-in slide-in-from-top-2 duration-300"
+        >
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+          <span className="text-caption font-semibold">{toastMessage}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -288,7 +322,7 @@ export default function HardwareTiersPage() {
           className="gap-2 w-full sm:w-auto justify-center whitespace-nowrap"
         >
           <Plus className="h-4 w-4" />
-          <span>+ Add Tier</span>
+          <span>Add Tier</span>
         </Button>
       </div>
 
@@ -324,7 +358,14 @@ export default function HardwareTiersPage() {
         {!isLoading && !isError && tiers.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {tiers.map((tier) => (
-              <Card key={tier.id} elevation="resting" className="overflow-hidden">
+              <Card
+                key={tier.id}
+                elevation="resting"
+                className={cn(
+                  'overflow-hidden transition-all duration-700',
+                  highlightedTierId === tier.id && 'ring-2 ring-success ring-offset-2 ring-offset-background'
+                )}
+              >
                 <CardContent className="p-5 flex flex-col gap-4">
                   <div className="flex items-start justify-between">
                     <div>

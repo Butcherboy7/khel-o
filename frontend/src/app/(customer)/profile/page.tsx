@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
@@ -43,7 +44,33 @@ const GAME_OPTIONS = ['Valorant', 'CS2', 'EA FC 24', 'GTA V', 'Apex Legends', 'D
 const RIG_TIERS = ['Ultra RTX 4080 (240Hz)', 'RTX 4070 Super Rig', 'PS5 DualSense Lounge', 'Standard Esports PC'];
 
 export default function ProfilePage() {
-  const { user, setUser, logout } = useAuthStore();
+  const router = useRouter();
+  const { user, setUser, logout, switchActiveRole } = useAuthStore();
+  const [isSwitchingToOwner, setIsSwitchingToOwner] = useState(false);
+  const [switchToOwnerError, setSwitchToOwnerError] = useState('');
+
+  // Entering the owner workspace is a role SWITCH, not a plain navigation. A
+  // bare <Link href="/owner/dashboard"> leaves activeRole stuck on 'gamer'
+  // while the owner shell renders (the owner layout's AuthGuard allows
+  // 'gamer' through, for the onboarding funnel). That desync is what breaks
+  // the way back: RoleSwitcher inside the owner portal reads activeRole to
+  // decide what it's showing/cycling to, so it still thinks the user is in
+  // Gamer Mode and offers to switch TO Owner (a no-op) instead of back to it.
+  // Same root cause as the admin entry point bug fixed in RoleSwitcher — see
+  // handleEnterAdmin there. Route through switchActiveRole so the backend
+  // issues a token with activeRole='cafe_owner' before we navigate.
+  const handleGoToOwnerPortal = async () => {
+    setSwitchToOwnerError('');
+    setIsSwitchingToOwner(true);
+    try {
+      await switchActiveRole('cafe_owner');
+      router.push('/owner/dashboard');
+    } catch (err: any) {
+      setSwitchToOwnerError(err?.message || 'Failed to open Owner Portal');
+    } finally {
+      setIsSwitchingToOwner(false);
+    }
+  };
   const { selectedCity } = useLocationStore();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
@@ -298,12 +325,22 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <Link href="/owner/dashboard" className="flex-shrink-0 w-full sm:w-auto">
-              <Button variant="primary" size="sm" className="gap-1.5 w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold">
-                <span>Go to Owner Portal</span>
+            <div className="flex-shrink-0 w-full sm:w-auto flex flex-col items-end gap-1">
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleGoToOwnerPortal}
+                disabled={isSwitchingToOwner}
+                className="gap-1.5 w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold disabled:opacity-60"
+              >
+                <span>{isSwitchingToOwner ? 'Switching…' : 'Go to Owner Portal'}</span>
                 <ChevronRight className="h-4 w-4" />
               </Button>
-            </Link>
+              {switchToOwnerError && (
+                <span className="text-caption text-rose-500 font-medium">{switchToOwnerError}</span>
+              )}
+            </div>
           </CardContent>
         </Card>
       ) : (

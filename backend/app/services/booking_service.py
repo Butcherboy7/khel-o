@@ -156,11 +156,26 @@ class BookingService:
         base_amount = price_per_hour * duration * seats_requested
 
         discount_amount = Decimal('0.00')
-        if booking_in.promotion_id:
+        # promotion_id wins if both are somehow present — it's the
+        # auto-applied-at-checkout offer path already validated client-side;
+        # promo_code is the KHELO code path (typed in or from a QR deep
+        # link). Resolving the code to a promotion_id here is just a lookup —
+        # apply_promotion_to_booking below still does the one authoritative,
+        # row-locked re-validation regardless of which path supplied the id.
+        resolved_promotion_id = booking_in.promotion_id
+        if not resolved_promotion_id and booking_in.promo_code:
+            if not self.promo_service:
+                raise ValidationException(message="Promotion service missing", error_code="INTERNAL_ERROR")
+            resolved_promotion_id = await self.promo_service.resolve_code_to_promotion_id(
+                code=booking_in.promo_code,
+                cafe_id=booking_in.cafe_id,
+            )
+
+        if resolved_promotion_id:
             if not self.promo_service:
                 raise ValidationException(message="Promotion service missing", error_code="INTERNAL_ERROR")
             discount_amount = await self.promo_service.apply_promotion_to_booking(
-                promotion_id=booking_in.promotion_id,
+                promotion_id=resolved_promotion_id,
                 cafe_id=booking_in.cafe_id,
                 tier_id=booking_in.hardware_tier_id,
                 base_amount=base_amount,
@@ -203,7 +218,7 @@ class BookingService:
             "convenience_fee": float(convenience_fee),
             "total_amount": float(total_amount),
             "status": BookingStatus.PENDING_PAYMENT,
-            "promotion_id": booking_in.promotion_id,
+            "promotion_id": resolved_promotion_id,
             "notes": booking_in.notes,
             "game": booking_in.game
         }

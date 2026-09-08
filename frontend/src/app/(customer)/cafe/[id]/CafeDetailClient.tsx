@@ -16,6 +16,7 @@ import {
   Gamepad2,
   CheckCircle2,
   Images,
+  Tag,
 } from 'lucide-react';
 import { getCafe } from '@/lib/api/cafes';
 import { listCafeReviews, createReview } from '@/lib/api/reviews';
@@ -337,6 +338,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               {gamingTiers.map((tier) => {
                 const isSelected = activeTier?.id === tier.id;
                 const isPc = Boolean(tier.specs?.gpu);
+                // Owner-created offers (Owner → Promotional Offers) apply
+                // automatically at checkout — surfaced here so gamers see
+                // the discount before they even open the booking wizard,
+                // not just once they're on the price summary there.
+                const discount = tier.activePromotion?.discountPercentage ?? 0;
+                const discountedPrice = discount > 0 ? Math.round(tier.pricePerHour * (1 - discount / 100)) : tier.pricePerHour;
                 return (
                   <button
                     key={tier.id}
@@ -357,7 +364,15 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
+                        {discount > 0 && (
+                          <span className="flex items-center gap-1 rounded-full bg-accent/10 text-accent px-2 py-0.5 text-[11px] font-bold flex-shrink-0">
+                            <Tag className="h-3 w-3" />
+                            {discount}% OFF
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-text-secondary">
                         {isPc ? (
                           <>
@@ -377,6 +392,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                         <span className="text-text-secondary/50">·</span>
                         <span>{tier.totalSeats || 18} seats</span>
                       </div>
+                      {discount > 0 && tier.activePromotion?.title && (
+                        <p className="text-[11px] text-accent font-medium mt-0.5 truncate">{tier.activePromotion.title}</p>
+                      )}
                     </div>
 
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -387,10 +405,22 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       ) : (
                         <div className="h-5 w-5" />
                       )}
-                      <div className="font-data text-body-emphasis font-bold text-text-primary">
-                        <span className="rupee-symbol">₹</span>{tier.pricePerHour}
-                        <span className="text-caption font-normal text-text-secondary">/hr</span>
-                      </div>
+                      {discount > 0 ? (
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-caption text-text-tertiary line-through">
+                            <span className="rupee-symbol">₹</span>{tier.pricePerHour}
+                          </span>
+                          <div className="font-data text-body-emphasis font-bold text-accent">
+                            <span className="rupee-symbol">₹</span>{discountedPrice}
+                            <span className="text-caption font-normal text-text-secondary">/hr</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="font-data text-body-emphasis font-bold text-text-primary">
+                          <span className="rupee-symbol">₹</span>{tier.pricePerHour}
+                          <span className="text-caption font-normal text-text-secondary">/hr</span>
+                        </div>
+                      )}
                     </div>
                   </button>
                 );

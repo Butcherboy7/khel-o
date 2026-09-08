@@ -64,7 +64,7 @@ export default function OwnerDashboardPage() {
     try {
       const statusRes = await getOwnerStatus();
       const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-      
+
       // Instant role sync: if backend reports role mismatch, trigger token refresh
       if (storedUser && statusRes.role) {
         const parsedUser = JSON.parse(storedUser);
@@ -99,7 +99,7 @@ export default function OwnerDashboardPage() {
           }
         }
       }
-      
+
       setStatusState({
         status: statusRes.status as any,
         cafe: statusRes.cafe
@@ -159,11 +159,11 @@ export default function OwnerDashboardPage() {
       const clamped = Math.max(0, Math.min(totalSeatsCount, newCap));
       setAppSeatCap(clamped);
       await updateBookingControls({ bookableStations: clamped, appBookableSeats: clamped });
-      
+
       // Dispatch real-time cross-tab sync event
       localStorage.setItem('khelo_seat_cap', JSON.stringify({ count: clamped, cafeId: statusState.cafe?.id, updatedAt: Date.now() }));
       window.dispatchEvent(new CustomEvent('khelo:seat-cap-updated', { detail: { count: clamped } }));
-      
+
       setActionMessage(`⚡ Real-Time Update: Set KHEL-O app bookable seats to ${clamped} stations!`);
       setActionIsError(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
@@ -302,9 +302,10 @@ export default function OwnerDashboardPage() {
 
   const upcomingCount = todayBookings.filter((b) => b.status === 'confirmed' || b.status === 'pending_payment').length;
   const occupiedNowCount = todayBookings.filter((b) => b.status === 'checked_in' || b.status === 'active').length;
-  const totalEarningsToday = Math.round(
-    todayBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0) * 100,
-  ) / 100;
+  // Sourced from the backend's revenueToday (only CONFIRMED/CHECKED_IN/ACTIVE/COMPLETED
+  // bookings with a CAPTURED payment) rather than summing todayBookings client-side,
+  // which has no status filter and would double-count pending/failed payments.
+  const totalEarningsToday = dashboardData?.revenueToday ?? 0;
   const seatsFreeNow = Math.max(0, appSeatCap - occupiedNowCount);
 
   // "Needs Your Attention" = bookings whose session start time has already
@@ -328,12 +329,12 @@ export default function OwnerDashboardPage() {
   const isStaff = activeRole === 'staff';
 
   return (
-    <div className="max-w-6xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-8">
+    <div className="max-w-6xl mx-auto pb-10 pt-2 px-4 flex flex-col gap-4">
       {/* Top Banner & Quick Controls */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-border pb-6">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-border pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2.5 mb-1">
-            <h1 className="font-heading text-h2 sm:text-h1 font-bold text-text-primary">
+            <h1 className="font-heading text-h3 sm:text-h2 font-bold text-text-primary">
               {(statusState.cafe?.name as string) || (isStaff ? 'Café Staff Operations Desk' : 'My Café Operational Dashboard')}
             </h1>
             <Badge
@@ -373,7 +374,7 @@ export default function OwnerDashboardPage() {
 
       {/* STAFF PROMINENT CAMERA SCANNER HERO CARD */}
       {isStaff && (
-        <Card elevation="raised" className="bg-gradient-to-r from-emerald-950/40 via-surface to-primary/10 border-2 border-emerald-500/40 p-5 shadow-card">
+        <Card elevation="raised" className="bg-gradient-to-r from-emerald-950/40 via-surface to-primary/10 border-2 border-emerald-500/40 p-4 shadow-card">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div className="h-12 w-12 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold flex-shrink-0 shadow-lg">
@@ -403,7 +404,7 @@ export default function OwnerDashboardPage() {
       )}
 
       {actionMessage && (
-        <div className={`flex items-center gap-2 p-3.5 rounded-2xl text-caption font-semibold ${
+        <div className={`flex items-center gap-2 p-2.5 rounded-2xl text-caption font-semibold ${
           actionIsError
             ? 'bg-red-500/10 border border-red-500/20 text-red-600'
             : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600'
@@ -418,37 +419,37 @@ export default function OwnerDashboardPage() {
       )}
 
       {/* HERO STATS — the 3 numbers an owner needs at a glance, nothing else */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         {/* Metric 1: Today's Earnings */}
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-surface border border-border flex items-center gap-3 shadow-xs">
-          <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold flex-shrink-0">
-            <TrendingUp className="h-5 w-5" />
+        <div className="p-3 rounded-2xl bg-surface border border-border flex items-center gap-2.5 shadow-xs">
+          <div className="h-9 w-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold flex-shrink-0">
+            <TrendingUp className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <span className="text-overline text-text-secondary block truncate">Today&apos;s Earnings</span>
-            <span className="font-heading text-h2 font-bold text-emerald-600">{formatCurrency(totalEarningsToday)}</span>
+            <span className="font-heading text-h3 sm:text-h2 font-bold text-emerald-600">{formatCurrency(totalEarningsToday)}</span>
           </div>
         </div>
 
         {/* Metric 2: Seats Free Right Now */}
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-surface border border-border flex items-center gap-3 shadow-xs">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold flex-shrink-0">
-            <Monitor className="h-5 w-5" />
+        <div className="p-3 rounded-2xl bg-surface border border-border flex items-center gap-2.5 shadow-xs">
+          <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold flex-shrink-0">
+            <Monitor className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <span className="text-overline text-text-secondary block truncate">Seats Free Right Now</span>
-            <span className="font-heading text-h2 font-bold text-text-primary">{seatsFreeNow}</span>
+            <span className="font-heading text-h3 sm:text-h2 font-bold text-text-primary">{seatsFreeNow}</span>
           </div>
         </div>
 
         {/* Metric 3: Needs Your Attention */}
-        <div className={`p-3.5 sm:p-4 rounded-2xl border flex items-center gap-3 shadow-xs ${overdueCheckInCount > 0 ? 'bg-amber-500/5 border-amber-500/30' : 'bg-surface border-border'}`}>
-          <div className={`h-10 w-10 rounded-xl flex items-center justify-center font-bold flex-shrink-0 ${overdueCheckInCount > 0 ? 'bg-amber-500/10 text-amber-600' : 'bg-emerald-500/10 text-emerald-600'}`}>
-            {overdueCheckInCount > 0 ? <AlertCircle className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+        <div className={`p-3 rounded-2xl border flex items-center gap-2.5 shadow-xs ${overdueCheckInCount > 0 ? 'bg-amber-500/5 border-amber-500/30' : 'bg-surface border-border'}`}>
+          <div className={`h-9 w-9 rounded-xl flex items-center justify-center font-bold flex-shrink-0 ${overdueCheckInCount > 0 ? 'bg-amber-500/10 text-amber-600' : 'bg-emerald-500/10 text-emerald-600'}`}>
+            {overdueCheckInCount > 0 ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
           </div>
           <div className="min-w-0">
             <span className="text-overline text-text-secondary block truncate">Needs Your Attention</span>
-            <span className={`font-heading text-h2 font-bold ${overdueCheckInCount > 0 ? 'text-amber-600' : 'text-text-primary'}`}>
+            <span className={`font-heading text-h3 sm:text-h2 font-bold ${overdueCheckInCount > 0 ? 'text-amber-600' : 'text-text-primary'}`}>
               {overdueCheckInCount > 0 ? `${overdueCheckInCount} Overdue Check-In${overdueCheckInCount > 1 ? 's' : ''}` : 'All Caught Up'}
             </span>
           </div>
@@ -458,7 +459,7 @@ export default function OwnerDashboardPage() {
       {/* TODAY'S ARRIVALS — the actionable list, right under the hero, no scrolling needed */}
       {(
         <Card elevation="raised" className="bg-surface border border-border overflow-hidden">
-          <div className="px-5 pt-5 pb-4 flex items-center justify-between gap-3 border-b border-border">
+          <div className="px-4 pt-4 pb-3 flex items-center justify-between gap-3 border-b border-border">
             <div className="min-w-0">
               <h2 className="font-heading text-h3 font-bold text-text-primary flex items-center gap-2">
                 <Clock className="h-5 w-5 text-emerald-500 flex-shrink-0" />
@@ -475,8 +476,8 @@ export default function OwnerDashboardPage() {
           </div>
 
           {todayBookings.length === 0 ? (
-            <div className="px-5 py-10 text-center text-text-secondary flex flex-col items-center gap-3">
-              <QrCode className="h-10 w-10 text-text-tertiary" />
+            <div className="px-4 py-6 text-center text-text-secondary flex flex-col items-center gap-2">
+              <QrCode className="h-8 w-8 text-text-tertiary" />
               <p className="text-body font-medium">No bookings logged for today yet.</p>
               <span className="text-xs text-text-tertiary">New gamer bookings will appear here automatically.</span>
             </div>
@@ -491,7 +492,7 @@ export default function OwnerDashboardPage() {
                 return (
                   <div
                     key={b.id}
-                    className="px-4 py-3.5 flex items-center gap-3 hover:bg-surface-hover transition-colors"
+                    className="px-4 py-2.5 flex items-center gap-3 hover:bg-surface-hover transition-colors"
                   >
                     <div className="h-11 w-11 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-[11px] font-data flex-shrink-0 leading-tight text-center">
                       {b.startTime?.slice(0, 5) || '—'}
@@ -566,11 +567,11 @@ export default function OwnerDashboardPage() {
           real but secondary, so they live behind one "Advanced" disclosure
           instead of two more full-width cards. */}
       {!isStaff && (
-      <Card elevation="raised" className="border-2 border-primary/40 bg-gradient-to-r from-card via-surface to-primary/5 p-5 flex flex-col gap-4 shadow-card">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <Card elevation="raised" className="border-2 border-primary/40 bg-gradient-to-r from-card via-surface to-primary/5 p-4 flex flex-col gap-3 shadow-card">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-2xl bg-primary text-white flex items-center justify-center font-bold flex-shrink-0 shadow-lg">
-              <Monitor className="h-6 w-6" />
+            <div className="h-10 w-10 rounded-2xl bg-primary text-white flex items-center justify-center font-bold flex-shrink-0 shadow-lg">
+              <Monitor className="h-5 w-5" />
             </div>
             <div>
               <h2 className="font-heading text-h3 font-bold text-text-primary">Online Booking Availability</h2>
@@ -592,8 +593,8 @@ export default function OwnerDashboardPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border/60">
-          <div className="flex flex-col gap-1.5 p-3.5 rounded-2xl bg-surface border border-border">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-border/60">
+          <div className="flex flex-col gap-1.5 p-3 rounded-2xl bg-surface border border-border">
             <span className="text-overline text-text-secondary">Open for Online Booking</span>
             <div className="flex items-center gap-3">
               <button
@@ -613,7 +614,7 @@ export default function OwnerDashboardPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5 p-3.5 rounded-2xl bg-surface border border-border justify-center">
+          <div className="flex flex-col gap-1.5 p-3 rounded-2xl bg-surface border border-border justify-center">
             <span className="text-overline text-text-secondary">Walk-in Only</span>
             <span className="font-heading text-h2 font-bold text-amber-500">{totalSeatsCount - appSeatCap} <span className="text-caption text-text-secondary font-semibold">Stations</span></span>
           </div>
@@ -634,11 +635,11 @@ export default function OwnerDashboardPage() {
 
         {/* Advanced: per-tier seat tuning + live occupancy, folded away by default */}
         {((statusState.cafe?.tiers && statusState.cafe.tiers.length > 0) || tierOccupancy.length > 0) && (
-          <div className="flex flex-col gap-3 pt-3 border-t border-border/60">
+          <div className="flex flex-col gap-3 pt-2 border-t border-border/60">
             <button
               type="button"
               onClick={() => setIsTierBreakdownOpen((prev) => !prev)}
-              className="flex items-center justify-between p-3 rounded-2xl bg-surface border border-border hover:bg-surface-hover transition-colors text-left group"
+              className="flex items-center justify-between p-2.5 rounded-2xl bg-surface border border-border hover:bg-surface-hover transition-colors text-left group"
             >
               <span className="text-caption font-bold text-text-primary flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-primary" />
@@ -651,15 +652,15 @@ export default function OwnerDashboardPage() {
             </button>
 
             {isTierBreakdownOpen && (
-              <div className="flex flex-col gap-4 pt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex flex-col gap-3 pt-1 animate-in fade-in slide-in-from-top-1 duration-200">
                 {statusState.cafe?.tiers && statusState.cafe.tiers.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                     {statusState.cafe.tiers.map((t: any) => {
                       const currentAppSeats = t.appBookableSeats !== undefined ? t.appBookableSeats : Math.max(0, Math.round(t.totalSeats * (appSeatCap / totalSeatsCount)));
                       const walkInSeats = Math.max(0, t.totalSeats - currentAppSeats);
 
                       return (
-                        <div key={t.id || t.name} className="p-3.5 rounded-2xl bg-surface border border-border flex flex-col justify-between gap-2 shadow-xs">
+                        <div key={t.id || t.name} className="p-3 rounded-2xl bg-surface border border-border flex flex-col justify-between gap-2 shadow-xs">
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-heading text-caption font-bold text-text-primary truncate">{t.name}</span>
                             <span className="text-overline text-text-secondary font-data flex-shrink-0">₹{t.pricePerHour}/hr</span>
@@ -695,7 +696,7 @@ export default function OwnerDashboardPage() {
 
                 {tierOccupancy.length > 0 && (
                   <div className="rounded-2xl border border-border overflow-hidden">
-                    <div className="px-3.5 pt-3.5 pb-2 flex items-center justify-between gap-3 bg-surface">
+                    <div className="px-3 pt-3 pb-2 flex items-center justify-between gap-3 bg-surface">
                       <span className="text-caption font-bold text-text-primary flex items-center gap-2">
                         <Monitor className="h-4 w-4 text-indigo-400 flex-shrink-0" />
                         Live Occupancy
@@ -715,7 +716,7 @@ export default function OwnerDashboardPage() {
                         const walkIn = Math.max(0, t.totalSeats - t.appBookableSeats);
 
                         return (
-                          <div key={t.tierId} className="px-3.5 py-3 flex flex-col gap-2 bg-card">
+                          <div key={t.tierId} className="px-3 py-2.5 flex flex-col gap-2 bg-card">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-heading text-caption font-bold text-text-primary truncate">{t.tierName}</span>
                               <span className={`text-xs font-bold font-data flex-shrink-0 ${textColor}`}>

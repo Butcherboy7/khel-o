@@ -68,7 +68,9 @@ class HardwareTierRepository(BaseRepository[HardwareTier]):
         return result.scalars().first()
 
     async def get_by_cafe_id(self, cafe_id: UUID, active_only: bool = True) -> List[HardwareTier]:
-        stmt = select(HardwareTier).where(HardwareTier.cafe_id == cafe_id)
+        # Newest-first so a freshly created tier appears at the top of the
+        # owner's list instead of the bottom (see owner/tiers UI flow).
+        stmt = select(HardwareTier).where(HardwareTier.cafe_id == cafe_id).order_by(HardwareTier.created_at.desc())
         if active_only:
             stmt = stmt.where(HardwareTier.is_active == True)
         result = await self.db.execute(stmt)

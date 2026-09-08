@@ -23,5 +23,12 @@ class Promotion(Base):
     max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
     current_uses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # KHELO promo code — optional, unique, alphanumeric code the owner can
+    # assign to this offer so gamers can redeem it by typing it in at
+    # checkout or by scanning a QR that encodes a /redeem/{code} deep link.
+    # Reuses this row's existing valid_from/valid_until/max_uses/current_uses
+    # as the code's validity window and usage limit rather than duplicating
+    # them — a code is always 1:1 with the promotion it unlocks.
+    khelo_code: Mapped[str | None] = mapped_column(String(20), unique=True, index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

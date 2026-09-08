@@ -12,6 +12,7 @@ class OwnerDashboardResponse(BaseModel):
     total_cafes: int
     total_bookings_this_month: int
     revenue_this_month: float
+    revenue_today: float
     upcoming_bookings_today: int
     occupancy_rate_this_week: float
     most_popular_tier: Optional[str] = None
