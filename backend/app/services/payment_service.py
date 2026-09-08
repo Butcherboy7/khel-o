@@ -517,6 +517,42 @@ class PaymentService:
                             )
                             return {"status": "released_refunded"}
 
+                        # Anything not still awaiting payment is finished —
+                        # cancelled by the customer, failed, already played out,
+                        # or refunded after a release. payment.captured is
+                        # delivered at-least-once and retried on any non-2xx, so
+                        # the same event genuinely arrives again after the
+                        # booking reached one of those states; without this guard
+                        # it fell straight through to the confirmation block
+                        # below and moved the booking back to CONFIRMED. That is
+                        # the "late webhook resurrects a released slot" failure:
+                        # the customer has been refunded and the slot put back on
+                        # sale, so re-confirming can leave two valid bookings on
+                        # one slot. verify_payment already rejects these states
+                        # (see its PENDING_PAYMENT/RELEASED_BY_OWNER check); this
+                        # brings the webhook path in line with it.
+                        if booking.status != BookingStatus.PENDING_PAYMENT:
+                            logger.warning(
+                                f"Webhook payment.captured for booking {booking.id} in "
+                                f"non-confirmable state {booking.status}; refusing to confirm"
+                            )
+                            if payment.status == PaymentStatus.REFUNDED:
+                                # Already refunded — process_refund would no-op,
+                                # but marking the payment CAPTURED again first
+                                # would make it look refundable a second time.
+                                return {"status": "already_refunded"}
+                            await self.payment_repo.update_status(
+                                payment.id, PaymentStatus.CAPTURED, razorpay_payment_id=payment_id
+                            )
+                            await self._refund_and_close_expired_booking(
+                                booking.id,
+                                reason=(
+                                    f"Payment captured after the booking was already "
+                                    f"{booking.status.value}; auto-refunded"
+                                ),
+                            )
+                            return {"status": "not_confirmable_refunded"}
+
                         now_utc = datetime.now(timezone.utc)
                         created_dt = booking.created_at.replace(tzinfo=timezone.utc) if (booking.created_at and booking.created_at.tzinfo is None) else (booking.created_at or now_utc)
 

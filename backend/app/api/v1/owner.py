@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, Query, Body
 from typing import Optional, Dict, Any, List
 from uuid import UUID, uuid4
+import math
 import secrets
 from datetime import date, datetime, timezone, time, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1282,6 +1283,33 @@ _ANALYTICS_COUNTED_STATUSES = [
 ]
 
 
+def _owner_settlement(booking, fee) -> float:
+    """What the café actually earns on a booking.
+
+    Booking.total_amount is the *customer's* bill — subtotal plus KHELO's
+    platform fee — so it must never be shown to an owner as their revenue.
+    The authoritative figure is PlatformFee.owner_settlement_amount; legacy
+    rows predating that table fall back to the subtotal, which is the same
+    definition (base minus discount), mirroring booking_repository.
+    """
+    if fee is not None and fee.owner_settlement_amount is not None:
+        return float(fee.owner_settlement_amount)
+    return float(booking.base_amount) - float(booking.discount_amount or 0)
+
+
+def _hours_touched(booking) -> list[int]:
+    """Every clock hour a session occupies, not just the one it starts in.
+
+    A 18:00-21:00 booking occupies 18, 19 and 20; counting only the start hour
+    reports start-time popularity while the UI labels it occupancy. Walking
+    forward from the start hour modulo 24 also handles overnight sessions
+    (22:00 + 4h -> 22, 23, 0, 1) without needing end_time rollover math.
+    """
+    start_hour = booking.start_time.hour
+    spans = max(1, math.ceil(float(booking.duration_hours)))
+    return [(start_hour + offset) % 24 for offset in range(spans)]
+
+
 @router.get("/analytics", status_code=status.HTTP_200_OK)
 async def get_owner_analytics(
     current_owner: User = Depends(require_cafe_owner),
@@ -1307,16 +1335,27 @@ async def get_owner_analytics(
         total_seats = sum(t.total_seats for t in tiers) or 0
 
         # Real, non-refunded bookings only — no fabricated numbers below.
+        # PlatformFee is outer-joined because every money figure on this page is
+        # owner-facing and must come from owner_settlement_amount, never from
+        # Booking.total_amount (which is what the *customer* paid, KHELO's
+        # platform fee included). Payment.booking_id is UNIQUE, so neither join
+        # can fan rows out.
         stmt_bookings = (
-            select(Booking)
+            select(Booking, PlatformFee)
             .join(Payment, Payment.booking_id == Booking.id)
+            .outerjoin(PlatformFee, PlatformFee.booking_id == Booking.id)
             .where(
                 Booking.cafe_id.in_(cafe_ids),
                 Booking.status.in_(_ANALYTICS_COUNTED_STATUSES),
                 Payment.status != PaymentStatus.REFUNDED,
             )
         )
-        bookings = (await db.execute(stmt_bookings)).scalars().all()
+        rows = (await db.execute(stmt_bookings)).all()
+        bookings = [b for b, _ in rows]
+        # booking id -> what the café actually earns on that booking.
+        settlement_by_booking = {
+            b.id: _owner_settlement(b, fee) for b, fee in rows
+        }
 
         if bookings:
             # --- Returning customer rate: % of distinct gamers with >1 booking ---
@@ -1334,7 +1373,8 @@ async def get_owner_analytics(
             # --- Busiest operating hours (bucketed by booking start hour) ---
             seats_by_hour: Dict[int, int] = {h: 0 for h in range(24)}
             for b in bookings:
-                seats_by_hour[b.start_time.hour] += b.seats_count
+                for hour in _hours_touched(b):
+                    seats_by_hour[hour] += b.seats_count
             capacity_basis = max(total_seats, 1)
             hour_occupancy = [
                 {
@@ -1360,7 +1400,7 @@ async def get_owner_analytics(
                     "revenue": 0.0,
                     "bookings": 0,
                 })
-                entry["revenue"] += float(b.total_amount)
+                entry["revenue"] += settlement_by_booking[b.id]
                 entry["bookings"] += 1
             tier_revenue = sorted(revenue_by_tier.values(), key=lambda t: t["revenue"], reverse=True)
             for t in tier_revenue:
@@ -1380,11 +1420,16 @@ async def get_owner_analytics(
                 ]
 
             # --- Revenue trend, last 7 days ---
-            today = datetime.now(timezone.utc).date()
+            # session_date is an IST wall-clock date (app/core/time.py), so the
+            # window must be anchored in IST too — as every other "today" in
+            # this file already is. Anchoring on UTC shifts the whole chart back
+            # a day for the 5.5h each night that IST is a date ahead, silently
+            # dropping the current day's revenue.
+            today = datetime.now(IST).date()
             revenue_by_day: Dict[date, float] = {today - timedelta(days=i): 0.0 for i in range(6, -1, -1)}
             for b in bookings:
                 if b.session_date in revenue_by_day:
-                    revenue_by_day[b.session_date] += float(b.total_amount)
+                    revenue_by_day[b.session_date] += settlement_by_booking[b.id]
             revenue_trend = [
                 {"date": d.isoformat(), "revenue": round(v, 2)}
                 for d, v in revenue_by_day.items()

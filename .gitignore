@@ -3,6 +3,7 @@ node_modules/
 opencode.json
 .next/
 *.db
+*.db.baseline
 *.sqlite3
 __pycache__/
 *.pyc

@@ -1,5 +1,6 @@
 export * from './Button';
 export * from './Input';
+export * from './NumericField';
 export * from './Card';
 export * from './Badge';
 export * from './Skeleton';

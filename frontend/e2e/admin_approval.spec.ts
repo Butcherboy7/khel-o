@@ -36,7 +36,10 @@ test.describe('Admin Verification Queue E2E (Tier B)', () => {
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
 
     // 3. Navigate to admin page
-    await page.goto('/admin');
+    // The verification queue moved off the /admin dashboard onto its own
+    // route; the <h1>Admin Verification Queue</h1> this test asserts on now
+    // lives in (admin)/admin/verification-queue/page.tsx.
+    await page.goto('/admin/verification-queue');
     await page.waitForTimeout(1500);
 
     // 4. Check pending queue exists

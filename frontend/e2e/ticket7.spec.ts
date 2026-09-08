@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Ticket 7: End-to-End Onboarding Flow', () => {
-  
-  test.use({ 
-    browserName: 'chromium',
-  });
-  
+
+  // browserName is set by the `chromium` project in playwright.config.ts.
+  // Declaring test.use({ browserName }) inside a describe forces a new worker
+  // and is rejected by Playwright at collection time — which silently blocked
+  // the ENTIRE e2e suite from running, not just this file.
+
   test('Complete onboarding wizard and verify role transition', async ({ page }) => {
     const timestamp = Date.now();
     const testUser = {

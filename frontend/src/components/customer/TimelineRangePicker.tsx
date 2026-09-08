@@ -20,6 +20,13 @@ interface AvailabilityBadge {
   remainingSeats?: number;
 }
 
+// Mirrors the API contract: BookingCreateRequest.duration_hours is
+// Field(..., ge=0.5, le=8.0), re-checked in booking_service. Anything the
+// picker lets a customer build beyond this is quoted a price and then
+// rejected with a 422 at submit, so the ceiling must match on both sides.
+const MAX_DURATION_HOURS = 8;
+const MAX_DURATION_MIN = MAX_DURATION_HOURS * 60;
+
 interface TimelineRangePickerProps {
   openingTime?: string;
   closingTime?: string;
@@ -227,12 +234,16 @@ export function TimelineRangePicker({
     const deltaMin = Math.round((dx / slotW) * 30 / 30) * 30;
 
     if (dragMode === 'start') {
-      const newStart = Math.max(minValidStart, Math.min(selEnd - 30, dragStartMin.current + deltaMin));
+      // Dragging the start handle left grows the session; it may not grow past
+      // the API's maximum duration.
+      const earliestStart = Math.max(minValidStart, selEnd - MAX_DURATION_MIN);
+      const newStart = Math.max(earliestStart, Math.min(selEnd - 30, dragStartMin.current + deltaMin));
       const newDur = Math.max(0.5, (selEnd - newStart) / 60);
       const startOffset = minutesToTimeAndDayOffset(newStart);
       onChange(startOffset.time, newDur, startOffset.dayOffset);
     } else if (dragMode === 'end') {
-      const newEnd = Math.max(selStart + 30, Math.min(closeMin, dragStartMin.current + dragDurMin.current + deltaMin));
+      const latestEnd = Math.min(closeMin, selStart + MAX_DURATION_MIN);
+      const newEnd = Math.max(selStart + 30, Math.min(latestEnd, dragStartMin.current + dragDurMin.current + deltaMin));
       const newDur = Math.max(0.5, (newEnd - selStart) / 60);
       const startOffset = minutesToTimeAndDayOffset(selStart);
       onChange(startOffset.time, newDur, startOffset.dayOffset);
@@ -293,7 +304,7 @@ export function TimelineRangePicker({
   }, [selStart, selEnd, minValidStart, closeMin, segments]);
 
   const adjustDuration = (deltaHours: number) => {
-    const newDur = Math.max(0.5, Math.min(16, durationHours + deltaHours));
+    const newDur = Math.max(0.5, Math.min(MAX_DURATION_HOURS, durationHours + deltaHours));
     if (selStart + newDur * 60 <= closeMin) {
       const { time, dayOffset } = minutesToTimeAndDayOffset(selStart);
       onChange(time, newDur, dayOffset);
@@ -389,7 +400,7 @@ export function TimelineRangePicker({
             <button
               type="button"
               onClick={() => adjustDuration(0.5)}
-              disabled={selEnd + 30 > closeMin || durationHours >= 16}
+              disabled={selEnd + 30 > closeMin || durationHours >= MAX_DURATION_HOURS}
               className="flex h-11 w-11 -m-1 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />

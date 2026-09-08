@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tag, Plus, Percent, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw } from 'lucide-react';
+import { Tag, Plus, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw } from 'lucide-react';
 import {
   listOwnerPromotions,
   createPromotion,
@@ -19,6 +19,7 @@ import {
   Badge,
   Button,
   Input,
+  NumericField,
   Modal,
   SkeletonCard,
   ErrorState,
@@ -314,7 +315,6 @@ export default function OwnerOffersPage() {
                   </div>
 
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-surface border border-border">
-                    <Percent className="h-4 w-4 text-primary flex-shrink-0" />
                     <span className="text-h3 font-heading font-bold text-primary">{p.discountPercentage}% OFF</span>
                     <span className="text-caption text-text-secondary">{tierName ?? 'All tiers'}</span>
                   </div>
@@ -453,14 +453,12 @@ export default function OwnerOffersPage() {
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
+            <NumericField
               label="Discount % (1-50) *"
-              type="number"
               min={1}
               max={50}
               value={form.discountPercentage}
-              onChange={(e) => setForm({ ...form, discountPercentage: Number(e.target.value) })}
-              required
+              onChange={(n) => setForm({ ...form, discountPercentage: n })}
             />
             <div className="flex flex-col gap-1.5">
               <label className="text-caption font-semibold text-text-primary">Applies To</label>
@@ -498,25 +496,21 @@ export default function OwnerOffersPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
+            <NumericField
               label="Start Hour (0-23) *"
-              type="number"
               min={0}
               max={23}
               value={form.startHour}
               disabled={!!editingId}
-              onChange={(e) => setForm({ ...form, startHour: Number(e.target.value) })}
-              required
+              onChange={(n) => setForm({ ...form, startHour: n })}
             />
-            <Input
+            <NumericField
               label="End Hour (1-24) *"
-              type="number"
               min={1}
               max={24}
               value={form.endHour}
               disabled={!!editingId}
-              onChange={(e) => setForm({ ...form, endHour: Number(e.target.value) })}
-              required
+              onChange={(n) => setForm({ ...form, endHour: n })}
             />
           </div>
 

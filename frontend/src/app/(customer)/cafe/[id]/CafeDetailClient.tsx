@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Images,
   Tag,
+  X,
 } from 'lucide-react';
 import { getCafe } from '@/lib/api/cafes';
 import { listCafeReviews, createReview } from '@/lib/api/reviews';
@@ -78,6 +79,33 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  // Tapping a Photos/Menu thumbnail opens this in place, over whatever the
+  // user was scrolled to — it previously called jumpToPhoto's
+  // heroRef.scrollIntoView, which yanked the page up to the hero every time,
+  // regardless of how far down the user had scrolled to find that thumbnail.
+  const [lightbox, setLightbox] = useState<{ open: boolean; images: string[]; index: number }>({
+    open: false,
+    images: [],
+    index: 0,
+  });
+  const touchStartXRef = useRef<number | null>(null);
+
+  // Declared above the isLoading/isError early returns below so hook order
+  // stays constant across renders (Rules of Hooks) even though the lightbox
+  // itself can only ever open once cafe data exists.
+  useEffect(() => {
+    if (!lightbox.open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox((prev) => ({ ...prev, open: false }));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [lightbox.open]);
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -185,6 +213,13 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     setPhotoIndex(idx);
     heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  const openLightbox = (images: string[], index: number) => setLightbox({ open: true, images, index });
+  const closeLightbox = () => setLightbox((prev) => ({ ...prev, open: false }));
+  const lightboxNext = () =>
+    setLightbox((prev) => ({ ...prev, index: (prev.index + 1) % prev.images.length }));
+  const lightboxPrev = () =>
+    setLightbox((prev) => ({ ...prev, index: (prev.index - 1 + prev.images.length) % prev.images.length }));
 
   return (
     // CustomerShell's <main> already reserves pb-24/md:pb-12 for the mobile
@@ -548,8 +583,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <h2 className="font-heading text-h2 text-text-primary">Menu</h2>
           <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
             {cafe.menuPhotos.map((photo, idx) => (
-              <div
+              <button
                 key={photo + idx}
+                type="button"
+                onClick={() => openLightbox(cafe.menuPhotos!, idx)}
                 className="relative flex-shrink-0 w-40 aspect-[3/4] overflow-hidden rounded-xl border border-border/80"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -560,7 +597,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                   loading="lazy"
                   decoding="async"
                 />
-              </div>
+              </button>
             ))}
           </div>
         </section>
@@ -575,7 +612,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               <button
                 key={photo + idx}
                 type="button"
-                onClick={() => jumpToPhoto(idx)}
+                onClick={() => openLightbox(photosList, idx)}
                 className="relative aspect-square overflow-hidden rounded-xl"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -585,7 +622,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             {photosList.length > 3 && (
               <button
                 type="button"
-                onClick={() => jumpToPhoto(3)}
+                onClick={() => openLightbox(photosList, 3)}
                 className="relative aspect-square overflow-hidden rounded-xl bg-secondary/90 flex flex-col items-center justify-center gap-1 text-white"
               >
                 <Images className="h-5 w-5" />
@@ -796,6 +833,71 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         title="Login required"
         description="Please log in to leave a review for this café."
       />
+
+      {lightbox.open && (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col bg-black/95"
+          onClick={closeLightbox}
+          onTouchStart={(e) => {
+            touchStartXRef.current = e.touches[0].clientX;
+          }}
+          onTouchEnd={(e) => {
+            const startX = touchStartXRef.current;
+            touchStartXRef.current = null;
+            if (startX == null) return;
+            const deltaX = e.changedTouches[0].clientX - startX;
+            // 40px threshold keeps an ordinary tap-to-close from being
+            // misread as a swipe.
+            if (Math.abs(deltaX) < 40) return;
+            if (deltaX < 0) lightboxNext();
+            else lightboxPrev();
+          }}
+        >
+          <div className="flex items-center justify-between p-4 text-white">
+            <span className="text-caption font-semibold">
+              {lightbox.index + 1} / {lightbox.images.length}
+            </span>
+            <button
+              type="button"
+              onClick={closeLightbox}
+              aria-label="Close"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="relative flex-1 flex items-center justify-center px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightbox.images[lightbox.index]}
+              alt={`${cafe.name} enlarged photo ${lightbox.index + 1}`}
+              className="max-h-full max-w-full object-contain select-none"
+            />
+
+            {lightbox.images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={lightboxPrev}
+                  aria-label="Previous photo"
+                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={lightboxNext}
+                  aria-label="Next photo"
+                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

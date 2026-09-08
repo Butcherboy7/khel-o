@@ -10,6 +10,8 @@ from app.models.user import User
 from app.models.cafe import Cafe
 from app.models.hardware_tier import HardwareTier
 from app.models.hardware_tier_unit import HardwareTierUnit, UnitStatus
+from app.models.platform_fee import PlatformFee
+from app.models.payment import Payment, PaymentStatus
 from app.repositories.base import BaseRepository
 from app.core.time import now_ist, session_end_ist
 
@@ -328,6 +330,61 @@ class BookingRepository(BaseRepository[Booking]):
 
         return items, total
 
+    # The statuses a booking can hold once its payment was actually captured.
+    # Booking.status only reaches CONFIRMED via payment_service's
+    # verify_payment/handle_webhook, and CHECKED_IN/ACTIVE/COMPLETED are the
+    # later states that same paid booking moves through — so this is exactly
+    # "money the café really earned". PENDING_PAYMENT, FAILED, CANCELLED,
+    # NO_SHOW and RELEASED_BY_OWNER are never earnings.
+    #
+    # Shared by every owner-facing earnings figure. Previously the monthly
+    # queries omitted CHECKED_IN/ACTIVE while the daily one included them, so
+    # a session that had been checked in counted toward "today" but vanished
+    # from "this month".
+    _EARNED_STATUSES = [
+        BookingStatus.CONFIRMED,
+        BookingStatus.CHECKED_IN,
+        BookingStatus.ACTIVE,
+        BookingStatus.COMPLETED,
+    ]
+
+    @staticmethod
+    def _not_refunded_clause():
+        """Exclude bookings whose payment was refunded.
+
+        Booking.status alone is not sufficient. process_refund does set the
+        booking to CANCELLED on success, but a refund issued straight from the
+        Razorpay dashboard (the normal route for a disputed session) leaves the
+        booking on a paid status while the money is demonstrably back with the
+        customer. /owner/payouts/summary and /owner/analytics both already skip
+        refunded payments, so without this the dashboard reports a *higher*
+        figure than either of them for the same café.
+
+        Payment.booking_id is unique, so the outerjoin this pairs with cannot
+        fan rows out; NULL means no payment row exists yet, which is not a
+        refund.
+        """
+        return or_(Payment.status.is_(None), Payment.status != PaymentStatus.REFUNDED)
+
+    @staticmethod
+    def _owner_settlement_expr():
+        """What the café is actually paid for a booking.
+
+        PlatformFee.owner_settlement_amount is the authoritative figure, set at
+        booking creation to the subtotal. Booking.total_amount must NOT be used
+        here: it is subtotal + gateway_fee, and `gateway_fee` holds KHELO's
+        platform revenue (the column name is historical, it is not a Razorpay
+        processing cost). Summing total_amount showed owners money they will
+        never be paid — a ₹100 booking at 4% displayed as ₹104.
+
+        Falls back to base_amount - discount_amount (identical by construction)
+        so bookings predating the PlatformFee row still report correctly.
+        """
+        return func.coalesce(
+            PlatformFee.owner_settlement_amount,
+            Booking.base_amount - Booking.discount_amount,
+        )
+
     async def count_bookings_this_month(self, cafe_ids: List[UUID]) -> int:
         if not cafe_ids:
             return 0
@@ -336,7 +393,7 @@ class BookingRepository(BaseRepository[Booking]):
 
         stmt = select(func.count()).select_from(Booking).where(
             Booking.cafe_id.in_(cafe_ids),
-            Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            Booking.status.in_(self._EARNED_STATUSES),
             Booking.created_at >= first_day
         )
         res = await self.db.execute(stmt)
@@ -348,37 +405,49 @@ class BookingRepository(BaseRepository[Booking]):
         now = datetime.now(timezone.utc)
         first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        stmt = select(func.sum(Booking.total_amount)).select_from(Booking).where(
-            Booking.cafe_id.in_(cafe_ids),
-            Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            Booking.created_at >= first_day
+        stmt = (
+            select(func.sum(self._owner_settlement_expr()))
+            .select_from(Booking)
+            .outerjoin(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .outerjoin(Payment, Payment.booking_id == Booking.id)
+            .where(
+                Booking.cafe_id.in_(cafe_ids),
+                Booking.status.in_(self._EARNED_STATUSES),
+                self._not_refunded_clause(),
+                Booking.created_at >= first_day,
+            )
         )
         res = await self.db.execute(stmt)
         return float(res.scalar() or 0.0)
 
     async def sum_revenue_today(self, cafe_ids: List[UUID]) -> float:
-        """Sum of only successfully-paid bookings whose session falls today
-        (IST). Booking.status only ever reaches CONFIRMED (and the later
+        """What the café actually earns from today's (IST) paid sessions.
+
+        Booking.status only ever reaches CONFIRMED (and the later
         CHECKED_IN/ACTIVE/COMPLETED states it transitions through) after the
         Razorpay payment for it was CAPTURED — see payment_service.py's
         verify_payment/handle_webhook, the only two places that set
         BookingStatus.CONFIRMED — so PENDING_PAYMENT, FAILED, CANCELLED,
-        NO_SHOW, and RELEASED_BY_OWNER bookings (unpaid, failed, or refunded)
-        never contribute here, matching sum_revenue_this_month's filter.
+        NO_SHOW, and RELEASED_BY_OWNER bookings never contribute here.
+
+        Sums the café's settlement, not the customer's total — see
+        _owner_settlement_expr for why total_amount would overstate earnings.
         """
         if not cafe_ids:
             return 0.0
         today = now_ist().date()
 
-        stmt = select(func.sum(Booking.total_amount)).select_from(Booking).where(
-            Booking.cafe_id.in_(cafe_ids),
-            Booking.status.in_([
-                BookingStatus.CONFIRMED,
-                BookingStatus.CHECKED_IN,
-                BookingStatus.ACTIVE,
-                BookingStatus.COMPLETED,
-            ]),
-            Booking.session_date == today,
+        stmt = (
+            select(func.sum(self._owner_settlement_expr()))
+            .select_from(Booking)
+            .outerjoin(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .outerjoin(Payment, Payment.booking_id == Booking.id)
+            .where(
+                Booking.cafe_id.in_(cafe_ids),
+                Booking.status.in_(self._EARNED_STATUSES),
+                self._not_refunded_clause(),
+                Booking.session_date == today,
+            )
         )
         res = await self.db.execute(stmt)
         return float(res.scalar() or 0.0)

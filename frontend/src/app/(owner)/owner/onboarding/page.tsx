@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } from '@/lib/api/owner';
 import { useAuthStore } from '@/store/authStore';
-import { Button, Input, Textarea, Card, CardContent, Badge } from '@/components/ui';
+import { Button, Input, NumericField, Textarea, Card, CardContent, Badge } from '@/components/ui';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 import { INDIAN_STATES } from '@/constants/states';
 import { SUPPORTED_CITIES } from '@/constants/cities';
@@ -729,12 +729,11 @@ export default function OnboardingWizardPage() {
                     error={!formData.closingTime ? 'Closing time is required' : undefined}
                   />
 
-                  <Input
+                  <NumericField
                     label="Total Station Capacity"
-                    type="number"
-                    min="1"
+                    min={1}
                     value={formData.totalSeats}
-                    onChange={(e) => updateField('totalSeats', Number(e.target.value))}
+                    onChange={(n) => updateField('totalSeats', n)}
                   />
                 </div>
 

@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 from uuid import UUID, uuid4
 from decimal import Decimal
@@ -17,6 +18,8 @@ from app.schemas.promotion import (
 )
 from app.models.promotion import Promotion
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
+
+logger = logging.getLogger(__name__)
 
 class PromotionService:
     def __init__(
@@ -341,6 +344,23 @@ class PromotionService:
         # Rule 5 Math: discount_amount = base_amount * (discount_percentage / 100)
         discount_percentage = Decimal(str(promo.discount_percentage))
         discount_amount = (base_amount * (discount_percentage / Decimal('100'))).quantize(Decimal('0.01'))
+
+        # Never discount more than the booking is worth. PromotionBase caps
+        # discount_percentage at 1..50, but that bound only exists in Pydantic —
+        # promotion rows are also written by seeds, migrations and admin
+        # scripts, which bypass it. A row holding >100 would otherwise make
+        # subtotal negative in booking_service, and with it the café's
+        # settlement, KHELO's fee and the customer's total. Clamping here
+        # cannot change any valid promotion (a <=50% discount is always well
+        # under base_amount); it only stops money going negative on bad data.
+        if discount_amount > base_amount:
+            logger.warning(
+                f"Promotion {promo.id} has discount_percentage="
+                f"{discount_percentage}, which computed a discount of "
+                f"{discount_amount} against a base amount of {base_amount}. "
+                f"Clamping to base amount to keep the booking non-negative."
+            )
+            discount_amount = base_amount
 
         # Increment now, while still holding the row lock acquired above —
         # that gap between validation and increment was exactly where the
