@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
+import { getOwnerPayoutAmount } from '@/lib/format';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Card, CardContent, Button, Input } from '@/components/ui';
 import { checkinBooking } from '@/lib/api/owner';
@@ -1029,9 +1030,9 @@ export default function ScannerPage() {
 
                     <div className="p-3 rounded-xl bg-surface-hover border border-border flex items-center justify-between">
                       <span className="text-text-tertiary text-xs flex items-center gap-1">
-                        <User className="h-3.5 w-3.5" /> Amount Paid
+                        <User className="h-3.5 w-3.5" /> Your Payout
                       </span>
-                      <span className="font-bold text-emerald-600 text-body">₹{overlayBooking.totalAmount}</span>
+                      <span className="font-bold text-emerald-600 text-body">₹{getOwnerPayoutAmount(overlayBooking).toFixed(2)}</span>
                     </div>
                   </div>
                 )}

@@ -52,6 +52,7 @@ export interface Cafe {
   amenities: string[];
   supportedGames?: string[];
   photos: string[];
+  menuPhotos: string[];
   rejectionReason: string | null;
   businessPan?: string;
   gstin?: string;

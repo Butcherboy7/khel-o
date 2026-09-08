@@ -44,6 +44,7 @@ class CafeBase(BaseModel):
     amenities: List[str] = Field(default_factory=list)
     supported_games: List[str] = Field(default_factory=list)
     photos: List[str] = Field(default_factory=list)
+    menu_photos: List[str] = Field(default_factory=list)
 
     @field_validator("opening_time", "closing_time", mode="before")
     @classmethod

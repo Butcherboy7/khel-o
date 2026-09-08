@@ -106,6 +106,18 @@ export function formatPricePerHour(pricePerHour: number): string {
   return `₹${pricePerHour}/hr`;
 }
 
+/** The owner's actual payout share of a booking — totalAmount minus the
+    Razorpay gateway fee and platform convenience fee, both of which the
+    gamer pays on top but the owner never receives. Owner-facing views must
+    show this instead of totalAmount, which is what the gamer paid. */
+export function getOwnerPayoutAmount(booking: {
+  totalAmount: number;
+  gatewayFee?: number | null;
+  convenienceFee?: number | null;
+}): number {
+  return booking.totalAmount - (booking.gatewayFee || 0) - (booking.convenienceFee || 0);
+}
+
 /** Format a large currency number compactly: 116000 → "₹1.16L" */
 export function formatCurrencyCompact(amount: number): string {
   if (amount >= 10_000_000) return `₹${(amount / 10_000_000).toFixed(2)} Cr`;

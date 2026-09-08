@@ -28,7 +28,7 @@ import type { OwnerDashboard, OwnerBookingItem } from '@/types';
 import { getOwnerStatus, getOwnerDashboard, getOwnerBookings, checkinBooking, updateOwnerBookingStatus } from '@/lib/api/owner';
 import { getOwnerOccupancy, type TierOccupancy } from '@/lib/api/scanner';
 import { getOwnerSettings, toggleBookingsPaused, updateBookingControls } from '@/lib/api/settings';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, getOwnerPayoutAmount } from '@/lib/format';
 import { Card, CardContent, Button, Badge, BookingStatusBadge, Modal } from '@/components/ui';
 import { PendingApprovalView } from '@/components/owner/PendingApprovalView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
@@ -514,7 +514,9 @@ export default function OwnerDashboardPage() {
                       </div>
                       <p className="text-[11px] text-text-secondary truncate leading-snug">
                         {b.tierName || 'Standard Pod'} · {b.durationHours || 2}h ·{' '}
-                        <span className="text-emerald-600 font-semibold">₹{b.totalAmount}</span>
+                        <span className="text-emerald-600 font-semibold">
+                          ₹{getOwnerPayoutAmount(b).toFixed(2)}
+                        </span>
                       </p>
                     </div>
 
@@ -788,8 +790,8 @@ export default function OwnerDashboardPage() {
               </div>
 
               <div className="p-3.5 rounded-xl bg-surface border border-border flex flex-col gap-1">
-                <span className="text-text-tertiary text-xs">Total Paid</span>
-                <span className="font-semibold text-emerald-600 text-body">₹{selectedBooking.totalAmount}</span>
+                <span className="text-text-tertiary text-xs">Your Payout</span>
+                <span className="font-semibold text-emerald-600 text-body">₹{getOwnerPayoutAmount(selectedBooking).toFixed(2)}</span>
               </div>
             </div>
 

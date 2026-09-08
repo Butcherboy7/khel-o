@@ -18,6 +18,7 @@ export interface Booking {
   baseAmount: number;
   discountAmount: number;
   gatewayFee: number;
+  convenienceFee: number;
   totalAmount: number;
   status: BookingStatus;
   promotionId: string | null;

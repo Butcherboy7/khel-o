@@ -25,7 +25,7 @@ import {
   ErrorState,
   EmptyState,
 } from '@/components/ui';
-import { formatSessionDate, formatTime } from '@/lib/format';
+import { formatSessionDate, formatTime, getOwnerPayoutAmount } from '@/lib/format';
 
 export default function OwnerBookingsPage() {
   const queryClient = useQueryClient();
@@ -209,7 +209,7 @@ export default function OwnerBookingsPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <PriceDisplay amount={booking.totalAmount} period="" size="md" />
+                    <PriceDisplay amount={getOwnerPayoutAmount(booking)} period="" size="md" />
 
                     {booking.status === 'confirmed' && (
                       <Button

@@ -13,6 +13,8 @@ export interface QRValidationBooking {
   durationHours: number;
   seatsCount: number;
   totalAmount: number;
+  gatewayFee: number;
+  convenienceFee: number;
   status: string;
 }
 

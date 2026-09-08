@@ -824,6 +824,8 @@ async def validate_qr_code(
                 "durationHours": float(booking.duration_hours),
                 "seatsCount": booking.seats_count,
                 "totalAmount": float(booking.total_amount),
+                "gatewayFee": float(booking.gateway_fee),
+                "convenienceFee": float(booking.convenience_fee),
                 "status": booking.status.value,
             }
         }

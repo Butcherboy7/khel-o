@@ -194,9 +194,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     // old pb-28 did) double-counts and leaves a visible empty gap before you
     // hit the fixed bars. pb-20/md:pb-12 here is sized to the bar's own
     // height, not the bar-plus-nav total the shell already covers.
-    <div className="flex flex-col gap-8 max-w-4xl mx-auto pb-20 md:pb-12">
+    <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-20 md:pb-12">
       {/* Hero Header Image with Gallery Arrows */}
-      <div ref={heroRef} className="relative h-72 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4">
+      <div ref={heroRef} className="relative h-52 sm:h-64 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4">
         {currentPhoto ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -541,6 +541,30 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <p className="text-body text-text-secondary italic">No supported games listed by this café yet.</p>
         )}
       </section>
+
+      {/* Menu */}
+      {cafe.menuPhotos && cafe.menuPhotos.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <h2 className="font-heading text-h2 text-text-primary">Menu</h2>
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+            {cafe.menuPhotos.map((photo, idx) => (
+              <div
+                key={photo + idx}
+                className="relative flex-shrink-0 w-40 aspect-[3/4] overflow-hidden rounded-xl border border-border/80"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photo}
+                  alt={`${cafe.name} menu ${idx + 1}`}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Photos */}
       {photosList.length > 0 && (
