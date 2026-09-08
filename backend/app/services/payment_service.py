@@ -58,6 +58,32 @@ class PaymentService:
         except Exception as e:
             logger.error(f"Failed to write owner notification for cafe {cafe_id}: {e}")
 
+    async def _notify_customer(self, booking, title: str, message: str, notification_type: str = "system") -> None:
+        """Best-effort in-app notification for the gamer who made the booking.
+
+        Mirrors _notify_owner, and is deliberately just as non-blocking: a
+        notification that fails to write must never fail a captured payment.
+
+        Until this existed, every Notification row in the codebase belonged to
+        an owner or a staff invitee — the customer bell and /notifications page
+        could not show anything, because nothing ever addressed a gamer.
+        """
+        try:
+            from app.models.notification import Notification
+            notif = Notification(
+                id=uuid4(),
+                user_id=booking.gamer_id,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                is_read=False,
+                link=f"/bookings/{booking.id}"
+            )
+            self.booking_repo.db.add(notif)
+            await self.booking_repo.db.commit()
+        except Exception as e:
+            logger.error(f"Failed to write customer notification for booking {booking.id}: {e}")
+
     async def _backfill_phone_from_payment(self, gamer_id: UUID, contact: Optional[str]) -> None:
         """Razorpay's own checkout collects a phone number from the customer
         (for its UPI/card verification) and includes it as `contact` on the
@@ -446,6 +472,16 @@ class PaymentService:
             link=f"/owner/bookings?ref={booking.booking_reference}"
         )
 
+        # ...and for the customer. send_booking_confirmation above is an email,
+        # which no-ops entirely when SES credentials are absent, so this is
+        # currently the only confirmation a gamer can actually receive.
+        await self._notify_customer(
+            booking,
+            title="Booking confirmed",
+            message=f"You're all set for {booking.session_date} at {booking.start_time}. Show your QR pass at the café.",
+            notification_type="booking_confirmed"
+        )
+
         await self._create_route_transfer(booking, payload.razorpay_payment_id)
 
         return PaymentResponse.model_validate(updated_payment)
@@ -577,6 +613,23 @@ class PaymentService:
                             "qr_code_url": qr_url
                         })
                         await notifier.send_booking_confirmation(self.payment_repo.db, booking.id)
+                        # This path confirmed the booking but notified nobody —
+                        # verify_payment did. A customer who closes the tab
+                        # before verify returns (or any Razorpay retry) is
+                        # confirmed here, so both parties were silently skipped.
+                        await self._notify_owner(
+                            cafe_id=booking.cafe_id,
+                            title="New booking confirmed",
+                            message=f"Booking {booking.booking_reference} confirmed for {booking.session_date} at {booking.start_time}.",
+                            notification_type="booking_confirmed",
+                            link=f"/owner/bookings?ref={booking.booking_reference}"
+                        )
+                        await self._notify_customer(
+                            booking,
+                            title="Booking confirmed",
+                            message=f"You're all set for {booking.session_date} at {booking.start_time}. Show your QR pass at the café.",
+                            notification_type="booking_confirmed"
+                        )
                         await self._create_route_transfer(booking, payment_id)
                         await self._backfill_phone_from_payment(booking.gamer_id, entity.get("contact"))
 
@@ -757,6 +810,18 @@ class PaymentService:
 
         notifier = NotificationService()
         await notifier.send_refund_confirmation(self.payment_repo.db, booking_id)
+        # Same reasoning as the confirmation path: the email above no-ops
+        # without SES, and a customer whose booking was cancelled and refunded
+        # is exactly who must not be left guessing. process_refund only loads
+        # the payment, so fetch the booking for the gamer_id and reference.
+        refunded_booking = await self.booking_repo.get_by_id(booking_id)
+        if refunded_booking:
+            await self._notify_customer(
+                refunded_booking,
+                title="Booking cancelled and refunded",
+                message=f"Booking {refunded_booking.booking_reference} was cancelled. ₹{float(payment.amount):.2f} has been refunded to your original payment method.",
+                notification_type="booking_cancelled"
+            )
 
         return {
             "refundId": refund_id,

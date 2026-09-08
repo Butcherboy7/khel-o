@@ -9,7 +9,14 @@ const PARTNER_BENEFITS = [
   {
     icon: TrendingUp,
     title: 'Zero Upfront Cost',
-    description: 'List your venue for free. Pay only 3-5% convenience fee on successful bookings.',
+    // Deliberately quotes no percentage. The old copy promised owners a "3-5%
+    // convenience fee" on their side, which the code does not do — the fee is
+    // added on top of the customer's total and the café is settled the full
+    // subtotal (see PlatformFee.owner_settlement_amount). Owners who priced to
+    // absorb that phantom fee were making KHELO look ~8% dearer than their own
+    // walk-in rate. Setup/monthly costs are the claims that stay true whatever
+    // the commission model does later.
+    description: 'List your venue for free. No setup fees and no monthly charges.',
   },
   {
     icon: Users,
