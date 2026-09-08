@@ -38,6 +38,15 @@
         ],
         "createdAt": "2026-09-06T20:36:40.169Z",
         "reason": "pre-existing CSS spin-loader (animate-spin rounded-full border-b-2), not a decorative border accent on a card; not touched by Task 10's diff"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "frontend/src/app/(owner)/owner/dashboard/page.tsx"
+        ],
+        "createdAt": "2026-09-08T10:35:06.577Z",
+        "reason": "L285 is a border-b-2 spin loader (animate-spin), not a bordered card — hook misfires on the classic spinner pattern; pre-existing code, unrelated to this session's changes"
       }
     ]
   }
