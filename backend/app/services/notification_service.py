@@ -1,3 +1,4 @@
+import html
 from uuid import UUID
 from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -175,5 +176,23 @@ class NotificationService:
             return await self._send_resend_email(email, subject, html_body, "PASSWORD-RESET")
         except Exception as e:
             logger.error("send_password_reset_error", error=str(e), email=email)
+            return False
+
+    async def send_contact_message(self, to_email: str, name: str, from_email: str, category: str, message: str) -> bool:
+        try:
+            safe_name = html.escape(name)
+            safe_message = html.escape(message).replace("\n", "<br/>")
+            subject = f"KHEL-O contact form: {category}"
+            html_body = f"""
+            <div style="font-family: Arial, sans-serif; background: #09090b; color: #f4f4f5; padding: 24px; border-radius: 8px;">
+                <h2 style="color: #7c3aed; margin-top: 0;">New contact form submission</h2>
+                <p><strong>From:</strong> {safe_name} &lt;{html.escape(from_email)}&gt;</p>
+                <p><strong>Category:</strong> {html.escape(category)}</p>
+                <p style="margin-top: 16px;">{safe_message}</p>
+            </div>
+            """
+            return await self._send_resend_email(to_email, subject, html_body, "CONTACT-FORM")
+        except Exception as e:
+            logger.error("send_contact_message_error", error=str(e), from_email=from_email)
             return False
 

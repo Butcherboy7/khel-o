@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Mail, Phone, MapPin } from 'lucide-react';
+import { ContactForm } from './ContactForm';
 
 export const metadata: Metadata = {
   title: 'Contact Us',
@@ -59,6 +60,9 @@ export default function ContactPage() {
         Own a gaming café and want to list on KHEL-O? Apply directly from the app (Profile → Become a Partner) or
         email us using the address above.
       </p>
+
+      <h2>Send Us a Message</h2>
+      <ContactForm />
     </>
   );
 }

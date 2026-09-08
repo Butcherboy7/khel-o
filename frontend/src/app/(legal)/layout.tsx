@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { Instagram } from 'lucide-react';
 
 const LEGAL_LINKS = [
   { href: '/about', label: 'About Us' },
@@ -8,6 +9,11 @@ const LEGAL_LINKS = [
   { href: '/refund-policy', label: 'Cancellation & Refunds' },
   { href: '/shipping-policy', label: 'Service Delivery' },
   { href: '/contact', label: 'Contact Us' },
+];
+
+// TODO: add Facebook back in once that profile URL is available.
+const SOCIAL_LINKS = [
+  { href: 'https://www.instagram.com/khelo.journey/', label: 'Instagram', icon: Instagram },
 ];
 
 export default function LegalLayout({ children }: { children: ReactNode }) {
@@ -57,6 +63,20 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
                 {link.label}
               </Link>
             ))}
+            <div className="flex items-center gap-3 border-l border-border pl-4">
+              {SOCIAL_LINKS.map((social) => (
+                <a
+                  key={social.label}
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={social.label}
+                  className="text-text-secondary hover:text-primary transition-colors"
+                >
+                  <social.icon className="h-4 w-4" />
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </footer>

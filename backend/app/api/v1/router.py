@@ -16,6 +16,7 @@ from app.api.v1.notifications import router as notifications_router
 from app.api.v1.rewards import router as rewards_router
 from app.api.v1.support import router as support_router
 from app.api.v1.analytics import router as analytics_router
+from app.api.v1.contact import router as contact_router
 
 api_router = APIRouter()
 
@@ -35,6 +36,7 @@ api_router.include_router(notifications_router, tags=["Notifications"])
 api_router.include_router(rewards_router, tags=["Rewards"])
 api_router.include_router(support_router, tags=["Support"])
 api_router.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
+api_router.include_router(contact_router, tags=["Contact"])
 
 @api_router.get("/status", tags=["Status"])
 async def get_v1_status():
