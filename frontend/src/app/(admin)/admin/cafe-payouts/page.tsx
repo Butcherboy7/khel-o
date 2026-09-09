@@ -247,7 +247,7 @@ export default function AdminCafePayoutsPage() {
 
               {selectedCafe.payoutVerificationStatus !== 'verified' && (
                 <p className="text-xs text-warning">
-                  This café's payout destination isn't verified yet — verify it from the Verification
+                  This café&apos;s payout destination isn&apos;t verified yet — verify it from the Verification
                   Queue before paying out.
                 </p>
               )}

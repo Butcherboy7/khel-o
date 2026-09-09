@@ -712,7 +712,7 @@ export default function OnboardingWizardPage() {
 
                 <Card elevation="resting" className="bg-emerald-500/5 border border-emerald-500/20 text-caption p-4">
                   <span className="font-semibold text-emerald-600 block mb-1">Manual Weekly Payouts</span>
-                  Every booking's earnings accrue in your dashboard. Our team pays out your outstanding balance weekly, straight to the UPI ID below. Before your first payout, we'll send a ₹1 test transfer to confirm the ID is correct.
+                  Every booking&apos;s earnings accrue in your dashboard. Our team pays out your outstanding balance weekly, straight to the UPI ID below. Before your first payout, we&apos;ll send a ₹1 test transfer to confirm the ID is correct.
                 </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
