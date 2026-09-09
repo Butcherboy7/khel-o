@@ -19,6 +19,7 @@ from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository, guess_platform_and_model
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
 from app.repositories.cafe_payout_repository import CafePayoutRepository
+from app.repositories.owner_payout_repository import OwnerPayoutRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator, AliasChoices
@@ -651,32 +652,20 @@ async def submit_onboarding_application(
 
     await db.flush()
 
-    # Save Owner Payout Account if provided
-    if payload.bank_account_number or payload.bank_ifsc:
-        stmt_payout = select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == current_user.id)
-        res_payout = await db.execute(stmt_payout)
-        payout_acc = res_payout.scalars().first()
-
-        masked_acc = f"••••{payload.bank_account_number[-4:]}" if payload.bank_account_number and len(payload.bank_account_number) >= 4 else payload.bank_account_number
-
-        if not payout_acc:
-            payout_acc = OwnerPayoutAccount(
-                owner_id=current_user.id,
-                kyc_status="submitted",
-                business_pan=payload.business_pan,
-                bank_account_number_masked=masked_acc,
-                bank_ifsc=payload.bank_ifsc,
-                account_holder_name=payload.account_holder_name or current_user.full_name,
-                details={"full_account": payload.bank_account_number},
-                submitted_at=datetime.now(timezone.utc)
-            )
-            db.add(payout_acc)
-        else:
-            payout_acc.kyc_status = "submitted"
-            payout_acc.business_pan = payload.business_pan
-            payout_acc.bank_account_number_masked = masked_acc
-            payout_acc.bank_ifsc = payload.bank_ifsc
-            payout_acc.account_holder_name = payload.account_holder_name or current_user.full_name
+    # Save Owner Payout Account (UPI + optional bank fallback). upi_vpa is
+    # required by OnboardingSubmitRequest, so this always runs.
+    payout_repo = OwnerPayoutRepository(db)
+    await payout_repo.upsert_payout_details(
+        owner_id=current_user.id,
+        upi_vpa=payload.upi_vpa,
+        bank_account_number=payload.bank_account_number,
+        bank_ifsc=payload.bank_ifsc,
+        account_holder_name=payload.account_holder_name,
+        bank_name=payload.bank_name,
+        account_type=payload.account_type,
+        business_pan=payload.business_pan,
+        default_holder_name=current_user.full_name,
+    )
 
     # Create Hardware Tiers if provided
     if payload.hardware_tiers:
