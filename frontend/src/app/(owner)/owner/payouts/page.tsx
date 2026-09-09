@@ -174,7 +174,7 @@ export default function OwnerPayoutsPage() {
               <span className="font-bold text-text-primary">Paid out weekly</span>
             </div>
             <div className="flex justify-between sm:block sm:col-span-2">
-              <span className="text-text-secondary">Where it's sent:</span>{' '}
+              <span className="text-text-secondary">Where it&apos;s sent:</span>{' '}
               <span className="font-bold text-text-primary">
                 {account?.upiVpa || account?.bankAccountNumberMasked || 'Not added yet'}
               </span>
