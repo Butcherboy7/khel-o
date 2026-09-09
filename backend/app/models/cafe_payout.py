@@ -13,6 +13,8 @@ class CafePayoutStatus(str, enum.Enum):
     PAID = "paid"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    ON_HOLD = "on_hold"
+    DISPUTED = "disputed"
 
 
 class CafePayout(Base):

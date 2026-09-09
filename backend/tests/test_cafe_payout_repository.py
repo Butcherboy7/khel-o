@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from app.core.exceptions import BadRequestException
 from app.repositories.cafe_payout_repository import CafePayoutRepository
+from app.models.cafe_payout import CafePayoutStatus
 from app.models.payment import Payment, PaymentStatus
 from app.models.platform_fee import PlatformFee
 from tests.test_admin_v2_features import _make_gamer, _make_booking_with_payment
@@ -288,3 +289,39 @@ async def test_outstanding_list_reports_verification_status(db_session):
     cafes = await repo.list_cafes_with_outstanding()
     entry = next(c for c in cafes if c["cafeId"] == str(booking.cafe_id))
     assert entry["payoutVerificationStatus"] == "unverified"
+
+
+@pytest.mark.asyncio
+async def test_on_hold_and_disputed_statuses_round_trip_through_list_payouts(db_session):
+    from app.models.owner_payout_account import OwnerPayoutAccount
+
+    gamer = await _make_gamer(db_session, "status_vocab_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=30.0)
+    db_session.add(fee)
+
+    from sqlalchemy import select
+    from app.models.cafe import Cafe
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id,
+        upi_vpa="status@okaxis", payout_verification_status="verified",
+    ))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    payout = await repo.create_payout(
+        cafe_id=booking.cafe_id, admin_id=uuid4(),
+        utr_reference="UTR-STATUS-VOCAB", payment_method="upi",
+    )
+    payout.status = CafePayoutStatus.ON_HOLD
+    await db_session.commit()
+
+    result = await repo.list_payouts(cafe_id=booking.cafe_id)
+    assert result["items"][0]["status"] == "on_hold"
+
+    payout.status = CafePayoutStatus.DISPUTED
+    await db_session.commit()
+
+    result2 = await repo.list_payouts(cafe_id=booking.cafe_id)
+    assert result2["items"][0]["status"] == "disputed"
