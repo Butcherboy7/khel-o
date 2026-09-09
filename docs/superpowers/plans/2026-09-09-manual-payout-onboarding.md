@@ -2294,9 +2294,139 @@ git commit -m "feat(payouts): surface verification status and gate payout creati
 
 ---
 
+## Amendments 1a-1e (folded in from the venue-agnostic roadmap, 2026-09-09)
+
+These five tasks extend the money surface Tasks 1-11 already build. They
+must run **after** Task 11 — 12/15 read the verification status Task 1/5/6
+introduce, 14/16 read the `OwnerPayoutAccount` fields Task 1 adds, and 15/16
+touch the exact pages Tasks 9-11 just finished editing, so editing them
+first would just be immediately overwritten.
+
+### Task 12: Payout proof upload + admin note (1a)
+
+**Files:**
+- Modify: `backend/app/models/cafe_payout.py`
+- Create: `backend/migrations/versions/027_add_cafe_payout_proof_fields.py`
+- Modify: `backend/app/api/v1/admin_cafe_payouts.py`
+- Test: `backend/tests/test_cafe_payout_proof.py`
+
+**Interfaces:**
+- Produces: `CafePayout.proof_image_url: str | None`, `CafePayout.admin_note: str | None`, `CafePayout.paid_at` becomes admin-settable (was `datetime.now()` only) via new `paidAt` request field defaulting to now when omitted. New `POST /api/v1/admin/cafe-payouts/{cafe_id}/proof-upload-url` returns a presigned S3 URL, reusing `create_presigned_upload` (Task 8's onboarding flow already calls the owner-scoped sibling of this — this endpoint is the admin-scoped equivalent, keyed by `cafe_id` the same way). Task 15's frontend calls both.
+
+- [ ] **Step 1: Failing test** — `CafePayoutCreateRequest` accepting `proofImageUrl`, `adminNote`, `paidAt`; `create_cafe_payout` persisting them onto the `CafePayout` row; `verify_cafe_payout_destination`'s admin-only guard applying equally to the new presign endpoint (403 for a non-admin). Follow the existing `test_admin_cafe_payouts_api.py` fixtures (`_make_admin`, `_make_gamer`, `_make_booking_with_payment`) rather than redefining them.
+- [ ] **Step 2:** Run — expect `TypeError`/`KeyError` on the new fields, 404 on the new route.
+- [ ] **Step 3:** Add `proof_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)` and `admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)` to `CafePayout`; write migration `027` (`down_revision = '026'`, additive columns, `downgrade` drops both).
+- [ ] **Step 4:** In `admin_cafe_payouts.py`: extend `CafePayoutCreateRequest` with `proofImageUrl: Optional[str] = None`, `adminNote: Optional[str] = None`, `paidAt: Optional[datetime] = None`; pass all three through to `CafePayoutRepository.create_payout` (add matching optional params there, defaulting `paid_at` to `datetime.now(timezone.utc)` when `None` exactly as today); add:
+  ```python
+  @router.post("/{cafe_id}/proof-upload-url", status_code=status.HTTP_200_OK)
+  async def presign_payout_proof_upload(
+      cafe_id: UUID,
+      payload: PhotoPresignRequest,
+      current_admin: User = Depends(require_admin),
+      db: AsyncSession = Depends(get_db),
+  ):
+      cafe = await CafeRepository(db).get_by_id(cafe_id)
+      if not cafe:
+          raise NotFoundException("Café not found")
+      from app.services.storage_service import create_presigned_upload
+      result = create_presigned_upload(cafe.id, payload.content_type)
+      return {"success": True, "data": result}
+  ```
+  Import `PhotoPresignRequest` from `app.api.v1.owner` (it already exists there; do not redefine a second copy).
+- [ ] **Step 5:** Run tests — expect PASS. Re-run `test_admin_cafe_payouts_api.py` for regressions (the new fields are all optional, so existing payloads must still 201).
+- [ ] **Step 6:** Commit: `feat(payouts): add payment proof upload and admin note to café payouts`
+
+### Task 13: `on_hold` / `disputed` payout statuses (1d, backend)
+
+**Files:**
+- Modify: `backend/app/models/cafe_payout.py`
+- Create: `backend/migrations/versions/028_add_payout_status_values.py`
+- Test: append to `backend/tests/test_cafe_payout_repository.py`
+
+**Interfaces:** Produces: `CafePayoutStatus.ON_HOLD = "on_hold"`, `CafePayoutStatus.DISPUTED = "disputed"`. `list_payouts(status=...)` already filters by raw string — no repository signature change needed. Task 16's frontend badge switches on these two new values.
+
+- [ ] **Step 1:** Failing test: constructing a `CafePayout` with `status=CafePayoutStatus.ON_HOLD` round-trips through `list_payouts()`.
+- [ ] **Step 2:** Run — expect `AttributeError: ON_HOLD`.
+- [ ] **Step 3:** Add both members to the enum. Migration: Postgres requires `ALTER TYPE cafepayoutstatus ADD VALUE IF NOT EXISTS 'on_hold'` / `'disputed'` via `op.execute(...)` (SQLite tests don't run migrations at all — `Base.metadata.create_all()` picks the new Python enum members up directly, per this plan's Global Constraints — so this migration only matters for the real Postgres deployment). No `downgrade` for enum value removal — Postgres doesn't support dropping enum values; leave `downgrade()` as a no-op with a comment explaining why.
+- [ ] **Step 4:** Run — PASS.
+- [ ] **Step 5:** Commit: `feat(payouts): add on_hold and disputed payout statuses`
+
+### Task 14: Owner payout summary enrichment (feeds 1b/1c/1d)
+
+**Files:**
+- Modify: `backend/app/api/v1/owner.py` (`get_owner_payout_summary`, lines ~1237-1270)
+- Test: append to `backend/tests/test_owner_cafe_payouts_api.py` (or a new `test_owner_payout_summary_enriched.py` if that file's fixtures don't fit)
+
+**Interfaces:** Produces: `summary.alreadyPaidOut` (sum of this owner's `CafePayout.amount` across all cafés — the manual-payout counterpart to `completedSettlements`, which only ever reflects Route transfers), `summary.netEarnings` (alias of existing `netSettlement`, kept for a name that matches owner-facing copy), and `account.upiVpa` / `account.payoutVerificationStatus` / `account.verifiedName` (mirroring Task 1's fields) replacing the Razorpay-flavored `kycStatus` / `razorpayAccountId` keys. Task 16's frontend reads all of these; **do not remove `kycStatus`/`razorpayAccountId` yet if any other still-Razorpay-shaped consumer reads them** — grep `razorpayAccountId` and `kycStatus` across `frontend/src` first; this plan's Task 9 already found and fixed the only three owner-facing consumers, so removing both keys outright is expected to be safe, but confirm before deleting rather than assuming.
+
+- [ ] **Step 1:** Failing test: an owner with one manually-paid `CafePayout` sees `summary.alreadyPaidOut` equal to that payout's amount; `account.upiVpa` matches the `OwnerPayoutAccount.upi_vpa` seeded in the test; `account.kycStatus` is no longer present in the response.
+- [ ] **Step 2:** Run — expect `KeyError: 'alreadyPaidOut'` and the old key still present.
+- [ ] **Step 3:** In `get_owner_payout_summary`, after the existing `already_paid_out` loop (line ~1237), sum actual `CafePayout` rows instead of re-deriving from bookings (the existing `already_paid_out` local variable estimates it from fee rows for a different purpose — pending-settlement subtraction — and must not be reused here, since a café can have a manual payout that doesn't perfectly net against currently-outstanding fee rows, e.g. after a refund):
+  ```python
+      from app.models.cafe_payout import CafePayout, CafePayoutStatus
+      total_paid_out_stmt = select(func.sum(CafePayout.amount)).where(
+          CafePayout.cafe_id.in_(cafe_ids), CafePayout.status == CafePayoutStatus.PAID
+      )
+      already_paid_out_total = float((await db.execute(total_paid_out_stmt)).scalar() or 0) if cafe_ids else 0.0
+  ```
+  Add `func` to the existing `sqlalchemy` import line if not already imported in this file. Replace the `account_info` block's last two keys:
+  ```python
+          account_info = {
+              "accountHolderName": payout_account.account_holder_name,
+              "bankAccountNumberMasked": payout_account.bank_account_number_masked,
+              "bankIfsc": payout_account.bank_ifsc,
+              "businessPan": payout_account.business_pan,
+              "upiVpa": payout_account.upi_vpa,
+              "payoutVerificationStatus": payout_account.payout_verification_status,
+              "verifiedName": payout_account.verified_name,
+          }
+  ```
+  And add to the returned `summary` dict: `"netEarnings": round(total_net_settlement, 2), "alreadyPaidOut": round(already_paid_out_total, 2),`.
+- [ ] **Step 4:** Run — PASS. Grep `frontend/src` for `kycStatus` / `razorpayAccountId` reads of this endpoint's response (not `OwnerPayoutAccount.kyc_status` reads elsewhere, which are untouched) and update any found before Task 16 relies on the new shape.
+- [ ] **Step 5:** Commit: `feat(payouts): enrich owner payout summary with UPI destination and manual-payout totals`
+
+### Task 15: Admin "Mark as Paid" — proof upload UI (1a, frontend)
+
+**Files:**
+- Modify: `frontend/src/lib/api/admin.ts` (`createCafePayout`, add `presignPayoutProof`)
+- Modify: `frontend/src/app/(admin)/admin/cafe-payouts/page.tsx`
+
+**Interfaces:** Consumes: Task 12's `proof-upload-url` and extended `createCafePayout` body.
+
+- [ ] **Step 1:** Extend `createCafePayout`'s body type with `proofImageUrl?: string; adminNote?: string; paidAt?: string;`. Add:
+  ```typescript
+  export async function presignPayoutProofUpload(
+    cafeId: string, contentType: string,
+  ): Promise<{ uploadUrl: string; publicUrl: string }> {
+    return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}/proof-upload-url`, { contentType }));
+  }
+  ```
+  Match the exact response shape `create_presigned_upload` returns (check `storage_service.py`'s return keys before assuming `uploadUrl`/`publicUrl` — the existing owner-side photo presign consumer in `frontend/src/lib/api/owner.ts` already parses this same shape; copy its field names rather than guessing).
+- [ ] **Step 2:** In the "Mark as Paid" modal, add: a payment date `<input type="date">` bound to a new `paidAt` state (defaulting to today, matching the plan's "payment date" requirement); a file input that calls `presignPayoutProofUpload`, PUTs the file to `uploadUrl` via `fetch(uploadUrl, {method: 'PUT', headers: {'Content-Type': file.type}, body: file})`, then stores `publicUrl` in a `proofImageUrl` state; an "Admin note (optional)" textarea bound to `adminNote` state. Disable the "Mark as Paid" button additionally while an upload is in flight, and require `proofImageUrl` to be set before enabling it (proof is mandatory per 1a, not optional). Pass `paidAt`, `proofImageUrl`, `adminNote` into `createMutation`'s `createCafePayout(...)` call.
+- [ ] **Step 3:** Manual verification: uploading a screenshot shows a thumbnail/filename before submit; "Mark as Paid" stays disabled until a proof is attached; after success, re-opening the same café's history (Task 16 will surface this) shows the proof link.
+- [ ] **Step 4:** Commit: `feat(payouts): require payment proof on admin Mark as Paid`
+
+### Task 16: Owner payout page rewrite (1b, 1c, 1d, 1e)
+
+**Files:**
+- Modify: `frontend/src/app/(owner)/owner/payouts/page.tsx`
+
+**Interfaces:** Consumes: Task 14's enriched `/payouts/summary` response, Task 12's `proofImageUrl` on payout-history rows (extend `OwnerCafePayoutHistoryItem` in `frontend/src/lib/api/owner.ts` with `proofImageUrl?: string; adminNote?: string;` first).
+
+- [ ] **Step 1:** Replace the page header's badge logic (currently `kycActivated` / "Bank account ready" / "Bank details being checked" / "No bank account yet" — all Razorpay-KYC-shaped) with `account?.payoutVerificationStatus`: `verified` → "Payout destination verified"; `unverified`/`test_sent`/no account → "Verification pending" (never expose the raw `test_sent` string to an owner).
+- [ ] **Step 2:** Replace the top amber banner (`"We're checking your bank details"` / `"Add your bank account"`) with the **five-questions header** required by 1b — total earned, currently owed, already paid, when pending arrives, where it's sent — using Task 14's `summary.totalEarnings`, `summary.pendingSettlements` (+ `getOwnerCafePayouts().outstandingAmount`, since manual-payout-pending isn't in `pendingSettlements`), `summary.alreadyPaidOut`, a static "paid out weekly" cadence line (per the roadmap doc's Phase 1 description — no per-payout ETA exists yet, so state the cadence honestly rather than fabricating a date), and `account.upiVpa` (or masked bank details if no UPI).
+- [ ] **Step 3:** Replace `OwnerStatRow`'s three stats (1c: earnings vs payouts must read as two distinct chains, not one blended row) with two grouped rows: **Earnings** — Revenue generated (`summary.totalEarnings`) → KHELO fee (`summary.totalPlatformFees`) → Net earnings (`summary.netEarnings`); **Payouts** — Already paid (`summary.alreadyPaidOut`) → Pending (`outstandingAmount` from `getOwnerCafePayouts`).
+- [ ] **Step 4 (1d):** Extend `statusBadge()` with owner-readable copy for every `CafePayoutStatus` value used in payout-history rows: `paid` → "Paid" (success), `pending`/`processing` → "Processing" (default), `failed` → "Failed — contact support" (error), `on_hold` → "On hold" (warning), `disputed` → "Disputed — under review" (error). This is a **new, second** `statusBadge`-like function for `payoutHistory` rows specifically — the existing `statusBadge()` covers Route `transferId`-style statuses (`transferred`/`failed`/`skipped_no_linked_account`/`pending`) and must not be conflated with `CafePayoutStatus`, which is a different vocabulary for a different table.
+- [ ] **Step 5 (1e):** Delete the "While Razorpay Route is unavailable, KHEL-O pays out via direct bank transfer instead of automatic settlement. This is separate from the Route transfer status shown above." paragraph entirely (line ~301-304) — it is now false framing once the page no longer presents Route as the primary path. Also delete the "Connected Bank Account Details" card's `KYC Status` badge (now redundant with the header badge from Step 1) and its Razorpay-shaped `account.razorpayAccountId`/`account.kycStatus` reads once Task 14 confirms nothing else needs them.
+- [ ] **Step 6:** In the manual-payout-history table, add a "Proof" column linking `proofImageUrl` (open in new tab) when present, "—" otherwise; render `adminNote` as a tooltip/expandable line under the UTR when present.
+- [ ] **Step 7:** Manually verify in the browser: an owner with one verified UPI destination and one paid manual payout sees all five questions answered, two clearly separated earnings/payout rows, a "Paid" badge, a working proof link, and zero occurrences of "Razorpay" anywhere on the page (`grep -n "Razorpay" frontend/src/app/\(owner\)/owner/payouts/page.tsx` returns nothing).
+- [ ] **Step 8:** Commit: `feat(payouts): rewrite owner payout page — five-questions summary, earnings/payout split, status vocabulary, remove Razorpay copy`
+
+---
+
 ## Self-Review Notes
 
-- **Spec coverage:** Data model (Task 1), security/encryption fix (Task 2, 4, 7), API validation (Task 3), persistence + reset-on-change (Task 4), admin verification endpoint (Task 5), payout gate + outstanding-list status (Task 6), admin café-detail enrichment (Task 7), onboarding UX (Task 8), copy cleanup (Task 9), admin verification UI (Task 10), admin payout-gate UI (Task 11) — every spec section maps to at least one task.
-- **Type consistency checked:** `payout_verification_status` values (`"unverified"`/`"test_sent"`/`"verified"`) are consistent across the model (Task 1), the gate check (Task 6), the verify endpoint (Task 5), and both frontend surfaces (Tasks 10-11). `upsert_payout_details`'s parameter names (Task 4) match exactly what the submit endpoint passes. `verify-payout` response keys (`payoutVerificationStatus`, `verifiedName`, `verifiedAt`) match what Task 10's frontend type expects.
-- **Sequencing:** Tasks 1-2 (data + crypto) must land before Task 3-4 (validation + persistence) can be tested end-to-end; Task 5-6 (admin verify + gate) depend on Task 1's model fields; Tasks 8-11 (frontend) depend on their respective backend tasks being merged first so the endpoints/fields they call actually exist. Execute in numeric order.
-- **Known test-fixture churn flagged explicitly:** Tasks 3, 6, and 7's steps call out exactly which pre-existing tests will break and how to fix them (missing `upiVpa` in onboarding payloads; missing verified `OwnerPayoutAccount` rows in payout-creation tests) rather than leaving that as a surprise.
+- **Spec coverage:** Data model (Task 1), security/encryption fix (Task 2, 4, 7), API validation (Task 3), persistence + reset-on-change (Task 4), admin verification endpoint (Task 5), payout gate + outstanding-list status (Task 6), admin café-detail enrichment (Task 7), onboarding UX (Task 8), copy cleanup (Task 9), admin verification UI (Task 10), admin payout-gate UI (Task 11), payment proof + admin note (Task 12), on_hold/disputed statuses (Task 13), owner summary enrichment (Task 14), admin proof-upload UI (Task 15), owner payout page rewrite (Task 16) — every spec section and every roadmap amendment (1a-1e) maps to at least one task.
+- **Type consistency checked:** `payout_verification_status` values (`"unverified"`/`"test_sent"`/`"verified"`) are consistent across the model (Task 1), the gate check (Task 6), the verify endpoint (Task 5), and all frontend surfaces (Tasks 10-11, 16). `upsert_payout_details`'s parameter names (Task 4) match exactly what the submit endpoint passes. `verify-payout` response keys (`payoutVerificationStatus`, `verifiedName`, `verifiedAt`) match what Task 10's frontend type expects, and Task 14/16 reuse the identical key names for the owner-facing summary rather than inventing new ones. `CafePayoutStatus` (Task 13's `on_hold`/`disputed`) is never confused with `payout_verification_status` — they gate different things (an individual payout's state vs. whether the destination itself is trusted) and Task 16 Step 4 calls this out explicitly.
+- **Sequencing:** Tasks 1-2 (data + crypto) must land before Task 3-4 (validation + persistence) can be tested end-to-end; Task 5-6 (admin verify + gate) depend on Task 1's model fields; Tasks 8-11 (frontend) depend on their respective backend tasks being merged first so the endpoints/fields they call actually exist. Tasks 12-13 (backend, amendments) depend on Task 1's migration chain (`down_revision` numbering) and Task 6's gate existing. Task 14 depends on Tasks 1 and 12. Task 15 depends on Task 12. Task 16 depends on Tasks 13 and 14, and re-touches files Task 9 already edited — diff carefully rather than reintroducing removed Razorpay strings. Execute in numeric order, 1 through 16.
+- **Known test-fixture churn flagged explicitly:** Tasks 3, 6, and 7's steps call out exactly which pre-existing tests will break and how to fix them (missing `upiVpa` in onboarding payloads; missing verified `OwnerPayoutAccount` rows in payout-creation tests) rather than leaving that as a surprise. Task 14 additionally flags that any other frontend consumer of `kycStatus`/`razorpayAccountId` on the owner summary endpoint (beyond the three Task 9 already fixed) must be found by grep before those keys are removed, not assumed absent.
