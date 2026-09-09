@@ -167,9 +167,9 @@ export function PayoutSetupCard() {
               variant="primary"
               isLoading={isSubmitting}
               loadingText="Saving…"
-              className="w-full sm:w-auto self-end gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
+              className="w-full gap-2 self-end sm:w-auto"
             >
-              Save Payout Details
+              Save bank details
             </Button>
           </form>
         )}

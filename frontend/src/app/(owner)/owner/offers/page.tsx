@@ -25,6 +25,7 @@ import {
   ErrorState,
   EmptyState,
 } from '@/components/ui';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
@@ -255,22 +256,26 @@ export default function OwnerOffersPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 pb-12">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-            <Tag className="h-6 w-6 text-primary" />
-            <span>Promotional Offers</span>
-          </h1>
-          <p className="text-caption text-text-secondary mt-0.5">
-            Time-boxed discounts gamers see automatically at checkout — no promo codes to share.
-          </p>
-        </div>
-        <Button variant="primary" size="md" onClick={openCreate} className="gap-2" disabled={!cafeId}>
-          <Plus className="h-4 w-4" />
-          <span>Create Offer</span>
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6">
+      {/* The old description promised "no promo codes to share" while every
+          offer card below showed a code with Copy and Show QR buttons beside it.
+          Both halves are true of different things, so say which is which. */}
+      <OwnerPageHeader
+        title="Discounts"
+        description="Run a discount for a set period. It comes off the price automatically at checkout — and each one also gets a code you can share or print as a QR."
+        action={
+          <Button
+            variant="primary"
+            size="md"
+            onClick={openCreate}
+            className="w-full justify-center gap-2 sm:w-auto"
+            disabled={!cafeId}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span>New discount</span>
+          </Button>
+        }
+      />
 
       {isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -289,9 +294,9 @@ export default function OwnerOffersPage() {
 
       {!isLoading && !isError && promotions.length === 0 && (
         <EmptyState
-          title="No offers yet"
-          description="Create a time-boxed discount — e.g. 20% off weeknights before 6 PM — and it applies automatically at checkout."
-          actionLabel="Create Your First Offer"
+          title="No discounts running"
+          description="A discount is a good way to fill quiet hours — say 20% off on weekday afternoons. Customers see the lower price straight away."
+          actionLabel="Create your first discount"
           onAction={openCreate}
         />
       )}
@@ -351,23 +356,29 @@ export default function OwnerOffersPage() {
                           <Tag className="h-3.5 w-3.5 text-accent flex-shrink-0" />
                           <span className="font-data font-bold tracking-wider text-text-primary truncate">{p.kheloCode}</span>
                         </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <button
-                            type="button"
+                        {/* Shared Button, so these two inherit the same 44px
+                            touch floor as every other control in the portal —
+                            as raw 32px-tall elements they were the smallest tap
+                            targets left on any owner screen. */}
+                        <div className="flex flex-shrink-0 items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => copyCode(p.id, p.kheloCode!)}
-                            className="flex items-center gap-1 h-8 px-2 rounded-lg text-[11px] font-semibold text-text-secondary hover:bg-surface transition-colors"
+                            className="gap-1"
                           >
-                            <Copy className="h-3 w-3" />
-                            {copiedId === p.id ? 'Copied!' : 'Copy'}
-                          </button>
-                          <button
-                            type="button"
+                            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                            {copiedId === p.id ? 'Copied' : 'Copy'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => setQrTargetId((cur) => (cur === p.id ? null : p.id))}
-                            className="flex items-center gap-1 h-8 px-2 rounded-lg text-[11px] font-semibold text-text-secondary hover:bg-surface transition-colors"
+                            className="gap-1"
                           >
-                            <QrCode className="h-3 w-3" />
+                            <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
                             {qrTargetId === p.id ? 'Hide QR' : 'Show QR'}
-                          </button>
+                          </Button>
                         </div>
                       </div>
                       {qrTargetId === p.id && (
@@ -380,7 +391,7 @@ export default function OwnerOffersPage() {
                             height={140}
                             className="rounded-lg bg-white p-1.5 border border-border"
                           />
-                          <span className="text-[11px] text-text-tertiary text-center">
+                          <span className="text-caption text-text-secondary text-center">
                             Scanning opens KHELO and applies this code after sign-in
                           </span>
                         </div>
@@ -473,7 +484,7 @@ export default function OwnerOffersPage() {
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
-              {editingId && <p className="text-[11px] text-text-tertiary">Tier scope can&apos;t change after creation — pause and create a new offer instead.</p>}
+              {editingId && <p className="text-caption text-text-secondary">Tier scope can&apos;t change after creation — pause and create a new offer instead.</p>}
             </div>
           </div>
 
@@ -570,7 +581,7 @@ export default function OwnerOffersPage() {
                 Generate
               </Button>
             </div>
-            <p className="text-[11px] text-text-tertiary">
+            <p className="text-caption text-text-secondary">
               Lets gamers redeem this offer by code or QR, in addition to it auto-applying at checkout. Uses the same validity window and redemption limit above. 4-20 letters/numbers.
             </p>
           </div>

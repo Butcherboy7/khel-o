@@ -50,16 +50,19 @@ const config: Config = {
         'body-emphasis': ['0.875rem', { lineHeight: '1.5', fontWeight: '500' }],
         /* Caption */
         'caption': ['0.75rem', { lineHeight: '1.4', fontWeight: '400' }],
-        /* Overline / Label */
-        'overline': ['0.625rem', { lineHeight: '1.2', letterSpacing: '0.05em', fontWeight: '600' }],
+        /* Overline / Label — 11px is the floor at which an uppercase, tracked
+           label still resolves on a phone. Anything that names a number the
+           user has to act on uses `caption` (12px) instead. */
+        'overline': ['0.6875rem', { lineHeight: '1.2', letterSpacing: '0.05em', fontWeight: '600' }],
         /* Price large (KPI values) */
         'price-lg': ['1.75rem', { lineHeight: '1.1', fontWeight: '700' }],
         /* Price inline */
         'price-sm': ['0.8rem', { lineHeight: '1.3', fontWeight: '600' }],
-        /* Reference code */
-        'ref': ['0.7rem', { lineHeight: '1.2', letterSpacing: '0.05em', fontWeight: '400' }],
+        /* Reference code — 12px floor: booking references get read aloud across
+           a counter, so they have to survive a glance on a phone. */
+        'ref': ['0.75rem', { lineHeight: '1.3', letterSpacing: '0.05em', fontWeight: '400' }],
         /* Badge / pill */
-        'badge': ['0.625rem', { lineHeight: '1', fontWeight: '600' }],
+        'badge': ['0.6875rem', { lineHeight: '1.1', fontWeight: '600' }],
         /* Button label */
         'btn': ['0.875rem', { lineHeight: '1', fontWeight: '500' }],
       },
@@ -151,6 +154,13 @@ const config: Config = {
       height: {
         nav: 'var(--nav-height)',
         'bottom-nav': 'var(--bottom-nav-height)',
+        /* `h-input` / `h-btn` were used across the app (Input, Select, and every
+           hand-rolled filter control) but only ever existed under `minHeight`,
+           so Tailwind emitted no rule and the class was a silent no-op — which
+           is why text fields rendered at their ~26px intrinsic height instead of
+           the 48px the design system specifies. */
+        input: 'var(--input-height)',
+        btn: 'var(--button-min-height)',
       },
 
       /* ── Min Height ── */

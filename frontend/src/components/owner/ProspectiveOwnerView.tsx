@@ -22,9 +22,9 @@ export function ProspectiveOwnerView() {
           </p>
           <div className="pt-4 flex flex-wrap items-center gap-4">
             <Link href="/owner/onboarding">
-              <Button variant="primary" size="lg" className="gap-2 text-base px-8 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-emerald-500/20">
-                <span>Start Café Onboarding</span>
-                <ChevronRight className="h-5 w-5" />
+              <Button variant="primary" size="lg" className="gap-2 px-8 text-base">
+                <span>List my café</span>
+                <ChevronRight className="h-5 w-5" aria-hidden="true" />
               </Button>
             </Link>
           </div>

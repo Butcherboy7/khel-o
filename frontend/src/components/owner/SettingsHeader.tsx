@@ -10,26 +10,29 @@ interface SettingsHeaderProps {
 }
 
 export function SettingsHeader({ isEmergencyMode, bookingsPaused, cafeName }: SettingsHeaderProps) {
+  // The badge already carries a colour and a drawn icon; the emoji that used to
+  // prefix each label was a third copy of the same signal, in a glyph set that
+  // renders differently on every device.
   const getStatus = () => {
     if (isEmergencyMode) {
       return {
-        label: '⚠️ EMERGENCY MODE ACTIVE',
-        description: 'No new bookings accepted. Existing bookings remain valid.',
+        label: 'Emergency mode',
+        description: 'Nobody can book. Bookings already made are still valid.',
         variant: 'error' as const,
         icon: AlertTriangle,
       };
     }
     if (bookingsPaused) {
       return {
-        label: '⏸️ ONLINE BOOKINGS PAUSED',
-        description: 'Customers cannot book online. Walk-ins accepted at desk.',
+        label: 'Online booking paused',
+        description: "Customers can't book in the app. You can still take walk-ins at the desk.",
         variant: 'warning' as const,
         icon: PauseCircle,
       };
     }
     return {
-      label: '🟢 ACCEPTING BOOKINGS',
-      description: 'Café is operating normally and accepting new bookings.',
+      label: 'Open',
+      description: 'Your café is accepting bookings as normal.',
       variant: 'success' as const,
       icon: CheckCircle2,
     };
@@ -42,7 +45,11 @@ export function SettingsHeader({ isEmergencyMode, bookingsPaused, cafeName }: Se
       <div
         className={`p-4 sm:p-6 flex flex-col gap-3 transition-colors ${
           isEmergencyMode
-            ? 'bg-red-500/10 border-b border-red-500/20 animate-pulse'
+            // No `animate-pulse` here: the whole panel throbbing behind its own
+            // text made the copy harder to read the longer emergency mode stayed
+            // on, and ignored prefers-reduced-motion. Colour, icon and label
+            // already say it.
+            ? 'bg-red-500/10 border-b border-red-500/20'
             : bookingsPaused
             ? 'bg-amber-500/10 border-b border-amber-500/20'
             : 'bg-emerald-500/5 border-b border-emerald-500/10'
@@ -59,9 +66,9 @@ export function SettingsHeader({ isEmergencyMode, bookingsPaused, cafeName }: Se
             }`}>
               <status.icon className="h-6 w-6" />
             </div>
-            <div className="flex flex-col">
-              <span className="font-heading text-h2 text-text-primary leading-tight">{cafeName}</span>
-              <span className="text-caption text-text-secondary">Operational Control & Venue Settings</span>
+            <div className="flex min-w-0 flex-col">
+              <span className="font-heading text-h2 leading-tight text-text-primary">{cafeName}</span>
+              <span className="text-caption text-text-secondary">Settings</span>
             </div>
           </div>
 

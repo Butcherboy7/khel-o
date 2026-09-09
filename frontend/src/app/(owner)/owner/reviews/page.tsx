@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Star, MessageSquare, Edit3, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, Badge, Button, Textarea, SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { getOwnerStatus } from '@/lib/api/owner';
 import { listCafeReviews, replyToReview } from '@/lib/api/reviews';
 import type { Review } from '@/types';
@@ -41,16 +42,11 @@ export default function OwnerReviewsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-6">
-      <div className="border-b border-border pb-6">
-        <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-          <Star className="h-6 w-6 text-amber-500 fill-amber-500" />
-          <span>Customer Reviews & Ratings</span>
-        </h1>
-        <p className="text-caption text-text-secondary mt-1">
-          Real-time customer feedback for your venue. Replies are public and visible to every gamer who reads this review.
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <OwnerPageHeader
+        title="Reviews"
+        description="What customers said after playing here. Anything you reply is public — everyone reading the review sees it."
+      />
 
       {isLoading && (
         <div className="flex flex-col gap-4">
@@ -69,9 +65,9 @@ export default function OwnerReviewsPage() {
 
       {!isLoading && !isError && reviews.length === 0 && (
         <EmptyState
-          title="No Customer Reviews Yet"
-          description="As gamers complete sessions at your venue, their reviews and ratings will appear here."
-          icon={<Star className="h-8 w-8 text-text-tertiary" />}
+          title="No reviews yet"
+          description="Once customers finish a session here, what they write about your café shows up on this page."
+          icon={<Star className="h-7 w-7" aria-hidden="true" />}
         />
       )}
 
@@ -88,7 +84,7 @@ export default function OwnerReviewsPage() {
                       <span className="font-heading text-body font-bold text-text-primary">
                         {rev.gamerName || 'Gamer'}
                       </span>
-                      <p className="text-xs text-text-tertiary mt-0.5">
+                      <p className="text-xs text-text-secondary mt-0.5">
                         {new Date(rev.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                     </div>
@@ -102,7 +98,7 @@ export default function OwnerReviewsPage() {
 
                   {rev.ownerReply && !isReplying && (
                     <div className="rounded-xl bg-primary/5 border border-primary/20 p-3.5 flex flex-col gap-1">
-                      <span className="text-[11px] font-bold text-primary uppercase tracking-wide">Your reply</span>
+                      <span className="text-caption font-bold text-primary uppercase tracking-wide">Your reply</span>
                       <p className="text-caption text-text-primary">{rev.ownerReply}</p>
                     </div>
                   )}

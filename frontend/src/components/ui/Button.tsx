@@ -48,12 +48,19 @@ const buttonVariants = cva(
           'hover:bg-primary/5',
         ],
       },
+      // Touch devices get a 44px floor on every compact size (iOS HIG / WCAG
+      // 2.5.5). Applied via `pointer: coarse` so mouse-driven desktop keeps the
+      // dense sizing these variants were designed for — a laptop with a
+      // touchscreen reports `coarse` too, which is the behaviour we want.
       size: {
-        sm: 'h-9 px-3 text-caption rounded-lg',
+        sm: 'h-9 px-3 text-caption rounded-lg [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:px-4',
         md: 'h-12 px-5',
         lg: 'h-14 px-7 text-body-emphasis rounded-2xl',
-        icon: 'h-10 w-10 rounded-xl p-0',
-        'icon-sm': 'h-8 w-8 rounded-lg p-0',
+        icon: 'h-10 w-10 rounded-xl p-0 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11',
+        // Keeps its 32px visual mark; the hit area is grown to 44px with a
+        // transparent inset overlay so dense icon rows don't reflow on mobile.
+        'icon-sm':
+          'relative h-8 w-8 rounded-lg p-0 [@media(pointer:coarse)]:after:absolute [@media(pointer:coarse)]:after:left-1/2 [@media(pointer:coarse)]:after:top-1/2 [@media(pointer:coarse)]:after:h-11 [@media(pointer:coarse)]:after:w-11 [@media(pointer:coarse)]:after:-translate-x-1/2 [@media(pointer:coarse)]:after:-translate-y-1/2 [@media(pointer:coarse)]:after:content-[""]',
       },
       fullWidth: {
         true: 'w-full',

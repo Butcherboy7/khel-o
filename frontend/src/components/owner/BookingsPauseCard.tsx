@@ -1,6 +1,6 @@
 'use client';
 
-import { PauseCircle, PlayCircle, Info } from 'lucide-react';
+import { PauseCircle, PlayCircle, Info, CheckCircle2 } from 'lucide-react';
 import { Button, Card, CardContent } from '@/components/ui';
 
 interface BookingsPauseCardProps {
@@ -35,49 +35,50 @@ export function BookingsPauseCard({ bookingsPaused, onToggle, isLoading }: Booki
                 <PlayCircle className="h-6 w-6" />
               )}
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex min-w-0 flex-col gap-1.5">
               <h3 className="font-heading text-body font-bold text-text-primary">
-                {bookingsPaused ? 'Online Bookings Paused' : 'Online Bookings Active'}
+                Online booking
               </h3>
-              <p className="text-caption text-text-secondary max-w-md">
-                Temporarily stop accepting new online bookings. Useful for private events,
-                busy peak hours, or inventory maintenance.
+              <p className="max-w-prose text-caption text-text-secondary">
+                Turn this off for a private event or a night you&apos;re already full. Walk-ins are
+                not affected, and you can turn it back on any time.
               </p>
               {bookingsPaused ? (
-                <div className="mt-2 p-2.5 sm:p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-2">
-                  <Info className="h-4 w-4 text-amber-500 shrink-0" />
-                  <span className="text-caption text-amber-600 font-medium">
-                    PAUSED — Customers cannot book online
+                <div className="mt-2 flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2.5 sm:p-3">
+                  <Info className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+                  <span className="text-caption font-medium text-amber-700">
+                    Off right now — customers can&apos;t book in the app.
                   </span>
                 </div>
               ) : (
-                <p className="text-caption text-emerald-600 font-medium mt-2 flex items-center gap-1.5">
-                  <span>✅</span> Customers can book through KHEL app
+                <p className="mt-2 flex items-center gap-1.5 text-caption font-medium text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  On right now — customers can book in the app.
                 </p>
               )}
             </div>
           </div>
 
-          <div className="w-full sm:w-auto flex items-center justify-end sm:justify-start pt-2 sm:pt-0 border-t sm:border-t-0 border-border">
+          <div className="flex w-full items-center justify-end border-t border-border pt-2 sm:w-auto sm:justify-start sm:border-t-0 sm:pt-0">
             {bookingsPaused ? (
               <Button
                 variant="primary"
                 onClick={() => onToggle(false)}
                 isLoading={isLoading}
-                className="w-full sm:w-auto gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
+                className="w-full gap-2 sm:w-auto"
               >
-                <PlayCircle className="h-4 w-4" />
-                Resume Bookings
+                <PlayCircle className="h-4 w-4" aria-hidden="true" />
+                Turn back on
               </Button>
             ) : (
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => onToggle(true)}
                 isLoading={isLoading}
-                className="w-full sm:w-auto gap-2 border-amber-500 text-amber-600 hover:bg-amber-500/10"
+                className="w-full gap-2 sm:w-auto"
               >
-                <PauseCircle className="h-4 w-4" />
-                Pause Bookings
+                <PauseCircle className="h-4 w-4" aria-hidden="true" />
+                Turn off
               </Button>
             )}
           </div>

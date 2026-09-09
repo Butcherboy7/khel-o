@@ -55,46 +55,51 @@ export function EmergencyModeCard({ isEmergencyMode, onToggle, isLoading }: Emer
             >
               <ShieldAlert className="h-6 w-6" />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex min-w-0 flex-col gap-1.5">
               <h3 className="font-heading text-body font-bold text-text-primary">
-                Emergency Mode
+                Emergency: shut everything down
               </h3>
-              <p className="text-caption text-text-secondary max-w-md">
-                Immediately stop ALL new bookings across all channels. Use only for genuine emergencies
-                (power outage, safety issue, critical hardware failure).
+              <p className="max-w-prose text-caption text-text-secondary">
+                Stops every new booking at once — app and desk. For a power cut, a safety problem, or
+                broken hardware. For an ordinary busy night, turn off online booking below instead.
               </p>
               {isEmergencyMode && (
-                <div className="mt-2 p-2.5 sm:p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-                  <span className="text-caption text-red-600 font-medium">
-                    ACTIVE — No new bookings accepted
+                <div className="mt-2 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-2.5 sm:p-3">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
+                  <span className="text-caption font-medium text-red-700">
+                    On right now — nobody can book.
                   </span>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="w-full sm:w-auto flex items-center justify-end sm:justify-start pt-2 sm:pt-0 border-t sm:border-t-0 border-border">
+          <div className="flex w-full items-center justify-end border-t border-border pt-2 sm:w-auto sm:justify-start sm:border-t-0 sm:pt-0">
             {isEmergencyMode ? (
+              // Turning it back off is the recovery path, so this one IS the
+              // filled button — it's what the owner is looking for.
               <Button
-                variant="outline"
+                variant="primary"
                 onClick={handleToggle}
                 isLoading={isProcessing || isLoading}
                 disabled={isLoading}
-                className="w-full sm:w-auto border-emerald-500 text-emerald-600 hover:bg-emerald-500/10"
+                className="w-full sm:w-auto"
               >
-                Disable Emergency Mode
+                Reopen the café
               </Button>
             ) : (
+              // Outline, not a filled red slab. This is the rarest and most
+              // destructive control in the portal; making it the loudest thing
+              // on the settings screen invited a first-time owner to press it.
               <Button
-                variant="destructive"
+                variant="destructive-outline"
                 onClick={handleToggle}
                 isLoading={isProcessing || isLoading}
                 disabled={isLoading}
-                className="w-full sm:w-auto gap-2"
+                className="w-full gap-2 sm:w-auto"
               >
-                <AlertTriangle className="h-4 w-4" />
-                Enable Emergency Mode
+                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                Shut down bookings
               </Button>
             )}
           </div>
@@ -106,40 +111,42 @@ export function EmergencyModeCard({ isEmergencyMode, onToggle, isLoading }: Emer
             <Card elevation="raised" className="max-w-lg w-full bg-surface border border-red-500/40 shadow-2xl">
               <CardContent className="p-5 sm:p-6 flex flex-col gap-4">
                 <div className="flex items-center justify-center pt-2">
-                  <div className="h-16 w-16 rounded-full bg-red-500/20 flex items-center justify-center animate-pulse">
-                    <AlertTriangle className="h-8 w-8 text-red-500" />
+                  {/* No `animate-pulse`: a throbbing icon adds urgency to a
+                      decision that needs the opposite — a moment to read. */}
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/15">
+                    <AlertTriangle className="h-8 w-8 text-red-600" aria-hidden="true" />
                   </div>
                 </div>
 
                 <div className="text-center">
-                  <h3 className="font-heading text-h2 text-text-primary">Enable Emergency Mode?</h3>
-                  <p className="text-body text-text-secondary mt-1">
-                    This will IMMEDIATELY stop all new online bookings.
+                  <h3 className="font-heading text-h2 text-text-primary">Shut down bookings?</h3>
+                  <p className="mt-1 text-body text-text-secondary">
+                    Nobody will be able to book from the moment you confirm.
                   </p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-caption text-text-secondary">
+                <div className="rounded-xl border border-border bg-surface p-4 text-caption text-text-secondary">
                   <ul className="flex flex-col gap-2">
-                    <li className="flex items-center gap-2">
-                      <span className="text-red-500 font-bold">•</span>
-                      <span>Customers will see venue as &quot;temporarily unavailable&quot;</span>
+                    <li className="flex gap-2">
+                      <span className="font-bold text-red-600" aria-hidden="true">•</span>
+                      <span>Your café shows as temporarily closed in the app.</span>
                     </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-red-500 font-bold">•</span>
-                      <span>Existing booked sessions remain active</span>
+                    <li className="flex gap-2">
+                      <span className="font-bold text-red-600" aria-hidden="true">•</span>
+                      <span>People who already booked keep their session.</span>
                     </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-red-500 font-bold">•</span>
-                      <span>Walk-ins may still be processed manually at desk</span>
+                    <li className="flex gap-2">
+                      <span className="font-bold text-red-600" aria-hidden="true">•</span>
+                      <span>You can still take walk-ins at the desk.</span>
                     </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-red-500 font-bold">•</span>
-                      <span>You can disable Emergency Mode at any time</span>
+                    <li className="flex gap-2">
+                      <span className="font-bold text-red-600" aria-hidden="true">•</span>
+                      <span>You can undo this whenever you like.</span>
                     </li>
                   </ul>
                 </div>
 
-                <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-2">
+                <div className="flex flex-col-reverse items-center justify-end gap-3 pt-2 sm:flex-row">
                   <Button variant="ghost" onClick={handleCancel} className="w-full sm:w-auto">
                     Cancel
                   </Button>
@@ -147,10 +154,11 @@ export function EmergencyModeCard({ isEmergencyMode, onToggle, isLoading }: Emer
                     variant="destructive"
                     onClick={handleToggle}
                     isLoading={isProcessing}
-                    className="w-full sm:w-auto gap-2"
+                    loadingText="Shutting down"
+                    className="w-full gap-2 sm:w-auto"
                   >
-                    <AlertTriangle className="h-4 w-4" />
-                    Yes, Enable Emergency Mode
+                    <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                    Yes, shut down
                   </Button>
                 </div>
               </CardContent>

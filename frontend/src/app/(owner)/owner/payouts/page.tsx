@@ -14,7 +14,9 @@ import {
   Info,
 } from 'lucide-react';
 import { getOwnerPayoutSummary, getOwnerCafePayouts, type OwnerCafePayoutHistoryItem } from '@/lib/api/owner';
-import { Card, CardContent, Badge, Button, EmptyState } from '@/components/ui';
+import { Card, CardContent, Badge, Button, EmptyState, PageSpinner } from '@/components/ui';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
 import { useAuthStore } from '@/store/authStore';
 
 interface PayoutAccount {
@@ -107,62 +109,55 @@ export default function OwnerPayoutsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" />
-      </div>
+      <PageSpinner />
     );
   }
 
   const kycActivated = account?.kycStatus === 'activated';
 
   return (
-    <div className="max-w-5xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-6">
-        <div>
-          <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-            <CreditCard className="h-6 w-6 text-emerald-500" />
-            <span>Payouts</span>
-          </h1>
-          <p className="text-caption text-text-secondary">Real breakdown of what gamers paid, what KHEL-O keeps, and what&apos;s transferred to your bank via Razorpay Route.</p>
-        </div>
-
-        {kycActivated ? (
-          <Badge variant="success" size="md" className="gap-1.5 py-1.5 px-3">
-            <ShieldCheck className="h-4 w-4" />
-            <span>Payout Account Active</span>
-          </Badge>
-        ) : (
-          <Badge variant="warning" size="md" className="gap-1.5 py-1.5 px-3">
-            <ShieldAlert className="h-4 w-4" />
-            <span>{account ? 'KYC Pending Verification' : 'Payout Account Not Set Up'}</span>
-          </Badge>
-        )}
-      </div>
+    <div className="flex flex-col gap-8">
+      <OwnerPageHeader
+        title="Payouts"
+        description="What customers paid, what KHEL-O kept, and what has reached your bank."
+        action={
+          kycActivated ? (
+            <Badge variant="success" size="md" className="gap-1.5 px-3 py-1.5">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              <span>Bank account ready</span>
+            </Badge>
+          ) : (
+            <Badge variant="warning" size="md" className="gap-1.5 px-3 py-1.5">
+              <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+              <span>{account ? 'Bank details being checked' : 'No bank account yet'}</span>
+            </Badge>
+          )
+        }
+      />
 
       {!kycActivated && (
-        <Card elevation="resting" className="bg-amber-500/5 border border-amber-500/30">
-          <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <Card elevation="resting" className="border border-amber-500/30 bg-amber-500/5">
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center flex-shrink-0">
-                <Info className="h-5 w-5" />
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
+                <Info className="h-5 w-5" aria-hidden="true" />
               </div>
-              <div>
-                <h3 className="font-heading text-caption font-bold text-text-primary">
-                  {account ? 'Your payout account is awaiting Razorpay verification' : 'Set up direct bank payouts'}
+              <div className="min-w-0">
+                <h3 className="font-heading text-body font-bold text-text-primary">
+                  {account ? "We're checking your bank details" : 'Add your bank account'}
                 </h3>
-                <p className="text-xs text-text-secondary">
+                <p className="max-w-prose text-caption text-text-secondary">
                   {account
-                    ? 'Once Razorpay activates your linked account, future booking payments will transfer to your bank automatically. Until then, settlement is pending.'
-                    : 'Submit your bank details and PAN to get paid directly for bookings, instead of manual settlement.'}
+                    ? "This usually takes a day or two. Once it's done, money from bookings lands in your account automatically."
+                    : "Until you add one, we can't send you the money customers have paid."}
                 </p>
               </div>
             </div>
             {!account && (
-              <Link href="/owner/settings">
-                <Button variant="primary" size="sm" className="gap-1.5 whitespace-nowrap">
-                  <span>Set Up Payouts</span>
-                  <ArrowUpRight className="h-3.5 w-3.5" />
+              <Link href="/owner/settings" className="w-full sm:w-auto">
+                <Button variant="primary" size="sm" fullWidth className="gap-1.5 whitespace-nowrap sm:w-auto">
+                  <span>Add bank account</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
               </Link>
             )}
@@ -170,57 +165,52 @@ export default function OwnerPayoutsPage() {
         </Card>
       )}
 
-      {/* Earnings & Settlement Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5">
-        <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-4 sm:p-5 flex flex-col gap-1">
-            <span className="text-caption font-semibold text-text-secondary">Total Gross Earnings</span>
-            <div className="font-heading text-h1 text-text-primary">₹{(summary?.totalEarnings ?? 0).toFixed(2)}</div>
-            <span className="text-xs text-text-tertiary">Customer payment total</span>
-          </CardContent>
-        </Card>
-
-        <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-4 sm:p-5 flex flex-col gap-1">
-            <span className="text-caption font-semibold text-text-secondary">Transferred to Bank</span>
-            <div className="font-heading text-h1 text-emerald-600">₹{(summary?.completedSettlements ?? 0).toFixed(2)}</div>
-            <span className="text-xs text-text-tertiary">Confirmed via Razorpay Route</span>
-          </CardContent>
-        </Card>
-
-        <Card elevation="resting" className="bg-surface border border-border col-span-2 sm:col-span-1">
-          <CardContent className="p-4 sm:p-5 flex flex-col gap-1">
-            <span className="text-caption font-semibold text-text-secondary">Pending Settlement</span>
-            <div className="font-heading text-h1 text-amber-600">₹{(summary?.pendingSettlements ?? 0).toFixed(2)}</div>
-            <span className="text-xs text-text-tertiary">Not yet transferred</span>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Three figures, one row. The 2-column grid left the third card orphaned
+          across the full width, reading as a separate, more important number. */}
+      <OwnerStatRow
+        stats={[
+          {
+            label: 'Customers paid',
+            value: `₹${(summary?.totalEarnings ?? 0).toFixed(0)}`,
+            hint: 'all time',
+          },
+          {
+            label: 'Reached your bank',
+            value: `₹${(summary?.completedSettlements ?? 0).toFixed(0)}`,
+            tone: 'positive',
+          },
+          {
+            label: 'On the way',
+            value: `₹${(summary?.pendingSettlements ?? 0).toFixed(0)}`,
+            tone: 'warning',
+          },
+        ]}
+      />
 
       {/* Connected Bank Account Details */}
       <Card elevation="raised" className="bg-surface border border-border">
         <CardContent className="p-6 flex flex-col gap-4">
           <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
             <Building2 className="h-5 w-5 text-emerald-500" />
-            <span>Connected Razorpay Route Account</span>
+            <span>Your bank account</span>
           </h2>
 
           {account ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-surface-hover p-4 rounded-2xl border border-border/80">
               <div>
-                <span className="text-xs text-text-tertiary block">Account Holder</span>
+                <span className="text-caption text-text-secondary block">Account Holder</span>
                 <span className="text-caption font-bold text-text-primary">{account.accountHolderName || '—'}</span>
               </div>
               <div>
-                <span className="text-xs text-text-tertiary block">Bank Account</span>
+                <span className="text-caption text-text-secondary block">Bank Account</span>
                 <span className="text-caption font-bold text-text-primary">{account.bankAccountNumberMasked || '—'}</span>
               </div>
               <div>
-                <span className="text-xs text-text-tertiary block">Bank IFSC</span>
+                <span className="text-caption text-text-secondary block">Bank IFSC</span>
                 <span className="text-caption font-bold text-text-primary">{account.bankIfsc || '—'}</span>
               </div>
               <div>
-                <span className="text-xs text-text-tertiary block">KYC Status</span>
+                <span className="text-caption text-text-secondary block">KYC Status</span>
                 {kycActivated ? (
                   <Badge variant="success" size="sm">Verified</Badge>
                 ) : (
@@ -242,7 +232,7 @@ export default function OwnerPayoutsPage() {
           <div className="flex items-center justify-between">
             <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
               <Receipt className="h-5 w-5 text-emerald-500" />
-              <span>Recent Payouts</span>
+              <span>Booking payments</span>
             </h2>
             {transactions.length > 0 && (
               <span className="text-caption text-text-secondary">Click a row for the full fee breakdown</span>
@@ -301,14 +291,14 @@ export default function OwnerPayoutsPage() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
               <Building2 className="h-5 w-5 text-emerald-500" />
-              <span>Manual Bank Payouts</span>
+              <span>Bank transfers from KHEL-O</span>
             </h2>
             <div className="text-right">
-              <span className="text-caption text-text-secondary block">Current Outstanding</span>
+              <span className="block text-caption text-text-secondary">Owed to you</span>
               <span className="font-heading text-h3 text-amber-600">₹{outstandingAmount.toFixed(2)}</span>
             </div>
           </div>
-          <p className="text-xs text-text-secondary">
+          <p className="text-caption text-text-secondary">
             While Razorpay Route is unavailable, KHEL-O pays out via direct bank transfer instead of
             automatic settlement. This is separate from the Route transfer status shown above.
           </p>

@@ -123,7 +123,7 @@ export default function OwnerSettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 sm:gap-8 pb-12 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-6 sm:gap-8">
       {/* Header with Live Status */}
       <SettingsHeader
         isEmergencyMode={settings.isEmergencyMode}
@@ -140,9 +140,12 @@ export default function OwnerSettingsPage() {
 
       {/* Section 1: Operational Controls */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 border-b border-border pb-2.5">
-          <SettingsIcon className="h-5 w-5 text-primary" />
-          <h2 className="font-heading text-h2 text-text-primary">Operational Controls</h2>
+        <div className="flex flex-col gap-1 border-b border-border pb-2.5">
+          <h2 className="font-heading text-h2 text-text-primary">Stop taking bookings</h2>
+          <p className="text-caption text-text-secondary">
+            Two ways to close the doors: pause online bookings for a busy evening, or shut everything
+            down in a real emergency.
+          </p>
         </div>
 
         <EmergencyModeCard
@@ -160,9 +163,11 @@ export default function OwnerSettingsPage() {
 
       {/* Section 1b: Payouts */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 border-b border-border pb-2.5">
-          <SettingsIcon className="h-5 w-5 text-primary" />
-          <h2 className="font-heading text-h2 text-text-primary">Payouts</h2>
+        <div className="flex flex-col gap-1 border-b border-border pb-2.5">
+          <h2 className="font-heading text-h2 text-text-primary">Where your money goes</h2>
+          <p className="text-caption text-text-secondary">
+            The bank account KHEL-O sends your earnings to.
+          </p>
         </div>
         {/* min-h reserves roughly the "account already set up" card's real
             height so PayoutSetupCard's own internal data fetch (which starts
@@ -177,18 +182,13 @@ export default function OwnerSettingsPage() {
 
       {/* Section 2: Café Information (Read only) */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between border-b border-border pb-2.5">
-          <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-primary" />
-            <h2 className="font-heading text-h2 text-text-primary">Café Information</h2>
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-2.5">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-heading text-h2 text-text-primary">Your café details</h2>
+            <p className="text-caption text-text-secondary">What customers see on your listing.</p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs sm:text-caption"
-            onClick={() => setIsEditModalOpen(true)}
-          >
-            Edit Profile
+          <Button variant="secondary" size="sm" onClick={() => setIsEditModalOpen(true)}>
+            Edit
           </Button>
         </div>
 
@@ -196,12 +196,12 @@ export default function OwnerSettingsPage() {
           <CardContent className="p-4 sm:p-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div className="flex flex-col gap-1">
-                <span className="text-caption text-text-tertiary">Café Name</span>
+                <span className="text-caption text-text-secondary">What customers see it called</span>
                 <span className="text-body font-semibold text-text-primary">{settings.cafeName}</span>
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-caption text-text-tertiary">Phone Number</span>
+                <span className="text-caption text-text-secondary">Phone number</span>
                 <div className="flex items-center gap-1.5">
                   <Phone className="h-4 w-4 text-text-secondary" />
                   <span className="text-body text-text-primary">{settings.phoneNumber}</span>
@@ -209,14 +209,14 @@ export default function OwnerSettingsPage() {
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-caption text-text-tertiary">Address</span>
+                <span className="text-caption text-text-secondary">Address</span>
                 <span className="text-body text-text-primary">
                   {settings.addressLine1}, {settings.city}, {settings.state} - {settings.pincode}
                 </span>
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-caption text-text-tertiary">Operating Hours</span>
+                <span className="text-caption text-text-secondary">Open between</span>
                 <div className="flex items-center gap-1.5">
                   <Clock className="h-4 w-4 text-text-secondary" />
                   <span className="text-body text-text-primary">
@@ -228,7 +228,7 @@ export default function OwnerSettingsPage() {
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-caption text-text-tertiary">Map Location</span>
+                <span className="text-caption text-text-secondary">Pin on the map</span>
                 <span className="text-body text-text-primary">
                   {settings.latitude != null && settings.longitude != null
                     ? `${settings.latitude.toFixed(4)}, ${settings.longitude.toFixed(4)}`
@@ -239,10 +239,10 @@ export default function OwnerSettingsPage() {
 
             {settings.amenities && settings.amenities.length > 0 && (
               <div className="flex flex-col gap-1.5 mt-4 pt-4 border-t border-border">
-                <span className="text-caption text-text-tertiary">Amenities</span>
+                <span className="text-caption text-text-secondary">What you offer</span>
                 <div className="flex flex-wrap gap-1.5">
                   {settings.amenities.map((a) => (
-                    <span key={a} className="text-[11px] font-semibold px-2 py-1 rounded-md bg-primary/10 text-primary">
+                    <span key={a} className="rounded-md bg-primary/10 px-2 py-1 text-caption font-semibold text-primary">
                       {a}
                     </span>
                   ))}
@@ -253,31 +253,23 @@ export default function OwnerSettingsPage() {
         </Card>
       </div>
 
-      {/* Section 3: Danger Zone */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 border-b border-rose-500/30 pb-2.5">
-          <AlertCircle className="h-5 w-5 text-rose-500" />
-          <h2 className="font-heading text-h2 text-text-primary">Danger Zone</h2>
-        </div>
-
-        <Card elevation="resting" className="bg-surface border border-rose-500/30">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex flex-col gap-1">
-                <h3 className="font-heading text-body font-bold text-text-primary">
-                  Request Café Deactivation
-                </h3>
-                <p className="text-caption text-text-secondary max-w-lg">
-                  Permanently remove this café from the KHEL platform. This action requires admin approval
-                  and cannot be undone.
-                </p>
-              </div>
-              <Button variant="ghost" disabled className="w-full sm:w-auto text-rose-500 border border-rose-500/30 opacity-70">
-                Coming Soon
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      {/* "Danger Zone" framing plus a red-bordered card promised a control that
+          does not exist yet — its only button was a disabled "Coming Soon". A
+          first-time owner reads the alarm and finds nothing to act on. Stated as
+          a plain closing note instead, with the actual next step: talk to us. */}
+      <div className="flex flex-col gap-2 border-t border-border pt-6">
+        <h2 className="font-heading text-h3 text-text-primary">Closing your café</h2>
+        <p className="max-w-prose text-caption text-text-secondary">
+          To take your café off KHEL-O for good, email{' '}
+          <a
+            href="mailto:support@khel-o.com"
+            className="font-semibold text-primary underline underline-offset-2"
+          >
+            support@khel-o.com
+          </a>
+          . We&apos;ll confirm with you before anything is removed. If you just need a break, pause
+          bookings above instead — that&apos;s reversible.
+        </p>
       </div>
 
       {settings && (

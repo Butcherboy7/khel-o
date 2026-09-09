@@ -17,6 +17,7 @@ import {
   Minus,
   Plus,
   AlertCircle,
+  X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
@@ -27,7 +28,8 @@ import {
 } from '@/lib/api/owner';
 import { updateTier } from '@/lib/api/tiers';
 import { getTodayString, formatMinutesTo12h, timeToMinutes } from '@/lib/format';
-import { Card, Button, Badge } from '@/components/ui';
+import { Card, Button, Badge, PageSpinner } from '@/components/ui';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
@@ -155,16 +157,14 @@ export default function OwnerAvailabilityPage() {
 
   if (isLoading && !data) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
-      </div>
+      <PageSpinner />
     );
   }
 
   if (!data || data.tiers.length === 0) {
     return (
       <div className="max-w-2xl mx-auto pt-10 px-4 text-center flex flex-col items-center gap-3">
-        <Monitor className="h-10 w-10 text-text-tertiary" />
+        <Monitor className="h-10 w-10 text-text-secondary" />
         <h1 className="font-heading text-h2 font-bold text-text-primary">No station types yet</h1>
         <p className="text-body text-text-secondary">
           Add a hardware tier (PC, PS5, Xbox...) before you can see live capacity here.
@@ -184,18 +184,27 @@ export default function OwnerAvailabilityPage() {
     : null;
 
   return (
-    <div className="max-w-6xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex flex-col gap-1 border-b border-border pb-4">
-        <h1 className="font-heading text-h2 sm:text-h1 font-bold text-text-primary">Live Availability</h1>
-        <p className="text-caption text-text-secondary">See what&apos;s free &amp; manage your stations.</p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <OwnerPageHeader
+        title="Free seats"
+        description="What's taken and what's open, hour by hour."
+      />
 
       {error && (
-        <div className="flex items-center gap-2 p-3.5 rounded-2xl text-caption font-semibold bg-red-500/10 border border-red-500/20 text-red-600">
-          <AlertCircle className="h-5 w-5 flex-shrink-0" />
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-auto text-xs opacity-60 hover:opacity-100">✕</button>
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-2xl border border-error/20 bg-error/10 p-3.5 text-caption font-semibold text-error"
+        >
+          <AlertCircle className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1">{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            aria-label="Dismiss message"
+            className="-m-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg opacity-60 transition-opacity hover:opacity-100"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
       )}
 
@@ -234,40 +243,46 @@ export default function OwnerAvailabilityPage() {
       {/* Hero capacity strip */}
       {heroStats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col gap-1">
-            <span className="text-overline text-emerald-700 flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Available {isToday ? 'Now' : ''}
+          {/* Labels at 12px, not the 10px overline these carried: they are the
+              only thing telling the owner which number is which. */}
+          <div className="flex flex-col gap-1 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
+            <span className="flex items-center gap-1.5 text-caption font-semibold text-emerald-800">
+              <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> Free{' '}
+              {isToday ? 'now' : ''}
             </span>
-            <span className="font-heading text-h1 font-bold text-emerald-700">{heroStats.available}</span>
-            <span className="text-xs text-emerald-700/70">of {heroStats.total}</span>
+            <span className="font-heading text-h1 text-emerald-800">{heroStats.available}</span>
+            <span className="text-caption text-emerald-800/80">of {heroStats.total}</span>
           </div>
-          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex flex-col gap-1">
-            <span className="text-overline text-rose-700 flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5" /> Occupied {isToday ? 'Now' : ''}
+          <div className="flex flex-col gap-1 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3.5">
+            <span className="flex items-center gap-1.5 text-caption font-semibold text-rose-800">
+              <Users className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> In use{' '}
+              {isToday ? 'now' : ''}
             </span>
-            <span className="font-heading text-h1 font-bold text-rose-700">{heroStats.occupied}</span>
-            <span className="text-xs text-rose-700/70">of {heroStats.total}</span>
+            <span className="font-heading text-h1 text-rose-800">{heroStats.occupied}</span>
+            <span className="text-caption text-rose-800/80">of {heroStats.total}</span>
           </div>
-          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col gap-1">
-            <span className="text-overline text-amber-700 flex items-center gap-1.5">
-              <Clock3 className="h-3.5 w-3.5" /> Pending
+          <div className="flex flex-col gap-1 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5">
+            <span className="flex items-center gap-1.5 text-caption font-semibold text-amber-800">
+              <Clock3 className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> Not paid yet
             </span>
-            <span className="font-heading text-h1 font-bold text-amber-700">{heroStats.pending}</span>
-            <span className="text-xs text-amber-700/70">booking{heroStats.pending === 1 ? '' : 's'}</span>
+            <span className="font-heading text-h1 text-amber-800">{heroStats.pending}</span>
+            <span className="text-caption text-amber-800/80">
+              booking{heroStats.pending === 1 ? '' : 's'}
+            </span>
           </div>
-          <div className="p-3.5 rounded-2xl bg-surface border border-border flex flex-col gap-1">
-            <span className="text-overline text-text-secondary flex items-center gap-1.5">
-              <Monitor className="h-3.5 w-3.5" /> Total Stations
+          <div className="flex flex-col gap-1 rounded-2xl border border-border bg-surface p-3.5">
+            <span className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary">
+              <Monitor className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> Total
             </span>
-            <span className="font-heading text-h1 font-bold text-text-primary">{heroStats.total}</span>
-            <span className="text-xs text-text-tertiary">{selectedTier?.name}</span>
+            <span className="font-heading text-h1 text-text-primary">{heroStats.total}</span>
+            <span className="truncate text-caption text-text-secondary">{selectedTier?.name}</span>
           </div>
         </div>
       )}
 
       {/* Station type selector */}
       <div className="flex flex-col gap-2">
-        <span className="text-caption font-bold text-text-primary">Select Station Type</span>
+        <span className="text-caption font-bold text-text-primary">Which stations?</span>
         <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
           {data.tiers.map((t) => {
             const Icon = platformIcon(t.platform);
@@ -285,7 +300,7 @@ export default function OwnerAvailabilityPage() {
                 <span className={`text-caption font-bold text-center leading-tight ${isActive ? 'text-primary' : 'text-text-primary'}`}>
                   {t.name}
                 </span>
-                <span className="text-xs text-text-tertiary">{t.totalSeats} Stations</span>
+                <span className="text-xs text-text-secondary">{t.totalSeats} Stations</span>
               </button>
             );
           })}
@@ -294,14 +309,22 @@ export default function OwnerAvailabilityPage() {
 
       {/* Availability timeline */}
       <Card elevation="raised" className="p-4 sm:p-5 flex flex-col gap-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <span className="font-heading text-h3 font-bold text-text-primary">Availability Timeline</span>
-          <div className="flex items-center gap-3 text-xs font-semibold text-text-secondary flex-wrap">
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Available</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-heading text-h3 text-text-primary">Hour by hour</span>
+            {/* The row below scrolls sideways past ~6 hours and hides its
+                scrollbar, so on a phone the rest of the day was simply invisible
+                with nothing to suggest it existed. */}
+            <span className="text-caption text-text-secondary sm:hidden">
+              Swipe sideways for later hours
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-caption font-semibold text-text-secondary">
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Free</span>
             <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-rose-500" /> Booked</span>
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Pending</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Not paid</span>
             {selectedTier && selectedTier.blockedSeats > 0 && (
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-gray-400" /> Blocked</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-gray-400" /> Out of service</span>
             )}
           </div>
         </div>
@@ -336,7 +359,7 @@ export default function OwnerAvailabilityPage() {
                   <div style={{ height: `${bookedPct}%` }} className="w-full bg-rose-500" />
                   <div style={{ height: `${blockedPct}%` }} className="w-full bg-gray-400" />
                 </div>
-                <span className={`text-[10px] font-semibold ${isSelected ? 'text-primary' : 'text-text-tertiary'}`}>
+                <span className={`text-caption font-semibold ${isSelected ? 'text-primary' : 'text-text-secondary'}`}>
                   {formatMinutesTo12h(hour * 60).replace(':00', '').replace(' ', '')}
                 </span>
               </button>
@@ -360,19 +383,19 @@ export default function OwnerAvailabilityPage() {
             <div className="grid grid-cols-4 gap-2 text-center">
               <div className="flex flex-col">
                 <span className="font-heading text-h2 font-bold text-emerald-600">{selectedSlot.available}</span>
-                <span className="text-[10px] font-semibold text-text-tertiary uppercase">Available</span>
+                <span className="text-caption font-semibold text-text-secondary uppercase">Available</span>
               </div>
               <div className="flex flex-col">
                 <span className="font-heading text-h2 font-bold text-rose-600">{selectedSlot.booked}</span>
-                <span className="text-[10px] font-semibold text-text-tertiary uppercase">Booked</span>
+                <span className="text-caption font-semibold text-text-secondary uppercase">Booked</span>
               </div>
               <div className="flex flex-col">
                 <span className="font-heading text-h2 font-bold text-amber-600">{selectedSlot.pending}</span>
-                <span className="text-[10px] font-semibold text-text-tertiary uppercase">Pending</span>
+                <span className="text-caption font-semibold text-text-secondary uppercase">Pending</span>
               </div>
               <div className="flex flex-col">
                 <span className="font-heading text-h2 font-bold text-text-primary">{selectedSlot.total}</span>
-                <span className="text-[10px] font-semibold text-text-tertiary uppercase">Total</span>
+                <span className="text-caption font-semibold text-text-secondary uppercase">Total</span>
               </div>
             </div>
 
@@ -412,7 +435,7 @@ export default function OwnerAvailabilityPage() {
                     <span className="font-data text-caption font-bold text-text-primary">
                       {formatMinutesTo12h(timeToMinutes(b.startTime))}–{formatMinutesTo12h(timeToMinutes(b.endTime))}
                     </span>
-                    <span className="text-xs text-text-tertiary">{b.seatsCount} seat{b.seatsCount > 1 ? 's' : ''}</span>
+                    <span className="text-xs text-text-secondary">{b.seatsCount} seat{b.seatsCount > 1 ? 's' : ''}</span>
                   </div>
                   <Badge
                     variant={b.status === 'pending_payment' ? 'warning' : 'success'}
@@ -434,9 +457,11 @@ export default function OwnerAvailabilityPage() {
             <div className="h-9 w-9 rounded-xl bg-gray-500/10 text-gray-500 flex items-center justify-center flex-shrink-0">
               <Ban className="h-4 w-4" />
             </div>
-            <div>
-              <span className="text-caption font-bold text-text-primary block">Blocked / Maintenance</span>
-              <span className="text-xs text-text-tertiary">Stations taken out of service on {selectedTier.name}.</span>
+            <div className="min-w-0">
+              <span className="block text-caption font-bold text-text-primary">Broken or under repair</span>
+              <span className="text-caption text-text-secondary">
+                {selectedTier.name} stations nobody can book until you fix them.
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -444,29 +469,34 @@ export default function OwnerAvailabilityPage() {
               type="button"
               onClick={() => handleAdjustBlocked(-1)}
               disabled={isUpdatingBlocked || selectedTier.blockedSeats <= 0}
-              className="h-9 w-9 rounded-lg bg-surface border border-border flex items-center justify-center hover:bg-surface-hover disabled:opacity-30 transition-colors"
-            ><Minus className="h-3.5 w-3.5" /></button>
-            <span className="font-heading text-body font-bold text-text-primary min-w-[2ch] text-center">{selectedTier.blockedSeats}</span>
+              aria-label="One fewer station out of service"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-surface transition-colors hover:bg-surface-hover disabled:opacity-30"
+            ><Minus className="h-4 w-4" aria-hidden="true" /></button>
+            <span className="min-w-[2ch] text-center font-heading text-body font-bold text-text-primary">{selectedTier.blockedSeats}</span>
             <button
               type="button"
               onClick={() => handleAdjustBlocked(1)}
               disabled={isUpdatingBlocked || selectedTier.blockedSeats >= selectedTier.totalSeats}
-              className="h-9 w-9 rounded-lg bg-surface border border-border flex items-center justify-center hover:bg-surface-hover disabled:opacity-30 transition-colors"
-            ><Plus className="h-3.5 w-3.5" /></button>
+              aria-label="One more station out of service"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-surface transition-colors hover:bg-surface-hover disabled:opacity-30"
+            ><Plus className="h-4 w-4" aria-hidden="true" /></button>
           </div>
         </Card>
       )}
 
-      {/* Quick actions */}
-      <div className="grid grid-cols-2 gap-3">
-        <Link href="/owner/scanner">
-          <Button variant="primary" size="md" className="w-full gap-2 min-h-[48px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold">
-            <QrCode className="h-4 w-4" /> Scan &amp; Check-in
+      {/* Stacked, not two-up: side by side at 390px both labels wrapped to two
+          lines and overflowed their own buttons. One clear action per row. */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Link href="/owner/scanner" className="sm:flex-1">
+          <Button variant="primary" size="md" fullWidth className="gap-2">
+            <QrCode className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            <span>Scan a pass</span>
           </Button>
         </Link>
-        <Link href="/owner/bookings">
-          <Button variant="outline" size="md" className="w-full gap-2 min-h-[48px]">
-            <CalendarDays className="h-4 w-4" /> View Bookings
+        <Link href="/owner/bookings" className="sm:flex-1">
+          <Button variant="secondary" size="md" fullWidth className="gap-2">
+            <CalendarDays className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            <span>All bookings</span>
           </Button>
         </Link>
       </div>

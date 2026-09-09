@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { BarChart3, Monitor, Gamepad2, Clock } from 'lucide-react';
 import { getOwnerAnalytics } from '@/lib/api/owner';
-import { Card, CardContent, Badge } from '@/components/ui';
+import { Card, CardContent, Badge, PageSpinner } from '@/components/ui';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
 
 interface TierRevenue {
   tierName: string;
@@ -58,9 +60,7 @@ export default function OwnerAnalyticsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" />
-      </div>
+      <PageSpinner />
     );
   }
 
@@ -72,46 +72,35 @@ export default function OwnerAnalyticsPage() {
   const maxTrendRevenue = Math.max(1, ...revenueTrend.map((d) => d.revenue));
 
   return (
-    <div className="max-w-4xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-5">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border pb-4">
-        <div>
-          <h1 className="font-heading text-h1 text-text-primary flex items-start gap-2">
-            <BarChart3 className="h-6 w-6 text-emerald-500 flex-shrink-0 mt-0.5" />
-            <span>Business Analytics</span>
-          </h1>
-          <p className="text-caption text-text-secondary">Operational metrics to optimize hardware pricing and peak hours.</p>
-        </div>
-      </div>
+    <div className="flex flex-col gap-5">
+      <OwnerPageHeader
+        title="Insights"
+        description="When you're busiest, which stations earn most, and how many customers come back."
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-3 sm:p-4 flex flex-col gap-1">
-            <span className="text-xs font-semibold text-text-secondary">Returning Customers</span>
-            <div className="font-heading text-h2 sm:text-h1 text-emerald-600">{analytics?.returningCustomerRate ?? 0}%</div>
-            <span className="text-[11px] text-text-tertiary hidden sm:block">Booked more than once</span>
-          </CardContent>
-        </Card>
-
-        <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-3 sm:p-4 flex flex-col gap-1">
-            <span className="text-xs font-semibold text-text-secondary">Avg. Session</span>
-            <div className="font-heading text-h2 sm:text-h1 text-text-primary">{analytics?.averageDurationHours ?? 0}h</div>
-            <span className="text-[11px] text-text-tertiary hidden sm:block">Per booking</span>
-          </CardContent>
-        </Card>
-
-        <Card elevation="resting" className="bg-surface border border-border">
-          <CardContent className="p-3 sm:p-4 flex flex-col gap-1">
-            <span className="text-xs font-semibold text-text-secondary">Peak Occupancy</span>
-            <div className="font-heading text-h2 sm:text-h1 text-amber-600">{analytics?.peakOccupancyPercent ?? 0}%</div>
-            <span className="text-[11px] text-text-tertiary hidden sm:block">
-              {busyHours[0]?.hour ?? 'No data yet'}
-            </span>
-          </CardContent>
-        </Card>
-      </div>
+      {/* The hint lines used to be `hidden sm:block` — on a phone the three
+          numbers appeared with no explanation of what they measured. */}
+      <OwnerStatRow
+        stats={[
+          {
+            label: 'Customers who came back',
+            value: `${analytics?.returningCustomerRate ?? 0}%`,
+            hint: 'booked more than once',
+            tone: 'positive',
+          },
+          {
+            label: 'Typical session',
+            value: `${analytics?.averageDurationHours ?? 0}h`,
+            hint: 'per booking',
+          },
+          {
+            label: 'Fullest you get',
+            value: `${analytics?.peakOccupancyPercent ?? 0}%`,
+            hint: busyHours[0]?.hour ?? 'no data yet',
+            tone: 'warning',
+          },
+        ]}
+      />
 
       {/* Hardware Tier Revenue Distribution */}
       <Card elevation="raised" className="bg-surface border border-border">
@@ -122,7 +111,7 @@ export default function OwnerAnalyticsPage() {
           </h2>
 
           {tierRevenue.length === 0 ? (
-            <p className="text-caption text-text-tertiary">No paid bookings yet — revenue by tier will appear here once you have completed sessions.</p>
+            <p className="text-caption text-text-secondary">No paid bookings yet — revenue by tier will appear here once you have completed sessions.</p>
           ) : (
             <div className="flex flex-col gap-3">
               {tierRevenue.map((tier) => {
@@ -154,7 +143,7 @@ export default function OwnerAnalyticsPage() {
             </h2>
 
             {busyHours.length === 0 ? (
-              <p className="text-caption text-text-tertiary">No booking activity yet.</p>
+              <p className="text-caption text-text-secondary">No booking activity yet.</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {busyHours.map((h) => (
@@ -185,7 +174,7 @@ export default function OwnerAnalyticsPage() {
             </h2>
 
             {topGames.length === 0 ? (
-              <p className="text-caption text-text-tertiary">No game data recorded on bookings yet.</p>
+              <p className="text-caption text-text-secondary">No game data recorded on bookings yet.</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {topGames.map((g) => (
@@ -211,19 +200,19 @@ export default function OwnerAnalyticsPage() {
           </h2>
 
           {revenueTrend.length === 0 || maxTrendRevenue <= 1 && revenueTrend.every((d) => d.revenue === 0) ? (
-            <p className="text-caption text-text-tertiary">No revenue recorded in the last 7 days.</p>
+            <p className="text-caption text-text-secondary">No revenue recorded in the last 7 days.</p>
           ) : (
             <div className="flex items-end gap-2 h-24">
               {revenueTrend.map((d) => {
                 const barPct = (d.revenue / maxTrendRevenue) * 100;
                 return (
                   <div key={d.date} className="flex-1 flex flex-col items-center justify-end gap-1 h-full">
-                    <span className="text-[10px] text-text-tertiary">{d.revenue > 0 ? `₹${Math.round(d.revenue)}` : ''}</span>
+                    <span className="text-caption text-text-secondary">{d.revenue > 0 ? `₹${Math.round(d.revenue)}` : ''}</span>
                     <div
                       className="w-full bg-emerald-500 rounded-t-md min-h-[2px]"
                       style={{ height: `${Math.max(barPct, 2)}%` }}
                     />
-                    <span className="text-[10px] text-text-tertiary">
+                    <span className="text-caption text-text-secondary">
                       {new Date(d.date).toLocaleDateString(undefined, { weekday: 'short' })}
                     </span>
                   </div>

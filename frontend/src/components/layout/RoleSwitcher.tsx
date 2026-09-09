@@ -102,7 +102,7 @@ export function RoleSwitcher() {
         <button
           onClick={handleCycleRole}
           disabled={isSwitching}
-          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95 ${COLOR_CLASSES[meta.color]}`}
+          className={`flex min-h-[36px] items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95 [@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:px-3.5 ${COLOR_CLASSES[meta.color]}`}
           title={`Click to switch to ${ROLE_META[nextRole].label}`}
         >
           {isSwitching ? (
@@ -128,7 +128,7 @@ export function RoleSwitcher() {
           type="button"
           onClick={handleEnterAdmin}
           disabled={isSwitching}
-          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95 disabled:opacity-60 ${COLOR_CLASSES[adminMeta.color]}`}
+          className={`flex min-h-[36px] items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95 disabled:opacity-60 [@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:px-3.5 ${COLOR_CLASSES[adminMeta.color]}`}
           title={adminMeta.label}
         >
           {isSwitching ? (
