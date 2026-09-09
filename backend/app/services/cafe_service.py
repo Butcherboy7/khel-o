@@ -119,9 +119,18 @@ class CafeService:
             res_payout = await self.cafe_repo.db.execute(stmt_payout)
             payout_acc = res_payout.scalars().first()
             if payout_acc:
-                resp.bank_account_number = payout_acc.bank_account_number_masked or (payout_acc.details.get("full_account") if payout_acc.details else None)
+                # Masked value only — the encrypted account number is never
+                # decrypted for an API response. The old plaintext
+                # details["full_account"] fallback is retired entirely.
+                resp.bank_account_number = payout_acc.bank_account_number_masked
                 resp.bank_ifsc = payout_acc.bank_ifsc
                 resp.account_holder_name = payout_acc.account_holder_name
+                if hasattr(resp, "upi_vpa"):
+                    resp.upi_vpa = payout_acc.upi_vpa
+                if hasattr(resp, "payout_verification_status"):
+                    resp.payout_verification_status = payout_acc.payout_verification_status
+                if hasattr(resp, "verified_name"):
+                    resp.verified_name = payout_acc.verified_name
 
         return resp
 

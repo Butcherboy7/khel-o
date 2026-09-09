@@ -13,6 +13,8 @@ class CafePayoutStatus(str, enum.Enum):
     PAID = "paid"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    ON_HOLD = "on_hold"
+    DISPUTED = "disputed"
 
 
 class CafePayout(Base):
@@ -32,6 +34,8 @@ class CafePayout(Base):
         nullable=False,
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    proof_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_admin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

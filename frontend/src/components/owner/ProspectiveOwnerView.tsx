@@ -18,7 +18,7 @@ export function ProspectiveOwnerView() {
             Grow Your Gaming Café Revenue with KHELO
           </h1>
           <p className="text-body text-slate-300 leading-relaxed">
-            Fill idle PC stations, automate hourly bookings, and receive direct Razorpay Route payouts. Join over 30+ top gaming lounges across India.
+            Fill idle PC stations, automate hourly bookings, and get paid out weekly via UPI or bank transfer. Join over 30+ top gaming lounges across India.
           </p>
           <div className="pt-4 flex flex-wrap items-center gap-4">
             <Link href="/owner/onboarding">
@@ -40,7 +40,7 @@ export function ProspectiveOwnerView() {
             </div>
             <h3 className="font-heading text-h3 text-text-primary">Direct Payouts</h3>
             <p className="text-caption text-text-secondary">
-              Seamless Razorpay Route automated settlements straight into your bank account with complete fee transparency.
+              Reliable weekly payouts straight to your UPI ID or bank account, with complete fee transparency.
             </p>
           </CardContent>
         </Card>
@@ -82,7 +82,7 @@ export function ProspectiveOwnerView() {
             {[
               'Basic Café Info & Location',
               'Business Verification (GSTIN/PAN)',
-              'Bank Payout Account (Razorpay)',
+              'Payout Details (UPI/Bank)',
               'Operating Hours & Hardware Tiers',
               'Games Supported & Photos',
               'House Rules & Review Submission'

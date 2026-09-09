@@ -92,6 +92,12 @@ async def test_owner_payout_summary_pending_excludes_already_manually_paid_out(d
     owner = (await db_session.execute(select(User).where(User.id == cafe.owner_id))).scalars().first()
 
     db_session.add(PlatformFee(id=uuid4(), booking_id=booking_a.id, owner_settlement_amount=200.0, gateway_fee=5.0))
+
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe.owner_id,
+        upi_vpa="test@okaxis", payout_verification_status="verified",
+    ))
     await db_session.commit()
 
     # At this point A is the café's only booking, so this payout covers

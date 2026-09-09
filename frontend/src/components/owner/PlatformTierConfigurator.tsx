@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, ChevronRight } from 'lucide-react';
 import { PLATFORMS, PLATFORM_MODELS, type Platform } from '@/constants/platforms';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import { ACTIVITY_PRESETS, ActivityIcon } from '@/components/icons/ActivityIcons';
@@ -81,6 +81,11 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
     return () => clearTimeout(t);
   }, [justAddedId]);
 
+  // Which platform panels are expanded. A platform is auto-added to this
+  // set the moment it's toggled on, so the panel a config was just added
+  // to is never collapsed by default.
+  const [expandedPlatforms, setExpandedPlatforms] = useState<Set<Platform>>(new Set());
+
   const togglePlatform = (platform: Platform) => {
     if (selectedPlatforms.includes(platform)) {
       onChange(configs.filter((c) => c.tierType === 'activity' || c.platform !== platform));
@@ -92,10 +97,12 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
       const next = makeDefaultConfig(platform);
       onChange([...configs.filter((c) => c.tierType === 'activity'), next]);
       setJustAddedId(next.id);
+      setExpandedPlatforms((prev) => new Set(prev).add(platform));
     } else {
       const next = makeDefaultConfig(platform);
       onChange([...configs, next]);
       setJustAddedId(next.id);
+      setExpandedPlatforms((prev) => new Set(prev).add(platform));
     }
   };
 
@@ -104,6 +111,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
     const next = makeDefaultConfig(platform);
     onChange([...configs, next]);
     setJustAddedId(next.id);
+    setExpandedPlatforms((prev) => new Set(prev).add(platform));
   };
 
   const removeConfig = (id: string) => {
@@ -171,21 +179,28 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
           Activities (snooker, arcade, and other bookable extras)
         </label>
         <div className="flex flex-wrap gap-2 mb-3">
-          {ACTIVITY_PRESETS.map(({ key, label, icon: Icon, defaultIndividualUnits }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                const next = makeDefaultActivityConfig(key, defaultIndividualUnits);
-                onChange([...configs, next]);
-                setJustAddedId(next.id);
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-caption font-semibold border border-border bg-surface text-text-secondary hover:border-primary/60 transition-all"
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </button>
-          ))}
+          {ACTIVITY_PRESETS.map(({ key, label, icon: Icon, defaultIndividualUnits }) => {
+            const hasConfig = configs.some((c) => c.tierType === 'activity' && c.activityKind === key);
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  const next = makeDefaultActivityConfig(key, defaultIndividualUnits);
+                  onChange([...configs, next]);
+                  setJustAddedId(next.id);
+                }}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-caption font-semibold border transition-all ${
+                  hasConfig
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-surface text-text-secondary border-border hover:border-primary/60'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            );
+          })}
           <button
             type="button"
             onClick={() => {
@@ -276,10 +291,30 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
         return (
           <div key={p.value} className="flex flex-col gap-3 p-4 rounded-2xl border border-border bg-surface">
             <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 font-heading text-body-emphasis font-bold text-text-primary">
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedPlatforms((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(p.value)) {
+                      next.delete(p.value);
+                    } else {
+                      next.add(p.value);
+                    }
+                    return next;
+                  })
+                }
+                className="flex items-center gap-2 font-heading text-body-emphasis font-bold text-text-primary"
+              >
                 <PlatformIcon platform={p.value} className="h-4 w-4 text-primary" />
                 {p.label}
-              </h3>
+                <ChevronRight
+                  className={cn(
+                    'h-4 w-4 text-text-tertiary transition-transform',
+                    expandedPlatforms.has(p.value) && 'rotate-90'
+                  )}
+                />
+              </button>
               {!atCap && (
                 <button
                   type="button"
@@ -292,7 +327,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
               )}
             </div>
 
-            {platformConfigs.map((config) => (
+            {expandedPlatforms.has(p.value) && platformConfigs.map((config) => (
               <div
                 key={config.id}
                 className={cn(
@@ -322,7 +357,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                 </div>
 
                 <NumericField
-                  label="Total stations"
+                  label="Total units"
                   min={1}
                   value={config.totalSeats}
                   onChange={(n) => updateConfig(config.id, { totalSeats: n })}

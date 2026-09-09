@@ -47,7 +47,7 @@ interface NavItem {
 
 // Labels are the words a café owner already uses, not ours. "Pass Scanner"
 // and "Hardware Tiers" are KHEL-O vocabulary that a first-time owner has no
-// way to decode; "Scan & Check-in" and "Stations & Prices" describe the task.
+// way to decode; "Scan & Check-in" and "Resources & Pricing" describe the task.
 // Section headings say what the group is FOR, in the second person.
 const ownerNavSections: NavSection[] = [
   {
@@ -74,7 +74,7 @@ const ownerNavSections: NavSection[] = [
         hint: 'Every booking, past and upcoming',
       },
       {
-        label: 'Free Seats',
+        label: 'Availability',
         href: '/owner/availability',
         icon: CalendarClock,
         hint: "What's free right now",
@@ -85,7 +85,7 @@ const ownerNavSections: NavSection[] = [
     heading: 'Your café',
     items: [
       {
-        label: 'Stations & Prices',
+        label: 'Resources & Pricing',
         href: '/owner/tiers',
         icon: Monitor,
         hint: 'Set up your PCs, consoles and hourly rates',
@@ -111,7 +111,7 @@ const staffNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard, hint: "Today's arrivals" },
   { label: 'Scan & Check-in', href: '/owner/scanner', icon: QrCode, hint: "Scan a customer's booking pass" },
   { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays, hint: 'Every booking, past and upcoming' },
-  { label: 'Free Seats', href: '/owner/availability', icon: CalendarClock, hint: "What's free right now" },
+  { label: 'Availability', href: '/owner/availability', icon: CalendarClock, hint: "What's free right now" },
 ];
 
 /** Resolves the current route to its nav label, for the mobile title bar. */

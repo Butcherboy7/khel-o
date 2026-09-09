@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any, List
 from uuid import UUID, uuid4
 import math
 import secrets
+import re
 from datetime import date, datetime, timezone, time, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -18,9 +19,10 @@ from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository, guess_platform_and_model
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
 from app.repositories.cafe_payout_repository import CafePayoutRepository
+from app.repositories.owner_payout_repository import OwnerPayoutRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, AliasChoices
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator, AliasChoices
 from app.constants import validate_city, validate_google_maps_url
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
@@ -134,15 +136,86 @@ class OnboardingSubmitRequest(BaseModel):
     photos: List[str] = Field(default_factory=list)
     supported_games: List[str] = Field(default_factory=list)
     business_pan: Optional[str] = None
+    has_gst: bool = False
     gstin: Optional[str] = None
     legal_document_url: Optional[str] = None
-    bank_account_number: Optional[str] = None
+
+    # --- Manual payout fields (Razorpay Route replacement) ---
+    upi_vpa: str = Field(..., min_length=3, max_length=256)
+    confirm_upi_vpa: str = Field(..., min_length=3, max_length=256)
+    bank_account_number: Optional[str] = Field(None, min_length=8, max_length=18)
+    confirm_bank_account_number: Optional[str] = None
     bank_ifsc: Optional[str] = None
     account_holder_name: Optional[str] = None
+    bank_name: Optional[str] = Field(None, max_length=100)
+    account_type: Optional[str] = None
+
     cancellation_policy: Optional[str] = None
     house_rules: List[str] = Field(default_factory=list)
     social_links: Dict[str, str] = Field(default_factory=dict)
     hardware_tiers: List[OnboardingHardwareTierItem] = Field(default_factory=list)
+
+    @field_validator("upi_vpa")
+    @classmethod
+    def _validate_upi_vpa(cls, v: str) -> str:
+        v = v.strip()
+        if not re.match(r"^[\w.\-]{2,256}@[a-zA-Z]{2,64}$", v):
+            raise ValueError("Enter a valid UPI ID (e.g. yourname@okhdfcbank).")
+        return v
+
+    @field_validator("business_pan")
+    @classmethod
+    def _validate_business_pan(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        v = v.strip().upper()
+        if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", v):
+            raise ValueError("Business PAN must be a valid 10-character PAN (e.g. ABCDE1234F).")
+        return v
+
+    @field_validator("bank_ifsc")
+    @classmethod
+    def _validate_bank_ifsc(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        v = v.strip().upper()
+        if not re.match(r"^[A-Z]{4}0[A-Z0-9]{6}$", v):
+            raise ValueError("Bank IFSC must be a valid 11-character code (e.g. HDFC0000128).")
+        return v
+
+    @field_validator("gstin")
+    @classmethod
+    def _validate_gstin(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        v = v.strip().upper()
+        if not re.match(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$", v):
+            raise ValueError("GSTIN must be a valid 15-character GSTIN (e.g. 29ABCDE1234F1Z5).")
+        return v
+
+    @model_validator(mode="after")
+    def _validate_payout_and_gst(self) -> "OnboardingSubmitRequest":
+        if self.upi_vpa.strip().lower() != self.confirm_upi_vpa.strip().lower():
+            raise ValueError("UPI ID and confirmation do not match.")
+
+        bank_fields_given = any([self.bank_account_number, self.bank_ifsc, self.account_holder_name])
+        if bank_fields_given:
+            missing = [
+                name for name, val in [
+                    ("bank account number", self.bank_account_number),
+                    ("bank IFSC", self.bank_ifsc),
+                    ("account holder name", self.account_holder_name),
+                ] if not val
+            ]
+            if missing:
+                raise ValueError(f"Bank fallback is incomplete — missing: {', '.join(missing)}.")
+            if self.bank_account_number != self.confirm_bank_account_number:
+                raise ValueError("Bank account number and confirmation do not match.")
+
+        if self.has_gst and not self.gstin:
+            raise ValueError("GSTIN is required when GST registration is indicated.")
+
+        return self
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -579,32 +652,20 @@ async def submit_onboarding_application(
 
     await db.flush()
 
-    # Save Owner Payout Account if provided
-    if payload.bank_account_number or payload.bank_ifsc:
-        stmt_payout = select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == current_user.id)
-        res_payout = await db.execute(stmt_payout)
-        payout_acc = res_payout.scalars().first()
-
-        masked_acc = f"••••{payload.bank_account_number[-4:]}" if payload.bank_account_number and len(payload.bank_account_number) >= 4 else payload.bank_account_number
-
-        if not payout_acc:
-            payout_acc = OwnerPayoutAccount(
-                owner_id=current_user.id,
-                kyc_status="submitted",
-                business_pan=payload.business_pan,
-                bank_account_number_masked=masked_acc,
-                bank_ifsc=payload.bank_ifsc,
-                account_holder_name=payload.account_holder_name or current_user.full_name,
-                details={"full_account": payload.bank_account_number},
-                submitted_at=datetime.now(timezone.utc)
-            )
-            db.add(payout_acc)
-        else:
-            payout_acc.kyc_status = "submitted"
-            payout_acc.business_pan = payload.business_pan
-            payout_acc.bank_account_number_masked = masked_acc
-            payout_acc.bank_ifsc = payload.bank_ifsc
-            payout_acc.account_holder_name = payload.account_holder_name or current_user.full_name
+    # Save Owner Payout Account (UPI + optional bank fallback). upi_vpa is
+    # required by OnboardingSubmitRequest, so this always runs.
+    payout_repo = OwnerPayoutRepository(db)
+    await payout_repo.upsert_payout_details(
+        owner_id=current_user.id,
+        upi_vpa=payload.upi_vpa,
+        bank_account_number=payload.bank_account_number,
+        bank_ifsc=payload.bank_ifsc,
+        account_holder_name=payload.account_holder_name,
+        bank_name=payload.bank_name,
+        account_type=payload.account_type,
+        business_pan=payload.business_pan,
+        default_holder_name=current_user.full_name,
+    )
 
     # Create Hardware Tiers if provided
     if payload.hardware_tiers:
@@ -1248,9 +1309,23 @@ async def get_owner_payout_summary(
             "bankAccountNumberMasked": payout_account.bank_account_number_masked,
             "bankIfsc": payout_account.bank_ifsc,
             "businessPan": payout_account.business_pan,
-            "kycStatus": payout_account.kyc_status,
-            "razorpayAccountId": payout_account.razorpay_account_id or "acc_rzp_route_khel"
+            "upiVpa": payout_account.upi_vpa,
+            "payoutVerificationStatus": payout_account.payout_verification_status,
+            "verifiedName": payout_account.verified_name,
         }
+
+    # Sum of this owner's actual manual CafePayout rows (across all their
+    # cafés) — the manual-payout counterpart to completedSettlements, which
+    # only ever reflects Route transfers. Deliberately not derived from the
+    # already_paid_out estimate above, which serves a different purpose
+    # (subtracting from pendingSettlements) and can diverge after a refund.
+    from app.models.cafe_payout import CafePayout, CafePayoutStatus
+    already_paid_out_total = 0.0
+    if cafe_ids:
+        total_paid_out_stmt = select(func.sum(CafePayout.amount)).where(
+            CafePayout.cafe_id.in_(cafe_ids), CafePayout.status == CafePayoutStatus.PAID
+        )
+        already_paid_out_total = float((await db.execute(total_paid_out_stmt)).scalar() or 0)
 
     return {
         "success": True,
@@ -1258,11 +1333,13 @@ async def get_owner_payout_summary(
             "summary": {
                 "totalEarnings": round(total_gross, 2),
                 "netSettlement": round(total_net_settlement, 2),
+                "netEarnings": round(total_net_settlement, 2),
                 "completedSettlements": round(completed_settlements, 2),
                 "pendingSettlements": round(pending_settlements, 2),
                 "totalGatewayFees": round(total_gateway_fees, 2),
                 "totalPlatformFees": round(total_platform_fees, 2),
                 "totalTds": round(total_tds, 2),
+                "alreadyPaidOut": round(already_paid_out_total, 2),
             },
             "account": account_info,
             "recentTransactions": recent_payout_items[:10]

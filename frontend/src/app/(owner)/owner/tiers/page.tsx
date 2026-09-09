@@ -128,7 +128,7 @@ export default function HardwareTiersPage() {
       queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
       setIsModalOpen(false);
       resetForm();
-      setToastMessage('Hardware tier created');
+      setToastMessage('Resource created');
       setHighlightedTierId(res.hardwareTier?.id ?? null);
     },
     onError: (err: any) => {
@@ -167,7 +167,7 @@ export default function HardwareTiersPage() {
       queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
       setIsModalOpen(false);
       resetForm();
-      setToastMessage('Hardware tier updated');
+      setToastMessage('Resource updated');
       setHighlightedTierId(res.hardwareTier?.id ?? null);
     },
     onError: (err: any) => {
@@ -281,7 +281,7 @@ export default function HardwareTiersPage() {
       return;
     }
     if (config.appBookableSeats > config.totalSeats) {
-      setFormError('App bookable seats cannot exceed total seats.');
+      setFormError('App bookable units cannot exceed total units.');
       return;
     }
     if (editingTierId) {
@@ -305,7 +305,7 @@ export default function HardwareTiersPage() {
       )}
 
       <OwnerPageHeader
-        title="Stations & prices"
+        title="Resources & Pricing"
         description="Group your machines by what they are — gaming PCs, PS5s, a snooker table — and set an hourly rate for each group."
         action={
           <Button
@@ -334,16 +334,16 @@ export default function HardwareTiersPage() {
 
         {isError && (
           <ErrorState
-            title="Failed to load hardware tiers"
-            message={(error as Error)?.message || 'Could not fetch hardware configurations.'}
+            title="Failed to load resources"
+            message={(error as Error)?.message || 'Could not fetch resource configurations.'}
             onRetry={() => refetch()}
           />
         )}
 
         {!isLoading && !isError && tiers.length === 0 && (
           <EmptyState
-            title="No stations set up yet"
-            description="Add a group for each kind of station you have — say “Gaming PCs” or “PS5”. Customers can't book until at least one group exists."
+            title="No resources set up yet"
+            description="Add a group for each kind of resource you have — say “Gaming PCs” or “PS5”. Customers can't book until at least one group exists."
             actionLabel="Add your first group"
             onAction={() => {
               resetForm();
@@ -368,7 +368,7 @@ export default function HardwareTiersPage() {
                     <div className="min-w-0">
                       <h3 className="font-heading text-h3 text-text-primary">{tier.name}</h3>
                       <p className="mt-0.5 text-caption text-text-secondary">
-                        {tier.totalSeats} {tier.totalSeats === 1 ? 'seat' : 'seats'} in total
+                        {tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'} in total
                       </p>
                     </div>
                     <Badge variant={tier.isActive ? 'success' : 'default'} className="mt-1">
@@ -480,8 +480,8 @@ export default function HardwareTiersPage() {
           setIsModalOpen(false);
           resetForm();
         }}
-        title={editingTierId ? 'Edit Hardware Tier & Seat Quota' : 'Add Hardware Tier'}
-        description="Configure station specs, total seats, app-bookable vs walk-in quota, and hourly rates."
+        title={editingTierId ? 'Edit Resource & Unit Quota' : 'Add Resource'}
+        description="Configure specs, total units, app-bookable vs walk-in quota, and hourly rates."
       >
         <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
           {formError && (
@@ -515,7 +515,7 @@ export default function HardwareTiersPage() {
               isLoading={createMutation.isPending || updateMutation.isPending}
               loadingText={editingTierId ? 'Saving...' : 'Creating...'}
             >
-              {editingTierId ? 'Save Changes' : 'Create Hardware Tier'}
+              {editingTierId ? 'Save Changes' : 'Create Resource'}
             </Button>
           </div>
         </form>

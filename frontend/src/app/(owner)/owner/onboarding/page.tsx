@@ -60,9 +60,14 @@ interface OnboardingState {
   hasGst: boolean;
   gstin: string;
   legalDocumentUrl: string;
+  upiVpa: string;
+  confirmUpiVpa: string;
   bankAccountNumber: string;
+  confirmBankAccountNumber: string;
   bankIfsc: string;
   accountHolderName: string;
+  bankName: string;
+  accountType: 'savings' | 'current' | '';
   openingTime: string;
   closingTime: string;
   totalSeats: number;
@@ -81,21 +86,26 @@ const INITIAL_STATE: OnboardingState = {
   description: '',
   addressLine1: '',
   addressLine2: '',
-  city: 'Bengaluru',
-  state: 'Karnataka',
-  pincode: '560001',
-  latitude: 12.9716,
-  longitude: 77.5946,
+  city: '',
+  state: '',
+  pincode: '',
+  latitude: null,
+  longitude: null,
   googleMapsUrl: '',
   phoneNumber: '',
   email: '',
-  businessPan: 'ABCDE1234F',
+  businessPan: '',
   hasGst: false,
   gstin: '',
   legalDocumentUrl: '',
+  upiVpa: '',
+  confirmUpiVpa: '',
   bankAccountNumber: '',
+  confirmBankAccountNumber: '',
   bankIfsc: '',
   accountHolderName: '',
+  bankName: '',
+  accountType: '',
   openingTime: '09:00',
   closingTime: '23:00',
   totalSeats: 20,
@@ -118,6 +128,7 @@ export default function OnboardingWizardPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showBankFallback, setShowBankFallback] = useState(false);
 
   // Load server-persisted draft on mount with StrictMode cleanup flag
   useEffect(() => {
@@ -188,6 +199,17 @@ export default function OnboardingWizardPage() {
         setError('Please enter a valid email address.');
         return;
       }
+      if (formData.businessPan) {
+        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+        if (!panRegex.test(formData.businessPan.toUpperCase())) {
+          setError('Please enter a valid 10-character Business PAN format (e.g. ABCDE1234F).');
+          return;
+        }
+      }
+      if (formData.hasGst && !formData.gstin) {
+        setError('GSTIN is required when you have GST registration.');
+        return;
+      }
       if (formData.hasGst && formData.gstin) {
         const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
         if (!GSTIN_REGEX.test(formData.gstin.toUpperCase())) {
@@ -196,33 +218,37 @@ export default function OnboardingWizardPage() {
         }
       }
     }
-    
-    // Step 3: Bank & Payouts
+
+    // Step 3: Payout Details (UPI required, bank fallback optional)
     if (step === 3) {
-      if (formData.businessPan) {
-        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
-        if (!panRegex.test(formData.businessPan.toUpperCase())) {
-          setError('Please enter a valid 10-character Business PAN format (e.g. ABCDE1234F).');
-          return;
-        }
-      }
-      if (formData.accountHolderName && formData.accountHolderName.length < 2) {
-        setError('Account holder name must be at least 2 characters.');
+      const upiRegex = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
+      if (!formData.upiVpa || !upiRegex.test(formData.upiVpa)) {
+        setError('Please enter a valid UPI ID (e.g. yourname@okhdfcbank).');
         return;
       }
-      if (formData.bankAccountNumber) {
+      if (formData.upiVpa.trim().toLowerCase() !== formData.confirmUpiVpa.trim().toLowerCase()) {
+        setError('UPI ID and confirmation do not match.');
+        return;
+      }
+
+      const bankFieldsGiven = !!(formData.accountHolderName || formData.bankAccountNumber || formData.bankIfsc);
+      if (bankFieldsGiven) {
+        if (!formData.accountHolderName || formData.accountHolderName.trim().length < 2) {
+          setError('Account holder name must be at least 2 characters.');
+          return;
+        }
         if (!/^\d{8,18}$/.test(formData.bankAccountNumber)) {
           setError('Bank account number must be 8-18 digits.');
+          return;
+        }
+        if (formData.bankAccountNumber !== formData.confirmBankAccountNumber) {
+          setError('Bank account number and confirmation do not match.');
           return;
         }
         if (!formData.bankIfsc || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(formData.bankIfsc.toUpperCase())) {
           setError('Please enter a valid Bank IFSC code (e.g. HDFC0000128).');
           return;
         }
-      }
-      if (formData.bankIfsc && !formData.bankAccountNumber) {
-        setError('Please enter bank account number along with IFSC code.');
-        return;
       }
     }
 
@@ -233,12 +259,12 @@ export default function OnboardingWizardPage() {
     // PlatformTierConfigurator enforce the same guarantee.
     if (step === 4) {
       if (!formData.hardwareTiers || formData.hardwareTiers.length === 0) {
-        setError('Please add at least one hardware tier before continuing.');
+        setError('Please add at least one resource before continuing.');
         return;
       }
       const hasBlankModel = formData.hardwareTiers.some((t) => !t.model || !t.model.trim());
       if (hasBlankModel) {
-        setError('Please select a model for every hardware tier before continuing.');
+        setError('Please select a model for every resource before continuing.');
         return;
       }
     }
@@ -257,8 +283,8 @@ export default function OnboardingWizardPage() {
     setStep((s) => Math.max(s - 1, 1));
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: FormEvent) => {
+    e?.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
@@ -299,6 +325,12 @@ export default function OnboardingWizardPage() {
         businessPan: formData.businessPan || undefined,
         gstin: formData.gstin || undefined,
         legalDocumentUrl: formData.legalDocumentUrl || undefined,
+        upiVpa: formData.upiVpa,
+        confirmUpiVpa: formData.confirmUpiVpa,
+        hasGst: formData.hasGst,
+        bankName: formData.bankAccountNumber ? (formData.bankName || undefined) : undefined,
+        accountType: formData.bankAccountNumber ? (formData.accountType || undefined) : undefined,
+        confirmBankAccountNumber: formData.bankAccountNumber ? formData.confirmBankAccountNumber : undefined,
         bankAccountNumber: formData.bankAccountNumber || undefined,
         bankIfsc: formData.bankIfsc || undefined,
         accountHolderName: formData.accountHolderName || user?.fullName || undefined,
@@ -346,7 +378,7 @@ export default function OnboardingWizardPage() {
             <h3 className="font-heading text-h3 text-text-primary">What happens next?</h3>
             <div className="flex items-start gap-3 text-caption text-text-secondary">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-              <span>Admin reviews venue coordinates, legal documents & Razorpay Route payout setup.</span>
+              <span>Admin reviews venue coordinates, legal documents & payout details.</span>
             </div>
             <div className="flex items-start gap-3 text-caption text-text-secondary">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
@@ -400,7 +432,7 @@ export default function OnboardingWizardPage() {
     { title: 'Identity & Map Pin', icon: MapPin },
     { title: 'Business Verification', icon: ShieldCheck },
     { title: 'Bank & Payouts', icon: CreditCard },
-    { title: 'Hours & Hardware Tiers', icon: Monitor },
+    { title: 'Hours & Resources', icon: Monitor },
     { title: 'Games & Photos', icon: Gamepad2 },
     { title: 'Policies & Review', icon: FileText },
   ];
@@ -573,12 +605,25 @@ export default function OnboardingWizardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Business Contact Phone Number"
-                    placeholder="+91 98765 43210"
-                    value={formData.phoneNumber}
-                    onChange={(e) => updateField('phoneNumber', e.target.value)}
-                  />
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-caption font-semibold text-text-primary">
+                      Business Contact Phone Number
+                    </label>
+                    <div className="flex items-center gap-2 h-10 rounded-xl border border-border bg-card px-3 focus-within:ring-2 focus-within:ring-primary/20">
+                      <span className="text-body text-text-secondary select-none">🇮🇳 +91</span>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        placeholder="98765 43210"
+                        value={formData.phoneNumber.replace(/^\+91/, '')}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          updateField('phoneNumber', digits ? `+91${digits}` : '');
+                        }}
+                        className="flex-1 bg-transparent text-body text-text-primary focus:outline-none"
+                      />
+                    </div>
+                  </div>
 
                   <Input
                     label="Official Business Email"
@@ -654,48 +699,113 @@ export default function OnboardingWizardPage() {
               </div>
             )}
 
-            {/* STEP 3: BANK & PAYOUTS */}
+            {/* STEP 3: PAYOUT DETAILS */}
             {step === 3 && (
               <div className="flex flex-col gap-4">
                 <div>
                   <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
                     <CreditCard className="h-5 w-5 text-emerald-500" />
-                    <span>3. Bank Account & Razorpay Route Settlement</span>
+                    <span>3. Payout Details</span>
                   </h2>
-                  <p className="text-caption text-text-secondary">Direct automated payouts into your bank account.</p>
+                  <p className="text-caption text-text-secondary">KHEL-O pays out your weekly earnings via UPI. Add your UPI ID below so we know where to send it.</p>
                 </div>
 
                 <Card elevation="resting" className="bg-emerald-500/5 border border-emerald-500/20 text-caption p-4">
-                  <span className="font-semibold text-emerald-600 block mb-1">Razorpay Route Direct Settlement</span>
-                  KHEL processes customer payments securely through Razorpay Route. Earnings settle directly to your registered bank account.
+                  <span className="font-semibold text-emerald-600 block mb-1">Manual Weekly Payouts</span>
+                  Every booking's earnings accrue in your dashboard. Our team pays out your outstanding balance weekly, straight to the UPI ID below. Before your first payout, we'll send a ₹1 test transfer to confirm the ID is correct.
                 </Card>
-
-                <Input
-                  label="Account Holder Name"
-                  placeholder="e.g. LXG Gaming Private Limited"
-                  value={formData.accountHolderName}
-                  onChange={(e) => updateField('accountHolderName', e.target.value)}
-                />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
-                    label="Bank Account Number"
-                    name="bank-account-number"
-                    autoComplete="off"
-                    placeholder="9180200192847291"
-                    value={formData.bankAccountNumber}
-                    onChange={(e) => updateField('bankAccountNumber', e.target.value)}
+                    label="UPI ID *"
+                    placeholder="yourname@okhdfcbank"
+                    value={formData.upiVpa}
+                    onChange={(e) => updateField('upiVpa', e.target.value)}
+                    required
                   />
-
                   <Input
-                    label="Bank IFSC Code"
-                    name="bank-ifsc-code"
-                    autoComplete="off"
-                    placeholder="HDFC0000128"
-                    value={formData.bankIfsc}
-                    onChange={(e) => updateField('bankIfsc', e.target.value.toUpperCase())}
+                    label="Confirm UPI ID *"
+                    placeholder="yourname@okhdfcbank"
+                    value={formData.confirmUpiVpa}
+                    onChange={(e) => updateField('confirmUpiVpa', e.target.value)}
+                    required
                   />
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowBankFallback((v) => !v)}
+                  className="self-start text-caption font-semibold text-primary hover:underline"
+                >
+                  {showBankFallback ? 'Hide bank details' : '+ Add bank details (optional, recommended for larger payouts)'}
+                </button>
+
+                {showBankFallback && (
+                  <div className="flex flex-col gap-4 p-4 rounded-2xl border border-border bg-surface">
+                    <p className="text-overline text-text-tertiary">
+                      A bank fallback lets us pay you by NEFT/IMPS if a weekly balance ever exceeds what UPI can carry in a single transfer.
+                    </p>
+                    <Input
+                      label="Account Holder Name"
+                      placeholder="e.g. LXG Gaming Private Limited"
+                      value={formData.accountHolderName}
+                      onChange={(e) => updateField('accountHolderName', e.target.value)}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input
+                        label="Bank Account Number"
+                        name="bank-account-number"
+                        autoComplete="off"
+                        placeholder="9180200192847291"
+                        value={formData.bankAccountNumber}
+                        onChange={(e) => updateField('bankAccountNumber', e.target.value)}
+                      />
+                      <Input
+                        label="Confirm Bank Account Number"
+                        name="confirm-bank-account-number"
+                        autoComplete="off"
+                        placeholder="9180200192847291"
+                        value={formData.confirmBankAccountNumber}
+                        onChange={(e) => updateField('confirmBankAccountNumber', e.target.value)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input
+                        label="Bank IFSC Code"
+                        name="bank-ifsc-code"
+                        autoComplete="off"
+                        placeholder="HDFC0000128"
+                        value={formData.bankIfsc}
+                        onChange={(e) => updateField('bankIfsc', e.target.value.toUpperCase())}
+                      />
+                      <Input
+                        label="Bank Name"
+                        placeholder="e.g. HDFC Bank"
+                        value={formData.bankName}
+                        onChange={(e) => updateField('bankName', e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-caption font-semibold text-text-primary">Account Type</label>
+                      <div className="flex gap-3">
+                        {(['savings', 'current'] as const).map((t) => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => updateField('accountType', t)}
+                            className={`flex-1 px-4 py-2 rounded-xl text-caption font-semibold capitalize transition-all ${
+                              formData.accountType === t
+                                ? 'bg-primary text-white border-2 border-primary'
+                                : 'bg-surface text-text-secondary border border-border hover:border-primary'
+                            }`}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -705,9 +815,9 @@ export default function OnboardingWizardPage() {
                 <div>
                   <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
                     <Monitor className="h-5 w-5 text-emerald-500" />
-                    <span>4. Operating Hours & Hardware Tiers</span>
+                    <span>4. Operating Hours & Resources</span>
                   </h2>
-                  <p className="text-caption text-text-secondary">Define hardware tiers and pricing. PC assignment is handled on-site by staff during check-in.</p>
+                  <p className="text-caption text-text-secondary">Define your resources and pricing. PC assignment is handled on-site by staff during check-in.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -730,7 +840,7 @@ export default function OnboardingWizardPage() {
                   />
 
                   <NumericField
-                    label="Total Station Capacity"
+                    label="Available Units"
                     min={1}
                     value={formData.totalSeats}
                     onChange={(n) => updateField('totalSeats', n)}
@@ -859,18 +969,16 @@ export default function OnboardingWizardPage() {
                     <span className="font-semibold text-text-primary">{formData.city}, {formData.state}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-text-secondary">Hardware Tiers:</span>
-                    <span className="font-semibold text-text-primary">{formData.hardwareTiers.length} Tiers Configured</span>
+                    <span className="text-text-secondary">Resources & Pricing:</span>
+                    <span className="font-semibold text-text-primary">{formData.hardwareTiers.length} Resources Configured</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-secondary">Games Supported:</span>
                     <span className="font-semibold text-text-primary">{formData.supportedGames.length} Games</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-text-secondary">Payout Account:</span>
-                    <span className="font-semibold text-emerald-600">
-                      {formData.bankAccountNumber ? `Masked Account (${formData.bankAccountNumber.slice(-4)})` : 'Not Provided'}
-                    </span>
+                    <span className="text-text-secondary">Payout UPI ID:</span>
+                    <span className="font-semibold text-emerald-600">{formData.upiVpa || 'Not Provided'}</span>
                   </div>
                 </div>
               </div>
@@ -894,9 +1002,10 @@ export default function OnboardingWizardPage() {
                 </Button>
               ) : (
                 <Button
-                  type="submit"
+                  type="button"
                   variant="primary"
                   size="lg"
+                  onClick={() => handleSubmit()}
                   isLoading={isSubmitting}
                   loadingText="Submitting Application..."
                   className="gap-2 px-8 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"

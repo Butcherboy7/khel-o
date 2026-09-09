@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional, Union
 from uuid import UUID
@@ -11,6 +12,7 @@ from app.models.booking import Booking
 from app.models.cafe import Cafe
 from app.models.cafe_payout import CafePayout, CafePayoutStatus
 from app.models.cafe_payout_item import CafePayoutItem
+from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.payment import Payment, PaymentStatus
 from app.models.platform_fee import PlatformFee
 from app.repositories.base import BaseRepository
@@ -56,6 +58,9 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         payment_method: str,
         notes: Optional[str] = None,
         audit_log_data: Optional[dict] = None,
+        proof_image_url: Optional[str] = None,
+        admin_note: Optional[str] = None,
+        paid_at: Optional[datetime] = None,
     ) -> CafePayout:
         """Create a CafePayout + its CafePayoutItem rows in a single transaction.
 
@@ -68,8 +73,23 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         Expected `audit_log_data` keys: admin_id, admin_email, and optionally
         action, entity_type, entity_name, reason.
         """
-        from datetime import datetime, timezone
         import uuid as _uuid
+
+        cafe_owner_row = (await self.db.execute(
+            select(Cafe.owner_id).where(Cafe.id == cafe_id)
+        )).first()
+        if not cafe_owner_row:
+            raise BadRequestException("Café not found.")
+        owner_id = cafe_owner_row[0]
+
+        verification_status = (await self.db.execute(
+            select(OwnerPayoutAccount.payout_verification_status).where(OwnerPayoutAccount.owner_id == owner_id)
+        )).scalar()
+        if verification_status != "verified":
+            raise BadRequestException(
+                "This café's payout destination hasn't been verified yet. "
+                "Send a ₹1 test transfer and record the result before paying out."
+            )
 
         rows = await self.get_outstanding_fee_rows(cafe_id)
         if not rows:
@@ -85,8 +105,10 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
             payment_method=payment_method,
             status=CafePayoutStatus.PAID,
             notes=notes,
+            proof_image_url=proof_image_url,
+            admin_note=admin_note,
             created_by_admin_id=admin_id,
-            paid_at=datetime.now(timezone.utc),
+            paid_at=paid_at or datetime.now(timezone.utc),
         )
         self.db.add(payout)
         await self.db.flush()
@@ -130,15 +152,19 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         ]
 
     async def list_cafes_with_outstanding(self) -> list[dict]:
-        cafes_result = await self.db.execute(select(Cafe.id, Cafe.name))
+        cafes_result = await self.db.execute(select(Cafe.id, Cafe.name, Cafe.owner_id))
         out = []
-        for cafe_id, cafe_name in cafes_result.all():
+        for cafe_id, cafe_name, owner_id in cafes_result.all():
             amount = await self.get_outstanding_amount(cafe_id)
             if amount > 0:
+                verification_status = (await self.db.execute(
+                    select(OwnerPayoutAccount.payout_verification_status).where(OwnerPayoutAccount.owner_id == owner_id)
+                )).scalar() or "unverified"
                 out.append({
                     "cafeId": str(cafe_id),
                     "cafeName": cafe_name,
                     "outstandingAmount": float(amount),
+                    "payoutVerificationStatus": verification_status,
                 })
         return out
 
@@ -176,6 +202,8 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
                 "paymentMethod": p.payment_method,
                 "status": p.status.value if hasattr(p.status, "value") else str(p.status),
                 "notes": p.notes,
+                "proofImageUrl": p.proof_image_url,
+                "adminNote": p.admin_note,
                 "paidAt": p.paid_at.isoformat() if p.paid_at else None,
                 "createdAt": p.created_at.isoformat(),
             }
