@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional, Union
 from uuid import UUID
@@ -57,6 +58,9 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         payment_method: str,
         notes: Optional[str] = None,
         audit_log_data: Optional[dict] = None,
+        proof_image_url: Optional[str] = None,
+        admin_note: Optional[str] = None,
+        paid_at: Optional[datetime] = None,
     ) -> CafePayout:
         """Create a CafePayout + its CafePayoutItem rows in a single transaction.
 
@@ -69,7 +73,6 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         Expected `audit_log_data` keys: admin_id, admin_email, and optionally
         action, entity_type, entity_name, reason.
         """
-        from datetime import datetime, timezone
         import uuid as _uuid
 
         cafe_owner_row = (await self.db.execute(
@@ -102,8 +105,10 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
             payment_method=payment_method,
             status=CafePayoutStatus.PAID,
             notes=notes,
+            proof_image_url=proof_image_url,
+            admin_note=admin_note,
             created_by_admin_id=admin_id,
-            paid_at=datetime.now(timezone.utc),
+            paid_at=paid_at or datetime.now(timezone.utc),
         )
         self.db.add(payout)
         await self.db.flush()
@@ -197,6 +202,8 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
                 "paymentMethod": p.payment_method,
                 "status": p.status.value if hasattr(p.status, "value") else str(p.status),
                 "notes": p.notes,
+                "proofImageUrl": p.proof_image_url,
+                "adminNote": p.admin_note,
                 "paidAt": p.paid_at.isoformat() if p.paid_at else None,
                 "createdAt": p.created_at.isoformat(),
             }

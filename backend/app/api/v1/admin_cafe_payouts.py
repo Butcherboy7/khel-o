@@ -13,6 +13,7 @@ from app.core.exceptions import BadRequestException, NotFoundException
 from app.database import get_db
 from app.models.user import User
 from app.models.admin_audit_log import AdminAuditLog
+from app.api.v1.owner import PhotoPresignRequest
 from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.owner_payout_repository import OwnerPayoutRepository
@@ -24,6 +25,9 @@ class CafePayoutCreateRequest(BaseModel):
     utrReference: str
     paymentMethod: str
     notes: Optional[str] = None
+    proofImageUrl: Optional[str] = None
+    adminNote: Optional[str] = None
+    paidAt: Optional[datetime] = None
 
 
 class PayoutVerifyRequest(BaseModel):
@@ -50,6 +54,21 @@ async def get_cafe_payout_breakdown(
     repo = CafePayoutRepository(db)
     bookings = await repo.get_outstanding_breakdown(cafe_id)
     return {"success": True, "data": {"bookings": bookings}}
+
+
+@router.post("/{cafe_id}/proof-upload-url", status_code=status.HTTP_200_OK)
+async def presign_payout_proof_upload(
+    cafe_id: UUID,
+    payload: PhotoPresignRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    cafe = await CafeRepository(db).get_by_id(cafe_id)
+    if not cafe:
+        raise NotFoundException("Café not found")
+    from app.services.storage_service import create_presigned_upload
+    result = create_presigned_upload(cafe.id, payload.content_type)
+    return {"success": True, "data": result}
 
 
 @router.post("/{cafe_id}/verify-payout", status_code=status.HTTP_200_OK)
@@ -127,6 +146,9 @@ async def create_cafe_payout(
             utr_reference=payload.utrReference,
             payment_method=payload.paymentMethod,
             notes=payload.notes,
+            proof_image_url=payload.proofImageUrl,
+            admin_note=payload.adminNote,
+            paid_at=payload.paidAt,
             audit_log_data={
                 "admin_id": current_admin.id,
                 "admin_email": current_admin.email,
@@ -155,6 +177,8 @@ async def create_cafe_payout(
                 "utrReference": payout.utr_reference,
                 "paymentMethod": payout.payment_method,
                 "status": payout.status.value,
+                "proofImageUrl": payout.proof_image_url,
+                "adminNote": payout.admin_note,
                 "paidAt": payout.paid_at.isoformat() if payout.paid_at else None,
             }
         },
