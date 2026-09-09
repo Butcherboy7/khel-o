@@ -491,7 +491,9 @@ async def test_owner_status_reflects_after_onboarding_submit(async_client: Async
             "pincode": "560001",
             "phoneNumber": "+919999999999",
             "openingTime": "09:00:00",
-            "closingTime": "21:00:00"
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank"
         }
         onboarding_res = await async_client.post("/api/v1/owner/onboarding/submit", json=onboarding_payload, headers=gamer_headers)
         assert onboarding_res.status_code == 200
@@ -536,7 +538,9 @@ async def test_cafe_city_must_be_a_supported_city(async_client: AsyncClient):
             "pincode": "500001",
             "phoneNumber": "+919888888888",
             "openingTime": "09:00:00",
-            "closingTime": "21:00:00"
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank"
         }
 
         # An unsupported/unrecognized city must be rejected outright, not
