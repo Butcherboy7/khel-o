@@ -2,6 +2,7 @@ import pytest
 from decimal import Decimal
 from uuid import uuid4
 
+from app.core.exceptions import BadRequestException
 from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.models.payment import Payment, PaymentStatus
 from app.models.platform_fee import PlatformFee
@@ -92,10 +93,19 @@ async def test_outstanding_amount_excludes_already_transferred_via_route(db_sess
 
 @pytest.mark.asyncio
 async def test_outstanding_amount_excludes_already_paid_out(db_session):
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from sqlalchemy import select
+    from app.models.cafe import Cafe
+
     gamer = await _make_gamer(db_session, "paid_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
     fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id,
+        upi_vpa="test@okaxis", payout_verification_status="verified",
+    ))
     await db_session.commit()
 
     repo = CafePayoutRepository(db_session)
@@ -115,10 +125,19 @@ from tests.conftest import TestAsyncSessionLocal
 
 @pytest.mark.asyncio
 async def test_concurrent_payout_creation_does_not_double_pay(db_session):
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from sqlalchemy import select
+    from app.models.cafe import Cafe
+
     gamer = await _make_gamer(db_session, "race_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
     fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id,
+        upi_vpa="test@okaxis", payout_verification_status="verified",
+    ))
     await db_session.commit()
     cafe_id = booking.cafe_id
     admin_id = uuid4()
@@ -173,10 +192,19 @@ async def test_list_cafes_with_outstanding_only_includes_positive_balances(db_se
 
 @pytest.mark.asyncio
 async def test_list_payouts_filters_by_cafe(db_session):
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from sqlalchemy import select
+    from app.models.cafe import Cafe
+
     gamer = await _make_gamer(db_session, "history_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
     fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id,
+        upi_vpa="test@okaxis", payout_verification_status="verified",
+    ))
     await db_session.commit()
 
     repo = CafePayoutRepository(db_session)
@@ -185,3 +213,78 @@ async def test_list_payouts_filters_by_cafe(db_session):
     result = await repo.list_payouts(cafe_id=booking.cafe_id)
     assert result["total"] == 1
     assert result["items"][0]["utrReference"] == "UTR-H1"
+
+
+@pytest.mark.asyncio
+async def test_create_payout_rejects_unverified_cafe(db_session):
+    """Money must never leave the door for a café whose UPI/bank destination
+    hasn't been confirmed real via the ₹1 test transfer."""
+    from app.models.owner_payout_account import OwnerPayoutAccount
+
+    gamer = await _make_gamer(db_session, "gate_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=50.0)
+    db_session.add(fee)
+
+    from sqlalchemy import select
+    from app.models.cafe import Cafe
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    account = OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="unverified@okaxis")
+    db_session.add(account)
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    with pytest.raises(BadRequestException):
+        await repo.create_payout(
+            cafe_id=booking.cafe_id, admin_id=uuid4(),
+            utr_reference="UTR-GATE", payment_method="upi",
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_payout_succeeds_for_verified_cafe(db_session):
+    from app.models.owner_payout_account import OwnerPayoutAccount
+
+    gamer = await _make_gamer(db_session, "verified_gate_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=50.0)
+    db_session.add(fee)
+
+    from sqlalchemy import select
+    from app.models.cafe import Cafe
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    account = OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="verified@okaxis",
+        payout_verification_status="verified",
+    )
+    db_session.add(account)
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    payout = await repo.create_payout(
+        cafe_id=booking.cafe_id, admin_id=uuid4(),
+        utr_reference="UTR-VERIFIED", payment_method="upi",
+    )
+    assert payout.amount == 50.0
+
+
+@pytest.mark.asyncio
+async def test_outstanding_list_reports_verification_status(db_session):
+    from app.models.owner_payout_account import OwnerPayoutAccount
+
+    gamer = await _make_gamer(db_session, "list_status_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=25.0)
+    db_session.add(fee)
+
+    from sqlalchemy import select
+    from app.models.cafe import Cafe
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    account = OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="listed@okaxis")
+    db_session.add(account)
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    cafes = await repo.list_cafes_with_outstanding()
+    entry = next(c for c in cafes if c["cafeId"] == str(booking.cafe_id))
+    assert entry["payoutVerificationStatus"] == "unverified"

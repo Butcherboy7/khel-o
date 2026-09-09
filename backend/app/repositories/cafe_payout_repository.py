@@ -11,6 +11,7 @@ from app.models.booking import Booking
 from app.models.cafe import Cafe
 from app.models.cafe_payout import CafePayout, CafePayoutStatus
 from app.models.cafe_payout_item import CafePayoutItem
+from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.payment import Payment, PaymentStatus
 from app.models.platform_fee import PlatformFee
 from app.repositories.base import BaseRepository
@@ -71,6 +72,22 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         from datetime import datetime, timezone
         import uuid as _uuid
 
+        cafe_owner_row = (await self.db.execute(
+            select(Cafe.owner_id).where(Cafe.id == cafe_id)
+        )).first()
+        if not cafe_owner_row:
+            raise BadRequestException("Café not found.")
+        owner_id = cafe_owner_row[0]
+
+        verification_status = (await self.db.execute(
+            select(OwnerPayoutAccount.payout_verification_status).where(OwnerPayoutAccount.owner_id == owner_id)
+        )).scalar()
+        if verification_status != "verified":
+            raise BadRequestException(
+                "This café's payout destination hasn't been verified yet. "
+                "Send a ₹1 test transfer and record the result before paying out."
+            )
+
         rows = await self.get_outstanding_fee_rows(cafe_id)
         if not rows:
             raise BadRequestException("This café has no outstanding balance to pay out.")
@@ -130,15 +147,19 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         ]
 
     async def list_cafes_with_outstanding(self) -> list[dict]:
-        cafes_result = await self.db.execute(select(Cafe.id, Cafe.name))
+        cafes_result = await self.db.execute(select(Cafe.id, Cafe.name, Cafe.owner_id))
         out = []
-        for cafe_id, cafe_name in cafes_result.all():
+        for cafe_id, cafe_name, owner_id in cafes_result.all():
             amount = await self.get_outstanding_amount(cafe_id)
             if amount > 0:
+                verification_status = (await self.db.execute(
+                    select(OwnerPayoutAccount.payout_verification_status).where(OwnerPayoutAccount.owner_id == owner_id)
+                )).scalar() or "unverified"
                 out.append({
                     "cafeId": str(cafe_id),
                     "cafeName": cafe_name,
                     "outstandingAmount": float(amount),
+                    "payoutVerificationStatus": verification_status,
                 })
         return out
 

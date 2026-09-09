@@ -16,6 +16,15 @@ async def test_admin_can_list_outstanding_and_create_payout(db_session):
     booking, payment = await _make_booking_with_payment(db_session, gamer)
     fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
+
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from sqlalchemy import select as _select
+    cafe_row = (await db_session.execute(_select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id,
+        upi_vpa="test@okaxis", payout_verification_status="verified",
+    ))
     await db_session.commit()
 
     async with AsyncClient(app=app, base_url="http://test") as client:
