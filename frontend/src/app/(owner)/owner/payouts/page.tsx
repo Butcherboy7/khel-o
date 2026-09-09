@@ -11,7 +11,6 @@ import {
   ArrowUpRight,
   Receipt,
   Building2,
-  Info,
 } from 'lucide-react';
 import { getOwnerPayoutSummary, getOwnerCafePayouts, type OwnerCafePayoutHistoryItem } from '@/lib/api/owner';
 import { Card, CardContent, Badge, Button, EmptyState, PageSpinner } from '@/components/ui';
@@ -24,8 +23,9 @@ interface PayoutAccount {
   bankAccountNumberMasked: string | null;
   bankIfsc: string | null;
   businessPan: string | null;
-  kycStatus: string;
-  razorpayAccountId: string | null;
+  upiVpa: string | null;
+  payoutVerificationStatus: 'unverified' | 'test_sent' | 'verified' | null;
+  verifiedName: string | null;
 }
 
 interface PayoutTransaction {
@@ -43,11 +43,13 @@ interface PayoutTransaction {
 interface PayoutSummary {
   totalEarnings: number;
   netSettlement: number;
+  netEarnings: number;
   completedSettlements: number;
   pendingSettlements: number;
   totalGatewayFees: number;
   totalPlatformFees: number;
   totalTds: number;
+  alreadyPaidOut: number;
 }
 
 function statusBadge(status: string) {
@@ -55,6 +57,19 @@ function statusBadge(status: string) {
   if (status === 'failed') return <Badge variant="error" size="sm">Failed — needs attention</Badge>;
   if (status === 'skipped_no_linked_account') return <Badge variant="warning" size="sm">No payout account yet</Badge>;
   return <Badge variant="default" size="sm">Pending</Badge>;
+}
+
+// CafePayoutStatus vocabulary (the manual bank-transfer table) — a distinct
+// set of statuses from the Route transfer statuses statusBadge() above
+// covers. Never conflate the two: this gates an individual payout's state,
+// the other gates whether the payout destination itself is trusted.
+function manualPayoutStatusBadge(status: string) {
+  if (status === 'paid') return <Badge variant="success" size="sm">Paid</Badge>;
+  if (status === 'pending' || status === 'processing') return <Badge variant="default" size="sm">Processing</Badge>;
+  if (status === 'failed') return <Badge variant="error" size="sm">Failed — contact support</Badge>;
+  if (status === 'on_hold') return <Badge variant="warning" size="sm">On hold</Badge>;
+  if (status === 'disputed') return <Badge variant="error" size="sm">Disputed — under review</Badge>;
+  return <Badge variant="default" size="sm">{status}</Badge>;
 }
 
 export default function OwnerPayoutsPage() {
@@ -113,7 +128,9 @@ export default function OwnerPayoutsPage() {
     );
   }
 
-  const kycActivated = account?.kycStatus === 'activated';
+  const verificationStatus = account?.payoutVerificationStatus ?? null;
+  const isVerified = verificationStatus === 'verified';
+  const totalPending = (summary?.pendingSettlements ?? 0) + outstandingAmount;
 
   return (
     <div className="flex flex-col gap-8">
@@ -121,71 +138,82 @@ export default function OwnerPayoutsPage() {
         title="Payouts"
         description="What customers paid, what KHEL-O kept, and what has reached your bank."
         action={
-          kycActivated ? (
+          isVerified ? (
             <Badge variant="success" size="md" className="gap-1.5 px-3 py-1.5">
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              <span>Bank account ready</span>
+              <span>Payout destination verified</span>
             </Badge>
           ) : (
             <Badge variant="warning" size="md" className="gap-1.5 px-3 py-1.5">
               <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-              <span>{account ? 'Bank details being checked' : 'No bank account yet'}</span>
+              <span>{account ? 'Verification pending' : 'No payout details yet'}</span>
             </Badge>
           )
         }
       />
 
-      {!kycActivated && (
-        <Card elevation="resting" className="border border-amber-500/30 bg-amber-500/5">
-          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
-                <Info className="h-5 w-5" aria-hidden="true" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-heading text-body font-bold text-text-primary">
-                  {account ? "We're checking your bank details" : 'Add your bank account'}
-                </h3>
-                <p className="max-w-prose text-caption text-text-secondary">
-                  {account
-                    ? "This usually takes a day or two. Once it's done, money from bookings lands in your account automatically."
-                    : "Until you add one, we can't send you the money customers have paid."}
-                </p>
-              </div>
+      {/* Five questions, answered on open: total earned, currently owed,
+          already paid, when the pending amount arrives, where it's sent. */}
+      <Card elevation="resting" className="border border-border bg-surface-hover">
+        <CardContent className="flex flex-col gap-3 p-4 sm:p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-caption">
+            <div className="flex justify-between sm:block">
+              <span className="text-text-secondary">Total earned:</span>{' '}
+              <span className="font-bold text-text-primary">₹{(summary?.totalEarnings ?? 0).toFixed(0)}</span>
             </div>
-            {!account && (
-              <Link href="/owner/settings" className="w-full sm:w-auto">
-                <Button variant="primary" size="sm" fullWidth className="gap-1.5 whitespace-nowrap sm:w-auto">
-                  <span>Add bank account</span>
-                  <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            <div className="flex justify-between sm:block">
+              <span className="text-text-secondary">Currently owed:</span>{' '}
+              <span className="font-bold text-amber-700">₹{totalPending.toFixed(0)}</span>
+            </div>
+            <div className="flex justify-between sm:block">
+              <span className="text-text-secondary">Already paid:</span>{' '}
+              <span className="font-bold text-emerald-700">₹{(summary?.alreadyPaidOut ?? 0).toFixed(0)}</span>
+            </div>
+            <div className="flex justify-between sm:block">
+              <span className="text-text-secondary">When it arrives:</span>{' '}
+              <span className="font-bold text-text-primary">Paid out weekly</span>
+            </div>
+            <div className="flex justify-between sm:block sm:col-span-2">
+              <span className="text-text-secondary">Where it's sent:</span>{' '}
+              <span className="font-bold text-text-primary">
+                {account?.upiVpa || account?.bankAccountNumberMasked || 'Not added yet'}
+              </span>
+            </div>
+          </div>
+          {!account && (
+            <Link href="/owner/settings" className="w-full sm:w-auto">
+              <Button variant="primary" size="sm" fullWidth className="gap-1.5 whitespace-nowrap sm:w-auto">
+                <span>Add payout details</span>
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </Link>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* Three figures, one row. The 2-column grid left the third card orphaned
-          across the full width, reading as a separate, more important number. */}
-      <OwnerStatRow
-        stats={[
-          {
-            label: 'Customers paid',
-            value: `₹${(summary?.totalEarnings ?? 0).toFixed(0)}`,
-            hint: 'all time',
-          },
-          {
-            label: 'Reached your bank',
-            value: `₹${(summary?.completedSettlements ?? 0).toFixed(0)}`,
-            tone: 'positive',
-          },
-          {
-            label: 'On the way',
-            value: `₹${(summary?.pendingSettlements ?? 0).toFixed(0)}`,
-            tone: 'warning',
-          },
-        ]}
-      />
+      {/* Earnings vs payouts, kept as two distinct chains rather than one
+          blended row: revenue -> fee -> net earnings, then paid -> pending. */}
+      <div className="flex flex-col gap-3">
+        <div>
+          <h3 className="text-caption font-semibold text-text-secondary mb-1.5">Earnings</h3>
+          <OwnerStatRow
+            stats={[
+              { label: 'Revenue generated', value: `₹${(summary?.totalEarnings ?? 0).toFixed(0)}`, hint: 'all time' },
+              { label: 'KHELO fee', value: `₹${(summary?.totalPlatformFees ?? 0).toFixed(0)}` },
+              { label: 'Net earnings', value: `₹${(summary?.netEarnings ?? 0).toFixed(0)}`, tone: 'positive' },
+            ]}
+          />
+        </div>
+        <div>
+          <h3 className="text-caption font-semibold text-text-secondary mb-1.5">Payouts</h3>
+          <OwnerStatRow
+            stats={[
+              { label: 'Already paid', value: `₹${(summary?.alreadyPaidOut ?? 0).toFixed(0)}`, tone: 'positive' },
+              { label: 'Pending', value: `₹${totalPending.toFixed(0)}`, tone: 'warning' },
+            ]}
+          />
+        </div>
+      </div>
 
       {/* Connected Bank Account Details */}
       <Card elevation="raised" className="bg-surface border border-border">
@@ -196,7 +224,7 @@ export default function OwnerPayoutsPage() {
           </h2>
 
           {account ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-surface-hover p-4 rounded-2xl border border-border/80">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 bg-surface-hover p-4 rounded-2xl border border-border/80">
               <div>
                 <span className="text-caption text-text-secondary block">Account Holder</span>
                 <span className="text-caption font-bold text-text-primary">{account.accountHolderName || '—'}</span>
@@ -208,14 +236,6 @@ export default function OwnerPayoutsPage() {
               <div>
                 <span className="text-caption text-text-secondary block">Bank IFSC</span>
                 <span className="text-caption font-bold text-text-primary">{account.bankIfsc || '—'}</span>
-              </div>
-              <div>
-                <span className="text-caption text-text-secondary block">KYC Status</span>
-                {kycActivated ? (
-                  <Badge variant="success" size="sm">Verified</Badge>
-                ) : (
-                  <Badge variant="warning" size="sm">Pending</Badge>
-                )}
               </div>
             </div>
           ) : (
@@ -298,10 +318,6 @@ export default function OwnerPayoutsPage() {
               <span className="font-heading text-h3 text-amber-600">₹{outstandingAmount.toFixed(2)}</span>
             </div>
           </div>
-          <p className="text-caption text-text-secondary">
-            While Razorpay Route is unavailable, KHEL-O pays out via direct bank transfer instead of
-            automatic settlement. This is separate from the Route transfer status shown above.
-          </p>
 
           {payoutHistory.length === 0 ? (
             <EmptyState
@@ -317,6 +333,8 @@ export default function OwnerPayoutsPage() {
                     <th className="py-3 px-4 font-semibold">Amount</th>
                     <th className="py-3 px-4 font-semibold">Method</th>
                     <th className="py-3 px-4 font-semibold">UTR / Reference</th>
+                    <th className="py-3 px-4 font-semibold">Status</th>
+                    <th className="py-3 px-4 font-semibold">Proof</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-caption">
@@ -327,7 +345,24 @@ export default function OwnerPayoutsPage() {
                       </td>
                       <td className="py-3.5 px-4 font-bold text-emerald-600">₹{p.amount.toFixed(2)}</td>
                       <td className="py-3.5 px-4 text-text-secondary uppercase">{p.paymentMethod}</td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-text-primary">{p.utrReference}</td>
+                      <td className="py-3.5 px-4 font-mono text-xs text-text-primary">
+                        {p.utrReference}
+                        {p.adminNote && (
+                          <span className="block text-[11px] font-sans text-text-tertiary" title={p.adminNote}>
+                            {p.adminNote}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4">{manualPayoutStatusBadge(p.status)}</td>
+                      <td className="py-3.5 px-4">
+                        {p.proofImageUrl ? (
+                          <a href={p.proofImageUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                            View
+                          </a>
+                        ) : (
+                          <span className="text-text-tertiary">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

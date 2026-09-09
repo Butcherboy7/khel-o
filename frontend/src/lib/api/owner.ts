@@ -172,6 +172,8 @@ export interface OwnerCafePayoutHistoryItem {
   utrReference: string;
   paymentMethod: string;
   status: string;
+  proofImageUrl?: string | null;
+  adminNote?: string | null;
   paidAt: string | null;
   createdAt: string;
 }
