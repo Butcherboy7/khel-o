@@ -30,8 +30,8 @@ const PARTNER_BENEFITS = [
   },
   {
     icon: ShieldCheck,
-    title: 'Secure Payments',
-    description: 'Instant Razorpay Route settlements directly to your bank account within T+2 days.',
+    title: 'Weekly Payouts',
+    description: 'KHEL-O pays your outstanding balance weekly, straight to your UPI ID.',
   },
 ];
 
@@ -47,8 +47,8 @@ const REQUIREMENTS = [
 const PROCESS_STEPS = [
   { step: 1, title: 'Venue Details', description: 'Café name, address, location, contact info' },
   { step: 2, title: 'Business Verification', description: 'PAN, GSTIN, trade license document' },
-  { step: 3, title: 'Bank Account', description: 'Account number, IFSC for settlement payouts' },
-  { step: 4, title: 'Hours & Hardware', description: 'Operating hours, GPU tiers, pricing' },
+  { step: 3, title: 'Payout Details', description: 'UPI ID for weekly payouts' },
+  { step: 4, title: 'Hours & Resources', description: 'Operating hours, GPU tiers, pricing' },
   { step: 5, title: 'Amenities & Games', description: 'Facilities, supported games list' },
   { step: 6, title: 'Review & Submit', description: 'Final review before submission' },
 ];
