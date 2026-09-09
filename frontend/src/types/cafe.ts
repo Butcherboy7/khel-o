@@ -60,6 +60,9 @@ export interface Cafe {
   bankAccountNumber?: string;
   bankIfsc?: string;
   accountHolderName?: string;
+  upiVpa?: string;
+  payoutVerificationStatus?: 'unverified' | 'test_sent' | 'verified';
+  verifiedName?: string;
   draftData?: any;
   latitude?: number | null;
   longitude?: number | null;

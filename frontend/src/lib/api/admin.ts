@@ -318,6 +318,13 @@ export async function createCafePayout(
   return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}`, body));
 }
 
+export async function verifyCafePayoutDestination(
+  cafeId: string,
+  body: { utrReference: string; verifiedName: string },
+): Promise<{ payoutVerificationStatus: string; verifiedName: string; verifiedAt: string }> {
+  return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}/verify-payout`, body));
+}
+
 export async function listCafePayoutHistory(
   params: { cafeId?: string; status?: string; page?: number; limit?: number } = {},
 ): Promise<{ items: CafePayout[]; total: number; page: number; pageSize: number }> {
