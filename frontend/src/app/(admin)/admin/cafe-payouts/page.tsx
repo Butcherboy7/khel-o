@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Banknote, RefreshCw, ChevronRight } from 'lucide-react';
 import {
   listOutstandingCafePayouts,
   getCafePayoutBreakdown,
   createCafePayout,
+  uploadPayoutProof,
 } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Card, Button, Badge, SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
@@ -17,6 +18,11 @@ export default function AdminCafePayoutsPage() {
   const [utrReference, setUtrReference] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('neft');
   const [notes, setNotes] = useState('');
+  const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [adminNote, setAdminNote] = useState('');
+  const [proofImageUrl, setProofImageUrl] = useState('');
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [proofUploadError, setProofUploadError] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: [...queryKeys.admin.all, 'cafe-payouts', 'outstanding'],
@@ -36,14 +42,35 @@ export default function AdminCafePayoutsPage() {
         utrReference,
         paymentMethod,
         notes: notes || undefined,
+        proofImageUrl,
+        adminNote: adminNote || undefined,
+        paidAt: paidAt ? new Date(paidAt).toISOString() : undefined,
       }),
     onSuccess: () => {
       setSelectedCafeId(null);
       setUtrReference('');
       setNotes('');
+      setAdminNote('');
+      setProofImageUrl('');
+      setPaidAt(new Date().toISOString().slice(0, 10));
       queryClient.invalidateQueries({ queryKey: [...queryKeys.admin.all, 'cafe-payouts'] });
     },
   });
+
+  async function handleProofFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !selectedCafeId) return;
+    setProofUploadError(null);
+    setIsUploadingProof(true);
+    try {
+      const publicUrl = await uploadPayoutProof(selectedCafeId, file);
+      setProofImageUrl(publicUrl);
+    } catch (err) {
+      setProofUploadError((err as Error)?.message ?? 'Failed to upload proof.');
+    } finally {
+      setIsUploadingProof(false);
+    }
+  }
 
   const cafes = data?.cafes ?? [];
   const selectedCafe = cafes.find((c) => c.cafeId === selectedCafeId) ?? null;
@@ -168,6 +195,41 @@ export default function AdminCafePayoutsPage() {
                 </select>
               </label>
               <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-text-secondary">Payment Date</span>
+                <input
+                  type="date"
+                  value={paidAt}
+                  onChange={(e) => setPaidAt(e.target.value)}
+                  className="h-10 px-3 rounded-xl border border-border bg-surface text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-text-secondary">Payment Proof (required)</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleProofFileChange}
+                  disabled={isUploadingProof}
+                  className="text-caption text-text-primary file:mr-3 file:h-9 file:px-3 file:rounded-xl file:border file:border-border file:bg-surface-hover file:text-caption file:font-semibold"
+                />
+                {isUploadingProof && <span className="text-xs text-text-secondary">Uploading…</span>}
+                {proofImageUrl && !isUploadingProof && (
+                  <a href={proofImageUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">
+                    Proof attached — view
+                  </a>
+                )}
+                {proofUploadError && <span className="text-xs text-error">{proofUploadError}</span>}
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-text-secondary">Admin Note (optional)</span>
+                <textarea
+                  value={adminNote}
+                  onChange={(e) => setAdminNote(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-border bg-surface text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  rows={2}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
                 <span className="text-xs font-semibold text-text-secondary">Notes (optional)</span>
                 <textarea
                   value={notes}
@@ -191,7 +253,13 @@ export default function AdminCafePayoutsPage() {
               )}
               <Button
                 variant="primary"
-                disabled={!utrReference.trim() || createMutation.isPending || selectedCafe.payoutVerificationStatus !== 'verified'}
+                disabled={
+                  !utrReference.trim() ||
+                  !proofImageUrl ||
+                  isUploadingProof ||
+                  createMutation.isPending ||
+                  selectedCafe.payoutVerificationStatus !== 'verified'
+                }
                 onClick={() => createMutation.mutate()}
               >
                 {createMutation.isPending ? 'Recording…' : `Mark ₹${selectedCafe.outstandingAmount.toFixed(2)} as Paid`}

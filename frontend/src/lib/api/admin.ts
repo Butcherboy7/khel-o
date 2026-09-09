@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { apiClient, call } from './client';
 import type {
   AdminCafe,
@@ -314,9 +315,23 @@ export async function getCafePayoutBreakdown(cafeId: string): Promise<{ bookings
 
 export async function createCafePayout(
   cafeId: string,
-  body: { utrReference: string; paymentMethod: string; notes?: string },
+  body: { utrReference: string; paymentMethod: string; notes?: string; proofImageUrl?: string; adminNote?: string; paidAt?: string },
 ): Promise<{ payout: CafePayout }> {
   return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}`, body));
+}
+
+export async function presignPayoutProofUpload(
+  cafeId: string,
+  contentType: string,
+): Promise<{ uploadUrl: string; publicUrl: string }> {
+  return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}/proof-upload-url`, { contentType }));
+}
+
+// Uploads a file directly to S3 via a presigned URL, returning the public URL.
+export async function uploadPayoutProof(cafeId: string, file: File): Promise<string> {
+  const { uploadUrl, publicUrl } = await presignPayoutProofUpload(cafeId, file.type);
+  await axios.put(uploadUrl, file, { headers: { 'Content-Type': file.type } });
+  return publicUrl;
 }
 
 export async function verifyCafePayoutDestination(
