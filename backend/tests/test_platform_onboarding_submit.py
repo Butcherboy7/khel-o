@@ -35,6 +35,8 @@ async def test_onboarding_submit_with_platform_tier_derives_specs():
             "phoneNumber": "+919000000020",
             "openingTime": "09:00:00",
             "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
             "hardwareTiers": [
                 {"platform": "playstation", "model": "PS5", "totalSeats": 4, "appBookableSeats": 1, "hourlyRate": 150},
                 {"platform": "pc", "model": "RTX 4070", "totalSeats": 10, "appBookableSeats": 3, "hourlyRate": 120},
@@ -86,6 +88,8 @@ async def test_onboarding_submit_preserves_explicit_tier_name():
             "phoneNumber": "+919000000021",
             "openingTime": "09:00:00",
             "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
             "hardwareTiers": [
                 {"platform": "playstation", "model": "PS5", "name": "VIP Zone", "totalSeats": 4, "appBookableSeats": 1, "hourlyRate": 150},
             ],
@@ -136,6 +140,8 @@ async def test_onboarding_submit_rejects_oversized_tier_model():
             "phoneNumber": "+919000000022",
             "openingTime": "09:00:00",
             "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
             "hardwareTiers": [
                 {"platform": "other", "model": "X" * 101, "totalSeats": 4, "appBookableSeats": 1, "hourlyRate": 150},
             ],

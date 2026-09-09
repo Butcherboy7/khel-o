@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any, List
 from uuid import UUID, uuid4
 import math
 import secrets
+import re
 from datetime import date, datetime, timezone, time, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -20,7 +21,7 @@ from app.repositories.staff_invitation_repository import StaffInvitationReposito
 from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, AliasChoices
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator, AliasChoices
 from app.constants import validate_city, validate_google_maps_url
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
@@ -134,15 +135,86 @@ class OnboardingSubmitRequest(BaseModel):
     photos: List[str] = Field(default_factory=list)
     supported_games: List[str] = Field(default_factory=list)
     business_pan: Optional[str] = None
+    has_gst: bool = False
     gstin: Optional[str] = None
     legal_document_url: Optional[str] = None
-    bank_account_number: Optional[str] = None
+
+    # --- Manual payout fields (Razorpay Route replacement) ---
+    upi_vpa: str = Field(..., min_length=3, max_length=256)
+    confirm_upi_vpa: str = Field(..., min_length=3, max_length=256)
+    bank_account_number: Optional[str] = Field(None, min_length=8, max_length=18)
+    confirm_bank_account_number: Optional[str] = None
     bank_ifsc: Optional[str] = None
     account_holder_name: Optional[str] = None
+    bank_name: Optional[str] = Field(None, max_length=100)
+    account_type: Optional[str] = None
+
     cancellation_policy: Optional[str] = None
     house_rules: List[str] = Field(default_factory=list)
     social_links: Dict[str, str] = Field(default_factory=dict)
     hardware_tiers: List[OnboardingHardwareTierItem] = Field(default_factory=list)
+
+    @field_validator("upi_vpa")
+    @classmethod
+    def _validate_upi_vpa(cls, v: str) -> str:
+        v = v.strip()
+        if not re.match(r"^[\w.\-]{2,256}@[a-zA-Z]{2,64}$", v):
+            raise ValueError("Enter a valid UPI ID (e.g. yourname@okhdfcbank).")
+        return v
+
+    @field_validator("business_pan")
+    @classmethod
+    def _validate_business_pan(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        v = v.strip().upper()
+        if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", v):
+            raise ValueError("Business PAN must be a valid 10-character PAN (e.g. ABCDE1234F).")
+        return v
+
+    @field_validator("bank_ifsc")
+    @classmethod
+    def _validate_bank_ifsc(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        v = v.strip().upper()
+        if not re.match(r"^[A-Z]{4}0[A-Z0-9]{6}$", v):
+            raise ValueError("Bank IFSC must be a valid 11-character code (e.g. HDFC0000128).")
+        return v
+
+    @field_validator("gstin")
+    @classmethod
+    def _validate_gstin(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        v = v.strip().upper()
+        if not re.match(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$", v):
+            raise ValueError("GSTIN must be a valid 15-character GSTIN (e.g. 29ABCDE1234F1Z5).")
+        return v
+
+    @model_validator(mode="after")
+    def _validate_payout_and_gst(self) -> "OnboardingSubmitRequest":
+        if self.upi_vpa.strip().lower() != self.confirm_upi_vpa.strip().lower():
+            raise ValueError("UPI ID and confirmation do not match.")
+
+        bank_fields_given = any([self.bank_account_number, self.bank_ifsc, self.account_holder_name])
+        if bank_fields_given:
+            missing = [
+                name for name, val in [
+                    ("bank account number", self.bank_account_number),
+                    ("bank IFSC", self.bank_ifsc),
+                    ("account holder name", self.account_holder_name),
+                ] if not val
+            ]
+            if missing:
+                raise ValueError(f"Bank fallback is incomplete — missing: {', '.join(missing)}.")
+            if self.bank_account_number != self.confirm_bank_account_number:
+                raise ValueError("Bank account number and confirmation do not match.")
+
+        if self.has_gst and not self.gstin:
+            raise ValueError("GSTIN is required when GST registration is indicated.")
+
+        return self
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
