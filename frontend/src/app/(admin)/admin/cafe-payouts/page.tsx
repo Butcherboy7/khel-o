@@ -9,7 +9,7 @@ import {
   createCafePayout,
 } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
-import { Card, Button, SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
+import { Card, Button, Badge, SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
 
 export default function AdminCafePayoutsPage() {
   const queryClient = useQueryClient();
@@ -103,7 +103,12 @@ export default function AdminCafePayoutsPage() {
                 onClick={() => setSelectedCafeId(c.cafeId)}
                 className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-hover transition-colors text-left"
               >
-                <span className="text-caption font-semibold text-text-primary">{c.cafeName}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-caption font-semibold text-text-primary">{c.cafeName}</span>
+                  {c.payoutVerificationStatus !== 'verified' && (
+                    <Badge variant="warning" size="sm">Unverified</Badge>
+                  )}
+                </div>
                 <div className="flex items-center gap-3">
                   <span className="text-caption font-bold font-data text-text-primary">
                     ₹{c.outstandingAmount.toFixed(2)}
@@ -178,9 +183,15 @@ export default function AdminCafePayoutsPage() {
                 </p>
               )}
 
+              {selectedCafe.payoutVerificationStatus !== 'verified' && (
+                <p className="text-xs text-warning">
+                  This café's payout destination isn't verified yet — verify it from the Verification
+                  Queue before paying out.
+                </p>
+              )}
               <Button
                 variant="primary"
-                disabled={!utrReference.trim() || createMutation.isPending}
+                disabled={!utrReference.trim() || createMutation.isPending || selectedCafe.payoutVerificationStatus !== 'verified'}
                 onClick={() => createMutation.mutate()}
               >
                 {createMutation.isPending ? 'Recording…' : `Mark ₹${selectedCafe.outstandingAmount.toFixed(2)} as Paid`}

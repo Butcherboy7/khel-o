@@ -281,6 +281,7 @@ export interface AdminOutstandingCafePayout {
   cafeId: string;
   cafeName: string;
   outstandingAmount: number;
+  payoutVerificationStatus: 'unverified' | 'test_sent' | 'verified';
 }
 
 export interface CafePayoutBreakdownItem {
