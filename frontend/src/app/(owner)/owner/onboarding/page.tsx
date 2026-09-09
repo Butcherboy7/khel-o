@@ -86,11 +86,11 @@ const INITIAL_STATE: OnboardingState = {
   description: '',
   addressLine1: '',
   addressLine2: '',
-  city: 'Bengaluru',
-  state: 'Karnataka',
-  pincode: '560001',
-  latitude: 12.9716,
-  longitude: 77.5946,
+  city: '',
+  state: '',
+  pincode: '',
+  latitude: null,
+  longitude: null,
   googleMapsUrl: '',
   phoneNumber: '',
   email: '',
@@ -605,12 +605,25 @@ export default function OnboardingWizardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Business Contact Phone Number"
-                    placeholder="+91 98765 43210"
-                    value={formData.phoneNumber}
-                    onChange={(e) => updateField('phoneNumber', e.target.value)}
-                  />
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-caption font-semibold text-text-primary">
+                      Business Contact Phone Number
+                    </label>
+                    <div className="flex items-center gap-2 h-10 rounded-xl border border-border bg-card px-3 focus-within:ring-2 focus-within:ring-primary/20">
+                      <span className="text-body text-text-secondary select-none">🇮🇳 +91</span>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        placeholder="98765 43210"
+                        value={formData.phoneNumber.replace(/^\+91/, '')}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          updateField('phoneNumber', digits ? `+91${digits}` : '');
+                        }}
+                        className="flex-1 bg-transparent text-body text-text-primary focus:outline-none"
+                      />
+                    </div>
+                  </div>
 
                   <Input
                     label="Official Business Email"
