@@ -357,7 +357,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                 </div>
 
                 <NumericField
-                  label="Total stations"
+                  label="Total units"
                   min={1}
                   value={config.totalSeats}
                   onChange={(n) => updateConfig(config.id, { totalSeats: n })}

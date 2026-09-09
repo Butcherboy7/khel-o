@@ -259,12 +259,12 @@ export default function OnboardingWizardPage() {
     // PlatformTierConfigurator enforce the same guarantee.
     if (step === 4) {
       if (!formData.hardwareTiers || formData.hardwareTiers.length === 0) {
-        setError('Please add at least one hardware tier before continuing.');
+        setError('Please add at least one resource before continuing.');
         return;
       }
       const hasBlankModel = formData.hardwareTiers.some((t) => !t.model || !t.model.trim());
       if (hasBlankModel) {
-        setError('Please select a model for every hardware tier before continuing.');
+        setError('Please select a model for every resource before continuing.');
         return;
       }
     }
@@ -432,7 +432,7 @@ export default function OnboardingWizardPage() {
     { title: 'Identity & Map Pin', icon: MapPin },
     { title: 'Business Verification', icon: ShieldCheck },
     { title: 'Bank & Payouts', icon: CreditCard },
-    { title: 'Hours & Hardware Tiers', icon: Monitor },
+    { title: 'Hours & Resources', icon: Monitor },
     { title: 'Games & Photos', icon: Gamepad2 },
     { title: 'Policies & Review', icon: FileText },
   ];
@@ -815,9 +815,9 @@ export default function OnboardingWizardPage() {
                 <div>
                   <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
                     <Monitor className="h-5 w-5 text-emerald-500" />
-                    <span>4. Operating Hours & Hardware Tiers</span>
+                    <span>4. Operating Hours & Resources</span>
                   </h2>
-                  <p className="text-caption text-text-secondary">Define hardware tiers and pricing. PC assignment is handled on-site by staff during check-in.</p>
+                  <p className="text-caption text-text-secondary">Define your resources and pricing. PC assignment is handled on-site by staff during check-in.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -840,7 +840,7 @@ export default function OnboardingWizardPage() {
                   />
 
                   <NumericField
-                    label="Total Station Capacity"
+                    label="Available Units"
                     min={1}
                     value={formData.totalSeats}
                     onChange={(n) => updateField('totalSeats', n)}
@@ -969,8 +969,8 @@ export default function OnboardingWizardPage() {
                     <span className="font-semibold text-text-primary">{formData.city}, {formData.state}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-text-secondary">Hardware Tiers:</span>
-                    <span className="font-semibold text-text-primary">{formData.hardwareTiers.length} Tiers Configured</span>
+                    <span className="text-text-secondary">Resources & Pricing:</span>
+                    <span className="font-semibold text-text-primary">{formData.hardwareTiers.length} Resources Configured</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-secondary">Games Supported:</span>
