@@ -283,8 +283,8 @@ export default function OnboardingWizardPage() {
     setStep((s) => Math.max(s - 1, 1));
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: FormEvent) => {
+    e?.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
@@ -1002,9 +1002,10 @@ export default function OnboardingWizardPage() {
                 </Button>
               ) : (
                 <Button
-                  type="submit"
+                  type="button"
                   variant="primary"
                   size="lg"
+                  onClick={() => handleSubmit()}
                   isLoading={isSubmitting}
                   loadingText="Submitting Application..."
                   className="gap-2 px-8 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
