@@ -1309,9 +1309,23 @@ async def get_owner_payout_summary(
             "bankAccountNumberMasked": payout_account.bank_account_number_masked,
             "bankIfsc": payout_account.bank_ifsc,
             "businessPan": payout_account.business_pan,
-            "kycStatus": payout_account.kyc_status,
-            "razorpayAccountId": payout_account.razorpay_account_id or "acc_rzp_route_khel"
+            "upiVpa": payout_account.upi_vpa,
+            "payoutVerificationStatus": payout_account.payout_verification_status,
+            "verifiedName": payout_account.verified_name,
         }
+
+    # Sum of this owner's actual manual CafePayout rows (across all their
+    # cafés) — the manual-payout counterpart to completedSettlements, which
+    # only ever reflects Route transfers. Deliberately not derived from the
+    # already_paid_out estimate above, which serves a different purpose
+    # (subtracting from pendingSettlements) and can diverge after a refund.
+    from app.models.cafe_payout import CafePayout, CafePayoutStatus
+    already_paid_out_total = 0.0
+    if cafe_ids:
+        total_paid_out_stmt = select(func.sum(CafePayout.amount)).where(
+            CafePayout.cafe_id.in_(cafe_ids), CafePayout.status == CafePayoutStatus.PAID
+        )
+        already_paid_out_total = float((await db.execute(total_paid_out_stmt)).scalar() or 0)
 
     return {
         "success": True,
@@ -1319,11 +1333,13 @@ async def get_owner_payout_summary(
             "summary": {
                 "totalEarnings": round(total_gross, 2),
                 "netSettlement": round(total_net_settlement, 2),
+                "netEarnings": round(total_net_settlement, 2),
                 "completedSettlements": round(completed_settlements, 2),
                 "pendingSettlements": round(pending_settlements, 2),
                 "totalGatewayFees": round(total_gateway_fees, 2),
                 "totalPlatformFees": round(total_platform_fees, 2),
                 "totalTds": round(total_tds, 2),
+                "alreadyPaidOut": round(already_paid_out_total, 2),
             },
             "account": account_info,
             "recentTransactions": recent_payout_items[:10]
