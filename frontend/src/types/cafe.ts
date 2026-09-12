@@ -68,6 +68,8 @@ export interface Cafe {
   draftData?: any;
   latitude?: number | null;
   longitude?: number | null;
+  /** Listed by KHEL-O from research; not bookable until the venue claims it. */
+  isLeadListing?: boolean;
   createdAt: string;
   updatedAt: string;
 }

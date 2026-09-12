@@ -22,6 +22,7 @@ import { getCafe } from '@/lib/api/cafes';
 import { listCafeReviews, createReview } from '@/lib/api/reviews';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
+import { getWaitlistStatus, joinWaitlist, leaveWaitlist } from '@/lib/api/waitlist';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Button, Skeleton, ErrorState } from '@/components/ui';
 import { PLATFORMS, type Platform } from '@/constants/platforms';
@@ -97,6 +98,42 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     queryFn: () => listCafeReviews(cafeId, { limit: 50 }),
     enabled: Boolean(cafeId),
   });
+
+  const isLead = data?.isLeadListing === true;
+
+  const { data: waitlist, refetch: refetchWaitlist } = useQuery({
+    queryKey: ['waitlist', cafeId],
+    queryFn: () => getWaitlistStatus(cafeId),
+    enabled: Boolean(cafeId) && isLead,
+    staleTime: 30_000,
+  });
+  const joined = waitlist?.joined ?? false;
+  const waitingCount = waitlist?.count ?? 0;
+  const [isJoining, setIsJoining] = useState(false);
+  const [contact, setContact] = useState('');
+  const [showContactInput, setShowContactInput] = useState(false);
+
+  const handleNotifyMe = async () => {
+    if (isJoining) return;
+    // Signed-out visitors give us a way to reach them; signed-in ones are
+    // already reachable, so asking again would be friction for nothing.
+    if (!isAuthenticated && !showContactInput && !joined) {
+      setShowContactInput(true);
+      return;
+    }
+    setIsJoining(true);
+    try {
+      if (joined) {
+        await leaveWaitlist(cafeId);
+      } else {
+        await joinWaitlist(cafeId, contact.trim() || undefined);
+        setShowContactInput(false);
+      }
+      await refetchWaitlist();
+    } finally {
+      setIsJoining(false);
+    }
+  };
 
   const { data: userBookingsData } = useQuery({
     queryKey: ['user-cafe-bookings', cafeId, user?.id],
@@ -726,6 +763,59 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           not just the nav bar's base height, or the home-indicator padding on
           notched iPhones still overlaps this bar's bottom edge. */}
       <div className="fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
+        {isLead ? (
+          /* Lead listing: KHEL-O listed this café from research and the venue
+             has not agreed to take bookings yet, so there is no price to show
+             and nothing to book. Deliberately no directions or call button —
+             those route the visitor straight past KHEL-O to the venue. */
+          <div className="max-w-content mx-auto flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <span className="text-overline text-text-secondary">Booking soon</span>
+                <p className="text-caption text-text-secondary">
+                  {joined
+                    ? "We'll message you the moment booking opens."
+                    : "We're onboarding this café right now."}
+                </p>
+              </div>
+              <button
+                onClick={handleNotifyMe}
+                disabled={isJoining}
+                className={`inline-flex flex-shrink-0 items-center justify-center rounded-2xl px-6 py-3.5 font-heading text-btn font-semibold shadow-float transition-colors disabled:opacity-60 ${
+                  joined
+                    ? 'bg-surface text-text-primary border border-border'
+                    : 'bg-primary text-white hover:bg-primary-dark'
+                }`}
+              >
+                {joined ? '✓ Notifying you' : 'Notify me'}
+              </button>
+            </div>
+
+            {showContactInput && !joined && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={contact}
+                  onChange={(e) => setContact(e.target.value)}
+                  placeholder="Phone or email"
+                  aria-label="Phone number or email to notify you on"
+                  className="flex-1 min-h-input rounded-xl border border-border bg-card px-3 text-body text-text-primary placeholder:text-text-secondary/70"
+                />
+                <button
+                  onClick={handleNotifyMe}
+                  disabled={isJoining || contact.trim().length === 0}
+                  className="rounded-xl bg-primary px-4 py-2.5 font-heading text-btn font-semibold text-white disabled:opacity-60"
+                >
+                  Done
+                </button>
+              </div>
+            )}
+
+            {waitingCount >= 5 && (
+              <p className="text-caption text-text-secondary">{waitingCount} people waiting</p>
+            )}
+          </div>
+        ) : (
         <div className="max-w-content mx-auto flex items-center justify-between gap-4">
           <div>
             <span className="text-overline text-text-secondary">{activeTier ? activeTier.name : 'Starting from'}</span>
@@ -746,6 +836,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             Book now
           </Link>
         </div>
+        )}
       </div>
 
       <ShareModal
