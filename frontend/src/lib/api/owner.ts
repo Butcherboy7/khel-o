@@ -163,3 +163,21 @@ export async function getOwnerCafeId(): Promise<{ cafeId: string }> {
   }
   return { cafeId: statusRes.cafe.id };
 }
+
+export interface ClaimListingResult {
+  isLeadListing: boolean;
+  bookableStations: number;
+  alreadyClaimed: boolean;
+}
+
+/**
+ * Turn a lead listing into a real, bookable café.
+ *
+ * Only succeeds once the account is off its @khel-o.com handover placeholder
+ * and the café has at least one station with a seat count — the backend
+ * enforces both, so a UI bug cannot open bookings on a café that has no slots
+ * to sell.
+ */
+export async function claimLeadListing(): Promise<ClaimListingResult> {
+  return call(() => apiClient.post('/api/v1/owner/cafe/claim'));
+}

@@ -17,7 +17,16 @@ export async function getMe(): Promise<{ user: User }> {
   return call(() => apiClient.get('/api/v1/auth/me'));
 }
 
-export async function updateMe(body: { fullName?: string; phoneNumber?: string }): Promise<{ user: User }> {
+export async function updateMe(body: {
+  fullName?: string;
+  phoneNumber?: string;
+  // Changing `email` reassigns the login identity, so the backend requires
+  // currentPassword alongside it. No verification mail is sent: the seeded
+  // café-owner accounts ship on @khel-o.com addresses that do not exist, so a
+  // confirmation link would go nowhere and the password is the proof instead.
+  email?: string;
+  currentPassword?: string;
+}): Promise<{ user: User }> {
   return call(() => apiClient.patch('/api/v1/auth/me', body));
 }
 

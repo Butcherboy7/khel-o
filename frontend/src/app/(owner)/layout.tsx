@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { OwnerShell } from '@/components/layout/OwnerShell';
+import { ClaimListingView } from '@/components/owner/ClaimListingView';
 import { useAuthStore } from '@/store/authStore';
 
 /**
@@ -28,10 +29,27 @@ function OwnerLayoutInner({ children }: { children: ReactNode }) {
   // exactly the "confusing staff dashboard" problem this fixes.
   const activeRole = useAuthStore((s) => s.activeRole);
   const isStaff = activeRole === 'staff';
+  const user = useAuthStore((s) => s.user);
 
   // If user is undergoing onboarding, hide sidebar navigation
   if (pathname === '/owner/onboarding') {
     return <div className="min-h-screen bg-surface">{children}</div>;
+  }
+
+  // Seeded lead-listing accounts were created by KHEL-O and handed over, so
+  // they arrive on an @khel-o.com address that has no real mailbox behind it.
+  // Block the portal until the owner moves to their own email and password:
+  // until then the account's only recovery path is an address nobody can
+  // receive mail at, on a café row that will later hold bank details.
+  // Checked here rather than per-page so no owner route can be reached around
+  // it. The backend enforces the same precondition on /owner/cafe/claim.
+  const needsClaim = Boolean(user?.email?.endsWith('@khel-o.com'));
+  if (needsClaim && user) {
+    return (
+      <div className="min-h-screen bg-surface">
+        <ClaimListingView placeholderEmail={user.email} />
+      </div>
+    );
   }
 
   return <OwnerShell isStaff={isStaff}>{children}</OwnerShell>;

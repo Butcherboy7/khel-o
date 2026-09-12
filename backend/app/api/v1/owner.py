@@ -2249,3 +2249,95 @@ async def cancel_booking_as_owner(
             "message": "Booking cancelled successfully"
         }
     }
+
+# Placeholder domain the seeded lead-listing accounts ship with. These addresses
+# do not exist, so an account still on one has not been handed over yet.
+LEAD_PLACEHOLDER_DOMAIN = "@khel-o.com"
+
+
+@router.post("/cafe/claim", status_code=status.HTTP_200_OK)
+async def claim_lead_listing(
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Turn a lead listing into a real, bookable cafe.
+
+    A lead listing is a real business we listed from public information without
+    asking. Claiming is the venue taking ownership, so it is also the point the
+    "Booking soon" badge comes off. Two preconditions are enforced here rather
+    than in the UI, because the UI is not the security or honesty boundary:
+
+    1. The account must be off its @khel-o.com handover placeholder. Those
+       addresses do not exist; while the account is still on one, nobody has
+       proved they are the venue.
+    2. The cafe must have real capacity. Most seeded cafes carry zero tiers
+       because no hardware was ever confirmed, and seeded tiers have
+       app_bookable_seats=0. Flipping the flag without opening capacity would
+       replace an honest "Booking soon" with a bookable listing that can never
+       return a slot -- worse for the player than saying nothing.
+
+    Resolves the cafe from the authenticated owner rather than taking a cafe_id
+    in the path, matching the other /cafe/* endpoints here and leaving no id for
+    a caller to tamper with.
+    """
+    stmt = select(Cafe).where(Cafe.owner_id == current_owner.id).order_by(Cafe.created_at.desc())
+    cafe = (await db.execute(stmt)).scalars().first()
+    if not cafe:
+        raise NotFoundException("Café not found", error_code="CAFE_NOT_FOUND")
+
+    # Idempotent: a double-submit from the claim form is a no-op, and must not
+    # re-scale seats the owner may have since tuned down by hand.
+    if not cafe.is_lead_listing:
+        return {
+            "success": True,
+            "data": {
+                "isLeadListing": False,
+                "bookableStations": cafe.bookable_stations,
+                "alreadyClaimed": True,
+            }
+        }
+
+    if current_owner.email.endswith(LEAD_PLACEHOLDER_DOMAIN):
+        raise BadRequestException(
+            message="Set your own email address and password before opening bookings.",
+            error_code="CLAIM_REQUIRES_REAL_EMAIL",
+        )
+
+    tier_repo = HardwareTierRepository(db)
+    tiers = await tier_repo.get_by_cafe_id(cafe.id)
+    total_seats = sum(t.total_seats for t in tiers) if tiers else 0
+    if total_seats <= 0:
+        raise BadRequestException(
+            message="Add your stations and their hourly rate before opening bookings.",
+            error_code="CLAIM_REQUIRES_HARDWARE",
+        )
+
+    cafe.is_lead_listing = False
+
+    # Seats were held at 0 for the whole lead-listing period, so the claim has
+    # to open them or the cafe is bookable in name only. Mirrors the resume
+    # branch of /cafe/bookings-pause: 70% of total to leave walk-in headroom,
+    # proportionally spread across tiers, never overriding a locked tier.
+    if cafe.bookable_stations == 0:
+        cafe.bookable_stations = max(1, round(total_seats * 0.7))
+        cafe.app_bookable_seats = cafe.bookable_stations
+        ratio = cafe.bookable_stations / total_seats
+        for t in tiers:
+            if t.app_bookable_seats_locked:
+                continue
+            scaled = max(0, min(t.total_seats, round(t.total_seats * ratio)))
+            if scaled == 0 and t.total_seats >= 1:
+                scaled = 1
+            await tier_repo.update(t.id, {"app_bookable_seats": scaled})
+
+    await db.commit()
+    await db.refresh(cafe)
+
+    return {
+        "success": True,
+        "data": {
+            "isLeadListing": cafe.is_lead_listing,
+            "bookableStations": cafe.bookable_stations,
+            "alreadyClaimed": False,
+        }
+    }
