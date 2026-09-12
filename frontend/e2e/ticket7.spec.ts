@@ -1,11 +1,14 @@
 import { test, expect } from '@playwright/test';
 
+// Top-level, not inside the describe: Playwright rejects a browserName override
+// in a describe group because it forces a new worker, and that error aborts
+// collection for the WHOLE e2e suite, not just this file.
+test.use({
+  browserName: 'chromium',
+});
+
 test.describe('Ticket 7: End-to-End Onboarding Flow', () => {
-  
-  test.use({ 
-    browserName: 'chromium',
-  });
-  
+
   test('Complete onboarding wizard and verify role transition', async ({ page }) => {
     const timestamp = Date.now();
     const testUser = {

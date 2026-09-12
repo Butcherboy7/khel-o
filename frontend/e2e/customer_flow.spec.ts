@@ -58,12 +58,23 @@ test.describe('Customer Baseline Flow Smoke Tests (Phase 1a Baseline)', () => {
 
     test('Café detail page loads hardware tiers and amenities for authenticated customer', async ({ page }) => {
       await page.goto('/');
-      
-      // Wait for first cafe link to load and click
-      const firstCafeLink = page.locator('a[href^="/cafe/"]').first();
-      await firstCafeLink.waitFor({ state: 'visible', timeout: 10000 });
-      
-      const href = await firstCafeLink.getAttribute('href');
+
+      // Must be a café that actually takes bookings. Taking .first() used to be
+      // good enough, but lead listings ("Booking soon" -- real venues KHEL-O
+      // listed that have not agreed to take bookings yet) now sort ahead of
+      // bookable cafés, and they deliberately show a notify-me panel instead of
+      // Book now. The old locator made this test depend on fixture ordering.
+      await page.locator('a[href^="/cafe/"]').first()
+        .waitFor({ state: 'visible', timeout: 10000 });
+      const bookableCafeLink = page.locator('a[href^="/cafe/"]')
+        .filter({ hasNotText: 'Booking soon' })
+        .first();
+      test.skip(
+        (await bookableCafeLink.count()) === 0,
+        'no bookable cafés in this environment -- all listings are lead listings',
+      );
+
+      const href = await bookableCafeLink.getAttribute('href');
       expect(href).toBeTruthy();
       
       await page.goto(href!);
