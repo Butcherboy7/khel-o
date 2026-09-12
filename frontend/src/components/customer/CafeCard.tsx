@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MapPin, Star, Zap } from 'lucide-react';
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
@@ -53,24 +52,29 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
   // Real photos only — a café with none gets the branded gradient fallback
   // below, never a stock photo of an unrelated venue standing in as "its" photo.
   const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : [];
-  const [photoIndex, setPhotoIndex] = useState(0);
+  // Cover photo only. The grid used to auto-rotate every photo on a 4s timer,
+  // which meant up to 22 cards animating at once with no prefers-reduced-motion
+  // guard; the remaining photos live on the detail page, where the visitor
+  // chose to look.
+  const currentPhoto = photosList[0];
 
-  useEffect(() => {
-    if (photosList.length <= 1) return;
-    const timer = setInterval(() => {
-      setPhotoIndex((prev) => (prev + 1) % photosList.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, [photosList.length]);
+  const isLead = cafe.isLeadListing === true;
+  const waitingCount = cafe.waitlistCount ?? 0;
+  // "5 waiting" is worth showing; "1 waiting" does the opposite of what the
+  // count is for, so it stays hidden below the threshold.
+  const showWaiting = waitingCount >= 5;
 
-  const currentPhoto = photosList[photoIndex % photosList.length];
-
-  const isOpenNow = isCafeOpenNow(cafe.openingTime, cafe.closingTime);
-  const statusLabel = isOpenNow
-    ? 'Open now'
-    : cafe.openingTime
-      ? `Opens ${formatTime(cafe.openingTime)}`
-      : 'Closed';
+  const isOpenNow = !isLead && isCafeOpenNow(cafe.openingTime, cafe.closingTime);
+  // A lead listing says nothing about the venue being open — these are real
+  // businesses already trading, and we only know our own onboarding state.
+  // What is coming soon is booking on KHEL-O, not the café.
+  const statusLabel = isLead
+    ? 'Booking soon'
+    : isOpenNow
+      ? 'Open now'
+      : cafe.openingTime
+        ? `Opens ${formatTime(cafe.openingTime)}`
+        : 'Closed';
   const platformSummary = getPlatformSummary(cafe);
 
   const handleOpenMap = (e: React.MouseEvent) => {
@@ -109,7 +113,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             mobile Safari solves the aspect-ratio from the clamped max-height
             instead of stretching to the flex parent's width, leaving a wide
             blank strip beside the photo in production. */}
-        <CardImage aspectClass="aspect-[16/9]" className="relative w-full max-h-32 sm:max-h-36 flex-shrink-0">
+        <CardImage aspectClass="aspect-[2/1] sm:aspect-[16/9]" className="relative w-full flex-shrink-0">
           {currentPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -128,19 +132,6 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             </div>
           )}
 
-          {/* Carousel Dot Indicators */}
-          {photosList.length > 1 && (
-            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1 z-10">
-              {photosList.map((_, idx) => (
-                <span
-                  key={idx}
-                  className={`h-1 rounded-full transition-all ${
-                    idx === photoIndex ? 'w-3 bg-white' : 'w-1 bg-white/50'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
 
           {/* Overlay Badges — small status pills, not a full-width bar: the
               image identifies the café, it shouldn't carry a headline. */}
@@ -159,7 +150,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
 
             <span
               className={`rounded-full backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white ${
-                isOpenNow ? 'bg-secondary/85' : 'bg-text-tertiary/80'
+                isLead ? 'bg-accent/90' : isOpenNow ? 'bg-secondary/85' : 'bg-text-tertiary/80'
               }`}
             >
               {statusLabel}
@@ -172,11 +163,35 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             a row (was two) since neither needs its own line to read — that's
             where the compaction comes from, not from dropping the platform
             tag or shrinking the photo further. */}
-        <div className="flex flex-1 flex-col justify-center gap-0.5 px-3 py-2">
-          <h3 className="font-heading text-body-emphasis font-bold text-text-primary group-hover:text-primary transition-colors truncate leading-tight">
+        <div className="flex flex-1 flex-col justify-center gap-1 px-3 py-2.5">
+          <h3 className="font-heading text-h3 text-text-primary group-hover:text-primary transition-colors line-clamp-2 leading-tight">
             {cafe.name}
           </h3>
 
+          {isLead ? (
+            /* A lead listing has no reviews, usually no tiers and no agreed
+               price, so the rating and price rows below would be three lines
+               of nothing. What it does have is a location and — once enough
+               people ask — a real count of them. */
+            <>
+              <div className="flex items-center gap-1 text-caption text-text-secondary min-w-0">
+                <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
+                <span className="truncate">{`${cafe.city}, ${cafe.state}`}</span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 mt-0.5">
+                <span className={`text-caption truncate ${platformSummary ? 'text-text-secondary' : 'text-text-secondary/70 italic'}`}>
+                  {platformSummary ?? 'Hardware coming soon'}
+                </span>
+                {showWaiting && (
+                  <span className="text-caption font-semibold text-text-secondary flex-shrink-0">
+                    {waitingCount} waiting
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+          <>
           {/* Rating + platform summary */}
           <div className="flex items-center gap-1.5 text-caption min-w-0">
             <Star className="h-3.5 w-3.5 fill-warning text-warning flex-shrink-0" />
@@ -217,6 +232,8 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               <span className="text-caption font-semibold text-text-secondary flex-shrink-0">Pricing inside</span>
             )}
           </div>
+          </>
+          )}
         </div>
       </Card>
     </Link>

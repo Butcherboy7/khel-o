@@ -27,6 +27,12 @@ export interface CafeListItem {
   longitude?: number | null;
   openingTime?: string | null;
   closingTime?: string | null;
+  /** Listed by KHEL-O from research; the venue has not agreed to take
+   *  bookings yet. Drives the "Booking soon" badge and blocks booking. */
+  isLeadListing: boolean;
+  /** True count from the API. The ">= 5" hide-below rule is applied at
+   *  render, not here — the owner-facing demand figure needs the real one. */
+  waitlistCount?: number;
 }
 
 export interface Cafe {
