@@ -178,3 +178,28 @@ async def test_demand_summary_requires_an_owner(db_session, async_client):
 
     resp = await async_client.get("/api/v1/owner/cafe/demand", headers=auth_headers(gamer))
     assert resp.status_code in (401, 403), resp.text
+
+
+async def test_detail_response_exposes_is_lead_listing(db_session, async_client):
+    """The search serializer and the detail serializer are separate code paths.
+
+    This field was added to search only, so a lead listing's detail page
+    rendered an ordinary booking bar instead of the notify-me panel -- the
+    customer-facing half of the waitlist feature was dead. Caught by e2e.
+    """
+    cafe = await _make_cafe(db_session, "Detail Lead Cafe", is_lead_listing=True)
+
+    resp = await async_client.get(f"/api/v1/cafes/{cafe.id}")
+    assert resp.status_code == 200, resp.text
+
+    payload = resp.json()["data"]["cafe"]
+    assert "isLeadListing" in payload, "detail response must expose the flag"
+    assert payload["isLeadListing"] is True
+
+
+async def test_detail_response_reports_false_for_normal_cafe(db_session, async_client):
+    cafe = await _make_cafe(db_session, "Normal Cafe")
+
+    resp = await async_client.get(f"/api/v1/cafes/{cafe.id}")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["cafe"]["isLeadListing"] is False

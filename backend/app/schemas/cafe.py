@@ -148,6 +148,11 @@ class CafeResponse(CafeBase):
     is_active: bool
     is_emergency_mode: bool = False
     bookings_paused: bool = False
+    # Drives the café detail page's notify-me panel in place of the booking bar.
+    # Without it here the search serializer reported the flag but the detail
+    # response did not, so a lead listing opened as an ordinary café with a
+    # booking bar that could never produce a slot.
+    is_lead_listing: bool = False
     average_rating: float = 0.0
     total_reviews: int = 0
     booking_cap_total: float = 0.0
