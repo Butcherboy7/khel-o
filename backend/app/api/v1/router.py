@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1.auth import router as auth_router
 from app.api.v1.cafes import router as cafes_router
+from app.api.v1.waitlist import router as waitlist_router
 from app.api.v1.hardware_tiers import router as hardware_tiers_router
 from app.api.v1.bookings import router as bookings_router
 from app.api.v1.payments import router as payments_router
@@ -20,6 +21,7 @@ api_router = APIRouter()
 
 api_router.include_router(auth_router, prefix="/auth", tags=["Auth"])
 api_router.include_router(cafes_router, prefix="/cafes", tags=["Cafés"])
+api_router.include_router(waitlist_router, prefix="/cafes", tags=["Café Waitlist"])
 api_router.include_router(hardware_tiers_router, prefix="/hardware-tiers", tags=["Hardware Tiers"])
 api_router.include_router(bookings_router, prefix="/bookings", tags=["Bookings"])
 api_router.include_router(payments_router, prefix="/payments", tags=["Payments"])
