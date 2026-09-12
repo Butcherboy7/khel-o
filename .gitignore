@@ -38,3 +38,7 @@ backend/inspect_*.py
 backend/ensure_*.py
 backend/find_*.py
 backend/ticket7_*.py
+
+# Generated café-owner credentials (seed_real_cafes.py writes plaintext
+# passwords here to hand to venues). Never committable.
+backend/scripts/out/
