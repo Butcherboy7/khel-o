@@ -56,3 +56,28 @@ async def test_zero_tier_cafe_is_listed(db_session, async_client):
     assert "Zero Tier Cafe" in names, (
         f"zero-tier café missing from search; returned {names}"
     )
+
+
+async def test_cafe_has_is_lead_listing_defaulting_false(db_session):
+    """Existing cafés must not become lead listings by accident."""
+    cafe = await _make_cafe(db_session, "Flag Default Cafe")
+    await db_session.refresh(cafe)
+    assert cafe.is_lead_listing is False
+
+
+async def test_waitlist_entry_persists(db_session):
+    from app.models.cafe_waitlist import CafeWaitlistEntry
+
+    cafe = await _make_cafe(db_session, "Waitlist Cafe", is_lead_listing=True)
+    entry = CafeWaitlistEntry(
+        id=uuid.uuid4(),
+        cafe_id=cafe.id,
+        user_id=None,
+        session_id="sess-abc",
+        contact="9999999999",
+    )
+    db_session.add(entry)
+    await db_session.commit()
+
+    assert entry.created_at is not None
+    assert entry.notified_at is None

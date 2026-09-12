@@ -45,6 +45,11 @@ class Cafe(Base):
     reserved_walkin_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     bookable_stations: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     bookings_paused: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Listed by KHEL-O from research; the venue has not yet agreed to take
+    # bookings. Deliberately NOT part of the customer search filter in
+    # cafe_repository.search -- these cafés must stay visible (that is the
+    # whole point), while booking creation rejects them.
+    is_lead_listing: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     amenities: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     photos: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     supported_games: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)

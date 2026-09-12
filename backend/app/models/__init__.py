@@ -15,6 +15,7 @@ from app.models.support_ticket import SupportTicket, SupportTicketStatus, Suppor
 from app.models.platform_setting import PlatformSetting
 from app.models.password_reset_token import PasswordResetToken
 from app.models.analytics_event import AnalyticsEvent
+from app.models.cafe_waitlist import CafeWaitlistEntry
 
 __all__ = [
     "User",
@@ -41,4 +42,5 @@ __all__ = [
     "PlatformSetting",
     "PasswordResetToken",
     "AnalyticsEvent",
+    "CafeWaitlistEntry",
 ]
