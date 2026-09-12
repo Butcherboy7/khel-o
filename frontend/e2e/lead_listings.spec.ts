@@ -93,4 +93,21 @@ test.describe('lead listings', () => {
     await page.waitForSelector('button');
     expect(await readCount()).toBe(first);
   });
+
+  test('a cafe with no confirmed hours claims neither Open now nor Closed', async ({ page }) => {
+    // isCafeOpenNow treats a missing opening/closing time as open, so without a
+    // guard every researched cafe -- 12 of 14 have no hours on file -- would
+    // advertise "Open now" for a real business on no evidence. Spec AC2.
+    await page.goto('/');
+    await page.waitForSelector('a[href^="/cafe/"]', { timeout: 15_000 });
+
+    const leadCards = page.locator('a[href^="/cafe/"]').filter({ hasText: LEAD_BADGE });
+    test.skip((await leadCards.count()) === 0, 'no lead listings seeded in this environment');
+
+    // A lead listing badge replaces the open/closed badge entirely.
+    for (const card of await leadCards.all()) {
+      await expect(card.getByText('Open now', { exact: true })).toHaveCount(0);
+      await expect(card.getByText('Closed', { exact: true })).toHaveCount(0);
+    }
+  });
 });

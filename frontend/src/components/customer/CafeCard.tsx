@@ -64,17 +64,27 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
   // count is for, so it stays hidden below the threshold.
   const showWaiting = waitingCount >= 5;
 
-  const isOpenNow = !isLead && isCafeOpenNow(cafe.openingTime, cafe.closingTime);
+  // Hours we never confirmed. isCafeOpenNow returns true when either end is
+  // missing, so without this guard a café with no hours on file asserts
+  // "Open now" — a claim about a real business's trading hours that nothing
+  // backs. Most researched cafés are in exactly this state, and it outlives
+  // the lead-listing phase: once claimed, isLead goes false while hours can
+  // still be unset. No badge is the honest answer.
+  const hoursKnown = Boolean(cafe.openingTime && cafe.closingTime);
+
+  const isOpenNow = !isLead && hoursKnown && isCafeOpenNow(cafe.openingTime, cafe.closingTime);
   // A lead listing says nothing about the venue being open — these are real
   // businesses already trading, and we only know our own onboarding state.
   // What is coming soon is booking on KHEL-O, not the café.
   const statusLabel = isLead
     ? 'Booking soon'
-    : isOpenNow
-      ? 'Open now'
-      : cafe.openingTime
-        ? `Opens ${formatTime(cafe.openingTime)}`
-        : 'Closed';
+    : !hoursKnown
+      ? null
+      : isOpenNow
+        ? 'Open now'
+        : cafe.openingTime
+          ? `Opens ${formatTime(cafe.openingTime)}`
+          : 'Closed';
   const platformSummary = getPlatformSummary(cafe);
 
   const handleOpenMap = (e: React.MouseEvent) => {
@@ -148,13 +158,15 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               <span />
             )}
 
-            <span
-              className={`rounded-full backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white ${
-                isLead ? 'bg-accent/90' : isOpenNow ? 'bg-secondary/85' : 'bg-text-tertiary/80'
-              }`}
-            >
-              {statusLabel}
-            </span>
+            {statusLabel && (
+              <span
+                className={`rounded-full backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white ${
+                  isLead ? 'bg-accent/90' : isOpenNow ? 'bg-secondary/85' : 'bg-text-tertiary/80'
+                }`}
+              >
+                {statusLabel}
+              </span>
+            )}
           </div>
         </CardImage>
 
