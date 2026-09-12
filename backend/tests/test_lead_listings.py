@@ -106,3 +106,40 @@ async def test_booking_rejected_for_lead_listing(db_session, async_client):
     )
     assert resp.status_code >= 400, resp.text
     assert "isn't taking bookings on KHEL-O yet" in resp.text, resp.text
+
+
+async def test_list_response_includes_lead_fields(db_session, async_client):
+    """The card needs both to render: the badge comes from isLeadListing, the
+    '37 waiting' line from waitlistCount."""
+    cafe = await _make_cafe(db_session, "Lead Fields Cafe", is_lead_listing=True)
+    await async_client.post(f"/api/v1/cafes/{cafe.id}/waitlist", json={"sessionId": "lf-1"})
+
+    resp = await async_client.get("/api/v1/cafes", params={"limit": 50})
+    items = resp.json()["data"]["items"]
+    item = next(c for c in items if c["name"] == "Lead Fields Cafe")
+
+    assert item["isLeadListing"] is True
+    assert item["waitlistCount"] == 1
+
+
+async def test_non_lead_cafe_reports_false(db_session, async_client):
+    await _make_cafe(db_session, "Normal Cafe")
+
+    resp = await async_client.get("/api/v1/cafes", params={"limit": 50})
+    items = resp.json()["data"]["items"]
+    item = next(c for c in items if c["name"] == "Normal Cafe")
+
+    assert item["isLeadListing"] is False
+    assert item["waitlistCount"] == 0
+
+
+async def test_list_does_not_invent_a_rating(db_session, async_client):
+    """A café with no reviews must report 0, not a seeded 4.8."""
+    await _make_cafe(db_session, "Unrated Cafe")
+
+    resp = await async_client.get("/api/v1/cafes", params={"limit": 50})
+    items = resp.json()["data"]["items"]
+    item = next(c for c in items if c["name"] == "Unrated Cafe")
+
+    assert item["averageRating"] == 0
+    assert item["totalReviews"] == 0

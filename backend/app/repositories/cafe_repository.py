@@ -154,6 +154,10 @@ class CafeRepository(BaseRepository[Cafe]):
         for t in tiers:
             tiers_by_cafe.setdefault(t.cafe_id, []).append(t)
 
+        # One grouped query for the whole page rather than one per card.
+        from app.repositories.waitlist_repository import WaitlistRepository
+        waitlist_counts = await WaitlistRepository(self.db).counts_for(cafe_ids)
+
         items: List[Dict[str, Any]] = []
         for c in cafes:
             cafe_tiers = tiers_by_cafe.get(c.id, [])
@@ -179,8 +183,12 @@ class CafeRepository(BaseRepository[Cafe]):
                 "state": c.state,
                 "latitude": c.latitude,
                 "longitude": c.longitude,
-                "average_rating": 4.8,
-                "total_reviews": 12,
+                # Real values are filled in by CafeService from ReviewRepository.
+                # These are neutral defaults, not a placeholder rating -- a
+                # hardcoded 4.8 here would ship an invented rating for every
+                # café if the service were ever built without a review repo.
+                "average_rating": 0.0,
+                "total_reviews": 0,
                 "starting_price": starting_price,
                 "tier_names": tier_names,
                 "platforms": platforms,
@@ -191,7 +199,9 @@ class CafeRepository(BaseRepository[Cafe]):
                 "verification_status": c.verification_status,
                 "is_active": c.is_active,
                 "opening_time": c.opening_time,
-                "closing_time": c.closing_time
+                "closing_time": c.closing_time,
+                "is_lead_listing": c.is_lead_listing,
+                "waitlist_count": waitlist_counts.get(c.id, 0)
             })
 
         return items, total

@@ -125,6 +125,10 @@ class CafeListItem(BaseModel):
     is_active: bool
     opening_time: Optional[time] = None
     closing_time: Optional[time] = None
+    # Listed from research; not bookable until the venue claims it.
+    is_lead_listing: bool = False
+    # True count. The '>= 5' hide-below rule is applied by the card, not here.
+    waitlist_count: int = 0
 
     @field_validator("opening_time", "closing_time", mode="before")
     @classmethod
