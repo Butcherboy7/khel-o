@@ -12,6 +12,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { calculateDistance, isCafeOpenNow, getCafeOpenStatus } from '@/lib/format';
 import { hasPcTier, hasPlatformTier } from '@/lib/platformTags';
 import { SUPPORTED_CITIES } from '@/constants/cities';
+import { SocialLinks } from '@/components/layout/SocialLinks';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
@@ -527,7 +528,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         : `Near · ${selectedCity}`;
 
   return (
-    <div className="flex flex-col gap-4 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-4 max-w-wide mx-auto">
       {/* Discovery header — one compact block covering brand tagline,
           search, platform filters, and location/sort, whether or not the
           visitor is signed in. This page is public (see
@@ -609,8 +610,13 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           />
         )}
 
+        {/* Caps at 5 columns on purpose. The container keeps widening past
+            1280px, so a 5th column absorbs some of it while each card still
+            gets ~270-300px — wider than the 279px it had at 1200px/4-col. A
+            6th column would take cards down to ~245px, which starts
+            truncating café names and city labels. */}
         {!isLoading && !isError && sortedCafes.length > 0 && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {sortedCafes.map((cafe) => (
               <CafeCard key={cafe.id} cafe={cafe} />
             ))}
@@ -627,15 +633,26 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         </p>
       )}
 
-      {/* Legal Footer Links */}
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 pt-4 pb-2 text-caption text-text-secondary border-t border-border/60">
-        <Link href="/about" className="hover:text-primary transition-colors">About Us</Link>
-        <Link href="/terms" className="hover:text-primary transition-colors">Terms &amp; Conditions</Link>
-        <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
-        <Link href="/refund-policy" className="hover:text-primary transition-colors">Cancellation &amp; Refunds</Link>
-        <Link href="/shipping-policy" className="hover:text-primary transition-colors">Service Delivery</Link>
-        <Link href="/contact" className="hover:text-primary transition-colors">Contact Us</Link>
-      </div>
+      {/* Legal footer — the social row sits above the policy links and is
+          separated by more space than the links give each other, so the two
+          read as distinct groups rather than one long wrapped line. */}
+      <footer className="flex flex-col items-center gap-3 pt-5 pb-2 border-t border-border/60">
+        <SocialLinks />
+        <nav
+          aria-label="Legal and company links"
+          className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-caption text-text-secondary"
+        >
+          <Link href="/about" className="hover:text-primary transition-colors">About Us</Link>
+          <Link href="/terms" className="hover:text-primary transition-colors">Terms &amp; Conditions</Link>
+          <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+          <Link href="/refund-policy" className="hover:text-primary transition-colors">Cancellation &amp; Refunds</Link>
+          <Link href="/shipping-policy" className="hover:text-primary transition-colors">Service Delivery</Link>
+          <Link href="/contact" className="hover:text-primary transition-colors">Contact Us</Link>
+        </nav>
+        <p className="text-overline text-text-tertiary">
+          © {new Date().getFullYear()} KHEL-O. All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 }

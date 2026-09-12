@@ -11,6 +11,7 @@ from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.repositories.promotion_repository import PromotionRepository
 from app.services.booking_service import BookingService
 from app.services.promotion_service import PromotionService
+from app.repositories.platform_settings_repository import PlatformSettingsRepository
 from app.api.deps import require_gamer, get_current_active_user
 from app.models.user import User
 
@@ -51,6 +52,20 @@ async def list_my_bookings(
     return {
         "success": True,
         "data": result
+    }
+
+@router.get("/platform-fee", status_code=status.HTTP_200_OK)
+async def get_platform_fee_percentage(
+    db: AsyncSession = Depends(get_db)
+):
+    """Public, unauthenticated — lets the checkout page show an accurate
+    fee estimate for the Super Admin-controlled rate before the customer is
+    even logged in. Registered before /{booking_id} so it isn't shadowed."""
+    settings_repo = PlatformSettingsRepository(db)
+    settings = await settings_repo.get_or_create()
+    return {
+        "success": True,
+        "data": {"platformFeePercentage": float(settings.platform_fee_percentage)}
     }
 
 @router.get("/{booking_id}", status_code=status.HTTP_200_OK)

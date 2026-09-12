@@ -90,8 +90,8 @@ export function PayoutSetupCard() {
               )}
             </div>
             <p className="text-caption text-text-secondary max-w-md">
-              Add your bank details once to receive future booking payments directly via Razorpay Route,
-              instead of manual settlement.
+              These are the bank details our team pays your weekly balance out to. You already added
+              your primary UPI ID during onboarding — this card manages your bank fallback.
             </p>
           </div>
         </div>
@@ -167,9 +167,9 @@ export function PayoutSetupCard() {
               variant="primary"
               isLoading={isSubmitting}
               loadingText="Saving…"
-              className="w-full sm:w-auto self-end gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
+              className="w-full gap-2 self-end sm:w-auto"
             >
-              Save Payout Details
+              Save bank details
             </Button>
           </form>
         )}

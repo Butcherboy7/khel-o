@@ -28,8 +28,10 @@ import {
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
+import { getOwnerPayoutAmount } from '@/lib/format';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Card, CardContent, Button, Input } from '@/components/ui';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { checkinBooking } from '@/lib/api/owner';
 import { validateQRCode, searchCheckinCandidates, type QRValidationResponse, type CheckinCandidate } from '@/lib/api/scanner';
 import { ApiError } from '@/lib/api/errors';
@@ -596,7 +598,7 @@ export default function ScannerPage() {
   const overlayBooking = validationResult?.booking ?? null;
 
   return (
-    <div className="max-w-3xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <Script
         src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"
         strategy="afterInteractive"
@@ -606,67 +608,69 @@ export default function ScannerPage() {
       {/* Hidden container for file decoding */}
       <div id="qr-reader-file-temp" className="hidden" />
 
-      {/* Header */}
-      <div className="border-b border-border pb-4 flex items-center justify-between">
-        <div>
-          <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-            <QrCode className="h-6 w-6 text-emerald-500" />
-            <span>Station Check-In &amp; Pass Scanner</span>
-          </h1>
-          <p className="text-caption text-text-secondary mt-1">
-            Scan customer QR digital passes, upload QR pass images, or look up booking references for 1-tap check-in.
-          </p>
-        </div>
-      </div>
+      <OwnerPageHeader
+        title="Scan & check in"
+        description="Point your camera at the QR code on the customer's phone. No camera? Upload a screenshot, or look them up by name."
+      />
 
-      {/* Tab Navigation */}
-      <div className="grid grid-cols-3 rounded-2xl bg-surface border border-border p-1 gap-1">
+      {/* Tab Navigation — role="tablist" so the three modes announce as one
+          control instead of three unrelated buttons, and 48px tall so a mode
+          switch at a busy desk doesn't need a careful aim. */}
+      <div
+        role="tablist"
+        aria-label="How to check someone in"
+        className="grid grid-cols-3 gap-1 rounded-2xl border border-border bg-surface p-1"
+      >
         <button
+          role="tab"
+          aria-selected={activeTab === 'camera'}
           onClick={() => {
             setActiveTab('camera');
             resetState();
           }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-caption font-semibold transition-all ${
+          className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-caption font-semibold transition-all ${
             activeTab === 'camera'
-              ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
+              ? 'bg-primary font-bold text-white shadow-md'
               : 'text-text-secondary hover:text-text-primary'
           }`}
         >
-          <Camera className="h-4 w-4" />
-          <span className="hidden sm:inline">Camera Scanner</span>
-          <span className="sm:hidden">Camera</span>
+          <Camera className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span>Camera</span>
         </button>
 
         <button
+          role="tab"
+          aria-selected={activeTab === 'upload'}
           onClick={() => {
             setActiveTab('upload');
             resetState();
           }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-caption font-semibold transition-all ${
+          className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-caption font-semibold transition-all ${
             activeTab === 'upload'
-              ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
+              ? 'bg-primary font-bold text-white shadow-md'
               : 'text-text-secondary hover:text-text-primary'
           }`}
         >
-          <Upload className="h-4 w-4" />
-          <span className="hidden sm:inline">Upload QR Image</span>
-          <span className="sm:hidden">Upload</span>
+          <Upload className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span>Photo</span>
         </button>
 
         <button
+          role="tab"
+          aria-selected={activeTab === 'manual'}
           onClick={() => {
             setActiveTab('manual');
             resetState();
           }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-caption font-semibold transition-all ${
+          className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-caption font-semibold transition-all ${
             activeTab === 'manual'
-              ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
+              ? 'bg-primary font-bold text-white shadow-md'
               : 'text-text-secondary hover:text-text-primary'
           }`}
         >
-          <Search className="h-4 w-4" />
-          <span className="hidden sm:inline">Manual Lookup</span>
-          <span className="sm:hidden">Lookup</span>
+          <Search className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span className="hidden sm:inline">Search</span>
+          <span className="sm:hidden">Name</span>
         </button>
       </div>
 
@@ -700,42 +704,40 @@ export default function ScannerPage() {
 
                 {/* Loading overlay */}
                 {cameraState === 'loading' && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/85 text-white z-10">
-                    <RefreshCw className="h-8 w-8 animate-spin text-emerald-400" />
-                    <span className="text-caption font-medium text-slate-300">Initializing camera feed...</span>
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/85 text-white">
+                    <RefreshCw className="h-8 w-8 animate-spin text-white/80" aria-hidden="true" />
+                    <span className="text-caption font-medium text-white/80">Starting the camera…</span>
                   </div>
                 )}
 
-                {/* Error overlay */}
+                {/* Error overlay. The two recovery buttons stack: side by side in
+                    a 300px-wide viewport their labels wrapped and spilled outside
+                    their own borders. */}
                 {cameraState === 'error' && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/90 p-6 text-center z-10">
-                    <VideoOff className="h-10 w-10 text-rose-400" />
-                    <p className="text-caption text-slate-300 max-w-xs">{cameraError}</p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => startCamera()}
-                        className="border-emerald-500 text-emerald-400 hover:bg-emerald-500/10 gap-2"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                        Retry Camera
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-black/90 p-6 text-center">
+                    <VideoOff className="h-10 w-10 text-rose-400" aria-hidden="true" />
+                    <p className="max-w-xs text-caption text-white/80">{cameraError}</p>
+                    <div className="flex w-full max-w-[240px] flex-col gap-2">
+                      <Button variant="primary" size="sm" fullWidth onClick={() => startCamera()} className="gap-2">
+                        <RefreshCw className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                        <span>Try again</span>
                       </Button>
                       <Button
                         variant="secondary"
                         size="sm"
+                        fullWidth
                         onClick={() => setActiveTab('upload')}
                         className="gap-1.5"
                       >
-                        <Upload className="h-4 w-4" />
-                        Upload Image
+                        <Upload className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                        <span>Use a photo instead</span>
                       </Button>
                     </div>
                   </div>
                 )}
               </div>
-              <p className="text-caption text-text-tertiary text-center">
-                Point your camera or laptop webcam directly at the customer&apos;s digital QR pass.
+              <p className="text-center text-caption text-text-secondary">
+                Hold the customer&apos;s phone screen in front of the camera.
               </p>
 
               {showScanStuckHint && cameraState === 'active' && (
@@ -1029,9 +1031,9 @@ export default function ScannerPage() {
 
                     <div className="p-3 rounded-xl bg-surface-hover border border-border flex items-center justify-between">
                       <span className="text-text-tertiary text-xs flex items-center gap-1">
-                        <User className="h-3.5 w-3.5" /> Amount Paid
+                        <User className="h-3.5 w-3.5" /> Your Payout
                       </span>
-                      <span className="font-bold text-emerald-600 text-body">₹{overlayBooking.totalAmount}</span>
+                      <span className="font-bold text-emerald-600 text-body">₹{getOwnerPayoutAmount(overlayBooking).toFixed(2)}</span>
                     </div>
                   </div>
                 )}
@@ -1046,12 +1048,12 @@ export default function ScannerPage() {
                       size="lg"
                       fullWidth
                       isLoading={isCheckinSubmitting}
-                      loadingText="Checking In..."
+                      loadingText="Checking in…"
                       onClick={() => overlayBooking && handleCheckIn(overlayBooking.id)}
-                      className="min-h-[56px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold gap-2"
+                      className="min-h-[56px] gap-2"
                     >
-                      <ShieldCheck className="h-5 w-5" />
-                      <span>Check In</span>
+                      <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+                      <span>Check in</span>
                     </Button>
                   )}
 

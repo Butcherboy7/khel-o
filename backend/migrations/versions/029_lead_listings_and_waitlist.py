@@ -11,14 +11,14 @@ Adds:
     cafe_id was the only column on that table without one, and the owner
     demand summary filters on all three.
 
-Revision ID: 020
-Revises: 019
+Revision ID: 029
+Revises: 028
 """
 import sqlalchemy as sa
 from alembic import op
 
-revision = '020'
-down_revision = '019'
+revision = '029'
+down_revision = '028'
 branch_labels = None
 depends_on = None
 

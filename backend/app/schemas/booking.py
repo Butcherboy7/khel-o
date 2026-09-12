@@ -26,6 +26,13 @@ class BookingBase(BaseModel):
     seats_count: int = Field(1, ge=1, le=6, description="Number of seats for this booking session (1 to 6)")
     notes: Optional[str] = None
     promotion_id: Optional[UUID] = None
+    # Alternative to promotion_id — the KHELO code the customer typed in or
+    # arrived with via a /redeem QR deep link. booking_service resolves this
+    # to a promotion_id (validating it belongs to this café) before running
+    # it through the same atomic apply_promotion_to_booking path as a
+    # directly-selected promotion_id. Mutually exclusive with promotion_id;
+    # if both are somehow sent, promotion_id wins (see booking_service).
+    promo_code: Optional[str] = Field(None, max_length=20)
     game: Optional[str] = Field(None, max_length=100)
 
     @field_validator("promotion_id", mode="before")
@@ -34,6 +41,13 @@ class BookingBase(BaseModel):
         if v == "" or v is None:
             return None
         return v
+
+    @field_validator("promo_code", mode="before")
+    @classmethod
+    def parse_empty_code(cls, v: Any) -> Any:
+        if v == "" or v is None:
+            return None
+        return str(v).strip().upper()
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -83,6 +97,9 @@ class BookingResponse(BookingBase):
     checked_in_by: Optional[UUID] = None
     checked_in_at: Optional[datetime] = None
     checkin_method: Optional[str] = None
+    released_by: Optional[UUID] = None
+    released_at: Optional[datetime] = None
+    release_reason: Optional[str] = None
     cancel_policy: Optional[CancelPolicy] = None
     created_at: datetime
     updated_at: datetime

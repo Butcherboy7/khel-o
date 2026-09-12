@@ -47,6 +47,7 @@ const STATUS_LABELS: Record<BookingStatus, string> = {
   cancelled: 'Cancelled',
   no_show: 'No Show',
   failed: 'Payment Failed',
+  released_by_owner: 'Slot Released',
 };
 
 const STATUS_FILTERS: Array<{ label: string; value: BookingStatus | 'all' }> = [

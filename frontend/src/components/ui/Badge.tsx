@@ -6,7 +6,9 @@ import type { BookingStatus, VerificationStatus, KycStatus } from '@/types';
 /* ── Generic Badge ───────────────────────────────────────────────── */
 
 const badgeVariants = cva(
-  'inline-flex items-center gap-1 rounded-md font-body text-badge font-semibold uppercase tracking-wide',
+  // `whitespace-nowrap`: a status pill that wraps mid-label ("7 Walk-in / Reserved")
+  // reads as two broken chips rather than one state.
+  'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md font-body text-badge font-semibold uppercase tracking-wide',
   {
     variants: {
       variant: {
@@ -54,11 +56,12 @@ const BOOKING_STATUS_CONFIG: Record<
   pending_payment: { label: 'Payment Pending', variant: 'warning', dotColor: 'bg-yellow-500' },
   confirmed: { label: 'Confirmed', variant: 'success', dotColor: 'bg-green-500' },
   checked_in: { label: 'Checked In', variant: 'success', dotColor: 'bg-green-600' },
-  active: { label: 'In Session 🎮', variant: 'success', dotColor: 'bg-emerald-500' },
+  active: { label: 'In Session', variant: 'success', dotColor: 'bg-emerald-500' },
   completed: { label: 'Completed', variant: 'default', dotColor: 'bg-gray-400' },
   cancelled: { label: 'Cancelled', variant: 'error', dotColor: 'bg-red-500' },
   no_show: { label: 'No Show', variant: 'error', dotColor: 'bg-red-600' },
   failed: { label: 'Payment Failed', variant: 'error', dotColor: 'bg-red-500' },
+  released_by_owner: { label: 'Slot Released', variant: 'default', dotColor: 'bg-gray-400' },
 };
 
 interface BookingStatusBadgeProps {

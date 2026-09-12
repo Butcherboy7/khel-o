@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status, Query, Request
+from pydantic import BaseModel
 from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,8 @@ from app.schemas.cafe import CafeCreateRequest, CafeUpdateRequest
 from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpdateRequest
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
+from app.repositories.hardware_tier_unit_repository import HardwareTierUnitRepository
+from app.repositories.booking_repository import BookingRepository
 from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.review_repository import ReviewRepository
 from app.services.cafe_service import CafeService
@@ -16,6 +19,7 @@ from app.services.hardware_tier_service import HardwareTierService
 from app.repositories.user_repository import UserRepository
 from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
+from app.models.hardware_tier import TierType
 from app.api.deps import require_cafe_owner, get_optional_user, get_current_active_user
 import uuid
 
@@ -116,6 +120,15 @@ async def get_cafe_availability(
 
     app_bookable_seats = tier.app_bookable_seats or tier.total_seats or 10
 
+    # Gaming tiers never get hardware_tier_units rows (units only exist for
+    # individual-unit activities), so count_in_maintenance would always
+    # return 0 for them — skip the query outright on this hot, per-search
+    # path rather than pay for a COUNT that can never matter.
+    if tier.tier_type == TierType.ACTIVITY:
+        unit_repo = HardwareTierUnitRepository(db)
+        maintenance_count = await unit_repo.count_in_maintenance(tier_id)
+        app_bookable_seats = max(0, app_bookable_seats - maintenance_count)
+
     cafe_repo = CafeRepository(db)
     cafe_obj = await cafe_repo.get_by_id(cafe_id)
     if cafe_obj:
@@ -215,7 +228,9 @@ async def add_hardware_tier(
 ):
     cafe_repo = CafeRepository(db)
     tier_repo = HardwareTierRepository(db)
-    service = HardwareTierService(tier_repo, cafe_repo)
+    unit_repo = HardwareTierUnitRepository(db)
+    booking_repo = BookingRepository(db)
+    service = HardwareTierService(tier_repo, cafe_repo, unit_repo=unit_repo, booking_repo=booking_repo)
     result = await service.add_hardware_tier(cafe_id, current_owner.id, payload)
     return {
         "success": True,
@@ -247,11 +262,122 @@ async def update_hardware_tier(
 ):
     cafe_repo = CafeRepository(db)
     tier_repo = HardwareTierRepository(db)
-    service = HardwareTierService(tier_repo, cafe_repo)
+    unit_repo = HardwareTierUnitRepository(db)
+    booking_repo = BookingRepository(db)
+    service = HardwareTierService(tier_repo, cafe_repo, unit_repo=unit_repo, booking_repo=booking_repo)
     result = await service.update_hardware_tier(tier_id, current_owner.id, payload)
     return {
         "success": True,
         "data": {
             "hardwareTier": result
         }
+    }
+
+
+@router.get("/{cafe_id}/tiers/{tier_id}/units", status_code=status.HTTP_200_OK)
+async def list_tier_units(
+    cafe_id: UUID,
+    tier_id: UUID,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.core.exceptions import NotFoundException, ForbiddenException
+
+    tier_repo = HardwareTierRepository(db)
+    tier = await tier_repo.get_by_id(tier_id)
+    if not tier or str(tier.cafe_id) != str(cafe_id):
+        raise NotFoundException(message="Hardware tier not found", error_code="TIER_NOT_FOUND")
+
+    cafe_repo = CafeRepository(db)
+    cafe = await cafe_repo.get_by_id(cafe_id)
+    if not cafe or str(cafe.owner_id) != str(current_owner.id):
+        raise ForbiddenException(message="You can only manage your own café's activities", error_code="FORBIDDEN")
+
+    unit_repo = HardwareTierUnitRepository(db)
+    units = await unit_repo.list_by_tier(tier_id)
+    return {
+        "success": True,
+        "data": {
+            "units": [
+                {"id": str(u.id), "label": u.label, "status": u.status}
+                for u in units
+            ]
+        }
+    }
+
+
+class TierUnitStatusUpdateRequest(BaseModel):
+    status: str  # 'available' | 'maintenance'
+
+
+@router.patch("/{cafe_id}/tiers/{tier_id}/units/{unit_id}", status_code=status.HTTP_200_OK)
+async def update_tier_unit_status(
+    cafe_id: UUID,
+    tier_id: UUID,
+    unit_id: UUID,
+    payload: TierUnitStatusUpdateRequest,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.models.hardware_tier_unit import UnitStatus
+    from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
+
+    tier_repo = HardwareTierRepository(db)
+    # M2: lock the tier row up front so this whole check-then-write sequence
+    # (capacity check + unit status write) is serialized per tier, the same
+    # way booking creation locks the tier via
+    # BookingRepository.get_overlapping_bookings_count_with_lock.
+    tier = await tier_repo.get_by_id_with_lock(tier_id)
+    if not tier or str(tier.cafe_id) != str(cafe_id):
+        raise NotFoundException(message="Hardware tier not found", error_code="TIER_NOT_FOUND")
+
+    cafe_repo = CafeRepository(db)
+    cafe = await cafe_repo.get_by_id(cafe_id)
+    if not cafe or str(cafe.owner_id) != str(current_owner.id):
+        raise ForbiddenException(message="You can only manage your own café's activities", error_code="FORBIDDEN")
+
+    try:
+        status_enum = UnitStatus(payload.status)
+    except ValueError:
+        raise ValidationException(message="status must be 'available' or 'maintenance'", error_code="INVALID_UNIT_STATUS")
+
+    unit_repo = HardwareTierUnitRepository(db)
+
+    # C1: validate the unit actually belongs to this tier BEFORE running the
+    # capacity check or writing anything — otherwise an owner can PATCH a
+    # unit ID belonging to another café's tier (every guard above only
+    # validates tier_id/cafe_id ownership, not unit_id ownership) and mutate
+    # it, with the capacity-safety check silently computed against the
+    # wrong tier's capacity.
+    unit = await unit_repo.get_by_id(unit_id)
+    if not unit or str(unit.tier_id) != str(tier_id):
+        raise NotFoundException(message="Unit not found", error_code="UNIT_NOT_FOUND")
+
+    # Requirement 3: going INTO maintenance must never oversell a future
+    # booking. Coming back to 'available' only ever increases capacity, so
+    # it's always safe and skips this check.
+    if status_enum == UnitStatus.MAINTENANCE:
+        booking_repo = BookingRepository(db)
+        maintenance_count = await unit_repo.count_in_maintenance(tier_id)
+        # M3: if this unit is already in maintenance (e.g. a duplicate/
+        # retried request), it's already included in maintenance_count —
+        # don't double-count it by adding 1 again.
+        already_in_maintenance = unit.status == UnitStatus.MAINTENANCE.value
+        effective_maintenance_count = maintenance_count if already_in_maintenance else maintenance_count + 1
+        new_capacity = max(0, tier.app_bookable_seats - effective_maintenance_count)
+        conflict = await booking_repo.find_first_capacity_conflict(tier_id, new_capacity=new_capacity)
+        if conflict:
+            raise ValidationException(
+                message=f"Can't set this to maintenance — {conflict.booking_reference} on {conflict.session_date} needs the capacity. Schedule maintenance after that booking instead.",
+                error_code="MAINTENANCE_CAPACITY_CONFLICT"
+            )
+
+    # `unit` above already proved this row exists and belongs to tier_id —
+    # apply_status writes on that same loaded object instead of set_status's
+    # unit_id-based re-SELECT, and there's nothing left to re-validate.
+    updated_unit = await unit_repo.apply_status(unit, status_enum)
+
+    return {
+        "success": True,
+        "data": {"unit": {"id": str(updated_unit.id), "label": updated_unit.label, "status": updated_unit.status}}
     }

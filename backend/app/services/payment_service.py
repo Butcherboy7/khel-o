@@ -58,6 +58,32 @@ class PaymentService:
         except Exception as e:
             logger.error(f"Failed to write owner notification for cafe {cafe_id}: {e}")
 
+    async def _notify_customer(self, booking, title: str, message: str, notification_type: str = "system") -> None:
+        """Best-effort in-app notification for the gamer who made the booking.
+
+        Mirrors _notify_owner, and is deliberately just as non-blocking: a
+        notification that fails to write must never fail a captured payment.
+
+        Until this existed, every Notification row in the codebase belonged to
+        an owner or a staff invitee — the customer bell and /notifications page
+        could not show anything, because nothing ever addressed a gamer.
+        """
+        try:
+            from app.models.notification import Notification
+            notif = Notification(
+                id=uuid4(),
+                user_id=booking.gamer_id,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                is_read=False,
+                link=f"/bookings/{booking.id}"
+            )
+            self.booking_repo.db.add(notif)
+            await self.booking_repo.db.commit()
+        except Exception as e:
+            logger.error(f"Failed to write customer notification for booking {booking.id}: {e}")
+
     async def _backfill_phone_from_payment(self, gamer_id: UUID, contact: Optional[str]) -> None:
         """Razorpay's own checkout collects a phone number from the customer
         (for its UPI/card verification) and includes it as `contact` on the
@@ -307,14 +333,23 @@ class PaymentService:
         if not payment:
             raise NotFoundException(message="Payment order not found", error_code="PAYMENT_NOT_FOUND")
 
-        booking = await self.booking_repo.get_by_id(payment.booking_id)
+        # Row-locked: an owner's "Release Slot" action (see owner.py's
+        # _release_pending_booking) locks this exact same row, so whichever
+        # of the two transactions commits first wins and this one observes
+        # the fresh status once it acquires the lock — no interleaving where
+        # both sides think they succeeded.
+        booking = await self.booking_repo.get_by_id_with_lock(payment.booking_id)
         if not booking:
             raise NotFoundException(message="Associated booking not found", error_code="BOOKING_NOT_FOUND")
 
         if str(booking.gamer_id) != str(gamer_id):
             raise ForbiddenException(message="You can only verify payments for your own bookings", error_code="FORBIDDEN")
 
-        if booking.status != BookingStatus.PENDING_PAYMENT:
+        # RELEASED_BY_OWNER falls through the same amount/signature checks
+        # below as a normal PENDING_PAYMENT booking would — only once the
+        # signature genuinely proves Razorpay captured this payment do we
+        # act on it (refund), just past the signature block below.
+        if booking.status not in (BookingStatus.PENDING_PAYMENT, BookingStatus.RELEASED_BY_OWNER):
             raise ValidationException(
                 message=f"Cannot verify payment for booking in status '{booking.status.value}'",
                 error_code="INVALID_BOOKING_STATUS"
@@ -364,6 +399,26 @@ class PaymentService:
                 raise ValidationException(message="Payment verification failed: Invalid signature", error_code="PAYMENT_FAILED")
             else:
                 raise ValidationException(message="Invalid payment signature", error_code="INVALID_SIGNATURE")
+
+        if booking.status == BookingStatus.RELEASED_BY_OWNER:
+            # The signature above just proved Razorpay genuinely captured this
+            # payment, but the owner released this slot before the confirmation
+            # arrived — someone else may already hold it. Never confirm; refund
+            # via the same path used for TTL-expired late payments, preserving
+            # released_by/released_at/release_reason on the booking.
+            await self.payment_repo.update_status(
+                payment_id=payment.id,
+                status=PaymentStatus.CAPTURED,
+                razorpay_payment_id=payload.razorpay_payment_id,
+                signature=payload.razorpay_signature
+            )
+            await self._refund_and_close_expired_booking(
+                booking.id, reason="Payment captured after the café owner released this slot; auto-refunded"
+            )
+            raise ValidationException(
+                message="This slot was released before your payment completed. A refund has been issued.",
+                error_code="SLOT_RELEASED_REFUNDED"
+            )
 
         # Verify 15-minute TTL window has not expired
         now_utc = datetime.now(timezone.utc)
@@ -417,6 +472,16 @@ class PaymentService:
             link=f"/owner/bookings?ref={booking.booking_reference}"
         )
 
+        # ...and for the customer. send_booking_confirmation above is an email,
+        # which no-ops entirely when SES credentials are absent, so this is
+        # currently the only confirmation a gamer can actually receive.
+        await self._notify_customer(
+            booking,
+            title="Booking confirmed",
+            message=f"You're all set for {booking.session_date} at {booking.start_time}. Show your QR pass at the café.",
+            notification_type="booking_confirmed"
+        )
+
         await self._create_route_transfer(booking, payload.razorpay_payment_id)
 
         return PaymentResponse.model_validate(updated_payment)
@@ -460,7 +525,9 @@ class PaymentService:
             if order_id:
                 payment = await self.payment_repo.get_by_razorpay_order_id(order_id)
                 if payment:
-                    booking = await self.booking_repo.get_by_id(payment.booking_id)
+                    # Row-locked for the same reason as verify_payment: this must
+                    # not interleave with a concurrent owner "Release Slot" action.
+                    booking = await self.booking_repo.get_by_id_with_lock(payment.booking_id)
                     if booking:
                         # Razorpay retries payment.captured on any non-2xx/timeout response, and
                         # this webhook fires independently of (and often alongside) the client's
@@ -478,9 +545,53 @@ class PaymentService:
                             await self._create_route_transfer(booking, payment_id)
                             return {"status": "already_processed"}
 
+                        if booking.status == BookingStatus.RELEASED_BY_OWNER:
+                            logger.warning(f"Late webhook confirmation for owner-released booking {booking.id}; refunding the captured payment")
+                            await self.payment_repo.update_status(payment.id, PaymentStatus.CAPTURED, razorpay_payment_id=payment_id)
+                            await self._refund_and_close_expired_booking(
+                                booking.id, reason="Payment captured after the café owner released this slot; auto-refunded"
+                            )
+                            return {"status": "released_refunded"}
+
+                        # Anything not still awaiting payment is finished —
+                        # cancelled by the customer, failed, already played out,
+                        # or refunded after a release. payment.captured is
+                        # delivered at-least-once and retried on any non-2xx, so
+                        # the same event genuinely arrives again after the
+                        # booking reached one of those states; without this guard
+                        # it fell straight through to the confirmation block
+                        # below and moved the booking back to CONFIRMED. That is
+                        # the "late webhook resurrects a released slot" failure:
+                        # the customer has been refunded and the slot put back on
+                        # sale, so re-confirming can leave two valid bookings on
+                        # one slot. verify_payment already rejects these states
+                        # (see its PENDING_PAYMENT/RELEASED_BY_OWNER check); this
+                        # brings the webhook path in line with it.
+                        if booking.status != BookingStatus.PENDING_PAYMENT:
+                            logger.warning(
+                                f"Webhook payment.captured for booking {booking.id} in "
+                                f"non-confirmable state {booking.status}; refusing to confirm"
+                            )
+                            if payment.status == PaymentStatus.REFUNDED:
+                                # Already refunded — process_refund would no-op,
+                                # but marking the payment CAPTURED again first
+                                # would make it look refundable a second time.
+                                return {"status": "already_refunded"}
+                            await self.payment_repo.update_status(
+                                payment.id, PaymentStatus.CAPTURED, razorpay_payment_id=payment_id
+                            )
+                            await self._refund_and_close_expired_booking(
+                                booking.id,
+                                reason=(
+                                    f"Payment captured after the booking was already "
+                                    f"{booking.status.value}; auto-refunded"
+                                ),
+                            )
+                            return {"status": "not_confirmable_refunded"}
+
                         now_utc = datetime.now(timezone.utc)
                         created_dt = booking.created_at.replace(tzinfo=timezone.utc) if (booking.created_at and booking.created_at.tzinfo is None) else (booking.created_at or now_utc)
-                        
+
                         # Check TTL expiry before confirmation (> 900 seconds = 15 mins)
                         if booking.status == BookingStatus.PENDING_PAYMENT and (now_utc - created_dt).total_seconds() > 900:
                             logger.warning(f"Late webhook confirmation for expired booking {booking.id}; refunding the captured payment")
@@ -502,6 +613,23 @@ class PaymentService:
                             "qr_code_url": qr_url
                         })
                         await notifier.send_booking_confirmation(self.payment_repo.db, booking.id)
+                        # This path confirmed the booking but notified nobody —
+                        # verify_payment did. A customer who closes the tab
+                        # before verify returns (or any Razorpay retry) is
+                        # confirmed here, so both parties were silently skipped.
+                        await self._notify_owner(
+                            cafe_id=booking.cafe_id,
+                            title="New booking confirmed",
+                            message=f"Booking {booking.booking_reference} confirmed for {booking.session_date} at {booking.start_time}.",
+                            notification_type="booking_confirmed",
+                            link=f"/owner/bookings?ref={booking.booking_reference}"
+                        )
+                        await self._notify_customer(
+                            booking,
+                            title="Booking confirmed",
+                            message=f"You're all set for {booking.session_date} at {booking.start_time}. Show your QR pass at the café.",
+                            notification_type="booking_confirmed"
+                        )
                         await self._create_route_transfer(booking, payment_id)
                         await self._backfill_phone_from_payment(booking.gamer_id, entity.get("contact"))
 
@@ -530,29 +658,33 @@ class PaymentService:
 
         return {"status": "ok"}
 
-    async def _refund_and_close_expired_booking(self, booking_id: UUID) -> None:
-        """Shared by verify_payment and handle_webhook's TTL-expiry paths
-        (P0-B4). The payment row must already be marked CAPTURED with a real
-        razorpay_payment_id before calling this.
+    async def _refund_and_close_expired_booking(self, booking_id: UUID, reason: Optional[str] = None) -> None:
+        """Shared by verify_payment/handle_webhook's TTL-expiry paths (P0-B4)
+        and the "released before payment confirmed" race (see RELEASED_BY_OWNER
+        handling above). The payment row must already be marked CAPTURED with
+        a real razorpay_payment_id before calling this.
 
         On a successful refund, process_refund itself sets the booking to
-        CANCELLED. If the Razorpay API call fails, process_refund leaves the
-        booking untouched — this must not be silently left in
-        PENDING_PAYMENT (a customer's booking looking "still awaiting
-        payment" while their money is actually captured and stuck), so on
-        failure this puts it in FAILED with a reason flagging it needs a
-        manual refund.
+        CANCELLED — this does not overwrite released_by/released_at/
+        release_reason, which stay on the row as the permanent record of why
+        it was released, independent of this final status/cancellation_reason.
+        If the Razorpay API call fails, process_refund leaves the booking
+        untouched — this must not be silently left in PENDING_PAYMENT (a
+        customer's booking looking "still awaiting payment" while their money
+        is actually captured and stuck), so on failure this puts it in FAILED
+        with a reason flagging it needs a manual refund.
         """
+        success_reason = reason or "Payment captured after 15-minute TTL window; auto-refunded"
         refund_result = await self.process_refund(booking_id)
         if refund_result["status"] in ("processed", "already_refunded"):
-            reason = "Payment captured after 15-minute TTL window; auto-refunded"
+            final_reason = success_reason
         else:
             await self.booking_repo.update(booking_id, {"status": BookingStatus.FAILED})
-            reason = (
-                f"Payment captured after 15-minute TTL window; automatic refund did NOT "
-                f"complete ({refund_result['status']}) — needs manual refund"
+            final_reason = (
+                f"{success_reason} — automatic refund did NOT complete "
+                f"({refund_result['status']}) — needs manual refund"
             )
-        await self.booking_repo.update(booking_id, {"cancellation_reason": reason})
+        await self.booking_repo.update(booking_id, {"cancellation_reason": final_reason})
 
     async def process_refund(self, booking_id: UUID, admin_id: Optional[UUID] = None) -> Dict[str, Any]:
         payment = await self.payment_repo.get_by_booking_id(booking_id)
@@ -588,6 +720,30 @@ class PaymentService:
                 f"transfer manually in the Razorpay dashboard, or via the Route reversal API, until "
                 f"automatic reversal is built and tested."
             )
+
+        # Phase 1 manual café payouts cannot claw back money that already left
+        # the bank: if this booking's platform fee was already covered by a
+        # manual CafePayout, refunding it now is invisible to KHEL-O staff
+        # unless we log it. This is purely an additive warning — no refund
+        # behavior changes, no schema change (spec Edge Cases: "Phase 1 logs a
+        # warning for manual follow-up at refund time when platform_fee_id
+        # already has a CafePayoutItem").
+        if fee_row:
+            from app.models.cafe_payout_item import CafePayoutItem
+            from sqlalchemy import select as _select
+            payout_item = (await self.payment_repo.db.execute(
+                _select(CafePayoutItem).where(CafePayoutItem.platform_fee_id == fee_row.id)
+            )).scalars().first()
+            if payout_item:
+                booking_for_log = await self.booking_repo.get_by_id(booking_id)
+                booking_ref = booking_for_log.booking_reference if booking_for_log else str(booking_id)
+                logger.warning(
+                    f"Refunding booking {booking_ref} ({booking_id}) whose platform fee {fee_row.id} was "
+                    f"already manually paid out via CafePayout {payout_item.payout_id} "
+                    f"(amount INR {payout_item.amount_allocated}) — the café has already been paid for "
+                    f"this booking's settlement. This refund does NOT claw that money back automatically; "
+                    f"follow up manually with the café to recover it."
+                )
 
         if not payment.razorpay_payment_id:
             logger.warning(f"Payment for booking {booking_id} has no razorpay_payment_id; cannot refund via Razorpay")
@@ -654,6 +810,18 @@ class PaymentService:
 
         notifier = NotificationService()
         await notifier.send_refund_confirmation(self.payment_repo.db, booking_id)
+        # Same reasoning as the confirmation path: the email above no-ops
+        # without SES, and a customer whose booking was cancelled and refunded
+        # is exactly who must not be left guessing. process_refund only loads
+        # the payment, so fetch the booking for the gamer_id and reference.
+        refunded_booking = await self.booking_repo.get_by_id(booking_id)
+        if refunded_booking:
+            await self._notify_customer(
+                refunded_booking,
+                title="Booking cancelled and refunded",
+                message=f"Booking {refunded_booking.booking_reference} was cancelled. ₹{float(payment.amount):.2f} has been refunded to your original payment method.",
+                notification_type="booking_cancelled"
+            )
 
         return {
             "refundId": refund_id,

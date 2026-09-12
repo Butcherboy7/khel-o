@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, status, Query, Body
 from typing import Optional, Dict, Any, List
-from uuid import UUID
+from uuid import UUID, uuid4
+import math
 import secrets
+import re
 from datetime import date, datetime, timezone, time, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -16,14 +18,16 @@ from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository, guess_platform_and_model
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
+from app.repositories.cafe_payout_repository import CafePayoutRepository
+from app.repositories.owner_payout_repository import OwnerPayoutRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, AliasChoices
-from app.constants import validate_city
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator, AliasChoices
+from app.constants import validate_city, validate_google_maps_url
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
-from app.models.hardware_tier import HardwareTier, PlatformType
+from app.models.hardware_tier import HardwareTier, PlatformType, TierType
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import Payment, PaymentStatus
@@ -112,6 +116,7 @@ class OnboardingSubmitRequest(BaseModel):
     pincode: str = Field(..., max_length=10)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    google_maps_url: Optional[str] = None
     phone_number: str = Field(..., max_length=20)
     email: Optional[str] = None
     opening_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Opening time in HH:MM:SS format (required)")
@@ -120,21 +125,97 @@ class OnboardingSubmitRequest(BaseModel):
     @classmethod
     def _validate_city(cls, v: str) -> str:
         return validate_city(v)
+
+    @field_validator("google_maps_url")
+    @classmethod
+    def _validate_google_maps_url(cls, v: Optional[str]) -> Optional[str]:
+        return validate_google_maps_url(v)
     closing_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Closing time in HH:MM:SS format (required, can be earlier than opening for overnight)")
     total_seats: int = Field(20, ge=1)
     amenities: List[str] = Field(default_factory=list)
     photos: List[str] = Field(default_factory=list)
     supported_games: List[str] = Field(default_factory=list)
     business_pan: Optional[str] = None
+    has_gst: bool = False
     gstin: Optional[str] = None
     legal_document_url: Optional[str] = None
-    bank_account_number: Optional[str] = None
+
+    # --- Manual payout fields (Razorpay Route replacement) ---
+    upi_vpa: str = Field(..., min_length=3, max_length=256)
+    confirm_upi_vpa: str = Field(..., min_length=3, max_length=256)
+    bank_account_number: Optional[str] = Field(None, min_length=8, max_length=18)
+    confirm_bank_account_number: Optional[str] = None
     bank_ifsc: Optional[str] = None
     account_holder_name: Optional[str] = None
+    bank_name: Optional[str] = Field(None, max_length=100)
+    account_type: Optional[str] = None
+
     cancellation_policy: Optional[str] = None
     house_rules: List[str] = Field(default_factory=list)
     social_links: Dict[str, str] = Field(default_factory=dict)
     hardware_tiers: List[OnboardingHardwareTierItem] = Field(default_factory=list)
+
+    @field_validator("upi_vpa")
+    @classmethod
+    def _validate_upi_vpa(cls, v: str) -> str:
+        v = v.strip()
+        if not re.match(r"^[\w.\-]{2,256}@[a-zA-Z]{2,64}$", v):
+            raise ValueError("Enter a valid UPI ID (e.g. yourname@okhdfcbank).")
+        return v
+
+    @field_validator("business_pan")
+    @classmethod
+    def _validate_business_pan(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        v = v.strip().upper()
+        if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", v):
+            raise ValueError("Business PAN must be a valid 10-character PAN (e.g. ABCDE1234F).")
+        return v
+
+    @field_validator("bank_ifsc")
+    @classmethod
+    def _validate_bank_ifsc(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        v = v.strip().upper()
+        if not re.match(r"^[A-Z]{4}0[A-Z0-9]{6}$", v):
+            raise ValueError("Bank IFSC must be a valid 11-character code (e.g. HDFC0000128).")
+        return v
+
+    @field_validator("gstin")
+    @classmethod
+    def _validate_gstin(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        v = v.strip().upper()
+        if not re.match(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$", v):
+            raise ValueError("GSTIN must be a valid 15-character GSTIN (e.g. 29ABCDE1234F1Z5).")
+        return v
+
+    @model_validator(mode="after")
+    def _validate_payout_and_gst(self) -> "OnboardingSubmitRequest":
+        if self.upi_vpa.strip().lower() != self.confirm_upi_vpa.strip().lower():
+            raise ValueError("UPI ID and confirmation do not match.")
+
+        bank_fields_given = any([self.bank_account_number, self.bank_ifsc, self.account_holder_name])
+        if bank_fields_given:
+            missing = [
+                name for name, val in [
+                    ("bank account number", self.bank_account_number),
+                    ("bank IFSC", self.bank_ifsc),
+                    ("account holder name", self.account_holder_name),
+                ] if not val
+            ]
+            if missing:
+                raise ValueError(f"Bank fallback is incomplete — missing: {', '.join(missing)}.")
+            if self.bank_account_number != self.confirm_bank_account_number:
+                raise ValueError("Bank account number and confirmation do not match.")
+
+        if self.has_gst and not self.gstin:
+            raise ValueError("GSTIN is required when GST registration is indicated.")
+
+        return self
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -180,6 +261,7 @@ async def get_owner_settings(
         "menuPhotos": cafe.menu_photos or [],
         "latitude": cafe.latitude,
         "longitude": cafe.longitude,
+        "googleMapsUrl": cafe.google_maps_url,
     }
 
     return {
@@ -561,6 +643,7 @@ async def submit_onboarding_application(
             pincode=payload.pincode,
             latitude=payload.latitude,
             longitude=payload.longitude,
+            google_maps_url=payload.google_maps_url,
             phone_number=payload.phone_number or current_user.phone_number or "+919876543210",
             email=payload.email or current_user.email,
             opening_time=opening_time_obj,
@@ -590,6 +673,7 @@ async def submit_onboarding_application(
         cafe.pincode = payload.pincode
         if payload.latitude: cafe.latitude = payload.latitude
         if payload.longitude: cafe.longitude = payload.longitude
+        if payload.google_maps_url: cafe.google_maps_url = payload.google_maps_url
         cafe.phone_number = payload.phone_number
         cafe.email = payload.email
         cafe.opening_time = opening_time_obj
@@ -610,32 +694,20 @@ async def submit_onboarding_application(
 
     await db.flush()
 
-    # Save Owner Payout Account if provided
-    if payload.bank_account_number or payload.bank_ifsc:
-        stmt_payout = select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == current_user.id)
-        res_payout = await db.execute(stmt_payout)
-        payout_acc = res_payout.scalars().first()
-
-        masked_acc = f"••••{payload.bank_account_number[-4:]}" if payload.bank_account_number and len(payload.bank_account_number) >= 4 else payload.bank_account_number
-
-        if not payout_acc:
-            payout_acc = OwnerPayoutAccount(
-                owner_id=current_user.id,
-                kyc_status="submitted",
-                business_pan=payload.business_pan,
-                bank_account_number_masked=masked_acc,
-                bank_ifsc=payload.bank_ifsc,
-                account_holder_name=payload.account_holder_name or current_user.full_name,
-                details={"full_account": payload.bank_account_number},
-                submitted_at=datetime.now(timezone.utc)
-            )
-            db.add(payout_acc)
-        else:
-            payout_acc.kyc_status = "submitted"
-            payout_acc.business_pan = payload.business_pan
-            payout_acc.bank_account_number_masked = masked_acc
-            payout_acc.bank_ifsc = payload.bank_ifsc
-            payout_acc.account_holder_name = payload.account_holder_name or current_user.full_name
+    # Save Owner Payout Account (UPI + optional bank fallback). upi_vpa is
+    # required by OnboardingSubmitRequest, so this always runs.
+    payout_repo = OwnerPayoutRepository(db)
+    await payout_repo.upsert_payout_details(
+        owner_id=current_user.id,
+        upi_vpa=payload.upi_vpa,
+        bank_account_number=payload.bank_account_number,
+        bank_ifsc=payload.bank_ifsc,
+        account_holder_name=payload.account_holder_name,
+        bank_name=payload.bank_name,
+        account_type=payload.account_type,
+        business_pan=payload.business_pan,
+        default_holder_name=current_user.full_name,
+    )
 
     # Create Hardware Tiers if provided
     if payload.hardware_tiers:
@@ -856,6 +928,8 @@ async def validate_qr_code(
                 "durationHours": float(booking.duration_hours),
                 "seatsCount": booking.seats_count,
                 "totalAmount": float(booking.total_amount),
+                "gatewayFee": float(booking.gateway_fee),
+                "convenienceFee": float(booking.convenience_fee),
                 "status": booking.status.value,
             }
         }
@@ -1192,8 +1266,9 @@ async def get_owner_payout_summary(
         # fee split, settlement amount, and transfer status all come straight
         # from what was actually computed/attempted for that booking.
         stmt_bookings = (
-            select(Booking, PlatformFee)
+            select(Booking, PlatformFee, Payment.status)
             .join(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .join(Payment, Payment.booking_id == Booking.id)
             .where(
                 Booking.cafe_id.in_(cafe_ids),
                 Booking.status.in_([
@@ -1208,17 +1283,20 @@ async def get_owner_payout_summary(
         res_bookings = await db.execute(stmt_bookings)
         rows = res_bookings.all()
 
-        for b, fee in rows:
+        for b, fee, payment_status in rows:
             gross = float(b.total_amount)
             platform_fee = float(fee.gateway_fee)
             net = float(fee.owner_settlement_amount)
             transfer_status = fee.transfer_status
+            is_refunded = payment_status == PaymentStatus.REFUNDED
 
             total_gross += gross
             total_net_settlement += net
             total_gateway_fees += platform_fee
             total_platform_fees += platform_fee
-            if transfer_status == "transferred":
+            if is_refunded:
+                pass  # refunded bookings are excluded from both completed and pending settlement
+            elif transfer_status == "transferred":
                 completed_settlements += net
             else:
                 pending_settlements += net
@@ -1237,6 +1315,30 @@ async def get_owner_payout_summary(
                 "transferMethod": "Razorpay Route (Direct Bank)"
             })
 
+        # Subtract amounts already manually paid out (via CafePayoutRepository)
+        # from pending_settlements — those bookings are still "not transferred"
+        # via Razorpay Route, but the owner has already been paid for them
+        # through a manual café payout, so they shouldn't count as pending.
+        # Comparison is done at the booking-id level (not by diffing two sums)
+        # because "not transferred" and "still outstanding" are differently
+        # scoped sets: a booking can be transfer_status == "transferred" and
+        # never manually paid out, while another can be "pending" and already
+        # fully paid out via a CafePayoutItem — diffing the two totals would
+        # misattribute one café's already-paid amount to another's.
+        cafe_payout_repo = CafePayoutRepository(db)
+        already_paid_out = 0.0
+        for c_id in cafe_ids:
+            outstanding_rows_for_cafe = await cafe_payout_repo.get_outstanding_fee_rows(c_id)
+            outstanding_booking_ids = {b.id for _fee, b in outstanding_rows_for_cafe}
+            for b, fee, ps in rows:
+                if b.cafe_id != c_id or ps == PaymentStatus.REFUNDED:
+                    continue
+                if fee.transfer_status == "transferred":
+                    continue
+                if b.id not in outstanding_booking_ids:
+                    already_paid_out += float(fee.owner_settlement_amount)
+        pending_settlements -= already_paid_out
+
     # Fetch bank details
     stmt_payout = select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == current_owner.id)
     res_payout = await db.execute(stmt_payout)
@@ -1249,9 +1351,23 @@ async def get_owner_payout_summary(
             "bankAccountNumberMasked": payout_account.bank_account_number_masked,
             "bankIfsc": payout_account.bank_ifsc,
             "businessPan": payout_account.business_pan,
-            "kycStatus": payout_account.kyc_status,
-            "razorpayAccountId": payout_account.razorpay_account_id or "acc_rzp_route_khel"
+            "upiVpa": payout_account.upi_vpa,
+            "payoutVerificationStatus": payout_account.payout_verification_status,
+            "verifiedName": payout_account.verified_name,
         }
+
+    # Sum of this owner's actual manual CafePayout rows (across all their
+    # cafés) — the manual-payout counterpart to completedSettlements, which
+    # only ever reflects Route transfers. Deliberately not derived from the
+    # already_paid_out estimate above, which serves a different purpose
+    # (subtracting from pendingSettlements) and can diverge after a refund.
+    from app.models.cafe_payout import CafePayout, CafePayoutStatus
+    already_paid_out_total = 0.0
+    if cafe_ids:
+        total_paid_out_stmt = select(func.sum(CafePayout.amount)).where(
+            CafePayout.cafe_id.in_(cafe_ids), CafePayout.status == CafePayoutStatus.PAID
+        )
+        already_paid_out_total = float((await db.execute(total_paid_out_stmt)).scalar() or 0)
 
     return {
         "success": True,
@@ -1259,11 +1375,13 @@ async def get_owner_payout_summary(
             "summary": {
                 "totalEarnings": round(total_gross, 2),
                 "netSettlement": round(total_net_settlement, 2),
+                "netEarnings": round(total_net_settlement, 2),
                 "completedSettlements": round(completed_settlements, 2),
                 "pendingSettlements": round(pending_settlements, 2),
                 "totalGatewayFees": round(total_gateway_fees, 2),
                 "totalPlatformFees": round(total_platform_fees, 2),
                 "totalTds": round(total_tds, 2),
+                "alreadyPaidOut": round(already_paid_out_total, 2),
             },
             "account": account_info,
             "recentTransactions": recent_payout_items[:10]
@@ -1271,6 +1389,46 @@ async def get_owner_payout_summary(
     }
 
 # --- ANALYTICS ---
+# Bookings counted toward analytics: same "paid-and-live-or-completed" set
+# used by /payouts/summary (a Route transfer/paid session is real revenue
+# the instant it's CONFIRMED, not only once COMPLETED), minus any booking
+# whose Payment was subsequently REFUNDED — refunded sessions are not real
+# revenue/demand and must not be counted here either.
+_ANALYTICS_COUNTED_STATUSES = [
+    BookingStatus.CONFIRMED,
+    BookingStatus.CHECKED_IN,
+    BookingStatus.ACTIVE,
+    BookingStatus.COMPLETED,
+]
+
+
+def _owner_settlement(booking, fee) -> float:
+    """What the café actually earns on a booking.
+
+    Booking.total_amount is the *customer's* bill — subtotal plus KHELO's
+    platform fee — so it must never be shown to an owner as their revenue.
+    The authoritative figure is PlatformFee.owner_settlement_amount; legacy
+    rows predating that table fall back to the subtotal, which is the same
+    definition (base minus discount), mirroring booking_repository.
+    """
+    if fee is not None and fee.owner_settlement_amount is not None:
+        return float(fee.owner_settlement_amount)
+    return float(booking.base_amount) - float(booking.discount_amount or 0)
+
+
+def _hours_touched(booking) -> list[int]:
+    """Every clock hour a session occupies, not just the one it starts in.
+
+    A 18:00-21:00 booking occupies 18, 19 and 20; counting only the start hour
+    reports start-time popularity while the UI labels it occupancy. Walking
+    forward from the start hour modulo 24 also handles overnight sessions
+    (22:00 + 4h -> 22, 23, 0, 1) without needing end_time rollover math.
+    """
+    start_hour = booking.start_time.hour
+    spans = max(1, math.ceil(float(booking.duration_hours)))
+    return [(start_hour + offset) % 24 for offset in range(spans)]
+
+
 @router.get("/analytics", status_code=status.HTTP_200_OK)
 async def get_owner_analytics(
     current_owner: User = Depends(require_cafe_owner),
@@ -1281,40 +1439,120 @@ async def get_owner_analytics(
     cafes = cafes_res.scalars().all()
     cafe_ids = [c.id for c in cafes]
 
-    tier_revenue = []
-    busy_hours = []
-    top_games = []
+    tier_revenue: list[dict] = []
+    busy_hours: list[dict] = []
+    top_games: list[dict] = []
+    revenue_trend: list[dict] = []
+    returning_customer_rate = 0.0
+    average_duration_hours = 0.0
+    peak_occupancy_percent = 0.0
 
     if cafe_ids:
-        # Fetch tiers for cafe
         tier_stmt = select(HardwareTier).where(HardwareTier.cafe_id.in_(cafe_ids))
-        tier_res = await db.execute(tier_stmt)
-        tiers = tier_res.scalars().all()
+        tiers = (await db.execute(tier_stmt)).scalars().all()
+        tiers_by_id = {t.id: t for t in tiers}
+        total_seats = sum(t.total_seats for t in tiers) or 0
 
-        for tier in tiers:
-            # Calculate revenue per tier
-            tier_revenue.append({
-                "tierName": tier.name,
-                "seats": tier.total_seats,
-                "hourlyRate": float(tier.hourly_rate),
-                "revenue": float(tier.hourly_rate * 42) # Derived metrics
-            })
+        # Real, non-refunded bookings only — no fabricated numbers below.
+        # PlatformFee is outer-joined because every money figure on this page is
+        # owner-facing and must come from owner_settlement_amount, never from
+        # Booking.total_amount (which is what the *customer* paid, KHELO's
+        # platform fee included). Payment.booking_id is UNIQUE, so neither join
+        # can fan rows out.
+        stmt_bookings = (
+            select(Booking, PlatformFee)
+            .join(Payment, Payment.booking_id == Booking.id)
+            .outerjoin(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .where(
+                Booking.cafe_id.in_(cafe_ids),
+                Booking.status.in_(_ANALYTICS_COUNTED_STATUSES),
+                Payment.status != PaymentStatus.REFUNDED,
+            )
+        )
+        rows = (await db.execute(stmt_bookings)).all()
+        bookings = [b for b, _ in rows]
+        # booking id -> what the café actually earns on that booking.
+        settlement_by_booking = {
+            b.id: _owner_settlement(b, fee) for b, fee in rows
+        }
 
-        busy_hours = [
-            {"hour": "09:00 - 12:00", "occupancy": 35},
-            {"hour": "12:00 - 15:00", "occupancy": 65},
-            {"hour": "15:00 - 18:00", "occupancy": 92},
-            {"hour": "18:00 - 21:00", "occupancy": 98},
-            {"hour": "21:00 - 00:00", "occupancy": 84},
-        ]
+        if bookings:
+            # --- Returning customer rate: % of distinct gamers with >1 booking ---
+            bookings_per_gamer: Dict[Any, int] = {}
+            for b in bookings:
+                bookings_per_gamer[b.gamer_id] = bookings_per_gamer.get(b.gamer_id, 0) + 1
+            distinct_gamers = len(bookings_per_gamer)
+            repeat_gamers = sum(1 for c in bookings_per_gamer.values() if c > 1)
+            returning_customer_rate = round((repeat_gamers / distinct_gamers * 100), 1) if distinct_gamers else 0.0
 
-        top_games = [
-            {"name": "Valorant", "percentage": 42},
-            {"name": "Counter-Strike 2", "percentage": 28},
-            {"name": "GTA V Online", "percentage": 15},
-            {"name": "EA Sports FC 24", "percentage": 10},
-            {"name": "Dota 2", "percentage": 5},
-        ]
+            # --- Average session duration ---
+            total_hours = sum(float(b.duration_hours) for b in bookings)
+            average_duration_hours = round(total_hours / len(bookings), 2)
+
+            # --- Busiest operating hours (bucketed by booking start hour) ---
+            seats_by_hour: Dict[int, int] = {h: 0 for h in range(24)}
+            for b in bookings:
+                for hour in _hours_touched(b):
+                    seats_by_hour[hour] += b.seats_count
+            capacity_basis = max(total_seats, 1)
+            hour_occupancy = [
+                {
+                    "hour": f"{h:02d}:00 - {(h + 1) % 24:02d}:00",
+                    "occupancy": min(round(seats_by_hour[h] / capacity_basis * 100), 100),
+                }
+                for h in range(24) if seats_by_hour[h] > 0
+            ]
+            hour_occupancy.sort(key=lambda x: x["occupancy"], reverse=True)
+            busy_hours = hour_occupancy[:6]
+            peak_occupancy_percent = busy_hours[0]["occupancy"] if busy_hours else 0.0
+
+            # --- Hardware tier revenue/bookings ---
+            revenue_by_tier: Dict[Any, dict] = {}
+            for b in bookings:
+                tier = tiers_by_id.get(b.hardware_tier_id)
+                if not tier:
+                    continue
+                entry = revenue_by_tier.setdefault(tier.id, {
+                    "tierName": tier.name,
+                    "seats": tier.total_seats,
+                    "hourlyRate": float(tier.price_per_hour),
+                    "revenue": 0.0,
+                    "bookings": 0,
+                })
+                entry["revenue"] += settlement_by_booking[b.id]
+                entry["bookings"] += 1
+            tier_revenue = sorted(revenue_by_tier.values(), key=lambda t: t["revenue"], reverse=True)
+            for t in tier_revenue:
+                t["revenue"] = round(t["revenue"], 2)
+
+            # --- Top requested games (only if bookings actually record a game) ---
+            games_count: Dict[str, int] = {}
+            for b in bookings:
+                if b.game:
+                    games_count[b.game] = games_count.get(b.game, 0) + 1
+            if games_count:
+                total_with_game = sum(games_count.values())
+                ranked_games = sorted(games_count.items(), key=lambda kv: kv[1], reverse=True)[:5]
+                top_games = [
+                    {"name": name, "percentage": round(count / total_with_game * 100, 1)}
+                    for name, count in ranked_games
+                ]
+
+            # --- Revenue trend, last 7 days ---
+            # session_date is an IST wall-clock date (app/core/time.py), so the
+            # window must be anchored in IST too — as every other "today" in
+            # this file already is. Anchoring on UTC shifts the whole chart back
+            # a day for the 5.5h each night that IST is a date ahead, silently
+            # dropping the current day's revenue.
+            today = datetime.now(IST).date()
+            revenue_by_day: Dict[date, float] = {today - timedelta(days=i): 0.0 for i in range(6, -1, -1)}
+            for b in bookings:
+                if b.session_date in revenue_by_day:
+                    revenue_by_day[b.session_date] += settlement_by_booking[b.id]
+            revenue_trend = [
+                {"date": d.isoformat(), "revenue": round(v, 2)}
+                for d, v in revenue_by_day.items()
+            ]
 
     return {
         "success": True,
@@ -1322,8 +1560,10 @@ async def get_owner_analytics(
             "tierRevenue": tier_revenue,
             "busyHours": busy_hours,
             "topGames": top_games,
-            "returningCustomerRate": 68.4,
-            "averageDurationHours": 2.5
+            "revenueTrend": revenue_trend,
+            "returningCustomerRate": returning_customer_rate,
+            "averageDurationHours": average_duration_hours,
+            "peakOccupancyPercent": peak_occupancy_percent,
         }
     }
 
@@ -1765,11 +2005,17 @@ class CafeDetailsUpdate(BaseModel):
     description: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    google_maps_url: Optional[str] = None
 
     @field_validator("city")
     @classmethod
     def _validate_city(cls, v: Optional[str]) -> Optional[str]:
         return validate_city(v) if v is not None else v
+
+    @field_validator("google_maps_url")
+    @classmethod
+    def _validate_google_maps_url(cls, v: Optional[str]) -> Optional[str]:
+        return validate_google_maps_url(v)
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -1969,7 +2215,9 @@ async def get_tiers_needing_confirmation(
 
     tier_repo = HardwareTierRepository(db)
     tiers = await tier_repo.get_by_cafe_id(cafe.id, active_only=False)
-    unmigrated = [t for t in tiers if t.platform is None]
+    # Activity tiers (Snooker, Arcade, etc.) always have platform=None by
+    # design — that's not a legacy-migration gap, so exclude them here.
+    unmigrated = [t for t in tiers if t.platform is None and t.tier_type != TierType.ACTIVITY]
 
     tiers_data = []
     for t in unmigrated:
@@ -2004,6 +2252,12 @@ async def confirm_tier_platform(
     cafe = await cafe_repo.get_by_id(tier.cafe_id)
     if not cafe or str(cafe.owner_id) != str(current_owner.id):
         raise ForbiddenException("You can only confirm tiers for your own café", error_code="FORBIDDEN")
+
+    if tier.tier_type == TierType.ACTIVITY:
+        raise ValidationException(
+            message="This tier is an activity, not a gaming platform — platform confirmation doesn't apply to it",
+            error_code="NOT_A_GAMING_TIER",
+        )
 
     try:
         platform = PlatformType(payload.platform)
@@ -2061,6 +2315,8 @@ async def update_cafe_details(
         cafe.latitude = payload.latitude
     if payload.longitude is not None:
         cafe.longitude = payload.longitude
+    if payload.google_maps_url is not None:
+        cafe.google_maps_url = payload.google_maps_url
 
     await db.commit()
     await db.refresh(cafe)
@@ -2076,7 +2332,8 @@ async def update_cafe_details(
                 "amenities": cafe.amenities,
                 "photos": cafe.photos,
                 "latitude": cafe.latitude,
-                "longitude": cafe.longitude
+                "longitude": cafe.longitude,
+                "googleMapsUrl": cafe.google_maps_url
             }
         }
     }
@@ -2249,6 +2506,80 @@ async def cancel_booking_as_owner(
             "message": "Booking cancelled successfully"
         }
     }
+
+
+async def _release_pending_booking(
+    booking_id: UUID,
+    reason: Optional[str],
+    current_user: User,
+    db: AsyncSession,
+    is_admin: bool = False,
+) -> dict:
+    """Shared by the owner and admin release endpoints. Never deletes the
+    booking or touches historical payment records — only transitions
+    PENDING_PAYMENT -> RELEASED_BY_OWNER so it stops counting toward
+    capacity immediately (see booking_repository.get_overlapping_bookings_count),
+    while released_by/released_at/release_reason keep it fully auditable.
+
+    Row-locks the booking (get_by_id_with_lock) so this can't interleave
+    with payment_service.verify_payment/handle_webhook confirming the same
+    booking concurrently — whichever transaction commits first wins, and
+    the other observes the fresh status once it acquires the lock. A late
+    Razorpay confirmation arriving after release is refunded, not
+    confirmed (see payment_service.py's RELEASED_BY_OWNER branches)."""
+    booking_repo = BookingRepository(db)
+    cafe_repo = CafeRepository(db)
+
+    booking = await booking_repo.get_by_id_with_lock(booking_id)
+    if not booking:
+        raise NotFoundException("Booking not found", error_code="BOOKING_NOT_FOUND")
+
+    if not is_admin:
+        cafe = await cafe_repo.get_by_id(booking.cafe_id)
+        if not cafe or str(cafe.owner_id) != str(current_user.id):
+            raise ForbiddenException("You can only release bookings for your own café", error_code="NOT_CAFE_OWNER")
+
+    if booking.status != BookingStatus.PENDING_PAYMENT:
+        raise BadRequestException(
+            f"Cannot release booking with status '{booking.status.value}' — only bookings awaiting payment can be released",
+            error_code="INVALID_BOOKING_STATUS"
+        )
+
+    now_utc = datetime.now(timezone.utc)
+    updated = await booking_repo.update(booking_id, {
+        "status": BookingStatus.RELEASED_BY_OWNER,
+        "released_by": current_user.id,
+        "released_at": now_utc,
+        "release_reason": reason or ("Released by admin" if is_admin else "Released by café owner — customer had not completed payment")
+    })
+
+    return {
+        "success": True,
+        "data": {
+            "booking": {
+                "id": str(updated.id),
+                "status": updated.status.value,
+                "releasedAt": updated.released_at.isoformat() if updated.released_at else None,
+                "releaseReason": updated.release_reason
+            },
+            "message": "Slot released and made available again"
+        }
+    }
+
+
+@router.patch("/bookings/{booking_id}/release", status_code=status.HTTP_200_OK)
+async def release_pending_booking(
+    booking_id: UUID,
+    reason: Optional[str] = Body(None, embed=True),
+    current_user: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Manually release a PENDING_PAYMENT booking's held slot before the
+    natural 15-minute TTL — e.g. the owner can see in person the customer
+    isn't paying and doesn't want to wait. See _release_pending_booking for
+    the safety details."""
+    return await _release_pending_booking(booking_id, reason, current_user, db, is_admin=False)
+
 
 # Placeholder domain the seeded lead-listing accounts ship with. These addresses
 # do not exist, so an account still on one has not been handed over yet.

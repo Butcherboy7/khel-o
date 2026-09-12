@@ -13,10 +13,14 @@ import {
   Loader2,
   Monitor,
   Tag,
+  CheckCircle2,
+  X,
+  PauseCircle,
 } from 'lucide-react';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
+import { previewKheloCode } from '@/lib/api/promotions';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
-import { createBooking } from '@/lib/api/bookings';
+import { createBooking, getPlatformFeePercentage } from '@/lib/api/bookings';
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useRazorpay } from '@/hooks/useRazorpay';
@@ -115,6 +119,15 @@ function BookingWizardContent() {
 
   const [selectedGame, setSelectedGame] = useState('');
 
+  // KHELO promo code — typed in manually or prefilled by the /redeem/[code]
+  // QR deep link (?promoCode=... in the URL, same restore pattern as the
+  // other selections above). Kept separate from the auto-applied tier promo
+  // below: an explicit code, once validated, takes over the discount
+  // calculation so the two never stack.
+  const [promoCodeInput, setPromoCodeInput] = useState(() => (searchParams.get('promoCode') || '').toUpperCase());
+  const [appliedCode, setAppliedCode] = useState<string | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
@@ -132,6 +145,63 @@ function BookingWizardContent() {
   const activeTier =
     (cafe?.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
     (cafe?.tiers && cafe.tiers[0] ? cafe.tiers[0] : null);
+
+  // Super Admin-controlled rate (Admin → Platform Settings) — this is a
+  // checkout-time estimate only, the server recomputes and charges the
+  // authoritative amount using whatever rate is live at booking-creation
+  // time. Falls back to today's known rate while the request is in flight
+  // so the summary doesn't flash a $0 fee on first paint.
+  const { data: platformFeeData } = useQuery({
+    queryKey: ['platform-fee-percentage'],
+    queryFn: getPlatformFeePercentage,
+    staleTime: 60_000,
+  });
+  const SERVICE_FEE_PERCENT = platformFeeData?.platformFeePercentage ?? 4;
+
+  // KHELO code validation — only fires once the customer taps "Apply" (or
+  // the /redeem QR deep link prefilled one), not on every keystroke. This is
+  // a preview only; the backend re-validates and applies atomically at
+  // booking creation (see handleCheckout/createBooking below), same as the
+  // auto-applied tier promo.
+  const {
+    data: codePreviewData,
+    isFetching: isCheckingCode,
+    isError: isCodeInvalid,
+    error: codePreviewError,
+  } = useQuery({
+    queryKey: ['khelo-code-preview', cafeId, appliedCode],
+    queryFn: () => previewKheloCode(appliedCode!, cafeId),
+    enabled: Boolean(cafeId && appliedCode),
+    retry: false,
+    staleTime: 10_000,
+  });
+  const codeRedemption = codePreviewData?.redemption ?? null;
+
+  // Auto-validate a code that arrived via the /redeem QR deep link so the
+  // gamer doesn't have to also press "Apply" after being dropped here.
+  useEffect(() => {
+    const urlCode = searchParams.get('promoCode');
+    if (urlCode && !appliedCode) {
+      setAppliedCode(urlCode.toUpperCase());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleApplyCode = () => {
+    const normalized = promoCodeInput.trim().toUpperCase();
+    if (normalized.length < 4) {
+      setCodeError('Enter a valid KHELO code.');
+      return;
+    }
+    setCodeError(null);
+    setAppliedCode(normalized);
+  };
+
+  const handleClearCode = () => {
+    setAppliedCode(null);
+    setPromoCodeInput('');
+    setCodeError(null);
+  };
 
   // The calendar date actually submitted to the backend and shown to the
   // user — `selectedDate` advanced by `selectedDateOffset` when the chosen
@@ -396,12 +466,10 @@ function BookingWizardContent() {
   }
 
   // Price calculations — this is a checkout-time estimate only, the server
-  // recomputes and is authoritative. Combined convenience fee (Razorpay's
-  // real processing cost + KHEL-O's margin) must match backend Settings
-  // RAZORPAY_COST_PERCENT + PLATFORM_MARGIN_PERCENT (2.65% + 1.35% today).
+  // recomputes and is authoritative. SERVICE_FEE_PERCENT comes from the
+  // Super Admin-controlled platform fee rate fetched above.
   const pricePerHour = activeTier?.pricePerHour || 100;
   const baseTotal = Math.round(pricePerHour * durationHours * seatsCount);
-  const SERVICE_FEE_PERCENT = 4;
 
   // Café-specific promotions are created by the owner (Owner → Promotional
   // Offers) and apply automatically at checkout — no code to type. Eligibility
@@ -433,6 +501,39 @@ function BookingWizardContent() {
       (activePromo.maxUses == null || activePromo.currentUses < activePromo.maxUses);
     if (promoEligible) {
       discountAmount = Math.round(baseTotal * (activePromo.discountPercentage / 100) * 100) / 100;
+    }
+  }
+
+  // A validated KHELO code overrides the auto-applied tier promo above — the
+  // two are never stacked, and the code is what actually gets sent to
+  // createBooking below (as promoCode, not promotionId) when present. Same
+  // eligibility shape as the tier promo, run against the code's own
+  // schedule window (days_of_week/start_hour/end_hour), since it's still
+  // the same Promotion row underneath — see PromotionService.preview_code.
+  let codeEligible = false;
+  let codeIneligibleReason: string | null = null;
+  if (appliedCode && codeRedemption) {
+    if (!codeRedemption.valid) {
+      codeIneligibleReason = codeRedemption.reason || 'This code is not valid.';
+    } else {
+      const slotDate = new Date(`${effectiveSessionDate}T${selectedTime}`);
+      const validFrom = new Date(codeRedemption.validFrom);
+      const validUntil = new Date(codeRedemption.validUntil);
+      const pythonWeekday = (slotDate.getDay() + 6) % 7;
+      const slotHour = parseInt(selectedTime.split(':')[0], 10);
+      codeEligible =
+        slotDate >= validFrom &&
+        slotDate <= validUntil &&
+        codeRedemption.daysOfWeek.includes(pythonWeekday) &&
+        slotHour >= codeRedemption.startHour &&
+        slotHour < codeRedemption.endHour &&
+        (codeRedemption.maxUses == null || codeRedemption.currentUses < codeRedemption.maxUses);
+      if (!codeEligible) {
+        codeIneligibleReason = `Valid ${codeRedemption.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, ${codeRedemption.startHour}:00–${codeRedemption.endHour}:00 — pick a slot in that window to apply it.`;
+      }
+    }
+    if (codeEligible) {
+      discountAmount = Math.round(baseTotal * (codeRedemption.discountPercentage / 100) * 100) / 100;
     }
   }
 
@@ -513,7 +614,13 @@ function BookingWizardContent() {
         startTime: selectedTime,
         durationHours: durationHours,
         seatsCount: seatsCount,
-        promotionId: activeTier.activePromotion?.id || undefined,
+        // A validated KHELO code takes precedence over the auto-applied
+        // tier promo (see the discount calc above) — sent as promoCode so
+        // the backend resolves+re-validates it fresh rather than trusting
+        // this client's eligibility read. Falls back to promotionId for the
+        // no-code, auto-applied-at-checkout path.
+        promotionId: appliedCode && codeEligible ? undefined : activeTier.activePromotion?.id || undefined,
+        promoCode: appliedCode && codeEligible ? appliedCode : undefined,
         game: selectedGame || undefined,
       });
 
@@ -645,8 +752,8 @@ function BookingWizardContent() {
 
       {(cafe.isEmergencyMode || cafe.bookingsPaused || cafe.bookableStations === 0 || availabilityData?.appBookableSeats === 0) && (
         <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-600 font-medium text-caption flex items-center gap-3 shadow-card">
-          <div className="h-10 w-10 rounded-xl bg-amber-500 text-slate-950 font-bold flex items-center justify-center flex-shrink-0 text-xl">
-            ⏸️
+          <div className="h-10 w-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center flex-shrink-0">
+            <PauseCircle className="h-5 w-5" strokeWidth={2.25} aria-hidden="true" />
           </div>
           <div>
             <h3 className="font-bold text-body text-text-primary">App Bookings Paused / Walk-Ins Only</h3>
@@ -757,6 +864,63 @@ function BookingWizardContent() {
         </div>
       </div>
 
+      {/* Price summary — sits directly under Players so the whole decision
+          (tier, date, slot, players, what it costs) resolves in the first
+          viewport. The two optional inputs below it are deliberately the
+          first thing you scroll to, not something you scroll past. Total is
+          repeated on the fixed payment bar. */}
+      <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex flex-col gap-1.5 text-caption text-text-secondary">
+        <div className="flex items-center justify-between gap-3">
+          <span className="min-w-0 truncate">
+            {activeTier?.name || 'Standard'} · {durationHours} hr · {seatsCount} player{seatsCount > 1 ? 's' : ''}
+          </span>
+          <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{baseTotal}</span>
+        </div>
+
+        {discountAmount > 0 && appliedCode && codeEligible && codeRedemption && (
+          <div className="flex items-center justify-between gap-3 text-success">
+            <span className="min-w-0 flex items-center gap-1.5 font-semibold">
+              <Tag className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{codeRedemption.title} (-{codeRedemption.discountPercentage}%)</span>
+            </span>
+            <span className="flex-shrink-0 font-bold">
+              -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
+            </span>
+          </div>
+        )}
+
+        {discountAmount > 0 && !appliedCode && activePromo && (
+          <div className="flex items-center justify-between gap-3 text-success">
+            <span className="min-w-0 flex items-center gap-1.5 font-semibold">
+              <Tag className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{activePromo.title} (-{activePromo.discountPercentage}%)</span>
+            </span>
+            <span className="flex-shrink-0 font-bold">
+              -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
+            </span>
+          </div>
+        )}
+
+        {!appliedCode && activePromo && !promoEligible && (
+          <p className="text-xs text-text-tertiary flex items-start gap-1.5">
+            <Tag className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+            <span>
+              {activePromo.title} available {activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, {activePromo.startHour}:00–{activePromo.endHour}:00 — pick a slot in that window to apply it.
+            </span>
+          </p>
+        )}
+
+        <div className="flex items-center justify-between">
+          <span>Platform Fee</span>
+          <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
+        </div>
+
+        <div className="flex items-center justify-between pt-1.5 mt-0.5 border-t border-border/60">
+          <span className="font-heading font-bold text-text-primary">Total</span>
+          <span className="font-heading font-bold text-body-emphasis text-text-primary"><span className="rupee-symbol">₹</span>{finalTotal}</span>
+        </div>
+      </div>
+
       {/* Game — free-text combobox: types any name, datalist merely suggests
           from this café's supportedGames. */}
       <div className="p-3.5 rounded-2xl bg-card border border-border/80">
@@ -778,46 +942,67 @@ function BookingWizardContent() {
         </datalist>
       </div>
 
-      {/* Price summary — compact breakdown, total kept visually prominent
-          and repeated on the fixed payment bar below. */}
-      <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex flex-col gap-1.5 text-caption text-text-secondary">
-        <div className="flex items-center justify-between gap-3">
-          <span className="min-w-0 truncate">
-            {activeTier?.name || 'Standard'} · {durationHours} hr · {seatsCount} player{seatsCount > 1 ? 's' : ''}
-          </span>
-          <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{baseTotal}</span>
-        </div>
-
-        {discountAmount > 0 && activePromo && (
-          <div className="flex items-center justify-between gap-3 text-success">
-            <span className="min-w-0 flex items-center gap-1.5 font-semibold">
-              <Tag className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{activePromo.title} (-{activePromo.discountPercentage}%)</span>
-            </span>
-            <span className="flex-shrink-0 font-bold">
-              -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
-            </span>
+      {/* KHELO promo code — typed in manually or prefilled by scanning an
+          owner's offer QR (see /redeem/[code]). Independent of, and takes
+          precedence over, the auto-applied tier promo below. */}
+      <div className="p-3.5 rounded-2xl bg-card border border-border/80">
+        <label className="text-caption font-semibold text-text-secondary mb-1.5 block">
+          Have a KHELO code?
+        </label>
+        {appliedCode ? (
+          <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-surface">
+            <div className="flex items-center gap-2 min-w-0">
+              {isCheckingCode ? (
+                <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-text-secondary" />
+              ) : codeEligible ? (
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-success" />
+              ) : (
+                <Tag className="h-4 w-4 flex-shrink-0 text-text-tertiary" />
+              )}
+              <span className="font-data font-bold tracking-wider text-text-primary truncate">{appliedCode}</span>
+              {codeRedemption && (
+                <span className="text-caption text-text-secondary truncate">
+                  {isCodeInvalid ? 'invalid' : codeEligible ? `−${codeRedemption.discountPercentage}%` : 'not eligible for this slot'}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleClearCode}
+              aria-label="Remove code"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-text-secondary hover:bg-border/60 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="e.g. WEEKNIGHT15"
+              value={promoCodeInput}
+              onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20))}
+              className="h-10 flex-1 min-w-0 rounded-xl border border-border bg-surface px-3 font-data tracking-wider text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+            <button
+              type="button"
+              onClick={handleApplyCode}
+              disabled={!promoCodeInput.trim()}
+              className="h-10 px-4 rounded-xl bg-primary text-white text-caption font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors flex-shrink-0"
+            >
+              Apply
+            </button>
           </div>
         )}
-
-        {activePromo && !promoEligible && (
-          <p className="text-xs text-text-tertiary flex items-start gap-1.5">
-            <Tag className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-            <span>
-              {activePromo.title} available {activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, {activePromo.startHour}:00–{activePromo.endHour}:00 — pick a slot in that window to apply it.
-            </span>
+        {codeError && <p className="text-xs text-error mt-1.5">{codeError}</p>}
+        {appliedCode && isCodeInvalid && (
+          <p className="text-xs text-error mt-1.5">
+            {(codePreviewError as any)?.message || 'Invalid or unrecognized KHELO code.'}
           </p>
         )}
-
-        <div className="flex items-center justify-between">
-          <span>Convenience fee ({SERVICE_FEE_PERCENT}%)</span>
-          <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
-        </div>
-
-        <div className="flex items-center justify-between pt-1.5 mt-0.5 border-t border-border/60">
-          <span className="font-heading font-bold text-text-primary">Total</span>
-          <span className="font-heading font-bold text-body-emphasis text-text-primary"><span className="rupee-symbol">₹</span>{finalTotal}</span>
-        </div>
+        {appliedCode && codeRedemption && !isCodeInvalid && codeIneligibleReason && (
+          <p className="text-xs text-text-tertiary mt-1.5">{codeIneligibleReason}</p>
+        )}
       </div>
 
       {/* Security / cancellation — collapsed to one line; tap to expand the
@@ -845,7 +1030,7 @@ function BookingWizardContent() {
       {/* Sticky Bottom Action & Total Price Bar — sits above the mobile bottom nav
           (bottom-nav is z-nav/40, fixed bottom-0) rather than underneath it, otherwise
           the nav bar silently eats the first tap on this button on mobile. */}
-      <div className="fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
+      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
         <div className="max-w-content mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <span className="text-caption text-text-secondary block truncate">

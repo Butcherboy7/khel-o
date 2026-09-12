@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { apiClient, call } from './client';
 import type {
   AdminCafe,
@@ -260,6 +261,7 @@ export async function listOwnerPayouts(
 
 export interface PlatformSettings {
   commissionPercentage: number;
+  platformFeePercentage: number;
   supportEmail: string;
   maintenanceMode: boolean;
   maintenanceMessage: string | null;
@@ -272,4 +274,75 @@ export async function getPlatformSettings(): Promise<{ settings: PlatformSetting
 
 export async function updatePlatformSettings(payload: Partial<PlatformSettings>): Promise<{ settings: PlatformSettings }> {
   return call(() => apiClient.patch('/api/v1/admin/settings', payload));
+}
+
+// ── Café Payouts (Manual Payouts) ────────────────────────────────────────────
+
+export interface AdminOutstandingCafePayout {
+  cafeId: string;
+  cafeName: string;
+  outstandingAmount: number;
+  payoutVerificationStatus: 'unverified' | 'test_sent' | 'verified';
+}
+
+export interface CafePayoutBreakdownItem {
+  bookingId: string;
+  bookingReference: string;
+  sessionDate: string;
+  grossAmount: number;
+  ownerSettlementAmount: number;
+}
+
+export interface CafePayout {
+  id: string;
+  cafeId: string;
+  amount: number;
+  utrReference: string;
+  paymentMethod: string;
+  status: string;
+  notes: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export async function listOutstandingCafePayouts(): Promise<{ cafes: AdminOutstandingCafePayout[] }> {
+  return call(() => apiClient.get('/api/v1/admin/cafe-payouts/outstanding'));
+}
+
+export async function getCafePayoutBreakdown(cafeId: string): Promise<{ bookings: CafePayoutBreakdownItem[] }> {
+  return call(() => apiClient.get(`/api/v1/admin/cafe-payouts/${cafeId}/breakdown`));
+}
+
+export async function createCafePayout(
+  cafeId: string,
+  body: { utrReference: string; paymentMethod: string; notes?: string; proofImageUrl?: string; adminNote?: string; paidAt?: string },
+): Promise<{ payout: CafePayout }> {
+  return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}`, body));
+}
+
+export async function presignPayoutProofUpload(
+  cafeId: string,
+  contentType: string,
+): Promise<{ uploadUrl: string; publicUrl: string }> {
+  return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}/proof-upload-url`, { contentType }));
+}
+
+// Uploads a file directly to S3 via a presigned URL, returning the public URL.
+export async function uploadPayoutProof(cafeId: string, file: File): Promise<string> {
+  const { uploadUrl, publicUrl } = await presignPayoutProofUpload(cafeId, file.type);
+  await axios.put(uploadUrl, file, { headers: { 'Content-Type': file.type } });
+  return publicUrl;
+}
+
+export async function verifyCafePayoutDestination(
+  cafeId: string,
+  body: { utrReference: string; verifiedName: string },
+): Promise<{ payoutVerificationStatus: string; verifiedName: string; verifiedAt: string }> {
+  return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}/verify-payout`, body));
+}
+
+export async function listCafePayoutHistory(
+  params: { cafeId?: string; status?: string; page?: number; limit?: number } = {},
+): Promise<{ items: CafePayout[]; total: number; page: number; pageSize: number }> {
+  return call(() => apiClient.get('/api/v1/admin/cafe-payouts', { params }));
 }

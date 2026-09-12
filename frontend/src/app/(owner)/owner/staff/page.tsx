@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Users, UserPlus, EyeOff, Trash2, CheckCircle2, AlertCircle, Copy, Mail, Clock, XCircle } from 'lucide-react';
 import { listOwnerStaff, deleteOwnerStaff } from '@/lib/api/owner';
 import { createStaffInvitation, listStaffInvitations, cancelStaffInvitation, type StaffInvitation } from '@/lib/api/invitations';
-import { Card, CardContent, Button, Input, Badge } from '@/components/ui';
+import { Card, CardContent, Button, Input, Badge, EmptyState, PageSpinner } from '@/components/ui';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { useAuthStore } from '@/store/authStore';
 
 export default function OwnerStaffPage() {
@@ -102,60 +103,60 @@ export default function OwnerStaffPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" />
-      </div>
+      <PageSpinner />
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto pb-16 pt-2 px-4 flex flex-col gap-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
-        <div>
-          <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-            <Users className="h-6 w-6 text-emerald-500" />
-            <span>Staff Management & Access Control</span>
-          </h1>
-          <p className="text-caption text-text-secondary mt-1">
-            Send secure invitations to venue staff. Staff members set their own credentials via an email or custom link.
-          </p>
-        </div>
-
-        <Button
-          variant="primary"
-          onClick={() => setIsInviteOpen(true)}
-          className="gap-2 w-full sm:w-auto justify-center whitespace-nowrap bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
-        >
-          <UserPlus className="h-4 w-4" />
-          <span>Invite Staff</span>
-        </Button>
-      </div>
+    <div className="flex flex-col gap-8">
+      <OwnerPageHeader
+        title="Your team"
+        description="Give the people working your desk their own login, so nobody has to share yours."
+        action={
+          <Button
+            variant="primary"
+            onClick={() => setIsInviteOpen(true)}
+            className="w-full justify-center gap-2 whitespace-nowrap sm:w-auto"
+          >
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+            <span>Invite someone</span>
+          </Button>
+        }
+      />
 
       {msg && (
         <div
-          className={`flex items-center gap-2 p-4 rounded-2xl border text-caption font-semibold ${
+          role="status"
+          className={`flex items-start gap-2 rounded-2xl border p-4 text-caption font-semibold ${
             msg.type === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
-              : 'bg-rose-500/10 border-rose-500/20 text-rose-600'
+              ? 'border-success/20 bg-success/10 text-success'
+              : 'border-error/20 bg-error/10 text-error'
           }`}
         >
-          {msg.type === 'success' ? <CheckCircle2 className="h-5 w-5 shrink-0" /> : <AlertCircle className="h-5 w-5 shrink-0" />}
+          {msg.type === 'success' ? (
+            <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
+          ) : (
+            <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
+          )}
           <span>{msg.text}</span>
         </div>
       )}
 
-      {/* Staff Permission Isolation Callout */}
-      <Card elevation="resting" className="bg-surface border border-border">
-        <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* What staff can and can't see — said before anyone is invited, because
+          "will they see my money?" is the question that stops an owner here. */}
+      <Card elevation="resting" className="border border-border bg-surface">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center flex-shrink-0">
-              <EyeOff className="h-5 w-5" />
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-600">
+              <EyeOff className="h-5 w-5" aria-hidden="true" />
             </div>
-            <div>
-              <h3 className="font-heading text-caption font-bold text-text-primary">Finance & Dashboard Security</h3>
-              <p className="text-xs text-text-secondary mt-0.5">
-                Staff log in with their own secure account. They can perform check-ins and verify gamer QR passes, but financials, payout accounts, and store settings are strictly hidden.
+            <div className="min-w-0">
+              <h3 className="font-heading text-body font-bold text-text-primary">
+                Staff never see your money
+              </h3>
+              <p className="mt-0.5 max-w-prose text-caption text-text-secondary">
+                They can check customers in and scan passes. Earnings, payouts, bank details and
+                café settings stay yours alone.
               </p>
             </div>
           </div>
@@ -241,12 +242,20 @@ export default function OwnerStaffPage() {
       {/* Staff List */}
       <Card elevation="raised" className="bg-surface border border-border">
         <CardContent className="p-6 flex flex-col gap-4">
-          <h2 className="font-heading text-h2 text-text-primary">Active Venue Staff</h2>
+          <h2 className="font-heading text-h2 text-text-primary">People with a login</h2>
 
           {staffList.length === 0 ? (
-            <div className="p-8 text-center text-text-secondary bg-surface-hover rounded-2xl">
-              No staff members registered yet. Click &quot;Invite Staff&quot; above to send an email invitation.
-            </div>
+            // The old copy pointed at a button that, by the time you had scrolled
+            // here on a phone, was off the top of the screen. This one carries
+            // the action with it.
+            <EmptyState
+              bare
+              icon={<Users className="h-7 w-7" aria-hidden="true" />}
+              title="Nobody yet"
+              description="Invite a staff member and they'll get an email to set their own password. You stay the only one who can see the money."
+              actionLabel="Invite someone"
+              onAction={() => setIsInviteOpen(true)}
+            />
           ) : (
             <div className="flex flex-col gap-3">
               {staffList.map((member) => (
@@ -320,17 +329,12 @@ export default function OwnerStaffPage() {
                 onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
               />
 
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
                 <Button type="button" variant="ghost" onClick={() => setIsInviteOpen(false)}>
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  isLoading={isSubmitting}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
-                >
-                  Send Invitation
+                <Button type="submit" variant="primary" isLoading={isSubmitting} loadingText="Sending">
+                  Send invitation
                 </Button>
               </div>
             </form>

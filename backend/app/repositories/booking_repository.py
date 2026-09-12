@@ -9,7 +9,11 @@ from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.models.cafe import Cafe
 from app.models.hardware_tier import HardwareTier
+from app.models.hardware_tier_unit import HardwareTierUnit, UnitStatus
+from app.models.platform_fee import PlatformFee
+from app.models.payment import Payment, PaymentStatus
 from app.repositories.base import BaseRepository
+from app.core.time import now_ist, session_end_ist
 
 class BookingRepository(BaseRepository[Booking]):
     def __init__(self, db: AsyncSession):
@@ -164,7 +168,17 @@ class BookingRepository(BaseRepository[Booking]):
             tier_result = await self.db.execute(tier_stmt)
             tier = tier_result.scalars().first()
             capacity = tier.app_bookable_seats if tier else 0
-        
+            # A unit in maintenance (owner-set — e.g. a broken snooker table)
+            # takes one seat out of the bookable pool without touching
+            # app_bookable_seats itself, so re-enabling the unit later
+            # restores capacity without the owner re-entering a number.
+            maintenance_stmt = select(func.count()).select_from(HardwareTierUnit).where(
+                HardwareTierUnit.tier_id == tier_id,
+                HardwareTierUnit.status == UnitStatus.MAINTENANCE,
+            )
+            maintenance_result = await self.db.execute(maintenance_stmt)
+            capacity = max(0, capacity - int(maintenance_result.scalar() or 0))
+
         count = await self.get_overlapping_bookings_count(
             tier_id=tier_id,
             session_date=session_date,
@@ -172,7 +186,71 @@ class BookingRepository(BaseRepository[Booking]):
             end_time=end_time
         )
         return count, capacity
-    
+
+    async def find_first_capacity_conflict(self, tier_id: UUID, new_capacity: int) -> Optional[Booking]:
+        """Would reducing this tier's effective capacity to `new_capacity`
+        oversell any already-committed future booking? Checked before both
+        a maintenance toggle and a quantity reduction (requirements 3–4) —
+        neither may ever silently make a confirmed booking's slot exceed
+        capacity.
+
+        Correctness note: peak concurrent demand across a set of time
+        intervals is always achieved at one of the intervals' own start
+        times (a standard interval-scheduling fact), so checking the
+        overlap count at each future booking's own window — via the
+        existing get_overlapping_bookings_count, unchanged — is sufficient
+        to find the true worst case without a separate sweep-line pass.
+        Returns the first conflicting Booking found, or None if the
+        reduction is safe."""
+        now_utc = datetime.now(timezone.utc)
+        today = now_utc.date()
+        stmt = select(Booking).where(
+            Booking.hardware_tier_id == tier_id,
+            Booking.session_date >= today,
+            or_(
+                Booking.status == BookingStatus.CONFIRMED,
+                and_(
+                    Booking.status == BookingStatus.PENDING_PAYMENT,
+                    Booking.created_at >= now_utc - timedelta(minutes=15)
+                )
+            ),
+        )
+        result = await self.db.execute(stmt)
+        candidate_bookings = result.scalars().all()
+
+        # A booking still stuck in CONFIRMED status doesn't necessarily mean
+        # it's still occupying a seat — the CONFIRMED->COMPLETED/NO_SHOW
+        # transition is lazy (see owner_service.auto_transition_booking,
+        # which only runs when something reads the booking), so a session
+        # that ended earlier today can sit as CONFIRMED indefinitely. Without
+        # this filter, that stale row would count toward "capacity in use"
+        # and could spuriously block a legitimate maintenance toggle or
+        # quantity reduction for a slot that's actually long over.
+        now = now_ist()
+        live_bookings = [
+            b for b in candidate_bookings
+            if session_end_ist(b.session_date, b.start_time, b.end_time) > now
+        ]
+
+        # Every booking that could overlap one of live_bookings' windows is
+        # itself in live_bookings (same tier, same status filter, same
+        # session_date >= today) — so the peak-overlap check can run
+        # entirely against this one already-fetched list instead of issuing
+        # a separate get_overlapping_bookings_count query per candidate.
+        # Mirrors that method's own filtering exactly: same tier (implicit,
+        # this whole list is already scoped to tier_id), same session_date,
+        # and the same start_time/end_time overlap test.
+        for booking in live_bookings:
+            overlap = sum(
+                b.seats_count for b in live_bookings
+                if b.session_date == booking.session_date
+                and b.start_time < booking.end_time
+                and b.end_time > booking.start_time
+            )
+            if overlap > new_capacity:
+                return booking
+        return None
+
     async def get_gamer_daily_seats_count(
         self,
         gamer_id: UUID,
@@ -252,6 +330,61 @@ class BookingRepository(BaseRepository[Booking]):
 
         return items, total
 
+    # The statuses a booking can hold once its payment was actually captured.
+    # Booking.status only reaches CONFIRMED via payment_service's
+    # verify_payment/handle_webhook, and CHECKED_IN/ACTIVE/COMPLETED are the
+    # later states that same paid booking moves through — so this is exactly
+    # "money the café really earned". PENDING_PAYMENT, FAILED, CANCELLED,
+    # NO_SHOW and RELEASED_BY_OWNER are never earnings.
+    #
+    # Shared by every owner-facing earnings figure. Previously the monthly
+    # queries omitted CHECKED_IN/ACTIVE while the daily one included them, so
+    # a session that had been checked in counted toward "today" but vanished
+    # from "this month".
+    _EARNED_STATUSES = [
+        BookingStatus.CONFIRMED,
+        BookingStatus.CHECKED_IN,
+        BookingStatus.ACTIVE,
+        BookingStatus.COMPLETED,
+    ]
+
+    @staticmethod
+    def _not_refunded_clause():
+        """Exclude bookings whose payment was refunded.
+
+        Booking.status alone is not sufficient. process_refund does set the
+        booking to CANCELLED on success, but a refund issued straight from the
+        Razorpay dashboard (the normal route for a disputed session) leaves the
+        booking on a paid status while the money is demonstrably back with the
+        customer. /owner/payouts/summary and /owner/analytics both already skip
+        refunded payments, so without this the dashboard reports a *higher*
+        figure than either of them for the same café.
+
+        Payment.booking_id is unique, so the outerjoin this pairs with cannot
+        fan rows out; NULL means no payment row exists yet, which is not a
+        refund.
+        """
+        return or_(Payment.status.is_(None), Payment.status != PaymentStatus.REFUNDED)
+
+    @staticmethod
+    def _owner_settlement_expr():
+        """What the café is actually paid for a booking.
+
+        PlatformFee.owner_settlement_amount is the authoritative figure, set at
+        booking creation to the subtotal. Booking.total_amount must NOT be used
+        here: it is subtotal + gateway_fee, and `gateway_fee` holds KHELO's
+        platform revenue (the column name is historical, it is not a Razorpay
+        processing cost). Summing total_amount showed owners money they will
+        never be paid — a ₹100 booking at 4% displayed as ₹104.
+
+        Falls back to base_amount - discount_amount (identical by construction)
+        so bookings predating the PlatformFee row still report correctly.
+        """
+        return func.coalesce(
+            PlatformFee.owner_settlement_amount,
+            Booking.base_amount - Booking.discount_amount,
+        )
+
     async def count_bookings_this_month(self, cafe_ids: List[UUID]) -> int:
         if not cafe_ids:
             return 0
@@ -260,7 +393,7 @@ class BookingRepository(BaseRepository[Booking]):
 
         stmt = select(func.count()).select_from(Booking).where(
             Booking.cafe_id.in_(cafe_ids),
-            Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            Booking.status.in_(self._EARNED_STATUSES),
             Booking.created_at >= first_day
         )
         res = await self.db.execute(stmt)
@@ -272,10 +405,49 @@ class BookingRepository(BaseRepository[Booking]):
         now = datetime.now(timezone.utc)
         first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        stmt = select(func.sum(Booking.total_amount)).select_from(Booking).where(
-            Booking.cafe_id.in_(cafe_ids),
-            Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            Booking.created_at >= first_day
+        stmt = (
+            select(func.sum(self._owner_settlement_expr()))
+            .select_from(Booking)
+            .outerjoin(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .outerjoin(Payment, Payment.booking_id == Booking.id)
+            .where(
+                Booking.cafe_id.in_(cafe_ids),
+                Booking.status.in_(self._EARNED_STATUSES),
+                self._not_refunded_clause(),
+                Booking.created_at >= first_day,
+            )
+        )
+        res = await self.db.execute(stmt)
+        return float(res.scalar() or 0.0)
+
+    async def sum_revenue_today(self, cafe_ids: List[UUID]) -> float:
+        """What the café actually earns from today's (IST) paid sessions.
+
+        Booking.status only ever reaches CONFIRMED (and the later
+        CHECKED_IN/ACTIVE/COMPLETED states it transitions through) after the
+        Razorpay payment for it was CAPTURED — see payment_service.py's
+        verify_payment/handle_webhook, the only two places that set
+        BookingStatus.CONFIRMED — so PENDING_PAYMENT, FAILED, CANCELLED,
+        NO_SHOW, and RELEASED_BY_OWNER bookings never contribute here.
+
+        Sums the café's settlement, not the customer's total — see
+        _owner_settlement_expr for why total_amount would overstate earnings.
+        """
+        if not cafe_ids:
+            return 0.0
+        today = now_ist().date()
+
+        stmt = (
+            select(func.sum(self._owner_settlement_expr()))
+            .select_from(Booking)
+            .outerjoin(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .outerjoin(Payment, Payment.booking_id == Booking.id)
+            .where(
+                Booking.cafe_id.in_(cafe_ids),
+                Booking.status.in_(self._EARNED_STATUSES),
+                self._not_refunded_clause(),
+                Booking.session_date == today,
+            )
         )
         res = await self.db.execute(stmt)
         return float(res.scalar() or 0.0)

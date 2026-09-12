@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = "rzp_test_placeholder_key_secret"
     RAZORPAY_WEBHOOK_SECRET: str = "rzp_test_webhook_secret"
 
+    # Fernet key encrypting OwnerPayoutAccount.bank_account_number_encrypted at
+    # rest (replaces the old plaintext details["full_account"] JSON field).
+    # Must be a valid Fernet key (Fernet.generate_key()). This default is
+    # fine for local dev only — validate_production_security below rejects
+    # it in production, same pattern as SECRET_KEY.
+    PAYOUT_ENCRYPTION_KEY: str = "GefeqN9hdywl4gOeFvNaL2VtxFvNObUDB_eqm5OtkaU="
+
     # Server-side mirror of the frontend's NEXT_PUBLIC_ENABLE_SANDBOX_MOCK_PAYMENTS
     # flag. Signature verification NEVER depends on ENVIRONMENT (a staging box
     # accidentally pointed at prod must still reject forged signatures) — this
@@ -90,6 +97,8 @@ class Settings(BaseSettings):
                 raise ValueError("CRITICAL: SQLite cannot be used as DATABASE_URL in production. A PostgreSQL connection is required.")
             if self.SECRET_KEY == "super-secret-key-change-in-production-at-least-32-chars":
                 raise ValueError("CRITICAL: Default insecure SECRET_KEY detected in production. A secure SECRET_KEY must be provided.")
+            if self.PAYOUT_ENCRYPTION_KEY == "GefeqN9hdywl4gOeFvNaL2VtxFvNObUDB_eqm5OtkaU=":
+                raise ValueError("CRITICAL: Default insecure PAYOUT_ENCRYPTION_KEY detected in production. A secure Fernet key must be provided.")
         return self
 
     model_config = SettingsConfigDict(

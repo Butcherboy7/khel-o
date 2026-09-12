@@ -42,6 +42,7 @@ class OwnerService:
                 total_cafes=0,
                 total_bookings_this_month=0,
                 revenue_this_month=0.0,
+                revenue_today=0.0,
                 upcoming_bookings_today=0,
                 occupancy_rate_this_week=0.0,
                 most_popular_tier=None
@@ -52,6 +53,7 @@ class OwnerService:
         total_cafes = len(owner_cafes)
         total_bookings = await self.booking_repo.count_bookings_this_month(cafe_ids)
         revenue = await self.booking_repo.sum_revenue_this_month(cafe_ids)
+        revenue_today = await self.booking_repo.sum_revenue_today(cafe_ids)
         upcoming_today = await self.booking_repo.count_upcoming_today(cafe_ids)
 
         booked_hours = await self.booking_repo.get_booked_hours_this_week(cafe_ids)
@@ -64,6 +66,7 @@ class OwnerService:
             total_cafes=total_cafes,
             total_bookings_this_month=total_bookings,
             revenue_this_month=revenue,
+            revenue_today=revenue_today,
             upcoming_bookings_today=upcoming_today,
             occupancy_rate_this_week=occupancy_rate,
             most_popular_tier=most_popular_tier

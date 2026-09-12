@@ -41,47 +41,91 @@ interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  /** Shown under the label in the drawer, where there is room to teach. */
+  hint?: string;
 }
 
+// Labels are the words a café owner already uses, not ours. "Pass Scanner"
+// and "Hardware Tiers" are KHEL-O vocabulary that a first-time owner has no
+// way to decode; "Scan & Check-in" and "Resources & Pricing" describe the task.
+// Section headings say what the group is FOR, in the second person.
 const ownerNavSections: NavSection[] = [
   {
     // Day-to-day operating tasks first: this is what an owner opens the
     // portal to do (check the dashboard, scan a pass, look at a booking).
-    heading: 'Operations',
+    heading: 'Today',
     items: [
-      { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
-      { label: 'Availability', href: '/owner/availability', icon: CalendarClock },
-      { label: 'Pass Scanner', href: '/owner/scanner', icon: QrCode },
-      { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
+      {
+        label: 'Dashboard',
+        href: '/owner/dashboard',
+        icon: LayoutDashboard,
+        hint: "Today's takings and arrivals",
+      },
+      {
+        label: 'Scan & Check-in',
+        href: '/owner/scanner',
+        icon: QrCode,
+        hint: "Scan a customer's booking pass",
+      },
+      {
+        label: 'Bookings',
+        href: '/owner/bookings',
+        icon: CalendarDays,
+        hint: 'Every booking, past and upcoming',
+      },
+      {
+        label: 'Availability',
+        href: '/owner/availability',
+        icon: CalendarClock,
+        hint: "What's free right now",
+      },
     ],
   },
   {
-    heading: 'Grow & Manage',
+    heading: 'Your café',
     items: [
-      { label: 'Hardware Tiers', href: '/owner/tiers', icon: Monitor },
-      { label: 'Promotions & Offers', href: '/owner/offers', icon: Tag },
-      { label: 'Reviews', href: '/owner/reviews', icon: Store },
-      { label: 'Analytics', href: '/owner/analytics', icon: BarChart3 },
-      { label: 'Notifications', href: '/owner/notifications', icon: Bell },
+      {
+        label: 'Resources & Pricing',
+        href: '/owner/tiers',
+        icon: Monitor,
+        hint: 'Set up your PCs, consoles and hourly rates',
+      },
+      { label: 'Discounts', href: '/owner/offers', icon: Tag, hint: 'Run a time-limited offer' },
+      { label: 'Reviews', href: '/owner/reviews', icon: Store, hint: 'What customers said' },
+      { label: 'Insights', href: '/owner/analytics', icon: BarChart3, hint: 'Busy hours and trends' },
+      { label: 'Alerts', href: '/owner/notifications', icon: Bell, hint: 'Updates from KHEL-O' },
     ],
   },
   {
-    heading: 'Financials & Settings',
+    heading: 'Money & account',
     items: [
-      { label: 'Payouts & Razorpay', href: '/owner/payouts', icon: Wallet },
-      { label: 'Staff Management', href: '/owner/staff', icon: Users },
-      { label: 'Café Settings', href: '/owner/settings', icon: Settings },
+      { label: 'Payouts', href: '/owner/payouts', icon: Wallet, hint: 'What you have been paid' },
+      { label: 'Your Team', href: '/owner/staff', icon: Users, hint: 'Give staff their own login' },
+      { label: 'Café Settings', href: '/owner/settings', icon: Settings, hint: 'Details, hours and pausing' },
     ],
   },
 ];
 
 // Staff sees a dedicated operational view
 const staffNavItems: NavItem[] = [
-  { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
-  { label: 'Availability', href: '/owner/availability', icon: CalendarClock },
-  { label: 'Pass Scanner', href: '/owner/scanner', icon: QrCode },
-  { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
+  { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard, hint: "Today's arrivals" },
+  { label: 'Scan & Check-in', href: '/owner/scanner', icon: QrCode, hint: "Scan a customer's booking pass" },
+  { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays, hint: 'Every booking, past and upcoming' },
+  { label: 'Availability', href: '/owner/availability', icon: CalendarClock, hint: "What's free right now" },
 ];
+
+/** Resolves the current route to its nav label, for the mobile title bar. */
+function useCurrentSectionLabel(isStaff: boolean): string {
+  const pathname = usePathname();
+  const all = isStaff
+    ? staffNavItems
+    : ownerNavSections.flatMap((section) => section.items);
+  // Longest match wins so /owner/settings never resolves to a shorter sibling.
+  const match = all
+    .filter((item) => pathname.startsWith(item.href))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  return match?.label ?? (isStaff ? 'Staff Desk' : 'Owner Portal');
+}
 
 /* ── Desktop Sidebar ─────────────────────────────────────────────── */
 
@@ -154,7 +198,7 @@ function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-body-emphasis transition-colors duration-fast',
+                    'flex min-h-[40px] items-center gap-3 rounded-xl px-3 py-2.5 text-body-emphasis transition-colors duration-fast',
                     isActive
                       ? 'bg-white/15 text-white font-bold'
                       : 'text-white/60 hover:bg-white/10 hover:text-white',
@@ -168,11 +212,6 @@ function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
             })}
           </div>
         ))}
-
-        {/* Role Switcher in Sidebar */}
-        <div className="mt-auto pt-4 border-t border-white/10 flex justify-center">
-          <RoleSwitcher />
-        </div>
       </nav>
 
       {/* User Footer */}
@@ -250,13 +289,16 @@ function OwnerMobileMenu({
           </button>
         </div>
 
-        <nav className="flex-1 py-4 space-y-6">
+        {/* The drawer is the one place with room to say what a screen is FOR.
+            An owner opening this menu for the first time should be able to pick
+            the right destination without tapping through all twelve. */}
+        <nav className="flex-1 space-y-6 py-4">
           {sections.map((section) => (
             <div key={section.heading}>
-              <p className="mb-2 text-overline text-white/40 uppercase tracking-widest">
+              <p className="mb-2 text-overline uppercase tracking-widest text-white/40">
                 {section.heading}
               </p>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {section.items.map((item) => {
                   const isActive = pathname.startsWith(item.href);
                   return (
@@ -264,15 +306,25 @@ function OwnerMobileMenu({
                       key={item.href}
                       href={item.href}
                       onClick={onClose}
+                      aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-body-emphasis transition-colors',
+                        'flex min-h-[52px] items-start gap-3 rounded-xl px-3 py-2.5 transition-colors',
                         isActive
-                          ? 'bg-white/15 text-white font-bold'
+                          ? 'bg-white/15 text-white'
                           : 'text-white/70 hover:bg-white/10 hover:text-white',
                       )}
                     >
-                      <item.icon className="h-5 w-5 shrink-0" />
-                      <span>{item.label}</span>
+                      <item.icon className="mt-0.5 h-5 w-5 shrink-0" />
+                      <span className="flex min-w-0 flex-col">
+                        <span className={cn('text-body-emphasis', isActive && 'font-bold')}>
+                          {item.label}
+                        </span>
+                        {item.hint && (
+                          <span className="text-caption leading-snug text-white/45">
+                            {item.hint}
+                          </span>
+                        )}
+                      </span>
                     </Link>
                   );
                 })}
@@ -322,7 +374,7 @@ function OwnerNotificationBell() {
   return (
     <Link
       href="/owner/notifications"
-      className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition-all hover:bg-border/60 hover:text-text-primary active:scale-95"
+      className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition-all hover:bg-border/60 hover:text-text-primary active:scale-95 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
       aria-label="Notifications"
     >
       <Bell className="h-4 w-4" />
@@ -342,25 +394,26 @@ function OwnerTopBar({
   isStaff: boolean;
   onOpenMobileMenu: () => void;
 }) {
+  const sectionLabel = useCurrentSectionLabel(isStaff);
+
   return (
-    <header className="sticky top-0 z-nav flex h-14 items-center justify-between border-b border-border bg-card px-4 lg:px-8">
-      <div className="flex items-center gap-3 lg:hidden">
+    <header className="sticky top-0 z-nav flex h-14 items-center justify-between gap-2 border-b border-border bg-card px-2 lg:px-8">
+      {/* Mobile: the menu button and the name of where you are. The KHEL-O
+          wordmark used to occupy this space on every screen — it told the owner
+          nothing they didn't know and left no room to say which of the twelve
+          screens they had landed on. */}
+      <div className="flex min-w-0 items-center gap-1 lg:hidden">
         <button
           onClick={onOpenMobileMenu}
-          className="flex h-11 w-11 items-center justify-center rounded-lg text-text-primary hover:bg-surface-hover transition-colors active:scale-95"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-text-primary transition-colors hover:bg-surface active:scale-95"
           aria-label="Open navigation menu"
         >
           <Menu className="h-6 w-6" />
         </button>
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent">
-            <span className="font-heading text-caption font-bold text-white">K</span>
-          </div>
-          <span className="font-heading text-h3 text-text-primary">KHEL-O</span>
-        </div>
+        <span className="truncate font-heading text-h3 text-text-primary">{sectionLabel}</span>
       </div>
 
-      <div className="hidden lg:flex items-center gap-2 text-caption text-text-secondary">
+      <div className="hidden items-center gap-2 text-caption text-text-secondary lg:flex">
         <span className="font-semibold text-text-primary">
           {isStaff ? 'Café Staff Desk' : 'Café Owner Portal'}
         </span>
@@ -372,7 +425,7 @@ function OwnerTopBar({
         </span>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2">
         <OwnerNotificationBell />
         <RoleSwitcher />
       </div>
@@ -389,27 +442,22 @@ function OwnerBottomNav({
 }) {
   const pathname = usePathname();
 
-  const ownerQuickItems: (NavItem & { isMenu?: boolean })[] = [
-    { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
+  // Same four destinations, same order, for owner and staff — the desk phone is
+  // often shared, and muscle memory shouldn't depend on who is logged in.
+  // "Scan" sits centre: it is the one thing done dozens of times a shift.
+  const quickItems: (NavItem & { isMenu?: boolean })[] = [
+    { label: 'Home', href: '/owner/dashboard', icon: LayoutDashboard },
     { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
-    { label: 'Availability', href: '/owner/availability', icon: CalendarClock },
-    { label: 'Scanner', href: '/owner/scanner', icon: QrCode },
+    { label: 'Scan', href: '/owner/scanner', icon: QrCode },
+    { label: 'Seats', href: '/owner/availability', icon: CalendarClock },
     { label: 'More', href: '#menu', icon: MoreHorizontal, isMenu: true },
   ];
 
-  const staffQuickItems: (NavItem & { isMenu?: boolean })[] = [
-    { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
-    { label: 'Availability', href: '/owner/availability', icon: CalendarClock },
-    { label: 'Scanner', href: '/owner/scanner', icon: QrCode },
-    { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
-    { label: 'More', href: '#menu', icon: MoreHorizontal, isMenu: true },
-  ];
-
-  const items = isStaff ? staffQuickItems : ownerQuickItems;
+  const items = quickItems;
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-nav flex h-bottom-nav items-center justify-around border-t border-border bg-card safe-bottom lg:hidden"
+      className="safe-bottom fixed bottom-0 left-0 right-0 z-nav flex min-h-bottom-nav items-stretch justify-around border-t border-border bg-card lg:hidden"
       aria-label="Owner bottom navigation"
     >
       {items.map((item) => {
@@ -418,10 +466,13 @@ function OwnerBottomNav({
             <button
               key="mobile-more-menu"
               onClick={onOpenMobileMenu}
-              className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-text-secondary hover:text-primary transition-colors"
+              aria-label="Open navigation menu"
+              className="flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-text-secondary transition-colors hover:text-primary"
             >
-              <item.icon className="h-5 w-5" />
-              <span className="text-badge">{item.label}</span>
+              <span className="flex items-center justify-center rounded-full px-3.5 py-1">
+                <item.icon className="h-5 w-5" />
+              </span>
+              <span className="text-caption font-medium">{item.label}</span>
             </button>
           );
         }
@@ -432,8 +483,10 @@ function OwnerBottomNav({
             key={item.href}
             href={item.href}
             className={cn(
-              'flex flex-col items-center gap-0.5 px-3 py-1.5 transition-colors duration-fast',
-              isActive ? 'text-primary font-bold' : 'text-text-secondary hover:text-text-primary',
+              // flex-1 + a 48px floor: every tab owns an equal, thumb-sized slab
+              // of the bar instead of only the width its own label happens to need.
+              'flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors duration-fast',
+              isActive ? 'text-primary' : 'text-text-secondary hover:text-text-primary',
             )}
             aria-current={isActive ? 'page' : undefined}
           >
@@ -445,7 +498,9 @@ function OwnerBottomNav({
             >
               <item.icon className="h-5 w-5" />
             </span>
-            <span className="text-badge">{item.label}</span>
+            <span className={cn('text-caption', isActive ? 'font-bold' : 'font-medium')}>
+              {item.label}
+            </span>
           </Link>
         );
       })}
@@ -480,7 +535,11 @@ export function OwnerShell({
           isStaff={isStaff}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />
-        <main className="mx-auto w-full max-w-owner px-4 pb-20 pt-4 lg:px-8 lg:pb-8 lg:pt-8">
+        {/* pb clears the bottom nav (64px) plus the home indicator plus a
+            breath of space, so the last control on a page is never sitting
+            under the bar. Pages must NOT add their own px-* or max-w-* — the
+            content column is decided once, here. */}
+        <main className="mx-auto w-full max-w-owner px-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] pt-4 lg:px-8 lg:pb-10 lg:pt-8">
           {children}
         </main>
       </div>

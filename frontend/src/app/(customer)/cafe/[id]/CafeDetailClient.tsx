@@ -12,11 +12,12 @@ import {
   ChevronRight,
   ChevronDown,
   Share2,
-  Monitor,
   Navigation,
   Gamepad2,
   CheckCircle2,
   Images,
+  Tag,
+  X,
 } from 'lucide-react';
 import { getCafe } from '@/lib/api/cafes';
 import { listCafeReviews, createReview } from '@/lib/api/reviews';
@@ -26,7 +27,7 @@ import { getWaitlistStatus, joinWaitlist, leaveWaitlist } from '@/lib/api/waitli
 import { queryKeys } from '@/hooks/queries/keys';
 import { Button, Skeleton, ErrorState } from '@/components/ui';
 import { PLATFORMS, type Platform } from '@/constants/platforms';
-import { PlayStationIcon, XboxIcon } from '@/components/icons/PlatformIcons';
+import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import dynamic from 'next/dynamic';
 
 const GoogleLocationDisplay = dynamic(
@@ -42,6 +43,7 @@ const GoogleLocationDisplay = dynamic(
 );
 import { ShareModal } from '@/components/customer/ShareModal';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
+import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
 
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
@@ -78,6 +80,33 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  // Tapping a Photos/Menu thumbnail opens this in place, over whatever the
+  // user was scrolled to — it previously called jumpToPhoto's
+  // heroRef.scrollIntoView, which yanked the page up to the hero every time,
+  // regardless of how far down the user had scrolled to find that thumbnail.
+  const [lightbox, setLightbox] = useState<{ open: boolean; images: string[]; index: number }>({
+    open: false,
+    images: [],
+    index: 0,
+  });
+  const touchStartXRef = useRef<number | null>(null);
+
+  // Declared above the isLoading/isError early returns below so hook order
+  // stays constant across renders (Rules of Hooks) even though the lightbox
+  // itself can only ever open once cafe data exists.
+  useEffect(() => {
+    if (!lightbox.open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox((prev) => ({ ...prev, open: false }));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [lightbox.open]);
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -174,15 +203,23 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : [];
   const currentPhoto = photosList[photoIndex % photosList.length];
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : 100;
-  const cheapestTier =
-    cafe.tiers && cafe.tiers.length > 0
-      ? [...cafe.tiers].sort((a, b) => a.pricePerHour - b.pricePerHour)[0]
-      : null;
+  const gamingTiers = (cafe.tiers ?? []).filter((t) => t.tierType !== 'activity');
+  const activityTiers = (cafe.tiers ?? []).filter((t) => t.tierType === 'activity');
   // Picking the tier here (instead of only on the booking page) removes an
   // entire duplicate step — the booking page shows the exact same tier
   // cards, so a user reads specs once here rather than twice. Defaults to
-  // the cheapest tier so "Book now" opens on the lowest price a gamer would
-  // expect, not whatever order the API happens to return.
+  // the cheapest GAMING tier so "Book now" opens on the same card the
+  // visible "Hardware tiers" section shows as selected — defaulting to the
+  // cheapest tier overall let an Activity priced below every gaming tier
+  // win silently, sending a visitor into an Activity booking they never
+  // picked while nothing above looked selected. Falls back to the cheapest
+  // Activity only when the café has no gaming tiers at all, so a
+  // Snooker-only café still gets a sensible "Book now" default.
+  const defaultTierPool = gamingTiers.length > 0 ? gamingTiers : activityTiers;
+  const cheapestTier =
+    defaultTierPool.length > 0
+      ? [...defaultTierPool].sort((a, b) => a.pricePerHour - b.pricePerHour)[0]
+      : null;
   const activeTier =
     (cafe.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
     cheapestTier;
@@ -214,6 +251,13 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const openLightbox = (images: string[], index: number) => setLightbox({ open: true, images, index });
+  const closeLightbox = () => setLightbox((prev) => ({ ...prev, open: false }));
+  const lightboxNext = () =>
+    setLightbox((prev) => ({ ...prev, index: (prev.index + 1) % prev.images.length }));
+  const lightboxPrev = () =>
+    setLightbox((prev) => ({ ...prev, index: (prev.index - 1 + prev.images.length) % prev.images.length }));
+
   return (
     // CustomerShell's <main> already reserves pb-24/md:pb-12 for the mobile
     // bottom nav. This page also has its own fixed "Book now" bar stacked
@@ -222,9 +266,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     // old pb-28 did) double-counts and leaves a visible empty gap before you
     // hit the fixed bars. pb-20/md:pb-12 here is sized to the bar's own
     // height, not the bar-plus-nav total the shell already covers.
-    <div className="flex flex-col gap-8 max-w-4xl mx-auto pb-20 md:pb-12">
+    <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-20 md:pb-12">
       {/* Hero Header Image with Gallery Arrows */}
-      <div ref={heroRef} className="relative h-72 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4">
+      <div ref={heroRef} className="relative h-52 sm:h-64 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4">
         {currentPhoto ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -331,15 +375,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               key={value}
               className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary flex items-center gap-1.5"
             >
-              {value === 'pc' ? (
-                <Monitor className="h-3.5 w-3.5 text-primary" />
-              ) : value === 'playstation' ? (
-                <PlayStationIcon className="h-3.5 w-3.5 text-primary" />
-              ) : value === 'xbox' ? (
-                <XboxIcon className="h-3.5 w-3.5 text-primary" />
-              ) : (
-                <Gamepad2 className="h-3.5 w-3.5 text-primary" />
-              )}
+              <PlatformIcon platform={value} className="h-3.5 w-3.5 text-primary" />
               {label}
             </span>
           ))}
@@ -363,17 +399,23 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="font-heading text-h2 text-text-primary">Hardware tiers</h2>
-          {cafe.tiers && cafe.tiers.length > 1 && (
+          {gamingTiers.length > 1 && (
             <span className="text-caption text-text-secondary">Tap to select</span>
           )}
         </div>
 
-        {cafe.tiers && cafe.tiers.length > 0 ? (
+        {gamingTiers.length > 0 ? (
           <>
             <div className="flex flex-col gap-2.5">
-              {cafe.tiers.map((tier) => {
+              {gamingTiers.map((tier) => {
                 const isSelected = activeTier?.id === tier.id;
                 const isPc = Boolean(tier.specs?.gpu);
+                // Owner-created offers (Owner → Promotional Offers) apply
+                // automatically at checkout — surfaced here so gamers see
+                // the discount before they even open the booking wizard,
+                // not just once they're on the price summary there.
+                const discount = tier.activePromotion?.discountPercentage ?? 0;
+                const discountedPrice = discount > 0 ? Math.round(tier.pricePerHour * (1 - discount / 100)) : tier.pricePerHour;
                 return (
                   <button
                     key={tier.id}
@@ -390,19 +432,19 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                         isSelected ? 'bg-accent/15 text-accent' : 'bg-surface text-text-secondary'
                       }`}
                     >
-                      {isPc ? (
-                        <Monitor className="h-5 w-5" />
-                      ) : tier.platform === 'playstation' ? (
-                        <PlayStationIcon className="h-5 w-5" />
-                      ) : tier.platform === 'xbox' ? (
-                        <XboxIcon className="h-5 w-5" />
-                      ) : (
-                        <Gamepad2 className="h-5 w-5" />
-                      )}
+                      <PlatformIcon platform={isPc ? 'pc' : tier.platform} className="h-5 w-5" />
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
+                        {discount > 0 && (
+                          <span className="flex items-center gap-1 rounded-full bg-accent/10 text-accent px-2 py-0.5 text-[11px] font-bold flex-shrink-0">
+                            <Tag className="h-3 w-3" />
+                            {discount}% OFF
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-text-secondary">
                         {isPc ? (
                           <>
@@ -422,6 +464,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                         <span className="text-text-secondary/50">·</span>
                         <span>{tier.totalSeats || 18} seats</span>
                       </div>
+                      {discount > 0 && tier.activePromotion?.title && (
+                        <p className="text-[11px] text-accent font-medium mt-0.5 truncate">{tier.activePromotion.title}</p>
+                      )}
                     </div>
 
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -432,17 +477,29 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       ) : (
                         <div className="h-5 w-5" />
                       )}
-                      <div className="font-data text-body-emphasis font-bold text-text-primary">
-                        <span className="rupee-symbol">₹</span>{tier.pricePerHour}
-                        <span className="text-caption font-normal text-text-secondary">/hr</span>
-                      </div>
+                      {discount > 0 ? (
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-caption text-text-tertiary line-through">
+                            <span className="rupee-symbol">₹</span>{tier.pricePerHour}
+                          </span>
+                          <div className="font-data text-body-emphasis font-bold text-accent">
+                            <span className="rupee-symbol">₹</span>{discountedPrice}
+                            <span className="text-caption font-normal text-text-secondary">/hr</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="font-data text-body-emphasis font-bold text-text-primary">
+                          <span className="rupee-symbol">₹</span>{tier.pricePerHour}
+                          <span className="text-caption font-normal text-text-secondary">/hr</span>
+                        </div>
+                      )}
                     </div>
                   </button>
                 );
               })}
             </div>
 
-            {cafe.tiers.length > 1 && (
+            {gamingTiers.length > 1 && (
               <button
                 type="button"
                 onClick={() => setShowAllTierSpecs((v) => !v)}
@@ -453,13 +510,13 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               </button>
             )}
 
-            {showAllTierSpecs && cafe.tiers.length > 1 && (
+            {showAllTierSpecs && gamingTiers.length > 1 && (
               <div className="overflow-x-auto rounded-2xl border border-border/80">
                 <table className="w-full text-caption">
                   <thead>
                     <tr className="bg-surface">
                       <th className="p-3 text-left font-semibold text-text-secondary">Spec</th>
-                      {cafe.tiers.map((tier) => (
+                      {gamingTiers.map((tier) => (
                         <th key={tier.id} className="p-3 text-left font-heading font-bold text-text-primary whitespace-nowrap">
                           {tier.name}
                         </th>
@@ -468,15 +525,15 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                   </thead>
                   <tbody>
                     {[
-                      { label: 'Hardware', get: (t: (typeof cafe.tiers)[number]) => t.specs?.gpu || t.specs?.console || t.specs?.other || t.model || '—' },
-                      { label: 'RAM', get: (t: (typeof cafe.tiers)[number]) => t.specs?.ram || '—' },
-                      { label: 'Monitor', get: (t: (typeof cafe.tiers)[number]) => t.specs?.monitor || '—' },
-                      { label: 'Seats', get: (t: (typeof cafe.tiers)[number]) => String(t.totalSeats || 18) },
-                      { label: 'Price', get: (t: (typeof cafe.tiers)[number]) => `₹${t.pricePerHour}/hr` },
+                      { label: 'Hardware', get: (t: (typeof gamingTiers)[number]) => t.specs?.gpu || t.specs?.console || t.specs?.other || t.model || '—' },
+                      { label: 'RAM', get: (t: (typeof gamingTiers)[number]) => t.specs?.ram || '—' },
+                      { label: 'Monitor', get: (t: (typeof gamingTiers)[number]) => t.specs?.monitor || '—' },
+                      { label: 'Seats', get: (t: (typeof gamingTiers)[number]) => String(t.totalSeats || 18) },
+                      { label: 'Price', get: (t: (typeof gamingTiers)[number]) => `₹${t.pricePerHour}/hr` },
                     ].map((row) => (
                       <tr key={row.label} className="border-t border-border/60">
                         <td className="p-3 font-semibold text-text-secondary">{row.label}</td>
-                        {cafe.tiers!.map((tier) => (
+                        {gamingTiers.map((tier) => (
                           <td key={tier.id} className="p-3 text-text-primary whitespace-nowrap">
                             {row.get(tier)}
                           </td>
@@ -492,6 +549,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <p className="text-body text-text-secondary italic">No hardware tiers listed.</p>
         )}
       </section>
+
+      <ActivitiesSection cafeId={cafe.id} activities={activityTiers} />
 
       {/* About */}
       {cafe.description && (
@@ -555,6 +614,32 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         )}
       </section>
 
+      {/* Menu */}
+      {cafe.menuPhotos && cafe.menuPhotos.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <h2 className="font-heading text-h2 text-text-primary">Menu</h2>
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+            {cafe.menuPhotos.map((photo, idx) => (
+              <button
+                key={photo + idx}
+                type="button"
+                onClick={() => openLightbox(cafe.menuPhotos!, idx)}
+                className="relative flex-shrink-0 w-40 aspect-[3/4] overflow-hidden rounded-xl border border-border/80"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photo}
+                  alt={`${cafe.name} menu ${idx + 1}`}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Photos */}
       {photosList.length > 0 && (
         <section className="flex flex-col gap-4">
@@ -564,7 +649,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               <button
                 key={photo + idx}
                 type="button"
-                onClick={() => jumpToPhoto(idx)}
+                onClick={() => openLightbox(photosList, idx)}
                 className="relative aspect-square overflow-hidden rounded-xl"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -574,7 +659,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             {photosList.length > 3 && (
               <button
                 type="button"
-                onClick={() => jumpToPhoto(3)}
+                onClick={() => openLightbox(photosList, 3)}
                 className="relative aspect-square overflow-hidden rounded-xl bg-secondary/90 flex flex-col items-center justify-center gap-1 text-white"
               >
                 <Images className="h-5 w-5" />
@@ -606,25 +691,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           </div>
 
           <GoogleLocationDisplay
-            lat={cafe.latitude}
-            lng={cafe.longitude}
-            venueName={cafe.name}
+            addressLine1={cafe.addressLine1}
+            city={cafe.city}
+            googleMapsUrl={cafe.googleMapsUrl}
           />
-
-          <Button
-            variant="secondary"
-            size="md"
-            fullWidth
-            className="gap-2"
-            onClick={() => {
-              const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                `${cafe.name}, ${cafe.addressLine1}, ${cafe.city}`
-              )}`;
-              window.open(url, '_blank');
-            }}
-          >
-            <span>Get directions on Google Maps</span>
-          </Button>
         </div>
       </section>
 
@@ -762,7 +832,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       {/* Sticky Bottom Action Bar — offset must include the safe-area inset too,
           not just the nav bar's base height, or the home-indicator padding on
           notched iPhones still overlaps this bar's bottom edge. */}
-      <div className="fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
+      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
         {isLead ? (
           /* Lead listing: KHEL-O listed this café from research and the venue
              has not agreed to take bookings yet, so there is no price to show
@@ -854,6 +924,71 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         title="Login required"
         description="Please log in to leave a review for this café."
       />
+
+      {lightbox.open && (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col bg-black/95"
+          onClick={closeLightbox}
+          onTouchStart={(e) => {
+            touchStartXRef.current = e.touches[0].clientX;
+          }}
+          onTouchEnd={(e) => {
+            const startX = touchStartXRef.current;
+            touchStartXRef.current = null;
+            if (startX == null) return;
+            const deltaX = e.changedTouches[0].clientX - startX;
+            // 40px threshold keeps an ordinary tap-to-close from being
+            // misread as a swipe.
+            if (Math.abs(deltaX) < 40) return;
+            if (deltaX < 0) lightboxNext();
+            else lightboxPrev();
+          }}
+        >
+          <div className="flex items-center justify-between p-4 text-white">
+            <span className="text-caption font-semibold">
+              {lightbox.index + 1} / {lightbox.images.length}
+            </span>
+            <button
+              type="button"
+              onClick={closeLightbox}
+              aria-label="Close"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="relative flex-1 flex items-center justify-center px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightbox.images[lightbox.index]}
+              alt={`${cafe.name} enlarged photo ${lightbox.index + 1}`}
+              className="max-h-full max-w-full object-contain select-none"
+            />
+
+            {lightbox.images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={lightboxPrev}
+                  aria-label="Previous photo"
+                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={lightboxNext}
+                  aria-label="Next photo"
+                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

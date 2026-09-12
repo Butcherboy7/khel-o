@@ -12,6 +12,12 @@ class PlatformFee(Base):
     booking_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     convenience_fee: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
     gateway_fee: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
+    # The platform fee % rate actually applied to this booking at creation
+    # time (from PlatformSetting.platform_fee_percentage). Stored per booking
+    # so a later Super Admin rate change never changes what a past booking
+    # is shown to have paid — this column, not the live setting, is
+    # authoritative for historical bookings.
+    fee_percentage_applied: Mapped[float] = mapped_column(Numeric(5, 2), default=4.0, nullable=False)
     tds_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
     owner_settlement_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
     # Razorpay Route split-transfer tracking. transfer_status: pending (not yet

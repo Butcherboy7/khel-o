@@ -164,3 +164,36 @@ async def test_update_cafe_details_persists_amenities_photos_and_location(db_ses
         settings_cafe = settings_res.json()["data"]["cafe"]
         assert settings_cafe["amenities"] == ["Air conditioned", "Free Wi-Fi"]
         assert settings_cafe["latitude"] == 12.9716
+
+
+@pytest.mark.asyncio
+async def test_update_cafe_details_persists_google_maps_url(db_session):
+    owner, _other_owner, cafe, _review = await _make_cafe_with_review(db_session)
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        res = await client.patch(
+            f"/api/v1/owner/cafes/{cafe.id}/details",
+            json={"googleMapsUrl": "https://maps.app.goo.gl/xxxxxAbC123"},
+            headers=auth_headers(owner),
+        )
+        assert res.status_code == 200, res.text
+        assert res.json()["data"]["cafe"]["googleMapsUrl"] == "https://maps.app.goo.gl/xxxxxAbC123"
+
+        settings_res = await client.get("/api/v1/owner/settings", headers=auth_headers(owner))
+        assert settings_res.json()["data"]["cafe"]["googleMapsUrl"] == "https://maps.app.goo.gl/xxxxxAbC123"
+
+        public_res = await client.get(f"/api/v1/cafes/{cafe.id}")
+        assert public_res.json()["data"]["cafe"]["googleMapsUrl"] == "https://maps.app.goo.gl/xxxxxAbC123"
+
+
+@pytest.mark.asyncio
+async def test_update_cafe_details_rejects_non_google_maps_url(db_session):
+    owner, _other_owner, cafe, _review = await _make_cafe_with_review(db_session)
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        res = await client.patch(
+            f"/api/v1/owner/cafes/{cafe.id}/details",
+            json={"googleMapsUrl": "https://evil.com/maps/xxxxx"},
+            headers=auth_headers(owner),
+        )
+        assert res.status_code == 422, res.text

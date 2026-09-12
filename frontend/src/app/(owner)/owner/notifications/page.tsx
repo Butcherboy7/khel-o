@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { Bell, CheckCheck, Ticket, Sparkles, AlertCircle, RefreshCw, X, Trash2 } from 'lucide-react';
-import { Badge, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Button, ErrorState, Skeleton } from '@/components/ui';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { apiClient } from '@/lib/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -87,42 +88,51 @@ export default function OwnerNotificationsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-primary" />
-          <h1 className="font-heading text-h2 font-bold text-text-primary">Notifications</h1>
-        </div>
+      <OwnerPageHeader
+        title="Alerts"
+        description="New bookings, cancellations and payment problems land here."
+        action={
+          notifications.length > 0 ? (
+            // Buttons, not bare text links: at 390px these three tap areas sat
+            // in a single unpadded row and were easy to hit by accident —
+            // "Clear all" among them.
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => markAllReadMutation.mutate()}
+                disabled={markAllReadMutation.isPending || unreadCount === 0}
+                className="gap-1.5"
+              >
+                <CheckCheck className="h-4 w-4" aria-hidden="true" />
+                <span>Mark all read</span>
+              </Button>
 
-        {notifications.length > 0 && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => refetch()}
-              aria-label="Refresh notifications"
-              className="flex items-center gap-1 text-caption text-text-secondary hover:text-text-primary transition-colors p-2 rounded-full hover:bg-surface"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refetch()}
+                aria-label="Refresh alerts"
+                className="gap-1.5"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                <span>Refresh</span>
+              </Button>
 
-            <button
-              onClick={() => markAllReadMutation.mutate()}
-              disabled={markAllReadMutation.isPending || unreadCount === 0}
-              className="flex items-center gap-1 text-caption font-medium text-primary hover:text-primary/80 transition-colors px-3 py-2 rounded-full hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <CheckCheck className="h-4 w-4" />
-              <span>Mark all read</span>
-            </button>
-
-            <button
-              onClick={() => clearAllMutation.mutate()}
-              disabled={clearAllMutation.isPending}
-              className="flex items-center gap-1 text-caption font-medium text-red-600 hover:text-red-500 transition-colors px-3 py-2 rounded-full hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span>Clear all</span>
-            </button>
-          </div>
-        )}
-      </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => clearAllMutation.mutate()}
+                disabled={clearAllMutation.isPending}
+                className="gap-1.5 text-error hover:bg-error/10 hover:text-error"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                <span>Clear all</span>
+              </Button>
+            </div>
+          ) : undefined
+        }
+      />
 
       {isLoading && (
         <div className="space-y-3">
@@ -171,10 +181,13 @@ export default function OwnerNotificationsPage() {
             <div
               key={n.id}
               onClick={() => handleNotificationClick(n)}
-              className={`p-4 rounded-2xl transition-all cursor-pointer ${
+              // Unread is carried by a filled surface and the dot beside the
+              // title, not by a thick coloured strip down the left edge — that
+              // strip fought the card's own rounded corner and read as damage.
+              className={`cursor-pointer rounded-2xl p-4 transition-all ${
                 n.isRead
-                  ? 'bg-card border border-border/60 hover:border-border'
-                  : 'bg-surface border-l-4 border-l-primary border border-border/80'
+                  ? 'border border-border/60 bg-card hover:border-border'
+                  : 'border border-primary/40 bg-primary/[0.04] hover:border-primary/60'
               }`}
             >
               <div className="flex items-start gap-3">

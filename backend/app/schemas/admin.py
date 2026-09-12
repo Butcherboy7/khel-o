@@ -44,6 +44,9 @@ class AdminCafeDetailResponse(CafeResponse):
     bank_account_number: Optional[str] = None
     bank_ifsc: Optional[str] = None
     account_holder_name: Optional[str] = None
+    upi_vpa: Optional[str] = None
+    payout_verification_status: Optional[str] = None
+    verified_name: Optional[str] = None
     cancellation_policy: Optional[str] = None
     house_rules: List[str] = Field(default_factory=list)
     social_links: Dict[str, Any] = Field(default_factory=dict)

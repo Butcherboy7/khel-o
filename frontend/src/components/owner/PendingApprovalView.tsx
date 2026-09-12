@@ -47,7 +47,7 @@ export function PendingApprovalView({ cafeName = 'Your Café', onRefreshStatus }
             </div>
             <div className="flex items-start gap-3 text-caption text-text-secondary">
               <Clock className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
-              <span>Verification of business documents & Razorpay Route payout setup (in progress)</span>
+              <span>Verification of business documents & payout details (in progress)</span>
             </div>
             <div className="flex items-start gap-3 text-caption text-text-secondary">
               <Clock className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />

@@ -79,6 +79,16 @@ export async function updateOwnerBookingStatus(
   return call(() => apiClient.patch(`/api/v1/owner/bookings/${bookingId}/status`, { status }));
 }
 
+// Frees a still-PENDING_PAYMENT booking's held slot before the natural
+// 15-minute TTL. See backend/app/api/v1/owner.py::_release_pending_booking
+// for the race-condition-safe transition (RELEASED_BY_OWNER, never deleted).
+export async function releasePendingBooking(
+  bookingId: string,
+  reason?: string,
+): Promise<{ booking: { id: string; status: string; releasedAt: string | null; releaseReason: string | null } }> {
+  return call(() => apiClient.patch(`/api/v1/owner/bookings/${bookingId}/release`, { reason }));
+}
+
 export async function checkinBooking(
   bookingId: string,
   method: 'qr_camera' | 'qr_upload' | 'manual' = 'manual',
@@ -154,6 +164,25 @@ export async function getPayoutStatus(): Promise<{ payoutAccount: OwnerPayoutAcc
 
 export async function setupPayout(body: PayoutSetupRequest): Promise<{ payoutAccount: OwnerPayoutAccount }> {
   return call(() => apiClient.post('/api/v1/owner/payouts/setup', body));
+}
+
+export interface OwnerCafePayoutHistoryItem {
+  id: string;
+  amount: number;
+  utrReference: string;
+  paymentMethod: string;
+  status: string;
+  proofImageUrl?: string | null;
+  adminNote?: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export async function getOwnerCafePayouts(): Promise<{
+  outstandingAmount: number;
+  history: OwnerCafePayoutHistoryItem[];
+}> {
+  return call(() => apiClient.get('/api/v1/owner/payouts/cafe-payouts'));
 }
 
 export async function getOwnerCafeId(): Promise<{ cafeId: string }> {

@@ -26,6 +26,15 @@ class PromotionRepository(BaseRepository[Promotion]):
         )
         return result.scalars().first()
 
+    async def get_by_code(self, khelo_code: str) -> Optional[Promotion]:
+        """Codes are globally unique (see migration 025), so no cafe filter
+        is needed to disambiguate — the caller still checks the resolved
+        promotion's cafe_id matches the venue the booking is for."""
+        result = await self.db.execute(
+            select(Promotion).where(Promotion.khelo_code == khelo_code)
+        )
+        return result.scalars().first()
+
     async def get_by_cafe_id(self, cafe_id: UUID) -> List[Promotion]:
         result = await self.db.execute(
             select(Promotion).where(Promotion.cafe_id == cafe_id).order_by(Promotion.created_at.desc())

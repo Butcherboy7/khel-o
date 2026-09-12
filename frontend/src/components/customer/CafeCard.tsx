@@ -6,6 +6,7 @@ import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow, formatTime } from '@/lib/format';
 import { hasConsoleTier, hasPcTier } from '@/lib/platformTags';
+import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import type { Platform } from '@/constants/platforms';
 import type { CafeListItem } from '@/types';
 
@@ -18,15 +19,20 @@ const PLATFORM_SHORT_LABELS: Partial<Record<Platform, string>> = {
   nintendo: 'Switch',
 };
 
+// Fixed order so a café offering PS5 + PC always renders PC first — a
+// stable badge order reads as "the café's lineup", not a shuffled list.
+const PLATFORM_ORDER: Platform[] = ['pc', 'playstation', 'xbox', 'nintendo'];
+
+function getConfirmedPlatforms(cafe: CafeListItem): Platform[] {
+  if (!cafe.platforms || cafe.platforms.length === 0) return [];
+  const present = new Set(cafe.platforms as Platform[]);
+  return PLATFORM_ORDER.filter((p) => present.has(p));
+}
+
 function getPlatformSummary(cafe: CafeListItem): string | null {
-  if (cafe.platforms && cafe.platforms.length > 0) {
-    const labels = Array.from(
-      new Set(
-        cafe.platforms
-          .map((p) => PLATFORM_SHORT_LABELS[p as Platform])
-          .filter((label): label is string => Boolean(label))
-      )
-    );
+  const confirmed = getConfirmedPlatforms(cafe);
+  if (confirmed.length > 0) {
+    const labels = confirmed.map((p) => PLATFORM_SHORT_LABELS[p]).filter((l): l is string => Boolean(l));
     if (labels.length > 0) return labels.join(' · ');
   }
   // Not yet migrated to confirmed per-tier platforms — fall back to the
@@ -86,6 +92,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
           ? `Opens ${formatTime(cafe.openingTime)}`
           : 'Closed';
   const platformSummary = getPlatformSummary(cafe);
+  const confirmedPlatforms = getConfirmedPlatforms(cafe);
 
   const handleOpenMap = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -216,6 +223,13 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             {platformSummary && (
               <>
                 <span className="text-text-secondary/50">·</span>
+                {confirmedPlatforms.length > 0 && (
+                  <span className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
+                    {confirmedPlatforms.map((p) => (
+                      <PlatformIcon key={p} platform={p} className="h-3 w-3 text-text-secondary" />
+                    ))}
+                  </span>
+                )}
                 <span className="text-text-secondary truncate">{platformSummary}</span>
               </>
             )}

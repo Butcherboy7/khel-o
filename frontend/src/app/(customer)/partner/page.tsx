@@ -9,7 +9,14 @@ const PARTNER_BENEFITS = [
   {
     icon: TrendingUp,
     title: 'Zero Upfront Cost',
-    description: 'List your venue for free. Pay only 3-5% convenience fee on successful bookings.',
+    // Deliberately quotes no percentage. The old copy promised owners a "3-5%
+    // convenience fee" on their side, which the code does not do — the fee is
+    // added on top of the customer's total and the café is settled the full
+    // subtotal (see PlatformFee.owner_settlement_amount). Owners who priced to
+    // absorb that phantom fee were making KHELO look ~8% dearer than their own
+    // walk-in rate. Setup/monthly costs are the claims that stay true whatever
+    // the commission model does later.
+    description: 'List your venue for free. No setup fees and no monthly charges.',
   },
   {
     icon: Users,
@@ -23,8 +30,8 @@ const PARTNER_BENEFITS = [
   },
   {
     icon: ShieldCheck,
-    title: 'Secure Payments',
-    description: 'Instant Razorpay Route settlements directly to your bank account within T+2 days.',
+    title: 'Weekly Payouts',
+    description: 'KHEL-O pays your outstanding balance weekly, straight to your UPI ID.',
   },
 ];
 
@@ -40,8 +47,8 @@ const REQUIREMENTS = [
 const PROCESS_STEPS = [
   { step: 1, title: 'Venue Details', description: 'Café name, address, location, contact info' },
   { step: 2, title: 'Business Verification', description: 'PAN, GSTIN, trade license document' },
-  { step: 3, title: 'Bank Account', description: 'Account number, IFSC for settlement payouts' },
-  { step: 4, title: 'Hours & Hardware', description: 'Operating hours, GPU tiers, pricing' },
+  { step: 3, title: 'Payout Details', description: 'UPI ID for weekly payouts' },
+  { step: 4, title: 'Hours & Resources', description: 'Operating hours, GPU tiers, pricing' },
   { step: 5, title: 'Amenities & Games', description: 'Facilities, supported games list' },
   { step: 6, title: 'Review & Submit', description: 'Final review before submission' },
 ];

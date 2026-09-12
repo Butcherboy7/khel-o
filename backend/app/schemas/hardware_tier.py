@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
-from app.models.hardware_tier import PlatformType
+from app.models.hardware_tier import PlatformType, TierType
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -19,6 +19,8 @@ class HardwareTierBase(BaseModel):
     price_per_hour: float = Field(..., gt=0.0)
     platform: Optional[PlatformType] = None
     model: Optional[str] = Field(None, max_length=100)
+    tier_type: TierType = TierType.GAMING
+    activity_kind: Optional[str] = Field(None, max_length=50)
 
     @model_validator(mode='after')
     def validate_seats(self) -> 'HardwareTierBase':
@@ -34,7 +36,14 @@ class HardwareTierBase(BaseModel):
     )
 
 class HardwareTierCreate(HardwareTierBase):
-    pass
+    # Create-only, never persisted as its own column and never echoed back
+    # on HardwareTierResponse — whether to generate named hardware_tier_units
+    # rows ("Snooker 1".."Snooker N") for this activity right now. False (the
+    # default) = pooled capacity (e.g. Arcade Zone), no unit rows ever. This
+    # is a one-time choice at creation; HardwareTierUpdate has no equivalent
+    # field — whether a later update resyncs units is decided by whether
+    # units already exist for that tier, not by a stored flag.
+    individual_units: bool = False
 
 HardwareTierCreateRequest = HardwareTierCreate
 
@@ -51,6 +60,7 @@ class HardwareTierUpdate(BaseModel):
     is_active: Optional[bool] = None
     platform: Optional[PlatformType] = None
     model: Optional[str] = Field(None, max_length=100)
+    activity_kind: Optional[str] = Field(None, max_length=50)
 
     @model_validator(mode='after')
     def validate_seats_update(self) -> 'HardwareTierUpdate':

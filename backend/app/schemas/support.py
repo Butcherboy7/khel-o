@@ -48,6 +48,7 @@ class SupportTicketResponse(BaseModel):
 
 class PlatformSettingsResponse(BaseModel):
     commission_percentage: float
+    platform_fee_percentage: float
     support_email: str
     maintenance_mode: bool
     maintenance_message: Optional[str] = None
@@ -58,8 +59,19 @@ class PlatformSettingsResponse(BaseModel):
 
 class PlatformSettingsUpdateRequest(BaseModel):
     commission_percentage: Optional[float] = Field(None, ge=0, le=100)
+    platform_fee_percentage: Optional[float] = Field(None, ge=0, le=50)
     support_email: Optional[str] = None
     maintenance_mode: Optional[bool] = None
     maintenance_message: Optional[str] = Field(None, max_length=500)
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class PlatformFeePercentageResponse(BaseModel):
+    """Public, unauthenticated read of the current customer-facing platform
+    fee rate — used by the booking checkout page to show an accurate
+    pre-payment estimate. The server still recomputes and charges
+    authoritatively at booking-creation time; this is display-only."""
+    platform_fee_percentage: float
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

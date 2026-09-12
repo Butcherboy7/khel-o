@@ -18,7 +18,7 @@ import {
   LifeBuoy,
   Landmark,
 } from 'lucide-react';
-import { listPendingCafes, verifyCafe, getAdminAnalytics, getAdminActionItems } from '@/lib/api/admin';
+import { listPendingCafes, verifyCafe, getAdminAnalytics, getAdminActionItems, verifyCafePayoutDestination } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
   Button,
@@ -28,6 +28,7 @@ import {
   Badge,
   Modal,
   Textarea,
+  Input,
   SkeletonCard,
   ErrorState,
   EmptyState,
@@ -40,6 +41,8 @@ export default function AdminPage() {
   const [selectedCafe, setSelectedCafe] = useState<AdminCafe | null>(null);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [testUtr, setTestUtr] = useState('');
+  const [testVerifiedName, setTestVerifiedName] = useState('');
 
   // Fetch platform analytics
   const { data: analytics } = useQuery({
@@ -95,6 +98,19 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
       setIsRejectModalOpen(false);
       setSelectedCafe(null);
+    },
+  });
+
+  const verifyPayoutMutation = useMutation({
+    mutationFn: () =>
+      verifyCafePayoutDestination(selectedCafe!.id, {
+        utrReference: testUtr,
+        verifiedName: testVerifiedName,
+      }),
+    onSuccess: () => {
+      setTestUtr('');
+      setTestVerifiedName('');
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.pendingCafes() });
     },
   });
 
@@ -347,12 +363,56 @@ export default function AdminPage() {
           </div>
           
           <div className="p-3 rounded-xl bg-surface-hover">
-            <h4 className="font-semibold text-caption mb-2">Payout Account</h4>
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <h4 className="font-semibold text-caption mb-2">Payout Destination</h4>
+            <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+              <div><span className="text-text-tertiary">UPI ID:</span> {selectedCafe?.upiVpa || 'Not provided'}</div>
+              <div>
+                <span className="text-text-tertiary">Status:</span>{' '}
+                {selectedCafe?.payoutVerificationStatus === 'verified' ? (
+                  <Badge variant="success" size="sm">Verified{selectedCafe?.verifiedName ? ` — ${selectedCafe.verifiedName}` : ''}</Badge>
+                ) : (
+                  <Badge variant="warning" size="sm">Unverified</Badge>
+                )}
+              </div>
               <div><span className="text-text-tertiary">Account Holder:</span> {selectedCafe?.accountHolderName || 'Not provided'}</div>
               <div><span className="text-text-tertiary">Account #:</span> {selectedCafe?.bankAccountNumber ? `••••${selectedCafe.bankAccountNumber.slice(-4)}` : 'Not provided'}</div>
               <div><span className="text-text-tertiary">IFSC:</span> {selectedCafe?.bankIfsc || 'Not provided'}</div>
             </div>
+
+            {selectedCafe?.upiVpa && selectedCafe?.payoutVerificationStatus !== 'verified' && (
+              <div className="flex flex-col gap-2 pt-2 border-t border-border">
+                <p className="text-overline text-text-tertiary">
+                  Send a ₹1 test transfer to this UPI ID, then record the name your UPI app showed for the recipient.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="₹1 transfer UTR"
+                    value={testUtr}
+                    onChange={(e) => setTestUtr(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Name shown by UPI app"
+                    value={testVerifiedName}
+                    onChange={(e) => setTestVerifiedName(e.target.value)}
+                  />
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!testUtr.trim() || !testVerifiedName.trim() || verifyPayoutMutation.isPending}
+                  isLoading={verifyPayoutMutation.isPending}
+                  onClick={() => verifyPayoutMutation.mutate()}
+                  className="self-start"
+                >
+                  Confirm ₹1 Test Transfer
+                </Button>
+                {verifyPayoutMutation.isError && (
+                  <p className="text-xs text-error">
+                    {(verifyPayoutMutation.error as Error)?.message ?? 'Failed to record verification.'}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           
           {selectedCafe?.draftData?.hardwareTiers && (

@@ -4,7 +4,7 @@ from uuid import UUID
 from datetime import datetime, time
 from app.models.cafe import VerificationStatus
 from app.schemas.hardware_tier import HardwareTierResponse
-from app.constants import validate_city
+from app.constants import validate_city, validate_google_maps_url
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -35,6 +35,7 @@ class CafeBase(BaseModel):
     pincode: str = Field(..., max_length=10)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    google_maps_url: Optional[str] = None
     phone_number: str = Field(..., max_length=20)
     email: Optional[str] = Field(None, max_length=255)
     opening_time: Optional[time] = None
@@ -43,6 +44,7 @@ class CafeBase(BaseModel):
     amenities: List[str] = Field(default_factory=list)
     supported_games: List[str] = Field(default_factory=list)
     photos: List[str] = Field(default_factory=list)
+    menu_photos: List[str] = Field(default_factory=list)
 
     @field_validator("opening_time", "closing_time", mode="before")
     @classmethod
@@ -53,6 +55,11 @@ class CafeBase(BaseModel):
     @classmethod
     def _validate_city(cls, v: str) -> str:
         return validate_city(v)
+
+    @field_validator("google_maps_url")
+    @classmethod
+    def _validate_google_maps_url(cls, v: Optional[str]) -> Optional[str]:
+        return validate_google_maps_url(v)
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -74,6 +81,7 @@ class CafeUpdate(BaseModel):
     pincode: Optional[str] = Field(None, max_length=10)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    google_maps_url: Optional[str] = None
     phone_number: Optional[str] = Field(None, max_length=20)
     email: Optional[str] = Field(None, max_length=255)
     opening_time: Optional[time] = None
@@ -87,6 +95,11 @@ class CafeUpdate(BaseModel):
     @classmethod
     def _validate_city(cls, v: Optional[str]) -> Optional[str]:
         return validate_city(v) if v is not None else v
+
+    @field_validator("google_maps_url")
+    @classmethod
+    def _validate_google_maps_url(cls, v: Optional[str]) -> Optional[str]:
+        return validate_google_maps_url(v)
 
     model_config = ConfigDict(
         alias_generator=to_camel,

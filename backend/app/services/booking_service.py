@@ -7,7 +7,6 @@ from uuid import UUID, uuid4
 from datetime import datetime, timezone, timedelta, date, time
 
 from app.core.time import IST, session_end_ist
-from app.config import settings
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
@@ -17,6 +16,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.user import User, UserRole
 from app.models.cafe import VerificationStatus
 from app.models.platform_fee import PlatformFee
+from app.repositories.platform_settings_repository import PlatformSettingsRepository
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 import logging
 
@@ -161,11 +161,26 @@ class BookingService:
         base_amount = price_per_hour * duration * seats_requested
 
         discount_amount = Decimal('0.00')
-        if booking_in.promotion_id:
+        # promotion_id wins if both are somehow present — it's the
+        # auto-applied-at-checkout offer path already validated client-side;
+        # promo_code is the KHELO code path (typed in or from a QR deep
+        # link). Resolving the code to a promotion_id here is just a lookup —
+        # apply_promotion_to_booking below still does the one authoritative,
+        # row-locked re-validation regardless of which path supplied the id.
+        resolved_promotion_id = booking_in.promotion_id
+        if not resolved_promotion_id and booking_in.promo_code:
+            if not self.promo_service:
+                raise ValidationException(message="Promotion service missing", error_code="INTERNAL_ERROR")
+            resolved_promotion_id = await self.promo_service.resolve_code_to_promotion_id(
+                code=booking_in.promo_code,
+                cafe_id=booking_in.cafe_id,
+            )
+
+        if resolved_promotion_id:
             if not self.promo_service:
                 raise ValidationException(message="Promotion service missing", error_code="INTERNAL_ERROR")
             discount_amount = await self.promo_service.apply_promotion_to_booking(
-                promotion_id=booking_in.promotion_id,
+                promotion_id=resolved_promotion_id,
                 cafe_id=booking_in.cafe_id,
                 tier_id=booking_in.hardware_tier_id,
                 base_amount=base_amount,
@@ -175,12 +190,16 @@ class BookingService:
             )
 
         subtotal = base_amount - discount_amount
-        # Single combined platform service fee (Razorpay's real cost + KHEL-O's
-        # margin) — see Settings.RAZORPAY_COST_PERCENT / PLATFORM_MARGIN_PERCENT.
+        # Single combined platform service fee, Super Admin-controlled via
+        # PlatformSetting.platform_fee_percentage (Admin → Platform Settings).
         # Stored in the `gateway_fee` column for backward compatibility; the old
         # separate flat convenience fee is retired (kept at 0, not removed from
-        # the schema, so historical bookings still read correctly).
-        service_fee_percent = Decimal(str(settings.RAZORPAY_COST_PERCENT)) + Decimal(str(settings.PLATFORM_MARGIN_PERCENT))
+        # the schema, so historical bookings still read correctly). The rate
+        # actually applied is snapshotted onto PlatformFee.fee_percentage_applied
+        # below — a later admin rate change must never alter what this booking
+        # is shown to have paid.
+        platform_settings = await PlatformSettingsRepository(self.booking_repo.db).get_or_create()
+        service_fee_percent = Decimal(str(platform_settings.platform_fee_percentage))
         gateway_fee = (subtotal * service_fee_percent / Decimal('100')).quantize(Decimal('0.01'))
         convenience_fee = Decimal('0.00')
         total_amount = subtotal + gateway_fee + convenience_fee
@@ -204,7 +223,7 @@ class BookingService:
             "convenience_fee": float(convenience_fee),
             "total_amount": float(total_amount),
             "status": BookingStatus.PENDING_PAYMENT,
-            "promotion_id": booking_in.promotion_id,
+            "promotion_id": resolved_promotion_id,
             "notes": booking_in.notes,
             "game": booking_in.game
         }
@@ -217,6 +236,7 @@ class BookingService:
             "booking_id": created.id,
             "convenience_fee": float(convenience_fee),
             "gateway_fee": float(gateway_fee),
+            "fee_percentage_applied": float(service_fee_percent),
             "tds_amount": 0.00,
             "owner_settlement_amount": float(subtotal)
         }

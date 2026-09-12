@@ -58,6 +58,7 @@ export interface Cafe {
   amenities: string[];
   supportedGames?: string[];
   photos: string[];
+  menuPhotos: string[];
   rejectionReason: string | null;
   businessPan?: string;
   gstin?: string;
@@ -65,11 +66,15 @@ export interface Cafe {
   bankAccountNumber?: string;
   bankIfsc?: string;
   accountHolderName?: string;
+  upiVpa?: string;
+  payoutVerificationStatus?: 'unverified' | 'test_sent' | 'verified';
+  verifiedName?: string;
   draftData?: any;
   latitude?: number | null;
   longitude?: number | null;
   /** Listed by KHEL-O from research; not bookable until the venue claims it. */
   isLeadListing?: boolean;
+  googleMapsUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }

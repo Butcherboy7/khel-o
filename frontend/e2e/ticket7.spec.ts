@@ -1,13 +1,11 @@
 import { test, expect } from '@playwright/test';
 
-// Top-level, not inside the describe: Playwright rejects a browserName override
-// in a describe group because it forces a new worker, and that error aborts
-// collection for the WHOLE e2e suite, not just this file.
-test.use({
-  browserName: 'chromium',
-});
-
 test.describe('Ticket 7: End-to-End Onboarding Flow', () => {
+
+  // browserName is set by the `chromium` project in playwright.config.ts.
+  // Declaring test.use({ browserName }) inside a describe forces a new worker
+  // and is rejected by Playwright at collection time — which silently blocked
+  // the ENTIRE e2e suite from running, not just this file.
 
   test('Complete onboarding wizard and verify role transition', async ({ page }) => {
     const timestamp = Date.now();

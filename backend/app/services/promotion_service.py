@@ -1,7 +1,10 @@
+import logging
 from typing import List, Optional
 from uuid import UUID, uuid4
 from decimal import Decimal
 from datetime import datetime, timezone
+
+from sqlalchemy.exc import IntegrityError
 
 from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -10,10 +13,13 @@ from app.schemas.promotion import (
     PromotionCreateRequest,
     PromotionUpdateRequest,
     PromotionResponse,
-    ActivePromotionResponse
+    ActivePromotionResponse,
+    CodeRedemptionResponse
 )
 from app.models.promotion import Promotion
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
+
+logger = logging.getLogger(__name__)
 
 class PromotionService:
     def __init__(
@@ -102,6 +108,15 @@ class PromotionService:
             if not tier or str(tier.cafe_id) != str(cafe_id):
                 raise ValidationException(message="Selected tier does not belong to this café", error_code="INVALID_TIER")
 
+        # Rule 4 — KHELO code uniqueness (pre-check for a friendly error;
+        # the DB unique index on khelo_code is still the actual guard against
+        # a concurrent create racing this check, see the IntegrityError catch
+        # below).
+        if promo_in.khelo_code:
+            existing = await self.promo_repo.get_by_code(promo_in.khelo_code)
+            if existing:
+                raise ValidationException(message="This KHELO code is already in use", error_code="CODE_TAKEN")
+
         # Rule 3 — Go live immediately (is_active = True)
         promo_dict = {
             "id": uuid4(),
@@ -117,10 +132,19 @@ class PromotionService:
             "end_hour": promo_in.end_hour,
             "max_uses": promo_in.max_uses,
             "current_uses": 0,
-            "is_active": True
+            "is_active": True,
+            "khelo_code": promo_in.khelo_code,
         }
 
-        created = await self.promo_repo.create(promo_dict)
+        try:
+            created = await self.promo_repo.create(promo_dict)
+        except IntegrityError:
+            # Closes the race the pre-check above can't: two owners submitting
+            # the same code in the same instant both pass get_by_code() before
+            # either commits. Roll back so the session is usable again — the
+            # failed INSERT otherwise leaves it unable to run further queries.
+            await self.promo_repo.db.rollback()
+            raise ValidationException(message="This KHELO code is already in use", error_code="CODE_TAKEN")
         return PromotionResponse.model_validate(created)
 
     async def get_active_promotions_for_cafe(self, cafe_id: UUID) -> List[ActivePromotionResponse]:
@@ -190,8 +214,17 @@ class PromotionService:
             if update_in.discount_percentage < 1 or update_in.discount_percentage > 50:
                 raise ValidationException(message="Discount percentage must be between 1 and 50", error_code="INVALID_DISCOUNT")
 
+        if update_in.khelo_code is not None and update_in.khelo_code != promo.khelo_code:
+            existing = await self.promo_repo.get_by_code(update_in.khelo_code)
+            if existing and str(existing.id) != str(promotion_id):
+                raise ValidationException(message="This KHELO code is already in use", error_code="CODE_TAKEN")
+
         update_dict = update_in.model_dump(exclude_unset=True)
-        updated = await self.promo_repo.update(promotion_id, update_dict)
+        try:
+            updated = await self.promo_repo.update(promotion_id, update_dict)
+        except IntegrityError:
+            await self.promo_repo.db.rollback()
+            raise ValidationException(message="This KHELO code is already in use", error_code="CODE_TAKEN")
         return PromotionResponse.model_validate(updated)
 
     async def deactivate_promotion(self, promotion_id: UUID, owner_id: UUID) -> None:
@@ -205,6 +238,67 @@ class PromotionService:
                 raise ForbiddenException(message="You do not have permission to deactivate this promotion", error_code="FORBIDDEN")
 
         await self.promo_repo.deactivate(promotion_id)
+
+    async def preview_code(self, code: str, cafe_id: Optional[UUID] = None) -> CodeRedemptionResponse:
+        """Public, unauthenticated lookup used by the customer-side code-entry
+        field and the /redeem QR deep link to show what a code unlocks before
+        the gamer commits to a booking. Read-only — never increments
+        current_uses; that only happens inside apply_promotion_to_booking,
+        atomically, when an actual booking is created. `valid` reflects the
+        full eligibility check EXCEPT the schedule window (day/hour), which
+        depends on the session the customer eventually picks, not "now" —
+        booking_service revalidates that against the chosen slot."""
+        normalized = code.strip().upper()
+        promo = await self.promo_repo.get_by_code(normalized)
+        if not promo:
+            raise NotFoundException(message="Invalid KHELO code", error_code="CODE_NOT_FOUND")
+
+        if cafe_id is not None and str(promo.cafe_id) != str(cafe_id):
+            raise ValidationException(message="This code isn't valid for this café", error_code="CODE_CAFE_MISMATCH")
+
+        now = datetime.now(timezone.utc)
+        valid = True
+        reason: Optional[str] = None
+        if not promo.is_active:
+            valid, reason = False, "This offer is no longer active."
+        else:
+            valid_from = promo.valid_from.replace(tzinfo=timezone.utc) if promo.valid_from.tzinfo is None else promo.valid_from
+            valid_until = promo.valid_until.replace(tzinfo=timezone.utc) if promo.valid_until.tzinfo is None else promo.valid_until
+            if now < valid_from or now > valid_until:
+                valid, reason = False, "This offer is outside its valid dates."
+            elif promo.max_uses is not None and promo.current_uses >= promo.max_uses:
+                valid, reason = False, "This offer has reached its redemption limit."
+
+        return CodeRedemptionResponse(
+            promotion_id=promo.id,
+            cafe_id=promo.cafe_id,
+            title=promo.title,
+            description=promo.description,
+            discount_percentage=promo.discount_percentage,
+            applicable_tier_id=promo.applicable_tier_id,
+            valid_from=promo.valid_from,
+            valid_until=promo.valid_until,
+            days_of_week=promo.days_of_week,
+            start_hour=promo.start_hour,
+            end_hour=promo.end_hour,
+            max_uses=promo.max_uses,
+            current_uses=promo.current_uses,
+            valid=valid,
+            reason=reason,
+        )
+
+    async def resolve_code_to_promotion_id(self, code: str, cafe_id: UUID) -> UUID:
+        """Used by booking creation to turn a submitted promoCode into a
+        promotion_id before handing off to apply_promotion_to_booking, which
+        does the actual authoritative, row-locked re-validation — this is
+        just the lookup, not a second source of truth for eligibility."""
+        normalized = code.strip().upper()
+        promo = await self.promo_repo.get_by_code(normalized)
+        if not promo:
+            raise ValidationException(message="Invalid KHELO code", error_code="CODE_NOT_FOUND")
+        if str(promo.cafe_id) != str(cafe_id):
+            raise ValidationException(message="This code isn't valid for this café", error_code="CODE_CAFE_MISMATCH")
+        return promo.id
 
     async def apply_promotion_to_booking(
         self,
@@ -250,6 +344,23 @@ class PromotionService:
         # Rule 5 Math: discount_amount = base_amount * (discount_percentage / 100)
         discount_percentage = Decimal(str(promo.discount_percentage))
         discount_amount = (base_amount * (discount_percentage / Decimal('100'))).quantize(Decimal('0.01'))
+
+        # Never discount more than the booking is worth. PromotionBase caps
+        # discount_percentage at 1..50, but that bound only exists in Pydantic —
+        # promotion rows are also written by seeds, migrations and admin
+        # scripts, which bypass it. A row holding >100 would otherwise make
+        # subtotal negative in booking_service, and with it the café's
+        # settlement, KHELO's fee and the customer's total. Clamping here
+        # cannot change any valid promotion (a <=50% discount is always well
+        # under base_amount); it only stops money going negative on bad data.
+        if discount_amount > base_amount:
+            logger.warning(
+                f"Promotion {promo.id} has discount_percentage="
+                f"{discount_percentage}, which computed a discount of "
+                f"{discount_amount} against a base amount of {base_amount}. "
+                f"Clamping to base amount to keep the booking non-negative."
+            )
+            discount_amount = base_amount
 
         # Increment now, while still holding the row lock acquired above —
         # that gap between validation and increment was exactly where the

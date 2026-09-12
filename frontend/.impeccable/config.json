@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "src/app/(customer)/bookings/new/page.tsx"
+        ],
+        "createdAt": "2026-09-08T17:09:36.700Z",
+        "reason": "Claude: sole hit is text-slate-950 on bg-amber-500 (paused-bookings chip) — near-black on amber, ~10:1 contrast. The rule targets washed-out mid-grays; this is the darker-shade treatment it recommends."
+      }
+    ]
+  }
+}

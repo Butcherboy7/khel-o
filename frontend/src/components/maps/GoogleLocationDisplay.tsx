@@ -1,100 +1,47 @@
 'use client';
 
-import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
-import { MapPin, ExternalLink } from 'lucide-react';
-import { GOOGLE_MAPS_SCRIPT_ID, GOOGLE_MAPS_LIBRARIES } from './mapsConfig';
-import { getPublicEnv } from '@/lib/runtimeEnv';
-
-const mapContainerStyle = {
-  width: '100%',
-  height: '100%',
-  borderRadius: '1rem',
-};
-
-const defaultCenter = {
-  lat: 12.9716,
-  lng: 77.5946,
-};
+import { MapPin } from 'lucide-react';
 
 interface LocationDisplayProps {
-  lat?: number | null;
-  lng?: number | null;
-  venueName: string;
+  addressLine1: string;
+  city: string;
+  googleMapsUrl?: string | null;
 }
 
-export function GoogleLocationDisplay({ lat, lng, venueName }: LocationDisplayProps) {
-  const apiKey = getPublicEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
+// Deliberately does not load the Google Maps JavaScript API, Places API, or
+// any geocoding — this just links out to the URL the café owner pasted from
+// Google Maps' own Share button. See docs/superpowers/specs for the
+// no-map-rendering decision (billing).
+export function GoogleLocationDisplay({ addressLine1, city, googleMapsUrl }: LocationDisplayProps) {
+  return (
+    <div className="rounded-2xl bg-surface border border-border p-4 flex flex-col gap-3">
+      <div className="flex items-start gap-2 text-body text-text-secondary">
+        <MapPin className="h-5 w-5 flex-shrink-0 text-text-secondary mt-0.5" />
+        <span>{addressLine1}, {city}</span>
+      </div>
 
-  const isAlreadyLoaded = typeof window !== 'undefined' && typeof window.google?.maps?.Map === 'function';
-
-  const { isLoaded: isJsLoaded, loadError } = useJsApiLoader({
-    id: GOOGLE_MAPS_SCRIPT_ID,
-    googleMapsApiKey: apiKey,
-    libraries: GOOGLE_MAPS_LIBRARIES,
-  });
-
-  const isLoaded = isJsLoaded || isAlreadyLoaded;
-
-  const center = {
-    lat: lat || defaultCenter.lat,
-    lng: lng || defaultCenter.lng,
-  };
-
-  // If no Google Maps API key is configured in env, render clean interactive location card fallback
-  if (!apiKey) {
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venueName)}&query_place_id=loc:${center.lat},${center.lng}`;
-    return (
-      <div className="relative h-44 w-full rounded-2xl bg-gradient-to-br from-surface to-card border border-border p-4 flex flex-col items-center justify-center text-center gap-2.5 shadow-card group">
-        <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-          <MapPin className="h-5 w-5" />
-        </div>
-        <div>
-          <h4 className="font-heading text-h4 text-text-primary">{venueName}</h4>
-          <p className="text-caption text-text-secondary">Coordinates: {center.lat.toFixed(4)}, {center.lng.toFixed(4)}</p>
-        </div>
+      {googleMapsUrl && (
         <a
-          href={mapsUrl}
+          href={googleMapsUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-caption font-bold text-primary hover:underline bg-primary/10 px-3 py-1.5 rounded-full transition-colors"
+          className="inline-flex items-center gap-2 self-start rounded-xl border border-border bg-card px-4 py-2.5 text-body font-semibold text-text-primary hover:bg-surface-hover transition-colors"
         >
-          <span>View on Google Maps</span>
-          <ExternalLink className="h-3.5 w-3.5" />
+          <GoogleMapsGlyph />
+          <span>Show in Map</span>
         </a>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="h-44 w-full rounded-2xl bg-surface border border-border p-4 flex flex-col items-center justify-center text-center text-caption text-text-secondary gap-2">
-        <MapPin className="h-5 w-5 text-error" />
-        <span>Failed to load map view.</span>
-      </div>
-    );
-  }
-
-  if (!isLoaded) {
-    return (
-      <div className="h-44 w-full rounded-2xl bg-surface border border-border flex items-center justify-center text-caption text-text-secondary animate-pulse">
-        Loading interactive map...
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative h-44 w-full rounded-2xl overflow-hidden border border-border shadow-card">
-      <GoogleMap
-        mapContainerStyle={mapContainerStyle}
-        center={center}
-        zoom={15}
-        options={{
-          disableDefaultUI: true,
-          zoomControl: true,
-        }}
-      >
-        <MarkerF position={center} title={venueName} />
-      </GoogleMap>
+      )}
     </div>
+  );
+}
+
+// Google's multicolor pin mark, inlined as SVG — matches the "Show in Map"
+// pill from Google Maps' own share cards, no external asset/API call.
+function GoogleMapsGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#1a73e8" d="M12 2C7.86 2 4.5 5.36 4.5 9.5c0 5.25 6.44 11.34 7 11.86.28.26.72.26 1 0 .56-.52 7-6.61 7-11.86C19.5 5.36 16.14 2 12 2z" />
+      <circle cx="12" cy="9.5" r="3.2" fill="#fff" />
+    </svg>
   );
 }

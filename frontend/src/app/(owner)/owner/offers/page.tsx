@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tag, Plus, Percent, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle } from 'lucide-react';
+import { Tag, Plus, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw } from 'lucide-react';
 import {
   listOwnerPromotions,
   createPromotion,
@@ -12,17 +12,37 @@ import {
 } from '@/lib/api/promotions';
 import { listCafeTiers } from '@/lib/api/tiers';
 import { getOwnerCafeId } from '@/lib/api/owner';
+import { getPublicEnv } from '@/lib/runtimeEnv';
 import {
   Card,
   CardContent,
   Badge,
   Button,
   Input,
+  NumericField,
   Modal,
   SkeletonCard,
   ErrorState,
   EmptyState,
 } from '@/components/ui';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+
+const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
+
+function redeemUrl(code: string): string {
+  return `${SITE_URL}/redeem/${code}`;
+}
+
+function qrImageUrl(data: string): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(data)}`;
+}
+
+function generateCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
+  let out = '';
+  for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -49,6 +69,7 @@ interface FormState {
   startHour: number;
   endHour: number;
   maxUses: string;
+  kheloCode: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -62,6 +83,7 @@ const EMPTY_FORM: FormState = {
   startHour: 0,
   endHour: 24,
   maxUses: '',
+  kheloCode: '',
 };
 
 export default function OwnerOffersPage() {
@@ -71,6 +93,19 @@ export default function OwnerOffersPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Promotion | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [qrTargetId, setQrTargetId] = useState<string | null>(null);
+
+  const copyCode = async (id: string, code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 1500);
+    } catch {
+      // Clipboard API can be unavailable (insecure context, permissions) —
+      // the code is still visible on the card, so this is a soft failure.
+    }
+  };
 
   const { data: cafeData } = useQuery({
     queryKey: ['owner-cafe-id-offers'],
@@ -116,6 +151,7 @@ export default function OwnerOffersPage() {
       startHour: p.startHour,
       endHour: p.endHour,
       maxUses: p.maxUses != null ? String(p.maxUses) : '',
+      kheloCode: p.kheloCode ?? '',
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -135,6 +171,7 @@ export default function OwnerOffersPage() {
         startHour: Number(form.startHour),
         endHour: Number(form.endHour),
         maxUses: form.maxUses ? Number(form.maxUses) : null,
+        kheloCode: form.kheloCode || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['owner-promotions'] });
@@ -152,6 +189,7 @@ export default function OwnerOffersPage() {
         discountPercentage: Number(form.discountPercentage),
         validUntil: `${form.validUntil}T23:59:59`,
         maxUses: form.maxUses ? Number(form.maxUses) : null,
+        kheloCode: form.kheloCode || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['owner-promotions'] });
@@ -205,6 +243,10 @@ export default function OwnerOffersPage() {
       setFormError('Select at least one day of the week.');
       return;
     }
+    if (form.kheloCode && form.kheloCode.length < 4) {
+      setFormError('KHELO code must be at least 4 characters.');
+      return;
+    }
     setFormError(null);
     if (editingId) {
       updateMut.mutate();
@@ -214,22 +256,26 @@ export default function OwnerOffersPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 pb-12">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-            <Tag className="h-6 w-6 text-primary" />
-            <span>Promotional Offers</span>
-          </h1>
-          <p className="text-caption text-text-secondary mt-0.5">
-            Time-boxed discounts gamers see automatically at checkout — no promo codes to share.
-          </p>
-        </div>
-        <Button variant="primary" size="md" onClick={openCreate} className="gap-2" disabled={!cafeId}>
-          <Plus className="h-4 w-4" />
-          <span>Create Offer</span>
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6">
+      {/* The old description promised "no promo codes to share" while every
+          offer card below showed a code with Copy and Show QR buttons beside it.
+          Both halves are true of different things, so say which is which. */}
+      <OwnerPageHeader
+        title="Discounts"
+        description="Run a discount for a set period. It comes off the price automatically at checkout — and each one also gets a code you can share or print as a QR."
+        action={
+          <Button
+            variant="primary"
+            size="md"
+            onClick={openCreate}
+            className="w-full justify-center gap-2 sm:w-auto"
+            disabled={!cafeId}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span>New discount</span>
+          </Button>
+        }
+      />
 
       {isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -248,9 +294,9 @@ export default function OwnerOffersPage() {
 
       {!isLoading && !isError && promotions.length === 0 && (
         <EmptyState
-          title="No offers yet"
-          description="Create a time-boxed discount — e.g. 20% off weeknights before 6 PM — and it applies automatically at checkout."
-          actionLabel="Create Your First Offer"
+          title="No discounts running"
+          description="A discount is a good way to fill quiet hours — say 20% off on weekday afternoons. Customers see the lower price straight away."
+          actionLabel="Create your first discount"
           onAction={openCreate}
         />
       )}
@@ -274,7 +320,6 @@ export default function OwnerOffersPage() {
                   </div>
 
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-surface border border-border">
-                    <Percent className="h-4 w-4 text-primary flex-shrink-0" />
                     <span className="text-h3 font-heading font-bold text-primary">{p.discountPercentage}% OFF</span>
                     <span className="text-caption text-text-secondary">{tierName ?? 'All tiers'}</span>
                   </div>
@@ -303,6 +348,56 @@ export default function OwnerOffersPage() {
                       </div>
                     )}
                   </div>
+
+                  {p.kheloCode && (
+                    <div className="flex flex-col gap-2 p-3 rounded-xl bg-accent/5 border border-accent/20">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Tag className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+                          <span className="font-data font-bold tracking-wider text-text-primary truncate">{p.kheloCode}</span>
+                        </div>
+                        {/* Shared Button, so these two inherit the same 44px
+                            touch floor as every other control in the portal —
+                            as raw 32px-tall elements they were the smallest tap
+                            targets left on any owner screen. */}
+                        <div className="flex flex-shrink-0 items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyCode(p.id, p.kheloCode!)}
+                            className="gap-1"
+                          >
+                            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                            {copiedId === p.id ? 'Copied' : 'Copy'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setQrTargetId((cur) => (cur === p.id ? null : p.id))}
+                            className="gap-1"
+                          >
+                            <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
+                            {qrTargetId === p.id ? 'Hide QR' : 'Show QR'}
+                          </Button>
+                        </div>
+                      </div>
+                      {qrTargetId === p.id && (
+                        <div className="flex flex-col items-center gap-1.5 pt-1">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={qrImageUrl(redeemUrl(p.kheloCode))}
+                            alt={`QR code for KHELO code ${p.kheloCode}`}
+                            width={140}
+                            height={140}
+                            className="rounded-lg bg-white p-1.5 border border-border"
+                          />
+                          <span className="text-caption text-text-secondary text-center">
+                            Scanning opens KHELO and applies this code after sign-in
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 pt-3 border-t border-border">
                     <Button variant="outline" size="sm" onClick={() => openEdit(p)} className="flex-1">
@@ -369,14 +464,12 @@ export default function OwnerOffersPage() {
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
+            <NumericField
               label="Discount % (1-50) *"
-              type="number"
               min={1}
               max={50}
               value={form.discountPercentage}
-              onChange={(e) => setForm({ ...form, discountPercentage: Number(e.target.value) })}
-              required
+              onChange={(n) => setForm({ ...form, discountPercentage: n })}
             />
             <div className="flex flex-col gap-1.5">
               <label className="text-caption font-semibold text-text-primary">Applies To</label>
@@ -391,7 +484,7 @@ export default function OwnerOffersPage() {
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
-              {editingId && <p className="text-[11px] text-text-tertiary">Tier scope can&apos;t change after creation — pause and create a new offer instead.</p>}
+              {editingId && <p className="text-caption text-text-secondary">Tier scope can&apos;t change after creation — pause and create a new offer instead.</p>}
             </div>
           </div>
 
@@ -414,25 +507,21 @@ export default function OwnerOffersPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
+            <NumericField
               label="Start Hour (0-23) *"
-              type="number"
               min={0}
               max={23}
               value={form.startHour}
               disabled={!!editingId}
-              onChange={(e) => setForm({ ...form, startHour: Number(e.target.value) })}
-              required
+              onChange={(n) => setForm({ ...form, startHour: n })}
             />
-            <Input
+            <NumericField
               label="End Hour (1-24) *"
-              type="number"
               min={1}
               max={24}
               value={form.endHour}
               disabled={!!editingId}
-              onChange={(e) => setForm({ ...form, endHour: Number(e.target.value) })}
-              required
+              onChange={(n) => setForm({ ...form, endHour: n })}
             />
           </div>
 
@@ -468,6 +557,34 @@ export default function OwnerOffersPage() {
             value={form.maxUses}
             onChange={(e) => setForm({ ...form, maxUses: e.target.value })}
           />
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-caption font-semibold text-text-primary">KHELO Code (optional)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="e.g. WEEKNIGHT15"
+                value={form.kheloCode}
+                onChange={(e) =>
+                  setForm({ ...form, kheloCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20) })
+                }
+                className="h-10 flex-1 min-w-0 rounded-xl border border-border bg-card px-3 font-data tracking-wider text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 flex-shrink-0"
+                onClick={() => setForm((f) => ({ ...f, kheloCode: generateCode() }))}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Generate
+              </Button>
+            </div>
+            <p className="text-caption text-text-secondary">
+              Lets gamers redeem this offer by code or QR, in addition to it auto-applying at checkout. Uses the same validity window and redemption limit above. 4-20 letters/numbers.
+            </p>
+          </div>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
             <Button type="button" variant="ghost" onClick={() => { setIsModalOpen(false); resetForm(); }}>

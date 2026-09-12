@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { SocialLinks } from '@/components/layout/SocialLinks';
 
 const LEGAL_LINKS = [
   { href: '/about', label: 'About Us' },
@@ -57,6 +58,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
                 {link.label}
               </Link>
             ))}
+            <SocialLinks className="border-l border-border pl-2" />
           </div>
         </div>
       </footer>

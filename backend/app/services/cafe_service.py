@@ -71,6 +71,15 @@ class CafeService:
             promo_service = PromotionService(self.promo_repo, tier_repo=self.tier_repo)
             active_promos = await promo_service.get_active_promotions_for_cafe(cafe.id)
 
+            # Mirror HardwareTierService.get_cafe_tiers' per-tier promo matching so the
+            # café detail page (which renders tiers from here, not from /tiers) can show
+            # the same offer badge on each tier the owner's promotion applies to.
+            for t in tiers_res:
+                for p in active_promos:
+                    if p.applicable_tier_name is None or p.applicable_tier_name == t.name:
+                        t.active_promotion = p.model_dump(by_alias=True)
+                        break
+
         avg_rating, total_revs = 0.0, 0
         recent_revs: List[ReviewResponse] = []
         if self.review_repo:
@@ -110,9 +119,18 @@ class CafeService:
             res_payout = await self.cafe_repo.db.execute(stmt_payout)
             payout_acc = res_payout.scalars().first()
             if payout_acc:
-                resp.bank_account_number = payout_acc.bank_account_number_masked or (payout_acc.details.get("full_account") if payout_acc.details else None)
+                # Masked value only — the encrypted account number is never
+                # decrypted for an API response. The old plaintext
+                # details["full_account"] fallback is retired entirely.
+                resp.bank_account_number = payout_acc.bank_account_number_masked
                 resp.bank_ifsc = payout_acc.bank_ifsc
                 resp.account_holder_name = payout_acc.account_holder_name
+                if hasattr(resp, "upi_vpa"):
+                    resp.upi_vpa = payout_acc.upi_vpa
+                if hasattr(resp, "payout_verification_status"):
+                    resp.payout_verification_status = payout_acc.payout_verification_status
+                if hasattr(resp, "verified_name"):
+                    resp.verified_name = payout_acc.verified_name
 
         return resp
 
@@ -155,13 +173,21 @@ class CafeService:
             limit=limit
         )
 
+        ratings_by_cafe: Dict[UUID, Any] = {}
+        if self.review_repo:
+            cafe_ids = [item["id"] for item in items_dict if item.get("id")]
+            ratings_by_cafe = await self.review_repo.get_average_ratings_for_cafes(cafe_ids)
+
         items: List[CafeListItem] = []
         for item in items_dict:
             c_id = item.get("id")
-            if c_id and self.review_repo:
-                avg_r, tot_r = await self.review_repo.get_average_rating_and_count(c_id)
+            if c_id in ratings_by_cafe:
+                avg_r, tot_r = ratings_by_cafe[c_id]
                 item["average_rating"] = avg_r
                 item["total_reviews"] = tot_r
+            elif c_id and self.review_repo:
+                item["average_rating"] = 0.0
+                item["total_reviews"] = 0
             items.append(CafeListItem.model_validate(item))
 
         total_pages = math.ceil(total / limit) if total > 0 else 0
