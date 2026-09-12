@@ -108,3 +108,26 @@ async def test_current_password_is_never_persisted(db_session, async_client):
     await db_session.refresh(user)
     assert not hasattr(user, "current_password")
     assert user.password_hash != "rightpass1"
+
+
+async def test_deactivated_user_cannot_change_email(db_session, async_client):
+    """Email is the login identity. A revoked owner holding an unexpired JWT
+    must not be able to move their account to an address they control and keep
+    a payout-bearing café past the revocation."""
+    user = await create_test_user(
+        db_session, email="revoked@khel-o.com", role=UserRole.CAFE_OWNER, password="rightpass1"
+    )
+    await db_session.commit()
+    headers = auth_headers(user)
+
+    user.is_active = False
+    await db_session.commit()
+
+    resp = await async_client.patch(
+        "/api/v1/auth/me", headers=headers,
+        json={"email": "attacker@evil.com", "currentPassword": "rightpass1"},
+    )
+    assert resp.status_code in (401, 403), resp.text
+
+    await db_session.refresh(user)
+    assert user.email == "revoked@khel-o.com"

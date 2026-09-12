@@ -18,7 +18,7 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
 from app.services.auth_service import AuthService
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_active_user
 from app.models.user import User, UserRole
 from app.core.security import get_password_hash, verify_password
 from app.core.exceptions import BadRequestException, NotFoundException, AuthException
@@ -179,7 +179,12 @@ async def get_me(
 @router.patch("/me", status_code=status.HTTP_200_OK)
 async def update_me(
     payload: UserUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    # get_current_active_user, not get_current_user: this endpoint can now
+    # reassign `email`, which is the login identity. Without the DB-backed
+    # is_active re-check, a deactivated or revoked owner whose JWT has not yet
+    # expired could move their account to an address they control and keep a
+    # payout-bearing café past the revocation.
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     repo = UserRepository(db)
