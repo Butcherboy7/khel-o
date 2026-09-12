@@ -115,6 +115,10 @@ interface CafeFilterSheetProps {
   onAmenitiesChange: (v: string[]) => void;
   resultCount: number;
   hasAdvancedFilters: boolean;
+  /** False when no café in the current results has a price at all, e.g. a
+      city showing only lead listings. The slider is hidden rather than left
+      to guarantee an empty result. */
+  showPrice?: boolean;
   onClearAll: () => void;
 }
 
@@ -140,6 +144,7 @@ export function CafeFilterSheet({
   onAmenitiesChange,
   resultCount,
   hasAdvancedFilters,
+  showPrice = true,
   onClearAll,
 }: CafeFilterSheetProps) {
   const toggleAmenity = (id: string) => {
@@ -246,6 +251,7 @@ export function CafeFilterSheet({
 
         {/* Price per hour — two overlapping native range inputs sharing one
             track; see .range-slider-thumb in globals.css. */}
+        {showPrice && (
         <div className="flex flex-col gap-2.5">
           <SectionLabel>Price per hour</SectionLabel>
           <div className="relative h-5 flex items-center px-1">
@@ -292,6 +298,7 @@ export function CafeFilterSheet({
             <span>₹{PRICE_MAX}+</span>
           </div>
         </div>
+        )}
 
         {/* Amenities */}
         <div className="flex flex-col gap-2.5">

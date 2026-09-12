@@ -312,6 +312,32 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     sortedCafes.sort((a, b) => distanceOf(a) - distanceOf(b));
   }
 
+  // Which facets anything in this result set could actually satisfy. With 22
+  // researched cafés carrying no confirmed tiers, hours or prices, the
+  // platform chips and Open-now would otherwise sit there guaranteeing zero
+  // results. A filter that cannot return anything should not be on screen.
+  const facets = {
+    pc: cafes.some((c) => hasPcTier(c.tierNames, c.platforms, c.platformsComplete)),
+    ps5: cafes.some((c) => hasPlatformTier('playstation', c.tierNames, c.platforms, c.platformsComplete)),
+    xbox: cafes.some((c) => hasPlatformTier('xbox', c.tierNames, c.platforms, c.platformsComplete)),
+    openNow: cafes.some((c) => c.openingTime != null && c.closingTime != null),
+    price: cafes.some((c) => c.startingPrice != null),
+  };
+  const availablePlatformTags = PLATFORM_TAGS.filter(({ key }) => {
+    if (key === 'All') return true;
+    if (key === 'PC') return facets.pc;
+    if (key === 'PS5') return facets.ps5;
+    if (key === 'Xbox') return facets.xbox;
+    return true;
+  });
+
+  // Cities that actually have something to show, so the picker never offers a
+  // city that returns an empty grid.
+  const citiesWithResults = Array.from(new Set(cafes.map((c) => c.city))).filter((city) =>
+    SUPPORTED_CITIES.includes(city)
+  );
+  const selectableCities = ['All Cities', ...(citiesWithResults.length > 0 ? citiesWithResults : SUPPORTED_CITIES)];
+
   const hasActiveFilters =
     platformFilter !== 'All' ||
     openStatus !== 'any' ||
@@ -348,7 +374,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
 
   const cityDropdownPanel = showCityDropdown && (
     <div className="absolute top-10 left-0 z-50 w-52 rounded-2xl bg-card border border-border/80 shadow-overlay p-2 flex flex-col gap-1 animate-in fade-in">
-      {KNOWN_CITIES.map((city) => (
+      {selectableCities.map((city) => (
         <button
           key={city}
           onClick={() => {
@@ -410,7 +436,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1"
         style={{ maskImage: 'linear-gradient(to right, black 92%, transparent)', WebkitMaskImage: 'linear-gradient(to right, black 92%, transparent)' }}
       >
-        {PLATFORM_TAGS.map(({ key, label }) => {
+        {availablePlatformTags.map(({ key, label }) => {
           const isSelected = platformFilter === key;
           return (
             <button
@@ -427,6 +453,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           );
         })}
 
+        {facets.openNow && (
         <button
           onClick={() => setOpenStatus((v) => (v === 'open_now' ? 'any' : 'open_now'))}
           className={`rounded-full px-4 min-h-[36px] text-caption font-semibold flex-shrink-0 transition-all ${
@@ -437,6 +464,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         >
           Open now
         </button>
+        )}
 
         {/* Everything most people never touch (distance, opening-soon,
             price range, amenities) lives behind this one sheet instead of
@@ -482,6 +510,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         onAmenitiesChange={setSelectedAmenities}
         resultCount={sortedCafes.length}
         hasAdvancedFilters={advancedFilterCount > 0}
+        showPrice={facets.price}
         onClearAll={handleClearAdvancedFilters}
       />
     </div>
