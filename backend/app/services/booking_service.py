@@ -74,6 +74,11 @@ class BookingService:
                 raise ValidationException(message="Café is currently in emergency mode and not accepting new bookings", error_code="EMERGENCY_MODE_ACTIVE")
             if cafe.bookings_paused:
                 raise ValidationException(message="Café is currently not accepting new bookings", error_code="BOOKINGS_PAUSED")
+            # Listed by KHEL-O from research; the venue has not agreed to take
+            # bookings yet. Checked before tier validation so the refusal names
+            # the real reason instead of blaming a missing hardware tier.
+            if cafe.is_lead_listing:
+                raise ValidationException(message="This café isn't taking bookings on KHEL-O yet.", error_code="LEAD_LISTING_NOT_BOOKABLE")
             effective_stations = cafe.bookable_stations if cafe.bookable_stations > 0 else (cafe.total_seats or 10)
             if effective_stations <= 0:
                 raise ValidationException(message="Café has no bookable stations available", error_code="NO_BOOKABLE_STATIONS")

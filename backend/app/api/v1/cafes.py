@@ -121,7 +121,11 @@ async def get_cafe_availability(
     if cafe_obj:
         if cafe_obj.bookable_stations is not None and cafe_obj.bookable_stations >= 0:
             app_bookable_seats = min(app_bookable_seats, cafe_obj.bookable_stations)
-        if cafe_obj.bookings_paused or cafe_obj.is_emergency_mode or cafe_obj.bookable_stations == 0:
+        # is_lead_listing: KHEL-O listed this café from research and the venue
+        # has not agreed to take bookings, so it must never offer a slot even
+        # if research confirmed real tiers for it.
+        if (cafe_obj.bookings_paused or cafe_obj.is_emergency_mode
+                or cafe_obj.bookable_stations == 0 or cafe_obj.is_lead_listing):
             app_bookable_seats = 0
 
     return {

@@ -81,3 +81,28 @@ async def test_waitlist_entry_persists(db_session):
 
     assert entry.created_at is not None
     assert entry.notified_at is None
+
+
+async def test_booking_rejected_for_lead_listing(db_session, async_client):
+    """A player must not be able to pay for a slot at a café that has never
+    heard of KHEL-O. The guard sits before tier validation so the message is
+    about the listing, not about a missing tier."""
+    from tests.conftest import auth_headers
+
+    gamer = await create_test_user(db_session, role=UserRole.GAMER)
+    cafe = await _make_cafe(db_session, "Unclaimed Cafe", is_lead_listing=True)
+
+    resp = await async_client.post(
+        "/api/v1/bookings",
+        headers=auth_headers(gamer),
+        json={
+            "cafeId": str(cafe.id),
+            "hardwareTierId": str(uuid.uuid4()),
+            "sessionDate": "2026-12-01",
+            "startTime": "10:00:00",
+            "durationHours": 1,
+            "seatsCount": 1,
+        },
+    )
+    assert resp.status_code >= 400, resp.text
+    assert "isn't taking bookings on KHEL-O yet" in resp.text, resp.text
