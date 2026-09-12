@@ -69,6 +69,15 @@ class UserUpdateRequest(BaseModel):
     full_name: Optional[str] = Field(None, min_length=2, max_length=255)
     phone_number: Optional[str] = Field(None, max_length=20)
     avatar_url: Optional[str] = Field(None, max_length=500)
+    # Email is the login identity. This system has no email verification at
+    # all, so allowing the change adds no bypass -- but the seeded
+    # @khel-o.com café-owner addresses do not exist, which makes
+    # forgot-password useless for them, so this is their only recovery path.
+    # current_password is what stops a leaked session from silently
+    # reassigning an account that holds payout bank details. It is an auth
+    # input, never persisted -- see auth.update_me.
+    email: Optional[EmailStr] = None
+    current_password: Optional[str] = Field(None, max_length=128)
 
     model_config = ConfigDict(
         alias_generator=to_camel,

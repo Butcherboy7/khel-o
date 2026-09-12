@@ -184,6 +184,40 @@ async def update_me(
 ):
     repo = UserRepository(db)
     update_data = payload.model_dump(exclude_unset=True, exclude_none=True)
+
+    # current_password authenticates the change; it is never a stored field.
+    # Popped before anything reaches repo.update regardless of which branch
+    # runs below, so it can't leak into the User model.
+    current_password = update_data.pop("current_password", None)
+
+    new_email = update_data.get("email")
+    if new_email is not None:
+        new_email = new_email.strip().lower()
+        if new_email == current_user.email:
+            update_data.pop("email", None)
+        else:
+            # No verification mail is sent: the placeholder @khel-o.com
+            # addresses these café-owner accounts ship with do not exist, so a
+            # confirmation link would go nowhere. The password is the proof of
+            # identity instead.
+            if not current_password:
+                raise BadRequestException(
+                    message="Enter your current password to change your email address",
+                    error_code="CURRENT_PASSWORD_REQUIRED",
+                )
+            if not verify_password(current_password, current_user.password_hash):
+                raise BadRequestException(
+                    message="That password is incorrect",
+                    error_code="INVALID_CURRENT_PASSWORD",
+                )
+            existing = await repo.get_by_email(new_email)
+            if existing and existing.id != current_user.id:
+                raise BadRequestException(
+                    message="That email address is already in use",
+                    error_code="EMAIL_ALREADY_IN_USE",
+                )
+            update_data["email"] = new_email
+
     updated = await repo.update(current_user.id, update_data) if update_data else current_user
     user_dict = UserResponse.model_validate(updated).model_dump(by_alias=True)
     return {
