@@ -143,3 +143,38 @@ async def test_list_does_not_invent_a_rating(db_session, async_client):
 
     assert item["averageRating"] == 0
     assert item["totalReviews"] == 0
+
+
+async def test_demand_summary_counts_unique_sessions(db_session, async_client):
+    """Two views from one browser count once. The number is quoted to café
+    owners as real demand, so refreshes must not inflate it."""
+    from app.models.analytics_event import AnalyticsEvent
+    from app.models.user import User
+    from tests.conftest import auth_headers
+
+    cafe = await _make_cafe(db_session, "Demand Cafe", is_lead_listing=True)
+    for session in ["s1", "s1", "s1", "s2"]:
+        db_session.add(AnalyticsEvent(
+            id=uuid.uuid4(), session_id=session, user_id=None,
+            event_type="venue_viewed", cafe_id=cafe.id, event_metadata={},
+        ))
+    await async_client.post(f"/api/v1/cafes/{cafe.id}/waitlist", json={"sessionId": "w1"})
+    await db_session.commit()
+
+    owner = await db_session.get(User, cafe.owner_id)
+    resp = await async_client.get("/api/v1/owner/cafe/demand", headers=auth_headers(owner))
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()["data"]
+    assert data["uniqueViews30d"] == 2
+    assert data["waitlistCount"] == 1
+
+
+async def test_demand_summary_requires_an_owner(db_session, async_client):
+    from tests.conftest import auth_headers
+
+    gamer = await create_test_user(db_session, role=UserRole.GAMER)
+    await db_session.commit()
+
+    resp = await async_client.get("/api/v1/owner/cafe/demand", headers=auth_headers(gamer))
+    assert resp.status_code in (401, 403), resp.text

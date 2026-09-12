@@ -221,6 +221,48 @@ async def toggle_emergency_mode(
         "isEmergencyMode": cafe.is_emergency_mode
     }
 
+@router.get("/cafe/demand", status_code=status.HTTP_200_OK)
+async def get_cafe_demand(
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Demand evidence for this owner's café: how many distinct people opened
+    it, and how many asked to be told when booking opens.
+
+    Both numbers are counted, never estimated -- they are quoted back to café
+    owners as proof of real interest, and the first owner who catches an
+    inflated figure invalidates the pitch for every other café.
+
+    COUNT(DISTINCT session_id) rather than COUNT(*) so refreshes and revisits
+    from one browser count as one person.
+    """
+    from app.models.analytics_event import AnalyticsEvent
+    from app.repositories.waitlist_repository import WaitlistRepository
+
+    stmt = select(Cafe).where(Cafe.owner_id == current_owner.id).order_by(Cafe.created_at.desc())
+    res = await db.execute(stmt)
+    cafe = res.scalars().first()
+    if not cafe:
+        raise NotFoundException("Café not found", error_code="CAFE_NOT_FOUND")
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    views_stmt = select(func.count(func.distinct(AnalyticsEvent.session_id))).where(
+        AnalyticsEvent.cafe_id == cafe.id,
+        AnalyticsEvent.event_type == "venue_viewed",
+        AnalyticsEvent.created_at > cutoff,
+    )
+    unique_views = (await db.execute(views_stmt)).scalar() or 0
+    waitlist_count = await WaitlistRepository(db).count(cafe.id)
+
+    return {
+        "success": True,
+        "data": {
+            "uniqueViews30d": unique_views,
+            "waitlistCount": waitlist_count,
+            "isLeadListing": cafe.is_lead_listing,
+        }
+    }
+
 @router.patch("/cafe/bookings-pause", status_code=status.HTTP_200_OK)
 async def toggle_bookings_paused(
     bookingsPaused: Optional[bool] = Query(None),
