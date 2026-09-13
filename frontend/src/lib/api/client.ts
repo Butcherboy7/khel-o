@@ -174,7 +174,12 @@ apiClient.interceptors.response.use(
         const newRefresh = res.data.data.refreshToken;
 
         localStorage.setItem('accessToken', newAccess);
-        localStorage.setItem('refreshToken', newRefresh);
+        // Guard against a response that omits refreshToken — blindly storing
+        // it previously wrote the literal string "undefined" into localStorage,
+        // corrupting the refresh token and forcing a logout on next use.
+        if (newRefresh) {
+          localStorage.setItem('refreshToken', newRefresh);
+        }
         apiClient.defaults.headers.common.Authorization = `Bearer ${newAccess}`;
 
         // Update user object after role upgrade

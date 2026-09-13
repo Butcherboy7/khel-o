@@ -238,8 +238,22 @@ class AuthService:
         }
         new_access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
+        # Sliding refresh token: reissue with a fresh REFRESH_TOKEN_EXPIRE_DAYS
+        # expiry on every use, so an actively-used session never hits the
+        # original 30-day ceiling. The frontend interceptor overwrites its
+        # stored refresh token with whatever this endpoint returns, so this
+        # response MUST include one — omitting it previously left the
+        # frontend storing "undefined" as the refresh token (see client.ts).
+        refresh_exp = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        new_refresh_token = jwt.encode(
+            {"sub": str(user.id), "type": "refresh", "exp": refresh_exp},
+            settings.SECRET_KEY,
+            algorithm=ALGORITHM
+        )
+
         return {
-            "accessToken": new_access_token
+            "accessToken": new_access_token,
+            "refreshToken": new_refresh_token
         }
 
     async def get_current_user(self, token: str) -> User:
