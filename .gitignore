@@ -5,6 +5,7 @@ opencode.json
 .next/
 *.db
 *.db.baseline
+*.db.pre_reconcile_backup
 *.sqlite3
 __pycache__/
 *.pyc
