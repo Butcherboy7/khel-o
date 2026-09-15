@@ -17,37 +17,6 @@ from app.api.v1.router import api_router
 
 init_sentry()
 
-async def init_db():
-    try:
-        from app.database import engine, Base
-        import app.models
-        from sqlalchemy import text
-
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-
-        # Each ALTER gets its own transaction. Postgres aborts the whole
-        # transaction after any failed statement (e.g. "column already
-        # exists" on a re-run) — sharing one transaction across all of
-        # these meant the first failure silently poisoned every ALTER
-        # after it, even though each was individually try/excepted.
-        alter_statements = [
-            "ALTER TABLE cafes ADD COLUMN is_emergency_mode BOOLEAN DEFAULT 0 NOT NULL;",
-            "ALTER TABLE platform_fees ADD COLUMN razorpay_transfer_id VARCHAR(100);",
-            "ALTER TABLE platform_fees ADD COLUMN transfer_status VARCHAR(30) DEFAULT 'pending' NOT NULL;",
-            "ALTER TABLE platform_fees ADD COLUMN transfer_error VARCHAR(500);",
-        ]
-        for stmt in alter_statements:
-            try:
-                async with engine.begin() as conn:
-                    await conn.execute(text(stmt))
-            except Exception:
-                pass
-
-        logger.info("database_tables_initialized")
-    except Exception as e:
-        logger.error("database_init_failed", error=str(e))
-
 async def ensure_demo_users():
     try:
         from app.database import AsyncSessionLocal
@@ -374,7 +343,6 @@ async def lifespan(app: FastAPI):
         if settings.SECRET_KEY == "super-secret-key-change-in-production-at-least-32-chars":
             raise RuntimeError("CRITICAL: Default insecure SECRET_KEY detected in production.")
 
-    await init_db()
     if settings.ENVIRONMENT == "development":
         await ensure_demo_users()
     yield
