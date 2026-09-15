@@ -24,25 +24,12 @@ import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 import { INDIAN_STATES } from '@/constants/states';
 import { CITIES_BY_STATE } from '@/constants/cities';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
-import { PLATFORM_MODELS } from '@/constants/platforms';
+import { PLATFORMS, PLATFORM_MODELS } from '@/constants/platforms';
+import type { Platform } from '@/constants/platforms';
+import { PRESET_GAMES_BY_PLATFORM } from '@/constants/games';
 import type { TierConfig } from '@/types/tier';
 import { safeRandomUUID } from '@/lib/uuid';
 import { getPublicEnv } from '@/lib/runtimeEnv';
-
-const PRESET_GAMES = [
-  'Valorant',
-  'Counter-Strike 2',
-  'GTA V Online',
-  'EA Sports FC 24',
-  'Dota 2',
-  'Apex Legends',
-  'Fortnite',
-  'Call of Duty: Warzone',
-  'League of Legends',
-  'Overwatch 2',
-  'Tekken 8',
-  'Rocket League',
-];
 
 interface OnboardingState {
   name: string;
@@ -72,7 +59,7 @@ interface OnboardingState {
   openingTime: string;
   closingTime: string;
   hardwareTiers: TierConfig[];
-  supportedGames: string[];
+  supportedGames: Record<string, string[]>;
   amenities: string[];
   photos: string[];
   cancellationPolicy: string;
@@ -109,7 +96,7 @@ const INITIAL_STATE: OnboardingState = {
   openingTime: '09:00',
   closingTime: '23:00',
   hardwareTiers: [],
-  supportedGames: ['Valorant', 'Counter-Strike 2', 'GTA V Online', 'EA Sports FC 24'],
+  supportedGames: {},
   amenities: ['High-speed Wi-Fi', 'Air Conditioned', 'Snacks & Drinks'],
   photos: ['https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop'],
   cancellationPolicy: 'Free cancellation up to 2 hours before session start time.',
@@ -128,7 +115,7 @@ export default function OnboardingWizardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBankFallback, setShowBankFallback] = useState(false);
-  const [customGameInput, setCustomGameInput] = useState('');
+  const [customGameInput, setCustomGameInput] = useState<Record<string, string>>({});
 
   // Load server-persisted draft on mount with StrictMode cleanup flag
   useEffect(() => {
@@ -170,14 +157,27 @@ export default function OnboardingWizardPage() {
     setFormData(updated);
   };
 
-  const addCustomGame = () => {
-    const name = customGameInput.trim();
-    if (!name || formData.supportedGames.includes(name)) {
-      setCustomGameInput('');
+  const addCustomGame = (platform: string) => {
+    const name = customGameInput[platform]?.trim();
+    if (!name) return;
+    const existing = formData.supportedGames[platform] || [];
+    if (existing.includes(name)) {
+      setCustomGameInput((prev) => ({ ...prev, [platform]: '' }));
       return;
     }
-    updateField('supportedGames', [...formData.supportedGames, name]);
-    setCustomGameInput('');
+    updateField('supportedGames', { ...formData.supportedGames, [platform]: [...existing, name] });
+    setCustomGameInput((prev) => ({ ...prev, [platform]: '' }));
+  };
+
+  const toggleGame = (platform: string, game: string) => {
+    const existing = formData.supportedGames[platform] || [];
+    const updated = existing.includes(game) ? existing.filter((g) => g !== game) : [...existing, game];
+    updateField('supportedGames', { ...formData.supportedGames, [platform]: updated });
+  };
+
+  const removeGame = (platform: string, game: string) => {
+    const existing = formData.supportedGames[platform] || [];
+    updateField('supportedGames', { ...formData.supportedGames, [platform]: existing.filter((g) => g !== game) });
   };
 
   const handleNext = async () => {
@@ -453,6 +453,14 @@ export default function OnboardingWizardPage() {
     { title: 'Games & Photos', icon: Gamepad2 },
     { title: 'Policies & Review', icon: FileText },
   ];
+
+  const relevantGamingPlatforms = Array.from(
+    new Set(
+      formData.hardwareTiers
+        .filter((t) => t.tierType !== 'activity' && t.platform)
+        .map((t) => t.platform)
+    )
+  ) as Exclude<Platform, never>[];
 
   return (
     <div className="max-w-3xl mx-auto pb-16 pt-4 px-4">
@@ -882,67 +890,79 @@ export default function OnboardingWizardPage() {
                   <p className="text-caption text-text-secondary">Showcase your library of pre-installed games and venue photos.</p>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-caption font-semibold text-text-primary">Pre-Installed Games</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                    {PRESET_GAMES.map((game) => {
-                      const isSelected = formData.supportedGames.includes(game);
-                      return (
-                        <button
-                          key={game}
-                          type="button"
-                          onClick={() => {
-                            const updated = isSelected
-                              ? formData.supportedGames.filter((g) => g !== game)
-                              : [...formData.supportedGames, game];
-                            updateField('supportedGames', updated);
-                          }}
-                          className={`p-2.5 rounded-xl text-caption font-semibold flex items-center justify-between border transition-all ${
-                            isSelected
-                              ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600'
-                              : 'bg-surface border-border text-text-secondary hover:bg-border/40'
-                          }`}
-                        >
-                          <span>{game}</span>
-                          {isSelected && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
-                        </button>
-                      );
-                    })}
-                    {formData.supportedGames
-                      .filter((game) => !PRESET_GAMES.includes(game))
-                      .map((game) => (
-                        <button
-                          key={game}
-                          type="button"
-                          onClick={() =>
-                            updateField(
-                              'supportedGames',
-                              formData.supportedGames.filter((g) => g !== game)
-                            )
-                          }
-                          className="p-2.5 rounded-xl text-caption font-semibold flex items-center justify-between border bg-emerald-500/10 border-emerald-500 text-emerald-600 transition-all"
-                        >
-                          <span>{game}</span>
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        </button>
-                      ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Not listed? Type a game name and add it"
-                      value={customGameInput}
-                      onChange={(e) => setCustomGameInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          addCustomGame();
-                        }
-                      }}
-                    />
-                    <Button type="button" variant="secondary" onClick={addCustomGame}>
-                      Add
-                    </Button>
-                  </div>
+                <div className="flex flex-col gap-5">
+                  {relevantGamingPlatforms.length === 0 && (
+                    <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
+                      <Gamepad2 className="h-4 w-4 flex-shrink-0 text-text-secondary mt-0.5" />
+                      <p className="text-caption text-text-secondary">
+                        You haven&apos;t configured any gaming platforms in the previous step — add a
+                        PC, PlayStation, Xbox, or Nintendo resource there to list the games you support.
+                      </p>
+                    </div>
+                  )}
+                  {relevantGamingPlatforms.map((platform) => {
+                    const platformLabel = PLATFORMS.find((p) => p.value === platform)?.label || platform;
+                    const presets = platform === 'other' ? [] : PRESET_GAMES_BY_PLATFORM[platform];
+                    const selected = formData.supportedGames[platform] || [];
+                    return (
+                      <div key={platform} className="flex flex-col gap-2">
+                        <label className="text-caption font-semibold text-text-primary">
+                          {platformLabel} — Pre-Installed Games
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                          {presets.map((game) => {
+                            const isSelected = selected.includes(game);
+                            return (
+                              <button
+                                key={game}
+                                type="button"
+                                onClick={() => toggleGame(platform, game)}
+                                className={`p-2.5 rounded-xl text-caption font-semibold flex items-center justify-between border transition-all ${
+                                  isSelected
+                                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600'
+                                    : 'bg-surface border-border text-text-secondary hover:bg-border/40'
+                                }`}
+                              >
+                                <span>{game}</span>
+                                {isSelected && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                              </button>
+                            );
+                          })}
+                          {selected
+                            .filter((game) => !presets.includes(game))
+                            .map((game) => (
+                              <button
+                                key={game}
+                                type="button"
+                                onClick={() => removeGame(platform, game)}
+                                className="p-2.5 rounded-xl text-caption font-semibold flex items-center justify-between border bg-emerald-500/10 border-emerald-500 text-emerald-600 transition-all"
+                              >
+                                <span>{game}</span>
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              </button>
+                            ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Not listed? Type a game name and add it"
+                            value={customGameInput[platform] || ''}
+                            onChange={(e) =>
+                              setCustomGameInput((prev) => ({ ...prev, [platform]: e.target.value }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                addCustomGame(platform);
+                              }
+                            }}
+                          />
+                          <Button type="button" variant="secondary" onClick={() => addCustomGame(platform)}>
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Photos are uploaded from the device AFTER the café exists: the
@@ -1019,7 +1039,9 @@ export default function OnboardingWizardPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-secondary">Games Supported:</span>
-                    <span className="font-semibold text-text-primary">{formData.supportedGames.length} Games</span>
+                    <span className="font-semibold text-text-primary">
+                      {Object.values(formData.supportedGames).reduce((sum, list) => sum + list.length, 0)} Games
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-secondary">Payout UPI ID:</span>
