@@ -536,13 +536,59 @@ async def get_onboarding_draft(
     res = await db.execute(stmt)
     cafe = res.scalars().first()
 
-    draft_data = cafe.draft_data if cafe else {}
-    return {
-        "success": True,
-        "data": {
-            "draft": draft_data
-        }
+    if not cafe:
+        return {"success": True, "data": {"draft": {}}}
+
+    if cafe.draft_data:
+        return {"success": True, "data": {"draft": cafe.draft_data}}
+
+    if cafe.verification_status == VerificationStatus.DRAFT:
+        # A brand-new café that hasn't gone through a full submission yet
+        # and has no in-progress draft either — nothing to prefill.
+        return {"success": True, "data": {"draft": {}}}
+
+    # The café was fully submitted at least once, which unconditionally
+    # clears draft_data (see the submit handler) — reconstruct an
+    # OnboardingState-shaped snapshot from the live Cafe + HardwareTier rows
+    # instead of returning nothing, so re-entering the wizard (e.g. from a
+    # CHANGES_REQUESTED café) doesn't start blank.
+    tier_repo = HardwareTierRepository(db)
+    tiers = await tier_repo.get_by_cafe_id(cafe.id)
+    snapshot = {
+        "name": cafe.name,
+        "description": cafe.description or "",
+        "addressLine1": cafe.address_line1,
+        "addressLine2": cafe.address_line2 or "",
+        "city": cafe.city,
+        "state": cafe.state,
+        "pincode": cafe.pincode,
+        "latitude": cafe.latitude,
+        "longitude": cafe.longitude,
+        "googleMapsUrl": cafe.google_maps_url or "",
+        "phoneNumber": cafe.phone_number,
+        "email": cafe.email or "",
+        "openingTime": str(cafe.opening_time)[:5] if cafe.opening_time else "09:00",
+        "closingTime": str(cafe.closing_time)[:5] if cafe.closing_time else "23:00",
+        "amenities": cafe.amenities or [],
+        "photos": cafe.photos or [],
+        "supportedGames": cafe.supported_games or {},
+        "cancellationPolicy": cafe.cancellation_policy or "",
+        "houseRules": cafe.house_rules or [],
+        "hardwareTiers": [
+            {
+                "id": str(t.id),
+                "platform": t.platform.value if t.platform else "other",
+                "model": t.model or "",
+                "totalSeats": t.total_seats,
+                "appBookableSeats": t.app_bookable_seats,
+                "pricePerHour": float(t.price_per_hour),
+                "tierType": t.tier_type,
+                "activityKind": t.activity_kind,
+            }
+            for t in tiers
+        ],
     }
+    return {"success": True, "data": {"draft": snapshot}}
 
 @router.post("/onboarding/draft", status_code=status.HTTP_200_OK)
 async def save_onboarding_draft(
