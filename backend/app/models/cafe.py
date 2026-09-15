@@ -13,6 +13,7 @@ class VerificationStatus(str, enum.Enum):
     VERIFIED = "verified"
     REJECTED = "rejected"
     SUSPENDED = "suspended"
+    CHANGES_REQUESTED = "changes_requested"
 
 class Cafe(Base):
     __tablename__ = "cafes"
