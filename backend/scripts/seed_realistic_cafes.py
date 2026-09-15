@@ -38,11 +38,11 @@ REALISTIC_CAFES = [
         "opening_time": time(9, 0),
         "closing_time": time(1, 0),
         "amenities": ["wifi", "ac", "fiber_1gbps", "mechanical_keyboards", "snack_bar", "ps5_pods", "streaming_booth", "valet_parking"],
-        "supported_games": ["Valorant", "CS2", "Dota 2", "EA FC 24", "Apex Legends", "Tekken 8", "Cyberpunk 2077"],
+        "supported_games": {"pc": ["Valorant", "CS2", "Dota 2", "EA FC 24", "Apex Legends", "Tekken 8", "Cyberpunk 2077"]},
         "photos": [
-            "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=1200&auto=format&fit=crop"
+            {"url": "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop", "category": "exterior"},
+            {"url": "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop", "category": "exterior"},
+            {"url": "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=1200&auto=format&fit=crop", "category": "exterior"}
         ],
         "cancellation_policy": "Full refund up to 2 hours before session start. 50% refund within 2 hours.",
         "house_rules": ["Valid ID required at check-in", "Outside food not allowed inside gaming zones", "Clean desk policy"],
@@ -90,11 +90,11 @@ REALISTIC_CAFES = [
         "opening_time": time(10, 0),
         "closing_time": time(2, 0),
         "amenities": ["wifi", "ac", "fiber_1gbps", "sim_racing", "tournament_stage", "food_beverages", "broadcast_studio"],
-        "supported_games": ["Valorant", "CS2", "Assetto Corsa", "F1 24", "Rocket League", "Rainbow Six Siege"],
+        "supported_games": {"pc": ["Valorant", "CS2", "Assetto Corsa", "F1 24", "Rocket League", "Rainbow Six Siege"]},
         "photos": [
-            "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1200&auto=format&fit=crop"
+            {"url": "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop", "category": "exterior"},
+            {"url": "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop", "category": "exterior"},
+            {"url": "https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1200&auto=format&fit=crop", "category": "exterior"}
         ],
         "cancellation_policy": "Full refund up to 2 hours before session start.",
         "house_rules": ["Strictly no account sharing", "Wear socks in sim racing cockpits"],
@@ -142,10 +142,10 @@ REALISTIC_CAFES = [
         "opening_time": time(10, 0),
         "closing_time": time(3, 0),
         "amenities": ["wifi", "ac", "snacks", "cafe_bar", "surround_sound", "high_refresh_monitors", "console_lounge"],
-        "supported_games": ["Valorant", "CS2", "GTA V", "EA FC 24", "Mortal Kombat 1", "Overwatch 2"],
+        "supported_games": {"pc": ["Valorant", "CS2", "GTA V", "EA FC 24", "Mortal Kombat 1", "Overwatch 2"]},
         "photos": [
-            "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop"
+            {"url": "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=1200&auto=format&fit=crop", "category": "exterior"},
+            {"url": "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop", "category": "exterior"}
         ],
         "cancellation_policy": "Full refund up to 1 hour before session start.",
         "house_rules": ["Respect hardware and equipment", "No loud profanity during tournament hours"],
@@ -193,10 +193,10 @@ REALISTIC_CAFES = [
         "opening_time": time(9, 30),
         "closing_time": time(2, 0),
         "amenities": ["wifi", "ac", "streamer_pods", "broadcast_studio", "fiber_1gbps", "cafe", "high_speed_fiber"],
-        "supported_games": ["Valorant", "CS2", "Apex Legends", "Fortnite", "Call of Duty: Warzone", "PUBG PC"],
+        "supported_games": {"pc": ["Valorant", "CS2", "Apex Legends", "Fortnite", "Call of Duty: Warzone", "PUBG PC"]},
         "photos": [
-            "https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop"
+            {"url": "https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1200&auto=format&fit=crop", "category": "exterior"},
+            {"url": "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop", "category": "exterior"}
         ],
         "cancellation_policy": "Cancellation allowed up to 2 hours before booking.",
         "house_rules": ["Food and beverages allowed only at dining bar", "ID verification required"],
@@ -244,10 +244,10 @@ REALISTIC_CAFES = [
         "opening_time": time(0, 0),
         "closing_time": time(23, 59),
         "amenities": ["wifi", "ac", "24_7_open", "overnight_passes", "midnight_kitchen", "ergonomic_chairs", "power_backup"],
-        "supported_games": ["Valorant", "League of Legends", "Dota 2", "CS2", "Elden Ring", "Helldivers 2"],
+        "supported_games": {"pc": ["Valorant", "League of Legends", "Dota 2", "CS2", "Elden Ring", "Helldivers 2"]},
         "photos": [
-            "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop"
+            {"url": "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop", "category": "exterior"},
+            {"url": "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop", "category": "exterior"}
         ],
         "cancellation_policy": "Full refund up to 1 hour before scheduled time.",
         "house_rules": ["24/7 Security on site", "Government ID mandatory for overnight passes"],
@@ -286,10 +286,10 @@ REALISTIC_CAFES = [
         "opening_time": time(9, 0),
         "closing_time": time(2, 0),
         "amenities": ["wifi", "ac", "fiber_1gbps", "dedicated_gigabit", "snack_bar", "high_speed_wifi", "bootcamp_rooms"],
-        "supported_games": ["Valorant", "CS2", "PUBG", "Rainbow Six Siege", "EA FC 24", "Overwatch 2"],
+        "supported_games": {"pc": ["Valorant", "CS2", "PUBG", "Rainbow Six Siege", "EA FC 24", "Overwatch 2"]},
         "photos": [
-            "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=1200&auto=format&fit=crop"
+            {"url": "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop", "category": "exterior"},
+            {"url": "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=1200&auto=format&fit=crop", "category": "exterior"}
         ],
         "cancellation_policy": "Full refund up to 2 hours before session start.",
         "house_rules": ["No food or unsealed drinks at computer stations", "Quiet zone in bootcamp rooms"],
@@ -328,10 +328,10 @@ REALISTIC_CAFES = [
         "opening_time": time(10, 0),
         "closing_time": time(23, 30),
         "amenities": ["wifi", "ac", "ps5_zone", "gaming_cafeteria", "fiber_network", "parking", "mechanical_keyboards"],
-        "supported_games": ["Valorant", "CS2", "Rocket League", "EA FC 24", "Tekken 8", "Minecraft"],
+        "supported_games": {"pc": ["Valorant", "CS2", "Rocket League", "EA FC 24", "Tekken 8", "Minecraft"]},
         "photos": [
-            "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop"
+            {"url": "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop", "category": "exterior"},
+            {"url": "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop", "category": "exterior"}
         ],
         "cancellation_policy": "Full refund up to 1 hour prior to booking.",
         "house_rules": ["Student ID discounts valid with current college ID", "Keep voice level reasonable"],

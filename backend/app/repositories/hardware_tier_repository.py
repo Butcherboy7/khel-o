@@ -2,7 +2,7 @@ from typing import List, Optional, Any
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.models.hardware_tier import HardwareTier
+from app.models.hardware_tier import HardwareTier, TierType
 from app.repositories.base import BaseRepository
 
 CONSOLE_GUESS_KEYWORDS = {
@@ -103,10 +103,25 @@ class HardwareTierRepository(BaseRepository[HardwareTier]):
         return await self.update(tier_id, {"is_active": False})
 
     async def deactivate_all_for_cafe(self, cafe_id: UUID) -> None:
+        """Only deactivates GAMING tiers. The onboarding wizard (the sole
+        caller of this method, on resubmit) has never been able to create or
+        represent activity-type tiers (snooker, bowling, etc.) — its
+        OnboardingHardwareTierItem schema has no tier_type/activity_kind
+        field, and the frontend's submit-time transform strips those fields
+        even when present. Deactivating activity tiers here would silently
+        and permanently destroy inventory the onboarding flow can never
+        recreate, orphaning any hardware_tier_units still pointing at the
+        now-inactive row. Scoping to GAMING preserves the original fix
+        intent (dedupe gaming-platform tiers on resubmit) without touching
+        tiers this flow doesn't own."""
         from sqlalchemy import update
         await self.db.execute(
             update(HardwareTier)
-            .where(HardwareTier.cafe_id == cafe_id, HardwareTier.is_active == True)
+            .where(
+                HardwareTier.cafe_id == cafe_id,
+                HardwareTier.is_active == True,
+                HardwareTier.tier_type == TierType.GAMING,
+            )
             .values(is_active=False)
         )
         await self.db.commit()

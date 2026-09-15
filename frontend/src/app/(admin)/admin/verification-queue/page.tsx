@@ -490,7 +490,10 @@ export default function AdminPage() {
                       {tier.tierType === 'activity' && tier.activityKind ? ` (${tier.activityKind})` : ''}
                     </span>
                     <span className="text-text-tertiary">
-                      {tier.platform ? `${tier.platform} · ` : ''}₹{tier.pricePerHour}/hr · {tier.totalSeats} seats
+                      {tier.platform
+                        ? `${PLATFORMS.find((p) => p.value === tier.platform)?.label ?? tier.platform} · `
+                        : ''}
+                      ₹{tier.pricePerHour}/hr · {tier.totalSeats} seats
                     </span>
                   </div>
                 ))}

@@ -93,7 +93,7 @@ async def _upsert_cafe(db, owner: User, name: str, city: str, seats: int = 10) -
     cafe.app_bookable_seats = seats
     cafe.bookable_stations = seats
     cafe.amenities = ["WiFi", "AC", "Parking"]
-    cafe.supported_games = ["Valorant", "CS2", "FIFA"]
+    cafe.supported_games = {"pc": ["Valorant", "CS2", "FIFA"]}
     cafe.photos = []
     cafe.menu_photos = []
     if not existing:

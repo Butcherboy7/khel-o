@@ -219,7 +219,7 @@ async def seed(apply: bool) -> None:
                 app_bookable_seats=0,
                 amenities=[],
                 photos=[],
-                supported_games=[],
+                supported_games={},
                 menu_photos=[],
                 house_rules=[],
                 social_links={},

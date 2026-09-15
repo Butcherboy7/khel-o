@@ -94,6 +94,7 @@ const VERIFICATION_CONFIG: Record<
   verified: { label: 'Verified', variant: 'success' },
   rejected: { label: 'Rejected', variant: 'error' },
   suspended: { label: 'Suspended', variant: 'error' },
+  changes_requested: { label: 'Changes Requested', variant: 'warning' },
 };
 
 interface VerificationStatusBadgeProps {

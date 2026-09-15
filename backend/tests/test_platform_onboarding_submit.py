@@ -5,7 +5,7 @@ from app.main import app
 from app.models.user import User, UserRole
 from app.core.security import create_access_token, get_password_hash
 from app.database import AsyncSessionLocal
-from app.models.hardware_tier import HardwareTier
+from app.models.hardware_tier import HardwareTier, TierType
 from app.models.cafe import Cafe
 from sqlalchemy import select
 
@@ -305,3 +305,158 @@ async def test_resubmitting_onboarding_replaces_hardware_tiers_not_duplicates():
         active_tiers = result.scalars().all()
         assert len(active_tiers) == 1
         assert active_tiers[0].model == "RTX 4090"
+
+
+@pytest.mark.asyncio
+async def test_resubmitting_onboarding_with_draft_photos_succeeds():
+    """final-review C1: GET /owner/onboarding/draft synthesizes `photos` as
+    [{url, category}] dicts once a café has been submitted at least once
+    (see get_onboarding_draft's snapshot). The onboarding wizard loads that
+    draft into formData untyped and, on a changes-requested resubmit, sends
+    formData.photos straight back to POST /owner/onboarding/submit. Before
+    widening OnboardingSubmitRequest.photos to accept both shapes, that
+    resubmit 422'd on every café with at least one photo — which is every
+    onboarded café, since INITIAL_STATE.photos ships a stock default. This
+    reproduces the exact submit -> draft -> resubmit round trip."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_resubmit_photos_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Resubmit Photos Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        base_payload = {
+            "name": "Onboard Resubmit Photos Cafe",
+            "addressLine1": "1 Resubmit Photos St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "500001",
+            "phoneNumber": "+919000000051",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "photos": ["https://example.com/first-submit.jpg"],
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            # 1. Normal first submission with a flat string photo.
+            first = await client.post("/api/v1/owner/onboarding/submit", json=base_payload, headers=headers)
+            assert first.status_code == 200, first.text
+
+            # 2. Load the draft — the snapshot synthesis returns categorized
+            # {url, category} dicts for photos now that the café has been
+            # submitted and draft_data was cleared.
+            draft = await client.get("/api/v1/owner/onboarding/draft", headers=headers)
+            assert draft.status_code == 200, draft.text
+            draft_photos = draft.json()["data"]["draft"]["photos"]
+            assert draft_photos == [{"url": "https://example.com/first-submit.jpg", "category": "exterior"}]
+
+            # 3. Resubmit, passing the dict-shaped photos from the draft
+            # response straight through — exactly what the wizard does.
+            second_payload = dict(base_payload)
+            second_payload["photos"] = draft_photos
+            second = await client.post("/api/v1/owner/onboarding/submit", json=second_payload, headers=headers)
+            assert second.status_code == 200, second.text
+            cafe_id = uuid.UUID(second.json()["data"]["cafeId"])
+
+        cafe = await db.get(Cafe, cafe_id)
+        assert cafe.photos == [{"url": "https://example.com/first-submit.jpg", "category": "exterior"}]
+
+
+@pytest.mark.asyncio
+async def test_resubmitting_onboarding_preserves_activity_tiers():
+    """final-review I3: deactivate_all_for_cafe (called before onboarding's
+    tier-creation loop on every resubmit, to dedupe gaming-platform tiers)
+    must only deactivate GAMING tiers. The onboarding wizard has never been
+    able to create or represent activity-type tiers (snooker, bowling,
+    etc.) — OnboardingHardwareTierItem has no tier_type/activity_kind field
+    — so if deactivate_all_for_cafe touched every active tier unconditionally,
+    any café with activity tiers (created via the separate /owner/tiers
+    endpoint) would have them silently and permanently deactivated on the
+    next onboarding resubmit."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_activity_preserve_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Activity Preserve Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        base_payload = {
+            "name": "Onboard Activity Preserve Cafe",
+            "addressLine1": "1 Activity Preserve St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "500001",
+            "phoneNumber": "+919000000052",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            first = await client.post("/api/v1/owner/onboarding/submit", json=base_payload, headers=headers)
+            assert first.status_code == 200, first.text
+            cafe_id = uuid.UUID(first.json()["data"]["cafeId"])
+
+            # Separately add an activity-type tier directly via the DB
+            # session, simulating a tier created through the (unrelated)
+            # /owner/tiers endpoint — this test doesn't need to call that
+            # endpoint, just reproduce the row shape it would leave behind.
+            activity_tier = HardwareTier(
+                id=uuid.uuid4(), cafe_id=cafe_id, name="Snooker",
+                tier_type=TierType.ACTIVITY, activity_kind="Snooker",
+                total_seats=3, app_bookable_seats=3, price_per_hour=400,
+                platform=None, is_active=True,
+            )
+            db.add(activity_tier)
+            await db.commit()
+            activity_tier_id = activity_tier.id
+
+            second_payload = dict(base_payload)
+            second_payload["hardwareTiers"] = [
+                {"platform": "pc", "model": "RTX 4090", "totalSeats": 8, "appBookableSeats": 3, "hourlyRate": 150},
+            ]
+            second = await client.post("/api/v1/owner/onboarding/submit", json=second_payload, headers=headers)
+            assert second.status_code == 200, second.text
+
+        stmt = select(HardwareTier).where(HardwareTier.cafe_id == cafe_id, HardwareTier.is_active == True)
+        result = await db.execute(stmt)
+        active_tiers = result.scalars().all()
+
+        gaming_tiers = [t for t in active_tiers if t.tier_type == TierType.GAMING]
+        activity_tiers = [t for t in active_tiers if t.tier_type == TierType.ACTIVITY]
+
+        # The gaming tier was replaced, same as the existing dedupe test.
+        assert len(gaming_tiers) == 1
+        assert gaming_tiers[0].model == "RTX 4090"
+
+        # The activity tier survived the resubmit untouched.
+        assert len(activity_tiers) == 1
+        assert activity_tiers[0].id == activity_tier_id
+        assert activity_tiers[0].is_active is True

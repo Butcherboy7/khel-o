@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status, Query, Body
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from uuid import UUID, uuid4
 import math
 import secrets
@@ -138,7 +138,13 @@ class OnboardingSubmitRequest(BaseModel):
     closing_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Closing time in HH:MM:SS format (required, can be earlier than opening for overnight)")
     total_seats: int = Field(20, ge=1)
     amenities: List[str] = Field(default_factory=list)
-    photos: List[str] = Field(default_factory=list)
+    # Accepts both the legacy flat-URL shape (first-time submission from the
+    # wizard) and the categorized {url, category} shape that GET
+    # /onboarding/draft now returns (see _build the draft snapshot above) —
+    # a resubmit sends the draft's photos array back untouched, so this must
+    # accept both or every changes-requested resubmit 422s at the schema
+    # boundary before _normalize_photos below ever runs.
+    photos: List[Union[str, Dict[str, str]]] = Field(default_factory=list)
     supported_games: Dict[str, List[str]] = Field(default_factory=dict)
     business_pan: Optional[str] = None
     has_gst: bool = False

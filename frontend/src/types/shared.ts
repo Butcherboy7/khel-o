@@ -27,7 +27,7 @@ export interface TierSpecs {
 
 export type UserRole = 'gamer' | 'cafe_owner' | 'staff' | 'admin';
 
-export type VerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
+export type VerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended' | 'changes_requested';
 
 export type BookingStatus =
   | 'pending_payment'

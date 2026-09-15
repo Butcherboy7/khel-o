@@ -20,6 +20,7 @@ from app.repositories.booking_repository import BookingRepository
 from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.review_repository import ReviewRepository
 from app.repositories.payment_repository import PaymentRepository
+from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.services.admin_service import AdminService
 from app.services.cafe_service import CafeService
 from app.services.review_service import ReviewService
@@ -115,7 +116,8 @@ async def list_pending_cafes(
 ):
     repo = CafeRepository(db)
     user_repo = UserRepository(db)
-    service = CafeService(repo, user_repo=user_repo)
+    tier_repo = HardwareTierRepository(db)
+    service = CafeService(repo, tier_repo=tier_repo, user_repo=user_repo)
     result = await service.get_pending_cafes(page=page, limit=limit)
     return {
         "success": True,
@@ -130,7 +132,8 @@ async def get_cafe_admin_detail(
 ):
     cafe_repo = CafeRepository(db)
     user_repo = UserRepository(db)
-    service = CafeService(cafe_repo, user_repo=user_repo)
+    tier_repo = HardwareTierRepository(db)
+    service = CafeService(cafe_repo, tier_repo=tier_repo, user_repo=user_repo)
     cafe = await cafe_repo.get_by_id(cafe_id)
     if not cafe:
         return {"success": False, "error": {"code": "CAFE_NOT_FOUND", "message": "Café not found"}}

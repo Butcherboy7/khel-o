@@ -41,6 +41,7 @@ function statusVariant(
 ): 'success' | 'warning' | 'error' | 'default' {
   if (s === 'verified') return 'success';
   if (s === 'pending') return 'warning';
+  if (s === 'changes_requested') return 'warning';
   if (s === 'rejected') return 'error';
   if (s === 'suspended') return 'error';
   return 'default';
@@ -50,6 +51,7 @@ function statusLabel(s: VerificationStatus): string {
   const map: Record<VerificationStatus, string> = {
     verified: 'Live',
     pending: 'Pending',
+    changes_requested: 'Changes Requested',
     rejected: 'Rejected',
     suspended: 'Suspended',
   };
@@ -60,6 +62,7 @@ const STATUS_FILTERS: Array<{ label: string; value: VerificationStatus | 'all' }
   { label: 'All', value: 'all' },
   { label: 'Live', value: 'verified' },
   { label: 'Pending', value: 'pending' },
+  { label: 'Changes Requested', value: 'changes_requested' },
   { label: 'Rejected', value: 'rejected' },
   { label: 'Suspended', value: 'suspended' },
 ];
