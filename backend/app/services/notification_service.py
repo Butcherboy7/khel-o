@@ -29,9 +29,43 @@ def _get_ses_client() -> Any:
 
 class NotificationService:
     async def _send_resend_email(self, to_email: str, subject: str, html_body: str, booking_ref: str) -> bool:
-        """Sends via AWS SES. Named after the old Resend integration it replaced —
-        auth_service and the booking flows call this method name, not worth
-        renaming everywhere for a provider swap."""
+        """Tries Resend first, falls back to AWS SES. SES production access is
+        still pending (sandbox only sends to verified addresses), so Resend is
+        the path that actually reaches real inboxes right now. Name kept as-is
+        since auth_service and the booking flows already call this method."""
+        if settings.RESEND_API_KEY:
+            sent = await self._send_via_resend(to_email, subject, html_body, booking_ref)
+            if sent:
+                return True
+            logger.warning("resend_send_failed_falling_back_to_ses", to_email=to_email, booking_ref=booking_ref)
+
+        return await self._send_via_ses(to_email, subject, html_body, booking_ref)
+
+    async def _send_via_resend(self, to_email: str, subject: str, html_body: str, booking_ref: str) -> bool:
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                    json={
+                        "from": settings.RESEND_SENDER_EMAIL,
+                        "to": [to_email],
+                        "subject": subject,
+                        "html": html_body,
+                    },
+                )
+            if response.status_code >= 400:
+                logger.error("resend_email_send_failed", status_code=response.status_code, body=response.text, to_email=to_email, booking_ref=booking_ref)
+                return False
+            logger.info("resend_email_sent_success", to_email=to_email, subject=subject, booking_ref=booking_ref)
+            return True
+        except Exception as e:
+            logger.error("resend_email_send_failed", error=str(e), to_email=to_email, booking_ref=booking_ref)
+            return False
+
+    async def _send_via_ses(self, to_email: str, subject: str, html_body: str, booking_ref: str) -> bool:
         if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY:
             logger.warning("ses_credentials_missing", message="AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY missing. Email notification skipped.", booking_ref=booking_ref)
             return False

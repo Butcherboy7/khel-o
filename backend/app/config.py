@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     # Transactional email — AWS SES (reuses the AWS_* credentials/region below)
     SES_SENDER_EMAIL: str = "KHEL-O <notifications@khel-o.com>"
 
+    # Transactional email — Resend. Tried first when configured (SES production
+    # access is still pending, so this is the path that actually reaches real
+    # inboxes right now); SES remains the fallback.
+    RESEND_API_KEY: Optional[str] = None
+    RESEND_SENDER_EMAIL: str = "KHEL-O <notifications@khel-o.com>"
+
     # KHEL-O V2 Configurations
     RAZORPAY_ROUTE_ENABLED: bool = False
     CONVENIENCE_FEE_AMOUNT: int = 10
