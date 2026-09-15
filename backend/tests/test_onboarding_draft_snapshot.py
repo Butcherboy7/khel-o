@@ -36,6 +36,11 @@ async def test_draft_endpoint_synthesizes_snapshot_after_full_submit():
             "upiVpa": "testowner@okhdfcbank",
             "confirmUpiVpa": "testowner@okhdfcbank",
             "supportedGames": {"pc": ["Valorant"]},
+            "businessPan": "ABCDE1234F",
+            "hasGst": True,
+            "gstin": "29ABCDE1234F1Z5",
+            "legalDocumentUrl": "https://example.com/legal-doc.pdf",
+            "socialLinks": {"instagram": "khelo_snapshot", "discord": "khelo#1234"},
             "hardwareTiers": [
                 {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
             ],
@@ -56,3 +61,14 @@ async def test_draft_endpoint_synthesizes_snapshot_after_full_submit():
             assert draft["hardwareTiers"][0]["platform"] == "pc"
             assert draft["hardwareTiers"][0]["model"] == "RTX 4070"
             assert draft["hardwareTiers"][0]["totalSeats"] == 6
+
+            # Business PAN / GSTIN / legal doc URL / social links must survive
+            # the draft_data-cleared-at-submit round trip too — these are real
+            # Cafe columns populated by the submit handler, and the frontend's
+            # loadDraft() merges {...prev, ...draft}, so a missing key here
+            # silently resets the field to blank on wizard re-entry.
+            assert draft["businessPan"] == "ABCDE1234F"
+            assert draft["gstin"] == "29ABCDE1234F1Z5"
+            assert draft["legalDocumentUrl"] == "https://example.com/legal-doc.pdf"
+            assert draft["instagram"] == "khelo_snapshot"
+            assert draft["discord"] == "khelo#1234"
