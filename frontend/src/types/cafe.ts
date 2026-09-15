@@ -131,6 +131,6 @@ export interface AdminCafeListParams {
 }
 
 export interface AdminCafeVerifyRequest {
-  status: 'verified' | 'rejected' | 'suspended';
+  status: 'verified' | 'rejected' | 'suspended' | 'changes_requested';
   reason?: string;
 }

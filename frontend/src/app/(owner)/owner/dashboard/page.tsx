@@ -31,6 +31,7 @@ import { getOwnerSettings, toggleBookingsPaused, updateBookingControls } from '@
 import { formatCurrency, getOwnerPayoutAmount } from '@/lib/format';
 import { Card, CardContent, Button, Badge, BookingStatusBadge, Modal, PageSpinner } from '@/components/ui';
 import { PendingApprovalView } from '@/components/owner/PendingApprovalView';
+import { ChangesRequestedView } from '@/components/owner/ChangesRequestedView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
 import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
 import { getPublicEnv } from '@/lib/runtimeEnv';
@@ -38,9 +39,8 @@ import { getPublicEnv } from '@/lib/runtimeEnv';
 export default function OwnerDashboardPage() {
   const { activeRole } = useAuthStore();
   const [statusState, setStatusState] = useState<{
-    status: 'loading' | 'prospective' | 'draft' | 'pending' | 'verified' | 'suspended';
-    role?: string;
-    cafe?: { id?: string; name?: string; city?: string; verificationStatus?: string; bookableStations?: number; appBookableSeats?: number; totalSeats?: number; tiers?: any[] };
+    status: 'loading' | 'prospective' | 'draft' | 'pending' | 'verified' | 'suspended' | 'changes_requested';
+    cafe?: any;
   }>({ status: 'loading' });
 
   const [dashboardData, setDashboardData] = useState<OwnerDashboard | null>(null);
@@ -294,6 +294,16 @@ export default function OwnerDashboardPage() {
     return (
       <PendingApprovalView
         cafeName={(statusState.cafe?.name as string) || 'Your Gaming Café'}
+        onRefreshStatus={loadStatusAndOps}
+      />
+    );
+  }
+
+  if (statusState.status === 'changes_requested') {
+    return (
+      <ChangesRequestedView
+        cafeName={(statusState.cafe?.name as string) || 'Your Gaming Café'}
+        note={statusState.cafe?.rejectionReason as string | undefined}
         onRefreshStatus={loadStatusAndOps}
       />
     );
