@@ -5,7 +5,8 @@ import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, Che
 import { Modal, Button, Input } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings } from '@/lib/api/settings';
 import { getAmenityDisplay } from '@/lib/amenities';
-import { SUPPORTED_CITIES } from '@/constants/cities';
+import { CITIES_BY_STATE } from '@/constants/cities';
+import { INDIAN_STATES } from '@/constants/states';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 
 const MAX_PHOTOS = 10;
@@ -369,23 +370,43 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
             <Input label="Address" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} required />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
+                <label className="text-caption font-semibold text-text-primary">State</label>
+                <select
+                  value={state}
+                  onChange={(e) => {
+                    setState(e.target.value);
+                    setCity('');
+                  }}
+                  className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                  required
+                >
+                  <option value="">Select State</option>
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                  {state && !INDIAN_STATES.includes(state) && (
+                    <option value={state}>{state} (unsupported — please re-select)</option>
+                  )}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
                 <label className="text-caption font-semibold text-text-primary">City</label>
                 <select
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                  className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:opacity-50"
                   required
+                  disabled={!state}
                 >
-                  <option value="">Select City</option>
-                  {SUPPORTED_CITIES.map((c) => (
+                  <option value="">{state ? 'Select City' : 'Select a state first'}</option>
+                  {(CITIES_BY_STATE[state] ?? []).map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
-                  {city && !SUPPORTED_CITIES.includes(city) && (
+                  {city && !(CITIES_BY_STATE[state] ?? []).includes(city) && (
                     <option value={city}>{city} (unsupported — please re-select)</option>
                   )}
                 </select>
               </div>
-              <Input label="State" value={state} onChange={(e) => setState(e.target.value)} required />
             </div>
             <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} required />
             <SaveRow saving={basicSaving} saved={basicSaved} label="Save Basic Info" />

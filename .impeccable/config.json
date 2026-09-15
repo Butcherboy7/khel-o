@@ -47,6 +47,15 @@
         ],
         "createdAt": "2026-09-08T10:35:06.577Z",
         "reason": "L285 is a border-b-2 spin loader (animate-spin), not a bordered card — hook misfires on the classic spinner pattern; pre-existing code, unrelated to this session's changes"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "frontend/src/app/(owner)/owner/onboarding/page.tsx"
+        ],
+        "createdAt": "2026-09-15T13:11:05.824Z",
+        "reason": "text-slate-950 (near-black) on bg-emerald-500 is high-contrast, not gray-on-color; hook misreads slate-950 as gray"
       }
     ]
   }

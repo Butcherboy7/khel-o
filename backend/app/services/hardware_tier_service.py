@@ -81,7 +81,7 @@ class HardwareTierService:
         reserved_walkin = tier_in.reserved_walkin_seats if tier_in.reserved_walkin_seats is not None else (tier_in.total_seats - tier_in.app_bookable_seats)
 
         try:
-            derived_specs, suggested_name = derive_tier_display(tier_in.platform, tier_in.model)
+            derived_specs, suggested_name = derive_tier_display(tier_in.platform, tier_in.model, tier_in.is_custom_model)
         except ValueError as e:
             raise ValidationException(message=str(e), error_code="INVALID_PLATFORM_MODEL")
         final_specs = derived_specs if tier_in.platform is not None else tier_in.specs
@@ -191,8 +191,9 @@ class HardwareTierService:
         if update_data.platform is not None or update_data.model is not None:
             effective_platform = update_data.platform if update_data.platform is not None else tier.platform
             effective_model = update_data.model if update_data.model is not None else tier.model
+            effective_is_custom = update_data.is_custom_model if update_data.is_custom_model is not None else False
             try:
-                derived_specs, suggested_name = derive_tier_display(effective_platform, effective_model)
+                derived_specs, suggested_name = derive_tier_display(effective_platform, effective_model, effective_is_custom)
             except ValueError as e:
                 raise ValidationException(message=str(e), error_code="INVALID_PLATFORM_MODEL")
             # Only trust the derived specs/name when a real platform AND model

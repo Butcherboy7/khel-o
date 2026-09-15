@@ -22,8 +22,9 @@ import { useAuthStore } from '@/store/authStore';
 import { Button, Input, NumericField, Textarea, Card, CardContent, Badge } from '@/components/ui';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 import { INDIAN_STATES } from '@/constants/states';
-import { SUPPORTED_CITIES } from '@/constants/cities';
+import { CITIES_BY_STATE } from '@/constants/cities';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
+import { PLATFORM_MODELS } from '@/constants/platforms';
 import type { TierConfig } from '@/types/tier';
 import { safeRandomUUID } from '@/lib/uuid';
 import { getPublicEnv } from '@/lib/runtimeEnv';
@@ -70,7 +71,6 @@ interface OnboardingState {
   accountType: 'savings' | 'current' | '';
   openingTime: string;
   closingTime: string;
-  totalSeats: number;
   hardwareTiers: TierConfig[];
   supportedGames: string[];
   amenities: string[];
@@ -108,7 +108,6 @@ const INITIAL_STATE: OnboardingState = {
   accountType: '',
   openingTime: '09:00',
   closingTime: '23:00',
-  totalSeats: 20,
   hardwareTiers: [],
   supportedGames: ['Valorant', 'Counter-Strike 2', 'GTA V Online', 'EA Sports FC 24'],
   amenities: ['High-speed Wi-Fi', 'Air Conditioned', 'Snacks & Drinks'],
@@ -129,6 +128,7 @@ export default function OnboardingWizardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBankFallback, setShowBankFallback] = useState(false);
+  const [customGameInput, setCustomGameInput] = useState('');
 
   // Load server-persisted draft on mount with StrictMode cleanup flag
   useEffect(() => {
@@ -168,6 +168,16 @@ export default function OnboardingWizardPage() {
   const updateField = (field: keyof OnboardingState, value: any) => {
     const updated = { ...formData, [field]: value };
     setFormData(updated);
+  };
+
+  const addCustomGame = () => {
+    const name = customGameInput.trim();
+    if (!name || formData.supportedGames.includes(name)) {
+      setCustomGameInput('');
+      return;
+    }
+    updateField('supportedGames', [...formData.supportedGames, name]);
+    setCustomGameInput('');
   };
 
   const handleNext = async () => {
@@ -297,6 +307,13 @@ export default function OnboardingWizardPage() {
     const formattedHardwareTiers = (formData.hardwareTiers || []).map((c: TierConfig) => ({
       platform: c.platform,
       model: c.model,
+      // Trusts the flag PlatformTierConfigurator already set when the owner
+      // picked "Custom" and typed free text, and falls back to detecting it
+      // from the data (covers a config loaded/left untouched this session)
+      // — either way, never inferred purely from the string on the backend.
+      isCustomModel:
+        c.isCustomModel ||
+        (c.tierType !== 'activity' && c.platform !== 'other' && !PLATFORM_MODELS[c.platform]?.includes(c.model)),
       hourlyRate: Number(c.pricePerHour) || 100,
       totalSeats: Number(c.totalSeats) || 4,
       appBookableSeats: Number(c.appBookableSeats) || Math.max(1, Math.round((Number(c.totalSeats) || 4) * 0.25)),
@@ -318,7 +335,7 @@ export default function OnboardingWizardPage() {
         email: formData.email || user?.email,
         openingTime: formatTimeString(formData.openingTime),
         closingTime: formatTimeString(formData.closingTime),
-        totalSeats: Number(formData.totalSeats) || 20,
+        totalSeats: formattedHardwareTiers.reduce((sum, t) => sum + t.totalSeats, 0) || 1,
         amenities: formData.amenities,
         photos: formData.photos,
         supportedGames: formData.supportedGames,
@@ -546,31 +563,11 @@ export default function OnboardingWizardPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-caption font-semibold text-text-primary">
-                      City *
-                    </label>
-                    <select
-                      value={formData.city}
-                      onChange={(e) => updateField('city', e.target.value)}
-                      className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                      required
-                    >
-                      <option value="">Select City</option>
-                      {SUPPORTED_CITIES.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                    <p className="text-overline text-text-tertiary">
-                      Not seeing your city? KHEL-O isn&apos;t live there yet — contact support.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-caption font-semibold text-text-primary">
                       State *
                     </label>
                     <select
                       value={formData.state}
-                      onChange={(e) => updateField('state', e.target.value)}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, state: e.target.value, city: '' }))}
                       className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       required
                     >
@@ -581,6 +578,27 @@ export default function OnboardingWizardPage() {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-caption font-semibold text-text-primary">
+                      City *
+                    </label>
+                    <select
+                      value={formData.city}
+                      onChange={(e) => updateField('city', e.target.value)}
+                      className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:opacity-50"
+                      required
+                      disabled={!formData.state}
+                    >
+                      <option value="">{formData.state ? 'Select City' : 'Select a state first'}</option>
+                      {(CITIES_BY_STATE[formData.state] ?? []).map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <p className="text-overline text-text-tertiary">
+                      Not seeing your city? KHEL-O is still expanding coverage — contact support.
+                    </p>
                   </div>
 
                   <Input
@@ -820,7 +838,7 @@ export default function OnboardingWizardPage() {
                   <p className="text-caption text-text-secondary">Define your resources and pricing. PC assignment is handled on-site by staff during check-in.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
                     label="Opening Time *"
                     type="time"
@@ -837,13 +855,6 @@ export default function OnboardingWizardPage() {
                     value={formData.closingTime}
                     onChange={(e) => updateField('closingTime', e.target.value)}
                     error={!formData.closingTime ? 'Closing time is required' : undefined}
-                  />
-
-                  <NumericField
-                    label="Available Units"
-                    min={1}
-                    value={formData.totalSeats}
-                    onChange={(n) => updateField('totalSeats', n)}
                   />
                 </div>
 
@@ -897,6 +908,40 @@ export default function OnboardingWizardPage() {
                         </button>
                       );
                     })}
+                    {formData.supportedGames
+                      .filter((game) => !PRESET_GAMES.includes(game))
+                      .map((game) => (
+                        <button
+                          key={game}
+                          type="button"
+                          onClick={() =>
+                            updateField(
+                              'supportedGames',
+                              formData.supportedGames.filter((g) => g !== game)
+                            )
+                          }
+                          className="p-2.5 rounded-xl text-caption font-semibold flex items-center justify-between border bg-emerald-500/10 border-emerald-500 text-emerald-600 transition-all"
+                        >
+                          <span>{game}</span>
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        </button>
+                      ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Not listed? Type a game name and add it"
+                      value={customGameInput}
+                      onChange={(e) => setCustomGameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addCustomGame();
+                        }
+                      }}
+                    />
+                    <Button type="button" variant="secondary" onClick={addCustomGame}>
+                      Add
+                    </Button>
                   </div>
                 </div>
 

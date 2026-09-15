@@ -19,6 +19,10 @@ class HardwareTierBase(BaseModel):
     price_per_hour: float = Field(..., gt=0.0)
     platform: Optional[PlatformType] = None
     model: Optional[str] = Field(None, max_length=100)
+    # Owner typed a free-text model description (the "Custom" escape hatch
+    # in the model dropdown) rather than picking a fixed preset — see
+    # derive_tier_display's is_custom parameter.
+    is_custom_model: bool = False
     tier_type: TierType = TierType.GAMING
     activity_kind: Optional[str] = Field(None, max_length=50)
 
@@ -60,6 +64,7 @@ class HardwareTierUpdate(BaseModel):
     is_active: Optional[bool] = None
     platform: Optional[PlatformType] = None
     model: Optional[str] = Field(None, max_length=100)
+    is_custom_model: Optional[bool] = None
     activity_kind: Optional[str] = Field(None, max_length=50)
 
     @model_validator(mode='after')

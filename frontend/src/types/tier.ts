@@ -38,6 +38,10 @@ export interface TierCreateRequest {
   pricePerHour: number;
   platform?: Platform;
   model?: string;
+  /** True when `model` is owner-typed free text (the "Custom" escape hatch
+   *  in the model dropdown) rather than one of PLATFORM_MODELS' presets —
+   *  see backend derive_tier_display's is_custom parameter. */
+  isCustomModel?: boolean;
   tierType?: 'gaming' | 'activity';
   activityKind?: string;
   /** Create-only — see backend HardwareTierCreate.individual_units. Absent
@@ -57,6 +61,7 @@ export interface TierUpdateRequest {
   activeSeatsCount?: number;
   platform?: Platform;
   model?: string;
+  isCustomModel?: boolean;
   activityKind?: string;
 }
 
@@ -69,6 +74,9 @@ export interface TierConfig {
   pricePerHour: number;
   tierType: 'gaming' | 'activity';
   activityKind?: string;
+  /** True when `model` is owner-typed free text (the "Custom" escape hatch
+   *  in the model dropdown) rather than one of PLATFORM_MODELS' presets. */
+  isCustomModel?: boolean;
   /** This component's own working state for the create-time toggle — see
    *  TierCreateRequest.individualUnits above for what it maps to on submit. */
   individualUnits?: boolean;

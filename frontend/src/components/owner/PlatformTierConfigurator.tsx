@@ -1,8 +1,8 @@
 // frontend/src/components/owner/PlatformTierConfigurator.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, Trash2, ChevronRight } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Trash2, ChevronRight, Pencil } from 'lucide-react';
 import { PLATFORMS, PLATFORM_MODELS, type Platform } from '@/constants/platforms';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import { ACTIVITY_PRESETS, ActivityIcon } from '@/components/icons/ActivityIcons';
@@ -81,10 +81,40 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
     return () => clearTimeout(t);
   }, [justAddedId]);
 
+  // Scrolls a newly added/expanded card into view the moment it appears, so
+  // picking a platform or activity visibly takes the owner to its config
+  // instead of silently adding something off-screen.
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  useEffect(() => {
+    if (!justAddedId) return;
+    cardRefs.current[justAddedId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [justAddedId]);
+
   // Which platform panels are expanded. A platform is auto-added to this
   // set the moment it's toggled on, so the panel a config was just added
   // to is never collapsed by default.
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<Platform>>(new Set());
+
+  // Individual config cards collapsed to a compact summary row after the
+  // owner hits "Save" on that card. A card is never collapsed by default —
+  // only an explicit Save collapses it, and clicking the summary row again
+  // re-expands it for editing.
+  const [collapsedConfigIds, setCollapsedConfigIds] = useState<Set<string>>(new Set());
+  const collapseConfig = (id: string) => setCollapsedConfigIds((prev) => new Set(prev).add(id));
+  const expandConfig = (id: string) =>
+    setCollapsedConfigIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+
+  // Which platform config cards are in free-text "Custom model" entry mode.
+  // A card enters this set the moment "Custom" is picked from its model
+  // dropdown (even before anything is typed), and leaves it if the owner
+  // picks a real preset instead. A card loaded with a model string that
+  // doesn't match any preset (e.g. an existing custom tier) is treated as
+  // custom automatically without needing to be in this set.
+  const [customModelIds, setCustomModelIds] = useState<Set<string>>(new Set());
 
   const togglePlatform = (platform: Platform) => {
     if (selectedPlatforms.includes(platform)) {
@@ -180,12 +210,17 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
         </label>
         <div className="flex flex-wrap gap-2 mb-3">
           {ACTIVITY_PRESETS.map(({ key, label, icon: Icon, defaultIndividualUnits }) => {
-            const hasConfig = configs.some((c) => c.tierType === 'activity' && c.activityKind === key);
+            const existing = configs.find((c) => c.tierType === 'activity' && c.activityKind === key);
+            const hasConfig = !!existing;
             return (
               <button
                 key={key}
                 type="button"
                 onClick={() => {
+                  if (existing) {
+                    removeConfig(existing.id);
+                    return;
+                  }
                   const next = makeDefaultActivityConfig(key, defaultIndividualUnits);
                   onChange([...configs, next]);
                   setJustAddedId(next.id);
@@ -215,9 +250,26 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
           </button>
         </div>
 
-        {configs.filter((c) => c.tierType === 'activity').map((config) => (
+        {configs.filter((c) => c.tierType === 'activity').map((config) => {
+          if (collapsedConfigIds.has(config.id)) {
+            return (
+              <button
+                key={config.id}
+                type="button"
+                onClick={() => expandConfig(config.id)}
+                className="flex items-center justify-between w-full mb-3 p-3 rounded-xl bg-card border border-border/80 text-left hover:border-primary/60 transition-all"
+              >
+                <span className="text-caption font-semibold text-text-primary">
+                  {config.activityKind || 'Activity'} · {config.totalSeats} {config.individualUnits ? 'units' : 'capacity'} · ₹{config.pricePerHour}/hr
+                </span>
+                <Pencil className="h-3.5 w-3.5 text-text-tertiary" />
+              </button>
+            );
+          }
+          return (
           <div
             key={config.id}
+            ref={(el) => { cardRefs.current[config.id] = el; }}
             className={cn(
               'grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-card border mb-3 transition-all duration-500',
               justAddedId === config.id ? 'border-primary ring-2 ring-primary/30' : 'border-border/80'
@@ -270,7 +322,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
               </div>
             </div>
 
-            <div className="flex items-end justify-end sm:col-span-2">
+            <div className="flex items-end justify-end gap-2 sm:col-span-2">
               <button
                 type="button"
                 onClick={() => removeConfig(config.id)}
@@ -279,9 +331,17 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                 <Trash2 className="h-3.5 w-3.5" />
                 Remove
               </button>
+              <button
+                type="button"
+                onClick={() => collapseConfig(config.id)}
+                className="flex items-center gap-1 text-caption font-semibold text-white bg-primary hover:bg-primary/90 rounded-xl px-4 py-2"
+              >
+                Save
+              </button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {PLATFORMS.filter((p) => selectedPlatforms.includes(p.value)).map((p) => {
@@ -327,9 +387,28 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
               )}
             </div>
 
-            {expandedPlatforms.has(p.value) && platformConfigs.map((config) => (
+            {expandedPlatforms.has(p.value) && platformConfigs.map((config) => {
+              if (collapsedConfigIds.has(config.id)) {
+                return (
+                  <button
+                    key={config.id}
+                    type="button"
+                    onClick={() => expandConfig(config.id)}
+                    className="flex items-center justify-between w-full p-3 rounded-xl bg-card border border-border/80 text-left hover:border-primary/60 transition-all"
+                  >
+                    <span className="text-caption font-semibold text-text-primary">
+                      {config.model || 'Model not set'} · {config.totalSeats} units · ₹{config.pricePerHour}/hr
+                    </span>
+                    <Pencil className="h-3.5 w-3.5 text-text-tertiary" />
+                  </button>
+                );
+              }
+              const isKnownModel = p.value !== 'other' && models.includes(config.model);
+              const showCustomInput = p.value !== 'other' && (customModelIds.has(config.id) || (!!config.model && !isKnownModel));
+              return (
               <div
                 key={config.id}
+                ref={(el) => { cardRefs.current[config.id] = el; }}
                 className={cn(
                   'grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-card border transition-all duration-500',
                   justAddedId === config.id ? 'border-primary ring-2 ring-primary/30' : 'border-border/80'
@@ -344,15 +423,38 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                       onChange={(e) => updateConfig(config.id, { model: e.target.value })}
                     />
                   ) : (
-                    <select
-                      value={config.model}
-                      onChange={(e) => updateConfig(config.id, { model: e.target.value })}
-                      className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    >
-                      {models.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
+                    <>
+                      <select
+                        value={showCustomInput ? 'Custom' : config.model}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === 'Custom') {
+                            setCustomModelIds((prev) => new Set(prev).add(config.id));
+                            updateConfig(config.id, { model: '', isCustomModel: true });
+                          } else {
+                            setCustomModelIds((prev) => {
+                              const next = new Set(prev);
+                              next.delete(config.id);
+                              return next;
+                            });
+                            updateConfig(config.id, { model: v, isCustomModel: false });
+                          }
+                        }}
+                        className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        {models.map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                      {showCustomInput && (
+                        <Input
+                          placeholder="Describe your setup — e.g. RTX 4090, i9, 32GB RAM, 27-inch 165Hz monitor"
+                          value={config.model}
+                          onChange={(e) => updateConfig(config.id, { model: e.target.value })}
+                          maxLength={100}
+                        />
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -378,7 +480,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                   onChange={(n) => updateConfig(config.id, { pricePerHour: n })}
                 />
 
-                <div className="flex items-end justify-end">
+                <div className="flex items-end justify-end gap-2 sm:col-span-2">
                   <button
                     type="button"
                     onClick={() => removeConfig(config.id)}
@@ -387,9 +489,17 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                     <Trash2 className="h-3.5 w-3.5" />
                     Remove
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => collapseConfig(config.id)}
+                    className="flex items-center gap-1 text-caption font-semibold text-white bg-primary hover:bg-primary/90 rounded-xl px-4 py-2"
+                  >
+                    Save
+                  </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         );
       })}

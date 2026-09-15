@@ -5,13 +5,20 @@ from app.constants import PLATFORM_MODELS, _PC_GPU_LABELS, _CONSOLE_LABELS
 
 def derive_tier_display(
     platform: Optional[PlatformType],
-    model: Optional[str]
+    model: Optional[str],
+    is_custom: bool = False
 ) -> Tuple[Dict[str, str], str]:
     """Derive the customer-facing specs dict and a suggested tier name from
     an owner's platform+model selection. This is the single place both
     tier-creation code paths call, so the customer-facing spec string is
     never independently re-typed/re-guessed in two places again — that
-    divergence is what let BUG #3 happen."""
+    divergence is what let BUG #3 happen.
+
+    `is_custom` is an explicit signal from the client (set when the owner
+    picked "Custom" in the model dropdown and typed a free-text
+    description) — it must never be inferred from `model` merely failing
+    to match a preset, since that's also what a genuine platform/model
+    mismatch bug looks like (see test_unknown_model_for_platform_raises)."""
     if platform is None or model is None:
         return {}, "Gaming Station"
 
@@ -21,7 +28,11 @@ def derive_tier_display(
 
     allowed = PLATFORM_MODELS.get(platform.value, [])
     if model not in allowed:
-        raise ValueError(f"'{model}' is not a valid model for platform '{platform.value}'")
+        if not is_custom:
+            raise ValueError(f"'{model}' is not a valid model for platform '{platform.value}'")
+        label = model.strip() or "Custom Station"
+        key = "gpu" if platform == PlatformType.PC else "console"
+        return {key: label}, label
 
     if platform == PlatformType.PC:
         gpu_label = _PC_GPU_LABELS.get(model, model)

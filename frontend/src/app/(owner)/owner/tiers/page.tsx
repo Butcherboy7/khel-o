@@ -20,6 +20,7 @@ import {
 } from '@/components/ui';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import { ActivityUnitsManager } from '@/components/owner/ActivityUnitsManager';
+import { PLATFORM_MODELS } from '@/constants/platforms';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import type { HardwareTier, TierConfig, TierCreateRequest, TierUpdateRequest } from '@/types';
 import { Edit, AlertCircle, Power, PowerOff, Plus, Zap, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
@@ -121,6 +122,9 @@ export default function HardwareTiersPage() {
               pricePerHour: config.pricePerHour,
               platform: config.platform,
               model: config.model,
+              isCustomModel:
+                config.isCustomModel ||
+                (config.platform !== 'other' && !PLATFORM_MODELS[config.platform]?.includes(config.model)),
             };
       return createTier(targetId, payload);
     },
@@ -160,6 +164,9 @@ export default function HardwareTiersPage() {
               pricePerHour: config.pricePerHour,
               platform: config.platform,
               model: config.model,
+              isCustomModel:
+                config.isCustomModel ||
+                (config.platform !== 'other' && !PLATFORM_MODELS[config.platform]?.includes(config.model)),
             };
       return updateTier(targetId, editingTierId!, payload);
     },
