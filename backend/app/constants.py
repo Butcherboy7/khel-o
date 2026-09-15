@@ -125,3 +125,10 @@ _CONSOLE_LABELS = {
     "Switch": "Nintendo Switch",
     "Switch Lite": "Nintendo Switch Lite",
 }
+
+# Café gallery photo categories (Phase 8 — Media & admin review). Applies
+# only to Cafe.photos, not menu_photos (menu photos are already their own
+# semantic category and don't need this generality). Each photo is stored
+# as {"url": str, "category": str} with category validated against this
+# list at the write boundary (presign + PATCH /cafes/{id}).
+PHOTO_CATEGORIES = ["exterior", "entrance", "play_area", "seating", "equipment", "ambience"]

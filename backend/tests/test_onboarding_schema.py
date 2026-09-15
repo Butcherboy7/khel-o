@@ -48,7 +48,7 @@ async def test_onboarding_submission_succeeds_without_422(async_client: AsyncCli
             "closingTime": "23:00:00",
             "totalSeats": 20,
             "amenities": ["High-speed Wi-Fi", "Air Conditioned"],
-            "photos": ["https://images.unsplash.com/photo-1542751371-adc38448a05e"]
+            "photos": [{"url": "https://images.unsplash.com/photo-1542751371-adc38448a05e", "category": "exterior"}]
         }
 
         response = await async_client.post("/api/v1/cafes", json=cafe_payload, headers=headers)

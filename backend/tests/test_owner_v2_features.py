@@ -147,7 +147,7 @@ async def test_update_cafe_details_persists_amenities_photos_and_location(db_ses
             f"/api/v1/owner/cafes/{cafe.id}/details",
             json={
                 "amenities": ["Air conditioned", "Free Wi-Fi"],
-                "photos": ["https://example.com/photo1.jpg"],
+                "photos": [{"url": "https://example.com/photo1.jpg", "category": "exterior"}],
                 "latitude": 12.9716,
                 "longitude": 77.5946,
             },
@@ -156,7 +156,7 @@ async def test_update_cafe_details_persists_amenities_photos_and_location(db_ses
         assert res.status_code == 200, res.text
         data = res.json()["data"]["cafe"]
         assert data["amenities"] == ["Air conditioned", "Free Wi-Fi"]
-        assert data["photos"] == ["https://example.com/photo1.jpg"]
+        assert data["photos"] == [{"url": "https://example.com/photo1.jpg", "category": "exterior"}]
         assert data["latitude"] == 12.9716
         assert data["longitude"] == 77.5946
 

@@ -23,7 +23,7 @@ from app.repositories.owner_payout_repository import OwnerPayoutRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator, AliasChoices
-from app.constants import validate_city, validate_google_maps_url
+from app.constants import validate_city, validate_google_maps_url, PHOTO_CATEGORIES
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
@@ -2005,7 +2005,7 @@ class CafeDetailsUpdate(BaseModel):
     phone_number: Optional[str] = Field(None, max_length=20)
     email: Optional[str] = None
     amenities: Optional[List[str]] = None
-    photos: Optional[List[str]] = None
+    photos: Optional[List[Dict[str, str]]] = None
     menu_photos: Optional[List[str]] = None
     description: Optional[str] = None
     latitude: Optional[float] = None
@@ -2311,6 +2311,9 @@ async def update_cafe_details(
     if payload.photos is not None:
         if len(payload.photos) > settings.CAFE_PHOTO_MAX_COUNT:
             raise BadRequestException(f"A café can have at most {settings.CAFE_PHOTO_MAX_COUNT} photos")
+        for p in payload.photos:
+            if not isinstance(p, dict) or "url" not in p or p.get("category") not in PHOTO_CATEGORIES:
+                raise BadRequestException("Each photo must include a url and a valid category")
         cafe.photos = payload.photos
     if payload.menu_photos is not None:
         if len(payload.menu_photos) > settings.CAFE_PHOTO_MAX_COUNT:
@@ -2350,6 +2353,23 @@ class PhotoPresignRequest(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
+class CafePhotoPresignRequest(PhotoPresignRequest):
+    """Presign request for the café gallery (`/photos/presign`) only.
+
+    Menu photos keep using the base `PhotoPresignRequest` unchanged — per
+    the design doc, `menu_photos` is already its own semantic category and
+    doesn't get a `category` field.
+    """
+    category: str
+
+    @field_validator("category")
+    @classmethod
+    def _validate_category(cls, v: str) -> str:
+        if v not in PHOTO_CATEGORIES:
+            raise ValueError(f"category must be one of {PHOTO_CATEGORIES}")
+        return v
+
+
 class PhotoDeleteRequest(BaseModel):
     url: str = Field(..., min_length=1)
 
@@ -2359,7 +2379,7 @@ class PhotoDeleteRequest(BaseModel):
 @router.post("/cafes/{cafe_id}/photos/presign", status_code=status.HTTP_200_OK)
 async def presign_cafe_photo_upload(
     cafe_id: UUID,
-    payload: PhotoPresignRequest,
+    payload: CafePhotoPresignRequest,
     cafe: Cafe = Depends(require_cafe_ownership),
 ):
     """Issue a short-lived, cafe-scoped presigned URL for a direct browser-to-S3 upload."""
@@ -2387,10 +2407,14 @@ async def delete_cafe_photo(
     from app.services.storage_service import key_from_url, delete_object
 
     current_photos = list(cafe.photos) if isinstance(cafe.photos, list) else []
-    if payload.url not in current_photos:
+
+    def _url_of(p):
+        return p.get("url") if isinstance(p, dict) else p
+
+    if not any(_url_of(p) == payload.url for p in current_photos):
         raise NotFoundException("Photo not found on this café")
 
-    cafe.photos = [p for p in current_photos if p != payload.url]
+    cafe.photos = [p for p in current_photos if _url_of(p) != payload.url]
     await db.commit()
 
     key = key_from_url(payload.url)

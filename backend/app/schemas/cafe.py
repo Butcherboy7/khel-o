@@ -43,7 +43,7 @@ class CafeBase(BaseModel):
     total_seats: Optional[int] = Field(None, ge=1)
     amenities: List[str] = Field(default_factory=list)
     supported_games: Dict[str, List[str]] = Field(default_factory=dict)
-    photos: List[str] = Field(default_factory=list)
+    photos: List[Dict[str, str]] = Field(default_factory=list)
     menu_photos: List[str] = Field(default_factory=list)
 
     @field_validator("opening_time", "closing_time", mode="before")
@@ -131,7 +131,7 @@ class CafeListItem(BaseModel):
     # True only when every active tier has a confirmed real platform. See
     # cafe_repository.py's computation and lib/platformTags.ts's consumer.
     platforms_complete: bool = False
-    photos: List[str] = Field(default_factory=list)
+    photos: List[Dict[str, str]] = Field(default_factory=list)
     amenities: List[str] = Field(default_factory=list)
     has_active_promotion: bool = False
     verification_status: VerificationStatus
