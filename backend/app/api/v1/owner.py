@@ -587,6 +587,23 @@ async def save_onboarding_draft(
         }
     }
 
+def _normalize_photos(value):
+    """The onboarding wizard still POSTs `photos` as a flat list of URL
+    strings (OnboardingSubmitRequest.photos: List[str]), but Cafe.photos is
+    now stored as [{url, category}] (see migration 032 and this task's
+    schema change). Normalize at the write boundary so onboarding-submitted
+    cafés end up in the same shape as everywhere else and don't fail
+    CafeBase/CafeResponse validation on the next read. Every entry defaults
+    to 'exterior' — reasonable for test data (see spec), not a claim of
+    accuracy. A list already made of {url, category} dicts (a
+    forward-compatible client) passes through unchanged. Mirrors
+    migrations/versions/032_changes_requested_and_photo_categories.py's
+    _backfill_photos."""
+    if not value:
+        return []
+    return [p if isinstance(p, dict) else {"url": p, "category": "exterior"} for p in value]
+
+
 @router.post("/onboarding/submit", status_code=status.HTTP_200_OK)
 async def submit_onboarding_application(
     payload: OnboardingSubmitRequest,
@@ -655,7 +672,7 @@ async def submit_onboarding_application(
             closing_time=closing_time_obj,
             total_seats=payload.total_seats,
             amenities=payload.amenities,
-            photos=payload.photos,
+            photos=_normalize_photos(payload.photos),
             supported_games=payload.supported_games,
             business_pan=payload.business_pan,
             gstin=payload.gstin,
@@ -685,7 +702,7 @@ async def submit_onboarding_application(
         cafe.closing_time = closing_time_obj
         cafe.total_seats = payload.total_seats
         cafe.amenities = payload.amenities
-        cafe.photos = payload.photos
+        cafe.photos = _normalize_photos(payload.photos)
         cafe.supported_games = payload.supported_games
         cafe.business_pan = payload.business_pan
         cafe.gstin = payload.gstin

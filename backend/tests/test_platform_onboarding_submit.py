@@ -196,3 +196,59 @@ async def test_onboarding_submit_stores_platform_scoped_games():
 
         cafe = await db.get(Cafe, uuid.UUID(cafe_id))
         assert cafe.supported_games == {"pc": ["Valorant", "My LAN Game"], "playstation": ["EA Sports FC 24"]}
+
+
+@pytest.mark.asyncio
+async def test_onboarding_submit_normalizes_flat_photos_for_later_reads():
+    """The onboarding wizard still POSTs `photos` as a flat list of URL
+    strings, but Cafe.photos is now stored as [{url, category}] (migration
+    032 + the CafeBase schema change). If the write site didn't normalize,
+    the café would 500 on its own GET /api/v1/cafes/{cafe_id} the moment
+    CafeResponse tries to validate the old-shape photos against the new
+    Dict[str, str] field."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_photos_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Photos Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Photos Cafe",
+            "addressLine1": "1 Onboard Photos St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "500001",
+            "phoneNumber": "+919000000031",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "photos": ["https://example.com/a.jpg"],
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 200
+            cafe_id = res.json()["data"]["cafeId"]
+
+            get_res = await client.get(f"/api/v1/cafes/{cafe_id}", headers=headers)
+            assert get_res.status_code == 200, get_res.text
+            assert get_res.json()["data"]["cafe"]["photos"] == [
+                {"url": "https://example.com/a.jpg", "category": "exterior"}
+            ]
+
+        cafe = await db.get(Cafe, uuid.UUID(cafe_id))
+        assert cafe.photos == [{"url": "https://example.com/a.jpg", "category": "exterior"}]
