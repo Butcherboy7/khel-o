@@ -30,7 +30,7 @@ async def _lead_cafe(db_session, *, email="claimme@khel-o.com", with_tier=True,
         pincode="500001", phone_number="0000000000", email=email,
         verification_status=VerificationStatus.VERIFIED, is_active=True,
         is_lead_listing=True, bookable_stations=0, app_bookable_seats=0,
-        amenities=[], photos=[], supported_games=[], menu_photos=[],
+        amenities=[], photos=[], supported_games={}, menu_photos=[],
         house_rules=[], social_links={},
     )
     db_session.add(cafe)

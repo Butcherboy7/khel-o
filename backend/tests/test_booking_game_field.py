@@ -30,7 +30,7 @@ async def test_create_booking_persists_game(db_session):
         city="Bengaluru", state="Karnataka", pincode="560001", phone_number="+919876543210",
         verification_status=VerificationStatus.VERIFIED, is_active=True,
         opening_time=time(9, 0), closing_time=time(23, 0), bookable_stations=10,
-        supported_games=["FIFA 24", "Call of Duty"],
+        supported_games={"pc": ["FIFA 24", "Call of Duty"]},
     )
     db_session.add(cafe)
     await db_session.flush()
