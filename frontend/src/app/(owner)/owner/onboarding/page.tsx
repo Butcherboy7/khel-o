@@ -137,6 +137,15 @@ export default function OnboardingWizardPage() {
               .filter((t: any) => t && typeof t.platform === 'string' && t.platform.length > 0)
               .map((t: any) => (t.id ? t : { ...t, id: safeRandomUUID() }));
           }
+          // Sanitize pre-Platform-V2 drafts: supportedGames used to be a flat
+          // string[] (PC-only). Merging that raw array into formData now —
+          // where it's typed Record<string, string[]> — would make
+          // Object.values() iterate array elements instead of game lists and
+          // send an array to a backend that now expects a per-platform dict.
+          // Mirror backend migration 031's fixup and wrap it under "pc".
+          if (Array.isArray(draft.supportedGames)) {
+            draft.supportedGames = { pc: draft.supportedGames };
+          }
           setFormData((prev) => ({ ...prev, ...draft }));
           if (res.draft.step && typeof res.draft.step === 'number') {
             setStep(res.draft.step);
