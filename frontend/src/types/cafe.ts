@@ -56,7 +56,7 @@ export interface Cafe {
   bookableStations?: number;
   appBookableSeats?: number;
   amenities: string[];
-  supportedGames?: string[];
+  supportedGames?: Record<string, string[]>;
   photos: string[];
   menuPhotos: string[];
   rejectionReason: string | null;

@@ -597,17 +597,29 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       {/* Games */}
       <section className="flex flex-col gap-4">
         <h2 className="font-heading text-h2 text-text-primary">Games available</h2>
-        {cafe.supportedGames && cafe.supportedGames.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {cafe.supportedGames.map((game) => (
-              <div
-                key={game}
-                className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-2.5 font-medium text-body text-text-primary"
-              >
-                <Gamepad2 className="h-4 w-4 text-accent" />
-                <span>{game}</span>
-              </div>
-            ))}
+        {cafe.supportedGames && Object.keys(cafe.supportedGames).length > 0 ? (
+          <div className="flex flex-col gap-4">
+            {Object.entries(cafe.supportedGames)
+              .filter(([, games]) => games.length > 0)
+              .map(([platform, games]) => (
+                <div key={platform} className="flex flex-col gap-2">
+                  <h3 className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary uppercase tracking-wide">
+                    <PlatformIcon platform={platform} className="h-3.5 w-3.5 text-primary" />
+                    {PLATFORMS.find((p) => p.value === platform)?.label || platform}
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {games.map((game) => (
+                      <div
+                        key={game}
+                        className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-2.5 font-medium text-body text-text-primary"
+                      >
+                        <Gamepad2 className="h-4 w-4 text-accent" />
+                        <span>{game}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
           </div>
         ) : (
           <p className="text-body text-text-secondary italic">No supported games listed by this café yet.</p>
