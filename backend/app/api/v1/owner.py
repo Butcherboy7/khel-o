@@ -734,6 +734,7 @@ async def submit_onboarding_application(
     # Create Hardware Tiers if provided
     if payload.hardware_tiers:
         tier_repo = HardwareTierRepository(db)
+        await tier_repo.deactivate_all_for_cafe(cafe.id)
         for tier_item in payload.hardware_tiers:
             tot = int(tier_item.total_seats or 10)
             app_b = int(tier_item.app_bookable_seats if tier_item.app_bookable_seats is not None else max(1, int(tot * 0.25)))

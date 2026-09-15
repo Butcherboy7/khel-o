@@ -252,3 +252,56 @@ async def test_onboarding_submit_normalizes_flat_photos_for_later_reads():
 
         cafe = await db.get(Cafe, uuid.UUID(cafe_id))
         assert cafe.photos == [{"url": "https://example.com/a.jpg", "category": "exterior"}]
+
+
+@pytest.mark.asyncio
+async def test_resubmitting_onboarding_replaces_hardware_tiers_not_duplicates():
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_resubmit_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Resubmit Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        base_payload = {
+            "name": "Onboard Resubmit Cafe",
+            "addressLine1": "1 Resubmit St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "500001",
+            "phoneNumber": "+919000000050",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            first = await client.post("/api/v1/owner/onboarding/submit", json=base_payload, headers=headers)
+            assert first.status_code == 200
+            cafe_id = uuid.UUID(first.json()["data"]["cafeId"])
+
+            second_payload = dict(base_payload)
+            second_payload["hardwareTiers"] = [
+                {"platform": "pc", "model": "RTX 4090", "totalSeats": 8, "appBookableSeats": 3, "hourlyRate": 150},
+            ]
+            second = await client.post("/api/v1/owner/onboarding/submit", json=second_payload, headers=headers)
+            assert second.status_code == 200
+
+        stmt = select(HardwareTier).where(HardwareTier.cafe_id == cafe_id, HardwareTier.is_active == True)
+        result = await db.execute(stmt)
+        active_tiers = result.scalars().all()
+        assert len(active_tiers) == 1
+        assert active_tiers[0].model == "RTX 4090"

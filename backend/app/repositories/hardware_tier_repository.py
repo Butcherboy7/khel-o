@@ -101,3 +101,12 @@ class HardwareTierRepository(BaseRepository[HardwareTier]):
 
     async def deactivate(self, tier_id: UUID) -> Optional[HardwareTier]:
         return await self.update(tier_id, {"is_active": False})
+
+    async def deactivate_all_for_cafe(self, cafe_id: UUID) -> None:
+        from sqlalchemy import update
+        await self.db.execute(
+            update(HardwareTier)
+            .where(HardwareTier.cafe_id == cafe_id, HardwareTier.is_active == True)
+            .values(is_active=False)
+        )
+        await self.db.commit()
