@@ -253,12 +253,45 @@ Expected: `alembic current` now reports `031 (head)`. Spot-check: run `sqlite3 k
 - [ ] **Step 5b: Now run the full backend suite (deferred from Task 1)**
 
 Run: `cd backend && python -m pytest -q`
-Expected: PASS (426+ tests). This is the safety gate Task 1 deliberately deferred — the schema (Task 1) and the data (this task) are now both in the new shape, so no row can mismatch what `CafeBase`/`OnboardingSubmitRequest` expect.
+Expected: two pre-existing failures, both `dict_type` validation errors on `supported_games`: `tests/test_lead_listings.py::test_detail_response_exposes_is_lead_listing`, `tests/test_lead_listings.py::test_detail_response_reports_false_for_normal_cafe`. These are not caused by this task's migration — they come from two test fixtures elsewhere in the suite that construct a `Cafe` row with the old hardcoded `supported_games=[]` literal, predating Task 1's schema change. Fix them in the next step before re-running.
+
+- [ ] **Step 5c: Fix the two stale test fixtures**
+
+`backend/tests/test_lead_listings.py:29` currently has:
+```python
+        supported_games=[],
+```
+Change to:
+```python
+        supported_games={},
+```
+
+`backend/tests/test_cafe_claim.py:33` currently has:
+```python
+        amenities=[], photos=[], supported_games=[], menu_photos=[],
+```
+Change to:
+```python
+        amenities=[], photos=[], supported_games={}, menu_photos=[],
+```
+(`photos`/`amenities`/`menu_photos` stay as empty lists — only `supported_games` changed shape in Task 1; an empty list is still valid for those other fields regardless of this plan's later photo-category work, since `List[X]` accepts an empty list no matter what `X` is.)
+
+A third file, `backend/tests/test_booking_game_field.py:33`, has:
+```python
+        supported_games=["FIFA 24", "Call of Duty"],
+```
+This one doesn't cause a test failure today (the test never serializes `cafe.supported_games` through a Pydantic schema — it only uses the café row directly, and booking creation doesn't validate the booking's free-text `game` field against the café's game list). Fix it anyway for consistency with the new shape:
+```python
+        supported_games={"pc": ["FIFA 24", "Call of Duty"]},
+```
+
+Re-run: `cd backend && python -m pytest -q`
+Expected: PASS (426+ tests, no failures).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add backend/migrations/versions/031_platform_scoped_games.py backend/tests/test_migration_031_games_backfill.py
+git add backend/migrations/versions/031_platform_scoped_games.py backend/tests/test_migration_031_games_backfill.py backend/tests/test_lead_listings.py backend/tests/test_cafe_claim.py backend/tests/test_booking_game_field.py
 git commit -m "feat(games): migrate 031 backfills flat game lists into platform-keyed dicts"
 ```
 
