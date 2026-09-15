@@ -11,6 +11,7 @@ from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.platform_fee import PlatformFee
 from app.models.cafe_payout import CafePayout, CafePayoutStatus
 from app.models.cafe_payout_item import CafePayoutItem
+from app.models.cafe_payout_adjustment import CafePayoutAdjustment
 from app.models.notification import Notification, NotificationType
 from app.models.staff_invitation import StaffInvitation
 from app.models.admin_audit_log import AdminAuditLog
@@ -39,6 +40,7 @@ __all__ = [
     "CafePayout",
     "CafePayoutStatus",
     "CafePayoutItem",
+    "CafePayoutAdjustment",
     "Notification",
     "NotificationType",
     "StaffInvitation",
