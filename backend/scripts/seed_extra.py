@@ -33,8 +33,8 @@ async def seed_extra():
                 "total_seats": 24,
                 "amenities": ["wifi", "ac", "ps5", "nintendo_switch", "food", "parking", "valorant", "rtx_4080"],
                 "photos": [
-                    "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=800&auto=format&fit=crop",
-                    "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=800&auto=format&fit=crop"
+                    {"url": "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=800&auto=format&fit=crop", "category": "exterior"},
+                    {"url": "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=800&auto=format&fit=crop", "category": "exterior"}
                 ],
                 "tiers": [
                     {
@@ -77,7 +77,7 @@ async def seed_extra():
                 "total_seats": 35,
                 "amenities": ["wifi", "ac", "food", "snacks", "streamer_booth"],
                 "photos": [
-                    "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=800&auto=format&fit=crop"
+                    {"url": "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=800&auto=format&fit=crop", "category": "exterior"}
                 ],
                 "tiers": [
                     {
@@ -110,7 +110,7 @@ async def seed_extra():
                 "total_seats": 50,
                 "amenities": ["wifi", "ac", "food", "stage", "headsets"],
                 "photos": [
-                    "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=800&auto=format&fit=crop"
+                    {"url": "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=800&auto=format&fit=crop", "category": "exterior"}
                 ],
                 "tiers": [
                     {
