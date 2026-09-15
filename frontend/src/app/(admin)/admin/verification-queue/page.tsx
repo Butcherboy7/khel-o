@@ -35,6 +35,8 @@ import {
 } from '@/components/ui';
 import { formatCurrencyCompact } from '@/lib/format';
 import type { AdminCafe } from '@/types';
+import { PHOTO_CATEGORIES } from '@/constants/photoCategories';
+import { PLATFORMS } from '@/constants/platforms';
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
@@ -477,16 +479,84 @@ export default function AdminPage() {
             )}
           </div>
           
-          {selectedCafe?.draftData?.hardwareTiers && (
+          {selectedCafe?.tiers && selectedCafe.tiers.length > 0 && (
             <div className="p-3 rounded-xl bg-surface-hover">
-              <h4 className="font-semibold text-caption mb-2">Hardware Tiers</h4>
+              <h4 className="font-semibold text-caption mb-2">Resources & Pricing</h4>
               <div className="flex flex-col gap-1 text-xs">
-                {selectedCafe.draftData.hardwareTiers.map((tier: any, idx: number) => (
-                  <div key={idx} className="flex justify-between">
-                    <span>{tier.name}</span>
-                    <span className="text-text-tertiary">{tier.gpu} • ₹{tier.hourlyRate}/hr • {tier.totalSeats} seats</span>
+                {selectedCafe.tiers.map((tier) => (
+                  <div key={tier.id} className="flex justify-between">
+                    <span>
+                      {tier.name}
+                      {tier.tierType === 'activity' && tier.activityKind ? ` (${tier.activityKind})` : ''}
+                    </span>
+                    <span className="text-text-tertiary">
+                      {tier.platform ? `${tier.platform} · ` : ''}₹{tier.pricePerHour}/hr · {tier.totalSeats} seats
+                    </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {selectedCafe?.photos && selectedCafe.photos.length > 0 && (
+            <div className="p-3 rounded-xl bg-surface-hover">
+              <h4 className="font-semibold text-caption mb-2">Photos</h4>
+              <div className="flex flex-col gap-3">
+                {PHOTO_CATEGORIES.map(({ value, label }) => {
+                  const categoryPhotos = selectedCafe.photos.filter((p) => p.category === value);
+                  if (categoryPhotos.length === 0) return null;
+                  return (
+                    <div key={value}>
+                      <p className="text-overline text-text-tertiary mb-1">{label}</p>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {categoryPhotos.map((photo) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={photo.url}
+                            src={photo.url}
+                            alt={`${label} photo`}
+                            className="aspect-square rounded-lg object-cover border border-border"
+                            loading="lazy"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {selectedCafe?.menuPhotos && selectedCafe.menuPhotos.length > 0 && (
+            <div className="p-3 rounded-xl bg-surface-hover">
+              <h4 className="font-semibold text-caption mb-2">Menu</h4>
+              <div className="grid grid-cols-4 gap-1.5">
+                {selectedCafe.menuPhotos.map((url) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={url} src={url} alt="Menu photo" className="aspect-square rounded-lg object-cover border border-border" loading="lazy" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedCafe?.supportedGames && Object.keys(selectedCafe.supportedGames).length > 0 && (
+            <div className="p-3 rounded-xl bg-surface-hover">
+              <h4 className="font-semibold text-caption mb-2">Games</h4>
+              <div className="flex flex-col gap-2">
+                {Object.entries(selectedCafe.supportedGames)
+                  .filter(([, games]) => games.length > 0)
+                  .map(([platform, games]) => (
+                    <div key={platform}>
+                      <p className="text-overline text-text-tertiary mb-1">
+                        {PLATFORMS.find((p) => p.value === platform)?.label || platform}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {games.map((game) => (
+                          <Badge key={game} variant="default" size="sm">{game}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
           )}
