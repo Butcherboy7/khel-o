@@ -116,10 +116,9 @@ No change is needed at `owner.py:659` / `owner.py:689` (`supported_games=payload
 Run: `cd backend && python -m pytest tests/test_platform_onboarding_submit.py::test_onboarding_submit_stores_platform_scoped_games -v`
 Expected: PASS
 
-- [ ] **Step 5: Run the full backend suite to check for regressions**
+- [ ] **Step 5: Do NOT run the full backend suite yet**
 
-Run: `cd backend && python -m pytest -q`
-Expected: PASS (426+ tests) — the two pre-existing onboarding tests in this file use `hardwareTiers` only and don't touch `supportedGames`, so they're unaffected by the type change (Pydantic's `default_factory=dict` covers their omission of the field).
+This task's schema change makes `Dict[str, List[str]]` the only shape `CafeBase`/`OnboardingSubmitRequest` accept, but any café row already in the dev DB from earlier real onboarding submissions this session still holds the old flat-list shape until Task 2's migration backfills it. Running the full suite now risks a spurious failure on any existing test or fixture that reads one of those rows through a `CafeResponse`-derived schema. Run only the scoped test from Step 4 as this task's completion evidence; the full-suite gate for this change moves to the end of Task 2.
 
 - [ ] **Step 6: Commit**
 
@@ -249,7 +248,12 @@ Expected: PASS
 - [ ] **Step 5: Apply the migration to the local dev DB and verify**
 
 Run: `cd backend && alembic upgrade head`
-Expected: `alembic current` now reports `031 (head)`. Spot-check: `python -c "import asyncio; from app.database import AsyncSessionLocal; from app.models.cafe import Cafe; from sqlalchemy import select; asyncio.run((lambda: None)())"` is unnecessary — instead run `sqlite3 khel_o.db "SELECT supported_games FROM cafes LIMIT 5;"` and confirm every non-empty value is now a JSON object (`{...}`), not a JSON array (`[...]`).
+Expected: `alembic current` now reports `031 (head)`. Spot-check: run `sqlite3 khel_o.db "SELECT supported_games FROM cafes LIMIT 5;"` and confirm every non-empty value is now a JSON object (`{...}`), not a JSON array (`[...]`).
+
+- [ ] **Step 5b: Now run the full backend suite (deferred from Task 1)**
+
+Run: `cd backend && python -m pytest -q`
+Expected: PASS (426+ tests). This is the safety gate Task 1 deliberately deferred — the schema (Task 1) and the data (this task) are now both in the new shape, so no row can mismatch what `CafeBase`/`OnboardingSubmitRequest` expect.
 
 - [ ] **Step 6: Commit**
 
@@ -742,6 +746,8 @@ Expected: PASS
 
 Run: `cd backend && alembic upgrade head`
 Expected: `alembic current` reports `032 (head)`. Spot-check: `sqlite3 khel_o.db "SELECT photos FROM cafes LIMIT 5;"` — every non-empty value should now be a JSON array of objects with `url`/`category` keys.
+
+Do NOT run the full backend pytest suite as part of this task. `CafeBase.photos` still declares `List[str]` until Task 7 lands — the DB now holds `{url, category}` objects for any café with existing photos, so a full-suite run in this gap would spuriously fail wherever a `CafeResponse`-derived schema serializes one of those rows. Task 7's own Step 7 is the deferred full-suite gate for this change; dispatch Task 7 immediately next, with no other DB-touching task in between.
 
 - [ ] **Step 7: Commit**
 
