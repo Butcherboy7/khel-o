@@ -42,7 +42,7 @@ class CafeBase(BaseModel):
     closing_time: Optional[time] = None
     total_seats: Optional[int] = Field(None, ge=1)
     amenities: List[str] = Field(default_factory=list)
-    supported_games: List[str] = Field(default_factory=list)
+    supported_games: Dict[str, List[str]] = Field(default_factory=dict)
     photos: List[str] = Field(default_factory=list)
     menu_photos: List[str] = Field(default_factory=list)
 

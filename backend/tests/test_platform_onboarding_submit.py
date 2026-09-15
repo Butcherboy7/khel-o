@@ -6,6 +6,7 @@ from app.models.user import User, UserRole
 from app.core.security import create_access_token, get_password_hash
 from app.database import AsyncSessionLocal
 from app.models.hardware_tier import HardwareTier
+from app.models.cafe import Cafe
 from sqlalchemy import select
 
 
@@ -151,3 +152,47 @@ async def test_onboarding_submit_rejects_oversized_tier_model():
         async with AsyncClient(transport=transport, base_url="http://testserver") as client:
             res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
             assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_onboarding_submit_stores_platform_scoped_games():
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_games_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Games Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Games Cafe",
+            "addressLine1": "1 Games St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "500001",
+            "phoneNumber": "+919000000030",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "supportedGames": {"pc": ["Valorant", "My LAN Game"], "playstation": ["EA Sports FC 24"]},
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 200
+            cafe_id = res.json()["data"]["cafeId"]
+
+        cafe = await db.get(Cafe, uuid.UUID(cafe_id))
+        assert cafe.supported_games == {"pc": ["Valorant", "My LAN Game"], "playstation": ["EA Sports FC 24"]}

@@ -87,6 +87,11 @@ class OnboardingHardwareTierItem(BaseModel):
     validation hole without narrowing what a client may send."""
     platform: Optional[str] = None
     model: Optional[str] = Field(None, max_length=100)
+    # Owner typed a free-text model description (the "Custom" escape hatch
+    # in the model dropdown) rather than picking a fixed preset.
+    is_custom_model: bool = Field(
+        False, validation_alias=AliasChoices("isCustomModel", "is_custom_model")
+    )
     name: Optional[str] = Field(None, max_length=100)
     gpu: Optional[str] = None
     total_seats: Optional[int] = Field(
@@ -134,7 +139,7 @@ class OnboardingSubmitRequest(BaseModel):
     total_seats: int = Field(20, ge=1)
     amenities: List[str] = Field(default_factory=list)
     photos: List[str] = Field(default_factory=list)
-    supported_games: List[str] = Field(default_factory=list)
+    supported_games: Dict[str, List[str]] = Field(default_factory=dict)
     business_pan: Optional[str] = None
     has_gst: bool = False
     gstin: Optional[str] = None
@@ -722,7 +727,7 @@ async def submit_onboarding_application(
             try:
                 platform = PlatformType(raw_platform) if raw_platform else None
                 if platform is not None:
-                    derived_specs, suggested_name = derive_tier_display(platform, model)
+                    derived_specs, suggested_name = derive_tier_display(platform, model, tier_item.is_custom_model)
                     specs = derived_specs
                     # An explicitly-supplied, non-blank name must survive —
                     # the derived name only fills in when none was given (or

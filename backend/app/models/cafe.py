@@ -53,7 +53,7 @@ class Cafe(Base):
     is_lead_listing: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     amenities: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     photos: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
-    supported_games: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
+    supported_games: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     menu_photos: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)
     business_pan: Mapped[str | None] = mapped_column(String(20), nullable=True)
     gstin: Mapped[str | None] = mapped_column(String(20), nullable=True)
