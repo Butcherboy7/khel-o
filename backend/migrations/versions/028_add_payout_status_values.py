@@ -13,8 +13,13 @@ depends_on = None
 
 
 def upgrade():
-    op.execute("ALTER TYPE cafepayoutstatus ADD VALUE IF NOT EXISTS 'on_hold'")
-    op.execute("ALTER TYPE cafepayoutstatus ADD VALUE IF NOT EXISTS 'disputed'")
+    # SQLite has no enum type — `status` is a plain VARCHAR there with no
+    # DB-level constraint on its values, so there is nothing to alter. This
+    # statement is Postgres-only; running it against SQLite (local dev) is
+    # a syntax error.
+    if op.get_bind().dialect.name == 'postgresql':
+        op.execute("ALTER TYPE cafepayoutstatus ADD VALUE IF NOT EXISTS 'on_hold'")
+        op.execute("ALTER TYPE cafepayoutstatus ADD VALUE IF NOT EXISTS 'disputed'")
 
 
 def downgrade():

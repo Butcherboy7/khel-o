@@ -17,7 +17,12 @@ def upgrade():
     op.add_column('bookings', sa.Column('released_by', sa.Uuid(), sa.ForeignKey('users.id'), nullable=True))
     op.add_column('bookings', sa.Column('released_at', sa.DateTime(timezone=True), nullable=True))
     op.add_column('bookings', sa.Column('release_reason', sa.String(255), nullable=True))
-    op.execute("ALTER TYPE bookingstatus ADD VALUE IF NOT EXISTS 'released_by_owner'")
+    # SQLite has no enum type — `status` is a plain VARCHAR there with no
+    # DB-level constraint on its values, so there is nothing to alter. This
+    # statement is Postgres-only; running it against SQLite (local dev) is
+    # a syntax error.
+    if op.get_bind().dialect.name == 'postgresql':
+        op.execute("ALTER TYPE bookingstatus ADD VALUE IF NOT EXISTS 'released_by_owner'")
 
 
 def downgrade():
