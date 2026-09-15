@@ -41,6 +41,8 @@ export default function AdminPage() {
   const [selectedCafe, setSelectedCafe] = useState<AdminCafe | null>(null);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [isChangesModalOpen, setIsChangesModalOpen] = useState(false);
+  const [changesNote, setChangesNote] = useState('');
   const [testUtr, setTestUtr] = useState('');
   const [testVerifiedName, setTestVerifiedName] = useState('');
 
@@ -97,6 +99,17 @@ export default function AdminPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
       setIsRejectModalOpen(false);
+      setSelectedCafe(null);
+    },
+  });
+
+  // Request Changes mutation
+  const requestChangesMutation = useMutation({
+    mutationFn: ({ cafeId, reason }: { cafeId: string; reason: string }) =>
+      verifyCafe(cafeId, { status: 'changes_requested', reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      setIsChangesModalOpen(false);
       setSelectedCafe(null);
     },
   });
@@ -272,6 +285,17 @@ export default function AdminPage() {
                     </Button>
 
                     <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedCafe(cafe);
+                        setIsChangesModalOpen(true);
+                      }}
+                    >
+                      Request Changes
+                    </Button>
+
+                    <Button
                       variant="primary"
                       size="sm"
                       onClick={() => approveMutation.mutate(cafe.id)}
@@ -330,9 +354,47 @@ export default function AdminPage() {
         </div>
       </Modal>
 
+      {/* Request Changes Modal with Note */}
+      <Modal
+        isOpen={isChangesModalOpen}
+        onClose={() => setIsChangesModalOpen(false)}
+        title="Request Changes"
+        description={`Tell ${selectedCafe?.name} what needs to change before approval.`}
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="ghost" onClick={() => setIsChangesModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              isLoading={requestChangesMutation.isPending}
+              loadingText="Sending..."
+              disabled={!changesNote.trim()}
+              onClick={() => {
+                if (selectedCafe) {
+                  requestChangesMutation.mutate({ cafeId: selectedCafe.id, reason: changesNote });
+                }
+              }}
+            >
+              Send to Owner
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Textarea
+            label="What needs to change? *"
+            placeholder="e.g. Please upload a clearer exterior photo / GSTIN doesn't match business name..."
+            value={changesNote}
+            onChange={(e) => setChangesNote(e.target.value)}
+            required
+          />
+        </div>
+      </Modal>
+
       {/* Full Details Modal */}
       <Modal
-        isOpen={!!selectedCafe && !isRejectModalOpen}
+        isOpen={!!selectedCafe && !isRejectModalOpen && !isChangesModalOpen}
         onClose={() => setSelectedCafe(null)}
         title={`Application Details: ${selectedCafe?.name}`}
         description="Full onboarding information for verification review."
@@ -432,6 +494,14 @@ export default function AdminPage() {
         
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
           <Button variant="ghost" onClick={() => setSelectedCafe(null)}>Close</Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setIsChangesModalOpen(true);
+            }}
+          >
+            Request Changes
+          </Button>
           <Button variant="primary" onClick={() => { if (selectedCafe) approveMutation.mutate(selectedCafe.id); }}>Approve Café</Button>
         </div>
       </Modal>
