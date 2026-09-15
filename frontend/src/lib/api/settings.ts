@@ -1,6 +1,11 @@
 import { apiClient, call } from './client';
 import axios from 'axios';
 
+export interface CafePhoto {
+  url: string;
+  category: string;
+}
+
 export interface OwnerSettings {
   cafeId: string;
   cafeName: string;
@@ -14,7 +19,7 @@ export interface OwnerSettings {
   state: string;
   pincode: string;
   amenities: string[];
-  photos: string[];
+  photos: CafePhoto[];
   menuPhotos: string[];
   latitude: number | null;
   longitude: number | null;
@@ -76,7 +81,7 @@ export interface CafeDetailsUpdateParams {
   phoneNumber?: string;
   email?: string;
   amenities?: string[];
-  photos?: string[];
+  photos?: CafePhoto[];
   menuPhotos?: string[];
   latitude?: number;
   longitude?: number;
@@ -87,7 +92,7 @@ export interface CafeDetailsUpdateParams {
 export async function updateCafeDetails(
   cafeId: string,
   params: CafeDetailsUpdateParams
-): Promise<{ cafe: { id: string; name: string; description: string | null; city: string; amenities: string[]; photos: string[]; latitude: number | null; longitude: number | null } }> {
+): Promise<{ cafe: { id: string; name: string; description: string | null; city: string; amenities: string[]; photos: CafePhoto[]; latitude: number | null; longitude: number | null } }> {
   return call(() => apiClient.patch(`/api/v1/owner/cafes/${cafeId}/details`, params));
 }
 
@@ -105,18 +110,20 @@ export async function updateOperatingHours(
 // POST /api/v1/owner/cafes/{cafeId}/photos/presign
 export async function presignCafePhotoUpload(
   cafeId: string,
-  contentType: string
+  contentType: string,
+  category: string
 ): Promise<{ uploadUrl: string; publicUrl: string; key: string }> {
-  return call(() => apiClient.post(`/api/v1/owner/cafes/${cafeId}/photos/presign`, { contentType }));
+  return call(() => apiClient.post(`/api/v1/owner/cafes/${cafeId}/photos/presign`, { contentType, category }));
 }
 
 // Uploads a file directly to S3 via a presigned URL, reporting progress.
 export async function uploadCafePhoto(
   cafeId: string,
   file: File,
+  category: string,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  const { uploadUrl, publicUrl } = await presignCafePhotoUpload(cafeId, file.type);
+  const { uploadUrl, publicUrl } = await presignCafePhotoUpload(cafeId, file.type, category);
   await axios.put(uploadUrl, file, {
     headers: { 'Content-Type': file.type },
     onUploadProgress: (evt) => {
@@ -129,7 +136,7 @@ export async function uploadCafePhoto(
 }
 
 // DELETE /api/v1/owner/cafes/{cafeId}/photos
-export async function deleteCafePhoto(cafeId: string, url: string): Promise<{ photos: string[] }> {
+export async function deleteCafePhoto(cafeId: string, url: string): Promise<{ photos: CafePhoto[] }> {
   return call(() =>
     apiClient.delete(`/api/v1/owner/cafes/${cafeId}/photos`, { data: { url } })
   );

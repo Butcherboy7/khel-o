@@ -3,11 +3,12 @@
 import { useState, useRef, type FormEvent } from 'react';
 import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff, ExternalLink } from 'lucide-react';
 import { Modal, Button, Input } from '@/components/ui';
-import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings } from '@/lib/api/settings';
+import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings, type CafePhoto } from '@/lib/api/settings';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { CITIES_BY_STATE } from '@/constants/cities';
 import { INDIAN_STATES } from '@/constants/states';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
+import { PHOTO_CATEGORIES } from '@/constants/photoCategories';
 
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_MB = 8;
@@ -78,7 +79,8 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
   // Amenities & photos
   const [amenities, setAmenities] = useState<string[]>(settings.amenities || []);
   const [customAmenity, setCustomAmenity] = useState('');
-  const [photos, setPhotos] = useState<string[]>(settings.photos || []);
+  const [photos, setPhotos] = useState<CafePhoto[]>(settings.photos || []);
+  const [uploadCategory, setUploadCategory] = useState<string>('exterior');
   const [amenitiesSaving, setAmenitiesSaving] = useState(false);
   const [amenitiesError, setAmenitiesError] = useState<string | null>(null);
   const [amenitiesSaved, setAmenitiesSaved] = useState(false);
@@ -170,7 +172,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
     }
   };
 
-  const persistPhotos = async (updated: string[]) => {
+  const persistPhotos = async (updated: CafePhoto[]) => {
     setPhotos(updated);
     await updateCafeDetails(cafeId, { photos: updated });
     onSaved({ photos: updated });
@@ -204,10 +206,10 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
       setUploadProgress((p) => ({ ...p, [tempKey]: 0 }));
 
       try {
-        const publicUrl = await uploadCafePhoto(cafeId, file, (pct) => {
+        const publicUrl = await uploadCafePhoto(cafeId, file, uploadCategory, (pct) => {
           setUploadProgress((p) => ({ ...p, [tempKey]: pct }));
         });
-        workingPhotos = [...workingPhotos, publicUrl];
+        workingPhotos = [...workingPhotos, { url: publicUrl, category: uploadCategory }];
         await persistPhotos(workingPhotos);
       } catch (err: unknown) {
         setUploadError(err instanceof Error ? err.message : `Failed to upload "${file.name}"`);
@@ -560,75 +562,88 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                 </div>
               )}
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {photos.map((photo, idx) => (
-                  <div key={photo} className="relative aspect-square rounded-xl overflow-hidden border border-border group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={photo}
-                      alt={`Café photo ${idx + 1}`}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                    {idx === 0 && (
-                      <span className="absolute top-1.5 left-1.5 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
-                        Cover
-                      </span>
-                    )}
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 sm:opacity-0 flex items-center justify-center gap-1.5 transition-opacity">
-                      {idx > 0 && (
+              {PHOTO_CATEGORIES.map(({ value, label }) => {
+                const categoryPhotos = photos.filter((p) => p.category === value);
+                return (
+                  <div key={value} className="flex flex-col gap-2">
+                    <span className="text-overline text-text-tertiary uppercase tracking-wide">{label}</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {categoryPhotos.map((photo) => {
+                        const idx = photos.indexOf(photo);
+                        return (
+                          <div key={photo.url} className="relative aspect-square rounded-xl overflow-hidden border border-border group">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={photo.url}
+                              alt={`${label} photo`}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                            {idx === 0 && (
+                              <span className="absolute top-1.5 left-1.5 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
+                                Cover
+                              </span>
+                            )}
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 sm:opacity-0 flex items-center justify-center gap-1.5 transition-opacity">
+                              {idx > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => movePhoto(idx, -1)}
+                                  className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-text-primary"
+                                  aria-label="Move earlier / make cover"
+                                >
+                                  <ChevronUp className="h-4 w-4" />
+                                </button>
+                              )}
+                              {idx < photos.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => movePhoto(idx, 1)}
+                                  className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-text-primary"
+                                  aria-label="Move later"
+                                >
+                                  <ChevronDown className="h-4 w-4" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePhoto(photo.url)}
+                                disabled={deletingUrl === photo.url}
+                                className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-error disabled:opacity-50"
+                                aria-label="Delete photo"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {photos.length < MAX_PHOTOS && (
                         <button
                           type="button"
-                          onClick={() => movePhoto(idx, -1)}
-                          className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-text-primary"
-                          aria-label="Move earlier / make cover"
+                          onClick={() => {
+                            setUploadCategory(value);
+                            fileInputRef.current?.click();
+                          }}
+                          disabled={uploadingCount > 0}
+                          className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 text-caption font-semibold text-text-secondary hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
                         >
-                          <ChevronUp className="h-4 w-4" />
+                          <Plus className="h-5 w-5" />
+                          <span>Add {label}</span>
                         </button>
                       )}
-                      {idx < photos.length - 1 && (
-                        <button
-                          type="button"
-                          onClick={() => movePhoto(idx, 1)}
-                          className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-text-primary"
-                          aria-label="Move later"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePhoto(photo)}
-                        disabled={deletingUrl === photo}
-                        className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-error disabled:opacity-50"
-                        aria-label="Delete photo"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
                     </div>
                   </div>
-                ))}
+                );
+              })}
 
-                {Object.entries(uploadProgress).map(([key, pct]) => (
-                  <div key={key} className="aspect-square rounded-xl border border-border bg-surface flex flex-col items-center justify-center gap-1.5 text-caption text-text-secondary">
-                    <Upload className="h-5 w-5 animate-pulse" />
-                    <span>{pct}%</span>
-                  </div>
-                ))}
-
-                {photos.length < MAX_PHOTOS && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingCount > 0}
-                    className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 text-caption font-semibold text-text-secondary hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
-                  >
-                    <Plus className="h-5 w-5" />
-                    <span>Add Photo</span>
-                  </button>
-                )}
-              </div>
+              {Object.entries(uploadProgress).map(([key, pct]) => (
+                <div key={key} className="aspect-square w-24 rounded-xl border border-border bg-surface flex flex-col items-center justify-center gap-1.5 text-caption text-text-secondary">
+                  <Upload className="h-5 w-5 animate-pulse" />
+                  <span>{pct}%</span>
+                </div>
+              ))}
 
               <input
                 ref={fileInputRef}
@@ -642,7 +657,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                 }}
               />
               <p className="text-caption text-text-secondary">
-                JPEG, PNG, or WebP — up to {MAX_PHOTO_MB}MB each. First photo is the cover shown on listings.
+                JPEG, PNG, or WebP — up to {MAX_PHOTO_MB}MB each. First photo overall is the cover shown on listings.
               </p>
             </div>
 

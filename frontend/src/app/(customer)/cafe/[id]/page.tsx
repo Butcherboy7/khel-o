@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const title = `${cafe.name} — Gaming Café in ${cafe.city}`;
   const description = `Book a gaming station at ${cafe.name} in ${cafe.city}.${priceLine}${platformLine} Check real-time availability and pay online on KHEL-O.`;
-  const image = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0] : undefined;
+  const image = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0].url : undefined;
 
   return {
     title,
@@ -67,7 +67,7 @@ export default async function CafeDetailPage({ params }: PageProps) {
         name: cafe.name,
         description: cafe.description || `Gaming café in ${cafe.city}`,
         url: `${SITE_URL}/cafe/${cafe.id}`,
-        image: cafe.photos && cafe.photos.length > 0 ? cafe.photos : undefined,
+        image: cafe.photos && cafe.photos.length > 0 ? cafe.photos.map((p) => p.url) : undefined,
         telephone: cafe.phoneNumber || undefined,
         address: {
           '@type': 'PostalAddress',

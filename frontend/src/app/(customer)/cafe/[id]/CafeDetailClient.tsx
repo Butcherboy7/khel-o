@@ -200,7 +200,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       : null;
   // Real photos only — a café with none gets the branded gradient fallback
   // below, never a stock photo of an unrelated venue standing in as "its" photo.
-  const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : [];
+  const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos.map((p) => p.url) : [];
   const currentPhoto = photosList[photoIndex % photosList.length];
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : 100;
   const gamingTiers = (cafe.tiers ?? []).filter((t) => t.tierType !== 'activity');
