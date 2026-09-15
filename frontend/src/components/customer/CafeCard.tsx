@@ -134,7 +134,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
           {currentPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={currentPhoto}
+              src={currentPhoto.url}
               alt={cafe.name}
               className="block h-full w-full object-cover object-center transition-all duration-700 group-hover:scale-105"
               loading={isFeatured ? 'eager' : 'lazy'}

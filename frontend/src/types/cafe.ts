@@ -16,7 +16,7 @@ export interface CafeListItem {
   platforms?: string[];
   /** True only when every active tier has a confirmed real platform. */
   platformsComplete?: boolean;
-  photos: string[];
+  photos: { url: string; category: string }[];
   hasActivePromotion: boolean;
   verificationStatus: VerificationStatus;
   isActive: boolean;
