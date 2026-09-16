@@ -2,15 +2,19 @@
 
 import { useState, type ChangeEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Banknote, RefreshCw, ChevronRight } from 'lucide-react';
+import { Banknote, RefreshCw, ChevronRight, Info } from 'lucide-react';
 import {
   listOutstandingCafePayouts,
   getCafePayoutBreakdown,
   createCafePayout,
   uploadPayoutProof,
+  setCafePayoutHold,
+  listCafePayoutHistory,
+  type AdminOutstandingCafePayout,
+  type CafePayout,
 } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
-import { Card, Button, Badge, SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
+import { Card, CardContent, Button, Badge, SkeletonCard, ErrorState, EmptyState, Tooltip } from '@/components/ui';
 
 export default function AdminCafePayoutsPage() {
   const queryClient = useQueryClient();
@@ -132,8 +136,11 @@ export default function AdminCafePayoutsPage() {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-caption font-semibold text-text-primary">{c.cafeName}</span>
-                  {c.payoutVerificationStatus !== 'verified' && (
-                    <Badge variant="warning" size="sm">Unverified</Badge>
+                  {!c.payoutDestinationSubmitted && (
+                    <Badge variant="warning" size="sm">No payout details yet</Badge>
+                  )}
+                  {c.payoutOnHold && (
+                    <Badge variant="error" size="sm">On hold</Badge>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
@@ -154,6 +161,8 @@ export default function AdminCafePayoutsPage() {
               <h3 className="font-heading text-h3 text-text-primary">{selectedCafe.cafeName}</h3>
               <button onClick={() => setSelectedCafeId(null)} className="text-text-tertiary hover:text-text-primary font-bold">✕</button>
             </div>
+
+            <HoldToggle cafe={selectedCafe} onChanged={() => refetch()} />
 
             <div>
               <span className="text-caption font-semibold text-text-secondary">Outstanding</span>
@@ -245,12 +254,19 @@ export default function AdminCafePayoutsPage() {
                 </p>
               )}
 
-              {selectedCafe.payoutVerificationStatus !== 'verified' && (
-                <p className="text-xs text-warning">
-                  This café&apos;s payout destination isn&apos;t verified yet — verify it from the Verification
-                  Queue before paying out.
+              {selectedCafe.payoutOnHold && (
+                <p className="text-xs text-error">
+                  Payouts to this café are on hold: {selectedCafe.payoutHoldReason || 'no reason given'}.
                 </p>
               )}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-text-secondary">
+                  Paying to: <span className="font-mono text-text-primary">{selectedCafe.upiVpa || 'no UPI ID on file'}</span>
+                </span>
+                <Tooltip content="Submitted by the owner — KHEL-O cannot independently verify a UPI ID. Double-check this looks right before sending money.">
+                  <Info className="h-3.5 w-3.5 text-text-tertiary cursor-help" />
+                </Tooltip>
+              </div>
               <Button
                 variant="primary"
                 disabled={
@@ -258,7 +274,8 @@ export default function AdminCafePayoutsPage() {
                   !proofImageUrl ||
                   isUploadingProof ||
                   createMutation.isPending ||
-                  selectedCafe.payoutVerificationStatus !== 'verified'
+                  !selectedCafe.payoutDestinationSubmitted ||
+                  selectedCafe.payoutOnHold
                 }
                 onClick={() => createMutation.mutate()}
               >
@@ -268,6 +285,92 @@ export default function AdminCafePayoutsPage() {
           </Card>
         </div>
       )}
+
+      <Card elevation="raised" className="bg-surface border border-border">
+        <CardContent className="p-6 flex flex-col gap-4">
+          <h2 className="font-heading text-h2 text-text-primary">Payout history</h2>
+          <PayoutHistoryTable />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function HoldToggle({ cafe, onChanged }: { cafe: AdminOutstandingCafePayout; onChanged: () => void }) {
+  const [reason, setReason] = useState('');
+  const [showReasonInput, setShowReasonInput] = useState(false);
+  const holdMutation = useMutation({
+    mutationFn: (vars: { onHold: boolean; reason?: string }) =>
+      setCafePayoutHold(cafe.cafeId, vars.onHold, vars.reason),
+    onSuccess: () => { onChanged(); setShowReasonInput(false); setReason(''); },
+  });
+
+  if (cafe.payoutOnHold) {
+    return (
+      <Button variant="secondary" size="sm" isLoading={holdMutation.isPending} onClick={() => holdMutation.mutate({ onHold: false })}>
+        Release hold
+      </Button>
+    );
+  }
+  if (showReasonInput) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Reason for hold"
+          className="h-8 px-2 rounded-lg border border-border bg-surface text-xs"
+        />
+        <Button variant="destructive" size="sm" disabled={!reason.trim()} isLoading={holdMutation.isPending} onClick={() => holdMutation.mutate({ onHold: true, reason })}>
+          Confirm hold
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Button variant="ghost" size="sm" onClick={() => setShowReasonInput(true)}>
+      Put on hold
+    </Button>
+  );
+}
+
+function PayoutHistoryTable() {
+  const { data, isLoading } = useQuery({
+    queryKey: [...queryKeys.admin.all, 'cafe-payouts', 'history'],
+    queryFn: () => listCafePayoutHistory({ limit: 50 }),
+  });
+  if (isLoading) return <SkeletonCard />;
+  const items = data?.items ?? [];
+  if (items.length === 0) return <EmptyState title="No payouts recorded yet" description="Every payout you record will show up here with its proof." />;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="border-b border-border text-caption text-text-secondary">
+            <th className="py-2 px-3 font-semibold">Date</th>
+            <th className="py-2 px-3 font-semibold">Amount</th>
+            <th className="py-2 px-3 font-semibold">Method</th>
+            <th className="py-2 px-3 font-semibold">UTR</th>
+            <th className="py-2 px-3 font-semibold">Status</th>
+            <th className="py-2 px-3 font-semibold">Proof</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border text-caption">
+          {items.map((p: CafePayout & { proofImageUrl?: string | null }) => (
+            <tr key={p.id}>
+              <td className="py-2.5 px-3 text-text-secondary">{p.paidAt ? new Date(p.paidAt).toLocaleDateString() : '—'}</td>
+              <td className="py-2.5 px-3 font-bold text-text-primary">₹{p.amount.toFixed(2)}</td>
+              <td className="py-2.5 px-3 uppercase text-text-secondary">{p.paymentMethod}</td>
+              <td className="py-2.5 px-3 font-mono text-xs">{p.utrReference}</td>
+              <td className="py-2.5 px-3">{p.status}</td>
+              <td className="py-2.5 px-3">
+                {p.proofImageUrl ? <a href={p.proofImageUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">View</a> : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef, type HTMLAttributes } from 'react';
 import { cn } from '@/lib/cn';
-import type { BookingStatus, VerificationStatus, KycStatus } from '@/types';
+import type { BookingStatus, VerificationStatus } from '@/types';
 
 /* ── Generic Badge ───────────────────────────────────────────────── */
 
@@ -116,39 +116,10 @@ function VerificationStatusBadge({
   );
 }
 
-/* ── KycStatusBadge ──────────────────────────────────────────────── */
-
-const KYC_CONFIG: Record<
-  KycStatus,
-  { label: string; variant: VariantProps<typeof badgeVariants>['variant'] }
-> = {
-  pending: { label: 'Not Started', variant: 'default' },
-  submitted: { label: 'Under Review', variant: 'warning' },
-  activated: { label: 'Active', variant: 'success' },
-  suspended: { label: 'Suspended', variant: 'error' },
-  rejected: { label: 'Rejected', variant: 'error' },
-};
-
-interface KycStatusBadgeProps {
-  status: KycStatus;
-  size?: VariantProps<typeof badgeVariants>['size'];
-  className?: string;
-}
-
-function KycStatusBadge({ status, size, className }: KycStatusBadgeProps) {
-  const config = KYC_CONFIG[status];
-  return (
-    <Badge variant={config.variant} size={size} className={className}>
-      {config.label}
-    </Badge>
-  );
-}
-
 export {
   Badge,
   badgeVariants,
   BookingStatusBadge,
   VerificationStatusBadge,
-  KycStatusBadge,
 };
 export type { BadgeProps };

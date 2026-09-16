@@ -11,7 +11,6 @@ import {
   CalendarDays,
   MessageSquare,
   CreditCard,
-  Landmark,
   Tag,
   UsersRound,
   ScrollText,
@@ -85,7 +84,6 @@ const adminNavGroups: NavGroup[] = [
     label: 'Finance',
     items: [
       { label: 'Payments', href: '/admin/payments', icon: CreditCard },
-      { label: 'Owner Payouts', href: '/admin/payouts', icon: Landmark },
       { label: 'Café Payables', href: '/admin/cafe-payouts', icon: Banknote },
     ],
   },

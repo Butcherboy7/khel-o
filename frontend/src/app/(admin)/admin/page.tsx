@@ -42,11 +42,11 @@ export default function AdminOverviewPage() {
 
   const actionCards = actionItems
     ? [
-        { label: 'Failed Route transfers', value: actionItems.failedRouteTransfers, href: '/admin/payouts', icon: Ban, critical: true, tooltip: 'Payout transfers to café owners that failed and need manual retry' },
+        { label: 'Failed Route transfers', value: actionItems.failedRouteTransfers, href: '/admin/cafe-payouts', icon: Ban, critical: true, tooltip: 'Payout transfers to café owners that failed and need manual retry' },
         { label: 'Failed refunds', value: actionItems.failedRefunds, href: '/admin/payments', icon: IndianRupee, critical: true, tooltip: 'Refund API calls that failed — the customer was not actually refunded' },
         { label: 'Stuck pending payments', value: actionItems.stuckPendingPayments, href: '/admin/bookings', icon: Hourglass, critical: false, tooltip: 'Bookings stuck in PENDING_PAYMENT for over 20 minutes — likely abandoned checkouts' },
         { label: 'Open support tickets', value: actionItems.openSupportTickets, href: '/admin/support', icon: LifeBuoy, critical: false, tooltip: 'Customer support tickets awaiting a response' },
-        { label: 'Owner KYC pending', value: actionItems.ownersKycPending, href: '/admin/payouts', icon: Landmark, critical: false, tooltip: "Café owners who haven't completed Razorpay payout KYC yet" },
+        { label: 'Owner KYC pending', value: actionItems.ownersKycPending, href: '/admin/cafe-payouts', icon: Landmark, critical: false, tooltip: "Café owners who haven't completed Razorpay payout KYC yet" },
       ]
     : [];
   const hasUrgentItems = actionCards.some((c) => c.critical && c.value > 0);
