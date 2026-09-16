@@ -266,10 +266,14 @@ Add the `version` column, right after `test_transfer_ref`:
 
 ```python
     test_transfer_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    # Bumped by upsert_payout_details() whenever the destination (UPI or
-    # bank+IFSC) actually changes value — never on a no-op resubmit. Lets a
-    # CafePayout snapshot record exactly which version of this account was
-    # live when the payout was recorded (see CafePayout.destination_payout_account_version).
+    # Bumped by upsert_payout_details() whenever the payout destination
+    # itself changes value — UPI VPA, bank account number, bank IFSC, or
+    # account holder name (the name money would be sent to/as) — never on
+    # a no-op resubmit, and never for non-destination metadata (bank_name,
+    # account_type, business_pan). See Task 3 for the exact comparison.
+    # Lets a CafePayout snapshot record exactly which version of this
+    # account was live when the payout was recorded (see
+    # CafePayout.destination_payout_account_version).
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 ```
 
@@ -367,17 +371,25 @@ of historical CafePayout rows."
 
 ---
 
-### Task 3: Bump `OwnerPayoutAccount.version` on real destination changes
+### Task 3: Define destination-change detection precisely + bump `OwnerPayoutAccount.version`
 
 **Files:**
-- Modify: `backend/app/repositories/owner_payout_repository.py:107-112`
+- Modify: `backend/app/repositories/owner_payout_repository.py:71-76,107-112`
 - Test: Modify `backend/tests/test_owner_payout_repository_upsert.py`
 
 **Interfaces:**
-- Consumes: `OwnerPayoutAccount.version` (Task 2), the existing `destination_changed` boolean already computed inside `upsert_payout_details`.
-- Produces: `upsert_payout_details()`'s returned `OwnerPayoutAccount.version` reflects exactly how many times the destination has actually changed — consumed by Task 4 (snapshot) and Task 7 (owner endpoint's `version` field in its response).
+- Consumes: `OwnerPayoutAccount.version` (Task 2).
+- Produces: `upsert_payout_details()`'s `destination_changed` computation now precisely means "the actual payout destination changed" — UPI VPA, bank account number, bank IFSC, or account holder name. It does **not** trigger on `bank_name`, `account_type`, or `business_pan`, which are metadata, not routing information. `OwnerPayoutAccount.version` bumps exactly when `destination_changed` is true. Consumed by Task 4 (snapshot) and Task 7 (owner endpoint's `version` field in its response, and Task 7's integrated staleness test).
 
-- [ ] **Step 1: Write the failing test**
+**Definition of a destination change** (this is the exact rule, not an approximation): comparing the *resolved* new values against the existing row —
+- `upi_vpa` differs
+- `bank_account_number` (compared in decrypted plaintext) differs
+- `bank_ifsc` differs
+- `account_holder_name` differs, where the "new" value is the resolved one actually written (`account_holder_name or default_holder_name` — the same fallback `upsert_payout_details` already applies before assigning it)
+
+Any other changed field (`bank_name`, `account_type`, `business_pan`) does not count, and must not bump `version` or reset verification.
+
+- [ ] **Step 1: Write the failing tests**
 
 Append to `backend/tests/test_owner_payout_repository_upsert.py`:
 
@@ -397,7 +409,7 @@ async def test_version_starts_at_one_on_creation():
 
 
 @pytest.mark.asyncio
-async def test_version_bumps_when_destination_actually_changes():
+async def test_version_bumps_when_upi_vpa_changes():
     async with AsyncSessionLocal() as db:
         owner = await _make_owner(db)
         repo = OwnerPayoutRepository(db)
@@ -411,6 +423,51 @@ async def test_version_bumps_when_destination_actually_changes():
         updated = await repo.upsert_payout_details(
             owner_id=owner.id, upi_vpa="v2@okaxis", bank_account_number=None,
             bank_ifsc=None, account_holder_name=None, bank_name=None,
+            account_type=None, business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+        assert updated.version == 2
+
+
+@pytest.mark.asyncio
+async def test_version_bumps_when_bank_account_or_ifsc_changes():
+    async with AsyncSessionLocal() as db:
+        owner = await _make_owner(db)
+        repo = OwnerPayoutRepository(db)
+        await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa=None, bank_account_number="9180200192847291",
+            bank_ifsc="HDFC0000128", account_holder_name="Bank Holder", bank_name="HDFC Bank",
+            account_type="savings", business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+
+        updated = await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa=None, bank_account_number="9180200192847291",
+            bank_ifsc="ICIC0000456", account_holder_name="Bank Holder", bank_name="HDFC Bank",
+            account_type="savings", business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+        assert updated.version == 2
+
+
+@pytest.mark.asyncio
+async def test_version_bumps_when_account_holder_name_changes():
+    """A holder-name-only change (account number/IFSC untouched) still
+    changes who the money is understood to be paid to/as — must count as a
+    destination change, not be treated as harmless metadata."""
+    async with AsyncSessionLocal() as db:
+        owner = await _make_owner(db)
+        repo = OwnerPayoutRepository(db)
+        await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa="holder@okaxis", bank_account_number=None,
+            bank_ifsc=None, account_holder_name="Original Holder", bank_name=None,
+            account_type=None, business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+
+        updated = await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa="holder@okaxis", bank_account_number=None,
+            bank_ifsc=None, account_holder_name="Different Holder", bank_name=None,
             account_type=None, business_pan=None, default_holder_name=None,
         )
         await db.commit()
@@ -438,17 +495,50 @@ async def test_version_does_not_bump_on_unchanged_resubmit():
         )
         await db.commit()
         assert updated.version == 1
+
+
+@pytest.mark.asyncio
+async def test_version_does_not_bump_when_only_bank_name_or_account_type_changes():
+    async with AsyncSessionLocal() as db:
+        owner = await _make_owner(db)
+        repo = OwnerPayoutRepository(db)
+        await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa=None, bank_account_number="9180200192847291",
+            bank_ifsc="HDFC0000128", account_holder_name="Metadata Holder", bank_name="HDFC Bank",
+            account_type="savings", business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+
+        updated = await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa=None, bank_account_number="9180200192847291",
+            bank_ifsc="HDFC0000128", account_holder_name="Metadata Holder", bank_name="HDFC Bank Ltd",
+            account_type="current", business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+        assert updated.version == 1
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && pytest tests/test_owner_payout_repository_upsert.py -v -k version`
-Expected: FAILS — `OwnerPayoutAccount` has no behavior bumping `version` yet, so all three assert `== 1`/`== 2` against a column that's either absent (if Task 2 wasn't run) or always `1`.
+Expected: FAILS — `OwnerPayoutAccount` has no behavior bumping `version` yet, and `destination_changed` doesn't yet account for `account_holder_name`, so `test_version_bumps_when_account_holder_name_changes` fails even once `version += 1` exists.
 
-- [ ] **Step 3: Implement the version bump**
+- [ ] **Step 3: Tighten the `destination_changed` computation and bump the version**
 
 ```python
-# backend/app/repositories/owner_payout_repository.py — replace lines 107-112
+# backend/app/repositories/owner_payout_repository.py — replace lines 71-76
+        resolved_holder_name = account_holder_name or default_holder_name
+        destination_changed = (
+            existing is None
+            or (existing.upi_vpa or None) != upi_vpa
+            or existing_bank_plain != bank_account_number
+            or (existing.bank_ifsc or None) != bank_ifsc
+            or (existing.account_holder_name or None) != resolved_holder_name
+        )
+```
+
+```python
+# backend/app/repositories/owner_payout_repository.py — replace lines 107-112 (now shifted by the edit above, still the body of the `if destination_changed:` block inside the `else` branch)
             if destination_changed:
                 account.version += 1
                 account.payout_verification_status = "unverified"
@@ -461,20 +551,23 @@ Expected: FAILS — `OwnerPayoutAccount` has no behavior bumping `version` yet, 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && pytest tests/test_owner_payout_repository_upsert.py -v`
-Expected: all PASS, including the three new tests and the four pre-existing ones.
+Expected: all PASS, including the six new tests and the four pre-existing ones.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add backend/app/repositories/owner_payout_repository.py backend/tests/test_owner_payout_repository_upsert.py
-git commit -m "feat(payouts): bump OwnerPayoutAccount.version on real destination changes
+git commit -m "feat(payouts): precisely define destination change, bump version on it
 
-Reuses the existing destination_changed detection (already used to reset
-payout_verification_status) to also increment version — only when the
-UPI ID or bank account/IFSC actually changes value, never on a no-op
-resubmit. This version is what CafePayout snapshots and what the admin
-payables flow checks for staleness between viewing and recording a
-payout."
+destination_changed now explicitly compares the four fields that
+actually determine where money goes — UPI VPA, bank account number,
+bank IFSC, and account holder name — and nothing else. A holder-name-only
+edit used to be silently ignored; it now correctly counts as a
+destination change (and re-triggers re-verification), while bank_name,
+account_type, and business_pan correctly do not. OwnerPayoutAccount.version
+bumps exactly on this same condition, never on a no-op resubmit. This
+version is what CafePayout snapshots and what the admin payables flow
+checks for staleness between viewing and recording a payout."
 ```
 
 ---
@@ -1282,9 +1375,10 @@ the owner notices a change they didn't make."
 - Modify: `backend/app/repositories/cafe_payout_repository.py`
 - Create: `backend/app/schemas/owner_payout_destination.py`
 - Test: Create `backend/tests/test_owner_payout_destination_api.py`
+- Test: Create `backend/tests/test_payout_destination_staleness_integration.py`
 
 **Interfaces:**
-- Consumes: `OwnerPayoutRepository.upsert_payout_details` (existing, Task 3's version bump), `NotificationService.send_payout_details_changed` (Task 6), `OwnerAuditLog` (Task 2), `verify_password` from `app.core.security`.
+- Consumes: `OwnerPayoutRepository.upsert_payout_details` (existing, Task 3's version bump), `NotificationService.send_payout_details_changed` (Task 6), `OwnerAuditLog` (Task 2), `verify_password` from `app.core.security`, plus the full admin payables surface from Tasks 4–5 (`GET /{cafe_id}/breakdown`, `POST /{cafe_id}/reveal-destination`, `POST /{cafe_id}`) for the integrated staleness test.
 - Produces: `GET /api/v1/owner/payouts/destination`, `PATCH /api/v1/owner/payouts/destination`. `CafePayoutRepository.get_outstanding_amount_for_owner_cafes(cafe_ids: list[UUID]) -> Decimal`. Consumed by Task 8 (frontend).
 - The legacy `GET /status` and `POST /setup` routes are removed — their only consumer (`PayoutSetupCard.tsx`) is deleted in Task 8. `OwnerPayoutService`, `handle_kyc_webhook`, and `kyc_status`/`razorpay_account_id` are **not** touched (live consumers: `payment_service.py:659`, `admin_service.py:733` — confirmed via repo-wide search; per the Global Constraints, only the two now-orphaned routes are removed).
 
@@ -1627,15 +1721,187 @@ async def update_payout_destination(
 Run: `cd backend && pytest tests/test_owner_payout_destination_api.py -v`
 Expected: all PASS.
 
-- [ ] **Step 8: Run the broader owner-payouts and webhook-adjacent suites to confirm nothing else broke**
+- [ ] **Step 8: Write the integrated stale-destination end-to-end test**
+
+This is the one test in the whole plan that exercises the full cross-cutting
+flow — the admin payables endpoints (Tasks 4–5) and the owner destination
+endpoint (this task) acting on the *same* `OwnerPayoutAccount`, in the
+order an admin and an owner would actually trigger it in production.
+
+```python
+# backend/tests/test_payout_destination_staleness_integration.py
+"""End-to-end integration test for the payout-destination staleness flow:
+admin opens a payable, the owner changes their payout destination before
+the admin submits, the admin's stale submission is rejected, and only a
+refreshed + re-confirmed submission succeeds — with the resulting
+CafePayout snapshot proving it recorded the NEW destination, not the one
+the admin originally saw when they opened the payable."""
+import uuid
+
+import pytest
+from httpx import AsyncClient
+from sqlalchemy import select
+
+from app.main import app
+from app.models.user import User, UserRole
+from app.models.user_role import UserRoleMapping
+from app.models.cafe import Cafe, VerificationStatus
+from app.models.owner_payout_account import OwnerPayoutAccount
+from app.models.cafe_payout import CafePayout
+from app.models.platform_fee import PlatformFee
+from app.core.security import get_password_hash
+from app.core.payout_encryption import encrypt_bank_account_number
+from tests.conftest import auth_headers
+from tests.test_admin_v2_features import _make_gamer, _make_booking_with_payment
+
+
+async def _make_admin(db_session) -> User:
+    admin = User(
+        id=uuid.uuid4(), email=f"stale_admin_{uuid.uuid4().hex[:8]}@test.com", full_name="Admin",
+        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+    )
+    db_session.add(admin)
+    await db_session.flush()
+    db_session.add(UserRoleMapping(id=uuid.uuid4(), user_id=admin.id, role=UserRole.ADMIN))
+    await db_session.commit()
+    return admin
+
+
+@pytest.mark.asyncio
+async def test_stale_destination_is_rejected_then_succeeds_after_refresh(db_session):
+    owner = User(
+        id=uuid.uuid4(), email=f"stale_owner_{uuid.uuid4().hex[:8]}@test.com",
+        full_name="Stale Flow Owner", password_hash=get_password_hash("correctpass123"),
+        role=UserRole.CAFE_OWNER, is_active=True,
+    )
+    db_session.add(owner)
+    await db_session.flush()
+    db_session.add(UserRoleMapping(id=uuid.uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+    cafe = Cafe(
+        id=uuid.uuid4(), owner_id=owner.id, name="Stale Flow Café", address_line1="1 Test St",
+        city="Bengaluru", state="Karnataka", pincode="560001", phone_number="+919876543210",
+        verification_status=VerificationStatus.VERIFIED, is_active=True,
+        opening_time=None, closing_time=None, bookable_stations=10,
+    )
+    db_session.add(cafe)
+    db_session.add(OwnerPayoutAccount(
+        id=uuid.uuid4(), owner_id=owner.id,
+        bank_account_number_encrypted=encrypt_bank_account_number("9180200192847291"),
+        bank_account_number_masked="••••7291", bank_ifsc="HDFC0000128",
+        account_holder_name="Original Holder", version=1,
+    ))
+    await db_session.commit()
+
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "stale_flow_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    booking.cafe_id = cafe.id
+    db_session.add(PlatformFee(id=uuid.uuid4(), booking_id=booking.id, owner_settlement_amount=500.0))
+    await db_session.commit()
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        admin_headers = auth_headers(admin, is_admin=True)
+        owner_headers = auth_headers(owner, is_admin=False)
+
+        # 1. Admin opens the payable and sees version 1.
+        breakdown_res = await client.get(
+            f"/api/v1/admin/cafe-payouts/{cafe.id}/breakdown", headers=admin_headers
+        )
+        assert breakdown_res.status_code == 200
+        seen_version = breakdown_res.json()["data"]["destination"]["payoutAccountVersion"]
+        assert seen_version == 1
+
+        # 2. Before the admin submits, the owner changes their bank details —
+        #    version bumps to 2.
+        patch_res = await client.patch(
+            "/api/v1/owner/payouts/destination",
+            json={
+                "currentPassword": "correctpass123",
+                "bankAccountNumber": "1112223334445556",
+                "bankIfsc": "ICIC0004567",
+                "accountHolderName": "New Holder",
+            },
+            headers=owner_headers,
+        )
+        assert patch_res.status_code == 200
+        assert patch_res.json()["data"]["destination"]["version"] == 2
+
+        # 3. Admin submits using the STALE version they originally saw — rejected.
+        stale_res = await client.post(
+            f"/api/v1/admin/cafe-payouts/{cafe.id}",
+            json={
+                "utrReference": "UTR-STALE-FLOW", "paymentMethod": "neft",
+                "destinationType": "bank", "expectedPayoutAccountVersion": seen_version,
+                "confirmedPaymentMade": True,
+            },
+            headers=admin_headers,
+        )
+        assert stale_res.status_code == 409
+        assert stale_res.json()["error"]["code"] == "PAYOUT_DESTINATION_STALE"
+
+        # Nothing was written.
+        no_payout = (await db_session.execute(
+            select(CafePayout).where(CafePayout.cafe_id == cafe.id)
+        )).scalars().first()
+        assert no_payout is None
+
+        # 4. Frontend refreshes: admin re-fetches the breakdown and sees version 2
+        #    with the new destination.
+        refreshed_res = await client.get(
+            f"/api/v1/admin/cafe-payouts/{cafe.id}/breakdown", headers=admin_headers
+        )
+        refreshed_destination = refreshed_res.json()["data"]["destination"]
+        assert refreshed_destination["payoutAccountVersion"] == 2
+        assert refreshed_destination["bankAccountNumberMasked"] == "••••5556"
+
+        # 5. Admin explicitly re-confirms/reveals the new destination before retrying
+        #    (mirrors the frontend's required "Show full details to pay" gate for
+        #    a bank payout — see Task 10).
+        reveal_res = await client.post(
+            f"/api/v1/admin/cafe-payouts/{cafe.id}/reveal-destination", headers=admin_headers
+        )
+        assert reveal_res.status_code == 200
+        assert reveal_res.json()["data"]["bankAccountNumber"] == "1112223334445556"
+        assert reveal_res.json()["data"]["payoutAccountVersion"] == 2
+
+        # 6. Admin retries with the fresh version — succeeds.
+        success_res = await client.post(
+            f"/api/v1/admin/cafe-payouts/{cafe.id}",
+            json={
+                "utrReference": "UTR-STALE-FLOW-RETRY", "paymentMethod": "neft",
+                "destinationType": "bank", "expectedPayoutAccountVersion": 2,
+                "confirmedPaymentMade": True,
+            },
+            headers=admin_headers,
+        )
+        assert success_res.status_code == 201
+
+    # 7. The resulting CafePayout snapshot recorded the NEW destination — not
+    #    the one the admin originally saw when they opened the payable.
+    payout = (await db_session.execute(
+        select(CafePayout).where(CafePayout.cafe_id == cafe.id)
+    )).scalars().first()
+    assert payout is not None
+    assert payout.destination_payout_account_version == 2
+    assert payout.destination_bank_account_masked == "••••5556"
+    assert payout.destination_bank_ifsc == "ICIC0004567"
+    assert payout.destination_account_holder_name == "New Holder"
+```
+
+- [ ] **Step 9: Run the integrated test**
+
+Run: `cd backend && pytest tests/test_payout_destination_staleness_integration.py -v`
+Expected: PASS. This test only passes once Tasks 4, 5, and 7 are all in place — if run right after Step 8, every endpoint it calls already exists (Task 4/5 were completed earlier in this plan), so no additional implementation is needed here, only verification that the pieces integrate correctly together.
+
+- [ ] **Step 10: Run the broader owner-payouts and webhook-adjacent suites to confirm nothing else broke**
 
 Run: `cd backend && pytest tests/test_owner_cafe_payouts_api.py tests/test_owner_payout_account_model.py -v`
 Expected: all PASS — `/cafe-payouts` is unchanged in this file, only `/status` and `/setup` were removed (neither is exercised by these two files, confirmed by their names/scope).
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
-git add backend/app/api/v1/owner_payouts.py backend/app/repositories/cafe_payout_repository.py backend/app/schemas/owner_payout_destination.py backend/tests/test_owner_payout_destination_api.py
+git add backend/app/api/v1/owner_payouts.py backend/app/repositories/cafe_payout_repository.py backend/app/schemas/owner_payout_destination.py backend/tests/test_owner_payout_destination_api.py backend/tests/test_payout_destination_staleness_integration.py
 git commit -m "feat(payouts): add owner payout-details GET/PATCH, retire legacy /setup /status
 
 Owners can now view and edit their UPI/bank payout destination after
@@ -1648,7 +1914,12 @@ entry. The legacy /setup and /status routes (whose only consumer was the
 frontend PayoutSetupCard, removed in the next commit) are deleted;
 OwnerPayoutService, handle_kyc_webhook, and kyc_status are left
 untouched — confirmed live consumers exist in payment_service.py's
-webhook handler and admin_service.py's verification queue."
+webhook handler and admin_service.py's verification queue.
+
+Also adds an integrated end-to-end test covering the full
+open-payable -> owner changes destination -> stale submission rejected
+-> refresh -> reveal -> retry -> correct snapshot flow across the admin
+and owner APIs together."
 ```
 
 ---
@@ -2200,6 +2471,12 @@ Replace the entire `{selectedCafeId && selectedCafe && ( <div className="fixed i
                   Payouts to this café are on hold: {selectedCafe.payoutHoldReason || 'no reason given'}.
                 </p>
               )}
+              {destinationType === 'bank' && !revealed && (
+                <p className="text-xs text-text-secondary">
+                  Reveal the full bank details above before recording a bank payout — a masked
+                  number isn't enough to actually send money to.
+                </p>
+              )}
               <Button
                 variant="primary"
                 fullWidth
@@ -2210,7 +2487,8 @@ Replace the entire `{selectedCafeId && selectedCafe && ( <div className="fixed i
                   createMutation.isPending ||
                   !selectedCafe.payoutDestinationSubmitted ||
                   selectedCafe.payoutOnHold ||
-                  !confirmedPaymentMade
+                  !confirmedPaymentMade ||
+                  (destinationType === 'bank' && !revealed)
                 }
                 onClick={() => createMutation.mutate()}
               >
@@ -2385,7 +2663,8 @@ Using the `claude-in-chrome` tooling (or a manual local run of `npm run dev`), v
 2. Press Escape — the modal closes.
 3. Click the dimmed backdrop — the modal closes.
 4. Re-open it, click "Show full details to pay" (only visible if the café has bank details) — the full account number appears; closing the modal and reopening it shows it masked again (not cached).
-5. Fill in UTR + proof + tick the confirmation checkbox — "Mark ₹X as Paid" becomes enabled only once every required field, including the checkbox, is filled.
+5. Fill in UTR + proof + tick the confirmation checkbox, with "Paying via" left at its default UPI — "Mark ₹X as Paid" becomes enabled once every required field, including the checkbox, is filled.
+6. Switch "Paying via" to "Bank transfer" without clicking "Show full details to pay" — "Mark ₹X as Paid" is disabled and the "Reveal the full bank details above..." hint is visible, even with the UTR, proof, and confirmation checkbox all filled in. Click "Show full details to pay" — the button becomes enabled and the hint disappears.
 
 - [ ] **Step 8: Commit**
 
@@ -2399,7 +2678,11 @@ viewport its close/submit buttons could scroll off-screen entirely. The
 shared components/ui/Modal.tsx already solves all of this correctly.
 Also adds the destination-reveal button, a paying-via UPI/bank selector
 feeding the new required destinationType, and a required 'payment was
-made externally' confirmation checkbox distinct from the UTR field."
+made externally' confirmation checkbox distinct from the UTR field. For
+a bank payout specifically, recording is blocked until the admin has
+actually revealed the full bank details — a masked number/version alone
+isn't enough; UPI payouts don't need this since the VPA is already shown
+in full."
 ```
 
 ---
