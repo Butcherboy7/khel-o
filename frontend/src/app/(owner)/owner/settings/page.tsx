@@ -9,7 +9,7 @@ import { getOwnerSettings, toggleEmergencyMode, toggleBookingsPaused, type Owner
 import { SettingsHeader } from '@/components/owner/SettingsHeader';
 import { EmergencyModeCard } from '@/components/owner/EmergencyModeCard';
 import { BookingsPauseCard } from '@/components/owner/BookingsPauseCard';
-import { PayoutSetupCard } from '@/components/owner/PayoutSetupCard';
+import { PayoutDetailsCard } from '@/components/owner/PayoutDetailsCard';
 import { EditCafeModal } from '@/components/owner/EditCafeModal';
 
 export default function OwnerSettingsPage() {
@@ -170,13 +170,13 @@ export default function OwnerSettingsPage() {
           </p>
         </div>
         {/* min-h reserves roughly the "account already set up" card's real
-            height so PayoutSetupCard's own internal data fetch (which starts
+            height so PayoutDetailsCard's own internal data fetch (which starts
             from a much shorter h-16 skeleton) doesn't grow the page under the
             controls below once it resolves — that growth previously shifted
             "Edit Profile" down far enough that a fast click landed on
             "Resume Bookings" instead, silently un-pausing live bookings. */}
         <div className="min-h-[300px] sm:min-h-[240px]">
-          <PayoutSetupCard />
+          <PayoutDetailsCard />
         </div>
       </div>
 

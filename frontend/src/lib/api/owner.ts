@@ -5,8 +5,6 @@ import type {
   OwnerBookingParams,
   BookingDetail,
   User,
-  OwnerPayoutAccount,
-  PayoutSetupRequest,
 } from '@/types';
 
 export async function getOwnerDashboard(): Promise<OwnerDashboard> {
@@ -165,12 +163,34 @@ export async function getOwnerAnalytics(): Promise<any> {
   return call(() => apiClient.get('/api/v1/owner/analytics'));
 }
 
-export async function getPayoutStatus(): Promise<{ payoutAccount: OwnerPayoutAccount | null }> {
-  return call(() => apiClient.get('/api/v1/owner/payouts/status'));
+export interface PayoutDestination {
+  upiVpa: string | null;
+  bankAccountNumberMasked: string | null;
+  bankIfsc: string | null;
+  accountHolderName: string | null;
+  version: number;
+  updatedAt: string;
 }
 
-export async function setupPayout(body: PayoutSetupRequest): Promise<{ payoutAccount: OwnerPayoutAccount }> {
-  return call(() => apiClient.post('/api/v1/owner/payouts/setup', body));
+export interface PayoutDestinationUpdateRequest {
+  currentPassword: string;
+  upiVpa?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfsc?: string | null;
+  accountHolderName?: string | null;
+  bankName?: string | null;
+  accountType?: string | null;
+  businessPan?: string | null;
+}
+
+export async function getPayoutDestination(): Promise<{ destination: PayoutDestination | null }> {
+  return call(() => apiClient.get('/api/v1/owner/payouts/destination'));
+}
+
+export async function updatePayoutDestination(
+  body: PayoutDestinationUpdateRequest,
+): Promise<{ destination: PayoutDestination }> {
+  return call(() => apiClient.patch('/api/v1/owner/payouts/destination', body));
 }
 
 export interface OwnerCafePayoutHistoryItem {
