@@ -57,6 +57,12 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         )).scalar()
         return total + Decimal(str(adjustments))
 
+    async def get_outstanding_amount_for_owner_cafes(self, cafe_ids: list[UUID]) -> Decimal:
+        total = Decimal("0")
+        for cafe_id in cafe_ids:
+            total += await self.get_outstanding_amount(cafe_id)
+        return total
+
     async def get_unconsumed_adjustments(self, cafe_id: UUID) -> list[CafePayoutAdjustment]:
         result = await self.db.execute(
             select(CafePayoutAdjustment).where(
