@@ -15,6 +15,7 @@ from app.models.cafe_payout_adjustment import CafePayoutAdjustment
 from app.models.notification import Notification, NotificationType
 from app.models.staff_invitation import StaffInvitation
 from app.models.admin_audit_log import AdminAuditLog
+from app.models.owner_audit_log import OwnerAuditLog
 from app.models.support_ticket import SupportTicket, SupportTicketStatus, SupportTicketPriority
 from app.models.platform_setting import PlatformSetting
 from app.models.password_reset_token import PasswordResetToken
@@ -45,6 +46,7 @@ __all__ = [
     "NotificationType",
     "StaffInvitation",
     "AdminAuditLog",
+    "OwnerAuditLog",
     "SupportTicket",
     "SupportTicketStatus",
     "SupportTicketPriority",

@@ -43,9 +43,11 @@ def upgrade():
     )
     op.create_index('ix_owner_audit_logs_owner_id', 'owner_audit_logs', ['owner_id'])
     op.create_index('ix_owner_audit_logs_action', 'owner_audit_logs', ['action'])
+    op.create_index('ix_owner_audit_logs_created_at', 'owner_audit_logs', ['created_at'])
 
 
 def downgrade():
+    op.drop_index('ix_owner_audit_logs_created_at', table_name='owner_audit_logs')
     op.drop_index('ix_owner_audit_logs_action', table_name='owner_audit_logs')
     op.drop_index('ix_owner_audit_logs_owner_id', table_name='owner_audit_logs')
     op.drop_table('owner_audit_logs')
