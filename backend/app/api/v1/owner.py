@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, Query, Body
 from typing import Optional, Dict, Any, List, Union
 from uuid import UUID, uuid4
+from decimal import Decimal
 import math
 import secrets
 import re
@@ -1323,125 +1324,15 @@ async def get_owner_payout_summary(
     current_owner: User = Depends(require_cafe_owner),
     db: AsyncSession = Depends(get_db)
 ):
-    # Fetch owner cafes
     cafe_stmt = select(Cafe).where(Cafe.owner_id == current_owner.id)
-    cafes_res = await db.execute(cafe_stmt)
-    cafes = cafes_res.scalars().all()
+    cafes = (await db.execute(cafe_stmt)).scalars().all()
     cafe_ids = [c.id for c in cafes]
 
-    total_gross = 0.0
-    total_net_settlement = 0.0
-    total_platform_fees = 0.0
-    total_gateway_fees = 0.0
-    total_tds = 0.0
-    completed_settlements = 0.0
-    pending_settlements = 0.0
+    cafe_payout_repo = CafePayoutRepository(db)
+    outstanding = Decimal("0")
+    for c_id in cafe_ids:
+        outstanding += await cafe_payout_repo.get_outstanding_amount(c_id)
 
-    recent_payout_items = []
-
-    if cafe_ids:
-        # Join every paid booking (CONFIRMED/CHECKED_IN/ACTIVE/COMPLETED — a Route
-        # transfer fires on payment capture, not on session completion, so a
-        # booking's payout can already be settled well before its status reaches
-        # COMPLETED) with its real PlatformFee row. No fabricated numbers: the
-        # fee split, settlement amount, and transfer status all come straight
-        # from what was actually computed/attempted for that booking.
-        stmt_bookings = (
-            select(Booking, PlatformFee, Payment.status)
-            .join(PlatformFee, PlatformFee.booking_id == Booking.id)
-            .join(Payment, Payment.booking_id == Booking.id)
-            .where(
-                Booking.cafe_id.in_(cafe_ids),
-                Booking.status.in_([
-                    BookingStatus.CONFIRMED,
-                    BookingStatus.CHECKED_IN,
-                    BookingStatus.ACTIVE,
-                    BookingStatus.COMPLETED,
-                ]),
-            )
-            .order_by(Booking.created_at.desc())
-        )
-        res_bookings = await db.execute(stmt_bookings)
-        rows = res_bookings.all()
-
-        for b, fee, payment_status in rows:
-            gross = float(b.total_amount)
-            platform_fee = float(fee.gateway_fee)
-            net = float(fee.owner_settlement_amount)
-            transfer_status = fee.transfer_status
-            is_refunded = payment_status == PaymentStatus.REFUNDED
-
-            total_gross += gross
-            total_net_settlement += net
-            total_gateway_fees += platform_fee
-            total_platform_fees += platform_fee
-            if is_refunded:
-                pass  # refunded bookings are excluded from both completed and pending settlement
-            elif transfer_status == "transferred":
-                completed_settlements += net
-            else:
-                pending_settlements += net
-
-            recent_payout_items.append({
-                "id": str(b.id),
-                "bookingReference": b.booking_reference,
-                "sessionDate": str(b.session_date),
-                "grossAmount": gross,
-                "platformFee": round(platform_fee, 2),
-                "gatewayFee": round(platform_fee, 2),
-                "netSettlement": round(net, 2),
-                # transferred | pending | failed | skipped_no_linked_account
-                "status": transfer_status,
-                "transferId": fee.razorpay_transfer_id,
-                "transferMethod": "Razorpay Route (Direct Bank)"
-            })
-
-        # Subtract amounts already manually paid out (via CafePayoutRepository)
-        # from pending_settlements — those bookings are still "not transferred"
-        # via Razorpay Route, but the owner has already been paid for them
-        # through a manual café payout, so they shouldn't count as pending.
-        # Comparison is done at the booking-id level (not by diffing two sums)
-        # because "not transferred" and "still outstanding" are differently
-        # scoped sets: a booking can be transfer_status == "transferred" and
-        # never manually paid out, while another can be "pending" and already
-        # fully paid out via a CafePayoutItem — diffing the two totals would
-        # misattribute one café's already-paid amount to another's.
-        cafe_payout_repo = CafePayoutRepository(db)
-        already_paid_out = 0.0
-        for c_id in cafe_ids:
-            outstanding_rows_for_cafe = await cafe_payout_repo.get_outstanding_fee_rows(c_id)
-            outstanding_booking_ids = {b.id for _fee, b in outstanding_rows_for_cafe}
-            for b, fee, ps in rows:
-                if b.cafe_id != c_id or ps == PaymentStatus.REFUNDED:
-                    continue
-                if fee.transfer_status == "transferred":
-                    continue
-                if b.id not in outstanding_booking_ids:
-                    already_paid_out += float(fee.owner_settlement_amount)
-        pending_settlements -= already_paid_out
-
-    # Fetch bank details
-    stmt_payout = select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == current_owner.id)
-    res_payout = await db.execute(stmt_payout)
-    payout_account = res_payout.scalars().first()
-
-    account_info = None
-    if payout_account:
-        account_info = {
-            "accountHolderName": payout_account.account_holder_name,
-            "bankAccountNumberMasked": payout_account.bank_account_number_masked,
-            "bankIfsc": payout_account.bank_ifsc,
-            "businessPan": payout_account.business_pan,
-            "upiVpa": payout_account.upi_vpa,
-            "payoutVerificationStatus": payout_account.payout_verification_status,
-            "verifiedName": payout_account.verified_name,
-        }
-
-    # Sum of this owner's actual manual CafePayout rows (across all their
-    # cafés) — the manual-payout counterpart to completedSettlements, which
-    # only ever reflects Route transfers. Deliberately not derived from the
-    # already_paid_out estimate above, which serves a different purpose
-    # (subtracting from pendingSettlements) and can diverge after a refund.
     from app.models.cafe_payout import CafePayout, CafePayoutStatus
     already_paid_out_total = 0.0
     if cafe_ids:
@@ -1450,23 +1341,32 @@ async def get_owner_payout_summary(
         )
         already_paid_out_total = float((await db.execute(total_paid_out_stmt)).scalar() or 0)
 
+    stmt_payout = select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == current_owner.id)
+    payout_account = (await db.execute(stmt_payout)).scalars().first()
+
+    account_info = None
+    if payout_account:
+        account_info = {
+            "accountHolderName": payout_account.account_holder_name,
+            "bankAccountNumberMasked": payout_account.bank_account_number_masked,
+            "bankIfsc": payout_account.bank_ifsc,
+            "upiVpa": payout_account.upi_vpa,
+        }
+
+    payout_on_hold = any(c.payout_on_hold for c in cafes)
+    hold_reasons = [c.payout_hold_reason for c in cafes if c.payout_on_hold and c.payout_hold_reason]
+
     return {
         "success": True,
         "data": {
             "summary": {
-                "totalEarnings": round(total_gross, 2),
-                "netSettlement": round(total_net_settlement, 2),
-                "netEarnings": round(total_net_settlement, 2),
-                "completedSettlements": round(completed_settlements, 2),
-                "pendingSettlements": round(pending_settlements, 2),
-                "totalGatewayFees": round(total_gateway_fees, 2),
-                "totalPlatformFees": round(total_platform_fees, 2),
-                "totalTds": round(total_tds, 2),
+                "outstandingAmount": round(float(outstanding), 2),
                 "alreadyPaidOut": round(already_paid_out_total, 2),
             },
             "account": account_info,
-            "recentTransactions": recent_payout_items[:10]
-        }
+            "payoutOnHold": payout_on_hold,
+            "payoutHoldReason": hold_reasons[0] if hold_reasons else None,
+        },
     }
 
 # --- ANALYTICS ---

@@ -67,27 +67,23 @@ async def test_ledger_lines_stay_distinct_and_fee_never_becomes_cafe_earnings(
     assert res.status_code == 200, res.text
     s = res.json()["data"]["summary"]
 
-    gross = s["totalEarnings"]
-    settlement = s["netSettlement"]
-    platform_fee = s["totalPlatformFees"]
+    # gross (₹104, customer payment/GMV) and platform_fee (₹4, KHELO's
+    # commission) are not part of the simplified summary response — only the
+    # café's own numbers are. What must hold is that outstandingAmount
+    # reflects the owner's settlement (₹100), never the gross the customer
+    # paid, i.e. KHELO's fee was never folded into the café's payable.
+    settlement = s["outstandingAmount"]
 
-    assert gross == pytest.approx(104.0), f"customer payment (GMV) wrong: {gross}"
     assert settlement == pytest.approx(100.0), f"café payable wrong: {settlement}"
-    assert platform_fee == pytest.approx(4.0), f"KHELO commission wrong: {platform_fee}"
-
-    assert settlement < gross, (
+    assert settlement < 104.0, (
         "café payable equals gross — KHELO's fee has been counted as café earnings"
-    )
-    assert gross == pytest.approx(settlement + platform_fee), (
-        f"ledger does not reconcile: gross {gross} != settlement {settlement} "
-        f"+ fee {platform_fee}"
     )
 
     # Paid vs outstanding are tracked separately from what is owed. Nothing has
-    # been transferred for this booking, so it is outstanding, not paid.
-    assert s["completedSettlements"] == pytest.approx(0.0), \
+    # been transferred/paid for this booking, so it is outstanding, not paid.
+    assert s["alreadyPaidOut"] == pytest.approx(0.0), \
         "an untransferred settlement was reported as already paid to the café"
-    assert s["pendingSettlements"] == pytest.approx(100.0), \
+    assert s["outstandingAmount"] == pytest.approx(100.0), \
         "café outstanding should equal the unpaid settlement"
 
 
@@ -112,10 +108,10 @@ async def test_refunded_booking_is_excluded_from_cafe_payable(db_session, async_
     res = await async_client.get("/api/v1/owner/payouts/summary", headers=auth_headers(owner))
     s = res.json()["data"]["summary"]
 
-    assert s["pendingSettlements"] == pytest.approx(0.0), (
-        f"refunded booking still owed to the café: {s['pendingSettlements']}"
+    assert s["outstandingAmount"] == pytest.approx(0.0), (
+        f"refunded booking still owed to the café: {s['outstandingAmount']}"
     )
-    assert s["completedSettlements"] == pytest.approx(0.0)
+    assert s["alreadyPaidOut"] == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------- B-03 / B-05
