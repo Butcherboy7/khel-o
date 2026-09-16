@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey, JSON
+from sqlalchemy import String, DateTime, ForeignKey, JSON, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -31,6 +31,15 @@ class OwnerPayoutAccount(Base):
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     verified_by_admin_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     test_transfer_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Bumped by upsert_payout_details() whenever the payout destination
+    # itself changes value — UPI VPA, bank account number, bank IFSC, or
+    # account holder name (the name money would be sent to/as) — never on
+    # a no-op resubmit, and never for non-destination metadata (bank_name,
+    # account_type, business_pan). See Task 3 for the exact comparison.
+    # Lets a CafePayout snapshot record exactly which version of this
+    # account was live when the payout was recorded (see
+    # CafePayout.destination_payout_account_version).
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

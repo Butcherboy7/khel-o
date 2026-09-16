@@ -17,6 +17,11 @@ class CafePayoutStatus(str, enum.Enum):
     DISPUTED = "disputed"
 
 
+class PayoutDestinationType(str, enum.Enum):
+    UPI = "upi"
+    BANK = "bank"
+
+
 class CafePayout(Base):
     """One manual bank-transfer payout to a café, covering every currently
     outstanding PlatformFee row at creation time. See CafePayoutItem for the
@@ -41,3 +46,23 @@ class CafePayout(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+    # --- Payout destination snapshot ---
+    # Populated once, from the live OwnerPayoutAccount, at the moment this
+    # payout is created (see CafePayoutRepository.create_payout). Never
+    # updated afterward — a later change to the owner's OwnerPayoutAccount
+    # must never rewrite what this historical payout actually paid to.
+    # NULL on every row created before this feature shipped; the UI shows
+    # "not recorded (pre-dates this feature)" for those rather than
+    # backfilling a guess.
+    destination_type: Mapped[str | None] = mapped_column(
+        Enum(PayoutDestinationType, values_callable=lambda x: [e.value for e in x]),
+        nullable=True,
+    )
+    destination_upi_vpa: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    destination_bank_account_masked: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    destination_bank_ifsc: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    destination_account_holder_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    destination_payout_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("owner_payout_accounts.id"), nullable=True
+    )
+    destination_payout_account_version: Mapped[int | None] = mapped_column(nullable=True)
