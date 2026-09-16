@@ -11,6 +11,7 @@ from app.models.admin_audit_log import AdminAuditLog
 from app.models.booking import Booking
 from app.models.cafe import Cafe
 from app.models.cafe_payout import CafePayout, CafePayoutStatus
+from app.models.cafe_payout_adjustment import CafePayoutAdjustment
 from app.models.cafe_payout_item import CafePayoutItem
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.payment import Payment, PaymentStatus
@@ -48,7 +49,12 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
     async def get_outstanding_amount(self, cafe_id: UUID) -> Decimal:
         rows = await self.get_outstanding_fee_rows(cafe_id)
         total = sum((Decimal(str(fee.owner_settlement_amount)) for fee, _ in rows), Decimal("0"))
-        return total
+        adjustments = (await self.db.execute(
+            select(func.coalesce(func.sum(CafePayoutAdjustment.amount), 0)).where(
+                CafePayoutAdjustment.cafe_id == cafe_id
+            )
+        )).scalar()
+        return total + Decimal(str(adjustments))
 
     async def create_payout(
         self,
@@ -75,20 +81,32 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         """
         import uuid as _uuid
 
-        cafe_owner_row = (await self.db.execute(
-            select(Cafe.owner_id).where(Cafe.id == cafe_id)
+        cafe_row = (await self.db.execute(
+            select(Cafe.owner_id, Cafe.payout_on_hold, Cafe.payout_hold_reason).where(Cafe.id == cafe_id)
         )).first()
-        if not cafe_owner_row:
+        if not cafe_row:
             raise BadRequestException("Café not found.")
-        owner_id = cafe_owner_row[0]
+        owner_id, on_hold, hold_reason = cafe_row
 
-        verification_status = (await self.db.execute(
-            select(OwnerPayoutAccount.payout_verification_status).where(OwnerPayoutAccount.owner_id == owner_id)
-        )).scalar()
-        if verification_status != "verified":
+        if on_hold:
             raise BadRequestException(
-                "This café's payout destination hasn't been verified yet. "
-                "Send a ₹1 test transfer and record the result before paying out."
+                f"Payouts to this café are on hold: {hold_reason or 'no reason given'}."
+            )
+
+        payout_account = (await self.db.execute(
+            select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == owner_id)
+        )).scalars().first()
+        has_upi = bool(payout_account and payout_account.upi_vpa)
+        has_bank = bool(
+            payout_account
+            and payout_account.bank_account_number_encrypted
+            and payout_account.bank_ifsc
+            and payout_account.account_holder_name
+        )
+        if not (has_upi or has_bank):
+            raise BadRequestException(
+                "This café hasn't added payout details yet — ask the owner to add a UPI ID "
+                "or bank account in Owner Settings before paying out."
             )
 
         rows = await self.get_outstanding_fee_rows(cafe_id)
@@ -152,19 +170,23 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         ]
 
     async def list_cafes_with_outstanding(self) -> list[dict]:
-        cafes_result = await self.db.execute(select(Cafe.id, Cafe.name, Cafe.owner_id))
+        cafes_result = await self.db.execute(select(Cafe.id, Cafe.name, Cafe.owner_id, Cafe.payout_on_hold, Cafe.payout_hold_reason))
         out = []
-        for cafe_id, cafe_name, owner_id in cafes_result.all():
+        for cafe_id, cafe_name, owner_id, on_hold, hold_reason in cafes_result.all():
             amount = await self.get_outstanding_amount(cafe_id)
             if amount > 0:
-                verification_status = (await self.db.execute(
-                    select(OwnerPayoutAccount.payout_verification_status).where(OwnerPayoutAccount.owner_id == owner_id)
-                )).scalar() or "unverified"
+                account = (await self.db.execute(
+                    select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == owner_id)
+                )).scalars().first()
+                destination_submitted = bool(account and (account.upi_vpa or account.bank_account_number_encrypted))
                 out.append({
                     "cafeId": str(cafe_id),
                     "cafeName": cafe_name,
                     "outstandingAmount": float(amount),
-                    "payoutVerificationStatus": verification_status,
+                    "payoutDestinationSubmitted": destination_submitted,
+                    "upiVpa": account.upi_vpa if account else None,
+                    "payoutOnHold": on_hold,
+                    "payoutHoldReason": hold_reason,
                 })
         return out
 

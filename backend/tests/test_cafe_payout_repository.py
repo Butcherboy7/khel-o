@@ -2,6 +2,8 @@ import pytest
 from decimal import Decimal
 from uuid import uuid4
 
+from sqlalchemy import select
+
 from app.core.exceptions import BadRequestException
 from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.models.cafe_payout import CafePayoutStatus
@@ -217,29 +219,94 @@ async def test_list_payouts_filters_by_cafe(db_session):
 
 
 @pytest.mark.asyncio
-async def test_create_payout_rejects_unverified_cafe(db_session):
-    """Money must never leave the door for a café whose UPI/bank destination
-    hasn't been confirmed real via the ₹1 test transfer."""
-    from app.models.owner_payout_account import OwnerPayoutAccount
-
-    gamer = await _make_gamer(db_session, "gate_gamer")
+async def test_create_payout_succeeds_for_submitted_unverified_account(db_session):
+    """The old ₹1-test-transfer verification gate is gone: a submitted UPI ID
+    is trusted at face value, not blocked pending verification."""
+    from tests.test_admin_v2_features import _make_admin, _make_gamer, _make_booking_with_payment
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "payout_submitted")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=50.0)
-    db_session.add(fee)
 
-    from sqlalchemy import select
+    from app.models.owner_payout_account import OwnerPayoutAccount
     from app.models.cafe import Cafe
-    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
-    account = OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="unverified@okaxis")
-    db_session.add(account)
+    from app.models.platform_fee import PlatformFee
+    cafe = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalar_one()
+    db_session.add(OwnerPayoutAccount(
+        owner_id=cafe.owner_id, upi_vpa="owner@okhdfc", payout_verification_status="unverified",
+    ))
+    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
     await db_session.commit()
 
     repo = CafePayoutRepository(db_session)
-    with pytest.raises(BadRequestException):
+    payout = await repo.create_payout(
+        cafe_id=booking.cafe_id, admin_id=admin.id,
+        utr_reference="UTR123", payment_method="upi",
+    )
+    assert float(payout.amount) == 900.00
+
+
+@pytest.mark.asyncio
+async def test_create_payout_rejects_cafe_with_no_payout_destination(db_session):
+    from tests.test_admin_v2_features import _make_admin, _make_gamer, _make_booking_with_payment
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "payout_nodest")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+
+    from app.models.platform_fee import PlatformFee
+    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    with pytest.raises(BadRequestException, match="hasn't added payout details"):
         await repo.create_payout(
-            cafe_id=booking.cafe_id, admin_id=uuid4(),
-            utr_reference="UTR-GATE", payment_method="upi",
+            cafe_id=booking.cafe_id, admin_id=admin.id,
+            utr_reference="UTR124", payment_method="upi",
         )
+
+
+@pytest.mark.asyncio
+async def test_create_payout_rejects_cafe_on_hold(db_session):
+    from tests.test_admin_v2_features import _make_admin, _make_gamer, _make_booking_with_payment
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "payout_onhold")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from app.models.platform_fee import PlatformFee
+    cafe = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalar_one()
+    cafe.payout_on_hold = True
+    cafe.payout_hold_reason = "Fraud investigation"
+    db_session.add(OwnerPayoutAccount(owner_id=cafe.owner_id, upi_vpa="owner@okhdfc"))
+    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    with pytest.raises(BadRequestException, match="Fraud investigation"):
+        await repo.create_payout(
+            cafe_id=booking.cafe_id, admin_id=admin.id,
+            utr_reference="UTR125", payment_method="upi",
+        )
+
+
+@pytest.mark.asyncio
+async def test_outstanding_amount_nets_adjustments(db_session):
+    from tests.test_admin_v2_features import _make_gamer, _make_booking_with_payment
+    gamer = await _make_gamer(db_session, "payout_adj")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+
+    from app.models.platform_fee import PlatformFee
+    from app.models.cafe_payout_adjustment import CafePayoutAdjustment
+    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    db_session.add(CafePayoutAdjustment(
+        cafe_id=booking.cafe_id, booking_id=booking.id,
+        amount=Decimal("-300.00"), reason="test adjustment",
+    ))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    amount = await repo.get_outstanding_amount(booking.cafe_id)
+    assert amount == Decimal("600.00")
 
 
 @pytest.mark.asyncio
@@ -288,7 +355,7 @@ async def test_outstanding_list_reports_verification_status(db_session):
     repo = CafePayoutRepository(db_session)
     cafes = await repo.list_cafes_with_outstanding()
     entry = next(c for c in cafes if c["cafeId"] == str(booking.cafe_id))
-    assert entry["payoutVerificationStatus"] == "unverified"
+    assert entry["payoutDestinationSubmitted"] is True
 
 
 @pytest.mark.asyncio
