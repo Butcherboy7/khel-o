@@ -11,6 +11,7 @@ from app.models.cafe import Cafe, VerificationStatus
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.owner_audit_log import OwnerAuditLog
 from app.core.security import get_password_hash
+from app.core.payout_encryption import encrypt_bank_account_number, decrypt_bank_account_number
 from tests.conftest import auth_headers
 
 
@@ -121,3 +122,60 @@ async def test_patch_destination_blocks_clearing_only_destination_with_outstandi
         )
         assert res.status_code == 400
         assert "outstanding" in res.json()["error"]["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_patch_destination_partial_update_preserves_omitted_fields(db_session):
+    """A PATCH that only touches bankIfsc must not null out every other
+    field the owner already had on file — the route must distinguish a
+    field the client omitted (leave unchanged) from one explicitly sent as
+    null (clear it), per the frontend's omit-means-unchanged contract."""
+    owner, _cafe = await _make_owner_with_cafe(db_session, password="correctpass123")
+    db_session.add(OwnerPayoutAccount(
+        id=uuid.uuid4(), owner_id=owner.id,
+        upi_vpa="existing@okaxis",
+        bank_account_number_encrypted=encrypt_bank_account_number("9180200192847291"),
+        bank_account_number_masked="••••7291",
+        bank_ifsc="HDFC0000128",
+        account_holder_name="Existing Holder",
+        bank_name="HDFC Bank",
+        account_type="savings",
+        business_pan="ABCDE1234F",
+        version=1,
+    ))
+    await db_session.commit()
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        headers = auth_headers(owner, is_admin=False)
+
+        # Only bankIfsc is sent — every other field is omitted, not nulled.
+        res = await client.patch(
+            "/api/v1/owner/payouts/destination",
+            json={"currentPassword": "correctpass123", "bankIfsc": "ICIC0004567"},
+            headers=headers,
+        )
+        assert res.status_code == 200, res.text
+        destination = res.json()["data"]["destination"]
+        assert destination["bankIfsc"] == "ICIC0004567"
+        assert destination["upiVpa"] == "existing@okaxis"
+        assert destination["bankAccountNumberMasked"] == "••••7291"
+        assert destination["accountHolderName"] == "Existing Holder"
+        assert destination["version"] == 2  # IFSC actually changed, so the destination version bumps
+
+        get_res = await client.get("/api/v1/owner/payouts/destination", headers=headers)
+        assert get_res.status_code == 200
+        get_destination = get_res.json()["data"]["destination"]
+        assert get_destination["upiVpa"] == "existing@okaxis"
+        assert get_destination["bankIfsc"] == "ICIC0004567"
+        assert get_destination["bankAccountNumberMasked"] == "••••7291"
+        assert get_destination["accountHolderName"] == "Existing Holder"
+
+    account = (await db_session.execute(
+        select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == owner.id)
+    )).scalars().first()
+    assert account.upi_vpa == "existing@okaxis"
+    assert account.bank_ifsc == "ICIC0004567"
+    assert account.bank_name == "HDFC Bank"
+    assert account.account_type == "savings"
+    assert account.business_pan == "ABCDE1234F"
+    assert decrypt_bank_account_number(account.bank_account_number_encrypted) == "9180200192847291"
