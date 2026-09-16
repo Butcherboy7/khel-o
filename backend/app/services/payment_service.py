@@ -5,6 +5,7 @@ import logging
 from typing import Optional, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
 
@@ -18,6 +19,7 @@ from app.models.user import User, UserRole
 from app.models.cafe import Cafe
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.platform_fee import PlatformFee
+from app.models.cafe_payout_adjustment import CafePayoutAdjustment
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 from app.background.qr_generator import generate_and_save_qr_code
 from app.services.notification_service import NotificationService
@@ -744,6 +746,14 @@ class PaymentService:
                     f"this booking's settlement. This refund does NOT claw that money back automatically; "
                     f"follow up manually with the café to recover it."
                 )
+                self.payment_repo.db.add(CafePayoutAdjustment(
+                    cafe_id=booking_for_log.cafe_id,
+                    booking_id=booking_id,
+                    amount=-Decimal(str(fee_row.owner_settlement_amount)),
+                    reason=f"Refunded after payout: booking {booking_ref}",
+                    created_by_admin_id=admin_id,
+                ))
+                await self.payment_repo.db.flush()
 
         if not payment.razorpay_payment_id:
             logger.warning(f"Payment for booking {booking_id} has no razorpay_payment_id; cannot refund via Razorpay")
