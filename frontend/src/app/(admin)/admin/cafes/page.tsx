@@ -78,6 +78,7 @@ export default function AdminCafesPage() {
   const [selectedCafe, setSelectedCafe] = useState<AdminCafe | null>(null);
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
+  const [suspendError, setSuspendError] = useState<string | null>(null);
 
   const params = {
     ...(statusFilter !== 'all' ? { verificationStatus: statusFilter } : {}),
@@ -109,6 +110,10 @@ export default function AdminCafesPage() {
       setIsSuspendModalOpen(false);
       setSelectedCafe(null);
       setSuspendReason('');
+      setSuspendError(null);
+    },
+    onError: (err) => {
+      setSuspendError((err as Error)?.message ?? 'Failed to suspend café. Please try again.');
     },
   });
 
@@ -389,19 +394,19 @@ export default function AdminCafesPage() {
       {/* Suspend Modal */}
       <Modal
         isOpen={isSuspendModalOpen}
-        onClose={() => { setIsSuspendModalOpen(false); setSuspendReason(''); }}
+        onClose={() => { setIsSuspendModalOpen(false); setSuspendReason(''); setSuspendError(null); }}
         title={`Suspend: ${selectedCafe?.name}`}
         description="This café will be immediately removed from the marketplace. Provide a reason."
         footer={
           <div className="flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => { setIsSuspendModalOpen(false); setSuspendReason(''); }}>
+            <Button variant="ghost" onClick={() => { setIsSuspendModalOpen(false); setSuspendReason(''); setSuspendError(null); }}>
               Cancel
             </Button>
             <Button
               variant="destructive"
               isLoading={suspendMutation.isPending}
               loadingText="Suspending…"
-              disabled={!suspendReason.trim()}
+              disabled={suspendReason.trim().length < 10}
               onClick={() => {
                 if (selectedCafe) {
                   suspendMutation.mutate({ cafeId: selectedCafe.id, reason: suspendReason });
@@ -414,6 +419,9 @@ export default function AdminCafesPage() {
           </div>
         }
       >
+        {suspendError && (
+          <p className="text-xs text-error mb-2">{suspendError}</p>
+        )}
         <Textarea
           label="Suspension Reason *"
           placeholder="e.g. Multiple verified customer complaints about fraudulent charges…"
@@ -421,6 +429,9 @@ export default function AdminCafesPage() {
           onChange={(e) => setSuspendReason(e.target.value)}
           required
         />
+        <p className={`text-xs mt-1 ${suspendReason.trim().length < 10 ? 'text-text-tertiary' : 'text-emerald-600'}`}>
+          Minimum 10 characters — {suspendReason.trim().length}/10
+        </p>
       </Modal>
         </>
       )}
