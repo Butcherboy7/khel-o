@@ -233,6 +233,25 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         )
         return breakdown
 
+    async def get_payout_destination_summary(self, cafe_id: UUID) -> Optional[dict]:
+        cafe_row = (await self.db.execute(select(Cafe.owner_id).where(Cafe.id == cafe_id))).first()
+        if not cafe_row:
+            return None
+        account = (await self.db.execute(
+            select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == cafe_row.owner_id)
+        )).scalars().first()
+        if not account:
+            return None
+        return {
+            "upiVpa": account.upi_vpa,
+            "bankAccountNumberMasked": account.bank_account_number_masked,
+            "bankIfsc": account.bank_ifsc,
+            "accountHolderName": account.account_holder_name,
+            "payoutAccountId": str(account.id),
+            "payoutAccountVersion": account.version,
+            "updatedAt": account.updated_at.isoformat(),
+        }
+
     async def list_cafes_with_outstanding(self) -> list[dict]:
         cafes_result = await self.db.execute(select(Cafe.id, Cafe.name, Cafe.owner_id, Cafe.payout_on_hold, Cafe.payout_hold_reason))
         out = []
@@ -242,13 +261,20 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
                 account = (await self.db.execute(
                     select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == owner_id)
                 )).scalars().first()
-                destination_submitted = bool(account and (account.upi_vpa or account.bank_account_number_encrypted))
+                has_bank = bool(
+                    account
+                    and account.bank_account_number_encrypted
+                    and account.bank_ifsc
+                    and account.account_holder_name
+                )
+                destination_submitted = bool(account and (account.upi_vpa or has_bank))
                 out.append({
                     "cafeId": str(cafe_id),
                     "cafeName": cafe_name,
                     "outstandingAmount": float(amount),
                     "payoutDestinationSubmitted": destination_submitted,
                     "upiVpa": account.upi_vpa if account else None,
+                    "hasBank": has_bank,
                     "payoutOnHold": on_hold,
                     "payoutHoldReason": hold_reason,
                 })

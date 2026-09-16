@@ -3,8 +3,9 @@ from uuid import UUID
 from datetime import datetime
 import uuid as _uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,7 @@ from app.core.exceptions import BadRequestException, ConflictException, NotFound
 from app.database import get_db
 from app.models.user import User
 from app.models.admin_audit_log import AdminAuditLog
+from app.models.owner_payout_account import OwnerPayoutAccount
 from app.api.v1.owner import PhotoPresignRequest
 from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -55,7 +57,64 @@ async def get_cafe_payout_breakdown(
 ):
     repo = CafePayoutRepository(db)
     bookings = await repo.get_outstanding_breakdown(cafe_id)
-    return {"success": True, "data": {"bookings": bookings}}
+    destination = await repo.get_payout_destination_summary(cafe_id)
+    return {"success": True, "data": {"bookings": bookings, "destination": destination}}
+
+
+@router.post("/{cafe_id}/reveal-destination", status_code=status.HTTP_200_OK)
+async def reveal_cafe_payout_destination(
+    cafe_id: UUID,
+    response: Response,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Decrypts the owner's bank account number just for this response, for
+    the admin to actually type into their banking app during a manual
+    transfer. Masked display everywhere else is unchanged — this is the
+    one explicit, audited, non-cacheable exception. The decrypted value
+    must never be logged."""
+    cafe = await CafeRepository(db).get_by_id(cafe_id)
+    if not cafe:
+        raise NotFoundException("Café not found")
+
+    account = (await db.execute(
+        select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == cafe.owner_id)
+    )).scalars().first()
+    if not account:
+        raise NotFoundException("This café has no payout details on file")
+
+    from app.core.payout_encryption import decrypt_bank_account_number
+    bank_account_number = None
+    if account.bank_account_number_encrypted:
+        try:
+            bank_account_number = decrypt_bank_account_number(account.bank_account_number_encrypted)
+        except Exception:
+            bank_account_number = None
+
+    db.add(AdminAuditLog(
+        id=_uuid.uuid4(),
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="payout_destination.revealed",
+        entity_type="owner_payout_account",
+        entity_id=str(account.id),
+        entity_name=cafe.name,
+        reason=None,
+    ))
+    await db.commit()
+
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "success": True,
+        "data": {
+            "upiVpa": account.upi_vpa,
+            "bankAccountNumber": bank_account_number,
+            "bankIfsc": account.bank_ifsc,
+            "accountHolderName": account.account_holder_name,
+            "payoutAccountId": str(account.id),
+            "payoutAccountVersion": account.version,
+        },
+    }
 
 
 @router.post("/{cafe_id}/proof-upload-url", status_code=status.HTTP_200_OK)

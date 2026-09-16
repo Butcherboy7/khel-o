@@ -134,3 +134,102 @@ async def test_non_admin_cannot_access_cafe_payouts(db_session):
         headers = auth_headers(gamer)
         res = await client.get("/api/v1/admin/cafe-payouts/outstanding", headers=headers)
         assert res.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_outstanding_list_reports_has_bank_for_bank_only_cafe(db_session):
+    """A café with only bank details (no UPI) must not be reported as
+    lacking payout info — this was the concrete bug behind Priority 1."""
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "bankonly_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    db_session.add(fee)
+
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from app.core.payout_encryption import encrypt_bank_account_number
+    from sqlalchemy import select as _select
+    cafe_row = (await db_session.execute(_select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa=None,
+        bank_account_number_encrypted=encrypt_bank_account_number("9180200192847291"),
+        bank_account_number_masked="••••7291", bank_ifsc="HDFC0000128",
+        account_holder_name="Bank Only Owner",
+    ))
+    await db_session.commit()
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        headers = auth_headers(admin, is_admin=True)
+        res = await client.get("/api/v1/admin/cafe-payouts/outstanding", headers=headers)
+        assert res.status_code == 200
+        row = next(c for c in res.json()["data"]["cafes"] if c["cafeId"] == str(booking.cafe_id))
+        assert row["upiVpa"] is None
+        assert row["hasBank"] is True
+        assert row["payoutDestinationSubmitted"] is True
+
+
+@pytest.mark.asyncio
+async def test_breakdown_includes_masked_destination_and_version(db_session):
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "breakdown_dest_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=50.0)
+    db_session.add(fee)
+
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from sqlalchemy import select as _select
+    cafe_row = (await db_session.execute(_select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="breakdown@okaxis",
+        account_holder_name="Breakdown Holder", version=1,
+    ))
+    await db_session.commit()
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        headers = auth_headers(admin, is_admin=True)
+        res = await client.get(f"/api/v1/admin/cafe-payouts/{booking.cafe_id}/breakdown", headers=headers)
+        assert res.status_code == 200
+        destination = res.json()["data"]["destination"]
+        assert destination["upiVpa"] == "breakdown@okaxis"
+        assert destination["accountHolderName"] == "Breakdown Holder"
+        assert destination["payoutAccountVersion"] == 1
+
+
+@pytest.mark.asyncio
+async def test_reveal_destination_returns_decrypted_bank_number_and_logs_audit(db_session):
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "reveal_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from app.core.payout_encryption import encrypt_bank_account_number
+    from sqlalchemy import select as _select
+    cafe_row = (await db_session.execute(_select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id,
+        bank_account_number_encrypted=encrypt_bank_account_number("9180200192847291"),
+        bank_account_number_masked="••••7291", bank_ifsc="HDFC0000128",
+        account_holder_name="Reveal Holder", version=1,
+    ))
+    await db_session.commit()
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        headers = auth_headers(admin, is_admin=True)
+        res = await client.post(
+            f"/api/v1/admin/cafe-payouts/{booking.cafe_id}/reveal-destination", headers=headers
+        )
+        assert res.status_code == 200
+        assert res.json()["data"]["bankAccountNumber"] == "9180200192847291"
+        assert res.headers["cache-control"] == "no-store"
+
+        audit_res = await client.get(
+            "/api/v1/admin/audit-log?entityType=owner_payout_account", headers=headers
+        )
+        assert audit_res.status_code == 200
+        items = audit_res.json()["data"]["items"]
+        assert any(a["action"] == "payout_destination.revealed" for a in items)
+        # The decrypted number must never appear in the audit log itself.
+        assert not any("9180200192847291" in str(a) for a in items)
