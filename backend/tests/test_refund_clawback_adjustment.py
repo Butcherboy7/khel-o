@@ -37,9 +37,16 @@ async def test_refund_after_payout_writes_clawback_adjustment(db_session):
     service = PaymentService(PaymentRepository(db_session), BookingRepository(db_session))
     await service.process_refund(booking.id, admin_id=admin.id)
 
-    adjustments = (await db_session.execute(
-        select(CafePayoutAdjustment).where(CafePayoutAdjustment.booking_id == booking.id)
-    )).scalars().all()
-    assert len(adjustments) == 1
-    assert float(adjustments[0].amount) == -900.00
-    assert booking.booking_reference in adjustments[0].reason
+    # Prove durability, not just same-transaction visibility: close this
+    # session (which would implicitly roll back anything left uncommitted)
+    # and re-query from a brand-new session/connection.
+    await db_session.close()
+
+    from tests.conftest import TestAsyncSessionLocal
+    async with TestAsyncSessionLocal() as fresh_session:
+        adjustments = (await fresh_session.execute(
+            select(CafePayoutAdjustment).where(CafePayoutAdjustment.booking_id == booking.id)
+        )).scalars().all()
+        assert len(adjustments) == 1
+        assert float(adjustments[0].amount) == -900.00
+        assert booking.booking_reference in adjustments[0].reason

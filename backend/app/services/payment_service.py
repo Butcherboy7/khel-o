@@ -753,7 +753,7 @@ class PaymentService:
                     reason=f"Refunded after payout: booking {booking_ref}",
                     created_by_admin_id=admin_id,
                 ))
-                await self.payment_repo.db.flush()
+                await self.payment_repo.db.commit()
 
         if not payment.razorpay_payment_id:
             logger.warning(f"Payment for booking {booking_id} has no razorpay_payment_id; cannot refund via Razorpay")
