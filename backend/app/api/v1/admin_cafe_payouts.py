@@ -1,6 +1,6 @@
 from typing import Optional
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime
 import uuid as _uuid
 
 from fastapi import APIRouter, Depends, Query, status
@@ -16,7 +16,6 @@ from app.models.admin_audit_log import AdminAuditLog
 from app.api.v1.owner import PhotoPresignRequest
 from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.repositories.cafe_repository import CafeRepository
-from app.repositories.owner_payout_repository import OwnerPayoutRepository
 
 router = APIRouter()
 
@@ -30,9 +29,9 @@ class CafePayoutCreateRequest(BaseModel):
     paidAt: Optional[datetime] = None
 
 
-class PayoutVerifyRequest(BaseModel):
-    utrReference: str
-    verifiedName: str
+class CafePayoutHoldRequest(BaseModel):
+    onHold: bool
+    reason: Optional[str] = None
 
 
 @router.get("/outstanding", status_code=status.HTTP_200_OK)
@@ -71,55 +70,40 @@ async def presign_payout_proof_upload(
     return {"success": True, "data": result}
 
 
-@router.post("/{cafe_id}/verify-payout", status_code=status.HTTP_200_OK)
-async def verify_cafe_payout_destination(
+@router.patch("/{cafe_id}/hold", status_code=status.HTTP_200_OK)
+async def set_cafe_payout_hold(
     cafe_id: UUID,
-    payload: PayoutVerifyRequest,
+    payload: CafePayoutHoldRequest,
     current_admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Records the ₹1 test transfer's outcome. The admin's UPI app shows the
-    recipient's registered name before the transfer is confirmed — recording
-    that name here is the actual verification; there is no third-party
-    validation call. Flips the destination to "verified", which is what
-    CafePayoutRepository.create_payout checks before allowing a real payout."""
     cafe = await CafeRepository(db).get_by_id(cafe_id)
     if not cafe:
         raise NotFoundException("Café not found")
 
-    payout_repo = OwnerPayoutRepository(db)
-    account = await payout_repo.get_by_owner_id(cafe.owner_id)
-    if not account or not account.upi_vpa:
-        raise BadRequestException("This café hasn't submitted payout details yet.")
-    if account.payout_verification_status == "verified":
-        raise BadRequestException("This café's payout destination is already verified.")
-
-    account.payout_verification_status = "verified"
-    account.verified_name = payload.verifiedName
-    account.verified_at = datetime.now(timezone.utc)
-    account.verified_by_admin_id = current_admin.id
-    account.test_transfer_ref = payload.utrReference
+    cafe.payout_on_hold = payload.onHold
+    cafe.payout_hold_reason = payload.reason if payload.onHold else None
 
     db.add(AdminAuditLog(
         id=_uuid.uuid4(),
         admin_id=current_admin.id,
         admin_email=current_admin.email,
-        action="payout_verified",
-        entity_type="owner_payout_account",
-        entity_id=str(account.id),
+        action="cafe_payout.hold" if payload.onHold else "cafe_payout.release_hold",
+        entity_type="cafe",
+        entity_id=str(cafe_id),
         entity_name=cafe.name,
-        reason=f"Test transfer {payload.utrReference} confirmed recipient name: {payload.verifiedName}",
+        reason=payload.reason,
     ))
 
     await db.commit()
-    await db.refresh(account)
+    await db.refresh(cafe)
 
     return {
         "success": True,
         "data": {
-            "payoutVerificationStatus": account.payout_verification_status,
-            "verifiedName": account.verified_name,
-            "verifiedAt": account.verified_at.isoformat(),
+            "cafeId": str(cafe.id),
+            "payoutOnHold": cafe.payout_on_hold,
+            "payoutHoldReason": cafe.payout_hold_reason,
         },
     }
 
