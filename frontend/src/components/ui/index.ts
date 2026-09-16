@@ -14,3 +14,4 @@ export * from './RatingDisplay';
 export * from './PriceDisplay';
 export * from './EmptyState';
 export * from './ErrorState';
+export * from './Tooltip';
