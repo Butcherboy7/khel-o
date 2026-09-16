@@ -90,7 +90,7 @@ class OwnerPayoutRepository(BaseRepository[OwnerPayoutAccount]):
                 bank_ifsc=bank_ifsc,
                 bank_name=bank_name,
                 account_type=account_type,
-                account_holder_name=account_holder_name or default_holder_name,
+                account_holder_name=resolved_holder_name,
                 business_pan=business_pan,
                 payout_verification_status="unverified",
                 submitted_at=datetime.now(timezone.utc),
@@ -104,7 +104,7 @@ class OwnerPayoutRepository(BaseRepository[OwnerPayoutAccount]):
             account.bank_ifsc = bank_ifsc
             account.bank_name = bank_name
             account.account_type = account_type
-            account.account_holder_name = account_holder_name or default_holder_name
+            account.account_holder_name = resolved_holder_name
             account.business_pan = business_pan
             if destination_changed:
                 account.version += 1
