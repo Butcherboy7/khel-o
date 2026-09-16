@@ -24,3 +24,7 @@ class CafePayoutAdjustment(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+    # NULL = not yet consumed by any payout (still nets against outstanding balance).
+    # Set to a CafePayout.id once that payout's `create_payout` has netted this
+    # adjustment into its amount, so it is never counted again.
+    payout_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cafe_payouts.id"), nullable=True, index=True)

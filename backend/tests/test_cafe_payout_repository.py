@@ -359,6 +359,98 @@ async def test_outstanding_list_reports_verification_status(db_session):
 
 
 @pytest.mark.asyncio
+async def test_create_payout_nets_adjustments_and_consumes_them(db_session):
+    """create_payout must actually pay the net (fees minus unconsumed
+    adjustments), and once paid the adjustment must be marked consumed
+    (payout_id set) so it is never netted against the balance again."""
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from app.models.cafe_payout_adjustment import CafePayoutAdjustment
+
+    gamer = await _make_gamer(db_session, "payout_net_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
+    db_session.add(fee)
+    adjustment = CafePayoutAdjustment(
+        id=uuid4(), cafe_id=booking.cafe_id, booking_id=booking.id,
+        amount=Decimal("-300.00"), reason="clawback",
+    )
+    db_session.add(adjustment)
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id,
+        upi_vpa="test@okaxis", payout_verification_status="verified",
+    ))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    payout = await repo.create_payout(
+        cafe_id=booking.cafe_id, admin_id=uuid4(), utr_reference="UTR-NET", payment_method="neft",
+    )
+    # Paid amount must be net of the adjustment, not the raw fee sum.
+    assert float(payout.amount) == 600.00
+
+    await db_session.refresh(adjustment)
+    assert adjustment.payout_id == payout.id
+
+    # The adjustment is now consumed — a second call must not net it again.
+    assert await repo.get_outstanding_amount(booking.cafe_id) == Decimal("0")
+
+
+@pytest.mark.asyncio
+async def test_create_payout_raises_when_adjustments_exceed_fees(db_session):
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from app.models.cafe_payout_adjustment import CafePayoutAdjustment
+
+    gamer = await _make_gamer(db_session, "payout_over_adj_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("100.00"))
+    db_session.add(fee)
+    db_session.add(CafePayoutAdjustment(
+        id=uuid4(), cafe_id=booking.cafe_id, booking_id=booking.id,
+        amount=Decimal("-300.00"), reason="big clawback",
+    ))
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id,
+        upi_vpa="test@okaxis", payout_verification_status="verified",
+    ))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    with pytest.raises(BadRequestException, match="no outstanding balance"):
+        await repo.create_payout(
+            cafe_id=booking.cafe_id, admin_id=uuid4(), utr_reference="UTR-OVER", payment_method="neft",
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_outstanding_breakdown_includes_adjustment_line(db_session):
+    from app.models.cafe_payout_adjustment import CafePayoutAdjustment
+
+    gamer = await _make_gamer(db_session, "breakdown_adj_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
+    db_session.add(fee)
+    db_session.add(CafePayoutAdjustment(
+        id=uuid4(), cafe_id=booking.cafe_id, booking_id=booking.id,
+        amount=Decimal("-300.00"), reason="refund clawback",
+    ))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    breakdown = await repo.get_outstanding_breakdown(booking.cafe_id)
+
+    booking_lines = [b for b in breakdown if b["type"] == "booking"]
+    adjustment_lines = [b for b in breakdown if b["type"] == "adjustment"]
+    assert len(booking_lines) == 1
+    assert len(adjustment_lines) == 1
+    assert adjustment_lines[0]["amount"] == -300.00
+    assert adjustment_lines[0]["reason"] == "refund clawback"
+
+
+@pytest.mark.asyncio
 async def test_on_hold_and_disputed_statuses_round_trip_through_list_payouts(db_session):
     from app.models.owner_payout_account import OwnerPayoutAccount
 

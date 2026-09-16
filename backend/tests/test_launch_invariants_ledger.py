@@ -122,7 +122,6 @@ ADMIN_ROUTES = [
     ("GET", "/api/v1/admin/users"),
     ("GET", "/api/v1/admin/bookings"),
     ("GET", "/api/v1/admin/payments"),
-    ("GET", "/api/v1/admin/payouts"),
     ("GET", "/api/v1/admin/audit-log"),
     ("GET", "/api/v1/admin/settings"),
 ]

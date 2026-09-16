@@ -171,12 +171,19 @@ export default function AdminCafePayoutsPage() {
 
             {breakdownQuery.data && (
               <div className="max-h-48 overflow-y-auto rounded-xl border border-border divide-y divide-border">
-                {breakdownQuery.data.bookings.map((b) => (
-                  <div key={b.bookingId} className="flex justify-between px-3 py-2 text-xs">
-                    <span className="text-text-secondary">{b.bookingReference} · {b.sessionDate}</span>
-                    <span className="font-bold text-text-primary">₹{b.ownerSettlementAmount.toFixed(2)}</span>
-                  </div>
-                ))}
+                {breakdownQuery.data.bookings.map((b) =>
+                  b.type === 'adjustment' ? (
+                    <div key={b.adjustmentId} className="flex justify-between px-3 py-2 text-xs bg-error/5">
+                      <span className="text-error">Adjustment · {b.reason}</span>
+                      <span className="font-bold text-error">₹{b.amount.toFixed(2)}</span>
+                    </div>
+                  ) : (
+                    <div key={b.bookingId} className="flex justify-between px-3 py-2 text-xs">
+                      <span className="text-text-secondary">{b.bookingReference} · {b.sessionDate}</span>
+                      <span className="font-bold text-text-primary">₹{b.ownerSettlementAmount.toFixed(2)}</span>
+                    </div>
+                  )
+                )}
               </div>
             )}
 
@@ -357,7 +364,7 @@ function PayoutHistoryTable() {
           </tr>
         </thead>
         <tbody className="divide-y divide-border text-caption">
-          {items.map((p: CafePayout & { proofImageUrl?: string | null }) => (
+          {items.map((p: CafePayout) => (
             <tr key={p.id}>
               <td className="py-2.5 px-3 text-text-secondary">{p.paidAt ? new Date(p.paidAt).toLocaleDateString() : '—'}</td>
               <td className="py-2.5 px-3 font-bold text-text-primary">₹{p.amount.toFixed(2)}</td>

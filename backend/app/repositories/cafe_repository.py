@@ -56,10 +56,23 @@ class CafeRepository(BaseRepository[Cafe]):
         # (sorts with the closed group) since there's no basis to claim it's
         # open right now.
         current_ist_time = now_ist().time()
+        hours_present = Cafe.opening_time.is_not(None) & Cafe.closing_time.is_not(None)
+        # Same-day hours (e.g. 09:00-22:00): open when current time falls
+        # between opening and closing on the same day.
+        same_day_open = (Cafe.opening_time <= current_ist_time) & (current_ist_time < Cafe.closing_time)
+        # Overnight hours (e.g. 18:00-02:00): closing_time is "earlier" than
+        # opening_time in raw time-of-day terms because closing happens after
+        # midnight. Open when current time is at/after opening (still "today"
+        # before midnight) OR before closing (already "tomorrow" after
+        # midnight). Mirrors frontend lib/format.ts's isCafeOpenNow.
+        overnight_open = (current_ist_time >= Cafe.opening_time) | (current_ist_time < Cafe.closing_time)
         is_open_now = case(
             (
-                (Cafe.opening_time.is_not(None)) & (Cafe.closing_time.is_not(None)) &
-                (Cafe.opening_time <= current_ist_time) & (current_ist_time < Cafe.closing_time),
+                hours_present & (Cafe.closing_time <= Cafe.opening_time) & overnight_open,
+                0,
+            ),
+            (
+                hours_present & (Cafe.closing_time > Cafe.opening_time) & same_day_open,
                 0,
             ),
             else_=1,

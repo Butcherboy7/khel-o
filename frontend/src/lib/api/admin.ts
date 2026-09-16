@@ -262,13 +262,25 @@ export interface AdminOutstandingCafePayout {
   payoutHoldReason: string | null;
 }
 
-export interface CafePayoutBreakdownItem {
+export interface CafePayoutBookingBreakdownItem {
+  type: 'booking';
   bookingId: string;
   bookingReference: string;
   sessionDate: string;
   grossAmount: number;
   ownerSettlementAmount: number;
 }
+
+export interface CafePayoutAdjustmentBreakdownItem {
+  type: 'adjustment';
+  adjustmentId: string;
+  amount: number;
+  reason: string;
+  bookingId: string;
+  createdAt: string;
+}
+
+export type CafePayoutBreakdownItem = CafePayoutBookingBreakdownItem | CafePayoutAdjustmentBreakdownItem;
 
 export interface CafePayout {
   id: string;
@@ -278,6 +290,7 @@ export interface CafePayout {
   paymentMethod: string;
   status: string;
   notes: string | null;
+  proofImageUrl: string | null;
   paidAt: string | null;
   createdAt: string;
 }

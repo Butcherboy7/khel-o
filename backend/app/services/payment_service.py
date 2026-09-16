@@ -730,6 +730,12 @@ class PaymentService:
         # behavior changes, no schema change (spec Edge Cases: "Phase 1 logs a
         # warning for manual follow-up at refund time when platform_fee_id
         # already has a CafePayoutItem").
+        # Deferred until the refund actually succeeds below (see the
+        # mark_refunded call) — writing this clawback before the refund is
+        # attempted would durably reduce the café's payable for a refund that
+        # might never happen (e.g. no razorpay_payment_id, or the Razorpay
+        # API call fails and the payment is deliberately left CAPTURED).
+        pending_clawback_adjustment = None
         if fee_row:
             from app.models.cafe_payout_item import CafePayoutItem
             from sqlalchemy import select as _select
@@ -743,17 +749,16 @@ class PaymentService:
                     f"Refunding booking {booking_ref} ({booking_id}) whose platform fee {fee_row.id} was "
                     f"already manually paid out via CafePayout {payout_item.payout_id} "
                     f"(amount INR {payout_item.amount_allocated}) — the café has already been paid for "
-                    f"this booking's settlement. This refund does NOT claw that money back automatically; "
-                    f"follow up manually with the café to recover it."
+                    f"this booking's settlement. This refund WILL write a clawback adjustment against "
+                    f"the café's future payable once the refund itself succeeds."
                 )
-                self.payment_repo.db.add(CafePayoutAdjustment(
+                pending_clawback_adjustment = CafePayoutAdjustment(
                     cafe_id=booking_for_log.cafe_id,
                     booking_id=booking_id,
                     amount=-Decimal(str(fee_row.owner_settlement_amount)),
                     reason=f"Refunded after payout: booking {booking_ref}",
                     created_by_admin_id=admin_id,
-                ))
-                await self.payment_repo.db.commit()
+                )
 
         if not payment.razorpay_payment_id:
             logger.warning(f"Payment for booking {booking_id} has no razorpay_payment_id; cannot refund via Razorpay")
@@ -816,6 +821,11 @@ class PaymentService:
         refund_id = real_refund_id or f"local_rfnd_{uuid4().hex[:8]}"
         refund_status = "processed" if real_refund_id else "pending_manual_refund"
         updated = await self.payment_repo.mark_refunded(payment.id, refund_id)
+
+        if pending_clawback_adjustment is not None:
+            self.payment_repo.db.add(pending_clawback_adjustment)
+            await self.payment_repo.db.commit()
+
         await self.booking_repo.update(booking_id, {"status": BookingStatus.CANCELLED})
 
         notifier = NotificationService()

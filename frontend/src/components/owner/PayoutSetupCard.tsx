@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, type FormEvent } from 'react';
-import { Landmark, ShieldCheck, ShieldAlert, Clock, AlertCircle } from 'lucide-react';
+import { Landmark, AlertCircle } from 'lucide-react';
 import { Card, CardContent, Button, Input, Badge } from '@/components/ui';
 import { getPayoutStatus, setupPayout } from '@/lib/api/owner';
 import type { OwnerPayoutAccount } from '@/types';
@@ -67,8 +67,6 @@ export function PayoutSetupCard() {
     );
   }
 
-  const kycActivated = account?.kycStatus === 'activated';
-
   return (
     <Card elevation="resting" className="bg-surface border border-border">
       <CardContent className="p-4 sm:p-6 flex flex-col gap-4">
@@ -80,13 +78,7 @@ export function PayoutSetupCard() {
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-heading text-body font-bold text-text-primary">Direct Bank Payouts</h3>
               {account && (
-                kycActivated ? (
-                  <Badge variant="success" size="sm" className="gap-1"><ShieldCheck className="h-3 w-3" /> Verified</Badge>
-                ) : account.kycStatus === 'rejected' ? (
-                  <Badge variant="error" size="sm" className="gap-1"><ShieldAlert className="h-3 w-3" /> Rejected</Badge>
-                ) : (
-                  <Badge variant="warning" size="sm" className="gap-1"><Clock className="h-3 w-3" /> Pending Verification</Badge>
-                )
+                <Badge variant="default" size="sm">On file</Badge>
               )}
             </div>
             <p className="text-caption text-text-secondary max-w-md">
@@ -114,13 +106,6 @@ export function PayoutSetupCard() {
               <span className="text-xs text-text-tertiary block">Business PAN</span>
               <span className="font-bold text-text-primary">{account.businessPan || '—'}</span>
             </div>
-            {!kycActivated && (
-              <p className="col-span-full text-xs text-text-secondary">
-                {account.kycStatus === 'rejected'
-                  ? 'Razorpay rejected this submission. Contact support to resubmit with corrected details.'
-                  : "Submitted — Razorpay is verifying these details. This can take a little time; you'll be paid manually until it's activated."}
-              </p>
-            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">

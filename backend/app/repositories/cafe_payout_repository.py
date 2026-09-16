@@ -51,10 +51,20 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         total = sum((Decimal(str(fee.owner_settlement_amount)) for fee, _ in rows), Decimal("0"))
         adjustments = (await self.db.execute(
             select(func.coalesce(func.sum(CafePayoutAdjustment.amount), 0)).where(
-                CafePayoutAdjustment.cafe_id == cafe_id
+                CafePayoutAdjustment.cafe_id == cafe_id,
+                CafePayoutAdjustment.payout_id.is_(None),
             )
         )).scalar()
         return total + Decimal(str(adjustments))
+
+    async def get_unconsumed_adjustments(self, cafe_id: UUID) -> list[CafePayoutAdjustment]:
+        result = await self.db.execute(
+            select(CafePayoutAdjustment).where(
+                CafePayoutAdjustment.cafe_id == cafe_id,
+                CafePayoutAdjustment.payout_id.is_(None),
+            )
+        )
+        return list(result.scalars().all())
 
     async def create_payout(
         self,
@@ -110,10 +120,15 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
             )
 
         rows = await self.get_outstanding_fee_rows(cafe_id)
-        if not rows:
+        adjustments = await self.get_unconsumed_adjustments(cafe_id)
+        if not rows and not adjustments:
             raise BadRequestException("This café has no outstanding balance to pay out.")
 
-        total = sum((Decimal(str(fee.owner_settlement_amount)) for fee, _ in rows), Decimal("0"))
+        fee_sum = sum((Decimal(str(fee.owner_settlement_amount)) for fee, _ in rows), Decimal("0"))
+        adjustment_sum = sum((Decimal(str(a.amount)) for a in adjustments), Decimal("0"))
+        total = fee_sum + adjustment_sum
+        if total <= 0:
+            raise BadRequestException("This café has no outstanding balance to pay out.")
 
         payout = CafePayout(
             id=_uuid.uuid4(),
@@ -140,6 +155,9 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
                 amount_allocated=fee.owner_settlement_amount,
             ))
 
+        for adjustment in adjustments:
+            adjustment.payout_id = payout.id
+
         if audit_log_data is not None:
             self.db.add(AdminAuditLog(
                 id=_uuid.uuid4(),
@@ -158,8 +176,10 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
 
     async def get_outstanding_breakdown(self, cafe_id: UUID) -> list[dict]:
         rows = await self.get_outstanding_fee_rows(cafe_id)
-        return [
+        adjustments = await self.get_unconsumed_adjustments(cafe_id)
+        breakdown = [
             {
+                "type": "booking",
                 "bookingId": str(booking.id),
                 "bookingReference": booking.booking_reference,
                 "sessionDate": str(booking.session_date),
@@ -168,6 +188,18 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
             }
             for fee, booking in rows
         ]
+        breakdown.extend(
+            {
+                "type": "adjustment",
+                "adjustmentId": str(a.id),
+                "amount": float(a.amount),
+                "reason": a.reason,
+                "bookingId": str(a.booking_id),
+                "createdAt": a.created_at.isoformat(),
+            }
+            for a in adjustments
+        )
+        return breakdown
 
     async def list_cafes_with_outstanding(self) -> list[dict]:
         cafes_result = await self.db.execute(select(Cafe.id, Cafe.name, Cafe.owner_id, Cafe.payout_on_hold, Cafe.payout_hold_reason))
