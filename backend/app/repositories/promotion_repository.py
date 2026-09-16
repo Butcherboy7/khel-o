@@ -79,8 +79,12 @@ class PromotionRepository(BaseRepository[Promotion]):
         promo = await self.get_by_id(promotion_id)
         if not promo:
             return None
+        # update_data always comes from Pydantic's model_dump(exclude_unset=True)
+        # — a key's mere presence here means the caller explicitly sent it,
+        # including an explicit None meaning "clear this field". Filtering on
+        # `value is not None` used to silently drop that clearing intent.
         for field, value in update_data.items():
-            if hasattr(promo, field) and value is not None:
+            if hasattr(promo, field):
                 setattr(promo, field, value)
         await self.db.commit()
         await self.db.refresh(promo)
