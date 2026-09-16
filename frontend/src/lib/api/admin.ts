@@ -258,6 +258,7 @@ export interface AdminOutstandingCafePayout {
   outstandingAmount: number;
   payoutDestinationSubmitted: boolean;
   upiVpa: string | null;
+  hasBank: boolean;
   payoutOnHold: boolean;
   payoutHoldReason: string | null;
 }
@@ -282,6 +283,25 @@ export interface CafePayoutAdjustmentBreakdownItem {
 
 export type CafePayoutBreakdownItem = CafePayoutBookingBreakdownItem | CafePayoutAdjustmentBreakdownItem;
 
+export interface CafePayoutDestinationSummary {
+  upiVpa: string | null;
+  bankAccountNumberMasked: string | null;
+  bankIfsc: string | null;
+  accountHolderName: string | null;
+  payoutAccountId: string;
+  payoutAccountVersion: number;
+  updatedAt: string;
+}
+
+export interface RevealedCafePayoutDestination {
+  upiVpa: string | null;
+  bankAccountNumber: string | null;
+  bankIfsc: string | null;
+  accountHolderName: string | null;
+  payoutAccountId: string;
+  payoutAccountVersion: number;
+}
+
 export interface CafePayout {
   id: string;
   cafeId: string;
@@ -299,13 +319,29 @@ export async function listOutstandingCafePayouts(): Promise<{ cafes: AdminOutsta
   return call(() => apiClient.get('/api/v1/admin/cafe-payouts/outstanding'));
 }
 
-export async function getCafePayoutBreakdown(cafeId: string): Promise<{ bookings: CafePayoutBreakdownItem[] }> {
+export async function getCafePayoutBreakdown(
+  cafeId: string,
+): Promise<{ bookings: CafePayoutBreakdownItem[]; destination: CafePayoutDestinationSummary | null }> {
   return call(() => apiClient.get(`/api/v1/admin/cafe-payouts/${cafeId}/breakdown`));
+}
+
+export async function revealCafePayoutDestination(cafeId: string): Promise<RevealedCafePayoutDestination> {
+  return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}/reveal-destination`));
 }
 
 export async function createCafePayout(
   cafeId: string,
-  body: { utrReference: string; paymentMethod: string; notes?: string; proofImageUrl?: string; adminNote?: string; paidAt?: string },
+  body: {
+    utrReference: string;
+    paymentMethod: string;
+    destinationType: 'upi' | 'bank';
+    expectedPayoutAccountVersion: number;
+    confirmedPaymentMade: true;
+    notes?: string;
+    proofImageUrl?: string;
+    adminNote?: string;
+    paidAt?: string;
+  },
 ): Promise<{ payout: CafePayout }> {
   return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}`, body));
 }
