@@ -2,7 +2,7 @@
 
 import { useState, type ChangeEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Banknote, RefreshCw, ChevronRight, Info } from 'lucide-react';
+import { Banknote, RefreshCw, ChevronRight, Info, Eye, Loader2 } from 'lucide-react';
 import {
   listOutstandingCafePayouts,
   getCafePayoutBreakdown,
@@ -10,23 +10,31 @@ import {
   uploadPayoutProof,
   setCafePayoutHold,
   listCafePayoutHistory,
+  revealCafePayoutDestination,
   type AdminOutstandingCafePayout,
   type CafePayout,
+  type RevealedCafePayoutDestination,
 } from '@/lib/api/admin';
+import { isApiError, API_ERROR_CODES } from '@/lib/api/errors';
 import { queryKeys } from '@/hooks/queries/keys';
-import { Card, CardContent, Button, Badge, SkeletonCard, ErrorState, EmptyState, Tooltip } from '@/components/ui';
+import { Card, CardContent, Button, Badge, SkeletonCard, ErrorState, EmptyState, Tooltip, Modal } from '@/components/ui';
 
 export default function AdminCafePayoutsPage() {
   const queryClient = useQueryClient();
   const [selectedCafeId, setSelectedCafeId] = useState<string | null>(null);
   const [utrReference, setUtrReference] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('neft');
+  const [destinationType, setDestinationType] = useState<'upi' | 'bank'>('upi');
   const [notes, setNotes] = useState('');
   const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [adminNote, setAdminNote] = useState('');
   const [proofImageUrl, setProofImageUrl] = useState('');
   const [isUploadingProof, setIsUploadingProof] = useState(false);
   const [proofUploadError, setProofUploadError] = useState<string | null>(null);
+  const [confirmedPaymentMade, setConfirmedPaymentMade] = useState(false);
+  const [revealed, setRevealed] = useState<RevealedCafePayoutDestination | null>(null);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [revealError, setRevealError] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: [...queryKeys.admin.all, 'cafe-payouts', 'outstanding'],
@@ -40,24 +48,55 @@ export default function AdminCafePayoutsPage() {
     enabled: !!selectedCafeId,
   });
 
+  function closeModal() {
+    setSelectedCafeId(null);
+    setRevealed(null);
+    setRevealError(null);
+    setConfirmedPaymentMade(false);
+    setDestinationType('upi');
+  }
+
+  async function handleReveal() {
+    if (!selectedCafeId) return;
+    setRevealError(null);
+    setIsRevealing(true);
+    try {
+      const result = await revealCafePayoutDestination(selectedCafeId);
+      setRevealed(result);
+    } catch (err) {
+      setRevealError((err as Error)?.message ?? 'Failed to reveal payout destination.');
+    } finally {
+      setIsRevealing(false);
+    }
+  }
+
   const createMutation = useMutation({
     mutationFn: () =>
       createCafePayout(selectedCafeId as string, {
         utrReference,
         paymentMethod,
+        destinationType,
+        expectedPayoutAccountVersion: breakdownQuery.data?.destination?.payoutAccountVersion ?? 0,
+        confirmedPaymentMade: true,
         notes: notes || undefined,
         proofImageUrl,
         adminNote: adminNote || undefined,
         paidAt: paidAt ? new Date(paidAt).toISOString() : undefined,
       }),
     onSuccess: () => {
-      setSelectedCafeId(null);
+      closeModal();
       setUtrReference('');
       setNotes('');
       setAdminNote('');
       setProofImageUrl('');
       setPaidAt(new Date().toISOString().slice(0, 10));
       queryClient.invalidateQueries({ queryKey: [...queryKeys.admin.all, 'cafe-payouts'] });
+    },
+    onError: (err) => {
+      if (isApiError(err) && err.code === API_ERROR_CODES.PAYOUT_DESTINATION_STALE) {
+        setRevealed(null);
+        breakdownQuery.refetch();
+      }
     },
   });
 
@@ -154,15 +193,52 @@ export default function AdminCafePayoutsPage() {
         </div>
       )}
 
-      {selectedCafeId && selectedCafe && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <Card elevation="raised" className="max-w-lg w-full bg-surface border border-border p-6 flex flex-col gap-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-heading text-h3 text-text-primary">{selectedCafe.cafeName}</h3>
-              <button onClick={() => setSelectedCafeId(null)} className="text-text-tertiary hover:text-text-primary font-bold">✕</button>
+      {selectedCafe && (
+        <Modal
+          isOpen={!!selectedCafeId}
+          onClose={closeModal}
+          title={selectedCafe.cafeName}
+          size="lg"
+          footer={
+            <div className="flex flex-col gap-2">
+              {createMutation.isError && (
+                <p className="text-xs text-error">
+                  {(createMutation.error as Error)?.message ?? 'Failed to record payout.'}
+                </p>
+              )}
+              {selectedCafe.payoutOnHold && (
+                <p className="text-xs text-error">
+                  Payouts to this café are on hold: {selectedCafe.payoutHoldReason || 'no reason given'}.
+                </p>
+              )}
+              {destinationType === 'bank' && !revealed && (
+                <p className="text-xs text-text-secondary">
+                  Reveal the full bank details above before recording a bank payout — a masked
+                  number isn&apos;t enough to actually send money to.
+                </p>
+              )}
+              <Button
+                variant="primary"
+                fullWidth
+                disabled={
+                  !utrReference.trim() ||
+                  !proofImageUrl ||
+                  isUploadingProof ||
+                  createMutation.isPending ||
+                  !selectedCafe.payoutDestinationSubmitted ||
+                  selectedCafe.payoutOnHold ||
+                  !confirmedPaymentMade ||
+                  (destinationType === 'bank' && !revealed)
+                }
+                onClick={() => createMutation.mutate()}
+              >
+                {createMutation.isPending ? 'Recording…' : `Mark ₹${selectedCafe.outstandingAmount.toFixed(2)} as Paid`}
+              </Button>
             </div>
-
-            <HoldToggle cafe={selectedCafe} onChanged={() => refetch()} />
+          }
+        >
+          <div className="flex flex-col gap-4">
+            <HoldToggle cafe={selectedCafe} onChanged={() => breakdownQuery.refetch()} />
 
             <div>
               <span className="text-caption font-semibold text-text-secondary">Outstanding</span>
@@ -186,6 +262,46 @@ export default function AdminCafePayoutsPage() {
                 )}
               </div>
             )}
+
+            <div className="flex flex-col gap-2 p-3 rounded-xl border border-border bg-surface-hover">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-text-secondary">Payout destination</span>
+                <Tooltip content="Submitted by the owner — KHEL-O cannot independently verify a UPI ID or bank account. Double-check this looks right before sending money.">
+                  <Info className="h-3.5 w-3.5 text-text-tertiary cursor-help" />
+                </Tooltip>
+              </div>
+              <div className="text-caption">
+                UPI: <span className="font-mono text-text-primary">{breakdownQuery.data?.destination?.upiVpa || 'not set'}</span>
+              </div>
+              <div className="text-caption">
+                Bank: <span className="font-mono text-text-primary">
+                  {revealed?.bankAccountNumber
+                    ? `${revealed.bankAccountNumber} / IFSC ${revealed.bankIfsc}`
+                    : breakdownQuery.data?.destination?.bankAccountNumberMasked
+                      ? `${breakdownQuery.data.destination.bankAccountNumberMasked} / IFSC ${breakdownQuery.data.destination.bankIfsc}`
+                      : 'not set'}
+                </span>
+              </div>
+              {!revealed && breakdownQuery.data?.destination?.bankAccountNumberMasked && (
+                <Button variant="ghost" size="sm" isLoading={isRevealing} onClick={handleReveal} className="gap-1.5 self-start">
+                  <Eye className="h-3.5 w-3.5" />
+                  Show full details to pay
+                </Button>
+              )}
+              {revealError && <p className="text-xs text-error">{revealError}</p>}
+            </div>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-text-secondary">Paying via</span>
+              <select
+                value={destinationType}
+                onChange={(e) => setDestinationType(e.target.value as 'upi' | 'bank')}
+                className="h-10 px-3 rounded-xl border border-border bg-surface text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <option value="upi">UPI</option>
+                <option value="bank">Bank transfer</option>
+              </select>
+            </label>
 
             <div className="flex flex-col gap-3 pt-2 border-t border-border">
               <label className="flex flex-col gap-1">
@@ -255,42 +371,18 @@ export default function AdminCafePayoutsPage() {
                 />
               </label>
 
-              {createMutation.isError && (
-                <p className="text-xs text-error">
-                  {(createMutation.error as Error)?.message ?? 'Failed to record payout.'}
-                </p>
-              )}
-
-              {selectedCafe.payoutOnHold && (
-                <p className="text-xs text-error">
-                  Payouts to this café are on hold: {selectedCafe.payoutHoldReason || 'no reason given'}.
-                </p>
-              )}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-text-secondary">
-                  Paying to: <span className="font-mono text-text-primary">{selectedCafe.upiVpa || 'no UPI ID on file'}</span>
-                </span>
-                <Tooltip content="Submitted by the owner — KHEL-O cannot independently verify a UPI ID. Double-check this looks right before sending money.">
-                  <Info className="h-3.5 w-3.5 text-text-tertiary cursor-help" />
-                </Tooltip>
-              </div>
-              <Button
-                variant="primary"
-                disabled={
-                  !utrReference.trim() ||
-                  !proofImageUrl ||
-                  isUploadingProof ||
-                  createMutation.isPending ||
-                  !selectedCafe.payoutDestinationSubmitted ||
-                  selectedCafe.payoutOnHold
-                }
-                onClick={() => createMutation.mutate()}
-              >
-                {createMutation.isPending ? 'Recording…' : `Mark ₹${selectedCafe.outstandingAmount.toFixed(2)} as Paid`}
-              </Button>
+              <label className="flex items-start gap-2 text-xs text-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={confirmedPaymentMade}
+                  onChange={(e) => setConfirmedPaymentMade(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>I confirm this payment was made externally using the destination shown above.</span>
+              </label>
             </div>
-          </Card>
-        </div>
+          </div>
+        </Modal>
       )}
 
       <Card elevation="raised" className="bg-surface border border-border">
