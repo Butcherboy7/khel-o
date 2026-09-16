@@ -1,13 +1,14 @@
 from typing import List, Optional, Tuple, Any, Dict
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_, and_, cast, Float, String
+from sqlalchemy import select, func, or_, and_, case, cast, Float, String
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.user import User
 from app.models.hardware_tier import HardwareTier, TierType
 from app.repositories.base import BaseRepository
+from app.core.time import now_ist
 
 class CafeRepository(BaseRepository[Cafe]):
     def __init__(self, db: AsyncSession):
@@ -44,7 +45,26 @@ class CafeRepository(BaseRepository[Cafe]):
         if filters:
             stmt = stmt.where(and_(*filters))
 
-        stmt = stmt.order_by(Cafe.created_at.desc())
+        # Admin's café list surfaces currently-open cafés first, then falls
+        # back to created_at desc within each group. "Open now" is computed
+        # against IST wall-clock time (via app.core.time.now_ist), matching
+        # the convention already established for session_date/start_time
+        # comparisons (see app/core/time.py) and mirrored on the frontend by
+        # lib/format.ts's isCafeOpenNow — KHEL-O is India-only, and
+        # opening_time/closing_time are naive IST wall-clock values, never
+        # UTC. A café missing either hour is never treated as "open" here
+        # (sorts with the closed group) since there's no basis to claim it's
+        # open right now.
+        current_ist_time = now_ist().time()
+        is_open_now = case(
+            (
+                (Cafe.opening_time.is_not(None)) & (Cafe.closing_time.is_not(None)) &
+                (Cafe.opening_time <= current_ist_time) & (current_ist_time < Cafe.closing_time),
+                0,
+            ),
+            else_=1,
+        )
+        stmt = stmt.order_by(is_open_now, Cafe.created_at.desc())
 
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self.db.execute(count_stmt)
