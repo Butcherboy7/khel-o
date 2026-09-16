@@ -1,3 +1,4 @@
+import logging
 from typing import Literal, Optional
 from uuid import UUID
 from datetime import datetime
@@ -20,6 +21,7 @@ from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.repositories.cafe_repository import CafeRepository
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class CafePayoutCreateRequest(BaseModel):
@@ -89,7 +91,15 @@ async def reveal_cafe_payout_destination(
         try:
             bank_account_number = decrypt_bank_account_number(account.bank_account_number_encrypted)
         except Exception:
-            bank_account_number = None
+            logger.error(
+                "Failed to decrypt bank account number for payout account %s",
+                account.id,
+                exc_info=True,
+            )
+            raise BadRequestException(
+                "Could not decrypt this café's bank account details. Contact engineering "
+                "before attempting a bank payout for this café."
+            )
 
     db.add(AdminAuditLog(
         id=_uuid.uuid4(),
