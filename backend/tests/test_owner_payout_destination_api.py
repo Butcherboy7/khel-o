@@ -179,3 +179,57 @@ async def test_patch_destination_partial_update_preserves_omitted_fields(db_sess
     assert account.account_type == "savings"
     assert account.business_pan == "ABCDE1234F"
     assert decrypt_bank_account_number(account.bank_account_number_encrypted) == "9180200192847291"
+
+
+@pytest.mark.asyncio
+async def test_patch_destination_aborts_instead_of_wiping_bank_number_on_decrypt_failure(
+    db_session, monkeypatch
+):
+    """If the existing (omitted-field) bank account number can't be
+    decrypted — corrupted ciphertext, rotated encryption key, etc. — the
+    PATCH must fail loudly rather than silently persisting None for
+    bank_account_number, which would permanently wipe the owner's bank
+    details on a request that never touched that field."""
+    owner, _cafe = await _make_owner_with_cafe(db_session, password="correctpass123")
+    original_encrypted = encrypt_bank_account_number("9180200192847291")
+    db_session.add(OwnerPayoutAccount(
+        id=uuid.uuid4(), owner_id=owner.id,
+        upi_vpa="existing@okaxis",
+        bank_account_number_encrypted=original_encrypted,
+        bank_account_number_masked="••••7291",
+        bank_ifsc="HDFC0000128",
+        account_holder_name="Existing Holder",
+        bank_name="HDFC Bank",
+        account_type="savings",
+        business_pan="ABCDE1234F",
+        version=1,
+    ))
+    await db_session.commit()
+
+    import app.api.v1.owner_payouts as owner_payouts_module
+
+    def _broken_decrypt(_ciphertext):
+        raise ValueError("simulated decrypt failure (e.g. rotated encryption key)")
+
+    monkeypatch.setattr(owner_payouts_module, "decrypt_bank_account_number", _broken_decrypt)
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        headers = auth_headers(owner, is_admin=False)
+
+        # Only bankIfsc is sent — bankAccountNumber is omitted, so the route
+        # must decrypt the existing value to preserve it, which fails here.
+        res = await client.patch(
+            "/api/v1/owner/payouts/destination",
+            json={"currentPassword": "correctpass123", "bankIfsc": "ICIC0004567"},
+            headers=headers,
+        )
+        assert res.status_code == 400, res.text
+
+    account = (await db_session.execute(
+        select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == owner.id)
+    )).scalars().first()
+    # Nothing was wiped: the bank account number is untouched on disk.
+    assert account.bank_account_number_encrypted == original_encrypted
+    assert account.bank_account_number_masked == "••••7291"
+    assert account.bank_ifsc == "HDFC0000128"  # unchanged too — the whole write was aborted
+    assert account.version == 1

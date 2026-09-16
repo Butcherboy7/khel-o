@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.api.deps import require_cafe_owner
 from app.core.exceptions import AuthException, BadRequestException
+from app.core.payout_encryption import decrypt_bank_account_number
 from app.core.security import verify_password
 from app.models.cafe import Cafe
 from app.models.owner_audit_log import OwnerAuditLog
@@ -123,13 +124,16 @@ async def update_payout_destination(
     if "bank_account_number" in sent:
         resolved_bank_account_number = sent["bank_account_number"]
     elif existing and existing.bank_account_number_encrypted:
-        from app.core.payout_encryption import decrypt_bank_account_number
         try:
             resolved_bank_account_number = decrypt_bank_account_number(
                 existing.bank_account_number_encrypted
             )
         except Exception:
-            resolved_bank_account_number = None
+            raise BadRequestException(
+                "We couldn't read your existing bank account number to keep it while saving "
+                "these changes. Please re-enter your bank account number along with your other "
+                "changes to continue."
+            )
     else:
         resolved_bank_account_number = None
 
