@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Banknote, RefreshCw, ChevronRight, Info, Eye, Loader2 } from 'lucide-react';
 import {
@@ -47,6 +47,23 @@ export default function AdminCafePayoutsPage() {
     queryFn: () => getCafePayoutBreakdown(selectedCafeId as string),
     enabled: !!selectedCafeId,
   });
+
+  // Initialize destinationType from the actual breakdown response the first
+  // time it resolves for the currently open café, rather than always
+  // defaulting to 'upi' — a café that only has bank details would otherwise
+  // load with an impossible/mismatched selection.
+  const destinationInitializedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedCafeId) {
+      destinationInitializedForRef.current = null;
+      return;
+    }
+    if (destinationInitializedForRef.current === selectedCafeId) return;
+    const destination = breakdownQuery.data?.destination;
+    if (!destination) return;
+    destinationInitializedForRef.current = selectedCafeId;
+    setDestinationType(destination.upiVpa ? 'upi' : destination.bankAccountNumberMasked ? 'bank' : 'upi');
+  }, [selectedCafeId, breakdownQuery.data]);
 
   function closeModal() {
     setSelectedCafeId(null);
@@ -211,7 +228,7 @@ export default function AdminCafePayoutsPage() {
                   Payouts to this café are on hold: {selectedCafe.payoutHoldReason || 'no reason given'}.
                 </p>
               )}
-              {destinationType === 'bank' && !revealed && (
+              {destinationType === 'bank' && !revealed?.bankAccountNumber && (
                 <p className="text-xs text-text-secondary">
                   Reveal the full bank details above before recording a bank payout — a masked
                   number isn&apos;t enough to actually send money to.
@@ -228,7 +245,7 @@ export default function AdminCafePayoutsPage() {
                   !selectedCafe.payoutDestinationSubmitted ||
                   selectedCafe.payoutOnHold ||
                   !confirmedPaymentMade ||
-                  (destinationType === 'bank' && !revealed)
+                  (destinationType === 'bank' && !revealed?.bankAccountNumber)
                 }
                 onClick={() => createMutation.mutate()}
               >
@@ -238,7 +255,7 @@ export default function AdminCafePayoutsPage() {
           }
         >
           <div className="flex flex-col gap-4">
-            <HoldToggle cafe={selectedCafe} onChanged={() => breakdownQuery.refetch()} />
+            <HoldToggle cafe={selectedCafe} onChanged={() => { refetch(); breakdownQuery.refetch(); }} />
 
             <div>
               <span className="text-caption font-semibold text-text-secondary">Outstanding</span>

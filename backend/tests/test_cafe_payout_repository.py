@@ -265,6 +265,59 @@ async def test_create_payout_rejects_cafe_with_no_payout_destination(db_session)
 
 
 @pytest.mark.asyncio
+async def test_create_payout_rejects_bank_when_only_upi_exists(db_session):
+    from tests.test_admin_v2_features import _make_admin, _make_gamer, _make_booking_with_payment
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "payout_bankonly_reject")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from app.models.platform_fee import PlatformFee
+    cafe = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalar_one()
+    db_session.add(OwnerPayoutAccount(owner_id=cafe.owner_id, upi_vpa="owner@okhdfc"))
+    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    with pytest.raises(BadRequestException, match="bank account details"):
+        await repo.create_payout(
+            cafe_id=booking.cafe_id, admin_id=admin.id,
+            utr_reference="UTR-BANKREJ", payment_method="neft",
+            destination_type="bank",
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_payout_rejects_upi_when_only_bank_exists(db_session):
+    from tests.test_admin_v2_features import _make_admin, _make_gamer, _make_booking_with_payment
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "payout_upionly_reject")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from app.models.platform_fee import PlatformFee
+    cafe = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalar_one()
+    db_session.add(OwnerPayoutAccount(
+        owner_id=cafe.owner_id,
+        bank_account_number_encrypted="enc-123",
+        bank_ifsc="HDFC0000123",
+        account_holder_name="Test Owner",
+    ))
+    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    with pytest.raises(BadRequestException, match="UPI ID"):
+        await repo.create_payout(
+            cafe_id=booking.cafe_id, admin_id=admin.id,
+            utr_reference="UTR-UPIREJ", payment_method="upi",
+            destination_type="upi",
+        )
+
+
+@pytest.mark.asyncio
 async def test_create_payout_rejects_cafe_on_hold(db_session):
     from tests.test_admin_v2_features import _make_admin, _make_gamer, _make_booking_with_payment
     admin = await _make_admin(db_session)

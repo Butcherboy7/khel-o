@@ -150,6 +150,16 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
 
         resolved_destination_type = destination_type or ("upi" if has_upi else "bank")
 
+        if resolved_destination_type == "upi" and not has_upi:
+            raise BadRequestException(
+                "This café doesn't have a UPI ID on file — choose a different destination."
+            )
+        if resolved_destination_type == "bank" and not has_bank:
+            raise BadRequestException(
+                "This café doesn't have complete bank account details on file — choose a "
+                "different destination."
+            )
+
         rows = await self.get_outstanding_fee_rows(cafe_id)
         adjustments = await self.get_unconsumed_adjustments(cafe_id)
         if not rows and not adjustments:
