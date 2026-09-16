@@ -68,11 +68,13 @@ class OwnerPayoutRepository(BaseRepository[OwnerPayoutAccount]):
             except Exception:
                 existing_bank_plain = None
 
+        resolved_holder_name = account_holder_name or default_holder_name
         destination_changed = (
             existing is None
             or (existing.upi_vpa or None) != upi_vpa
             or existing_bank_plain != bank_account_number
             or (existing.bank_ifsc or None) != bank_ifsc
+            or (existing.account_holder_name or None) != resolved_holder_name
         )
 
         bank_encrypted = encrypt_bank_account_number(bank_account_number) if bank_account_number else None
@@ -105,6 +107,7 @@ class OwnerPayoutRepository(BaseRepository[OwnerPayoutAccount]):
             account.account_holder_name = account_holder_name or default_holder_name
             account.business_pan = business_pan
             if destination_changed:
+                account.version += 1
                 account.payout_verification_status = "unverified"
                 account.verified_name = None
                 account.verified_at = None

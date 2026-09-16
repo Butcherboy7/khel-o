@@ -115,3 +115,127 @@ async def test_verified_status_survives_unchanged_resubmission():
         assert updated.payout_verification_status == "verified"
         assert updated.verified_name == "Stable Name"
         assert updated.business_pan == "ABCDE1234F"
+
+
+@pytest.mark.asyncio
+async def test_version_starts_at_one_on_creation():
+    async with AsyncSessionLocal() as db:
+        owner = await _make_owner(db)
+        repo = OwnerPayoutRepository(db)
+        account = await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa="fresh@okaxis", bank_account_number=None,
+            bank_ifsc=None, account_holder_name=None, bank_name=None,
+            account_type=None, business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+        assert account.version == 1
+
+
+@pytest.mark.asyncio
+async def test_version_bumps_when_upi_vpa_changes():
+    async with AsyncSessionLocal() as db:
+        owner = await _make_owner(db)
+        repo = OwnerPayoutRepository(db)
+        await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa="v1@okaxis", bank_account_number=None,
+            bank_ifsc=None, account_holder_name=None, bank_name=None,
+            account_type=None, business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+
+        updated = await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa="v2@okaxis", bank_account_number=None,
+            bank_ifsc=None, account_holder_name=None, bank_name=None,
+            account_type=None, business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+        assert updated.version == 2
+
+
+@pytest.mark.asyncio
+async def test_version_bumps_when_bank_account_or_ifsc_changes():
+    async with AsyncSessionLocal() as db:
+        owner = await _make_owner(db)
+        repo = OwnerPayoutRepository(db)
+        await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa=None, bank_account_number="9180200192847291",
+            bank_ifsc="HDFC0000128", account_holder_name="Bank Holder", bank_name="HDFC Bank",
+            account_type="savings", business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+
+        updated = await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa=None, bank_account_number="9180200192847291",
+            bank_ifsc="ICIC0000456", account_holder_name="Bank Holder", bank_name="HDFC Bank",
+            account_type="savings", business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+        assert updated.version == 2
+
+
+@pytest.mark.asyncio
+async def test_version_bumps_when_account_holder_name_changes():
+    """A holder-name-only change (account number/IFSC untouched) still
+    changes who the money is understood to be paid to/as — must count as a
+    destination change, not be treated as harmless metadata."""
+    async with AsyncSessionLocal() as db:
+        owner = await _make_owner(db)
+        repo = OwnerPayoutRepository(db)
+        await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa="holder@okaxis", bank_account_number=None,
+            bank_ifsc=None, account_holder_name="Original Holder", bank_name=None,
+            account_type=None, business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+
+        updated = await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa="holder@okaxis", bank_account_number=None,
+            bank_ifsc=None, account_holder_name="Different Holder", bank_name=None,
+            account_type=None, business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+        assert updated.version == 2
+
+
+@pytest.mark.asyncio
+async def test_version_does_not_bump_on_unchanged_resubmit():
+    async with AsyncSessionLocal() as db:
+        owner = await _make_owner(db)
+        repo = OwnerPayoutRepository(db)
+        await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa="stable_v@okaxis", bank_account_number=None,
+            bank_ifsc=None, account_holder_name=None, bank_name=None,
+            account_type=None, business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+
+        # Same destination, only business_pan added — destination_changed
+        # must be False, so version must not bump.
+        updated = await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa="stable_v@okaxis", bank_account_number=None,
+            bank_ifsc=None, account_holder_name=None, bank_name=None,
+            account_type=None, business_pan="ABCDE1234F", default_holder_name=None,
+        )
+        await db.commit()
+        assert updated.version == 1
+
+
+@pytest.mark.asyncio
+async def test_version_does_not_bump_when_only_bank_name_or_account_type_changes():
+    async with AsyncSessionLocal() as db:
+        owner = await _make_owner(db)
+        repo = OwnerPayoutRepository(db)
+        await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa=None, bank_account_number="9180200192847291",
+            bank_ifsc="HDFC0000128", account_holder_name="Metadata Holder", bank_name="HDFC Bank",
+            account_type="savings", business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+
+        updated = await repo.upsert_payout_details(
+            owner_id=owner.id, upi_vpa=None, bank_account_number="9180200192847291",
+            bank_ifsc="HDFC0000128", account_holder_name="Metadata Holder", bank_name="HDFC Bank Ltd",
+            account_type="current", business_pan=None, default_holder_name=None,
+        )
+        await db.commit()
+        assert updated.version == 1
