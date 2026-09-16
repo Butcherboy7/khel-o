@@ -274,6 +274,23 @@ class NotificationService:
             logger.error("send_password_reset_error", error=str(e), email=email)
             return False
 
+    async def send_payout_details_changed(self, email: str, full_name: str) -> bool:
+        try:
+            subject = "Your KHEL-O payout details were changed"
+            html_body = _email_wrapper(f"""
+                <h2 style="margin-top: 0; color: {_BRAND_TEXT_PRIMARY};">Payout details updated</h2>
+                <p>Hello <strong>{full_name or 'there'}</strong>,</p>
+                <p>The payout destination on your KHEL-O café account was just changed. This is where
+                your future weekly payouts will be sent.</p>
+                <p style="color: {_BRAND_TEXT_SECONDARY};">If you made this change, no action is needed.
+                If you didn't, please contact KHEL-O support immediately and change your account
+                password.</p>
+            """)
+            return await self._send_resend_email(email, subject, html_body, "PAYOUT-DETAILS-CHANGED")
+        except Exception as e:
+            logger.error("send_payout_details_changed_error", error=str(e), email=email)
+            return False
+
     async def send_contact_message(self, to_email: str, name: str, from_email: str, category: str, message: str) -> bool:
         try:
             safe_name = html.escape(name)
