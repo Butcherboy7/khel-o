@@ -130,7 +130,14 @@ export async function deleteOwnerStaff(staffId: string): Promise<{ message: stri
   return call(() => apiClient.delete(`/api/v1/owner/staff/${staffId}`));
 }
 
-export async function getOwnerPayoutSummary(): Promise<any> {
+export interface OwnerPayoutSummary {
+  summary: { outstandingAmount: number; alreadyPaidOut: number };
+  account: { accountHolderName: string | null; bankAccountNumberMasked: string | null; bankIfsc: string | null; upiVpa: string | null } | null;
+  payoutOnHold: boolean;
+  payoutHoldReason: string | null;
+}
+
+export async function getOwnerPayoutSummary(): Promise<OwnerPayoutSummary> {
   return call(() => apiClient.get('/api/v1/owner/payouts/summary'));
 }
 

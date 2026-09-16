@@ -231,32 +231,6 @@ export async function updateSupportTicket(
   return call(() => apiClient.patch(`/api/v1/admin/support/tickets/${ticketId}`, payload));
 }
 
-// ── Owner Payout Oversight (Razorpay Route linked accounts) ─────────────────────
-
-export interface AdminOwnerPayout {
-  id: string;
-  ownerId: string;
-  ownerEmail: string;
-  ownerFullName: string;
-  cafeId: string | null;
-  cafeName: string | null;
-  razorpayAccountId: string | null;
-  kycStatus: 'pending' | 'submitted' | 'activated' | 'suspended' | 'rejected';
-  accountHolderName: string | null;
-  bankAccountNumberMasked: string | null;
-  bankIfsc: string | null;
-  failedTransferCount: number;
-  pendingSettlementAmount: number;
-  submittedAt: string | null;
-  updatedAt: string | null;
-}
-
-export async function listOwnerPayouts(
-  params: { kycStatus?: string; page?: number; limit?: number } = {},
-): Promise<{ items: AdminOwnerPayout[]; total: number; page: number; pageSize: number; totalPages: number }> {
-  return call(() => apiClient.get('/api/v1/admin/payouts', { params }));
-}
-
 // ── Platform Settings ─────────────────────────────────────────────────────────
 
 export interface PlatformSettings {
@@ -282,7 +256,10 @@ export interface AdminOutstandingCafePayout {
   cafeId: string;
   cafeName: string;
   outstandingAmount: number;
-  payoutVerificationStatus: 'unverified' | 'test_sent' | 'verified';
+  payoutDestinationSubmitted: boolean;
+  upiVpa: string | null;
+  payoutOnHold: boolean;
+  payoutHoldReason: string | null;
 }
 
 export interface CafePayoutBreakdownItem {
@@ -334,11 +311,12 @@ export async function uploadPayoutProof(cafeId: string, file: File): Promise<str
   return publicUrl;
 }
 
-export async function verifyCafePayoutDestination(
+export async function setCafePayoutHold(
   cafeId: string,
-  body: { utrReference: string; verifiedName: string },
-): Promise<{ payoutVerificationStatus: string; verifiedName: string; verifiedAt: string }> {
-  return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}/verify-payout`, body));
+  onHold: boolean,
+  reason?: string,
+): Promise<{ cafeId: string; payoutOnHold: boolean; payoutHoldReason: string | null }> {
+  return call(() => apiClient.patch(`/api/v1/admin/cafe-payouts/${cafeId}/hold`, { onHold, reason }));
 }
 
 export async function listCafePayoutHistory(
