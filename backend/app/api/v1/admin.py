@@ -663,6 +663,8 @@ async def suspend_cafe(
         entity_id=str(cafe_id),
         reason=payload.reason,
     )
+    from app.services.notification_service import NotificationService
+    await NotificationService().send_cafe_suspended(db, cafe_id, payload.reason)
     return {"success": True, "data": result}
 
 

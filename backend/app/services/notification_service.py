@@ -217,6 +217,26 @@ class NotificationService:
         except Exception as e:
             logger.error("send_refund_confirmation_error", error=str(e), booking_id=str(booking_id))
 
+    async def send_cafe_suspended(self, db: AsyncSession, cafe_id: UUID, reason: str) -> bool:
+        try:
+            stmt = select(Cafe, User).join(User, Cafe.owner_id == User.id).where(Cafe.id == cafe_id)
+            res = await db.execute(stmt)
+            row = res.first()
+            if not row:
+                return False
+            cafe, owner = row[0], row[1]
+            subject = f"Your café has been suspended on KHEL-O — {cafe.name}"
+            html_body = _email_wrapper(f"""
+                <h2 style="margin-top: 0; color: {_BRAND_TEXT_PRIMARY};">Your café has been suspended</h2>
+                <p><strong>{cafe.name}</strong> has been suspended from KHEL-O and is no longer visible to gamers.</p>
+                <p><strong>Reason:</strong> {reason}</p>
+                <p style="color: {_BRAND_TEXT_SECONDARY};">If you believe this was done in error, please contact KHEL-O support.</p>
+            """)
+            return await self._send_resend_email(owner.email, subject, html_body, f"SUSPEND-{cafe.name}")
+        except Exception as e:
+            logger.error("send_cafe_suspended_error", error=str(e), cafe_id=str(cafe_id))
+            return False
+
     async def send_staff_invitation(self, email: str, full_name: str, venue_name: str, invite_url: str) -> bool:
         try:
             subject = f"You've been invited to join {venue_name} on KHEL-O! 🎮"
