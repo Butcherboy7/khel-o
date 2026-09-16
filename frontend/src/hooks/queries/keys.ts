@@ -21,6 +21,8 @@ export const queryKeys = {
     bookings: (params: OwnerBookingParams) => ['owner', 'bookings', params] as const,
     staff: ['owner', 'staff'] as const,
     payoutStatus: ['owner', 'payoutStatus'] as const,
+    payoutSummary: ['owner', 'payoutSummary'] as const,
+    cafePayouts: ['owner', 'cafePayouts'] as const,
   },
   admin: {
     all: ['admin'] as const,
