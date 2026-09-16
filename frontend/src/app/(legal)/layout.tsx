@@ -4,8 +4,10 @@ import { SocialLinks } from '@/components/layout/SocialLinks';
 
 const LEGAL_LINKS = [
   { href: '/about', label: 'About Us' },
-  { href: '/terms', label: 'Terms & Conditions' },
+  { href: '/terms', label: 'Terms & Conditions (Gamers)' },
+  { href: '/owner-terms', label: 'Terms & Conditions (Café Partners)' },
   { href: '/privacy', label: 'Privacy Policy' },
+  { href: '/cookie-policy', label: 'Cookie Policy' },
   { href: '/refund-policy', label: 'Cancellation & Refunds' },
   { href: '/shipping-policy', label: 'Service Delivery' },
   { href: '/contact', label: 'Contact Us' },

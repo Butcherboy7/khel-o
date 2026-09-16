@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Terms & Conditions',
-  description: 'Terms and conditions governing the use of the KHEL-O gaming café booking platform.',
+  title: 'Terms & Conditions for Gamers',
+  description: 'Terms and conditions governing gamers who use the KHEL-O gaming café booking platform.',
 };
 
 export default function TermsPage() {
   return (
     <>
-      <h1>Terms &amp; Conditions</h1>
+      <h1>Terms &amp; Conditions for Gamers</h1>
       <p className="prose-legal-updated">Last updated: 19 August 2026</p>
 
       <p>
@@ -17,6 +17,8 @@ export default function TermsPage() {
         proprietorship by Mohammed Abdullah, based in Hyderabad, Telangana, India. KHEL-O lets gamers (&quot;Gamers&quot;,
         &quot;you&quot;) discover, compare, and book time-slots at gaming cafés (&quot;Café Partners&quot;) that
         list their stations on the Platform. By creating an account or making a booking, you agree to these Terms.
+        These Terms apply to Gamers; if you own or operate a café listing on KHEL-O, see our{' '}
+        <a href="/owner-terms">Café Partner Terms &amp; Conditions</a> instead.
       </p>
 
       <h2>1. What KHEL-O Is and Isn&apos;t</h2>

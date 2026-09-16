@@ -19,6 +19,9 @@ const registerSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   phoneNumber: z.string().regex(/^(\+91|0)?[6-9]\d{9}$/, 'Please enter a valid Indian phone number'),
+  agreedToTerms: z.literal(true, {
+    message: 'Please agree to the Terms & Conditions and Privacy Policy to continue',
+  }),
 });
 
 function RegisterForm() {
@@ -38,8 +41,9 @@ function RegisterForm() {
   const [password, setPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [heardAboutUs, setHeardAboutUs] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<{ fullName?: string; email?: string; password?: string; phoneNumber?: string }>({});
+  const [validationErrors, setValidationErrors] = useState<{ fullName?: string; email?: string; password?: string; phoneNumber?: string; agreedToTerms?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -51,9 +55,9 @@ function RegisterForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     
-    const result = registerSchema.safeParse({ fullName, email, password, phoneNumber });
+    const result = registerSchema.safeParse({ fullName, email, password, phoneNumber, agreedToTerms });
     if (!result.success) {
-      const fieldErrors: { fullName?: string; email?: string; password?: string; phoneNumber?: string } = {};
+      const fieldErrors: { fullName?: string; email?: string; password?: string; phoneNumber?: string; agreedToTerms?: string } = {};
       result.error.issues.forEach(err => {
         fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
       });
@@ -188,6 +192,40 @@ function RegisterForm() {
               </select>
             </div>
           )}
+
+          <div className="flex flex-col gap-1">
+            <label className="flex items-start gap-2.5 text-caption text-text-secondary">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                required
+                aria-invalid={validationErrors.agreedToTerms ? 'true' : undefined}
+                aria-describedby={validationErrors.agreedToTerms ? 'agreed-to-terms-error' : undefined}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <span>
+                I agree to KHEL-O&apos;s{' '}
+                <Link href="/terms" target="_blank" className="font-semibold text-primary hover:underline">
+                  Terms &amp; Conditions
+                </Link>
+                ,{' '}
+                <Link href="/privacy" target="_blank" className="font-semibold text-primary hover:underline">
+                  Privacy Policy
+                </Link>
+                , and{' '}
+                <Link href="/cookie-policy" target="_blank" className="font-semibold text-primary hover:underline">
+                  Cookie Policy
+                </Link>
+                .
+              </span>
+            </label>
+            {validationErrors.agreedToTerms && (
+              <p id="agreed-to-terms-error" role="alert" className="text-caption text-error">
+                {validationErrors.agreedToTerms}
+              </p>
+            )}
+          </div>
 
           <Button
             type="submit"

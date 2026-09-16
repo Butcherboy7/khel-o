@@ -116,6 +116,7 @@ export default function OnboardingWizardPage() {
   const [error, setError] = useState<string | null>(null);
   const [showBankFallback, setShowBankFallback] = useState(false);
   const [customGameInput, setCustomGameInput] = useState<Record<string, string>>({});
+  const [agreedToOwnerTerms, setAgreedToOwnerTerms] = useState(false);
 
   // Load server-persisted draft on mount with StrictMode cleanup flag
   useEffect(() => {
@@ -305,6 +306,12 @@ export default function OnboardingWizardPage() {
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
     setError(null);
+
+    if (!agreedToOwnerTerms) {
+      setError('Please agree to the Café Partner Terms & Conditions and Privacy Policy to submit your application.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const formatTimeString = (timeStr: string) => {
@@ -1057,6 +1064,31 @@ export default function OnboardingWizardPage() {
                     <span className="font-semibold text-emerald-600">{formData.upiVpa || 'Not Provided'}</span>
                   </div>
                 </div>
+
+                <label className="flex items-start gap-2.5 text-caption text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={agreedToOwnerTerms}
+                    onChange={(e) => setAgreedToOwnerTerms(e.target.checked)}
+                    required
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <span>
+                    I confirm the details above are accurate and I agree to KHEL-O&apos;s{' '}
+                    <a href="/owner-terms" target="_blank" className="font-semibold text-primary hover:underline">
+                      Café Partner Terms &amp; Conditions
+                    </a>
+                    ,{' '}
+                    <a href="/privacy" target="_blank" className="font-semibold text-primary hover:underline">
+                      Privacy Policy
+                    </a>
+                    , and{' '}
+                    <a href="/refund-policy" target="_blank" className="font-semibold text-primary hover:underline">
+                      Cancellation &amp; Refunds Policy
+                    </a>
+                    .
+                  </span>
+                </label>
               </div>
             )}
 

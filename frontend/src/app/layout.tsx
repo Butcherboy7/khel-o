@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import { Providers } from './providers';
 import { getPublicEnv } from '@/lib/runtimeEnv';
+import { CookieConsentBanner } from '@/components/layout/CookieConsentBanner';
 import '../globals.css';
 
 /* ── Font Loading ────────────────────────────────────────────────── */
@@ -157,6 +158,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
         <Providers>{children}</Providers>
+        <CookieConsentBanner />
       </body>
     </html>
   );

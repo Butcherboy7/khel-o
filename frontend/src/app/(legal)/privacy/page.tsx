@@ -24,7 +24,9 @@ export default function PrivacyPage() {
         <li><strong>Payment information:</strong> we do not collect or store card, UPI, or bank details ourselves. Payments are processed by Razorpay, and we only retain the payment status, amount, and Razorpay&apos;s transaction reference for our records.</li>
         <li><strong>Location:</strong> if you grant permission, we use your device&apos;s approximate location to show nearby cafés. You can decline this and search by city/area instead.</li>
         <li><strong>Usage data:</strong> basic technical logs (device type, IP address, pages visited) collected automatically to keep the Platform secure and to fix bugs, via our error-monitoring tool (Sentry).</li>
+        <li><strong>Referral/attribution data:</strong> an anonymous session identifier and, if present, the campaign source in the link you arrived from (e.g. <code>utm_source</code>), stored in your browser&apos;s local storage. Used only to see in aggregate which channel brought signups — never to build a cross-site advertising profile.</li>
       </ul>
+      <p>See our <a href="/cookie-policy">Cookie Policy</a> for the full list of what we store in your browser and why.</p>
 
       <h2>2. How We Use Your Information</h2>
       <ul>
@@ -67,8 +69,10 @@ export default function PrivacyPage() {
 
       <h2>7. Cookies &amp; Local Storage</h2>
       <p>
-        We use browser local storage to keep you signed in and remember basic preferences (like your selected
-        city). We do not use third-party advertising cookies.
+        We use browser local storage to keep you signed in, remember basic preferences (like your selected city),
+        and store the anonymous attribution data described in Section 1. We do not use third-party advertising
+        cookies. Google Sign-In and Razorpay may set their own cookies during sign-in or checkout — see our{' '}
+        <a href="/cookie-policy">Cookie Policy</a> for details.
       </p>
 
       <h2>8. Children</h2>
