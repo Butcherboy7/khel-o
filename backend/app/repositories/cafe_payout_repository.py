@@ -6,11 +6,11 @@ from uuid import UUID
 from sqlalchemy import select, func, not_, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestException
+from app.core.exceptions import BadRequestException, ConflictException
 from app.models.admin_audit_log import AdminAuditLog
 from app.models.booking import Booking
 from app.models.cafe import Cafe
-from app.models.cafe_payout import CafePayout, CafePayoutStatus
+from app.models.cafe_payout import CafePayout, CafePayoutStatus, PayoutDestinationType
 from app.models.cafe_payout_adjustment import CafePayoutAdjustment
 from app.models.cafe_payout_item import CafePayoutItem
 from app.models.owner_payout_account import OwnerPayoutAccount
@@ -77,8 +77,24 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         proof_image_url: Optional[str] = None,
         admin_note: Optional[str] = None,
         paid_at: Optional[datetime] = None,
+        destination_type: Optional[str] = None,
+        expected_payout_account_version: Optional[int] = None,
     ) -> CafePayout:
         """Create a CafePayout + its CafePayoutItem rows in a single transaction.
+
+        `destination_type` ("upi" or "bank") records the method actually
+        used for THIS payout — not the owner's stored preference, since an
+        OwnerPayoutAccount may hold both. If not given (internal/legacy
+        callers), it's inferred: "upi" if the account has a UPI, else
+        "bank". The real admin-facing API always supplies it explicitly.
+
+        `expected_payout_account_version`, when given, must match the live
+        OwnerPayoutAccount.version or a ConflictException (409,
+        PAYOUT_DESTINATION_STALE) is raised before any write — this is the
+        safeguard against an admin paying out a destination that changed
+        after they opened the payable but before they submitted. When not
+        given, the check is skipped (used by internal/legacy callers that
+        don't have a "version the admin last saw" to compare against).
 
         When `audit_log_data` is provided, the AdminAuditLog entry for this
         payout is added to the same session and committed atomically with the
@@ -119,6 +135,15 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
                 "or bank account in Owner Settings before paying out."
             )
 
+        if expected_payout_account_version is not None and payout_account.version != expected_payout_account_version:
+            raise ConflictException(
+                "Payout details changed since you opened this payable. Please refresh and "
+                "confirm the new destination before recording this payout.",
+                error_code="PAYOUT_DESTINATION_STALE",
+            )
+
+        resolved_destination_type = destination_type or ("upi" if has_upi else "bank")
+
         rows = await self.get_outstanding_fee_rows(cafe_id)
         adjustments = await self.get_unconsumed_adjustments(cafe_id)
         if not rows and not adjustments:
@@ -142,6 +167,13 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
             admin_note=admin_note,
             created_by_admin_id=admin_id,
             paid_at=paid_at or datetime.now(timezone.utc),
+            destination_type=PayoutDestinationType(resolved_destination_type),
+            destination_upi_vpa=payout_account.upi_vpa,
+            destination_bank_account_masked=payout_account.bank_account_number_masked,
+            destination_bank_ifsc=payout_account.bank_ifsc,
+            destination_account_holder_name=payout_account.account_holder_name,
+            destination_payout_account_id=payout_account.id,
+            destination_payout_account_version=payout_account.version,
         )
         self.db.add(payout)
         await self.db.flush()

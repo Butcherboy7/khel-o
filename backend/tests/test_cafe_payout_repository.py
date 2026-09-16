@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.core.exceptions import BadRequestException
 from app.repositories.cafe_payout_repository import CafePayoutRepository
-from app.models.cafe_payout import CafePayoutStatus
+from app.models.cafe_payout import CafePayout, CafePayoutStatus
 from app.models.payment import Payment, PaymentStatus
 from app.models.platform_fee import PlatformFee
 from tests.test_admin_v2_features import _make_gamer, _make_booking_with_payment
@@ -484,3 +484,155 @@ async def test_on_hold_and_disputed_statuses_round_trip_through_list_payouts(db_
 
     result2 = await repo.list_payouts(cafe_id=booking.cafe_id)
     assert result2["items"][0]["status"] == "disputed"
+
+
+@pytest.mark.asyncio
+async def test_create_payout_snapshots_destination_from_live_account(db_session):
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+
+    gamer = await _make_gamer(db_session, "snapshot_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("500.00"))
+    db_session.add(fee)
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    account = OwnerPayoutAccount(
+        id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="snap@okaxis",
+        account_holder_name="Snap Holder", version=3,
+    )
+    db_session.add(account)
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    payout = await repo.create_payout(
+        cafe_id=booking.cafe_id, admin_id=uuid4(),
+        utr_reference="UTR-SNAP", payment_method="upi",
+        destination_type="upi",
+    )
+
+    assert payout.destination_type.value == "upi"
+    assert payout.destination_upi_vpa == "snap@okaxis"
+    assert payout.destination_account_holder_name == "Snap Holder"
+    assert payout.destination_payout_account_id == account.id
+    assert payout.destination_payout_account_version == 3
+
+
+@pytest.mark.asyncio
+async def test_create_payout_infers_destination_type_when_not_given(db_session):
+    """Existing/internal callers that don't pass destination_type explicitly
+    (e.g. direct repository tests) still get a sensibly-populated snapshot."""
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+
+    gamer = await _make_gamer(db_session, "infer_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("100.00"))
+    db_session.add(fee)
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="infer@okaxis"))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    payout = await repo.create_payout(
+        cafe_id=booking.cafe_id, admin_id=uuid4(),
+        utr_reference="UTR-INFER", payment_method="upi",
+    )
+    assert payout.destination_type.value == "upi"
+
+
+@pytest.mark.asyncio
+async def test_create_payout_rejects_stale_expected_version(db_session):
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from app.core.exceptions import ConflictException
+
+    gamer = await _make_gamer(db_session, "stale_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("250.00"))
+    db_session.add(fee)
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="stale@okaxis", version=2))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    with pytest.raises(ConflictException, match="changed since you opened"):
+        await repo.create_payout(
+            cafe_id=booking.cafe_id, admin_id=uuid4(),
+            utr_reference="UTR-STALE", payment_method="upi",
+            destination_type="upi", expected_payout_account_version=1,
+        )
+
+    # Nothing must have been written.
+    remaining = await repo.get_outstanding_amount(booking.cafe_id)
+    assert remaining == Decimal("250.00")
+
+
+@pytest.mark.asyncio
+async def test_create_payout_accepts_matching_expected_version(db_session):
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+
+    gamer = await _make_gamer(db_session, "fresh_version_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("250.00"))
+    db_session.add(fee)
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="fresh@okaxis", version=2))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    payout = await repo.create_payout(
+        cafe_id=booking.cafe_id, admin_id=uuid4(),
+        utr_reference="UTR-FRESH", payment_method="upi",
+        destination_type="upi", expected_payout_account_version=2,
+    )
+    assert payout.destination_payout_account_version == 2
+
+
+@pytest.mark.asyncio
+async def test_create_payout_rolls_back_completely_on_partial_failure(db_session):
+    """If anything fails after the CafePayout row is staged but before the
+    transaction commits, nothing may be left half-written — no orphaned
+    CafePayout row, no reduced outstanding balance."""
+    from unittest.mock import patch
+    from app.models.owner_payout_account import OwnerPayoutAccount
+    from app.models.cafe import Cafe
+    from app.models.cafe_payout_item import CafePayoutItem
+
+    gamer = await _make_gamer(db_session, "atomicity_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    cafe_id = booking.cafe_id
+    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("500.00"))
+    db_session.add(fee)
+    cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == cafe_id))).scalars().first()
+    db_session.add(OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="atomic@okaxis"))
+    await db_session.commit()
+
+    repo = CafePayoutRepository(db_session)
+    original_add = db_session.add
+
+    def _failing_add(instance):
+        if isinstance(instance, CafePayoutItem):
+            raise RuntimeError("simulated failure while adding payout items")
+        return original_add(instance)
+
+    with patch.object(db_session, "add", side_effect=_failing_add):
+        with pytest.raises(RuntimeError, match="simulated failure"):
+            await repo.create_payout(
+                cafe_id=cafe_id, admin_id=uuid4(),
+                utr_reference="UTR-ATOMIC", payment_method="upi",
+            )
+
+    # Note: booking/fee/cafe_row are captured into plain values (cafe_id)
+    # before this point — rollback() expires every ORM instance the session
+    # was tracking, and re-touching an expired attribute (e.g. booking.cafe_id)
+    # outside an awaited/greenlet context raises sqlalchemy.exc.MissingGreenlet.
+    await db_session.rollback()
+
+    remaining = await repo.get_outstanding_amount(cafe_id)
+    assert remaining == Decimal("500.00")
+
+    leftover = (await db_session.execute(
+        select(CafePayout).where(CafePayout.cafe_id == cafe_id)
+    )).scalars().all()
+    assert leftover == []

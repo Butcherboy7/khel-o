@@ -43,7 +43,11 @@ async def test_admin_can_list_outstanding_and_create_payout(db_session):
 
         create_res = await client.post(
             f"/api/v1/admin/cafe-payouts/{booking.cafe_id}",
-            json={"utrReference": "UTR999", "paymentMethod": "neft", "notes": "test payout"},
+            json={
+                "utrReference": "UTR999", "paymentMethod": "neft", "notes": "test payout",
+                "destinationType": "upi", "expectedPayoutAccountVersion": 1,
+                "confirmedPaymentMade": True,
+            },
             headers=headers,
         )
         assert create_res.status_code == 201, create_res.text
@@ -69,7 +73,11 @@ async def test_create_payout_rejects_when_no_outstanding_balance(db_session):
         headers = auth_headers(admin, is_admin=True)
         res = await client.post(
             f"/api/v1/admin/cafe-payouts/{uuid4()}",
-            json={"utrReference": "UTR000", "paymentMethod": "neft"},
+            json={
+                "utrReference": "UTR000", "paymentMethod": "neft",
+                "destinationType": "upi", "expectedPayoutAccountVersion": 1,
+                "confirmedPaymentMade": True,
+            },
             headers=headers,
         )
         assert res.status_code == 400
@@ -107,7 +115,11 @@ async def test_concurrent_payout_creation_returns_clean_400_not_500(db_session, 
         headers = auth_headers(admin, is_admin=True)
         res = await client.post(
             f"/api/v1/admin/cafe-payouts/{booking.cafe_id}",
-            json={"utrReference": "UTR-RACE-API", "paymentMethod": "neft"},
+            json={
+                "utrReference": "UTR-RACE-API", "paymentMethod": "neft",
+                "destinationType": "upi", "expectedPayoutAccountVersion": 1,
+                "confirmedPaymentMade": True,
+            },
             headers=headers,
         )
 

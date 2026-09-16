@@ -40,6 +40,9 @@ async def test_create_payout_accepts_proof_and_admin_note(db_session):
             json={
                 "utrReference": "UTR-PROOF-1",
                 "paymentMethod": "upi",
+                "destinationType": "upi",
+                "expectedPayoutAccountVersion": 1,
+                "confirmedPaymentMade": True,
                 "proofImageUrl": "https://cdn.example.com/proof.png",
                 "adminNote": "Confirmed via screenshot",
                 "paidAt": "2026-09-01T10:00:00Z",
@@ -64,7 +67,11 @@ async def test_create_payout_without_proof_fields_still_succeeds(db_session):
         headers = auth_headers(admin, is_admin=True)
         res = await client.post(
             f"/api/v1/admin/cafe-payouts/{booking.cafe_id}",
-            json={"utrReference": "UTR-NOPROOF-1", "paymentMethod": "neft"},
+            json={
+                "utrReference": "UTR-NOPROOF-1", "paymentMethod": "neft",
+                "destinationType": "upi", "expectedPayoutAccountVersion": 1,
+                "confirmedPaymentMade": True,
+            },
             headers=headers,
         )
         assert res.status_code == 201, res.text

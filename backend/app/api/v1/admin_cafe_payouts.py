@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 from datetime import datetime
 import uuid as _uuid
@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
-from app.core.exceptions import BadRequestException, NotFoundException
+from app.core.exceptions import BadRequestException, ConflictException, NotFoundException
 from app.database import get_db
 from app.models.user import User
 from app.models.admin_audit_log import AdminAuditLog
@@ -23,6 +23,9 @@ router = APIRouter()
 class CafePayoutCreateRequest(BaseModel):
     utrReference: str
     paymentMethod: str
+    destinationType: Literal["upi", "bank"]
+    expectedPayoutAccountVersion: int
+    confirmedPaymentMade: Literal[True]
     notes: Optional[str] = None
     proofImageUrl: Optional[str] = None
     adminNote: Optional[str] = None
@@ -129,6 +132,8 @@ async def create_cafe_payout(
             admin_id=current_admin.id,
             utr_reference=payload.utrReference,
             payment_method=payload.paymentMethod,
+            destination_type=payload.destinationType,
+            expected_payout_account_version=payload.expectedPayoutAccountVersion,
             notes=payload.notes,
             proof_image_url=payload.proofImageUrl,
             admin_note=payload.adminNote,
