@@ -55,7 +55,12 @@ async def test_patch_destination_rejects_wrong_password(db_session):
             json={"currentPassword": "wrongpass", "upiVpa": "new@okaxis"},
             headers=headers,
         )
-        assert res.status_code == 401
+        # Must NOT be 401 — the global axios interceptor treats any 401
+        # outside auth endpoints as a session-expiry signal and triggers a
+        # token refresh / logout, which would be wrong for a simple wrong
+        # payout password.
+        assert res.status_code == 403
+        assert res.json()["error"]["code"] == "INVALID_PASSWORD"
 
     account = (await db_session.execute(
         select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == owner.id)
@@ -122,6 +127,47 @@ async def test_patch_destination_blocks_clearing_only_destination_with_outstandi
         )
         assert res.status_code == 400
         assert "outstanding" in res.json()["error"]["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_patch_destination_blocks_nulling_only_bank_ifsc_with_outstanding_balance(db_session):
+    """Nulling out only bank_ifsc (while bank_account_number stays set, and
+    no UPI is on file) must trip the same "can't remove your only payout
+    destination" guard — a bank destination missing IFSC isn't a usable
+    destination even though bank_account_number is still non-null."""
+    from tests.test_admin_v2_features import _make_gamer, _make_booking_with_payment
+    from app.models.platform_fee import PlatformFee
+
+    owner, cafe = await _make_owner_with_cafe(db_session, password="correctpass123")
+    db_session.add(OwnerPayoutAccount(
+        id=uuid.uuid4(), owner_id=owner.id,
+        bank_account_number_encrypted=encrypt_bank_account_number("9180200192847291"),
+        bank_account_number_masked="••••7291",
+        bank_ifsc="HDFC0000128",
+        account_holder_name="Existing Holder",
+    ))
+    await db_session.commit()
+
+    gamer = await _make_gamer(db_session, "block_clear_ifsc_gamer")
+    booking, payment = await _make_booking_with_payment(db_session, gamer)
+    booking.cafe_id = cafe.id
+    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=100.0))
+    await db_session.commit()
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        headers = auth_headers(owner, is_admin=False)
+        res = await client.patch(
+            "/api/v1/owner/payouts/destination",
+            json={"currentPassword": "correctpass123", "bankIfsc": None},
+            headers=headers,
+        )
+        assert res.status_code == 400
+        assert "outstanding" in res.json()["error"]["message"].lower()
+
+    account = (await db_session.execute(
+        select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == owner.id)
+    )).scalars().first()
+    assert account.bank_ifsc == "HDFC0000128"  # unchanged — the write was aborted
 
 
 @pytest.mark.asyncio

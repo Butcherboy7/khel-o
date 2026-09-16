@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.api.deps import require_cafe_owner
-from app.core.exceptions import AuthException, BadRequestException
+from app.core.exceptions import BadRequestException, ForbiddenException
 from app.core.payout_encryption import decrypt_bank_account_number
 from app.core.security import verify_password
 from app.models.cafe import Cafe
@@ -100,7 +100,12 @@ async def update_payout_destination(
     db: AsyncSession = Depends(get_db),
 ):
     if not verify_password(payload.current_password, current_owner.password_hash):
-        raise AuthException("Incorrect password.")
+        # Deliberately NOT 401: the global axios interceptor treats any 401
+        # outside auth endpoints as a session-expiry signal, triggers a token
+        # refresh, replays the request, and logs the owner out entirely if no
+        # refresh token is present. A wrong payout password is an
+        # authenticated-but-failed-check case, not an authentication failure.
+        raise ForbiddenException("Incorrect password.", error_code="INVALID_PASSWORD")
 
     payout_repo = OwnerPayoutRepository(db)
     existing = await payout_repo.get_by_owner_id(current_owner.id)
@@ -137,7 +142,9 @@ async def update_payout_destination(
     else:
         resolved_bank_account_number = None
 
-    would_clear_destination = not resolved_upi_vpa and not resolved_bank_account_number
+    would_clear_destination = not resolved_upi_vpa and not (
+        resolved_bank_account_number and resolved_bank_ifsc and resolved_account_holder_name
+    )
     if would_clear_destination:
         cafe_ids = [
             row[0] for row in
