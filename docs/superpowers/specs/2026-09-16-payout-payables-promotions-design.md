@@ -30,7 +30,7 @@ Separately, Priority 3 (promotion editing) is unrelated to the payout work: a co
 **`CafePayout`** — add seven columns, all nullable, populated once at creation time from the live `OwnerPayoutAccount`, never updated after:
 | column | type | notes |
 |---|---|---|
-| `destination_type` | Enum: `upi`, `bank` | which method was actually used for this payout |
+| `destination_type` | Enum: `upi`, `bank` | the method **actually used** for this specific payout, selected/confirmed by the admin at payout-recording time (Part B, item 4) — not the owner's "preferred" method. An `OwnerPayoutAccount` may hold both UPI and bank details simultaneously; this field records which one the money was actually sent through, since the snapshot's purpose is documenting what the admin actually paid to, not what was merely on file. |
 | `destination_upi_vpa` | String, nullable | full UPI (not sensitive on its own — already shown in full elsewhere in the app today) |
 | `destination_bank_account_masked` | String, nullable | masked form only, e.g. `****1234` — never the decrypted number |
 | `destination_bank_ifsc` | String, nullable | |
@@ -60,6 +60,9 @@ Masked display stays the default everywhere (payables list, breakdown view, caf�
 - **Writes an `AdminAuditLog` row** (`action="payout_destination.revealed"`, actor, target cafe, timestamp) — logs the *fact* of the reveal, never the decrypted value itself.
 - Frontend holds the revealed value in component-local state only, cleared when the modal closes. Not cached in any global store, not persisted to localStorage.
 - **Hard requirement, enforced by code review not just convention:** the decrypted bank account number must never appear in application logs, audit logs, analytics events, or error messages. `payout_encryption.py`'s decrypt function's call sites in this new endpoint must not pass through any `logger.info`/`logger.debug` call with the raw value.
+- **Authorization is re-checked at the endpoint itself** — the reveal endpoint independently verifies the caller has the admin role via the standard dependency, rather than relying on the fact that the admin already loaded the payable in an earlier request. Each call is authorized on its own.
+- **Response is non-cacheable**: the reveal endpoint sets `Cache-Control: no-store` on its response, so the decrypted value is never eligible for browser or proxy caching.
+- **Frontend storage discipline**: the revealed value is held in component-local React state only — it must never be written into a React Query cache, any global store (Zustand, etc.), or anything that would surface it in devtools/persisted state. It is discarded when the modal closes or the component unmounts.
 
 ### A.3 Staleness detection (closes gap 3's race condition)
 
@@ -83,12 +86,18 @@ Assuming the audit clears it:
 - **New endpoint** `PATCH /api/v1/owner/payout-details` — body: new UPI and/or bank fields **+ current account password**. Backend verifies the password first (same password-hash check used elsewhere in auth); wrong password → 401, **no change made, no email sent, no audit row written**. On success: calls `upsert_payout_details()` (bumping `version` per A.1), fires a "your payout details changed" confirmation email via the existing Resend/SES-backed `NotificationService` (informational, sent after the fact — not a blocking pre-confirmation step), and writes an `OwnerAuditLog` row.
 - **New frontend component** `PayoutDetailsCard.tsx` in `owner/settings/page.tsx` (replacing the deleted legacy card): shows current UPI/masked-bank + "last updated," an Edit button opening a form (destination fields + password field), submits to the PATCH endpoint, surfaces the real server error on failure, refetches on success.
 
+**Destination removal/deactivation rule:** an owner may not remove or clear their only payout destination (UPI and bank both blank) while they have a non-zero outstanding payable balance. The `PATCH /api/v1/owner/payout-details` endpoint checks the owner's current outstanding balance (same calculation the payables page already uses) before allowing a submission that would leave both fields empty; if outstanding balance > 0, the request is rejected with a clear error rather than silently succeeding. If an owner has zero outstanding balance and clears their details, that's permitted — but any *future* payable that accrues afterward simply can't be paid until a valid destination exists again (the existing "no destination on file" guard in `create_payout()` already covers this case unchanged; no new blocking logic needed there).
+
 **Audit log content — hard requirement:** `before_summary`/`after_summary` on `OwnerAuditLog`, and any before/after content in `AdminAuditLog` entries touching payout data, contain **only** masked representations, e.g. `UPI: oldupi@upi` / `Bank: ****1234 / IFSC HDFC0001234`. Never a decrypted account number, never the password used to authorize the change, never any other authentication secret.
 
 ### A.5 Payables endpoints (closes gap 1)
 
 - `list_cafes_with_outstanding` (feeds the payables list) — extended to return `hasUpi: bool` / `hasBank: bool` flags (not full bank details at list-scope, to keep that response lightweight) so the list can correctly show "has payout info on file" for bank-only cafés instead of a false "no UPI ID on file" warning.
 - The breakdown endpoint (feeds the opened payable / modal) — extended to return the masked UPI + masked bank fields + `payout_account_version`, per A.3.
+
+### A.6 Transactional integrity
+
+**All financial state changes involved in recording a payout must be performed atomically in one database transaction; partial payout state must never be committed.** Concretely: the version-staleness re-check (A.3), creation of the `CafePayout` row, population of its seven destination-snapshot columns, creation of the `CafePayoutItem` rows linking it to the covered `PlatformFee` rows, and the resulting reduction of outstanding balance are all one transaction. If any step fails — including the staleness check itself failing after the transaction has begun — the entire transaction rolls back and no `CafePayout` row exists. This extends (does not replace) the existing double-payout protection from `2026-09-07-manual-cafe-payouts-design.md` (the `CafePayoutItem.platform_fee_id` unique constraint), which guards against a *different* failure mode (two concurrent requests) than this guards against (a partially-completed single request leaving the payable in an inconsistent state — e.g. a payout record existing without its balance-reducing items, or vice versa).
 
 ## Part B — Payables modal rebuild (closes gap 5)
 
@@ -131,6 +140,8 @@ Authorization (`cafe.owner_id == owner_id` check in `PromotionService.update_pro
 - Wrong password on the owner payout-details edit form → 401, no partial write, no email, no audit row.
 - Multiple cafés under one owner share one `OwnerPayoutAccount` (existing, deliberate design — confirmed, not a bug) — each café's payables modal will correctly show the identical destination; UI adds a small "shared across your other cafés" note for clarity, not a functional change.
 - Legacy KYC endpoint still has live consumers when the dependency audit runs → deprecate (410 / feature flag), do not delete; file a follow-up.
+- Owner attempts to clear their only payout destination while they have a non-zero outstanding balance → rejected (A.4). Owner clears it while balance is zero, then a new payable later accrues → blocked from payout by the existing "no destination on file" guard until a valid destination is re-added; not a new failure mode, just the existing guard doing its job.
+- Any failure partway through recording a payout (DB error, staleness check failing mid-transaction, etc.) → full rollback, no partial `CafePayout`/`CafePayoutItem` state committed (A.6).
 
 ## Testing plan
 
@@ -142,6 +153,9 @@ Authorization (`cafe.owner_id == owner_id` check in `PromotionService.update_pro
 - `PromotionRepository.update()` regression test: explicitly clearing `maxUses`/`kheloCode` to `None` persists across a refetch.
 - Payables list/breakdown responses correctly reflect `hasBank`/masked bank fields for a bank-only café (previously showed "no UPI on file").
 - Legacy KYC endpoint: either fully removed (if audit clears it) with no remaining route, or explicitly returns 410 if deprecated instead.
+- Owner cannot clear their only destination while outstanding balance > 0 (rejected with a clear error); can clear it when balance is zero.
+- Reveal endpoint: response carries `Cache-Control: no-store`; a second call re-verifies admin role independently rather than trusting a prior request.
+- Atomicity: simulate a failure injected between `CafePayout` creation and `CafePayoutItem` creation (e.g. a forced exception) and assert the transaction rolls back completely — no orphaned `CafePayout` row, no reduced outstanding balance.
 
 **Frontend (manual, in-browser verification):**
 - Modal: Escape closes it, backdrop click closes it, content scrolls internally on a short viewport (both a resized-down desktop window and an actual mobile width), close button always reachable.
