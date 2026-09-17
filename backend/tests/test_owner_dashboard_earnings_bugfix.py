@@ -22,7 +22,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.payment import Payment, PaymentStatus
 from app.core.security import get_password_hash
 from tests.conftest import auth_headers
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 
 async def _make_owner_and_cafe(db_session, suffix: str):
@@ -109,7 +109,7 @@ async def test_dashboard_earnings_exclude_pending_and_failed_bookings(db_session
 
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.get("/api/v1/owner/dashboard", headers=auth_headers(owner))
         assert res.status_code == 200, res.text
         data = res.json()["data"]

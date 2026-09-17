@@ -4,7 +4,7 @@ Tests for the forgot-password / reset-password flow, shared by customers and own
 import pytest
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
@@ -38,7 +38,7 @@ async def test_forgot_password_creates_token_for_existing_user(db_session):
     what matters is that a usable token is persisted."""
     user = await _make_user(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.post("/api/v1/auth/forgot-password", json={"email": user.email})
         assert res.status_code == 200
 
@@ -57,7 +57,7 @@ async def test_forgot_password_creates_token_for_existing_user(db_session):
 @pytest.mark.asyncio
 async def test_forgot_password_unknown_email_still_returns_200():
     """Never reveal whether an email is registered."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.post("/api/v1/auth/forgot-password", json={"email": "definitely_not_registered@test.com"})
         assert res.status_code == 200
         assert "message" in res.json()["data"]
@@ -68,7 +68,7 @@ async def test_reset_password_full_cycle_works_for_owner(db_session):
     """Same flow for a cafe_owner account — the endpoint is role-agnostic."""
     owner = await _make_user(db_session, role=UserRole.CAFE_OWNER)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.post("/api/v1/auth/forgot-password", json={"email": owner.email})
 
     async with AsyncSessionLocal() as db:
@@ -77,7 +77,7 @@ async def test_reset_password_full_cycle_works_for_owner(db_session):
         token_row = result.scalars().first()
         token = token_row.token
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         reset_res = await client.post(
             "/api/v1/auth/reset-password",
             json={"token": token, "newPassword": "brandnewpassword456"},
@@ -119,7 +119,7 @@ async def test_reset_password_rejects_expired_token(db_session):
     db_session.add(expired_token)
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.post(
             "/api/v1/auth/reset-password",
             json={"token": expired_token.token, "newPassword": "somepassword123"},
@@ -129,7 +129,7 @@ async def test_reset_password_rejects_expired_token(db_session):
 
 @pytest.mark.asyncio
 async def test_reset_password_rejects_unknown_token():
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.post(
             "/api/v1/auth/reset-password",
             json={"token": "not-a-real-token", "newPassword": "somepassword123"},
@@ -141,7 +141,7 @@ async def test_reset_password_rejects_unknown_token():
 async def test_requesting_new_reset_invalidates_previous_token(db_session):
     user = await _make_user(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.post("/api/v1/auth/forgot-password", json={"email": user.email})
 
     async with AsyncSessionLocal() as db:
@@ -150,7 +150,7 @@ async def test_requesting_new_reset_invalidates_previous_token(db_session):
         first_token = result.scalars().first()
         first_token_value = first_token.token
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.post("/api/v1/auth/forgot-password", json={"email": user.email})
 
         # The first token should no longer work

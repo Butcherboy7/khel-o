@@ -5,7 +5,7 @@ owner promotions list, replacing what used to be frontend-only mock data.
 import pytest
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
@@ -75,7 +75,7 @@ async def _make_cafe_with_review(db_session):
 async def test_owner_can_reply_to_review_on_own_cafe(db_session):
     owner, other_owner, cafe, review = await _make_cafe_with_review(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.patch(
             f"/api/v1/reviews/{review.id}/reply",
             json={"reply": "Thanks for the feedback — upgrading RAM next month!"},
@@ -97,7 +97,7 @@ async def test_owner_can_reply_to_review_on_own_cafe(db_session):
 async def test_owner_cannot_reply_to_review_on_someone_elses_cafe(db_session):
     owner, other_owner, cafe, review = await _make_cafe_with_review(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.patch(
             f"/api/v1/reviews/{review.id}/reply",
             json={"reply": "Trying to reply to someone else's review"},
@@ -127,7 +127,7 @@ async def test_owner_promotions_list_includes_all_statuses(db_session):
     db_session.add_all([active_promo, inactive_promo])
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.get(f"/api/v1/promotions/owner/cafe/{cafe.id}", headers=auth_headers(owner))
         assert res.status_code == 200, res.text
         titles = {p["title"] for p in res.json()["data"]["promotions"]}
@@ -142,7 +142,7 @@ async def test_owner_promotions_list_includes_all_statuses(db_session):
 async def test_update_cafe_details_persists_amenities_photos_and_location(db_session):
     owner, _other_owner, cafe, _review = await _make_cafe_with_review(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.patch(
             f"/api/v1/owner/cafes/{cafe.id}/details",
             json={
@@ -170,7 +170,7 @@ async def test_update_cafe_details_persists_amenities_photos_and_location(db_ses
 async def test_update_cafe_details_persists_google_maps_url(db_session):
     owner, _other_owner, cafe, _review = await _make_cafe_with_review(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.patch(
             f"/api/v1/owner/cafes/{cafe.id}/details",
             json={"googleMapsUrl": "https://maps.app.goo.gl/xxxxxAbC123"},
@@ -190,7 +190,7 @@ async def test_update_cafe_details_persists_google_maps_url(db_session):
 async def test_update_cafe_details_rejects_non_google_maps_url(db_session):
     owner, _other_owner, cafe, _review = await _make_cafe_with_review(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.patch(
             f"/api/v1/owner/cafes/{cafe.id}/details",
             json={"googleMapsUrl": "https://evil.com/maps/xxxxx"},

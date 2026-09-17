@@ -1,6 +1,6 @@
 import pytest
 from decimal import Decimal
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from app.main import app
 from app.models.platform_fee import PlatformFee
@@ -22,7 +22,7 @@ async def test_owner_payout_summary_returns_one_outstanding_number(db_session):
     cafe = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalar_one()
     owner = (await db_session.execute(select(User).where(User.id == cafe.owner_id))).scalar_one()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/api/v1/owner/payouts/summary", headers=auth_headers(owner))
         assert resp.status_code == 200, resp.text
         data = resp.json()["data"]

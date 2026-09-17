@@ -3,7 +3,7 @@ Test overnight slot generation - ensure slots work for cafés with hours like 10
 """
 import pytest
 from datetime import time, date, datetime, timedelta
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from uuid import uuid4
 
 from app.models.user import User, UserRole
@@ -75,7 +75,7 @@ async def test_overnight_hours_generate_correct_slots(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         
         tomorrow = date.today() + timedelta(days=1)
@@ -171,7 +171,7 @@ async def test_post_midnight_booking_locks_correct_date(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         owner_headers = auth_headers(owner)
         
@@ -271,7 +271,7 @@ async def test_normal_hours_unaffected_regression(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         
         tomorrow = date.today() + timedelta(days=1)
@@ -352,7 +352,7 @@ async def test_cancellation_window_overnight_booking(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         
         tomorrow = date.today() + timedelta(days=1)

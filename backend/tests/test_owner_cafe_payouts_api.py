@@ -1,6 +1,6 @@
 import pytest
 from uuid import uuid4
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from app.main import app
 from app.models.platform_fee import PlatformFee
@@ -31,7 +31,7 @@ async def test_owner_sees_own_cafe_outstanding_and_history(db_session):
     ))
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         owner_headers = auth_headers(owner)
 
         res = await client.get("/api/v1/owner/payouts/cafe-payouts", headers=owner_headers)
@@ -115,7 +115,7 @@ async def test_owner_with_two_cafes_sees_combined_outstanding_and_history(db_ses
     ))
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         owner_headers = auth_headers(owner)
 
         res = await client.get("/api/v1/owner/payouts/cafe-payouts", headers=owner_headers)
@@ -160,7 +160,7 @@ async def test_owner_cannot_see_another_cafes_payouts(db_session):
     cafe_a = (await db_session.execute(select(Cafe).where(Cafe.id == booking_a.cafe_id))).scalars().first()
     owner_a = (await db_session.execute(select(User).where(User.id == cafe_a.owner_id))).scalars().first()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.get(
             "/api/v1/owner/payouts/cafe-payouts", headers=auth_headers(owner_a)
         )

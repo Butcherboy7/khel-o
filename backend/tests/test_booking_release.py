@@ -17,7 +17,7 @@ from datetime import date, time, timedelta, datetime, timezone
 from uuid import uuid4
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from app.core.exceptions import ValidationException
 from app.config import settings
@@ -121,7 +121,7 @@ def _payment_service(db):
 async def test_owner_can_release_own_pending_booking(db_session):
     owner, _other, _gamer, _cafe, _tier, booking, _payment = await _make_pending_booking(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.patch(
             f"/api/v1/owner/bookings/{booking.id}/release",
             json={"reason": "Customer walked away without paying"},
@@ -149,7 +149,7 @@ async def test_admin_can_release_any_cafes_pending_booking(db_session):
     db_session.add(admin)
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.patch(
             f"/api/v1/admin/bookings/{booking.id}/release",
             json={"reason": "Support ticket #42"},
@@ -176,7 +176,7 @@ async def test_admin_can_release_any_cafes_pending_booking(db_session):
 async def test_owner_cannot_release_someone_elses_cafe_booking(db_session):
     _owner, other_owner, _gamer, _cafe, _tier, booking, _payment = await _make_pending_booking(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.patch(
             f"/api/v1/owner/bookings/{booking.id}/release",
             json={},
@@ -191,7 +191,7 @@ async def test_cannot_release_a_confirmed_booking(db_session):
     booking.status = BookingStatus.CONFIRMED
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.patch(
             f"/api/v1/owner/bookings/{booking.id}/release",
             json={},

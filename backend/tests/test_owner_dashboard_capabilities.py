@@ -6,7 +6,7 @@ import pytest
 from datetime import date, time, datetime, timedelta
 from uuid import uuid4, UUID
 from sqlalchemy import select
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
@@ -69,7 +69,7 @@ async def test_owner_can_set_bookable_stations(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(owner)
         
         response = await client.patch(
@@ -155,7 +155,7 @@ async def test_locked_tier_seat_quota_survives_global_rescale(db_session):
     db_session.add_all([other_tier, console_tier])
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(owner)
 
         # Owner touches the global stepper (e.g. opens more seats overall
@@ -238,7 +238,7 @@ async def test_resume_toggle_restores_real_seat_capacity(db_session):
     db_session.add(tier)
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(owner)
 
         pause_resp = await client.patch(
@@ -362,7 +362,7 @@ async def test_pausing_bookings_blocks_new_bookings(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         
         tomorrow = date.today() + timedelta(days=1)
@@ -469,7 +469,7 @@ async def test_different_owner_cannot_edit_cafe(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         owner_b_headers = auth_headers(owner_b)
         
         pricing_response = await client.patch(
@@ -522,7 +522,7 @@ async def test_edit_operating_hours_overnight(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         owner_headers = auth_headers(owner)
         
         response = await client.patch(

@@ -1,6 +1,6 @@
 import pytest
 from uuid import uuid4
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from app.main import app
 from app.models.platform_fee import PlatformFee
@@ -27,7 +27,7 @@ async def test_admin_can_list_outstanding_and_create_payout(db_session):
     ))
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(admin, is_admin=True)
 
         outstanding_res = await client.get("/api/v1/admin/cafe-payouts/outstanding", headers=headers)
@@ -69,7 +69,7 @@ async def test_admin_can_list_outstanding_and_create_payout(db_session):
 @pytest.mark.asyncio
 async def test_create_payout_rejects_when_no_outstanding_balance(db_session):
     admin = await _make_admin(db_session)
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(admin, is_admin=True)
         res = await client.post(
             f"/api/v1/admin/cafe-payouts/{uuid4()}",
@@ -111,7 +111,7 @@ async def test_concurrent_payout_creation_returns_clean_400_not_500(db_session, 
 
     monkeypatch.setattr(RepoCls, "create_payout", fake_create_payout)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(admin, is_admin=True)
         res = await client.post(
             f"/api/v1/admin/cafe-payouts/{booking.cafe_id}",
@@ -130,7 +130,7 @@ async def test_concurrent_payout_creation_returns_clean_400_not_500(db_session, 
 @pytest.mark.asyncio
 async def test_non_admin_cannot_access_cafe_payouts(db_session):
     gamer = await _make_gamer(db_session, "blocked_gamer")
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(gamer)
         res = await client.get("/api/v1/admin/cafe-payouts/outstanding", headers=headers)
         assert res.status_code == 403
@@ -159,7 +159,7 @@ async def test_outstanding_list_reports_has_bank_for_bank_only_cafe(db_session):
     ))
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(admin, is_admin=True)
         res = await client.get("/api/v1/admin/cafe-payouts/outstanding", headers=headers)
         assert res.status_code == 200
@@ -187,7 +187,7 @@ async def test_breakdown_includes_masked_destination_and_version(db_session):
     ))
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(admin, is_admin=True)
         res = await client.get(f"/api/v1/admin/cafe-payouts/{booking.cafe_id}/breakdown", headers=headers)
         assert res.status_code == 200
@@ -216,7 +216,7 @@ async def test_reveal_destination_returns_decrypted_bank_number_and_logs_audit(d
     ))
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(admin, is_admin=True)
         res = await client.post(
             f"/api/v1/admin/cafe-payouts/{booking.cafe_id}/reveal-destination", headers=headers

@@ -8,7 +8,7 @@ the admin originally saw when they opened the payable."""
 import uuid
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from sqlalchemy import select
 
 from app.main import app
@@ -68,7 +68,7 @@ async def test_stale_destination_is_rejected_then_succeeds_after_refresh(db_sess
     db_session.add(PlatformFee(id=uuid.uuid4(), booking_id=booking.id, owner_settlement_amount=500.0))
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         admin_headers = auth_headers(admin, is_admin=True)
         owner_headers = auth_headers(owner, is_admin=False)
 

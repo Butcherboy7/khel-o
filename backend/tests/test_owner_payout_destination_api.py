@@ -1,7 +1,7 @@
 # backend/tests/test_owner_payout_destination_api.py
 import uuid
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from sqlalchemy import select
 
 from app.main import app
@@ -38,7 +38,7 @@ async def _make_owner_with_cafe(db_session, password="testpass123"):
 @pytest.mark.asyncio
 async def test_get_destination_returns_none_when_not_set(db_session):
     owner, _cafe = await _make_owner_with_cafe(db_session)
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(owner, is_admin=False)
         res = await client.get("/api/v1/owner/payouts/destination", headers=headers)
         assert res.status_code == 200
@@ -48,7 +48,7 @@ async def test_get_destination_returns_none_when_not_set(db_session):
 @pytest.mark.asyncio
 async def test_patch_destination_rejects_wrong_password(db_session):
     owner, _cafe = await _make_owner_with_cafe(db_session, password="correctpass123")
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(owner, is_admin=False)
         res = await client.patch(
             "/api/v1/owner/payouts/destination",
@@ -76,7 +76,7 @@ async def test_patch_destination_rejects_wrong_password(db_session):
 @pytest.mark.asyncio
 async def test_patch_destination_succeeds_and_writes_masked_audit_log(db_session):
     owner, _cafe = await _make_owner_with_cafe(db_session, password="correctpass123")
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(owner, is_admin=False)
         res = await client.patch(
             "/api/v1/owner/payouts/destination",
@@ -118,7 +118,7 @@ async def test_patch_destination_blocks_clearing_only_destination_with_outstandi
     db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=100.0))
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(owner, is_admin=False)
         res = await client.patch(
             "/api/v1/owner/payouts/destination",
@@ -154,7 +154,7 @@ async def test_patch_destination_blocks_nulling_only_bank_ifsc_with_outstanding_
     db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=100.0))
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(owner, is_admin=False)
         res = await client.patch(
             "/api/v1/owner/payouts/destination",
@@ -191,7 +191,7 @@ async def test_patch_destination_partial_update_preserves_omitted_fields(db_sess
     ))
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(owner, is_admin=False)
 
         # Only bankIfsc is sent — every other field is omitted, not nulled.
@@ -259,7 +259,7 @@ async def test_patch_destination_aborts_instead_of_wiping_bank_number_on_decrypt
 
     monkeypatch.setattr(owner_payouts_module, "decrypt_bank_account_number", _broken_decrypt)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         headers = auth_headers(owner, is_admin=False)
 
         # Only bankIfsc is sent — bankAccountNumber is omitted, so the route

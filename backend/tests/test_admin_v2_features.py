@@ -6,7 +6,7 @@ that were closed alongside them.
 import pytest
 from datetime import datetime, timedelta, date, time, timezone
 from uuid import uuid4
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
@@ -101,7 +101,7 @@ async def test_support_ticket_full_lifecycle(db_session):
     gamer = await _make_gamer(db_session, "ticket_gamer")
     admin = await _make_admin(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         admin_headers = auth_headers(admin)
 
@@ -148,7 +148,7 @@ async def test_admin_force_cancel_booking(db_session):
     gamer = await _make_gamer(db_session, "force_cancel_gamer")
     booking, _ = await _make_booking_with_payment(db_session, gamer)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         admin_headers = auth_headers(admin)
         res = await client.patch(
             f"/api/v1/admin/bookings/{booking.id}/force-cancel",
@@ -177,7 +177,7 @@ async def test_admin_refund_without_razorpay_payment_id(db_session):
     gamer = await _make_gamer(db_session, "refund_gamer")
     booking, _ = await _make_booking_with_payment(db_session, gamer, razorpay_payment_id=None)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         admin_headers = auth_headers(admin)
         res = await client.post(
             f"/api/v1/admin/bookings/{booking.id}/refund",
@@ -197,7 +197,7 @@ async def test_admin_can_promote_user_to_admin_and_it_is_audited(db_session):
     admin = await _make_admin(db_session)
     target = await _make_gamer(db_session, "promote_target")
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         admin_headers = auth_headers(admin)
         res = await client.patch(
             f"/api/v1/admin/users/{target.id}/role",
@@ -221,7 +221,7 @@ async def test_admin_can_promote_user_to_admin_and_it_is_audited(db_session):
 async def test_platform_settings_get_and_update_is_audited(db_session):
     admin = await _make_admin(db_session)
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         admin_headers = auth_headers(admin)
 
         get_res = await client.get("/api/v1/admin/settings", headers=admin_headers)
@@ -262,7 +262,7 @@ async def test_pause_bookings_and_promotion_deactivate_are_now_audited(db_sessio
     db_session.add(cafe)
     await db_session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         admin_headers = auth_headers(admin)
         res = await client.patch(
             f"/api/v1/admin/cafes/{cafe.id}/pause-bookings",

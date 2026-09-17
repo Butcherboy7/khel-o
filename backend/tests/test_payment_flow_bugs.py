@@ -3,7 +3,7 @@ Test payment flow bugs - Razorpay modal, cancellation rules, Share Pass gating
 """
 import pytest
 from datetime import datetime, timedelta, date, time
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from uuid import uuid4
 from datetime import timezone
 
@@ -114,7 +114,7 @@ async def test_pending_payment_booking_can_be_cancelled_immediately(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         
         # Cancel booking with < 2 hours to session
@@ -211,7 +211,7 @@ async def test_failed_payment_booking_can_be_cancelled_immediately(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         
         cancel_resp = await client.post(
@@ -306,7 +306,7 @@ async def test_confirmed_booking_rejects_cancellation_under_2_hours(db_session):
     
     await db_session.commit()
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         
         cancel_resp = await client.post(
