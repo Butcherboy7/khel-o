@@ -1,12 +1,17 @@
 """
 One-off cleanup script (not part of the app, never imported by it):
 
-1. Deletes every café owned by testowner@khelo.com (the 10 cafés created by
-   seed_test_cafes.py) and everything hanging off them — bookings, payments,
-   platform fees, reviews, promotions, hardware tiers, waitlist entries,
-   staff invitations, role mappings, analytics events, cafe payouts/items/
-   adjustments. Confirmed via seed_test_cafes.py that DG Gaming Cafe is not
-   among them and is not owned by this user.
+1. Deletes the 7 test/dev cafés identified via
+   scripts/list_payables_without_payout_details.py and confirmed by name
+   with the KHELO team (KHEL-O Payment Test Cafe, GearUp Gaming Cafe,
+   PlayMax Esports Zone, ASH Gaming Food Zone, A R Gaming Zone, Rocking
+   Gaming Cafe - Naseer, Epitome Gaming Cafe - Naseer) and everything
+   hanging off them — bookings, payments, platform fees, reviews,
+   promotions, hardware tiers, waitlist entries, staff invitations, role
+   mappings, analytics events, cafe payouts/items/adjustments. Targeted by
+   hardcoded ID (captured at confirmation time) rather than by name/owner
+   lookup, so this can never accidentally widen its blast radius if new
+   cafés are created later with similar names.
 
 2. Reverts every CafePayout ever recorded against DG Gaming Cafe (a real
    café whose owner made a small test payout while verifying the
@@ -21,11 +26,11 @@ Usage:
 """
 import argparse
 import asyncio
+from uuid import UUID
 
 from sqlalchemy import select, delete, update, text
 
 from app.database import AsyncSessionLocal
-from app.models.user import User
 from app.models.cafe import Cafe
 from app.models.booking import Booking
 from app.models.payment import Payment
@@ -42,16 +47,26 @@ from app.models.cafe_payout_item import CafePayoutItem
 from app.models.cafe_payout_adjustment import CafePayoutAdjustment
 from app.models.support_ticket import SupportTicket
 
-TEST_OWNER_EMAIL = "testowner@khelo.com"
+# Confirmed with the KHELO team on 2026-09-17 via
+# scripts/list_payables_without_payout_details.py's output.
+TEST_CAFE_IDS = [
+    UUID("b05aefcd-eb93-4f8c-8362-943f17ded825"),  # KHEL-O Payment Test Cafe
+    UUID("8286a75b-d4ba-4df8-93c8-fee689766068"),  # GearUp Gaming Cafe
+    UUID("19f9cecd-51a0-4c52-9d05-40983ef24ee5"),  # PlayMax Esports Zone
+    UUID("fc27eccf-f9c2-4608-bff0-1ff275b2a4fa"),  # ASH Gaming Food Zone
+    UUID("0567029c-b320-4d0c-94fd-9e03ac2b17e9"),  # A R Gaming Zone
+    UUID("019ff96f-adeb-4224-9a8d-36ecce666228"),  # Rocking Gaming Cafe - Naseer
+    UUID("8a5b9a78-d578-4ec1-8970-e79333affce7"),  # Epitome Gaming Cafe - Naseer
+]
 DG_CAFE_NAME = "DG Gaming Cafe"
 
 
 async def _test_cafe_ids(db) -> list:
-    owner = (await db.execute(select(User).where(User.email == TEST_OWNER_EMAIL))).scalar_one_or_none()
-    if not owner:
-        return []
-    cafes = (await db.execute(select(Cafe).where(Cafe.owner_id == owner.id))).scalars().all()
-    return [c.id for c in cafes]
+    found = (await db.execute(select(Cafe.id).where(Cafe.id.in_(TEST_CAFE_IDS)))).scalars().all()
+    missing = set(TEST_CAFE_IDS) - set(found)
+    if missing:
+        print(f"WARNING: {len(missing)} confirmed test café id(s) not found in DB (already deleted?): {missing}")
+    return list(found)
 
 
 async def _dg_cafe_id(db):
@@ -69,7 +84,7 @@ async def _count(db, model, col, ids):
 async def dry_run():
     async with AsyncSessionLocal() as db:
         test_cafe_ids = await _test_cafe_ids(db)
-        print(f"Test cafés (owner={TEST_OWNER_EMAIL}): {len(test_cafe_ids)} found")
+        print(f"Confirmed test cafés: {len(test_cafe_ids)}/{len(TEST_CAFE_IDS)} found in DB")
         if test_cafe_ids:
             booking_ids_q = select(Booking.id).where(Booking.cafe_id.in_(test_cafe_ids))
             booking_ids = [r[0] for r in (await db.execute(booking_ids_q)).all()]
