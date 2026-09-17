@@ -14,7 +14,11 @@ export interface Review {
 }
 
 export interface ReviewCreateRequest {
-  bookingId: string;
+  // Exactly one of these is required by the backend — bookingId for a
+  // normal booking-linked review, cafeId when reviews_require_booking is
+  // temporarily off and the reviewer never booked through KHELO.
+  bookingId?: string;
+  cafeId?: string;
   rating: number;
   comment?: string;
 }

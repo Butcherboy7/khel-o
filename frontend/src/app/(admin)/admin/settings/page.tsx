@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Settings, Save, AlertTriangle, CheckCircle2, Star } from 'lucide-react';
 import { getPlatformSettings, updatePlatformSettings } from '@/lib/api/admin';
 import { Card, CardContent, Button, SkeletonCard, ErrorState } from '@/components/ui';
 
@@ -20,6 +20,7 @@ export default function AdminSettingsPage() {
   const [supportEmail, setSupportEmail] = useState('');
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
+  const [reviewsRequireBooking, setReviewsRequireBooking] = useState(true);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function AdminSettingsPage() {
       setSupportEmail(data.settings.supportEmail);
       setMaintenanceMode(data.settings.maintenanceMode);
       setMaintenanceMessage(data.settings.maintenanceMessage ?? '');
+      setReviewsRequireBooking(data.settings.reviewsRequireBooking);
     }
   }, [data]);
 
@@ -42,12 +44,15 @@ export default function AdminSettingsPage() {
       supportEmail,
       maintenanceMode,
       maintenanceMessage: maintenanceMessage || null,
+      reviewsRequireBooking,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'platform-settings'] });
       // Booking checkout reads this rate — make sure a fresh page load
       // picks up the new value immediately instead of a stale cached one.
       queryClient.invalidateQueries({ queryKey: ['platform-fee-percentage'] });
+      // Café pages read this to decide whether to gate review submission.
+      queryClient.invalidateQueries({ queryKey: ['review-settings'] });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
@@ -162,6 +167,29 @@ export default function AdminSettingsPage() {
               />
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card elevation="resting">
+        <CardContent className="p-5 flex flex-col gap-4">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <p className="text-caption font-semibold text-text-primary flex items-center gap-1.5">
+                <Star className="h-3.5 w-3.5 text-warning" />
+                Require a booking to leave a review
+              </p>
+              <p className="text-[11px] text-text-tertiary mt-0.5">
+                Turn off temporarily to let anyone post a review for a café without an eligible booking
+                (e.g. a real visit that didn&apos;t go through KHELO). Remember to turn back on afterward.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={reviewsRequireBooking}
+              onChange={(e) => setReviewsRequireBooking(e.target.checked)}
+              className="h-5 w-5 accent-primary flex-shrink-0 ml-3"
+            />
+          </label>
         </CardContent>
       </Card>
 

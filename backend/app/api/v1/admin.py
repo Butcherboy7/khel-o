@@ -925,6 +925,7 @@ async def update_platform_settings_admin(
         "support_email": payload.support_email,
         "maintenance_mode": payload.maintenance_mode,
         "maintenance_message": payload.maintenance_message,
+        "reviews_require_booking": payload.reviews_require_booking,
         "updated_by": current_admin.id,
     })
 

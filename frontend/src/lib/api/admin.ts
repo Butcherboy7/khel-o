@@ -239,6 +239,7 @@ export interface PlatformSettings {
   supportEmail: string;
   maintenanceMode: boolean;
   maintenanceMessage: string | null;
+  reviewsRequireBooking: boolean;
   updatedAt: string;
 }
 

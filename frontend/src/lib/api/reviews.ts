@@ -5,6 +5,13 @@ export async function createReview(body: ReviewCreateRequest): Promise<{ review:
   return call(() => apiClient.post('/api/v1/reviews', body));
 }
 
+/** Temporary admin toggle — see PlatformSetting.reviews_require_booking.
+ *  When false, the "Write a review" card lets anyone submit without an
+ *  eligible completed booking for the café. */
+export async function getReviewSettings(): Promise<{ requireBooking: boolean }> {
+  return call(() => apiClient.get('/api/v1/reviews/settings'));
+}
+
 export async function listCafeReviews(
   cafeId: string,
   params: { page?: number; limit?: number } = {},

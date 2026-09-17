@@ -20,7 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { getCafe } from '@/lib/api/cafes';
-import { listCafeReviews, createReview } from '@/lib/api/reviews';
+import { listCafeReviews, createReview, getReviewSettings } from '@/lib/api/reviews';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
 import { getWaitlistStatus, joinWaitlist, leaveWaitlist } from '@/lib/api/waitlist';
@@ -169,6 +169,15 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     queryFn: () => listBookings({ limit: 20 }),
     enabled: Boolean(user?.id && cafeId),
   });
+
+  // Temporary admin toggle (PlatformSetting.reviews_require_booking) — when
+  // off, anyone can post a review without an eligible completed booking.
+  const { data: reviewSettings } = useQuery({
+    queryKey: ['review-settings'],
+    queryFn: getReviewSettings,
+    staleTime: 5 * 60 * 1000,
+  });
+  const reviewsRequireBooking = reviewSettings?.requireBooking ?? true;
 
   if (isLoading) {
     return (
@@ -789,18 +798,18 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                   (b) => b.cafeId === cafeId && (b.status === 'completed' || b.status === 'checked_in' || b.status === 'confirmed')
                 );
 
-                if (!completedBooking) {
+                if (!completedBooking && reviewsRequireBooking) {
                   setReviewError('You must have an active or completed booking at this venue to leave a review.');
                   return;
                 }
 
                 setIsSubmittingReview(true);
                 try {
-                  await createReview({
-                    bookingId: completedBooking.id,
-                    rating: newRating,
-                    comment: newComment,
-                  });
+                  await createReview(
+                    completedBooking
+                      ? { bookingId: completedBooking.id, rating: newRating, comment: newComment }
+                      : { cafeId, rating: newRating, comment: newComment }
+                  );
                   setNewComment('');
                   setSubmittedReview(true);
                   refetchReviews();

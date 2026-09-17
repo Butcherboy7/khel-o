@@ -6,11 +6,21 @@ from app.schemas.review import ReviewCreateRequest, ReviewResponse, ReviewReplyR
 from app.repositories.review_repository import ReviewRepository
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
+from app.repositories.platform_settings_repository import PlatformSettingsRepository
 from app.services.review_service import ReviewService
 from app.api.deps import require_gamer, require_cafe_owner, get_current_user
 from app.models.user import User
 
 router = APIRouter()
+
+@router.get("/settings", status_code=status.HTTP_200_OK)
+async def get_review_settings(db: AsyncSession = Depends(get_db)):
+    """Public, unauthenticated read of whether a review currently requires an
+    eligible booking — lets the customer-facing "Write a review" card decide
+    whether to gate submission client-side. Temporary admin toggle, see
+    PlatformSetting.reviews_require_booking."""
+    settings = await PlatformSettingsRepository(db).get_or_create()
+    return {"success": True, "data": {"requireBooking": settings.reviews_require_booking}}
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_review(

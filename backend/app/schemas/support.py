@@ -52,6 +52,7 @@ class PlatformSettingsResponse(BaseModel):
     support_email: str
     maintenance_mode: bool
     maintenance_message: Optional[str] = None
+    reviews_require_booking: bool
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
@@ -63,6 +64,7 @@ class PlatformSettingsUpdateRequest(BaseModel):
     support_email: Optional[str] = None
     maintenance_mode: Optional[bool] = None
     maintenance_message: Optional[str] = Field(None, max_length=500)
+    reviews_require_booking: Optional[bool] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
