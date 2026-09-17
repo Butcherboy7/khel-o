@@ -101,9 +101,9 @@ class BookingService:
                 error_code="INVALID_START_TIME"
             )
 
-        if booking_in.duration_hours < 0.5 or booking_in.duration_hours > 8.0:
+        if booking_in.duration_hours < 1.0 or booking_in.duration_hours > 8.0:
             raise ValidationException(
-                message="Duration must be between 0.5 and 8.0 hours",
+                message="Duration must be between 1.0 and 8.0 hours",
                 error_code="INVALID_DURATION"
             )
 
@@ -184,9 +184,11 @@ class BookingService:
                 cafe_id=booking_in.cafe_id,
                 tier_id=booking_in.hardware_tier_id,
                 base_amount=base_amount,
-                session_datetime=start_datetime  # IST-aware — promo hour/day
+                session_datetime=start_datetime,  # IST-aware — promo hour/day
                 # windows are café-local, and this is the actual booked slot,
                 # not "now" (see promotion_service.apply_promotion_to_booking)
+                duration_hours=duration,
+                seats_count=seats_requested,
             )
 
         subtotal = base_amount - discount_amount

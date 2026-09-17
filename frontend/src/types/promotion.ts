@@ -1,9 +1,19 @@
+export type PromotionType = 'percentage' | 'fixed_amount' | 'fixed_price';
+
 export interface Promotion {
   id: string;
   cafeId: string;
   title: string;
   description: string | null;
-  discountPercentage: number;
+  promotionType: PromotionType;
+  discountPercentage: number | null;
+  fixedDiscountAmount: number | null;
+  fixedPriceAmount: number | null;
+  minDurationHours: number | null;
+  /** Derived by the backend from the tier's hourly rate — never stored,
+   *  only present on FIXED_PRICE offers. */
+  regularPrice: number | null;
+  savingsAmount: number | null;
   applicableTierId: string | null;
   applicableTierName: string | null;
   validFrom: string;
@@ -24,7 +34,11 @@ export interface PromotionCreateRequest {
   cafeId: string;
   title: string;
   description?: string;
-  discountPercentage: number;
+  promotionType: PromotionType;
+  discountPercentage?: number | null;
+  fixedDiscountAmount?: number | null;
+  fixedPriceAmount?: number | null;
+  minDurationHours?: number | null;
   applicableTierId?: string | null;
   validFrom: string;
   validUntil: string;
@@ -37,7 +51,11 @@ export interface PromotionCreateRequest {
 export interface PromotionUpdateRequest {
   title?: string;
   description?: string;
-  discountPercentage?: number;
+  promotionType?: PromotionType;
+  discountPercentage?: number | null;
+  fixedDiscountAmount?: number | null;
+  fixedPriceAmount?: number | null;
+  minDurationHours?: number | null;
   applicableTierId?: string | null;
   validFrom?: string;
   validUntil?: string;

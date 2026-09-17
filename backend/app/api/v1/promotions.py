@@ -120,7 +120,8 @@ async def update_promotion(
 ):
     promo_repo = PromotionRepository(db)
     cafe_repo = CafeRepository(db)
-    service = PromotionService(promo_repo, cafe_repo)
+    tier_repo = HardwareTierRepository(db)
+    service = PromotionService(promo_repo, cafe_repo, tier_repo)
     result = await service.update_promotion(
         promotion_id=promotion_id,
         owner_id=current_owner.id,

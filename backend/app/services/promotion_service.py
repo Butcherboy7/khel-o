@@ -16,7 +16,7 @@ from app.schemas.promotion import (
     ActivePromotionResponse,
     CodeRedemptionResponse
 )
-from app.models.promotion import Promotion
+from app.models.promotion import Promotion, PromotionType
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 
 logger = logging.getLogger(__name__)
@@ -68,12 +68,15 @@ class PromotionService:
         owner_id: UUID,
         promo_in: PromotionCreateRequest
     ) -> PromotionResponse:
-        # Rule 1 — Discount cap
-        if promo_in.discount_percentage < 1 or promo_in.discount_percentage > 50:
-            raise ValidationException(
-                message="Discount percentage must be between 1 and 50",
-                error_code="INVALID_DISCOUNT"
-            )
+        # Rule 1 — Discount cap (percentage type only; PromotionBase's
+        # cross-field validator already guarantees the right fields are
+        # populated for the chosen promotion_type).
+        if promo_in.promotion_type == PromotionType.PERCENTAGE:
+            if promo_in.discount_percentage < 1 or promo_in.discount_percentage > 50:
+                raise ValidationException(
+                    message="Discount percentage must be between 1 and 50",
+                    error_code="INVALID_DISCOUNT"
+                )
 
         # Rule 2 — Time window validation
         if promo_in.valid_until <= promo_in.valid_from:
@@ -108,6 +111,15 @@ class PromotionService:
             if not tier or str(tier.cafe_id) != str(cafe_id):
                 raise ValidationException(message="Selected tier does not belong to this café", error_code="INVALID_TIER")
 
+        # A fixed-price deal's "regular price" is derived from a tier's
+        # hourly rate, not stored — so it needs exactly one tier to derive
+        # it from. "All tiers" doesn't make sense for this offer type.
+        if promo_in.promotion_type == PromotionType.FIXED_PRICE and not promo_in.applicable_tier_id:
+            raise ValidationException(
+                message="A fixed-price deal must apply to a specific setup/tier",
+                error_code="FIXED_PRICE_REQUIRES_TIER"
+            )
+
         # Rule 4 — KHELO code uniqueness (pre-check for a friendly error;
         # the DB unique index on khelo_code is still the actual guard against
         # a concurrent create racing this check, see the IntegrityError catch
@@ -123,7 +135,11 @@ class PromotionService:
             "cafe_id": cafe_id,
             "title": promo_in.title,
             "description": promo_in.description,
+            "promotion_type": promo_in.promotion_type,
             "discount_percentage": promo_in.discount_percentage,
+            "fixed_discount_amount": promo_in.fixed_discount_amount,
+            "fixed_price_amount": promo_in.fixed_price_amount,
+            "min_duration_hours": promo_in.min_duration_hours,
             "applicable_tier_id": promo_in.applicable_tier_id,
             "valid_from": promo_in.valid_from,
             "valid_until": promo_in.valid_until,
@@ -155,10 +171,13 @@ class PromotionService:
         for p in candidate_promos:
             if self._is_promotion_active(p, now):
                 tier_name: Optional[str] = None
+                tier = None
                 if p.applicable_tier_id and self.tier_repo:
                     tier = await self.tier_repo.get_by_id(p.applicable_tier_id)
                     if tier:
                         tier_name = tier.name
+
+                regular_price, savings_amount = self._fixed_price_economics(p, tier)
 
                 slots_rem = (p.max_uses - p.current_uses) if p.max_uses is not None else None
 
@@ -166,7 +185,13 @@ class PromotionService:
                     id=p.id,
                     title=p.title,
                     description=p.description,
+                    promotion_type=p.promotion_type,
                     discount_percentage=p.discount_percentage,
+                    fixed_discount_amount=p.fixed_discount_amount,
+                    fixed_price_amount=p.fixed_price_amount,
+                    min_duration_hours=p.min_duration_hours,
+                    regular_price=regular_price,
+                    savings_amount=savings_amount,
                     applicable_tier_name=tier_name,
                     valid_until=p.valid_until,
                     start_hour=p.start_hour,
@@ -176,6 +201,18 @@ class PromotionService:
                 ))
 
         return active_promos
+
+    @staticmethod
+    def _fixed_price_economics(promo: Promotion, tier) -> tuple[Optional[float], Optional[float]]:
+        """Regular price and savings for a FIXED_PRICE promo, derived from
+        the tier's current hourly rate — never stored, so it can't drift out
+        of sync if the owner changes the tier's price later. None for any
+        other promotion type or if the tier can't be resolved."""
+        if promo.promotion_type != PromotionType.FIXED_PRICE or not tier or not promo.min_duration_hours:
+            return None, None
+        regular_price = float(Decimal(str(tier.price_per_hour)) * Decimal(str(promo.min_duration_hours)))
+        savings = round(regular_price - float(promo.fixed_price_amount), 2)
+        return round(regular_price, 2), max(savings, 0.0)
 
     async def get_promotions_for_owner(self, cafe_id: UUID, owner_id: UUID) -> List[PromotionResponse]:
         """Full promotion list for the owner's management view — every status, not just currently-active."""
@@ -210,16 +247,74 @@ class PromotionService:
             if not cafe or str(cafe.owner_id) != str(owner_id):
                 raise ForbiddenException(message="You do not have permission to update this promotion", error_code="FORBIDDEN")
 
-        if update_in.discount_percentage is not None:
-            if update_in.discount_percentage < 1 or update_in.discount_percentage > 50:
+        update_dict = update_in.model_dump(exclude_unset=True)
+
+        # promotion_type is locked once the offer has been redeemed at least
+        # once — a mid-life switch between "20% off" and "4 hours for ₹360"
+        # is where genuine ambiguity would live for a promo customers have
+        # already used. Every other field (price, dates, duration, schedule,
+        # tier, limits) stays editable regardless of redemption count, since
+        # none of them retroactively touch a booking's stored
+        # discount_amount/total_amount snapshot (see booking_service.py).
+        new_type = update_dict.get("promotion_type", promo.promotion_type)
+        if "promotion_type" in update_dict and new_type != promo.promotion_type and promo.current_uses > 0:
+            raise ValidationException(
+                message="This offer has already been redeemed, so its type (percentage/fixed-amount/fixed-price) can no longer be changed. All other fields — price, dates, duration, schedule — can still be edited.",
+                error_code="PROMOTION_TYPE_LOCKED"
+            )
+
+        # Merge onto the existing row to validate the field set the promotion
+        # will actually end up with — a PATCH may touch only one or two
+        # fields, so it isn't enough to just re-check what's present in
+        # update_dict, since it might not be complete for the target type.
+        merged = {
+            "promotion_type": new_type,
+            "discount_percentage": update_dict.get("discount_percentage", promo.discount_percentage),
+            "fixed_discount_amount": update_dict.get("fixed_discount_amount", promo.fixed_discount_amount),
+            "fixed_price_amount": update_dict.get("fixed_price_amount", promo.fixed_price_amount),
+            "min_duration_hours": update_dict.get("min_duration_hours", promo.min_duration_hours),
+            "applicable_tier_id": update_dict.get("applicable_tier_id", promo.applicable_tier_id),
+        }
+        if merged["promotion_type"] == PromotionType.PERCENTAGE:
+            if merged["discount_percentage"] is None or not (1 <= merged["discount_percentage"] <= 50):
                 raise ValidationException(message="Discount percentage must be between 1 and 50", error_code="INVALID_DISCOUNT")
+        elif merged["promotion_type"] == PromotionType.FIXED_AMOUNT:
+            if not merged["fixed_discount_amount"] or merged["fixed_discount_amount"] <= 0:
+                raise ValidationException(message="Fixed discount amount must be greater than 0", error_code="INVALID_DISCOUNT")
+        elif merged["promotion_type"] == PromotionType.FIXED_PRICE:
+            if not merged["fixed_price_amount"] or merged["fixed_price_amount"] <= 0 or not merged["min_duration_hours"]:
+                raise ValidationException(message="A fixed-price deal needs both a deal price and a minimum duration", error_code="INVALID_DISCOUNT")
+            if not merged["applicable_tier_id"]:
+                raise ValidationException(message="A fixed-price deal must apply to a specific setup/tier", error_code="FIXED_PRICE_REQUIRES_TIER")
+
+        # Date-range check against whichever of valid_from/valid_until is
+        # actually changing — create_promotion checks this on a complete
+        # payload, but a PATCH touching only one side of the range needs the
+        # same guard against the OTHER side's existing value (item 8's
+        # "end date cannot be before start date" requirement).
+        merged_valid_from = update_dict.get("valid_from", promo.valid_from)
+        merged_valid_until = update_dict.get("valid_until", promo.valid_until)
+        if merged_valid_from.tzinfo is None:
+            merged_valid_from = merged_valid_from.replace(tzinfo=timezone.utc)
+        if merged_valid_until.tzinfo is None:
+            merged_valid_until = merged_valid_until.replace(tzinfo=timezone.utc)
+        if merged_valid_until <= merged_valid_from:
+            raise ValidationException(message="valid_until must be after valid_from", error_code="INVALID_DATE_RANGE")
+
+        merged_start_hour = update_dict.get("start_hour", promo.start_hour)
+        merged_end_hour = update_dict.get("end_hour", promo.end_hour)
+        if merged_end_hour <= merged_start_hour:
+            raise ValidationException(message="end_hour must be greater than start_hour", error_code="INVALID_HOUR_RANGE")
+
+        if "applicable_tier_id" in update_dict and update_dict["applicable_tier_id"] and self.tier_repo:
+            tier = await self.tier_repo.get_by_id(update_dict["applicable_tier_id"])
+            if not tier or str(tier.cafe_id) != str(promo.cafe_id):
+                raise ValidationException(message="Selected tier does not belong to this café", error_code="INVALID_TIER")
 
         if update_in.khelo_code is not None and update_in.khelo_code != promo.khelo_code:
             existing = await self.promo_repo.get_by_code(update_in.khelo_code)
             if existing and str(existing.id) != str(promotion_id):
                 raise ValidationException(message="This KHELO code is already in use", error_code="CODE_TAKEN")
-
-        update_dict = update_in.model_dump(exclude_unset=True)
         try:
             updated = await self.promo_repo.update(promotion_id, update_dict)
         except IntegrityError:
@@ -269,12 +364,23 @@ class PromotionService:
             elif promo.max_uses is not None and promo.current_uses >= promo.max_uses:
                 valid, reason = False, "This offer has reached its redemption limit."
 
+        tier = None
+        if promo.applicable_tier_id and self.tier_repo:
+            tier = await self.tier_repo.get_by_id(promo.applicable_tier_id)
+        regular_price, savings_amount = self._fixed_price_economics(promo, tier)
+
         return CodeRedemptionResponse(
             promotion_id=promo.id,
             cafe_id=promo.cafe_id,
             title=promo.title,
             description=promo.description,
+            promotion_type=promo.promotion_type,
             discount_percentage=promo.discount_percentage,
+            fixed_discount_amount=promo.fixed_discount_amount,
+            fixed_price_amount=promo.fixed_price_amount,
+            min_duration_hours=promo.min_duration_hours,
+            regular_price=regular_price,
+            savings_amount=savings_amount,
             applicable_tier_id=promo.applicable_tier_id,
             valid_from=promo.valid_from,
             valid_until=promo.valid_until,
@@ -306,7 +412,9 @@ class PromotionService:
         cafe_id: UUID,
         tier_id: UUID,
         base_amount: Decimal,
-        session_datetime: Optional[datetime] = None
+        session_datetime: Optional[datetime] = None,
+        duration_hours: Optional[Decimal] = None,
+        seats_count: int = 1,
     ) -> Decimal:
         # Row-locked so a concurrent booking applying the same promo can't read
         # current_uses until this one commits — closes the race where N
@@ -341,26 +449,40 @@ class PromotionService:
         if promo.applicable_tier_id and str(promo.applicable_tier_id) != str(tier_id):
             raise ValidationException(message="Promotion does not apply to the selected hardware tier", error_code="PROMOTION_TIER_MISMATCH")
 
-        # Rule 5 Math: discount_amount = base_amount * (discount_percentage / 100)
-        discount_percentage = Decimal(str(promo.discount_percentage))
-        discount_amount = (base_amount * (discount_percentage / Decimal('100'))).quantize(Decimal('0.01'))
+        if promo.promotion_type == PromotionType.FIXED_PRICE:
+            # The deal price is defined for exactly min_duration_hours — a
+            # customer booking a different duration isn't buying "the deal",
+            # so this only applies on an exact match (the booking UI is
+            # responsible for offering the switch, not for partial credit on
+            # a longer/shorter session).
+            if duration_hours is None or Decimal(str(duration_hours)) != Decimal(str(promo.min_duration_hours)):
+                raise ValidationException(
+                    message=f"This deal applies to exactly {promo.min_duration_hours} hour(s)",
+                    error_code="PROMOTION_DURATION_MISMATCH"
+                )
+            deal_total = Decimal(str(promo.fixed_price_amount)) * seats_count
+            discount_amount = (base_amount - deal_total).quantize(Decimal('0.01'))
+        elif promo.promotion_type == PromotionType.FIXED_AMOUNT:
+            discount_amount = Decimal(str(promo.fixed_discount_amount)).quantize(Decimal('0.01'))
+        else:
+            # Rule 5 Math: discount_amount = base_amount * (discount_percentage / 100)
+            discount_percentage = Decimal(str(promo.discount_percentage))
+            discount_amount = (base_amount * (discount_percentage / Decimal('100'))).quantize(Decimal('0.01'))
 
-        # Never discount more than the booking is worth. PromotionBase caps
-        # discount_percentage at 1..50, but that bound only exists in Pydantic —
-        # promotion rows are also written by seeds, migrations and admin
-        # scripts, which bypass it. A row holding >100 would otherwise make
-        # subtotal negative in booking_service, and with it the café's
-        # settlement, KHELO's fee and the customer's total. Clamping here
-        # cannot change any valid promotion (a <=50% discount is always well
-        # under base_amount); it only stops money going negative on bad data.
+        # Never discount more than the booking is worth (or below zero for a
+        # fixed-price deal on a tier whose rate has since dropped). Bad data
+        # from seeds/migrations/admin scripts bypassing Pydantic bounds is
+        # the same defensive reason as before this comment moved here.
         if discount_amount > base_amount:
             logger.warning(
-                f"Promotion {promo.id} has discount_percentage="
-                f"{discount_percentage}, which computed a discount of "
-                f"{discount_amount} against a base amount of {base_amount}. "
-                f"Clamping to base amount to keep the booking non-negative."
+                f"Promotion {promo.id} ({promo.promotion_type}) computed a "
+                f"discount of {discount_amount} against a base amount of "
+                f"{base_amount}. Clamping to base amount to keep the booking "
+                f"non-negative."
             )
             discount_amount = base_amount
+        if discount_amount < 0:
+            discount_amount = Decimal('0.00')
 
         # Increment now, while still holding the row lock acquired above —
         # that gap between validation and increment was exactly where the

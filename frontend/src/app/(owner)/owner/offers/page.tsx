@@ -2,13 +2,14 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tag, Plus, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw } from 'lucide-react';
+import { Tag, Plus, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw, Percent, IndianRupee, Sparkles } from 'lucide-react';
 import {
   listOwnerPromotions,
   createPromotion,
   updatePromotion,
   deactivateOwnerPromotion,
   type Promotion,
+  type PromotionType,
 } from '@/lib/api/promotions';
 import { listCafeTiers } from '@/lib/api/tiers';
 import { getOwnerCafeId } from '@/lib/api/owner';
@@ -49,6 +50,7 @@ const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 function promotionStatus(p: Promotion): { label: string; variant: 'success' | 'default' | 'error' } {
   if (!p.isActive) return { label: 'Paused', variant: 'default' };
   const now = new Date();
+  if (new Date(p.validFrom) > now) return { label: 'Scheduled', variant: 'default' };
   if (new Date(p.validUntil) < now) return { label: 'Expired', variant: 'error' };
   if (p.maxUses != null && p.currentUses >= p.maxUses) return { label: 'Exhausted', variant: 'error' };
   return { label: 'Active', variant: 'success' };
@@ -58,10 +60,20 @@ function toDateInput(iso: string): string {
   return iso.slice(0, 10);
 }
 
+const TYPE_OPTIONS: { value: PromotionType; label: string; hint: string; icon: typeof Percent }[] = [
+  { value: 'percentage', label: 'Discount', hint: 'e.g. 20% off', icon: Percent },
+  { value: 'fixed_price', label: 'Fixed Price Deal', hint: 'e.g. 4 hours for ₹360', icon: Sparkles },
+  { value: 'fixed_amount', label: 'Fixed Amount Off', hint: 'e.g. ₹100 off', icon: IndianRupee },
+];
+
 interface FormState {
   title: string;
   description: string;
+  promotionType: PromotionType;
   discountPercentage: number;
+  fixedDiscountAmount: string;
+  fixedPriceAmount: string;
+  minDurationHours: number;
   applicableTierId: string;
   validFrom: string;
   validUntil: string;
@@ -70,27 +82,36 @@ interface FormState {
   endHour: number;
   maxUses: string;
   kheloCode: string;
+  isActive: boolean;
 }
 
-const EMPTY_FORM: FormState = {
-  title: '',
-  description: '',
-  discountPercentage: 15,
-  applicableTierId: '',
-  validFrom: new Date().toISOString().slice(0, 10),
-  validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-  daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-  startHour: 0,
-  endHour: 24,
-  maxUses: '',
-  kheloCode: '',
-};
+function emptyForm(): FormState {
+  return {
+    title: '',
+    description: '',
+    promotionType: 'percentage',
+    discountPercentage: 15,
+    fixedDiscountAmount: '',
+    fixedPriceAmount: '',
+    minDurationHours: 4,
+    applicableTierId: '',
+    validFrom: new Date().toISOString().slice(0, 10),
+    validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    startHour: 0,
+    endHour: 24,
+    maxUses: '',
+    kheloCode: '',
+    isActive: true,
+  };
+}
 
 export default function OwnerOffersPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [editingUses, setEditingUses] = useState(0);
+  const [form, setForm] = useState<FormState>(emptyForm());
   const [formError, setFormError] = useState<string | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Promotion | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -128,8 +149,9 @@ export default function OwnerOffersPage() {
   const promotions = data?.promotions ?? [];
 
   const resetForm = () => {
-    setForm(EMPTY_FORM);
+    setForm(emptyForm());
     setEditingId(null);
+    setEditingUses(0);
     setFormError(null);
   };
 
@@ -140,10 +162,15 @@ export default function OwnerOffersPage() {
 
   const openEdit = (p: Promotion) => {
     setEditingId(p.id);
+    setEditingUses(p.currentUses);
     setForm({
       title: p.title,
       description: p.description ?? '',
-      discountPercentage: p.discountPercentage,
+      promotionType: p.promotionType,
+      discountPercentage: p.discountPercentage ?? 15,
+      fixedDiscountAmount: p.fixedDiscountAmount != null ? String(p.fixedDiscountAmount) : '',
+      fixedPriceAmount: p.fixedPriceAmount != null ? String(p.fixedPriceAmount) : '',
+      minDurationHours: p.minDurationHours ?? 4,
       applicableTierId: p.applicableTierId ?? '',
       validFrom: toDateInput(p.validFrom),
       validUntil: toDateInput(p.validUntil),
@@ -152,9 +179,27 @@ export default function OwnerOffersPage() {
       endHour: p.endHour,
       maxUses: p.maxUses != null ? String(p.maxUses) : '',
       kheloCode: p.kheloCode ?? '',
+      isActive: p.isActive,
     });
     setFormError(null);
     setIsModalOpen(true);
+  };
+
+  // Locked only once the offer has been redeemed at least once — switching
+  // between "20% off" and "4 hours for ₹360" mid-life is where genuine
+  // ambiguity lives for customers who've already used it. Every other field
+  // stays editable regardless of redemption count (matches
+  // PromotionService.update_promotion's PROMOTION_TYPE_LOCKED rule).
+  const typeLocked = !!editingId && editingUses > 0;
+
+  const typeFieldsPayload = () => {
+    if (form.promotionType === 'percentage') {
+      return { discountPercentage: Number(form.discountPercentage), fixedDiscountAmount: null, fixedPriceAmount: null, minDurationHours: null };
+    }
+    if (form.promotionType === 'fixed_amount') {
+      return { discountPercentage: null, fixedDiscountAmount: Number(form.fixedDiscountAmount), fixedPriceAmount: null, minDurationHours: null };
+    }
+    return { discountPercentage: null, fixedDiscountAmount: null, fixedPriceAmount: Number(form.fixedPriceAmount), minDurationHours: Number(form.minDurationHours) };
   };
 
   const createMut = useMutation({
@@ -163,7 +208,8 @@ export default function OwnerOffersPage() {
         cafeId: cafeId!,
         title: form.title,
         description: form.description || undefined,
-        discountPercentage: Number(form.discountPercentage),
+        promotionType: form.promotionType,
+        ...typeFieldsPayload(),
         applicableTierId: form.applicableTierId || null,
         validFrom: `${form.validFrom}T00:00:00`,
         validUntil: `${form.validUntil}T23:59:59`,
@@ -186,8 +232,13 @@ export default function OwnerOffersPage() {
       updatePromotion(editingId!, {
         title: form.title,
         description: form.description || undefined,
-        discountPercentage: Number(form.discountPercentage),
+        ...(typeLocked ? {} : { promotionType: form.promotionType, ...typeFieldsPayload() }),
+        applicableTierId: form.applicableTierId || null,
+        validFrom: `${form.validFrom}T00:00:00`,
         validUntil: `${form.validUntil}T23:59:59`,
+        daysOfWeek: form.daysOfWeek,
+        startHour: Number(form.startHour),
+        endHour: Number(form.endHour),
         maxUses: form.maxUses ? Number(form.maxUses) : null,
         kheloCode: form.kheloCode || null,
       }),
@@ -221,15 +272,43 @@ export default function OwnerOffersPage() {
     }));
   };
 
+  const selectedTier = tiers.find((t) => t.id === form.applicableTierId);
+  const regularPricePreview =
+    form.promotionType === 'fixed_price' && selectedTier
+      ? selectedTier.pricePerHour * form.minDurationHours
+      : null;
+  const savingsPreview =
+    regularPricePreview != null && form.fixedPriceAmount
+      ? Math.max(regularPricePreview - Number(form.fixedPriceAmount), 0)
+      : null;
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) {
       setFormError('Give this offer a title.');
       return;
     }
-    if (form.discountPercentage < 1 || form.discountPercentage > 50) {
+    if (form.promotionType === 'percentage' && (form.discountPercentage < 1 || form.discountPercentage > 50)) {
       setFormError('Discount must be between 1% and 50%.');
       return;
+    }
+    if (form.promotionType === 'fixed_amount' && (!form.fixedDiscountAmount || Number(form.fixedDiscountAmount) <= 0)) {
+      setFormError('Enter how much money comes off, in rupees.');
+      return;
+    }
+    if (form.promotionType === 'fixed_price') {
+      if (!form.applicableTierId) {
+        setFormError('A fixed-price deal must apply to a specific setup — choose one.');
+        return;
+      }
+      if (!form.fixedPriceAmount || Number(form.fixedPriceAmount) <= 0) {
+        setFormError('Enter the deal price, in rupees.');
+        return;
+      }
+      if (!form.minDurationHours || form.minDurationHours < 1) {
+        setFormError('Enter how many hours this deal covers.');
+        return;
+      }
     }
     if (new Date(form.validUntil) <= new Date(form.validFrom)) {
       setFormError('End date must be after the start date.');
@@ -257,12 +336,9 @@ export default function OwnerOffersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* The old description promised "no promo codes to share" while every
-          offer card below showed a code with Copy and Show QR buttons beside it.
-          Both halves are true of different things, so say which is which. */}
       <OwnerPageHeader
-        title="Discounts"
-        description="Run a discount for a set period. It comes off the price automatically at checkout — and each one also gets a code you can share or print as a QR."
+        title="Offers"
+        description="Run a discount, a fixed-price deal, or a flat amount off. It applies automatically at checkout — and each one also gets a code you can share or print as a QR."
         action={
           <Button
             variant="primary"
@@ -272,7 +348,7 @@ export default function OwnerOffersPage() {
             disabled={!cafeId}
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            <span>New discount</span>
+            <span>New offer</span>
           </Button>
         }
       />
@@ -294,9 +370,9 @@ export default function OwnerOffersPage() {
 
       {!isLoading && !isError && promotions.length === 0 && (
         <EmptyState
-          title="No discounts running"
-          description="A discount is a good way to fill quiet hours — say 20% off on weekday afternoons. Customers see the lower price straight away."
-          actionLabel="Create your first discount"
+          title="No offers running"
+          description="A discount or a fixed-price deal is a good way to fill quiet hours — say 20% off weekday afternoons, or '4 hours for ₹360'. Customers see the lower price straight away."
+          actionLabel="Create your first offer"
           onAction={openCreate}
         />
       )}
@@ -305,7 +381,12 @@ export default function OwnerOffersPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {promotions.map((p) => {
             const status = promotionStatus(p);
-            const tierName = p.applicableTierId ? tiers.find((t) => t.id === p.applicableTierId)?.name : null;
+            const cardTier = p.applicableTierId ? tiers.find((t) => t.id === p.applicableTierId) : null;
+            const tierName = cardTier?.name ?? null;
+            const cardRegularPrice =
+              p.promotionType === 'fixed_price' && cardTier && p.minDurationHours != null
+                ? cardTier.pricePerHour * p.minDurationHours
+                : null;
             return (
               <Card key={p.id} elevation="resting" className="overflow-hidden">
                 <CardContent className="p-5 flex flex-col gap-3.5">
@@ -320,7 +401,20 @@ export default function OwnerOffersPage() {
                   </div>
 
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-surface border border-border">
-                    <span className="text-h3 font-heading font-bold text-primary">{p.discountPercentage}% OFF</span>
+                    {p.promotionType === 'percentage' && (
+                      <span className="text-h3 font-heading font-bold text-primary">{p.discountPercentage}% OFF</span>
+                    )}
+                    {p.promotionType === 'fixed_amount' && (
+                      <span className="text-h3 font-heading font-bold text-primary">₹{p.fixedDiscountAmount} OFF</span>
+                    )}
+                    {p.promotionType === 'fixed_price' && (
+                      <span className="text-h3 font-heading font-bold text-primary">
+                        {p.minDurationHours}h for ₹{p.fixedPriceAmount}
+                        {cardRegularPrice != null && (
+                          <span className="ml-1.5 text-caption font-normal text-text-secondary line-through">₹{cardRegularPrice}</span>
+                        )}
+                      </span>
+                    )}
                     <span className="text-caption text-text-secondary">{tierName ?? 'All tiers'}</span>
                   </div>
 
@@ -356,10 +450,6 @@ export default function OwnerOffersPage() {
                           <Tag className="h-3.5 w-3.5 text-accent flex-shrink-0" />
                           <span className="font-data font-bold tracking-wider text-text-primary truncate">{p.kheloCode}</span>
                         </div>
-                        {/* Shared Button, so these two inherit the same 44px
-                            touch floor as every other control in the portal —
-                            as raw 32px-tall elements they were the smallest tap
-                            targets left on any owner screen. */}
                         <div className="flex flex-shrink-0 items-center gap-1">
                           <Button
                             variant="ghost"
@@ -449,43 +539,134 @@ export default function OwnerOffersPage() {
             </div>
           )}
 
+          <div className="flex flex-col gap-1.5">
+            <label className="text-caption font-semibold text-text-primary">What kind of offer are you running? *</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {TYPE_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                const selected = form.promotionType === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={typeLocked}
+                    onClick={() => setForm((f) => ({ ...f, promotionType: opt.value }))}
+                    className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+                      selected
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
+                        : 'border-border bg-surface hover:bg-surface-hover'
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 ${selected ? 'text-primary' : 'text-text-secondary'}`} />
+                    <span className="text-caption font-semibold text-text-primary">{opt.label}</span>
+                    <span className="text-caption text-text-secondary">{opt.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {typeLocked && (
+              <p className="text-caption text-text-secondary">
+                This offer has already been redeemed, so its type can&apos;t change. Everything else below is still editable.
+              </p>
+            )}
+          </div>
+
           <Input
             label="Offer Title *"
-            placeholder="e.g. Weeknight Happy Hour"
+            placeholder="e.g. 4 Hours Gaming Deal"
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
             required
           />
           <Input
             label="Description (shown to gamers)"
-            placeholder="e.g. 20% off all weeknight sessions before 6 PM"
+            placeholder="e.g. Pay for 3 hours, get the 4th free"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {form.promotionType === 'percentage' && (
             <NumericField
               label="Discount % (1-50) *"
               min={1}
               max={50}
+              disabled={typeLocked}
               value={form.discountPercentage}
               onChange={(n) => setForm({ ...form, discountPercentage: n })}
             />
-            <div className="flex flex-col gap-1.5">
-              <label className="text-caption font-semibold text-text-primary">Applies To</label>
-              <select
-                value={form.applicableTierId}
-                disabled={!!editingId}
-                onChange={(e) => setForm({ ...form, applicableTierId: e.target.value })}
-                className="h-10 w-full rounded-xl border border-border bg-card px-3 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
-              >
-                <option value="">All hardware tiers</option>
-                {tiers.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-              {editingId && <p className="text-caption text-text-secondary">Tier scope can&apos;t change after creation — pause and create a new offer instead.</p>}
+          )}
+
+          {form.promotionType === 'fixed_amount' && (
+            <Input
+              label="Amount off (₹) *"
+              type="number"
+              min={1}
+              disabled={typeLocked}
+              placeholder="e.g. 100"
+              value={form.fixedDiscountAmount}
+              onChange={(e) => setForm({ ...form, fixedDiscountAmount: e.target.value })}
+            />
+          )}
+
+          {form.promotionType === 'fixed_price' && (
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <NumericField
+                  label="Minimum Duration (hours) *"
+                  min={1}
+                  max={8}
+                  disabled={typeLocked}
+                  value={form.minDurationHours}
+                  onChange={(n) => setForm({ ...form, minDurationHours: n })}
+                />
+                <Input
+                  label="Deal Price (₹) *"
+                  type="number"
+                  min={1}
+                  disabled={typeLocked}
+                  placeholder="e.g. 360"
+                  value={form.fixedPriceAmount}
+                  onChange={(e) => setForm({ ...form, fixedPriceAmount: e.target.value })}
+                />
+              </div>
+              {regularPricePreview != null && (
+                <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-caption">
+                  <span className="text-text-secondary">Regular price: </span>
+                  <span className="font-semibold text-text-primary line-through mr-2">₹{regularPricePreview}</span>
+                  {savingsPreview != null && form.fixedPriceAmount && (
+                    <>
+                      <span className="text-text-secondary">Offer price: </span>
+                      <span className="font-semibold text-primary mr-2">₹{form.fixedPriceAmount}</span>
+                      <span className="font-semibold text-success">Save ₹{savingsPreview}</span>
+                    </>
+                  )}
+                </div>
+              )}
+              {!selectedTier && (
+                <p className="text-caption text-error">Choose a setup below to see the regular price and savings.</p>
+              )}
             </div>
+          )}
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-caption font-semibold text-text-primary">
+              Applies To {form.promotionType === 'fixed_price' ? '*' : ''}
+            </label>
+            <select
+              value={form.applicableTierId}
+              disabled={typeLocked}
+              onChange={(e) => setForm({ ...form, applicableTierId: e.target.value })}
+              className="h-10 w-full rounded-xl border border-border bg-card px-3 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+            >
+              {form.promotionType !== 'fixed_price' && <option value="">All hardware tiers</option>}
+              {form.promotionType === 'fixed_price' && <option value="">Choose a setup...</option>}
+              {tiers.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            {form.promotionType === 'fixed_price' && (
+              <p className="text-caption text-text-secondary">A fixed-price deal must apply to one specific setup, since its regular price is calculated from that setup&apos;s hourly rate.</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -493,7 +674,6 @@ export default function OwnerOffersPage() {
               label="Start Date *"
               type="date"
               value={form.validFrom}
-              disabled={!!editingId}
               onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
               required
             />
@@ -512,7 +692,6 @@ export default function OwnerOffersPage() {
               min={0}
               max={23}
               value={form.startHour}
-              disabled={!!editingId}
               onChange={(n) => setForm({ ...form, startHour: n })}
             />
             <NumericField
@@ -520,7 +699,6 @@ export default function OwnerOffersPage() {
               min={1}
               max={24}
               value={form.endHour}
-              disabled={!!editingId}
               onChange={(n) => setForm({ ...form, endHour: n })}
             />
           </div>
@@ -534,9 +712,8 @@ export default function OwnerOffersPage() {
                   <button
                     key={label}
                     type="button"
-                    disabled={!!editingId}
                     onClick={() => toggleDay(idx)}
-                    className={`min-w-[44px] h-11 px-2 rounded-xl text-caption font-semibold transition-colors disabled:opacity-60 ${
+                    className={`min-w-[44px] h-11 px-2 rounded-xl text-caption font-semibold transition-colors ${
                       selected
                         ? 'bg-primary text-white'
                         : 'bg-surface border border-border text-text-secondary hover:bg-surface-hover'

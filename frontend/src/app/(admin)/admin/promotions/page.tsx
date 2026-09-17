@@ -240,7 +240,11 @@ export default function AdminPromotionsPage() {
                   </span>
 
                   <span className="text-xs font-bold font-data text-text-primary whitespace-nowrap">
-                    {p.discountPercentage}%
+                    {p.promotionType === 'fixed_price'
+                      ? `${p.minDurationHours}h/₹${p.fixedPriceAmount}`
+                      : p.promotionType === 'fixed_amount'
+                        ? `₹${p.fixedDiscountAmount} off`
+                        : `${p.discountPercentage}%`}
                   </span>
 
                   <span className={`text-xs font-data whitespace-nowrap ${exhausted ? 'text-red-600 font-bold' : 'text-text-secondary'}`}>

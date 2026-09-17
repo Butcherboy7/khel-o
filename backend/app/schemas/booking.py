@@ -22,7 +22,7 @@ class BookingBase(BaseModel):
     hardware_tier_id: UUID
     session_date: date
     start_time: time
-    duration_hours: float = Field(..., ge=0.5, le=8.0)
+    duration_hours: float = Field(..., ge=1.0, le=8.0)
     seats_count: int = Field(1, ge=1, le=6, description="Number of seats for this booking session (1 to 6)")
     notes: Optional[str] = None
     promotion_id: Optional[UUID] = None

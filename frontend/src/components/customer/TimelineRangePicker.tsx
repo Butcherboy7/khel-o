@@ -21,9 +21,11 @@ interface AvailabilityBadge {
 }
 
 // Mirrors the API contract: BookingCreateRequest.duration_hours is
-// Field(..., ge=0.5, le=8.0), re-checked in booking_service. Anything the
-// picker lets a customer build beyond this is quoted a price and then
-// rejected with a 422 at submit, so the ceiling must match on both sides.
+// Field(..., ge=1.0, le=8.0), re-checked in booking_service. Anything the
+// picker lets a customer build outside this range is quoted a price and then
+// rejected with a 422 at submit, so both bounds must match on both sides.
+const MIN_DURATION_HOURS = 1;
+const MIN_DURATION_MIN = MIN_DURATION_HOURS * 60;
 const MAX_DURATION_HOURS = 8;
 const MAX_DURATION_MIN = MAX_DURATION_HOURS * 60;
 
@@ -143,10 +145,10 @@ export function TimelineRangePicker({
   const selStart = useMemo(() => {
     let s = timeToMinutes(startTime);
     if (s < openMin) s += 1440;
-    return Math.max(minValidStart, Math.min(closeMin - 30, s));
+    return Math.max(minValidStart, Math.min(closeMin - MIN_DURATION_MIN, s));
   }, [startTime, openMin, closeMin, minValidStart]);
 
-  const durMin = Math.max(30, Math.round(durationHours * 60));
+  const durMin = Math.max(MIN_DURATION_MIN, Math.round(durationHours * 60));
   const selEnd = Math.min(closeMin, selStart + durMin);
 
   // ── Dynamic Slot Width Scale (Compresses dynamically for large durations) ──
@@ -237,14 +239,14 @@ export function TimelineRangePicker({
       // Dragging the start handle left grows the session; it may not grow past
       // the API's maximum duration.
       const earliestStart = Math.max(minValidStart, selEnd - MAX_DURATION_MIN);
-      const newStart = Math.max(earliestStart, Math.min(selEnd - 30, dragStartMin.current + deltaMin));
-      const newDur = Math.max(0.5, (selEnd - newStart) / 60);
+      const newStart = Math.max(earliestStart, Math.min(selEnd - MIN_DURATION_MIN, dragStartMin.current + deltaMin));
+      const newDur = Math.max(MIN_DURATION_HOURS, (selEnd - newStart) / 60);
       const startOffset = minutesToTimeAndDayOffset(newStart);
       onChange(startOffset.time, newDur, startOffset.dayOffset);
     } else if (dragMode === 'end') {
       const latestEnd = Math.min(closeMin, selStart + MAX_DURATION_MIN);
-      const newEnd = Math.max(selStart + 30, Math.min(latestEnd, dragStartMin.current + dragDurMin.current + deltaMin));
-      const newDur = Math.max(0.5, (newEnd - selStart) / 60);
+      const newEnd = Math.max(selStart + MIN_DURATION_MIN, Math.min(latestEnd, dragStartMin.current + dragDurMin.current + deltaMin));
+      const newDur = Math.max(MIN_DURATION_HOURS, (newEnd - selStart) / 60);
       const startOffset = minutesToTimeAndDayOffset(selStart);
       onChange(startOffset.time, newDur, startOffset.dayOffset);
     } else if (dragMode === 'pan') {
@@ -304,7 +306,7 @@ export function TimelineRangePicker({
   }, [selStart, selEnd, minValidStart, closeMin, segments]);
 
   const adjustDuration = (deltaHours: number) => {
-    const newDur = Math.max(0.5, Math.min(MAX_DURATION_HOURS, durationHours + deltaHours));
+    const newDur = Math.max(MIN_DURATION_HOURS, Math.min(MAX_DURATION_HOURS, durationHours + deltaHours));
     if (selStart + newDur * 60 <= closeMin) {
       const { time, dayOffset } = minutesToTimeAndDayOffset(selStart);
       onChange(time, newDur, dayOffset);

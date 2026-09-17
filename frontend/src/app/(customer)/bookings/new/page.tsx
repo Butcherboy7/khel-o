@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   X,
   PauseCircle,
+  Sparkles,
 } from 'lucide-react';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
 import { previewKheloCode } from '@/lib/api/promotions';
@@ -41,6 +42,12 @@ import {
   addDaysToDateString,
   calculateWindowRemainingSeats,
 } from '@/lib/format';
+
+function promoDiscountLabel(type: string, discountPercentage: number | null): string {
+  if (type === 'fixed_price') return 'deal price';
+  if (type === 'fixed_amount') return 'flat off';
+  return `-${discountPercentage}%`;
+}
 
 function BookingWizardContent() {
   const router = useRouter();
@@ -485,6 +492,12 @@ function BookingWizardContent() {
   const activePromo = activeTier?.activePromotion || null;
   let discountAmount = 0;
   let promoEligible = false;
+  // A FIXED_PRICE deal ("4 hours for ₹360") only applies when the selected
+  // duration matches min_duration_hours exactly — same rule the backend
+  // enforces in apply_promotion_to_booking (PROMOTION_DURATION_MISMATCH).
+  const promoDurationMatches = !activePromo || activePromo.promotionType !== 'fixed_price'
+    ? true
+    : durationHours === activePromo.minDurationHours;
   if (activePromo) {
     const slotDate = new Date(`${effectiveSessionDate}T${selectedTime}`);
     const validFrom = new Date(activePromo.validFrom);
@@ -498,11 +511,30 @@ function BookingWizardContent() {
       activePromo.daysOfWeek.includes(pythonWeekday) &&
       slotHour >= activePromo.startHour &&
       slotHour < activePromo.endHour &&
-      (activePromo.maxUses == null || activePromo.currentUses < activePromo.maxUses);
+      (activePromo.maxUses == null || activePromo.currentUses < activePromo.maxUses) &&
+      promoDurationMatches;
     if (promoEligible) {
-      discountAmount = Math.round(baseTotal * (activePromo.discountPercentage / 100) * 100) / 100;
+      if (activePromo.promotionType === 'fixed_price') {
+        discountAmount = Math.max(baseTotal - Number(activePromo.fixedPriceAmount) * seatsCount, 0);
+      } else if (activePromo.promotionType === 'fixed_amount') {
+        discountAmount = Number(activePromo.fixedDiscountAmount);
+      } else {
+        discountAmount = Math.round(baseTotal * ((activePromo.discountPercentage ?? 0) / 100) * 100) / 100;
+      }
     }
   }
+  // "You're 1 hour away from our 4-hour deal, save ₹X — switch?" — only
+  // surfaced when the deal is otherwise eligible (schedule/date/uses) and
+  // the customer is exactly 1 hour short of the required duration.
+  const dealNudge =
+    activePromo &&
+    activePromo.promotionType === 'fixed_price' &&
+    activePromo.isActive &&
+    !promoDurationMatches &&
+    activePromo.minDurationHours != null &&
+    activePromo.minDurationHours - durationHours === 1
+      ? activePromo
+      : null;
 
   // A validated KHELO code overrides the auto-applied tier promo above — the
   // two are never stacked, and the code is what actually gets sent to
@@ -521,19 +553,29 @@ function BookingWizardContent() {
       const validUntil = new Date(codeRedemption.validUntil);
       const pythonWeekday = (slotDate.getDay() + 6) % 7;
       const slotHour = parseInt(selectedTime.split(':')[0], 10);
+      const codeDurationMatches = codeRedemption.promotionType !== 'fixed_price' || durationHours === codeRedemption.minDurationHours;
       codeEligible =
         slotDate >= validFrom &&
         slotDate <= validUntil &&
         codeRedemption.daysOfWeek.includes(pythonWeekday) &&
         slotHour >= codeRedemption.startHour &&
         slotHour < codeRedemption.endHour &&
-        (codeRedemption.maxUses == null || codeRedemption.currentUses < codeRedemption.maxUses);
+        (codeRedemption.maxUses == null || codeRedemption.currentUses < codeRedemption.maxUses) &&
+        codeDurationMatches;
       if (!codeEligible) {
-        codeIneligibleReason = `Valid ${codeRedemption.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, ${codeRedemption.startHour}:00–${codeRedemption.endHour}:00 — pick a slot in that window to apply it.`;
+        codeIneligibleReason = !codeDurationMatches
+          ? `This deal applies to exactly ${codeRedemption.minDurationHours} hour(s) — adjust your duration to apply it.`
+          : `Valid ${codeRedemption.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, ${codeRedemption.startHour}:00–${codeRedemption.endHour}:00 — pick a slot in that window to apply it.`;
       }
     }
     if (codeEligible) {
-      discountAmount = Math.round(baseTotal * (codeRedemption.discountPercentage / 100) * 100) / 100;
+      if (codeRedemption.promotionType === 'fixed_price') {
+        discountAmount = Math.max(baseTotal - Number(codeRedemption.fixedPriceAmount) * seatsCount, 0);
+      } else if (codeRedemption.promotionType === 'fixed_amount') {
+        discountAmount = Number(codeRedemption.fixedDiscountAmount);
+      } else {
+        discountAmount = Math.round(baseTotal * ((codeRedemption.discountPercentage ?? 0) / 100) * 100) / 100;
+      }
     }
   }
 
@@ -881,7 +923,7 @@ function BookingWizardContent() {
           <div className="flex items-center justify-between gap-3 text-success">
             <span className="min-w-0 flex items-center gap-1.5 font-semibold">
               <Tag className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{codeRedemption.title} (-{codeRedemption.discountPercentage}%)</span>
+              <span className="truncate">{codeRedemption.title} ({promoDiscountLabel(codeRedemption.promotionType, codeRedemption.discountPercentage)})</span>
             </span>
             <span className="flex-shrink-0 font-bold">
               -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
@@ -893,7 +935,7 @@ function BookingWizardContent() {
           <div className="flex items-center justify-between gap-3 text-success">
             <span className="min-w-0 flex items-center gap-1.5 font-semibold">
               <Tag className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{activePromo.title} (-{activePromo.discountPercentage}%)</span>
+              <span className="truncate">{activePromo.title} ({promoDiscountLabel(activePromo.promotionType, activePromo.discountPercentage)})</span>
             </span>
             <span className="flex-shrink-0 font-bold">
               -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
@@ -901,13 +943,29 @@ function BookingWizardContent() {
           </div>
         )}
 
-        {!appliedCode && activePromo && !promoEligible && (
+        {!appliedCode && activePromo && !promoEligible && !dealNudge && (
           <p className="text-xs text-text-tertiary flex items-start gap-1.5">
             <Tag className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
             <span>
-              {activePromo.title} available {activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, {activePromo.startHour}:00–{activePromo.endHour}:00 — pick a slot in that window to apply it.
+              {!promoDurationMatches
+                ? `${activePromo.title} applies to exactly ${activePromo.minDurationHours} hour(s) — adjust your duration to apply it.`
+                : `${activePromo.title} available ${activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, ${activePromo.startHour}:00–${activePromo.endHour}:00 — pick a slot in that window to apply it.`}
             </span>
           </p>
+        )}
+
+        {!appliedCode && dealNudge && (
+          <button
+            type="button"
+            onClick={() => setDurationHours(dealNudge.minDurationHours!)}
+            className="flex items-start gap-1.5 p-2 -m-0.5 rounded-lg text-left text-xs text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+            <span>
+              🔥 You&apos;re 1 hour away from {dealNudge.title} — save ₹
+              {Math.max(pricePerHour * dealNudge.minDurationHours! * seatsCount - Number(dealNudge.fixedPriceAmount) * seatsCount, 0).toFixed(0)}. Switch to {dealNudge.minDurationHours}h?
+            </span>
+          </button>
         )}
 
         <div className="flex items-center justify-between">
@@ -964,7 +1022,7 @@ function BookingWizardContent() {
               <span className="font-data font-bold tracking-wider text-text-primary truncate">{appliedCode}</span>
               {codeRedemption && (
                 <span className="text-caption text-text-secondary truncate">
-                  {isCodeInvalid ? 'invalid' : codeEligible ? `−${codeRedemption.discountPercentage}%` : 'not eligible for this slot'}
+                  {isCodeInvalid ? 'invalid' : codeEligible ? promoDiscountLabel(codeRedemption.promotionType, codeRedemption.discountPercentage) : 'not eligible for this slot'}
                 </span>
               )}
             </div>

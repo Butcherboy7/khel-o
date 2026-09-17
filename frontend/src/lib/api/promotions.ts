@@ -1,11 +1,17 @@
 import { apiClient, call } from './client';
 
+export type PromotionType = 'percentage' | 'fixed_amount' | 'fixed_price';
+
 export interface Promotion {
   id: string;
   cafeId: string;
   title: string;
   description: string | null;
-  discountPercentage: number;
+  promotionType: PromotionType;
+  discountPercentage: number | null;
+  fixedDiscountAmount: number | null;
+  fixedPriceAmount: number | null;
+  minDurationHours: number | null;
   applicableTierId: string | null;
   validFrom: string;
   validUntil: string;
@@ -24,7 +30,11 @@ export interface PromotionCreateInput {
   cafeId: string;
   title: string;
   description?: string;
-  discountPercentage: number;
+  promotionType: PromotionType;
+  discountPercentage?: number | null;
+  fixedDiscountAmount?: number | null;
+  fixedPriceAmount?: number | null;
+  minDurationHours?: number | null;
   applicableTierId?: string | null;
   validFrom: string;
   validUntil: string;
@@ -38,8 +48,17 @@ export interface PromotionCreateInput {
 export interface PromotionUpdateInput {
   title?: string;
   description?: string;
-  discountPercentage?: number;
+  promotionType?: PromotionType;
+  discountPercentage?: number | null;
+  fixedDiscountAmount?: number | null;
+  fixedPriceAmount?: number | null;
+  minDurationHours?: number | null;
+  applicableTierId?: string | null;
+  validFrom?: string;
   validUntil?: string;
+  daysOfWeek?: number[];
+  startHour?: number;
+  endHour?: number;
   maxUses?: number | null;
   isActive?: boolean;
   kheloCode?: string | null;
@@ -50,7 +69,13 @@ export interface CodeRedemption {
   cafeId: string;
   title: string;
   description: string | null;
-  discountPercentage: number;
+  promotionType: PromotionType;
+  discountPercentage: number | null;
+  fixedDiscountAmount: number | null;
+  fixedPriceAmount: number | null;
+  minDurationHours: number | null;
+  regularPrice: number | null;
+  savingsAmount: number | null;
   applicableTierId: string | null;
   validFrom: string;
   validUntil: string;
