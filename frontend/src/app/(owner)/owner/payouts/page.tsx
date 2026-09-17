@@ -7,7 +7,7 @@ import { ArrowUpRight, Building2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
 import { getOwnerPayoutSummary, getOwnerCafePayouts } from '@/lib/api/owner';
-import { Card, CardContent, Badge, Button, EmptyState, PageSpinner, Tooltip } from '@/components/ui';
+import { Card, CardContent, Badge, Button, EmptyState, PageSpinner } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
 import { useAuthStore } from '@/store/authStore';
@@ -72,27 +72,38 @@ export default function OwnerPayoutsPage() {
         </Card>
       )}
 
-      {/* Three questions, answered on open: currently owed, already paid,
-          where it's sent. */}
+      {/* The two numbers an owner actually opens this page to check —
+          large, color-coded, side by side so "owed vs. paid" reads as one
+          comparable pair at a glance instead of small inline text. */}
+      <div className="flex flex-col gap-2">
+        <OwnerStatRow
+          stats={[
+            {
+              label: 'Currently owed to you',
+              value: `₹${outstandingAmount.toFixed(0)}`,
+              tone: outstandingAmount > 0 ? 'warning' : 'neutral',
+              hint: 'Not paid out yet',
+            },
+            {
+              label: 'Already paid out',
+              value: `₹${alreadyPaidOut.toFixed(0)}`,
+              tone: 'positive',
+              hint: 'Sent to your account',
+            },
+          ]}
+        />
+        <p className="text-caption text-text-secondary px-1">
+          &ldquo;Currently owed&rdquo; is every booking KHEL-O has collected but not yet transferred to you, minus any refund adjustments.
+        </p>
+      </div>
+
       <Card elevation="resting" className="border border-border bg-surface-hover">
-        <CardContent className="flex flex-col gap-3 p-4 sm:p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-caption">
-            <div className="flex justify-between sm:block">
-              <span className="text-text-secondary">Currently owed:</span>{' '}
-              <Tooltip content="Every captured booking KHEL-O hasn't paid out to you yet, minus any refund adjustments.">
-                <span className="font-bold text-amber-700 cursor-help underline decoration-dotted">₹{outstandingAmount.toFixed(0)}</span>
-              </Tooltip>
-            </div>
-            <div className="flex justify-between sm:block">
-              <span className="text-text-secondary">Already paid:</span>{' '}
-              <span className="font-bold text-emerald-700">₹{alreadyPaidOut.toFixed(0)}</span>
-            </div>
-            <div className="flex justify-between sm:block sm:col-span-2">
-              <span className="text-text-secondary">Where it&apos;s sent:</span>{' '}
-              <span className="font-bold text-text-primary">
-                {account?.upiVpa || account?.bankAccountNumberMasked || 'Not added yet'}
-              </span>
-            </div>
+        <CardContent className="flex flex-col gap-3 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-caption">
+            <span className="text-text-secondary">Where it&apos;s sent: </span>
+            <span className="font-bold text-text-primary">
+              {account?.upiVpa || account?.bankAccountNumberMasked || 'Not added yet'}
+            </span>
           </div>
           {!account && (
             <Link href="/owner/settings" className="w-full sm:w-auto">
@@ -104,19 +115,6 @@ export default function OwnerPayoutsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Earnings vs payouts, kept as two distinct chains rather than one
-          blended row: revenue -> fee -> net earnings, then already paid. */}
-      <div className="flex flex-col gap-3">
-        <div>
-          <h3 className="text-caption font-semibold text-text-secondary mb-1.5">Payouts</h3>
-          <OwnerStatRow
-            stats={[
-              { label: 'Already paid', value: `₹${alreadyPaidOut.toFixed(0)}`, tone: 'positive' },
-            ]}
-          />
-        </div>
-      </div>
 
       {/* Connected Bank Account Details */}
       <Card elevation="raised" className="bg-surface border border-border">
