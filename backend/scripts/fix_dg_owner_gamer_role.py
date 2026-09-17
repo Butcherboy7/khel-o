@@ -11,16 +11,17 @@ from app.database import AsyncSessionLocal
 from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
 
-EMAIL = "dggamingcafe@khel-o.com"
+OWNER_ID = "f30d42b9-0b41-48a0-acf0-d1960826a606"
 
 
 async def main():
     async with AsyncSessionLocal() as s:
-        r = await s.execute(select(User).where(User.email == EMAIL))
+        r = await s.execute(select(User).where(User.id == OWNER_ID))
         u = r.scalar_one_or_none()
         if not u:
             print("user not found")
             return
+        print("current email:", u.email)
 
         existing = await s.execute(
             select(UserRoleMapping).where(
