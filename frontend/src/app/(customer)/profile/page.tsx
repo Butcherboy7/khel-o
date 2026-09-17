@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { updateMe, changePassword } from '@/lib/api/auth';
@@ -45,6 +45,7 @@ const RIG_TIERS = ['Ultra RTX 4080 (240Hz)', 'RTX 4070 Super Rig', 'PS5 DualSens
 
 export default function ProfilePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, setUser, logout, switchActiveRole } = useAuthStore();
   const [isSwitchingToOwner, setIsSwitchingToOwner] = useState(false);
   const [switchToOwnerError, setSwitchToOwnerError] = useState('');
@@ -189,6 +190,11 @@ export default function ProfilePage() {
         phoneNumber: `+91 ${phoneNumber}`,
       });
       setUser(res.user);
+      // The gamer's name is also displayed wherever their past reviews are
+      // cached (React Query's ['cafe-reviews', cafeId]), which setUser above
+      // doesn't touch — without this, a name change wouldn't show up on
+      // reviews already fetched into the cache until it naturally expired.
+      queryClient.invalidateQueries({ queryKey: ['cafe-reviews'] });
       setIsEditOpen(false);
     } catch (err: any) {
       setSaveError(err?.message || 'Failed to save profile. Please try again.');

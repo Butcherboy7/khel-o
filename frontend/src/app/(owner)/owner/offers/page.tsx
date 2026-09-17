@@ -2,12 +2,13 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tag, Plus, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw, Percent, IndianRupee, Sparkles } from 'lucide-react';
+import { Tag, Plus, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw, Percent, IndianRupee, Sparkles, Trash2 } from 'lucide-react';
 import {
   listOwnerPromotions,
   createPromotion,
   updatePromotion,
   deactivateOwnerPromotion,
+  deleteOwnerPromotionPermanently,
   type Promotion,
   type PromotionType,
 } from '@/lib/api/promotions';
@@ -114,6 +115,8 @@ export default function OwnerOffersPage() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [formError, setFormError] = useState<string | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Promotion | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Promotion | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [qrTargetId, setQrTargetId] = useState<string | null>(null);
 
@@ -261,6 +264,16 @@ export default function OwnerOffersPage() {
   const reactivateMut = useMutation({
     mutationFn: (id: string) => updatePromotion(id, { isActive: true }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['owner-promotions'] }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteOwnerPromotionPermanently(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['owner-promotions'] });
+      setDeleteTarget(null);
+      setDeleteError(null);
+    },
+    onError: (err: any) => setDeleteError(err?.message || 'Failed to delete offer.'),
   });
 
   const toggleDay = (day: number) => {
@@ -513,6 +526,17 @@ export default function OwnerOffersPage() {
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
                         Resume
+                      </Button>
+                    )}
+                    {p.currentUses === 0 && (
+                      <Button
+                        variant="destructive-outline"
+                        size="sm"
+                        onClick={() => { setDeleteTarget(p); setDeleteError(null); }}
+                        aria-label="Delete offer"
+                        className="flex-shrink-0 px-3"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
                   </div>
@@ -801,6 +825,42 @@ export default function OwnerOffersPage() {
                 onClick={() => deactivateMut.mutate(deactivateTarget.id)}
               >
                 Pause Offer
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete Confirmation — only reachable for an offer with zero
+          redemptions (see the currentUses===0 guard on the Delete button),
+          so this never orphans a Booking.promotion_id. */}
+      <Modal
+        isOpen={!!deleteTarget}
+        onClose={() => { setDeleteTarget(null); setDeleteError(null); }}
+        title="Delete this offer?"
+      >
+        {deleteTarget && (
+          <div className="flex flex-col gap-4">
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-error/10 border border-error/20 text-caption text-error flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                {deleteError}
+              </div>
+            )}
+            <p className="text-caption text-text-secondary">
+              <strong className="text-text-primary">{deleteTarget.title}</strong> will be permanently removed. This can&apos;t be undone — if you might want it back, use Pause instead.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => { setDeleteTarget(null); setDeleteError(null); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                isLoading={deleteMut.isPending}
+                onClick={() => deleteMut.mutate(deleteTarget.id)}
+              >
+                Delete Offer
               </Button>
             </div>
           </div>

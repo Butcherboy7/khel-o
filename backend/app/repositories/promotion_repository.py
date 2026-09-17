@@ -105,3 +105,13 @@ class PromotionRepository(BaseRepository[Promotion]):
         await self.db.commit()
         await self.db.refresh(promo)
         return promo
+
+    async def delete(self, promotion_id: UUID) -> None:
+        """Hard delete — only ever called on a promotion with current_uses==0
+        (see PromotionService.delete_promotion), so this never touches a
+        Booking that references it via Booking.promotion_id."""
+        promo = await self.get_by_id(promotion_id)
+        if not promo:
+            return
+        await self.db.delete(promo)
+        await self.db.commit()

@@ -258,6 +258,60 @@ async def test_update_rejects_tier_from_another_cafe(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_owner_can_permanently_delete_unredeemed_promotion(async_client: AsyncClient):
+    async with AsyncSessionLocal() as db:
+        owner, cafe, tier = await _make_cafe_owner(db)
+
+    now = datetime.now(timezone.utc)
+    payload = _fixed_price_payload(cafe.id, tier.id, now)
+    resp = await async_client.post("/api/v1/promotions", json=payload, headers=auth_headers(owner))
+    promo_id = resp.json()["data"]["promotion"]["id"]
+
+    resp = await async_client.delete(f"/api/v1/promotions/{promo_id}", params={"permanent": True}, headers=auth_headers(owner))
+    assert resp.status_code == 200, resp.text
+
+    resp = await async_client.get(f"/api/v1/promotions/{promo_id}")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_owner_cannot_permanently_delete_redeemed_promotion(async_client: AsyncClient):
+    async with AsyncSessionLocal() as db:
+        owner, cafe, tier = await _make_cafe_owner(db)
+
+    now = datetime.now(timezone.utc)
+    payload = _fixed_price_payload(cafe.id, tier.id, now)
+    resp = await async_client.post("/api/v1/promotions", json=payload, headers=auth_headers(owner))
+    promo_id = resp.json()["data"]["promotion"]["id"]
+
+    from app.repositories.promotion_repository import PromotionRepository
+    from app.repositories.cafe_repository import CafeRepository
+    from app.repositories.hardware_tier_repository import HardwareTierRepository
+    from app.services.promotion_service import PromotionService
+
+    async with AsyncSessionLocal() as db:
+        service = PromotionService(PromotionRepository(db), CafeRepository(db), HardwareTierRepository(db))
+        await service.apply_promotion_to_booking(
+            promotion_id=uuid.UUID(promo_id), cafe_id=cafe.id, tier_id=tier.id,
+            base_amount=Decimal("480.00"), session_datetime=now,
+            duration_hours=Decimal("4"), seats_count=1,
+        )
+        await db.commit()
+
+    resp = await async_client.delete(f"/api/v1/promotions/{promo_id}", params={"permanent": True}, headers=auth_headers(owner))
+    assert resp.status_code == 422
+    assert resp.json()["error"]["code"] == "PROMOTION_HAS_HISTORY"
+
+    # Still there, and pausing (the non-permanent DELETE) still works.
+    resp = await async_client.delete(f"/api/v1/promotions/{promo_id}", headers=auth_headers(owner))
+    assert resp.status_code == 200
+
+    resp = await async_client.get(f"/api/v1/promotions/{promo_id}")
+    assert resp.status_code == 200
+    assert resp.json()["data"]["promotion"]["isActive"] is False
+
+
+@pytest.mark.asyncio
 async def test_active_promotions_list_includes_regular_price_and_savings(async_client: AsyncClient):
     async with AsyncSessionLocal() as db:
         owner, cafe, tier = await _make_cafe_owner(db)

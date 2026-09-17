@@ -334,6 +334,32 @@ class PromotionService:
 
         await self.promo_repo.deactivate(promotion_id)
 
+    async def delete_promotion(self, promotion_id: UUID, owner_id: UUID) -> None:
+        """Permanent delete — only allowed for a promotion that has never
+        been redeemed (current_uses == 0). One that has must be paused
+        instead: a booking's Booking.promotion_id would otherwise point at a
+        row that no longer exists, and a promotion with real redemption
+        history is exactly the kind of thing an owner shouldn't be able to
+        make disappear."""
+        promo = await self.promo_repo.get_by_id(promotion_id)
+        if not promo:
+            raise NotFoundException(message="Promotion not found", error_code="PROMOTION_NOT_FOUND")
+
+        if self.cafe_repo:
+            cafe = await self.cafe_repo.get_by_id(promo.cafe_id)
+            if not cafe or str(cafe.owner_id) != str(owner_id):
+                raise ForbiddenException(message="You do not have permission to delete this promotion", error_code="FORBIDDEN")
+
+        if promo.current_uses > 0:
+            raise ValidationException(
+                message="This offer has already been redeemed and can't be deleted — pause it instead to keep booking history intact.",
+                error_code="PROMOTION_HAS_HISTORY"
+            )
+
+        await self.promo_repo.delete(promotion_id)
+
+        await self.promo_repo.deactivate(promotion_id)
+
     async def preview_code(self, code: str, cafe_id: Optional[UUID] = None) -> CodeRedemptionResponse:
         """Public, unauthenticated lookup used by the customer-side code-entry
         field and the /redeem QR deep link to show what a code unlocks before

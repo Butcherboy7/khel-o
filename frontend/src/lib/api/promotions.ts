@@ -111,3 +111,10 @@ export async function updatePromotion(promotionId: string, body: PromotionUpdate
 export async function deactivateOwnerPromotion(promotionId: string): Promise<{ message: string }> {
   return call(() => apiClient.delete(`/api/v1/promotions/${promotionId}`));
 }
+
+/** Only succeeds for a promotion that has never been redeemed
+ *  (currentUses === 0) — the backend rejects it otherwise with
+ *  PROMOTION_HAS_HISTORY, telling the owner to pause instead. */
+export async function deleteOwnerPromotionPermanently(promotionId: string): Promise<{ message: string }> {
+  return call(() => apiClient.delete(`/api/v1/promotions/${promotionId}`, { params: { permanent: true } }));
+}

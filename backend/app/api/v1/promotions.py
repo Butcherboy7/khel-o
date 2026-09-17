@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -137,12 +137,19 @@ async def update_promotion(
 @router.delete("/{promotion_id}", status_code=status.HTTP_200_OK)
 async def deactivate_promotion(
     promotion_id: UUID,
+    permanent: bool = Query(False, description="If true, permanently deletes an unredeemed promotion instead of pausing it."),
     current_owner: User = Depends(require_cafe_owner),
     db: AsyncSession = Depends(get_db)
 ):
     promo_repo = PromotionRepository(db)
     cafe_repo = CafeRepository(db)
     service = PromotionService(promo_repo, cafe_repo)
+    if permanent:
+        await service.delete_promotion(promotion_id=promotion_id, owner_id=current_owner.id)
+        return {
+            "success": True,
+            "message": "Promotion deleted successfully"
+        }
     await service.deactivate_promotion(promotion_id=promotion_id, owner_id=current_owner.id)
     return {
         "success": True,

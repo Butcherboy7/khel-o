@@ -270,12 +270,15 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   return (
     // CustomerShell's <main> already reserves pb-24/md:pb-12 for the mobile
     // bottom nav. This page also has its own fixed "Book now" bar stacked
-    // above that nav, so it needs clearance beyond the shell's default — but
-    // adding a full bar-height's worth on top of the shell's padding (as the
-    // old pb-28 did) double-counts and leaves a visible empty gap before you
-    // hit the fixed bars. pb-20/md:pb-12 here is sized to the bar's own
-    // height, not the bar-plus-nav total the shell already covers.
-    <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-20 md:pb-12">
+    // above that nav, so it needs clearance beyond the shell's default. The
+    // bar is variable-height (the isLead branch below can add a contact-input
+    // row and a waiting-count line), so this padding is sized generously for
+    // the tallest variant rather than pixel-matched to the shortest one —
+    // pb-20/md:pb-12 was tuned to the single-row case and the bar clipped
+    // into the Reviews section whenever it grew taller (or even at its
+    // shortest, on some viewports — this was reported as unreadable overlap
+    // on ordinary bookable cafés too, not just the lead-listing variant).
+    <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-40 md:pb-20">
       {/* Hero Header Image with Gallery Arrows */}
       <div ref={heroRef} className="relative h-52 sm:h-64 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4">
         {currentPhoto ? (
