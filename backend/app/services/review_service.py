@@ -16,7 +16,7 @@ class ReviewService:
         self.cafe_repo = cafe_repo
 
     @staticmethod
-    def _to_response(review: Review, gamer_name: str) -> ReviewResponse:
+    def _to_response(review: Review, gamer_name: str, cafe_name: Optional[str] = None) -> ReviewResponse:
         return ReviewResponse.model_validate({
             "id": review.id,
             "cafe_id": review.cafe_id,
@@ -28,6 +28,7 @@ class ReviewService:
             "owner_reply": review.owner_reply,
             "owner_replied_at": review.owner_replied_at,
             "gamer_name": gamer_name,
+            "cafe_name": cafe_name,
             "created_at": review.created_at,
             "updated_at": review.updated_at
         })
@@ -97,7 +98,9 @@ class ReviewService:
             limit=limit
         )
 
-        item_responses: List[ReviewResponse] = [self._to_response(review, first_name) for review, first_name in items_tuples]
+        item_responses: List[ReviewResponse] = [
+            self._to_response(review, first_name, cafe_name) for review, first_name, cafe_name in items_tuples
+        ]
 
         total_pages = math.ceil(total / limit) if total > 0 else 0
         return {

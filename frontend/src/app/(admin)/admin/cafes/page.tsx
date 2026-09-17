@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
@@ -18,7 +18,7 @@ import {
   PauseCircle,
   ChevronRight,
 } from 'lucide-react';
-import { listAdminCafes, suspendCafe, reactivateCafe } from '@/lib/api/admin';
+import { listAdminCafes, suspendCafe, reactivateCafe, updateCafeDescriptionAdmin } from '@/lib/api/admin';
 import { PerformanceTab } from './PerformanceTab';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
@@ -79,6 +79,17 @@ export default function AdminCafesPage() {
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
   const [suspendError, setSuspendError] = useState<string | null>(null);
+  const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [descriptionSaved, setDescriptionSaved] = useState(false);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
+
+  // Re-sync the draft whenever a different café is opened, so switching
+  // cafés doesn't leak the previous one's unsaved edit into the new form.
+  useEffect(() => {
+    setDescriptionDraft(selectedCafe?.description ?? '');
+    setDescriptionSaved(false);
+    setDescriptionError(null);
+  }, [selectedCafe?.id]);
 
   const params = {
     ...(statusFilter !== 'all' ? { verificationStatus: statusFilter } : {}),
@@ -122,6 +133,21 @@ export default function AdminCafesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
       setSelectedCafe(null);
+    },
+  });
+
+  const descriptionMutation = useMutation({
+    mutationFn: ({ cafeId, description }: { cafeId: string; description: string }) =>
+      updateCafeDescriptionAdmin(cafeId, description),
+    onSuccess: (_, { description }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      setSelectedCafe((prev) => (prev ? { ...prev, description } : prev));
+      setDescriptionSaved(true);
+      setDescriptionError(null);
+      setTimeout(() => setDescriptionSaved(false), 2500);
+    },
+    onError: (err) => {
+      setDescriptionError((err as Error)?.message ?? 'Failed to update description. Please try again.');
     },
   });
 
@@ -337,6 +363,39 @@ export default function AdminCafesPage() {
                 <div><span className="text-text-tertiary">Email: </span>{selectedCafe.email ?? '—'}</div>
                 <div><span className="text-text-tertiary">Hours: </span>{selectedCafe.openingTime ?? '—'} – {selectedCafe.closingTime ?? '—'}</div>
                 <div><span className="text-text-tertiary">Stations: </span>{selectedCafe.totalSeats ?? '—'}</div>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="p-3 rounded-xl bg-surface-hover">
+              <h4 className="font-semibold text-caption mb-2">Description</h4>
+              {descriptionError && (
+                <div className="mb-2 rounded-lg bg-error/10 border border-error/20 p-2 text-xs text-error">{descriptionError}</div>
+              )}
+              <Textarea
+                value={descriptionDraft}
+                onChange={(e) => setDescriptionDraft(e.target.value)}
+                rows={4}
+                maxLength={5000}
+                placeholder="No description set."
+              />
+              <div className="flex items-center gap-3 mt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  isLoading={descriptionMutation.isPending}
+                  loadingText="Saving..."
+                  disabled={descriptionDraft === (selectedCafe.description ?? '')}
+                  onClick={() => descriptionMutation.mutate({ cafeId: selectedCafe.id, description: descriptionDraft })}
+                >
+                  Save description
+                </Button>
+                {descriptionSaved && (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+                  </span>
+                )}
               </div>
             </div>
 

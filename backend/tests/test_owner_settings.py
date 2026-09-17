@@ -71,6 +71,59 @@ async def test_get_owner_settings_success(async_client: AsyncClient):
         assert data["cafe"]["bookingsPaused"] is False
 
 @pytest.mark.asyncio
+async def test_owner_settings_and_details_update_round_trip_description(async_client: AsyncClient):
+    """GET /owner/settings must return description (so the edit form can
+    prefill it) and PATCH .../details must persist an edit back to it --
+    previously GET silently omitted the field even though PATCH wrote it."""
+    async with AsyncSessionLocal() as db:
+        owner_id = uuid.uuid4()
+        owner = User(
+            id=owner_id,
+            email=f"desc_settings_owner_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Description Owner",
+            role=UserRole.CAFE_OWNER,
+            is_active=True
+        )
+        db.add(owner)
+        db.add(UserRoleMapping(id=uuid.uuid4(), user_id=owner_id, role=UserRole.CAFE_OWNER, cafe_id=None))
+
+        cafe = Cafe(
+            id=uuid.uuid4(),
+            owner_id=owner_id,
+            name="Description Arena",
+            description="Original description",
+            address_line1="123 Setting St",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560001",
+            phone_number="+919876543210",
+            opening_time=time(9, 0),
+            closing_time=time(23, 0),
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True,
+        )
+        db.add(cafe)
+        await db.commit()
+
+        token = create_access_token(subject=str(owner.id), role="cafe_owner")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        res = await async_client.get("/api/v1/owner/settings", headers=headers)
+        assert res.status_code == 200
+        assert res.json()["cafe"]["description"] == "Original description"
+
+        update_res = await async_client.patch(
+            f"/api/v1/owner/cafes/{cafe.id}/details",
+            json={"description": "Updated description"},
+            headers=headers,
+        )
+        assert update_res.status_code == 200, update_res.text
+
+        res2 = await async_client.get("/api/v1/owner/settings", headers=headers)
+        assert res2.json()["cafe"]["description"] == "Updated description"
+
+@pytest.mark.asyncio
 async def test_toggle_emergency_mode(async_client: AsyncClient):
     """Verify owner can toggle emergency mode on and off."""
     async with AsyncSessionLocal() as db:

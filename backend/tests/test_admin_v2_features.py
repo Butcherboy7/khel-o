@@ -275,6 +275,85 @@ async def test_pause_bookings_and_promotion_deactivate_are_now_audited(db_sessio
         assert audit_res.json()["data"]["total"] >= 1
 
 
+@pytest.mark.asyncio
+async def test_admin_can_update_cafe_description_and_it_is_audited(db_session):
+    """Admin has no general café-editing surface, but must be able to fix a
+    misleading/policy-violating description without waiting on the owner —
+    the same single-field pattern as pause-bookings/suspend/reactivate."""
+    admin = await _make_admin(db_session)
+    owner = User(
+        id=uuid4(), email=f"desc_owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
+        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+    )
+    db_session.add(owner)
+    await db_session.flush()
+    db_session.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+    cafe = Cafe(
+        id=uuid4(), owner_id=owner.id, name="Description Test Café", description="Old description",
+        address_line1="1 Test St", city="Bengaluru", state="Karnataka", pincode="560001",
+        phone_number="+919876543210", verification_status=VerificationStatus.VERIFIED, is_active=True,
+        opening_time=time(9, 0), closing_time=time(23, 0), bookable_stations=10,
+    )
+    db_session.add(cafe)
+    await db_session.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        admin_headers = auth_headers(admin)
+        res = await client.patch(
+            f"/api/v1/admin/cafes/{cafe.id}/description",
+            json={"description": "Fixed, accurate description"},
+            headers=admin_headers,
+        )
+        assert res.status_code == 200, res.text
+        assert res.json()["data"]["description"] == "Fixed, accurate description"
+
+        detail_res = await client.get(f"/api/v1/admin/cafes/{cafe.id}", headers=admin_headers)
+        assert detail_res.json()["data"]["cafe"]["description"] == "Fixed, accurate description"
+
+        audit_res = await client.get("/api/v1/admin/audit-log?action=cafe.update_description", headers=admin_headers)
+        assert audit_res.json()["data"]["total"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_admin_reviews_include_cafe_name(db_session):
+    """Admin review moderation spans every café -- each review must carry
+    its café's name so moderators can tell which venue a comment belongs to."""
+    from app.models.review import Review
+
+    admin = await _make_admin(db_session)
+    gamer = await _make_gamer(db_session, "review_author")
+    owner = User(
+        id=uuid4(), email=f"review_owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
+        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+    )
+    db_session.add(owner)
+    await db_session.flush()
+    db_session.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+    cafe = Cafe(
+        id=uuid4(), owner_id=owner.id, name="Reviewed Café", address_line1="1 Test St",
+        city="Bengaluru", state="Karnataka", pincode="560001", phone_number="+919876543210",
+        verification_status=VerificationStatus.VERIFIED, is_active=True,
+        opening_time=time(9, 0), closing_time=time(23, 0), bookable_stations=10,
+    )
+    db_session.add(cafe)
+    await db_session.flush()
+
+    review = Review(
+        id=uuid4(), cafe_id=cafe.id, gamer_id=gamer.id, booking_id=uuid4(),
+        rating=5, comment="Great place", is_visible=True,
+    )
+    db_session.add(review)
+    await db_session.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        admin_headers = auth_headers(admin)
+        res = await client.get("/api/v1/admin/reviews", headers=admin_headers)
+        assert res.status_code == 200
+        items = res.json()["data"]["items"]
+        found = next(i for i in items if i["id"] == str(review.id))
+        assert found["cafeName"] == "Reviewed Café"
+
+
 # NOTE: test_admin_owner_payouts_pending_settlement_excludes_refunded was removed
 # here — it tested GET /api/v1/admin/payouts (list_owner_payouts_admin /
 # AdminService.list_owner_payouts), which was dead code (its only frontend

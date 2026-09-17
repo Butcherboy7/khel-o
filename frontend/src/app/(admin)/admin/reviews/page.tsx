@@ -9,6 +9,7 @@ import {
   EyeOff,
   RefreshCw,
   MessageSquare,
+  Store,
 } from 'lucide-react';
 import { listAdminReviews, setReviewVisibility } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
@@ -52,7 +53,8 @@ export default function AdminReviewsPage() {
   const reviews = (data?.items ?? []).filter((r) => {
     const matchSearch = !search.trim()
       || r.gamerName?.toLowerCase().includes(search.toLowerCase())
-      || r.comment?.toLowerCase().includes(search.toLowerCase());
+      || r.comment?.toLowerCase().includes(search.toLowerCase())
+      || r.cafeName?.toLowerCase().includes(search.toLowerCase());
 
     const matchVis =
       visibilityFilter === 'all'
@@ -95,7 +97,7 @@ export default function AdminReviewsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
           <input
             type="text"
-            placeholder="Search by gamer name or review text…"
+            placeholder="Search by gamer name, café, or review text…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-10 pl-9 pr-4 rounded-xl border border-border bg-surface text-caption text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -149,8 +151,14 @@ export default function AdminReviewsPage() {
             >
               {/* Left — info */}
               <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Store className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                  <span className="font-semibold text-caption text-text-primary">{r.cafeName ?? 'Unknown café'}</span>
+                  <span className="text-[11px] text-text-tertiary">· {r.cafeId.slice(0, 8)}…</span>
+                </div>
+
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-caption text-text-primary">{r.gamerName}</span>
+                  <span className="text-caption text-text-secondary">{r.gamerName}</span>
                   <StarRow rating={r.rating} />
                   <span className="text-[11px] text-text-tertiary">
                     {new Date(r.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}

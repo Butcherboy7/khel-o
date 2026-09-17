@@ -397,6 +397,19 @@ class AdminService:
         await self.db.refresh(cafe)
         return {"id": str(cafe.id), "name": cafe.name, "verificationStatus": cafe.verification_status.value, "isActive": cafe.is_active}
 
+    async def update_cafe_description(self, cafe_id: UUID, description: str) -> Dict[str, Any]:
+        """Admin-only café description edit. Scoped to this one field rather
+        than a general café-update surface, matching suspend/reactivate/
+        pause-bookings above -- admins moderate specific attributes, they
+        don't get owner-equivalent edit rights over a café's full profile."""
+        cafe = await self.cafe_repo.get_by_id(cafe_id)
+        if not cafe:
+            raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+        cafe.description = description
+        await self.db.commit()
+        await self.db.refresh(cafe)
+        return {"id": str(cafe.id), "name": cafe.name, "description": cafe.description}
+
     async def set_cafe_bookings_paused(self, cafe_id: UUID, paused: bool) -> Dict[str, Any]:
         """Toggle online booking availability without full suspension."""
         cafe = await self.cafe_repo.get_by_id(cafe_id)

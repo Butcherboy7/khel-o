@@ -214,6 +214,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : 100;
   const gamingTiers = (cafe.tiers ?? []).filter((t) => t.tierType !== 'activity');
   const activityTiers = (cafe.tiers ?? []).filter((t) => t.tierType === 'activity');
+  // RAM/Monitor rows in the comparison table are PC-only specs — showing
+  // that table for a console-only café (e.g. PS5-only) is just dashes,
+  // so only offer it when at least one tier actually has PC specs.
+  const hasPcTier = gamingTiers.some((t) => Boolean(t.specs?.gpu));
   // Picking the tier here (instead of only on the booking page) removes an
   // entire duplicate step — the booking page shows the exact same tier
   // cards, so a user reads specs once here rather than twice. Defaults to
@@ -286,10 +290,17 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <img
             src={currentPhoto}
             alt={`${cafe.name} photo ${photoIndex + 1}`}
-            className="h-full w-full object-cover transition-all duration-300"
+            className="h-full w-full object-cover transition-all duration-300 cursor-pointer"
             loading="eager"
             fetchPriority="high"
             decoding="async"
+            // This banner frame is deliberately cropped (object-cover) to
+            // stay a consistent hero height regardless of photo orientation.
+            // A portrait photo shown only here would look wrongly cropped
+            // with no way to see it whole — clicking opens the lightbox
+            // (object-contain) which renders the photo at its true aspect
+            // ratio/orientation instead.
+            onClick={() => openLightbox(photosList, photoIndex)}
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-6 text-center">
@@ -354,10 +365,22 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="font-heading text-display text-text-primary">{cafe.name}</h1>
-            <p className="text-body text-text-secondary flex items-center gap-1 mt-1">
-              <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
-              <span>{cafe.addressLine1}, {cafe.city}</span>
-            </p>
+            {cafe.googleMapsUrl ? (
+              <a
+                href={cafe.googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-body text-text-secondary flex items-center gap-1 mt-1 hover:text-primary hover:underline w-fit"
+              >
+                <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
+                <span>{cafe.addressLine1}, {cafe.city}</span>
+              </a>
+            ) : (
+              <p className="text-body text-text-secondary flex items-center gap-1 mt-1">
+                <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
+                <span>{cafe.addressLine1}, {cafe.city}</span>
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-1 font-heading text-h3 font-bold text-text-primary flex-shrink-0">
@@ -377,6 +400,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           >
             {openStatusLabel}
           </span>
+          {cafe.openingTime && cafe.closingTime && (
+            <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-accent" />
+              {formatTime(cafe.openingTime)} - {formatTime(cafe.closingTime)}
+            </span>
+          )}
           {distanceLabel && (
             <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary">
               {distanceLabel} away
@@ -408,6 +437,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           booking page with an identical set of cards. Rows, not a grid of
           cards: a list scans in one pass regardless of how many tiers a
           café lists, where a 3-up grid starts wrapping awkwardly past three. */}
+      {gamingTiers.length > 0 && (
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="font-heading text-h2 text-text-primary">Hardware tiers</h2>
@@ -416,8 +446,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           )}
         </div>
 
-        {gamingTiers.length > 0 ? (
-          <>
+        <>
             <div className="flex flex-col gap-2.5">
               {gamingTiers.map((tier) => {
                 const isSelected = activeTier?.id === tier.id;
@@ -511,7 +540,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               })}
             </div>
 
-            {gamingTiers.length > 1 && (
+            {hasPcTier && gamingTiers.length > 1 && (
               <button
                 type="button"
                 onClick={() => setShowAllTierSpecs((v) => !v)}
@@ -522,7 +551,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               </button>
             )}
 
-            {showAllTierSpecs && gamingTiers.length > 1 && (
+            {hasPcTier && showAllTierSpecs && gamingTiers.length > 1 && (
               <div className="overflow-x-auto rounded-2xl border border-border/80">
                 <table className="w-full text-caption">
                   <thead>
@@ -557,10 +586,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               </div>
             )}
           </>
-        ) : (
-          <p className="text-body text-text-secondary italic">No hardware tiers listed.</p>
-        )}
       </section>
+      )}
 
       <ActivitiesSection cafeId={cafe.id} activities={activityTiers} />
 

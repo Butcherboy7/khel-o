@@ -54,6 +54,10 @@ class ReviewResponse(ReviewBase):
     gamer_id: UUID
     booking_id: UUID
     gamer_name: str
+    # Only populated by admin moderation listings (the only place a reviewer
+    # sees reviews mixed across cafés). None on the café-scoped endpoints
+    # where the café is already implied by context.
+    cafe_name: Optional[str] = None
     is_visible: bool
     owner_reply: Optional[str] = None
     owner_replied_at: Optional[datetime] = None

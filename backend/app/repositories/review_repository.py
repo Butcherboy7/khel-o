@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, and_
 from app.models.review import Review
 from app.models.user import User
+from app.models.cafe import Cafe
 from app.repositories.base import BaseRepository
 
 class ReviewRepository(BaseRepository[Review]):
@@ -62,8 +63,16 @@ class ReviewRepository(BaseRepository[Review]):
         cafe_id: Optional[UUID] = None,
         page: int = 1,
         limit: int = 20
-    ) -> Tuple[List[Tuple[Review, str]], int]:
-        stmt = select(Review, User.full_name).join(User, Review.gamer_id == User.id)
+    ) -> Tuple[List[Tuple[Review, str, str]], int]:
+        # Admin moderation spans every café, so unlike get_by_cafe_id (where the
+        # café is already known from context) each row here must carry its own
+        # café name -- otherwise the moderation list is a wall of interchangeable
+        # comments with no way to tell which venue any of them belongs to.
+        stmt = (
+            select(Review, User.full_name, Cafe.name)
+            .join(User, Review.gamer_id == User.id)
+            .join(Cafe, Review.cafe_id == Cafe.id)
+        )
         if cafe_id:
             stmt = stmt.where(Review.cafe_id == cafe_id)
         stmt = stmt.order_by(Review.created_at.desc())
@@ -82,7 +91,8 @@ class ReviewRepository(BaseRepository[Review]):
             review_obj = row[0]
             full_name = row[1] or "Gamer"
             first_name = full_name.split()[0]
-            items.append((review_obj, first_name))
+            cafe_name = row[2]
+            items.append((review_obj, first_name, cafe_name))
 
         return items, total
 

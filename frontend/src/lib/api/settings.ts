@@ -9,6 +9,7 @@ export interface CafePhoto {
 export interface OwnerSettings {
   cafeId: string;
   cafeName: string;
+  description: string | null;
   isEmergencyMode: boolean;
   bookingsPaused: boolean;
   openingTime: string | null;

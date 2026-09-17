@@ -4,6 +4,10 @@ export interface Review {
   gamerId: string;
   bookingId: string;
   gamerName: string;
+  // Only populated by admin moderation listings (GET /admin/reviews) where
+  // reviews span every café; café-scoped endpoints leave it undefined since
+  // the café is already implied there.
+  cafeName?: string | null;
   rating: number;
   comment: string | null;
   isVisible: boolean;

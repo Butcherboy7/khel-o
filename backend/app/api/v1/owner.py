@@ -259,6 +259,7 @@ async def get_owner_settings(
     cafe_data = {
         "cafeId": str(cafe.id),
         "cafeName": cafe.name,
+        "description": cafe.description,
         "isEmergencyMode": cafe.is_emergency_mode,
         "bookingsPaused": cafe.bookings_paused,
         "openingTime": str(cafe.opening_time) if cafe.opening_time else None,

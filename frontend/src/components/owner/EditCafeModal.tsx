@@ -2,7 +2,7 @@
 
 import { useState, useRef, type FormEvent } from 'react';
 import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff, ExternalLink } from 'lucide-react';
-import { Modal, Button, Input } from '@/components/ui';
+import { Modal, Button, Input, Textarea } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings, type CafePhoto } from '@/lib/api/settings';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { CITIES_BY_STATE } from '@/constants/cities';
@@ -53,6 +53,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
 
   // Basic info
   const [name, setName] = useState(settings.cafeName);
+  const [description, setDescription] = useState(settings.description ?? '');
   const [phoneNumber, setPhoneNumber] = useState(settings.phoneNumber);
   const [addressLine1, setAddressLine1] = useState(settings.addressLine1);
   const [city, setCity] = useState(settings.city);
@@ -122,8 +123,8 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
     setBasicSaving(true);
     setBasicError(null);
     try {
-      await updateCafeDetails(cafeId, { name, phoneNumber, addressLine1, city, state, pincode });
-      onSaved({ cafeName: name, phoneNumber, addressLine1, city, state, pincode });
+      await updateCafeDetails(cafeId, { name, description, phoneNumber, addressLine1, city, state, pincode });
+      onSaved({ cafeName: name, description, phoneNumber, addressLine1, city, state, pincode });
       setBasicSaved(true);
       setTimeout(() => setBasicSaved(false), 2500);
     } catch (err: unknown) {
@@ -368,6 +369,14 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
               <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">{basicError}</div>
             )}
             <Input label="Café Name" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Textarea
+              label="Description"
+              hint="What makes your café worth a visit — shown on your public listing."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              maxLength={2000}
+            />
             <Input label="Phone Number" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
             <Input label="Address" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} required />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

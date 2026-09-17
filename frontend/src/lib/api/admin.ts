@@ -100,6 +100,10 @@ export async function reactivateCafe(cafeId: string): Promise<{ id: string; name
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/reactivate`));
 }
 
+export async function updateCafeDescriptionAdmin(cafeId: string, description: string): Promise<{ id: string; name: string; description: string }> {
+  return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/description`, { description }));
+}
+
 export async function pauseCafeBookings(cafeId: string, paused: boolean): Promise<{ id: string; name: string; bookingsPaused: boolean }> {
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/pause-bookings`, { paused }));
 }

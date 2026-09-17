@@ -693,6 +693,36 @@ async def reactivate_cafe(
     return {"success": True, "data": result}
 
 
+class CafeDescriptionUpdateRequest(BaseModel):
+    description: str = Field(..., max_length=5000)
+
+@router.patch("/cafes/{cafe_id}/description", status_code=status.HTTP_200_OK)
+async def update_cafe_description_admin(
+    cafe_id: UUID,
+    payload: CafeDescriptionUpdateRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Admin edit of a café's description — e.g. correcting a misleading or
+    policy-violating listing without waiting on the owner."""
+    service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db),
+    )
+    result = await service.update_cafe_description(cafe_id, payload.description)
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="cafe.update_description",
+        entity_type="cafe",
+        entity_id=str(cafe_id),
+    )
+    return {"success": True, "data": result}
+
+
 class CafePauseBookingsRequest(BaseModel):
     paused: bool
 
