@@ -25,9 +25,12 @@ jobs:
         run: pip install -e ".[dev]"
 
       # Tests run against a throwaway SQLite DB (see tests/conftest.py) —
-      # no Postgres service container needed here.
+      # no Postgres service container needed here. Must be `python -m
+      # pytest`, not bare `pytest` — only `-m` form adds the backend/ cwd to
+      # sys.path, which several tests need for `from tests.conftest import
+      # ...` / `from scripts... import ...` to resolve.
       - name: Run pytest
-        run: pytest -q
+        run: python -m pytest -q
 
   frontend-build:
     runs-on: ubuntu-latest
