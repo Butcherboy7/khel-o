@@ -105,6 +105,13 @@ async def onboard(apply: bool) -> None:
             is_active=True,
         )
         session.add(owner)
+        # Mirrors submit_onboarding_application (owner.py): every owner keeps a
+        # GAMER mapping too, so they can still switch into gamer mode in the UI
+        # instead of being stuck cafe-owner-only.
+        session.add(UserRoleMapping(
+            id=uuid.uuid4(), user_id=owner.id,
+            role=UserRole.GAMER, cafe_id=None,
+        ))
         session.add(UserRoleMapping(
             id=uuid.uuid4(), user_id=owner.id,
             role=UserRole.CAFE_OWNER, cafe_id=None,
