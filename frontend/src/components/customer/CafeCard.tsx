@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MapPin, Star, Zap } from 'lucide-react';
+import { MapPin, Star, Zap, ArrowRight } from 'lucide-react';
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow, formatTime } from '@/lib/format';
@@ -46,9 +46,13 @@ function getPlatformSummary(cafe: CafeListItem): string | null {
 interface CafeCardProps {
   cafe: CafeListItem;
   isFeatured?: boolean;
+  /** A real, pre-formatted offer string (e.g. "4 HRS ₹360") for the deal
+   *  chip. Left undefined renders no chip — this component never derives
+   *  or invents deal copy from partial data. */
+  dealLabel?: string;
 }
 
-export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
+export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps) {
   const { userLat, userLng } = useLocationStore();
   const distanceLabel =
     userLat != null && userLng != null && cafe.latitude != null && cafe.longitude != null
@@ -65,6 +69,11 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
   const currentPhoto = photosList[0];
 
   const isLead = cafe.isLeadListing === true;
+  // The one real, non-fabricated signal that makes a café "the launch café":
+  // it is actually bookable on KHEL-O today, not just researched/listed.
+  // `isFeatured` stays as a manual override for later (e.g. promoting a
+  // second launch city) but the default is earned by real bookability.
+  const isLive = isFeatured || !isLead;
   const waitingCount = cafe.waitlistCount ?? 0;
   // "5 waiting" is worth showing; "1 waiting" does the opposite of what the
   // count is for, so it stays hidden below the threshold.
@@ -102,12 +111,29 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
   };
 
   return (
-    <Link href={`/cafe/${cafe.id}`} className="block h-full group">
+    <div className="relative h-full">
+      {/* Live sweep — a slow conic-gradient rotation peeking out from behind
+          the card's rounded edge, not a glow layered on top of the content.
+          Kept off the box-shadow/ring entirely so it never dims text
+          contrast inside the card. prefers-reduced-motion freezes the
+          rotation globally (globals.css), it doesn't need its own guard. */}
+      {isLive && (
+        <div
+          aria-hidden="true"
+          className="absolute -inset-[3px] rounded-3xl opacity-80 blur-[4px] animate-live-sweep pointer-events-none"
+          style={{
+            background:
+              'conic-gradient(from 0deg, #E54D4200 0%, #E54D4299 20%, #E54D4200 40%)',
+          }}
+        />
+      )}
+
+      <Link href={`/cafe/${cafe.id}`} className="relative block h-full group">
       <Card
         interactive
         elevation="resting"
         className={`h-full flex flex-col overflow-hidden border transition-all duration-normal hover:shadow-float ${
-          isFeatured
+          isLive
             ? 'border-primary/40 ring-2 ring-primary/30 shadow-card bg-gradient-to-b from-card via-card to-primary/5'
             : 'border-border/80 bg-card'
         }`}
@@ -137,7 +163,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               src={currentPhoto.url}
               alt={cafe.name}
               className="block h-full w-full object-cover object-center transition-all duration-700 group-hover:scale-105"
-              loading={isFeatured ? 'eager' : 'lazy'}
+              loading={isLive ? 'eager' : 'lazy'}
               decoding="async"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
@@ -153,9 +179,10 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
           {/* Overlay Badges — small status pills, not a full-width bar: the
               image identifies the café, it shouldn't carry a headline. */}
           <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between pointer-events-none z-10">
-            {isFeatured ? (
-              <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-card">
-                ★ Featured
+            {isLive ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-secondary/95 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-card">
+                <span className="h-1.5 w-1.5 rounded-full bg-success animate-live-dot" />
+                Live · Book Now
               </span>
             ) : cafe.hasActivePromotion ? (
               <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-card">
@@ -258,10 +285,30 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               <span className="text-caption font-semibold text-text-secondary flex-shrink-0">Pricing inside</span>
             )}
           </div>
+
+          {/* Deal chip — only ever renders text the caller supplies from a
+              real active promotion; this component computes no numbers. */}
+          {isLive && dealLabel && (
+            <div className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-primary/10 border border-primary/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+              <Zap className="h-3 w-3 flex-shrink-0" />
+              {dealLabel}
+            </div>
+          )}
+
+          {/* The one card on the grid that can actually take a booking gets
+              a real CTA instead of relying on the whole-card Link affordance
+              other cards use — the extra weight is the point. */}
+          {isLive && (
+            <div className="mt-1 flex items-center justify-center gap-1.5 rounded-lg bg-primary py-1.5 text-caption font-bold text-white transition-colors group-hover:bg-primary-dark">
+              Book Now
+              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            </div>
+          )}
           </>
           )}
         </div>
       </Card>
-    </Link>
+      </Link>
+    </div>
   );
 }

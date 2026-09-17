@@ -180,10 +180,25 @@ const config: Config = {
           '0%': { opacity: '0', transform: 'translateY(8px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        // Rotates a conic-gradient sweep behind the card to read as a slow,
+        // premium light pass rather than a blinking "sale" pulse. Opacity
+        // never modulates — that would read as glow-throb clutter.
+        'live-sweep': {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
+        },
+        // Separate from live-sweep so the dot can breathe faster (it signals
+        // "active now") without speeding up the border, which would look busy.
+        'live-dot': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.4' },
+        },
       },
       animation: {
         'skeleton-pulse': 'skeleton-pulse 2s ease-in-out infinite',
         'fade-in-up': 'fade-in-up var(--duration-slow) var(--ease-out) both',
+        'live-sweep': 'live-sweep 6s linear infinite',
+        'live-dot': 'live-dot 2s ease-in-out infinite',
       },
     },
   },
