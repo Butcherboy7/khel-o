@@ -72,17 +72,19 @@ def _get_ses_client() -> Any:
 
 class NotificationService:
     async def _send_resend_email(self, to_email: str, subject: str, html_body: str, booking_ref: str) -> bool:
-        """Tries Resend first, falls back to AWS SES. SES production access is
-        still pending (sandbox only sends to verified addresses), so Resend is
-        the path that actually reaches real inboxes right now. Name kept as-is
-        since auth_service and the booking flows already call this method."""
-        if settings.RESEND_API_KEY:
-            sent = await self._send_via_resend(to_email, subject, html_body, booking_ref)
-            if sent:
-                return True
-            logger.warning("resend_send_failed_falling_back_to_ses", to_email=to_email, booking_ref=booking_ref)
+        """SES is primary now that production access (50k/day, 14/s) is approved.
+        Resend is the fallback for when SES creds are missing or a send fails.
+        Name kept as-is since auth_service and the booking flows already call
+        this method."""
+        sent = await self._send_via_ses(to_email, subject, html_body, booking_ref)
+        if sent:
+            return True
 
-        return await self._send_via_ses(to_email, subject, html_body, booking_ref)
+        if settings.RESEND_API_KEY:
+            logger.warning("ses_send_failed_falling_back_to_resend", to_email=to_email, booking_ref=booking_ref)
+            return await self._send_via_resend(to_email, subject, html_body, booking_ref)
+
+        return False
 
     async def _send_via_resend(self, to_email: str, subject: str, html_body: str, booking_ref: str) -> bool:
         import httpx
@@ -296,14 +298,12 @@ class NotificationService:
             safe_name = html.escape(name)
             safe_message = html.escape(message).replace("\n", "<br/>")
             subject = f"KHEL-O contact form: {category}"
-            html_body = f"""
-            <div style="font-family: Arial, sans-serif; background: #09090b; color: #f4f4f5; padding: 24px; border-radius: 8px;">
-                <h2 style="color: #7c3aed; margin-top: 0;">New contact form submission</h2>
+            html_body = _email_wrapper(f"""
+                <h2 style="margin-top: 0; color: {_BRAND_TEXT_PRIMARY};">New contact form submission</h2>
                 <p><strong>From:</strong> {safe_name} &lt;{html.escape(from_email)}&gt;</p>
                 <p><strong>Category:</strong> {html.escape(category)}</p>
-                <p style="margin-top: 16px;">{safe_message}</p>
-            </div>
-            """
+                <p style="color: {_BRAND_TEXT_SECONDARY}; margin-top: 16px;">{safe_message}</p>
+            """)
             return await self._send_resend_email(to_email, subject, html_body, "CONTACT-FORM")
         except Exception as e:
             logger.error("send_contact_message_error", error=str(e), from_email=from_email)

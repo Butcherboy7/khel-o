@@ -335,6 +335,91 @@ async def test_staff_cross_cafe_idor_rejected(async_client: AsyncClient):
         resp = await async_client.post(f"/api/v1/owner/bookings/{booking_b.id}/checkin", headers=headers)
         assert resp.status_code == 403
 
+@pytest.mark.asyncio
+async def test_staff_can_list_bookings_for_assigned_cafe(async_client: AsyncClient):
+    """A staff account (owns no café) must see bookings for its assigned café
+    via GET /owner/bookings, not a silently-empty list -- get_owner_bookings
+    used to resolve visible cafés only through cafe_repo.get_by_owner_id,
+    which is always empty for staff."""
+    async with AsyncSessionLocal() as db:
+        staff = User(
+            id=uuid.uuid4(),
+            email=f"staff_list_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Staff Lister",
+            role=UserRole.STAFF,
+            is_active=True
+        )
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"gamer_list_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Gamer Lister",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add_all([staff, gamer])
+        await db.flush()
+
+        cafe = Cafe(
+            id=uuid.uuid4(),
+            owner_id=uuid.uuid4(),
+            name="Cafe Staff List",
+            address_line1="Street C",
+            city="Bengaluru",
+            state="Karnataka",
+            pincode="560003",
+            phone_number="+919000000003",
+            verification_status=VerificationStatus.VERIFIED,
+            is_active=True,
+            bookable_stations=10
+        )
+        db.add(cafe)
+        await db.flush()
+
+        db.add(UserRoleMapping(id=uuid.uuid4(), user_id=staff.id, role=UserRole.STAFF, cafe_id=cafe.id))
+
+        tier = HardwareTier(
+            id=uuid.uuid4(),
+            cafe_id=cafe.id,
+            name="PC",
+            total_seats=10,
+            app_bookable_seats=10,
+            reserved_walkin_seats=0,
+            active_seats_count=10,
+            price_per_hour=100.0,
+            is_active=True
+        )
+        db.add(tier)
+        await db.flush()
+
+        booking = Booking(
+            id=uuid.uuid4(),
+            booking_reference=f"GC-TEST-{uuid.uuid4().hex[:6]}",
+            gamer_id=gamer.id,
+            cafe_id=cafe.id,
+            hardware_tier_id=tier.id,
+            session_date=date.today(),
+            start_time=time(12, 0),
+            end_time=time(14, 0),
+            duration_hours=2.0,
+            base_amount=200.0,
+            total_amount=200.0,
+            status=BookingStatus.COMPLETED
+        )
+        db.add(booking)
+        await db.commit()
+
+        token = create_access_token(subject=str(staff.id), role="staff")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        resp = await async_client.get("/api/v1/owner/bookings", headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["total"] == 1
+        assert data["items"][0]["id"] == str(booking.id)
+        assert data["items"][0]["status"] == "completed"
+
 # --- PHASE 6: PAYMENT-GATED QR & WEBHOOK IDEMPOTENCY TESTS ---
 
 @pytest.mark.asyncio

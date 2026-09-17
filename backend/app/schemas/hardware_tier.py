@@ -89,6 +89,12 @@ HardwareTierUpdateRequest = HardwareTierUpdate
 class HardwareTierResponse(HardwareTierBase):
     id: UUID
     cafe_id: UUID
+    # Overrides HardwareTierBase's gt=0: create/update requests must specify a
+    # real capacity, but persisted rows can legitimately have total_seats=0
+    # for a tier whose real-world capacity was never published (see
+    # seed_real_cafes.py's tier_rows_for) -- the response must still be able
+    # to serialize those rows instead of raising on read.
+    total_seats: int = Field(..., ge=0)
     reserved_walkin_seats: int = 0
     active_seats_count: int
     performance_rating: Optional[float] = None

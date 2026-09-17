@@ -23,19 +23,29 @@ class OwnerService:
         self.booking_repo = booking_repo
         self.cafe_repo = cafe_repo
 
+    async def _get_accessible_cafes(self, user_id: UUID) -> List[Cafe]:
+        """Cafés this user may view/operate: owned cafés, or, for a staff
+        account (which owns none), the cafés they're assigned to via
+        UserRoleMapping. Same boundary _validate_user_cafe_access enforces
+        per-booking -- centralized here so every owner/staff listing uses it
+        instead of each re-deriving (and risking forgetting) the staff branch."""
+        cafes = await self.cafe_repo.get_by_owner_id(user_id)
+        if cafes:
+            return cafes
+
+        from app.models.user_role import UserRoleMapping
+        from sqlalchemy import select
+        stmt_staff = select(Cafe).join(
+            UserRoleMapping, UserRoleMapping.cafe_id == Cafe.id
+        ).where(
+            UserRoleMapping.user_id == user_id,
+            UserRoleMapping.role == UserRole.STAFF
+        )
+        res_staff = await self.booking_repo.db.execute(stmt_staff)
+        return list(res_staff.scalars().all())
+
     async def get_dashboard_stats(self, owner_id: UUID) -> OwnerDashboardResponse:
-        owner_cafes = await self.cafe_repo.get_by_owner_id(owner_id)
-        if not owner_cafes:
-            from app.models.user_role import UserRoleMapping
-            from sqlalchemy import select
-            stmt_staff = select(Cafe).join(
-                UserRoleMapping, UserRoleMapping.cafe_id == Cafe.id
-            ).where(
-                UserRoleMapping.user_id == owner_id,
-                UserRoleMapping.role == UserRole.STAFF
-            )
-            res_staff = await self.booking_repo.db.execute(stmt_staff)
-            owner_cafes = list(res_staff.scalars().all())
+        owner_cafes = await self._get_accessible_cafes(owner_id)
 
         if not owner_cafes:
             return OwnerDashboardResponse(
@@ -82,7 +92,7 @@ class OwnerService:
         limit: int = 20
     ) -> Dict[str, Any]:
         limit = min(limit, 50)
-        owner_cafes = await self.cafe_repo.get_by_owner_id(owner_id)
+        owner_cafes = await self._get_accessible_cafes(owner_id)
         if not owner_cafes:
             return {
                 "items": [],
