@@ -5,7 +5,6 @@ on:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
-  workflow_dispatch: {}   # TEMP: manual trigger for OIDC debugging, remove once resolved
 
 permissions:
   id-token: write   # required to mint the OIDC token for AssumeRoleWithWebIdentity
@@ -13,23 +12,9 @@ permissions:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      # TEMP debug step: prints the actual sub/aud claims GitHub issues so we
-      # can match the IAM trust policy condition to reality instead of
-      # guessing. Remove once the OIDC assume-role issue is resolved.
-      - name: Debug OIDC token claims
-        run: |
-          TOKEN=$(curl -sSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | \
-            python3 -c "import sys,json; print(json.load(sys.stdin)['value'])")
-          PAYLOAD=$(echo "$TOKEN" | cut -d. -f2)
-          # base64url -> base64 padding fix, then decode
-          PAYLOAD="${PAYLOAD//-/+}"; PAYLOAD="${PAYLOAD//_/\/}"
-          MOD=$(( ${#PAYLOAD} % 4 )); if [ "$MOD" -ne 0 ]; then PAYLOAD="$PAYLOAD$(printf '=%.0s' $(seq 1 $((4-MOD))))"; fi
-          echo "$PAYLOAD" | base64 -d | python3 -m json.tool
-
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
