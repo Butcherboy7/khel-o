@@ -143,8 +143,10 @@ async def execute():
             await db.execute(delete(StaffInvitation).where(StaffInvitation.venue_id.in_(test_cafe_ids)))
             await db.execute(delete(UserRoleMapping).where(UserRoleMapping.cafe_id.in_(test_cafe_ids)))
             await db.execute(delete(AnalyticsEvent).where(AnalyticsEvent.cafe_id.in_(test_cafe_ids)))
-            await db.execute(delete(HardwareTier).where(HardwareTier.cafe_id.in_(test_cafe_ids)))
+            # Promotions must go before hardware_tiers — Promotion.applicable_tier_id
+            # FKs to hardware_tiers.id.
             await db.execute(delete(Promotion).where(Promotion.cafe_id.in_(test_cafe_ids)))
+            await db.execute(delete(HardwareTier).where(HardwareTier.cafe_id.in_(test_cafe_ids)))
             await db.execute(delete(Cafe).where(Cafe.id.in_(test_cafe_ids)))
             print(f"Deleted {len(test_cafe_ids)} test cafés and their dependent rows.")
         else:
