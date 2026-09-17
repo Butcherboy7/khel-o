@@ -10,6 +10,7 @@ from app.constants import validate_google_maps_url
     "https://www.google.com/maps/place/Some+Cafe/@12.97,77.59,15z",
     "https://google.com/maps?q=12.97,77.59",
     "http://maps.google.com/maps?q=Some+Cafe",
+    "https://share.google/thKF4o6D04HisOTdY",
 ])
 def test_accepts_known_google_maps_url_shapes(url):
     assert validate_google_maps_url(url) == url
@@ -20,6 +21,7 @@ def test_accepts_known_google_maps_url_shapes(url):
     "https://evil.com/maps/xxxxx",
     "javascript:alert(1)",
     "https://maps.app.goo.gl.evil.com/xxxxx",
+    "https://share.google.evil.com/xxxxx",
     "ftp://maps.google.com/maps?q=1",
     "",
 ])

@@ -64,6 +64,10 @@ def validate_city(city: str) -> str:
 
 
 _GOOGLE_MAPS_HOSTS = {"maps.app.goo.gl", "google.com", "www.google.com", "maps.google.com", "www.maps.google.com"}
+# Google's newer share-link domain (rolled out 2025) for the Maps "Share" button.
+# Its paths are opaque tokens (e.g. /thKF4o6D04HisOTdY), not /maps-prefixed, and
+# the redirect is client-side JS, so it can't be verified past the host itself.
+_GOOGLE_MAPS_SHARE_HOSTS = {"share.google"}
 
 
 def validate_google_maps_url(url):
@@ -82,6 +86,8 @@ def validate_google_maps_url(url):
         raise ValueError("Google Maps link must start with http:// or https://")
     host = parsed.netloc.lower()
     if host == "maps.app.goo.gl":
+        return url
+    if host in _GOOGLE_MAPS_SHARE_HOSTS:
         return url
     if host == "goo.gl" and parsed.path.startswith("/maps/"):
         return url
