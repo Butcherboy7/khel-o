@@ -65,7 +65,7 @@ async def test_stale_destination_is_rejected_then_succeeds_after_refresh(db_sess
     gamer = await _make_gamer(db_session, "stale_flow_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
     booking.cafe_id = cafe.id
-    db_session.add(PlatformFee(id=uuid.uuid4(), booking_id=booking.id, owner_settlement_amount=500.0))
+    db_session.add(PlatformFee(settlement_status="settled", id=uuid.uuid4(), booking_id=booking.id, owner_settlement_amount=500.0))
     await db_session.commit()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

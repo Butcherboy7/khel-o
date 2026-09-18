@@ -16,7 +16,7 @@ async def test_owner_payout_summary_returns_one_outstanding_number(db_session):
 
     gamer = await _make_gamer(db_session, "summarysimple")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    db_session.add(PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
     await db_session.commit()
 
     cafe = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalar_one()

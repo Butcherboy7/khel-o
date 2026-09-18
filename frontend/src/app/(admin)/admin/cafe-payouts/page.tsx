@@ -11,6 +11,8 @@ import {
   setCafePayoutHold,
   listCafePayoutHistory,
   revealCafePayoutDestination,
+  reconcileSettlementsNow,
+  runWeeklyPayoutAllocation,
   type AdminOutstandingCafePayout,
   type CafePayout,
   type RevealedCafePayoutDestination,
@@ -40,6 +42,35 @@ export default function AdminCafePayoutsPage() {
     queryKey: [...queryKeys.admin.all, 'cafe-payouts', 'outstanding'],
     queryFn: () => listOutstandingCafePayouts(),
     staleTime: 30_000,
+  });
+
+  const [jobResult, setJobResult] = useState<{ kind: 'reconcile' | 'weekly'; message: string; isError: boolean } | null>(null);
+
+  const reconcileMutation = useMutation({
+    mutationFn: reconcileSettlementsNow,
+    onSuccess: (res) => {
+      setJobResult(
+        res.error
+          ? { kind: 'reconcile', message: `Reconciliation failed: ${res.error}`, isError: true }
+          : { kind: 'reconcile', message: `Reconciled ${res.date}: ${res.matched ?? 0} payment(s) settled.`, isError: false },
+      );
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.admin.all, 'cafe-payouts'] });
+    },
+    onError: (err) => setJobResult({ kind: 'reconcile', message: (err as Error)?.message ?? 'Reconciliation failed.', isError: true }),
+  });
+
+  const weeklyMutation = useMutation({
+    mutationFn: runWeeklyPayoutAllocation,
+    onSuccess: (res) => {
+      const allocated = res.cafes.filter((c) => c.payoutId).length;
+      setJobResult({
+        kind: 'weekly',
+        message: `Allocated payouts for ${allocated} café(s)${res.cafes.length > allocated ? `, ${res.cafes.length - allocated} skipped` : ''}.`,
+        isError: false,
+      });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.admin.all, 'cafe-payouts'] });
+    },
+    onError: (err) => setJobResult({ kind: 'weekly', message: (err as Error)?.message ?? 'Weekly allocation failed.', isError: true }),
   });
 
   const breakdownQuery = useQuery({
@@ -144,19 +175,51 @@ export default function AdminCafePayoutsPage() {
             <h1 className="font-heading text-h1 text-text-primary">Café Payables</h1>
           </div>
           <p className="text-caption text-text-secondary">
-            Money owed to cafés for captured bookings, paid manually via bank transfer while
-            Razorpay Route is disabled.
+            Flow: payment captured → settled by Razorpay → available for payout → allocated in the
+            weekly cycle → paid manually via bank transfer. Only settled money is payable.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => refetch()}
-          className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-border text-xs font-semibold text-text-secondary hover:bg-surface-hover transition-colors"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="secondary"
+            size="sm"
+            isLoading={reconcileMutation.isPending}
+            onClick={() => {
+              if (window.confirm('Poll Razorpay settlement data for today and mark any newly-settled payments? This runs automatically once a day — use this only to check now.')) {
+                reconcileMutation.mutate();
+              }
+            }}
+          >
+            Reconcile Now
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            isLoading={weeklyMutation.isPending}
+            onClick={() => {
+              if (window.confirm('Create this week\'s payout batches for every café with a settled balance? This runs automatically on the configured payout day — use this only for an out-of-cycle run.')) {
+                weeklyMutation.mutate();
+              }
+            }}
+          >
+            Run Weekly Payout
+          </Button>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-border text-xs font-semibold text-text-secondary hover:bg-surface-hover transition-colors"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {jobResult && (
+        <div className={`rounded-xl border px-4 py-2.5 text-caption ${jobResult.isError ? 'border-error/30 bg-error/5 text-error' : 'border-emerald-500/30 bg-emerald-50 text-emerald-700'}`}>
+          {jobResult.message}
+        </div>
+      )}
 
       {isLoading && (
         <div className="flex flex-col gap-2">
@@ -199,9 +262,18 @@ export default function AdminCafePayoutsPage() {
                     <Badge variant="error" size="sm">On hold</Badge>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-caption font-bold font-data text-text-primary">
-                    ₹{c.outstandingAmount.toFixed(2)}
+                <div className="flex items-center gap-4">
+                  {c.pendingSettlementAmount > 0 && (
+                    <span className="text-right">
+                      <span className="block text-[10px] uppercase tracking-wide text-text-tertiary">Pending settlement</span>
+                      <span className="text-caption font-data text-amber-600">₹{c.pendingSettlementAmount.toFixed(2)}</span>
+                    </span>
+                  )}
+                  <span className="text-right">
+                    <span className="block text-[10px] uppercase tracking-wide text-text-tertiary">Available to pay</span>
+                    <span className="text-caption font-bold font-data text-text-primary">
+                      ₹{c.outstandingAmount.toFixed(2)}
+                    </span>
                   </span>
                   <ChevronRight className="h-4 w-4 text-text-tertiary" />
                 </div>
@@ -477,9 +549,17 @@ function PayoutHistoryTable() {
             <tr key={p.id}>
               <td className="py-2.5 px-3 text-text-secondary">{p.paidAt ? new Date(p.paidAt).toLocaleDateString() : '—'}</td>
               <td className="py-2.5 px-3 font-bold text-text-primary">₹{p.amount.toFixed(2)}</td>
-              <td className="py-2.5 px-3 uppercase text-text-secondary">{p.paymentMethod}</td>
-              <td className="py-2.5 px-3 font-mono text-xs">{p.utrReference}</td>
-              <td className="py-2.5 px-3">{p.status}</td>
+              <td className="py-2.5 px-3 uppercase text-text-secondary">{p.paymentMethod || '—'}</td>
+              <td className="py-2.5 px-3 font-mono text-xs">{p.utrReference || '—'}</td>
+              <td className="py-2.5 px-3">
+                {p.status === 'paid' ? (
+                  <Badge variant="success" size="sm">Paid</Badge>
+                ) : p.status === 'pending' ? (
+                  <Badge variant="warning" size="sm">This week&apos;s payout — awaiting transfer</Badge>
+                ) : (
+                  <Badge variant="default" size="sm">{p.status}</Badge>
+                )}
+              </td>
               <td className="py-2.5 px-3">
                 {p.proofImageUrl ? <a href={p.proofImageUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">View</a> : '—'}
               </td>

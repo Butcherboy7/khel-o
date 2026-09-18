@@ -91,7 +91,7 @@ def _booking_with_fee(cafe, tier, gamer_id, status, session_date, base=100.0, fe
         total_amount=base + gw, convenience_fee=0.0, status=status,
     )
     fee = PlatformFee(
-        id=uuid4(), booking_id=b.id, convenience_fee=0.0, gateway_fee=gw,
+        settlement_status="settled", id=uuid4(), booking_id=b.id, convenience_fee=0.0, gateway_fee=gw,
         fee_percentage_applied=fee_pct, tds_amount=0.0,
         owner_settlement_amount=base,
     )

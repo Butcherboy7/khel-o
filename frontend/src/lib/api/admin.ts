@@ -261,6 +261,7 @@ export interface AdminOutstandingCafePayout {
   cafeId: string;
   cafeName: string;
   outstandingAmount: number;
+  pendingSettlementAmount: number;
   payoutDestinationSubmitted: boolean;
   upiVpa: string | null;
   hasBank: boolean;
@@ -311,8 +312,8 @@ export interface CafePayout {
   id: string;
   cafeId: string;
   amount: number;
-  utrReference: string;
-  paymentMethod: string;
+  utrReference: string | null;
+  paymentMethod: string | null;
   status: string;
   notes: string | null;
   proofImageUrl: string | null;
@@ -349,6 +350,16 @@ export async function createCafePayout(
   },
 ): Promise<{ payout: CafePayout }> {
   return call(() => apiClient.post(`/api/v1/admin/cafe-payouts/${cafeId}`, body));
+}
+
+export async function reconcileSettlementsNow(): Promise<{ date: string; matched?: number; unmatched?: number; error?: string }> {
+  return call(() => apiClient.post('/api/v1/admin/cafe-payouts/reconcile-settlements'));
+}
+
+export async function runWeeklyPayoutAllocation(): Promise<{
+  cafes: Array<{ cafeId: string; payoutId?: string; amount?: number; skipped?: string }>;
+}> {
+  return call(() => apiClient.post('/api/v1/admin/cafe-payouts/run-weekly'));
 }
 
 export async function presignPayoutProofUpload(

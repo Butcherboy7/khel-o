@@ -15,7 +15,7 @@ async def test_cafe_payout_and_item_roundtrip(db_session):
 
     from app.models.platform_fee import PlatformFee
     fee = PlatformFee(
-        id=uuid4(), booking_id=booking.id, convenience_fee=5.0, gateway_fee=5.0,
+        settlement_status="settled", id=uuid4(), booking_id=booking.id, convenience_fee=5.0, gateway_fee=5.0,
         tds_amount=0.0, owner_settlement_amount=95.0,
     )
     db_session.add(fee)

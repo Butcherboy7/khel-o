@@ -18,8 +18,8 @@ async def test_outstanding_amount_excludes_refunded_booking(db_session):
     paid_booking, paid_payment = await _make_booking_with_payment(db_session, gamer)
     refunded_booking, refunded_payment = await _make_booking_with_payment(db_session, gamer)
 
-    fee1 = PlatformFee(id=uuid4(), booking_id=paid_booking.id, owner_settlement_amount=95.0)
-    fee2 = PlatformFee(id=uuid4(), booking_id=refunded_booking.id, owner_settlement_amount=95.0)
+    fee1 = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=paid_booking.id, owner_settlement_amount=95.0)
+    fee2 = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=refunded_booking.id, owner_settlement_amount=95.0)
     db_session.add_all([fee1, fee2])
 
     refunded_payment.status = PaymentStatus.REFUNDED
@@ -75,13 +75,13 @@ async def test_outstanding_amount_excludes_already_transferred_via_route(db_sess
     db_session.add(pending_payment)
 
     fee_transferred = PlatformFee(
-        id=uuid4(),
+        settlement_status="settled", id=uuid4(),
         booking_id=transferred_booking.id,
         owner_settlement_amount=95.0,
         transfer_status="transferred",
     )
     fee_pending = PlatformFee(
-        id=uuid4(), booking_id=pending_booking.id, owner_settlement_amount=95.0
+        settlement_status="settled", id=uuid4(), booking_id=pending_booking.id, owner_settlement_amount=95.0
     )
     db_session.add_all([fee_transferred, fee_pending])
     await db_session.commit()
@@ -102,7 +102,7 @@ async def test_outstanding_amount_excludes_already_paid_out(db_session):
 
     gamer = await _make_gamer(db_session, "paid_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
     cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
     db_session.add(OwnerPayoutAccount(
@@ -134,7 +134,7 @@ async def test_concurrent_payout_creation_does_not_double_pay(db_session):
 
     gamer = await _make_gamer(db_session, "race_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
     cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
     db_session.add(OwnerPayoutAccount(
@@ -165,7 +165,7 @@ async def test_concurrent_payout_creation_does_not_double_pay(db_session):
 async def test_get_outstanding_breakdown_lists_booking_details(db_session):
     gamer = await _make_gamer(db_session, "breakdown_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
     await db_session.commit()
 
@@ -181,7 +181,7 @@ async def test_get_outstanding_breakdown_lists_booking_details(db_session):
 async def test_list_cafes_with_outstanding_only_includes_positive_balances(db_session):
     gamer = await _make_gamer(db_session, "list_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
     await db_session.commit()
 
@@ -201,7 +201,7 @@ async def test_list_payouts_filters_by_cafe(db_session):
 
     gamer = await _make_gamer(db_session, "history_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
     cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
     db_session.add(OwnerPayoutAccount(
@@ -234,7 +234,7 @@ async def test_create_payout_succeeds_for_submitted_unverified_account(db_sessio
     db_session.add(OwnerPayoutAccount(
         owner_id=cafe.owner_id, upi_vpa="owner@okhdfc", payout_verification_status="unverified",
     ))
-    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    db_session.add(PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
     await db_session.commit()
 
     repo = CafePayoutRepository(db_session)
@@ -253,7 +253,7 @@ async def test_create_payout_rejects_cafe_with_no_payout_destination(db_session)
     booking, payment = await _make_booking_with_payment(db_session, gamer)
 
     from app.models.platform_fee import PlatformFee
-    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    db_session.add(PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
     await db_session.commit()
 
     repo = CafePayoutRepository(db_session)
@@ -276,7 +276,7 @@ async def test_create_payout_rejects_bank_when_only_upi_exists(db_session):
     from app.models.platform_fee import PlatformFee
     cafe = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalar_one()
     db_session.add(OwnerPayoutAccount(owner_id=cafe.owner_id, upi_vpa="owner@okhdfc"))
-    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    db_session.add(PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
     await db_session.commit()
 
     repo = CafePayoutRepository(db_session)
@@ -305,7 +305,7 @@ async def test_create_payout_rejects_upi_when_only_bank_exists(db_session):
         bank_ifsc="HDFC0000123",
         account_holder_name="Test Owner",
     ))
-    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    db_session.add(PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
     await db_session.commit()
 
     repo = CafePayoutRepository(db_session)
@@ -331,7 +331,7 @@ async def test_create_payout_rejects_cafe_on_hold(db_session):
     cafe.payout_on_hold = True
     cafe.payout_hold_reason = "Fraud investigation"
     db_session.add(OwnerPayoutAccount(owner_id=cafe.owner_id, upi_vpa="owner@okhdfc"))
-    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    db_session.add(PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
     await db_session.commit()
 
     repo = CafePayoutRepository(db_session)
@@ -350,7 +350,7 @@ async def test_outstanding_amount_nets_adjustments(db_session):
 
     from app.models.platform_fee import PlatformFee
     from app.models.cafe_payout_adjustment import CafePayoutAdjustment
-    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
+    db_session.add(PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=Decimal("900.00")))
     db_session.add(CafePayoutAdjustment(
         cafe_id=booking.cafe_id, booking_id=booking.id,
         amount=Decimal("-300.00"), reason="test adjustment",
@@ -368,7 +368,7 @@ async def test_create_payout_succeeds_for_verified_cafe(db_session):
 
     gamer = await _make_gamer(db_session, "verified_gate_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=50.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=50.0)
     db_session.add(fee)
 
     from sqlalchemy import select
@@ -395,7 +395,7 @@ async def test_outstanding_list_reports_verification_status(db_session):
 
     gamer = await _make_gamer(db_session, "list_status_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=25.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=25.0)
     db_session.add(fee)
 
     from sqlalchemy import select
@@ -422,7 +422,7 @@ async def test_create_payout_nets_adjustments_and_consumes_them(db_session):
 
     gamer = await _make_gamer(db_session, "payout_net_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
     db_session.add(fee)
     adjustment = CafePayoutAdjustment(
         id=uuid4(), cafe_id=booking.cafe_id, booking_id=booking.id,
@@ -458,7 +458,7 @@ async def test_create_payout_raises_when_adjustments_exceed_fees(db_session):
 
     gamer = await _make_gamer(db_session, "payout_over_adj_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("100.00"))
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("100.00"))
     db_session.add(fee)
     db_session.add(CafePayoutAdjustment(
         id=uuid4(), cafe_id=booking.cafe_id, booking_id=booking.id,
@@ -484,7 +484,7 @@ async def test_get_outstanding_breakdown_includes_adjustment_line(db_session):
 
     gamer = await _make_gamer(db_session, "breakdown_adj_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
     db_session.add(fee)
     db_session.add(CafePayoutAdjustment(
         id=uuid4(), cafe_id=booking.cafe_id, booking_id=booking.id,
@@ -509,7 +509,7 @@ async def test_on_hold_and_disputed_statuses_round_trip_through_list_payouts(db_
 
     gamer = await _make_gamer(db_session, "status_vocab_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=30.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=30.0)
     db_session.add(fee)
 
     from sqlalchemy import select
@@ -546,7 +546,7 @@ async def test_create_payout_snapshots_destination_from_live_account(db_session)
 
     gamer = await _make_gamer(db_session, "snapshot_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("500.00"))
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("500.00"))
     db_session.add(fee)
     cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
     account = OwnerPayoutAccount(
@@ -579,7 +579,7 @@ async def test_create_payout_infers_destination_type_when_not_given(db_session):
 
     gamer = await _make_gamer(db_session, "infer_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("100.00"))
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("100.00"))
     db_session.add(fee)
     cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
     db_session.add(OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="infer@okaxis"))
@@ -601,7 +601,7 @@ async def test_create_payout_rejects_stale_expected_version(db_session):
 
     gamer = await _make_gamer(db_session, "stale_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("250.00"))
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("250.00"))
     db_session.add(fee)
     cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
     db_session.add(OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="stale@okaxis", version=2))
@@ -627,7 +627,7 @@ async def test_create_payout_accepts_matching_expected_version(db_session):
 
     gamer = await _make_gamer(db_session, "fresh_version_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("250.00"))
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("250.00"))
     db_session.add(fee)
     cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
     db_session.add(OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="fresh@okaxis", version=2))
@@ -655,7 +655,7 @@ async def test_create_payout_rolls_back_completely_on_partial_failure(db_session
     gamer = await _make_gamer(db_session, "atomicity_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
     cafe_id = booking.cafe_id
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("500.00"))
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=Decimal("500.00"))
     db_session.add(fee)
     cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == cafe_id))).scalars().first()
     db_session.add(OwnerPayoutAccount(id=uuid4(), owner_id=cafe_row.owner_id, upi_vpa="atomic@okaxis"))

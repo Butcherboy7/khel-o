@@ -196,8 +196,8 @@ export async function updatePayoutDestination(
 export interface OwnerCafePayoutHistoryItem {
   id: string;
   amount: number;
-  utrReference: string;
-  paymentMethod: string;
+  utrReference: string | null;
+  paymentMethod: string | null;
   status: string;
   proofImageUrl?: string | null;
   adminNote?: string | null;
@@ -207,6 +207,11 @@ export interface OwnerCafePayoutHistoryItem {
 
 export async function getOwnerCafePayouts(): Promise<{
   outstandingAmount: number;
+  totalEarnings: number;
+  pendingSettlement: number;
+  availableForPayout: number;
+  totalPaid: number;
+  nextPayoutDate: string;
   history: OwnerCafePayoutHistoryItem[];
 }> {
   return call(() => apiClient.get('/api/v1/owner/payouts/cafe-payouts'));

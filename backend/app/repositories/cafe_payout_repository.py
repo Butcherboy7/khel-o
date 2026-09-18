@@ -38,9 +38,50 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
                 # keeps the admin and owner "pending settlement" views agreeing
                 # once Route is re-enabled).
                 PlatformFee.transfer_status != "transferred",
+                PlatformFee.settlement_status == "settled",
+                PlatformFee.excluded_reason.is_(None),
                 not_(already_paid),
             )
         )
+
+    def _pending_settlement_base_query(self, cafe_id: UUID):
+        already_paid = exists().where(CafePayoutItem.platform_fee_id == PlatformFee.id)
+        return (
+            select(PlatformFee)
+            .join(Booking, Booking.id == PlatformFee.booking_id)
+            .join(Payment, Payment.booking_id == Booking.id)
+            .where(
+                Booking.cafe_id == cafe_id,
+                Payment.status == PaymentStatus.CAPTURED,
+                PlatformFee.transfer_status != "transferred",
+                PlatformFee.settlement_status == "pending_settlement",
+                PlatformFee.excluded_reason.is_(None),
+                not_(already_paid),
+            )
+        )
+
+    async def get_pending_settlement_amount(self, cafe_id: UUID) -> Decimal:
+        rows = (await self.db.execute(self._pending_settlement_base_query(cafe_id))).scalars().all()
+        return sum((Decimal(str(fee.owner_settlement_amount)) for fee in rows), Decimal("0"))
+
+    async def list_cafe_ids_with_settled_balance(self) -> list[UUID]:
+        """Café ids with at least one settled, unallocated fee — used by the
+        weekly payout job to know which cafés to process, without doing a
+        per-café Razorpay call (settlement data is already local by then)."""
+        result = await self.db.execute(
+            select(Booking.cafe_id)
+            .join(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .join(Payment, Payment.booking_id == Booking.id)
+            .where(
+                Payment.status == PaymentStatus.CAPTURED,
+                PlatformFee.transfer_status != "transferred",
+                PlatformFee.settlement_status == "settled",
+                PlatformFee.excluded_reason.is_(None),
+                not_(exists().where(CafePayoutItem.platform_fee_id == PlatformFee.id)),
+            )
+            .distinct()
+        )
+        return [row[0] for row in result.all()]
 
     async def get_outstanding_fee_rows(self, cafe_id: UUID) -> list[tuple[PlatformFee, Booking]]:
         result = await self.db.execute(self._outstanding_base_query(cafe_id))
@@ -76,8 +117,8 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         self,
         cafe_id: UUID,
         admin_id: UUID,
-        utr_reference: str,
-        payment_method: str,
+        utr_reference: Optional[str] = None,
+        payment_method: Optional[str] = None,
         notes: Optional[str] = None,
         audit_log_data: Optional[dict] = None,
         proof_image_url: Optional[str] = None,
@@ -85,6 +126,7 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         paid_at: Optional[datetime] = None,
         destination_type: Optional[str] = None,
         expected_payout_account_version: Optional[int] = None,
+        status: CafePayoutStatus = CafePayoutStatus.PAID,
     ) -> CafePayout:
         """Create a CafePayout + its CafePayoutItem rows in a single transaction.
 
@@ -177,12 +219,12 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
             amount=float(total),
             utr_reference=utr_reference,
             payment_method=payment_method,
-            status=CafePayoutStatus.PAID,
+            status=status,
             notes=notes,
             proof_image_url=proof_image_url,
             admin_note=admin_note,
             created_by_admin_id=admin_id,
-            paid_at=paid_at or datetime.now(timezone.utc),
+            paid_at=(paid_at or datetime.now(timezone.utc)) if status == CafePayoutStatus.PAID else None,
             destination_type=PayoutDestinationType(resolved_destination_type),
             destination_upi_vpa=payout_account.upi_vpa,
             destination_bank_account_masked=payout_account.bank_account_number_masked,
@@ -218,6 +260,61 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
                 reason=audit_log_data.get("reason"),
             ))
 
+        await self.db.commit()
+        await self.db.refresh(payout)
+        return payout
+
+    async def run_weekly_allocation(self, admin_id: UUID) -> list[dict]:
+        """Create a PENDING CafePayout batch per café with a settled,
+        unallocated balance. Safe to re-run: a café already fully allocated
+        (no settled+unpaid PlatformFee left) is simply skipped, and the
+        per-booking CafePayoutItem.platform_fee_id unique constraint makes
+        double-allocating any individual fee impossible even under a race.
+        """
+        results = []
+        cafe_ids = await self.list_cafe_ids_with_settled_balance()
+        for cafe_id in cafe_ids:
+            try:
+                payout = await self.create_payout(
+                    cafe_id=cafe_id,
+                    admin_id=admin_id,
+                    status=CafePayoutStatus.PENDING,
+                    audit_log_data={
+                        "admin_id": admin_id,
+                        "admin_email": "system@weekly-allocation",
+                        "action": "cafe_payout.weekly_allocation",
+                    },
+                )
+                results.append({"cafeId": str(cafe_id), "payoutId": str(payout.id), "amount": float(payout.amount)})
+            except BadRequestException as exc:
+                # No payout destination on file, or on hold — skip this café
+                # this cycle; its balance simply stays unallocated and is
+                # retried on the next weekly run.
+                await self.db.rollback()
+                results.append({"cafeId": str(cafe_id), "skipped": str(exc)})
+        return results
+
+    async def mark_paid(
+        self,
+        payout_id: UUID,
+        utr_reference: str,
+        payment_method: str,
+        proof_image_url: Optional[str] = None,
+        admin_note: Optional[str] = None,
+    ) -> CafePayout:
+        payout = await self.get_by_id(payout_id)
+        if not payout:
+            raise BadRequestException("Payout not found.")
+        if payout.status == CafePayoutStatus.PAID:
+            raise BadRequestException("This payout has already been marked as paid.")
+        payout.status = CafePayoutStatus.PAID
+        payout.utr_reference = utr_reference
+        payout.payment_method = payment_method
+        payout.paid_at = datetime.now(timezone.utc)
+        if proof_image_url is not None:
+            payout.proof_image_url = proof_image_url
+        if admin_note is not None:
+            payout.admin_note = admin_note
         await self.db.commit()
         await self.db.refresh(payout)
         return payout
@@ -269,11 +366,15 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         }
 
     async def list_cafes_with_outstanding(self) -> list[dict]:
+        """Cafés with money either pending settlement or available to pay
+        out — i.e. anything an admin would want visibility into, even
+        before it's actually payable."""
         cafes_result = await self.db.execute(select(Cafe.id, Cafe.name, Cafe.owner_id, Cafe.payout_on_hold, Cafe.payout_hold_reason))
         out = []
         for cafe_id, cafe_name, owner_id, on_hold, hold_reason in cafes_result.all():
             amount = await self.get_outstanding_amount(cafe_id)
-            if amount > 0:
+            pending_settlement = await self.get_pending_settlement_amount(cafe_id)
+            if amount > 0 or pending_settlement > 0:
                 account = (await self.db.execute(
                     select(OwnerPayoutAccount).where(OwnerPayoutAccount.owner_id == owner_id)
                 )).scalars().first()
@@ -288,6 +389,7 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
                     "cafeId": str(cafe_id),
                     "cafeName": cafe_name,
                     "outstandingAmount": float(amount),
+                    "pendingSettlementAmount": float(pending_settlement),
                     "payoutDestinationSubmitted": destination_submitted,
                     "upiVpa": account.upi_vpa if account else None,
                     "hasBank": has_bank,

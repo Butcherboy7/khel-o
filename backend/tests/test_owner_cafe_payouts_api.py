@@ -16,7 +16,7 @@ from app.core.security import get_password_hash
 async def test_owner_sees_own_cafe_outstanding_and_history(db_session):
     gamer = await _make_gamer(db_session, "owner_api_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
     await db_session.commit()
 
@@ -104,8 +104,8 @@ async def test_owner_with_two_cafes_sees_combined_outstanding_and_history(db_ses
     )
     db_session.add(payment2)
 
-    fee1 = PlatformFee(id=uuid4(), booking_id=booking1.id, owner_settlement_amount=95.0)
-    fee2 = PlatformFee(id=uuid4(), booking_id=booking2.id, owner_settlement_amount=60.0)
+    fee1 = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking1.id, owner_settlement_amount=95.0)
+    fee2 = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking2.id, owner_settlement_amount=60.0)
     db_session.add_all([fee1, fee2])
 
     from app.models.owner_payout_account import OwnerPayoutAccount
@@ -150,8 +150,8 @@ async def test_owner_cannot_see_another_cafes_payouts(db_session):
     gamer_b = await _make_gamer(db_session, "iso_gamer_b")
     booking_b, _ = await _make_booking_with_payment(db_session, gamer_b)
 
-    fee_a = PlatformFee(id=uuid4(), booking_id=booking_a.id, owner_settlement_amount=50.0)
-    fee_b = PlatformFee(id=uuid4(), booking_id=booking_b.id, owner_settlement_amount=200.0)
+    fee_a = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking_a.id, owner_settlement_amount=50.0)
+    fee_b = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking_b.id, owner_settlement_amount=200.0)
     db_session.add_all([fee_a, fee_b])
     await db_session.commit()
 

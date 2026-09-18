@@ -648,6 +648,23 @@ class PaymentService:
                     })
                     await notifier.send_payment_failure(self.payment_repo.db, payment.booking_id)
 
+        elif event == "settlement.processed":
+            # The webhook carries only the settlement total (id/amount/utr),
+            # never individual payment IDs — the actual payment-level mapping
+            # only exists in the recon API, so this webhook is purely a
+            # trigger to poll it for "today" (the settlement's created_at
+            # date). The daily reconciliation cron is the fallback if this
+            # webhook is ever missed.
+            entity = payload_data.get("settlement", {}).get("entity", {})
+            created_ts = entity.get("created_at")
+            target_date = (
+                datetime.fromtimestamp(created_ts, tz=timezone.utc).date()
+                if created_ts else datetime.now(timezone.utc).date()
+            )
+            from app.services.settlement_service import SettlementService
+            result = await SettlementService(self.payment_repo.db).reconcile_date(target_date)
+            logger.info("Settlement webhook triggered recon: %s", result)
+
         elif event in ("account.activated", "account.suspended", "account.rejected"):
             entity = payload_data.get("account", {}).get("entity", {})
             account_id = entity.get("id")
@@ -824,6 +841,13 @@ class PaymentService:
 
         if pending_clawback_adjustment is not None:
             self.payment_repo.db.add(pending_clawback_adjustment)
+            await self.payment_repo.db.commit()
+        elif fee_row:
+            # Not yet paid out to the café — whether it's pending settlement
+            # or already settled, a refunded booking must never become (or
+            # remain) payable. Excluded permanently rather than deleted, so
+            # the fee row stays visible for reconciliation/audit.
+            fee_row.excluded_reason = "Booking refunded before payout"
             await self.payment_repo.db.commit()
 
         await self.booking_repo.update(booking_id, {"status": BookingStatus.CANCELLED})

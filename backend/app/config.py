@@ -57,6 +57,11 @@ class Settings(BaseSettings):
 
     # KHEL-O V2 Configurations
     RAZORPAY_ROUTE_ENABLED: bool = False
+    # 0=Monday ... 6=Sunday. The day the weekly café payout allocation job
+    # runs; also used to display "Next Payout" to owners. Env-overridable
+    # rather than a DB setting/admin UI for now — revisit if ops needs to
+    # change it without a redeploy.
+    WEEKLY_PAYOUT_WEEKDAY: int = 0
     CONVENIENCE_FEE_AMOUNT: int = 10
     UNVERIFIED_CAFE_BOOKING_CAP_VALUE: int = 5000
     UNVERIFIED_CAFE_BOOKING_CAP_COUNT: int = 15

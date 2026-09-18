@@ -41,6 +41,13 @@ class CafePayoutHoldRequest(BaseModel):
     reason: Optional[str] = None
 
 
+class MarkPayoutPaidRequest(BaseModel):
+    utrReference: str
+    paymentMethod: str
+    proofImageUrl: Optional[str] = None
+    adminNote: Optional[str] = None
+
+
 @router.get("/outstanding", status_code=status.HTTP_200_OK)
 async def list_outstanding_cafe_payouts(
     current_admin: User = Depends(require_admin),
@@ -237,6 +244,79 @@ async def create_cafe_payout(
                 "status": payout.status.value,
                 "proofImageUrl": payout.proof_image_url,
                 "adminNote": payout.admin_note,
+                "paidAt": payout.paid_at.isoformat() if payout.paid_at else None,
+            }
+        },
+    }
+
+
+@router.post("/reconcile-settlements", status_code=status.HTTP_200_OK)
+async def reconcile_settlements(
+    settlementDate: Optional[str] = Query(None, description="YYYY-MM-DD, defaults to today (IST-agnostic UTC date)"),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Polls the Razorpay settlement recon API for one date and marks any
+    matching PlatformFee rows settled. This is the daily reconciliation
+    fallback for when the settlement.processed webhook is missed — intended
+    to be called once a day by an external scheduler (cron/GH Actions). Safe
+    to call repeatedly for the same date; already-settled rows are no-ops."""
+    from app.services.settlement_service import SettlementService
+    from datetime import date as _date, datetime as _datetime, timezone as _timezone
+
+    target = _date.fromisoformat(settlementDate) if settlementDate else _datetime.now(_timezone.utc).date()
+    result = await SettlementService(db).reconcile_date(target)
+    return {"success": True, "data": result}
+
+
+@router.post("/run-weekly", status_code=status.HTTP_200_OK)
+async def run_weekly_payout_allocation(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Creates a PENDING CafePayout batch (with items) per café that has a
+    settled, unallocated balance. Does not move money — an admin still
+    records the actual bank transfer via mark-paid. Intended to be called
+    once a week by an external scheduler; safe to re-run (see
+    CafePayoutRepository.run_weekly_allocation)."""
+    repo = CafePayoutRepository(db)
+    results = await repo.run_weekly_allocation(admin_id=current_admin.id)
+    return {"success": True, "data": {"cafes": results}}
+
+
+@router.patch("/payouts/{payout_id}/mark-paid", status_code=status.HTTP_200_OK)
+async def mark_cafe_payout_paid(
+    payout_id: UUID,
+    payload: MarkPayoutPaidRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    repo = CafePayoutRepository(db)
+    payout = await repo.mark_paid(
+        payout_id=payout_id,
+        utr_reference=payload.utrReference,
+        payment_method=payload.paymentMethod,
+        proof_image_url=payload.proofImageUrl,
+        admin_note=payload.adminNote,
+    )
+    db.add(AdminAuditLog(
+        id=_uuid.uuid4(),
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="cafe_payout.mark_paid",
+        entity_type="cafe_payout",
+        entity_id=str(payout.id),
+        reason=payload.adminNote,
+    ))
+    await db.commit()
+
+    return {
+        "success": True,
+        "data": {
+            "payout": {
+                "id": str(payout.id),
+                "status": payout.status.value,
+                "utrReference": payout.utr_reference,
                 "paidAt": payout.paid_at.isoformat() if payout.paid_at else None,
             }
         },

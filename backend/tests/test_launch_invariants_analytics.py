@@ -59,7 +59,7 @@ def _span_booking(cafe, tier, gamer_id, session_date, start_h, end_h,
         status=BookingStatus.COMPLETED, game=game,
     )
     fee = PlatformFee(
-        id=uuid4(), booking_id=b.id, convenience_fee=0.0, gateway_fee=gw,
+        settlement_status="settled", id=uuid4(), booking_id=b.id, convenience_fee=0.0, gateway_fee=gw,
         fee_percentage_applied=FEE_PCT, tds_amount=0.0,
         owner_settlement_amount=base,
     )

@@ -25,4 +25,14 @@ class PlatformFee(Base):
     razorpay_transfer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     transfer_status: Mapped[str] = mapped_column(String(30), default="pending", nullable=False)
     transfer_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Whether Razorpay has actually settled this payment's funds to KHELO's
+    # bank account, per the settlement recon API — NOT a predicted T+2 date.
+    # pending_settlement -> settled. Only "settled" rows are eligible for
+    # weekly café payout allocation (see CafePayoutRepository._outstanding_base_query).
+    settlement_status: Mapped[str] = mapped_column(String(20), default="pending_settlement", nullable=False)
+    razorpay_settlement_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set when this fee must never become payable (e.g. refunded before
+    # settlement was confirmed) even if it later appears settled in recon.
+    excluded_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

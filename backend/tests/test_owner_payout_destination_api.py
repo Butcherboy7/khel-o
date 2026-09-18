@@ -115,7 +115,7 @@ async def test_patch_destination_blocks_clearing_only_destination_with_outstandi
     # Reassign the booking to this owner's café so the outstanding balance
     # check has something real to find.
     booking.cafe_id = cafe.id
-    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=100.0))
+    db_session.add(PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=100.0))
     await db_session.commit()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -151,7 +151,7 @@ async def test_patch_destination_blocks_nulling_only_bank_ifsc_with_outstanding_
     gamer = await _make_gamer(db_session, "block_clear_ifsc_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
     booking.cafe_id = cafe.id
-    db_session.add(PlatformFee(booking_id=booking.id, owner_settlement_amount=100.0))
+    db_session.add(PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=100.0))
     await db_session.commit()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

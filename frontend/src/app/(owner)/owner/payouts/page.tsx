@@ -15,7 +15,8 @@ import { useAuthStore } from '@/store/authStore';
 // CafePayoutStatus vocabulary for the manual bank-transfer history table.
 function manualPayoutStatusBadge(status: string) {
   if (status === 'paid') return <Badge variant="success" size="sm">Paid</Badge>;
-  if (status === 'pending' || status === 'processing') return <Badge variant="default" size="sm">Processing</Badge>;
+  if (status === 'pending') return <Badge variant="warning" size="sm">This week&apos;s payout — awaiting transfer</Badge>;
+  if (status === 'processing') return <Badge variant="default" size="sm">Processing</Badge>;
   if (status === 'failed') return <Badge variant="error" size="sm">Failed — contact support</Badge>;
   if (status === 'on_hold') return <Badge variant="warning" size="sm">On hold</Badge>;
   if (status === 'disputed') return <Badge variant="error" size="sm">Disputed — under review</Badge>;
@@ -52,11 +53,15 @@ export default function OwnerPayoutsPage() {
   }
 
   const account = summaryQuery.data?.account ?? null;
-  const outstandingAmount = summaryQuery.data?.summary.outstandingAmount ?? 0;
-  const alreadyPaidOut = summaryQuery.data?.summary.alreadyPaidOut ?? 0;
   const payoutOnHold = summaryQuery.data?.payoutOnHold ?? false;
   const payoutHoldReason = summaryQuery.data?.payoutHoldReason ?? null;
   const payoutHistory = cafePayoutsQuery.data?.history ?? [];
+
+  const outstandingAmount = cafePayoutsQuery.data?.availableForPayout ?? summaryQuery.data?.summary.outstandingAmount ?? 0;
+  const pendingSettlement = cafePayoutsQuery.data?.pendingSettlement ?? 0;
+  const totalEarnings = cafePayoutsQuery.data?.totalEarnings ?? 0;
+  const totalPaid = cafePayoutsQuery.data?.totalPaid ?? summaryQuery.data?.summary.alreadyPaidOut ?? 0;
+  const nextPayoutDate = cafePayoutsQuery.data?.nextPayoutDate;
 
   return (
     <div className="flex flex-col gap-8">
@@ -72,28 +77,42 @@ export default function OwnerPayoutsPage() {
         </Card>
       )}
 
-      {/* The two numbers an owner actually opens this page to check —
-          large, color-coded, side by side so "owed vs. paid" reads as one
-          comparable pair at a glance instead of small inline text. */}
+      {/* Four numbers that mirror the actual money flow — customer pays,
+          Razorpay settles to KHEL-O, it becomes available, then it's paid
+          out — so an owner can tell at a glance which stage their money is
+          in instead of seeing one opaque "owed" total. */}
       <div className="flex flex-col gap-2">
         <OwnerStatRow
           stats={[
             {
-              label: 'Currently owed to you',
-              value: `₹${outstandingAmount.toFixed(0)}`,
-              tone: outstandingAmount > 0 ? 'warning' : 'neutral',
-              hint: 'Not paid out yet',
+              label: 'Total earnings',
+              value: `₹${totalEarnings.toFixed(0)}`,
+              tone: 'neutral',
+              hint: 'All-time, net of refunds',
             },
             {
-              label: 'Already paid out',
-              value: `₹${alreadyPaidOut.toFixed(0)}`,
+              label: 'Pending settlement',
+              value: `₹${pendingSettlement.toFixed(0)}`,
+              tone: pendingSettlement > 0 ? 'warning' : 'neutral',
+              hint: 'With Razorpay, not yet ours',
+            },
+            {
+              label: 'Available for payout',
+              value: `₹${outstandingAmount.toFixed(0)}`,
+              tone: outstandingAmount > 0 ? 'warning' : 'neutral',
+              hint: 'Settled, awaiting transfer',
+            },
+            {
+              label: 'Paid out',
+              value: `₹${totalPaid.toFixed(0)}`,
               tone: 'positive',
               hint: 'Sent to your account',
             },
           ]}
         />
         <p className="text-caption text-text-secondary px-1">
-          &ldquo;Currently owed&rdquo; is every booking KHEL-O has collected but not yet transferred to you, minus any refund adjustments.
+          Customer payment → Razorpay settles to KHEL-O (2–3 business days) → becomes available for
+          payout → included in the next weekly payout{nextPayoutDate ? ` (${new Date(nextPayoutDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })})` : ''} → paid to your account.
         </p>
       </div>
 
@@ -186,9 +205,9 @@ export default function OwnerPayoutsPage() {
                         {p.paidAt ? new Date(p.paidAt).toLocaleDateString() : '—'}
                       </td>
                       <td className="py-3.5 px-4 font-bold text-emerald-600">₹{p.amount.toFixed(2)}</td>
-                      <td className="py-3.5 px-4 text-text-secondary uppercase">{p.paymentMethod}</td>
+                      <td className="py-3.5 px-4 text-text-secondary uppercase">{p.paymentMethod || '—'}</td>
                       <td className="py-3.5 px-4 font-mono text-xs text-text-primary">
-                        {p.utrReference}
+                        {p.utrReference || '—'}
                         {p.adminNote && (
                           <span className="block text-[11px] font-sans text-text-tertiary" title={p.adminNote}>
                             {p.adminNote}

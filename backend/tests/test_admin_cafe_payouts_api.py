@@ -14,7 +14,7 @@ async def test_admin_can_list_outstanding_and_create_payout(db_session):
     admin = await _make_admin(db_session)
     gamer = await _make_gamer(db_session, "api_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
 
     from app.models.owner_payout_account import OwnerPayoutAccount
@@ -102,7 +102,7 @@ async def test_concurrent_payout_creation_returns_clean_400_not_500(db_session, 
     admin = await _make_admin(db_session)
     gamer = await _make_gamer(db_session, "race_api_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
     await db_session.commit()
 
@@ -143,7 +143,7 @@ async def test_outstanding_list_reports_has_bank_for_bank_only_cafe(db_session):
     admin = await _make_admin(db_session)
     gamer = await _make_gamer(db_session, "bankonly_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
 
     from app.models.owner_payout_account import OwnerPayoutAccount
@@ -174,7 +174,7 @@ async def test_breakdown_includes_masked_destination_and_version(db_session):
     admin = await _make_admin(db_session)
     gamer = await _make_gamer(db_session, "breakdown_dest_gamer")
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=50.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=50.0)
     db_session.add(fee)
 
     from app.models.owner_payout_account import OwnerPayoutAccount

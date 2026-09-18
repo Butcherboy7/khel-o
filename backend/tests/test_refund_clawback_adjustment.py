@@ -26,7 +26,7 @@ async def test_refund_after_payout_writes_clawback_adjustment(db_session, monkey
     # below for the path where it's absent and no refund occurs).
     booking, payment = await _make_booking_with_payment(db_session, gamer, razorpay_payment_id="pay_test_clawback")
 
-    fee = PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
+    fee = PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
     db_session.add(fee)
     await db_session.flush()
 
@@ -72,7 +72,7 @@ async def test_no_clawback_adjustment_written_when_no_payment_id(db_session):
     gamer = await _make_gamer(db_session, "clawback_nopid")
     booking, payment = await _make_booking_with_payment(db_session, gamer, razorpay_payment_id=None)
 
-    fee = PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
+    fee = PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
     db_session.add(fee)
     await db_session.flush()
 
@@ -113,7 +113,7 @@ async def test_no_clawback_adjustment_written_when_refund_api_fails(db_session, 
     gamer = await _make_gamer(db_session, "clawback_apifail")
     booking, payment = await _make_booking_with_payment(db_session, gamer, razorpay_payment_id="pay_will_fail")
 
-    fee = PlatformFee(booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
+    fee = PlatformFee(settlement_status="settled", booking_id=booking.id, owner_settlement_amount=Decimal("900.00"))
     db_session.add(fee)
     await db_session.flush()
 

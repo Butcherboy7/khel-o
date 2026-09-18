@@ -31,11 +31,13 @@ class CafePayout(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     cafe_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cafes.id"), nullable=False, index=True)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    utr_reference: Mapped[str] = mapped_column(String(100), nullable=False)
-    payment_method: Mapped[str] = mapped_column(String(50), nullable=False)
+    # NULL until an admin records the actual transfer (see mark_paid) — a
+    # payout auto-created by the weekly allocation job starts this way.
+    utr_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    payment_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
     status: Mapped[CafePayoutStatus] = mapped_column(
         Enum(CafePayoutStatus, values_callable=lambda x: [e.value for e in x]),
-        default=CafePayoutStatus.PAID,
+        default=CafePayoutStatus.PENDING,
         nullable=False,
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

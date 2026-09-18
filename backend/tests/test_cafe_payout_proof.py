@@ -15,7 +15,7 @@ async def _make_verified_cafe_with_outstanding_balance(db_session, gamer_prefix:
 
     gamer = await _make_gamer(db_session, gamer_prefix)
     booking, payment = await _make_booking_with_payment(db_session, gamer)
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=amount)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=amount)
     db_session.add(fee)
 
     cafe_row = (await db_session.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()

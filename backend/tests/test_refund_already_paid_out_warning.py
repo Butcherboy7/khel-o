@@ -47,7 +47,7 @@ async def test_refund_on_already_paid_out_booking_logs_warning(db_session, monke
     booking, payment, _ = await _make_expired_pending_booking(db_session, minutes_ago=1)
     await _mark_captured(db_session, payment)
 
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
     await db_session.flush()
 
@@ -92,7 +92,7 @@ async def test_normal_refund_not_paid_out_does_not_log_payout_warning(db_session
     booking, payment, _ = await _make_expired_pending_booking(db_session, minutes_ago=1)
     await _mark_captured(db_session, payment)
 
-    fee = PlatformFee(id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
+    fee = PlatformFee(settlement_status="settled", id=uuid4(), booking_id=booking.id, owner_settlement_amount=95.0)
     db_session.add(fee)
     await db_session.commit()
 

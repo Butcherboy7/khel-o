@@ -1,4 +1,5 @@
 # backend/app/api/v1/owner_payouts.py — full replacement
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, status
@@ -64,24 +65,56 @@ async def get_owner_cafe_payouts(
     cafes = (await db.execute(cafe_stmt)).scalars().all()
 
     if not cafes:
-        return {"success": True, "data": {"outstandingAmount": 0.0, "history": []}}
+        return {
+            "success": True,
+            "data": {
+                "outstandingAmount": 0.0,
+                "totalEarnings": 0.0,
+                "pendingSettlement": 0.0,
+                "availableForPayout": 0.0,
+                "totalPaid": 0.0,
+                "nextPayoutDate": _next_payout_date().isoformat(),
+                "history": [],
+            },
+        }
 
     cafe_ids = [c.id for c in cafes]
     repo = CafePayoutRepository(db)
 
-    outstanding = Decimal("0")
+    pending_settlement = Decimal("0")
+    available_for_payout = Decimal("0")
     for cafe_id in cafe_ids:
-        outstanding += await repo.get_outstanding_amount(cafe_id)
+        pending_settlement += await repo.get_pending_settlement_amount(cafe_id)
+        available_for_payout += await repo.get_outstanding_amount(cafe_id)
 
     history = await repo.list_payouts(cafe_id=cafe_ids)
+    total_paid = sum(
+        (Decimal(str(item["amount"])) for item in history["items"] if item["status"] == "paid"),
+        Decimal("0"),
+    )
+    total_earnings = pending_settlement + available_for_payout + total_paid
 
     return {
         "success": True,
         "data": {
-            "outstandingAmount": float(outstanding),
+            # Kept for existing frontend callers; identical to availableForPayout.
+            "outstandingAmount": float(available_for_payout),
+            "totalEarnings": float(total_earnings),
+            "pendingSettlement": float(pending_settlement),
+            "availableForPayout": float(available_for_payout),
+            "totalPaid": float(total_paid),
+            "nextPayoutDate": _next_payout_date().isoformat(),
             "history": history["items"],
         },
     }
+
+
+def _next_payout_date():
+    from app.config import settings
+    today = datetime.now(timezone.utc).date()
+    days_ahead = (settings.WEEKLY_PAYOUT_WEEKDAY - today.weekday()) % 7
+    days_ahead = days_ahead or 7  # today is payout day -> next one is next week, not "today"
+    return today + timedelta(days=days_ahead)
 
 
 @router.get("/destination", status_code=status.HTTP_200_OK)

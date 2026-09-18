@@ -57,7 +57,7 @@ async def test_revenue_splits_gmv_and_khel_revenue(async_client, db_session):
     await db_session.flush()
 
     db_session.add(PlatformFee(
-        id=uuid4(), booking_id=booking.id, convenience_fee=0.0, gateway_fee=4.0,
+        settlement_status="settled", id=uuid4(), booking_id=booking.id, convenience_fee=0.0, gateway_fee=4.0,
         tds_amount=0.0, owner_settlement_amount=100.0,
     ))
     await db_session.commit()
