@@ -218,6 +218,52 @@ async def test_admin_can_promote_user_to_admin_and_it_is_audited(db_session):
 
 
 @pytest.mark.asyncio
+async def test_admin_reset_password_issues_working_new_password_and_is_audited(db_session):
+    admin = await _make_admin(db_session)
+    target = await _make_gamer(db_session, "locked_out_owner")
+    old_hash = target.password_hash
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        admin_headers = auth_headers(admin)
+        res = await client.post(
+            f"/api/v1/admin/users/{target.id}/reset-password",
+            json={"reason": "Lost onboarding placeholder password, dummy email unreachable"},
+            headers=admin_headers,
+        )
+        assert res.status_code == 200, res.text
+        temp_password = res.json()["data"]["temporaryPassword"]
+        assert temp_password and len(temp_password) >= 16
+
+        # Missing reason is rejected — the audit trail must always explain why.
+        no_reason_res = await client.post(
+            f"/api/v1/admin/users/{target.id}/reset-password",
+            json={},
+            headers=admin_headers,
+        )
+        assert no_reason_res.status_code == 422
+
+        # New password actually logs the user in.
+        login_res = await client.post(
+            "/api/v1/auth/login",
+            json={"email": target.email, "password": temp_password},
+        )
+        assert login_res.status_code == 200, login_res.text
+
+        # Old password no longer works.
+        old_login_res = await client.post(
+            "/api/v1/auth/login",
+            json={"email": target.email, "password": "testpass123"},
+        )
+        assert old_login_res.status_code in (400, 401)
+
+        audit_res = await client.get("/api/v1/admin/audit-log?action=user.password_reset", headers=admin_headers)
+        assert audit_res.json()["data"]["total"] >= 1
+
+    await db_session.refresh(target)
+    assert target.password_hash != old_hash
+
+
+@pytest.mark.asyncio
 async def test_platform_settings_get_and_update_is_audited(db_session):
     admin = await _make_admin(db_session)
 

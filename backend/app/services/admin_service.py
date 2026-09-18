@@ -211,6 +211,32 @@ class AdminService:
             raise NotFoundException(message="User not found", error_code="USER_NOT_FOUND")
         return UserResponse.model_validate(user)
 
+    async def reset_user_password(self, user_id: UUID) -> tuple[UserResponse, str]:
+        """Admin-triggered password reset — for accounts locked out of the
+        normal self-serve flow (e.g. an onboarding account created against a
+        placeholder email that can never receive a reset link). Generates a
+        fresh random password, stores only its bcrypt hash, and returns the
+        plaintext exactly once so the caller can hand it off (or use it
+        immediately to log in and complete a proper email change). Never
+        logged, never persisted anywhere else.
+        """
+        import secrets
+        from app.core.security import get_password_hash
+        from app.repositories.password_reset_repository import PasswordResetRepository
+
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise NotFoundException(message="User not found", error_code="USER_NOT_FOUND")
+
+        temporary_password = secrets.token_urlsafe(18)
+        updated = await self.user_repo.update(user_id, {"password_hash": get_password_hash(temporary_password)})
+
+        # Any outstanding self-serve reset link for the old password is now
+        # stale — invalidate it so it can't be used alongside the new one.
+        await PasswordResetRepository(self.db).invalidate_all_for_user(user_id)
+
+        return UserResponse.model_validate(updated), temporary_password
+
     async def change_user_role(self, user_id: UUID, new_role_str: str) -> UserResponse:
         try:
             target_role = UserRole(new_role_str)

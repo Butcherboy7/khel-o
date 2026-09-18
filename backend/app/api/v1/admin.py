@@ -371,6 +371,52 @@ async def change_user_role_admin(
         }
     }
 
+
+class UserPasswordResetRequest(BaseModel):
+    # Mandatory, unlike most admin actions' optional `reason` — this
+    # mutates login credentials, so the audit trail must always explain why.
+    reason: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/users/{user_id}/reset-password", status_code=status.HTTP_200_OK)
+async def reset_user_password_admin(
+    user_id: UUID,
+    payload: UserPasswordResetRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """For an account locked out of the normal self-serve reset flow (no
+    accessible inbox at its current email — e.g. an onboarding placeholder
+    account). Generates a fresh password and returns it once in this
+    response; it is never logged or stored anywhere in plaintext. The admin
+    is expected to log in with it immediately and either change the
+    account's email (then trigger a normal forgot-password email to the
+    real address) or hand it off through a secure out-of-band channel."""
+    service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db)
+    )
+    updated, temporary_password = await service.reset_user_password(user_id)
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="user.password_reset",
+        entity_type="user",
+        entity_id=str(user_id),
+        entity_name=updated.email,
+        reason=payload.reason,
+    )
+    return {
+        "success": True,
+        "data": {
+            "user": updated,
+            "temporaryPassword": temporary_password,
+        }
+    }
+
 # --- BOOKING OVERSIGHT ---
 @router.get("/bookings", status_code=status.HTTP_200_OK)
 async def list_all_bookings_admin(
