@@ -136,6 +136,44 @@ export default function ProfilePage() {
     }
   };
 
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState(false);
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
+
+  const openEmailModal = () => {
+    setNewEmail(user?.email ?? '');
+    setEmailPassword('');
+    setEmailError('');
+    setEmailSuccess(false);
+    setIsEmailModalOpen(true);
+  };
+
+  const closeEmailModal = () => {
+    setIsEmailModalOpen(false);
+    setNewEmail('');
+    setEmailPassword('');
+    setEmailError('');
+    setEmailSuccess(false);
+  };
+
+  const handleChangeEmail = async () => {
+    setEmailError('');
+    setIsChangingEmail(true);
+    try {
+      const res = await updateMe({ email: newEmail, currentPassword: emailPassword });
+      setUser(res.user);
+      setEmailSuccess(true);
+      setEmailPassword('');
+    } catch (err: any) {
+      setEmailError(err?.message || 'Failed to change email. Please try again.');
+    } finally {
+      setIsChangingEmail(false);
+    }
+  };
+
   // The header badge used to just say "Level 4" unconditionally — same rewards
   // data that already powers the real level/XP on the Rewards page, not a
   // second/fake source of truth.
@@ -410,6 +448,17 @@ export default function ProfilePage() {
             <ChevronRight className="h-4 w-4 text-text-secondary" />
           </Link>
 
+          <button
+            onClick={openEmailModal}
+            className="flex items-center justify-between p-3.5 hover:bg-surface rounded-xl transition-colors text-left"
+          >
+            <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
+              <Mail className="h-4 w-4 text-text-secondary" />
+              <span>Change Email</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-text-secondary" />
+          </button>
+
           {user.hasPassword === false ? (
             <div className="flex items-center justify-between p-3.5 rounded-xl opacity-60">
               <div className="flex items-center gap-3 text-text-secondary font-semibold text-body">
@@ -660,6 +709,74 @@ export default function ProfilePage() {
               onChange={(e) => setConfirmNewPassword(e.target.value)}
               leftIcon={<KeyRound className="h-4 w-4" />}
               autoComplete="new-password"
+            />
+          </div>
+        )}
+      </Modal>
+
+      {/* Change Email Modal */}
+      <Modal
+        isOpen={isEmailModalOpen}
+        onClose={closeEmailModal}
+        title="Change Email"
+        description="Your password confirms it's really you — no verification email is sent."
+        footer={
+          emailSuccess ? (
+            <Button variant="primary" onClick={closeEmailModal} className="w-full">
+              Done
+            </Button>
+          ) : (
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" onClick={closeEmailModal}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleChangeEmail}
+                disabled={!newEmail || !emailPassword}
+                isLoading={isChangingEmail}
+                loadingText="Changing…"
+              >
+                Change Email
+              </Button>
+            </div>
+          )
+        }
+      >
+        {emailSuccess ? (
+          <div className="flex flex-col items-center gap-2 py-4 text-center">
+            <CheckCircle2 className="h-9 w-9 text-success" />
+            <p className="text-body font-semibold text-text-primary">Email changed</p>
+            <p className="text-caption text-text-secondary">
+              Use {newEmail} next time you sign in.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {emailError && (
+              <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">
+                {emailError}
+              </div>
+            )}
+
+            <Input
+              label="New Email"
+              type="email"
+              placeholder="you@example.com"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              leftIcon={<Mail className="h-4 w-4" />}
+              autoComplete="email"
+            />
+
+            <Input
+              label="Current Password"
+              type="password"
+              placeholder="••••••••"
+              value={emailPassword}
+              onChange={(e) => setEmailPassword(e.target.value)}
+              leftIcon={<Lock className="h-4 w-4" />}
+              autoComplete="current-password"
             />
           </div>
         )}

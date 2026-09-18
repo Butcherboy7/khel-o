@@ -10,6 +10,7 @@ import { SettingsHeader } from '@/components/owner/SettingsHeader';
 import { EmergencyModeCard } from '@/components/owner/EmergencyModeCard';
 import { BookingsPauseCard } from '@/components/owner/BookingsPauseCard';
 import { PayoutDetailsCard } from '@/components/owner/PayoutDetailsCard';
+import { AccountCredentialsCard } from '@/components/shared/AccountCredentialsCard';
 import { EditCafeModal } from '@/components/owner/EditCafeModal';
 
 export default function OwnerSettingsPage() {
@@ -159,6 +160,17 @@ export default function OwnerSettingsPage() {
           onToggle={handlePauseToggle}
           isLoading={isTogglingPause}
         />
+      </div>
+
+      {/* Section 1a: Login & Security */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1 border-b border-border pb-2.5">
+          <h2 className="font-heading text-h2 text-text-primary">Login &amp; security</h2>
+          <p className="text-caption text-text-secondary">
+            Change the email or password you use to sign in.
+          </p>
+        </div>
+        <AccountCredentialsCard />
       </div>
 
       {/* Section 1b: Payouts */}
