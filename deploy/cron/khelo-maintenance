@@ -9,17 +9,21 @@
 20 3 * * 0 root cd /opt/khelo && docker builder prune -af >> /var/log/khelo-maintenance.log 2>&1
 
 # Monthly S3 orphan reconciliation (1st of month, 03:00 UTC)
-0 3 1 * * root cd /opt/khelo && docker compose -f docker-compose.prod.yml exec -T backend python -m scripts.reconcile_s3_orphans --apply >> /var/log/khelo-maintenance.log 2>&1
+0 3 1 * * root cd /opt/khelo && /usr/bin/docker compose -f docker-compose.prod.yml run --rm -e PYTHONPATH=/app backend python -m scripts.reconcile_s3_orphans --apply >> /var/log/khelo-maintenance.log 2>&1
 
 # Café payout jobs — runs once daily at 07:30 UTC (13:00 IST):
-#   --reconcile       always runs: polls Razorpay settlement recon for today,
-#                      the fallback path for a missed settlement.processed webhook.
-#   --weekly-if-due    only actually allocates payouts when today matches
-#                      the app's WEEKLY_PAYOUT_WEEKDAY setting (backend/app/config.py) —
-#                      the payout day lives in that ONE config value, not
-#                      duplicated into this crontab. Both flags are safe to
-#                      rerun: reconciliation only ever moves a fee
-#                      pending_settlement -> settled (never back), and
-#                      allocation is protected by CafePayoutItem's unique
-#                      platform_fee_id constraint (see run_weekly_allocation).
-30 7 * * * root cd /opt/khelo && docker compose -f docker-compose.prod.yml exec -T backend python -m scripts.run_payout_jobs --reconcile --weekly-if-due >> /var/log/khelo-maintenance.log 2>&1
+#   --reconcile        always runs: polls Razorpay settlement recon for today,
+#                       the fallback path for a missed settlement.processed webhook.
+#                       Always runs BEFORE weekly allocation, in the same
+#                       process/invocation (main() awaits reconcile first),
+#                       so anything settling today is eligible for today's
+#                       allocation if it's also payout day.
+#   --weekly-if-due     only actually allocates payouts when today matches
+#                       the app's WEEKLY_PAYOUT_WEEKDAY setting (backend/app/config.py) —
+#                       the payout day lives in that ONE config value, not
+#                       duplicated into this crontab. Both flags are safe to
+#                       rerun: reconciliation only ever moves a fee
+#                       pending_settlement -> settled (never back), and
+#                       allocation is protected by CafePayoutItem's unique
+#                       platform_fee_id constraint (see run_weekly_allocation).
+30 7 * * * root cd /opt/khelo && /usr/bin/docker compose -f docker-compose.prod.yml run --rm -e PYTHONPATH=/app backend python -m scripts.run_payout_jobs --reconcile --weekly-if-due >> /var/log/khelo-maintenance.log 2>&1
