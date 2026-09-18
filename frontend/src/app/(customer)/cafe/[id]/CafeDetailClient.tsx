@@ -749,8 +749,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         </div>
       </section>
 
-      {/* Reviews */}
-      <section className="flex flex-col gap-4">
+      {/* Reviews — id+scroll-mt so a QR code / direct link can jump straight
+          here (#reviews), same pattern as heroRef's scroll-mt-4 above. */}
+      <section id="reviews" className="flex flex-col gap-4 scroll-mt-4">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-heading text-h2 text-text-primary">Reviews</h2>
           {cafe.totalReviews > 0 && (
