@@ -105,3 +105,31 @@ export interface FunnelData {
 export async function getFunnel(): Promise<FunnelData> {
   return call(() => apiClient.get('/api/v1/admin/analytics/funnels'));
 }
+
+export interface CampaignItem {
+  id: string;
+  name: string;
+  source: string;
+  medium: string;
+  landingPage: string;
+}
+
+export async function getCampaigns(): Promise<CampaignItem[]> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/campaigns'));
+}
+
+export interface CampaignStats {
+  campaignId: string;
+  visits: number;
+  uniqueVisitors: number;
+  returningVisitors: number;
+  ctaClicks: number;
+  instagramClicks: number;
+  signups: number;
+  bookings: number;
+  revenue: number;
+}
+
+export async function getCampaignStats(campaignId: string): Promise<CampaignStats> {
+  return call(() => apiClient.get(`/api/v1/admin/analytics/campaigns/${campaignId}`));
+}

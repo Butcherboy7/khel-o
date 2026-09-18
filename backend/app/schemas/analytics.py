@@ -14,6 +14,9 @@ class AnalyticsEventType(str, Enum):
     SEARCH_PERFORMED = "search_performed"
     VENUE_VIEWED = "venue_viewed"
     BOOKING_FLOW_STARTED = "booking_flow_started"
+    CAMPAIGN_LANDING_VIEW = "campaign_landing_view"
+    CAMPAIGN_CTA_CLICK = "campaign_cta_click"
+    CAMPAIGN_INSTAGRAM_CLICK = "campaign_instagram_click"
 
 
 MAX_METADATA_BYTES = 2048

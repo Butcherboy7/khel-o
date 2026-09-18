@@ -8,7 +8,8 @@ from app.models.booking import Booking, BookingStatus
 from app.models.platform_fee import PlatformFee
 from app.models.hardware_tier import HardwareTier
 from app.models.analytics_event import AnalyticsEvent
-from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse, AttributionItem, FunnelResponse
+from app.models.campaign import Campaign
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse, AttributionItem, FunnelResponse, CampaignItem, CampaignStatsResponse
 
 
 class AdminAnalyticsService:
@@ -298,6 +299,64 @@ class AdminAnalyticsService:
             )
             for source, count in users_by_source.items()
         ]
+
+    async def get_campaigns(self) -> list[CampaignItem]:
+        rows = (await self.db.execute(select(Campaign).order_by(Campaign.created_at.desc()))).scalars().all()
+        return [
+            CampaignItem(id=c.id, name=c.name, source=c.source, medium=c.medium, landing_page=c.landing_page)
+            for c in rows
+        ]
+
+    async def get_campaign_stats(self, campaign_id: str) -> CampaignStatsResponse:
+        counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+        campaign_filter = AnalyticsEvent.event_metadata["campaignId"].as_string() == campaign_id
+
+        visits = (await self.db.execute(
+            select(func.count(AnalyticsEvent.id)).where(
+                AnalyticsEvent.event_type == "campaign_landing_view", campaign_filter
+            )
+        )).scalar() or 0
+
+        unique_visitors = (await self.db.execute(
+            select(func.count(func.distinct(AnalyticsEvent.session_id))).where(
+                AnalyticsEvent.event_type == "campaign_landing_view", campaign_filter
+            )
+        )).scalar() or 0
+
+        cta_clicks = (await self.db.execute(
+            select(func.count(AnalyticsEvent.id)).where(
+                AnalyticsEvent.event_type == "campaign_cta_click", campaign_filter
+            )
+        )).scalar() or 0
+
+        instagram_clicks = (await self.db.execute(
+            select(func.count(AnalyticsEvent.id)).where(
+                AnalyticsEvent.event_type == "campaign_instagram_click", campaign_filter
+            )
+        )).scalar() or 0
+
+        signups = (await self.db.execute(
+            select(func.count(User.id)).where(User.acquisition_campaign == campaign_id)
+        )).scalar() or 0
+
+        booking_row = (await self.db.execute(
+            select(func.count(Booking.id), func.sum(Booking.total_amount))
+            .join(User, Booking.gamer_id == User.id)
+            .where(User.acquisition_campaign == campaign_id, Booking.status.in_(counted))
+        )).one()
+        bookings, revenue = booking_row[0] or 0, float(booking_row[1] or 0.0)
+
+        return CampaignStatsResponse(
+            campaign_id=campaign_id,
+            visits=visits,
+            unique_visitors=unique_visitors,
+            returning_visitors=max(visits - unique_visitors, 0),
+            cta_clicks=cta_clicks,
+            instagram_clicks=instagram_clicks,
+            signups=signups,
+            bookings=bookings,
+            revenue=revenue,
+        )
 
     async def get_funnel(self) -> FunnelResponse:
         counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]

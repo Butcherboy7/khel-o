@@ -26,6 +26,7 @@ import {
   Filter,
   IndianRupee,
   Banknote,
+  QrCode,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -77,6 +78,7 @@ const adminNavGroups: NavGroup[] = [
       { label: 'Geography', href: '/admin/analytics/geography', icon: MapPin },
       { label: 'Revenue', href: '/admin/analytics/revenue', icon: IndianRupee },
       { label: 'Attribution', href: '/admin/analytics/attribution', icon: Megaphone },
+      { label: 'Campaigns', href: '/admin/analytics/campaigns', icon: QrCode },
       { label: 'Funnels', href: '/admin/analytics/funnels', icon: Filter },
     ],
   },

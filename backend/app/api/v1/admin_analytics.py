@@ -80,6 +80,27 @@ async def get_marketing_attribution(
     return {"success": True, "data": result}
 
 
+@router.get("/campaigns", status_code=status.HTTP_200_OK)
+async def get_campaigns(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    service = AdminAnalyticsService(db)
+    result = await service.get_campaigns()
+    return {"success": True, "data": result}
+
+
+@router.get("/campaigns/{campaign_id}", status_code=status.HTTP_200_OK)
+async def get_campaign_stats(
+    campaign_id: str,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    service = AdminAnalyticsService(db)
+    result = await service.get_campaign_stats(campaign_id)
+    return {"success": True, "data": result}
+
+
 @router.get("/funnels", status_code=status.HTTP_200_OK)
 async def get_funnel(
     current_admin: User = Depends(require_admin),

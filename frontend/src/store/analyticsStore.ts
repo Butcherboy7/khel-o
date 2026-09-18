@@ -17,6 +17,7 @@ interface AnalyticsState {
   sessionId: string;
   attribution: Attribution | null;
   captureAttributionFromUrl: (params: URLSearchParams) => void;
+  captureAttribution: (source: string, medium: string | null, campaign: string | null) => void;
 }
 
 export const useAnalyticsStore = create<AnalyticsState>()(
@@ -36,6 +37,12 @@ export const useAnalyticsStore = create<AnalyticsState>()(
             campaign: params.get('utm_campaign'),
           },
         });
+      },
+      // Same first-touch-wins rule, for landing pages (e.g. /100) that carry
+      // their attribution in the route itself rather than in query params.
+      captureAttribution: (source, medium, campaign) => {
+        if (get().attribution) return;
+        set({ attribution: { source, medium, campaign } });
       },
     }),
     {

@@ -21,6 +21,7 @@ from app.models.platform_setting import PlatformSetting
 from app.models.password_reset_token import PasswordResetToken
 from app.models.analytics_event import AnalyticsEvent
 from app.models.cafe_waitlist import CafeWaitlistEntry
+from app.models.campaign import Campaign
 
 __all__ = [
     "User",

@@ -1,7 +1,13 @@
 import { apiClient } from './client';
 import { useAnalyticsStore } from '@/store/analyticsStore';
 
-export type AnalyticsEventType = 'search_performed' | 'venue_viewed' | 'booking_flow_started';
+export type AnalyticsEventType =
+  | 'search_performed'
+  | 'venue_viewed'
+  | 'booking_flow_started'
+  | 'campaign_landing_view'
+  | 'campaign_cta_click'
+  | 'campaign_instagram_click';
 
 export function fireAnalyticsEvent(
   eventType: AnalyticsEventType,

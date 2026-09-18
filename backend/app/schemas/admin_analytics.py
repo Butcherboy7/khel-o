@@ -119,3 +119,33 @@ class FunnelResponse(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class CampaignItem(BaseModel):
+    id: str
+    name: str
+    source: str
+    medium: str
+    landing_page: str
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+
+class CampaignStatsResponse(BaseModel):
+    campaign_id: str
+    visits: int
+    unique_visitors: int
+    returning_visitors: int
+    cta_clicks: int
+    instagram_clicks: int
+    signups: int
+    bookings: int
+    revenue: float
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
