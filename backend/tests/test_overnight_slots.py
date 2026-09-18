@@ -11,6 +11,7 @@ from app.models.user_role import UserRoleMapping
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
 from app.core.security import get_password_hash
+from app.core.time import now_ist
 from tests.conftest import auth_headers
 from app.main import app
 
@@ -78,7 +79,11 @@ async def test_overnight_hours_generate_correct_slots(db_session):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         
-        tomorrow = date.today() + timedelta(days=1)
+        # IST calendar date, not the runner's local/UTC date -- near IST
+        # midnight, UTC's "today" can lag a full day behind IST's, which
+        # made a post-midnight sessionDate computed from date.today() land
+        # in the past by the time now_ist() is checked server-side.
+        tomorrow = now_ist().date() + timedelta(days=1)
         
         booking_early = {
             "cafeId": str(cafe.id),
@@ -175,7 +180,11 @@ async def test_post_midnight_booking_locks_correct_date(db_session):
         gamer_headers = auth_headers(gamer)
         owner_headers = auth_headers(owner)
         
-        tomorrow = date.today() + timedelta(days=1)
+        # IST calendar date, not the runner's local/UTC date -- near IST
+        # midnight, UTC's "today" can lag a full day behind IST's, which
+        # made a post-midnight sessionDate computed from date.today() land
+        # in the past by the time now_ist() is checked server-side.
+        tomorrow = now_ist().date() + timedelta(days=1)
         
         midnight_booking = {
             "cafeId": str(cafe.id),
@@ -274,7 +283,11 @@ async def test_normal_hours_unaffected_regression(db_session):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         
-        tomorrow = date.today() + timedelta(days=1)
+        # IST calendar date, not the runner's local/UTC date -- near IST
+        # midnight, UTC's "today" can lag a full day behind IST's, which
+        # made a post-midnight sessionDate computed from date.today() land
+        # in the past by the time now_ist() is checked server-side.
+        tomorrow = now_ist().date() + timedelta(days=1)
         
         normal_booking = {
             "cafeId": str(cafe.id),
@@ -355,7 +368,11 @@ async def test_cancellation_window_overnight_booking(db_session):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         gamer_headers = auth_headers(gamer)
         
-        tomorrow = date.today() + timedelta(days=1)
+        # IST calendar date, not the runner's local/UTC date -- near IST
+        # midnight, UTC's "today" can lag a full day behind IST's, which
+        # made a post-midnight sessionDate computed from date.today() land
+        # in the past by the time now_ist() is checked server-side.
+        tomorrow = now_ist().date() + timedelta(days=1)
         
         midnight_booking = {
             "cafeId": str(cafe.id),

@@ -21,6 +21,7 @@ from app.models.hardware_tier import HardwareTier
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import Payment, PaymentStatus
 from app.core.security import get_password_hash
+from app.core.time import now_ist
 from tests.conftest import auth_headers
 from httpx import AsyncClient, ASGITransport
 
@@ -78,7 +79,11 @@ async def test_dashboard_earnings_exclude_pending_and_failed_bookings(db_session
     db_session.add(UserRoleMapping(id=uuid4(), user_id=gamer.id, role=UserRole.GAMER))
     await db_session.commit()
 
-    today = date.today()
+    # IST calendar date -- "revenue today" is computed server-side against
+    # IST, and date.today() (UTC) can already be a day behind it near IST
+    # midnight, which put this booking outside the "today" window it was
+    # meant to test.
+    today = now_ist().date()
 
     # Successfully paid booking today — must count.
     confirmed_booking = _make_booking(cafe, tier, gamer.id, BookingStatus.CONFIRMED, today, amount=150.0)
