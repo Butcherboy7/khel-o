@@ -8,22 +8,24 @@ interface SearchSuggestion {
   id: string;
   title: string;
   subtitle: string;
-  type: 'cafe' | 'city' | 'game' | 'tier';
+  type: 'cafe' | 'city' | 'game' | 'tier' | 'activity';
   cafeId?: string;
   filterValue?: string;
 }
 
 const COMMON_GAMES = ['Valorant', 'Counter-Strike 2', 'GTA V', 'EA FC 24', 'Cyberpunk 2077', 'Apex Legends'];
 const HARDWARE_TIERS = ['RTX 4090', 'RTX 4080 Super', 'RTX 4070', 'PS5 Console Lounge', 'GTX 1660 Budget'];
+const ACTIVITIES = ['PC', 'PS5', 'Xbox'];
 
 interface SearchBarProps {
   value: string;
   onChange: (val: string) => void;
   onSelectCity: (city: string) => void;
   onSelectTag: (tag: string) => void;
+  cities: string[];
 }
 
-export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSelectTag }: SearchBarProps) {
+export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSelectTag, cities }: SearchBarProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,6 +44,28 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
 
   if (value.trim()) {
     const queryLower = value.toLowerCase();
+
+    // City matches
+    cities.filter((c) => c.toLowerCase().includes(queryLower)).forEach((c) => {
+      suggestions.push({
+        id: `city-${c}`,
+        title: c,
+        subtitle: 'City',
+        type: 'city',
+        filterValue: c,
+      });
+    });
+
+    // Platform/activity matches (PS5, Xbox, PC — not everyone is here for a rig)
+    ACTIVITIES.filter((a) => a.toLowerCase().includes(queryLower)).forEach((a) => {
+      suggestions.push({
+        id: `activity-${a}`,
+        title: a,
+        subtitle: 'Platform',
+        type: 'activity',
+        filterValue: a,
+      });
+    });
 
     // Game matches
     COMMON_GAMES.filter((g) => g.toLowerCase().includes(queryLower)).forEach((g) => {
@@ -67,11 +91,14 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
   }
 
   const handleSelectSuggestion = (s: SearchSuggestion) => {
-    if (s.type === 'game' || s.type === 'tier') {
-      onSelectTag('PC Gaming');
-      onChange(s.title);
-    } else if (s.type === 'city') {
+    if (s.type === 'city') {
       onSelectCity(s.title);
+      onChange('');
+    } else if (s.type === 'activity') {
+      onSelectTag(s.title);
+      onChange('');
+    } else if (s.type === 'game' || s.type === 'tier') {
+      onChange(s.title);
     } else if (s.cafeId) {
       router.push(`/cafe/${s.cafeId}`);
     }
@@ -84,8 +111,8 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
         <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
         <input
           type="text"
-          aria-label="Search cafés, areas, games or hardware"
-          placeholder="Search cafés, areas, games or hardware (e.g. Valorant, RTX 4080)"
+          aria-label="Search cafés, cities, platforms or games"
+          placeholder="Search by city, café, PS5/Xbox/PC, or game"
           value={value}
           onFocus={() => setIsOpen(true)}
           onChange={(e) => {
@@ -114,7 +141,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
           when no game/tier keyword matches: the actual result count and
           empty state are handled by the café grid, not duplicated here. */}
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute top-14 left-0 right-0 z-dropdown rounded-3xl bg-card border border-border/80 shadow-overlay p-3 flex flex-col gap-1 max-h-72 overflow-y-auto animate-in fade-in">
+        <div className="absolute top-14 left-0 right-0 z-overlay rounded-3xl bg-card border border-border/80 shadow-overlay p-3 flex flex-col gap-1 max-h-72 overflow-y-auto animate-in fade-in">
           {suggestions.map((s) => (
               <button
                 key={s.id}
@@ -125,7 +152,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
                   <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     {s.type === 'game' ? (
                       <Gamepad2 className="h-4 w-4" />
-                    ) : s.type === 'tier' ? (
+                    ) : s.type === 'tier' || s.type === 'activity' ? (
                       <Monitor className="h-4 w-4" />
                     ) : (
                       <MapPin className="h-4 w-4" />

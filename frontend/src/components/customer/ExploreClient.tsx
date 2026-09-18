@@ -550,7 +550,8 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           value={searchQuery}
           onChange={setSearchQuery}
           onSelectCity={setSelectedCity}
-          onSelectTag={() => {}}
+          onSelectTag={(tag) => setPlatformFilter(tag as PlatformFilter)}
+          cities={SUPPORTED_CITIES}
         />
 
         {filterChipsRow}
