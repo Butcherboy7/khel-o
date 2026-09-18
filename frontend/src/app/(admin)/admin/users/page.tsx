@@ -12,8 +12,11 @@ import {
   Shield,
   ShieldOff,
   ShieldPlus,
+  KeyRound,
+  Copy,
+  Check,
 } from 'lucide-react';
-import { listAdminUsers, deactivateUser, activateUser, changeUserRole } from '@/lib/api/admin';
+import { listAdminUsers, deactivateUser, activateUser, changeUserRole, resetUserPassword } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
   Button,
@@ -97,6 +100,20 @@ export default function AdminUsersPage() {
   });
 
   const [confirmPromoteId, setConfirmPromoteId] = useState<string | null>(null);
+
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetReason, setResetReason] = useState('');
+  const [resetResult, setResetResult] = useState<{ email: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const resetPasswordMut = useMutation({
+    mutationFn: (vars: { userId: string; reason: string }) => resetUserPassword(vars.userId, vars.reason),
+    onSuccess: (res) => {
+      setResetResult({ email: res.user.email, password: res.temporaryPassword });
+      setResetTarget(null);
+      setResetReason('');
+    },
+  });
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -258,6 +275,15 @@ export default function AdminUsersPage() {
                         Promote
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => { setResetTarget(u); setResetReason(''); }}
+                      title="Set a new temporary password — use only when the account is locked out and can't receive a normal reset email"
+                      className="flex items-center gap-1 h-8 px-3 rounded-xl border border-border bg-surface text-xs font-semibold text-text-secondary hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-700 transition-colors whitespace-nowrap"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" />
+                      Reset password
+                    </button>
                   </div>
                 </div>
               );
@@ -292,6 +318,88 @@ export default function AdminUsersPage() {
               Confirm promotion
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!resetTarget}
+        onClose={() => { setResetTarget(null); setResetReason(''); }}
+        title="Reset password"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-caption text-text-secondary">
+            This immediately invalidates <span className="font-semibold text-text-primary">{resetTarget?.email}</span>&apos;s
+            current password and any pending self-serve reset link, replacing it with a new one shown to you once.
+            Use this only when the account is locked out and its email address can&apos;t receive a normal password-reset
+            email — otherwise use the account&apos;s own &ldquo;Forgot password&rdquo; flow instead.
+          </p>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-text-secondary">Reason (required, goes in the audit log)</span>
+            <textarea
+              value={resetReason}
+              onChange={(e) => setResetReason(e.target.value)}
+              rows={2}
+              placeholder="e.g. Onboarding placeholder account, dummy email unreachable, owner locked out"
+              className="px-3 py-2 rounded-xl border border-border bg-surface text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </label>
+          {resetPasswordMut.isError && (
+            <p className="text-xs text-error">{(resetPasswordMut.error as Error)?.message ?? 'Failed to reset password.'}</p>
+          )}
+          <div className="flex items-center gap-2 justify-end">
+            <Button variant="ghost" size="sm" onClick={() => { setResetTarget(null); setResetReason(''); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={!resetReason.trim() || resetPasswordMut.isPending}
+              isLoading={resetPasswordMut.isPending}
+              onClick={() => {
+                if (resetTarget) resetPasswordMut.mutate({ userId: resetTarget.id, reason: resetReason.trim() });
+              }}
+            >
+              Confirm reset
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!resetResult}
+        onClose={() => { setResetResult(null); setCopied(false); }}
+        title="New password generated"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-caption text-text-secondary">
+            Shown once — this is not stored anywhere and can&apos;t be retrieved again after you close this dialog.
+            Hand it off securely (never over an unencrypted channel) to whoever is completing the account handover.
+          </p>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-text-secondary">{resetResult?.email}</span>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 h-10 px-3 rounded-xl border border-border bg-surface-hover text-caption font-mono text-text-primary flex items-center overflow-x-auto">
+                {resetResult?.password}
+              </code>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  if (resetResult) {
+                    navigator.clipboard.writeText(resetResult.password);
+                    setCopied(true);
+                  }
+                }}
+                className="gap-1.5 flex-shrink-0"
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => { setResetResult(null); setCopied(false); }}>
+            Done
+          </Button>
         </div>
       </Modal>
     </div>

@@ -66,6 +66,10 @@ export async function changeUserRole(userId: string, role: UserRole): Promise<{ 
   return call(() => apiClient.patch(`/api/v1/admin/users/${userId}/role`, { role }));
 }
 
+export async function resetUserPassword(userId: string, reason: string): Promise<{ user: User; temporaryPassword: string }> {
+  return call(() => apiClient.post(`/api/v1/admin/users/${userId}/reset-password`, { reason }));
+}
+
 export async function listAdminBookings(params: AdminBookingListParams = {}): Promise<PaginatedResponse<BookingDetail>> {
   return call(() => apiClient.get('/api/v1/admin/bookings', { params }));
 }
