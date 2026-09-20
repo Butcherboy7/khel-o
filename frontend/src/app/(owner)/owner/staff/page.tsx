@@ -103,7 +103,7 @@ export default function OwnerStaffPage() {
 
   if (isLoading) {
     return (
-      <PageSpinner />
+      <PageSpinner showTip />
     );
   }
 

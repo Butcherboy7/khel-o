@@ -48,7 +48,7 @@ export default function OwnerPayoutsPage() {
 
   if (summaryQuery.isLoading || cafePayoutsQuery.isLoading) {
     return (
-      <PageSpinner />
+      <PageSpinner showTip />
     );
   }
 

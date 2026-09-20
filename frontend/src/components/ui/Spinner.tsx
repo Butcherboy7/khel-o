@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
@@ -5,7 +6,24 @@ interface PageSpinnerProps {
   /** Announced to screen readers while the page loads. */
   label?: string;
   className?: string;
+  /** Show a rotating gaming-themed loading line beneath the spinner. */
+  showTip?: boolean;
 }
+
+// One picked per mount, via useState's lazy initializer, so it doesn't
+// reshuffle every time the surrounding component re-renders.
+const LOADING_TIPS = [
+  'Respawning...',
+  'Loading next level...',
+  'Reticulating splines...',
+  'Charging ultimate...',
+  'Finding your squad...',
+  'Buffing your K/D ratio...',
+  'Grinding XP in the background...',
+  'Checking for a rage-quit near you...',
+  'Warming up the controllers...',
+  'Tuning the ping...',
+];
 
 /**
  * The one full-page loading indicator.
@@ -16,14 +34,21 @@ interface PageSpinnerProps {
  * border clashing with a rounded corner. One drawn icon, one accent token,
  * one accessible label.
  */
-export function PageSpinner({ label = 'Loading', className }: PageSpinnerProps) {
+export function PageSpinner({ label = 'Loading', className, showTip = false }: PageSpinnerProps) {
+  const [tip] = useState(() => LOADING_TIPS[Math.floor(Math.random() * LOADING_TIPS.length)]);
+
   return (
     <div
       role="status"
       aria-live="polite"
-      className={cn('flex min-h-[400px] items-center justify-center', className)}
+      className={cn('flex min-h-[400px] flex-col items-center justify-center gap-3', className)}
     >
       <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+      {showTip && (
+        <span className="text-caption text-text-tertiary" aria-hidden="true">
+          {tip}
+        </span>
+      )}
       <span className="sr-only">{label}</span>
     </div>
   );

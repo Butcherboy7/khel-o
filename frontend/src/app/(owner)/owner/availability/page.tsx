@@ -157,7 +157,7 @@ export default function OwnerAvailabilityPage() {
 
   if (isLoading && !data) {
     return (
-      <PageSpinner />
+      <PageSpinner showTip />
     );
   }
 

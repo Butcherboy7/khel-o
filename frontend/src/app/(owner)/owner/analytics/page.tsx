@@ -60,7 +60,7 @@ export default function OwnerAnalyticsPage() {
 
   if (isLoading) {
     return (
-      <PageSpinner />
+      <PageSpinner showTip />
     );
   }
 

@@ -283,7 +283,7 @@ export default function OwnerDashboardPage() {
 
   if (statusState.status === 'loading') {
     return (
-      <PageSpinner />
+      <PageSpinner showTip />
     );
   }
 
