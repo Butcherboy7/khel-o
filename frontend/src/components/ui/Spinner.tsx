@@ -13,16 +13,14 @@ interface PageSpinnerProps {
 // One picked per mount, via useState's lazy initializer, so it doesn't
 // reshuffle every time the surrounding component re-renders.
 const LOADING_TIPS = [
-  'Respawning...',
-  'Loading next level...',
-  'Reticulating splines...',
-  'Charging ultimate...',
-  'Finding your squad...',
-  'Buffing your K/D ratio...',
-  'Grinding XP in the background...',
-  'Checking for a rage-quit near you...',
-  'Warming up the controllers...',
-  'Tuning the ping...',
+  'Getting things ready...',
+  'Just a moment...',
+  'Setting the scene...',
+  'Almost there...',
+  'Warming things up...',
+  'Making sure everything checks out...',
+  'Good things take a second...',
+  'Fetching the latest...',
 ];
 
 /**

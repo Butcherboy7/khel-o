@@ -605,7 +605,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         {!isLoading && !isError && sortedCafes.length === 0 && (
           <EmptyState
             title="No gaming cafés found"
-            description={`No cafés match "${searchQuery || platformFilter}" in ${selectedCity}.`}
+            description={`No cafés match "${searchQuery || platformFilter}" in ${selectedCity}. Try a different search, or explore what's nearby instead.`}
             actionLabel="Clear All Filters"
             onAction={handleResetFilters}
           />

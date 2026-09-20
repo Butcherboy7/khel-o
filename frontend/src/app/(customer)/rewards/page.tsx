@@ -107,6 +107,12 @@ export default function RewardsPage() {
               />
             </div>
           </div>
+
+          {(data?.completedBookings ?? 0) === 0 && (
+            <p className="text-caption text-white/70 pt-0.5">
+              Book your first session to start earning XP and unlocking badges.
+            </p>
+          )}
         </CardContent>
       </Card>
 
