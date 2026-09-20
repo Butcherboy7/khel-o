@@ -167,9 +167,16 @@ async def create_test_user(
 
 @pytest_asyncio.fixture
 async def db_session():
-    """Create a fresh database session for each test against test database."""
-    async with TestAsyncSessionLocal() as session:
-        yield session
+    """Create a fresh database session for each test against test database.
+
+    Uses a savepoint to ensure test isolation: even if the test commits changes,
+    the savepoint rollback will undo them for the next test.
+    """
+    async with test_engine.begin() as conn:
+        trans = await conn.begin_nested()
+        async with TestAsyncSessionLocal(bind=conn) as session:
+            yield session
+        await trans.rollback()
 
 @pytest_asyncio.fixture
 async def async_client():
