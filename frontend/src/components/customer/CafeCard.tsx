@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
 import { MapPin, Star, Zap, ArrowRight } from 'lucide-react';
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
@@ -62,54 +61,11 @@ export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps)
 
   // Real photos only — a café with none gets the branded gradient fallback
   // below, never a stock photo of an unrelated venue standing in as "its" photo.
-  const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos : [];
-
-  const [photoIndex, setPhotoIndex] = useState(0);
-  const touchStartXRef = useRef<number | null>(null);
-  const didSwipeRef = useRef(false);
-
-  // Auto-rotate through the café's photos. Gated on prefers-reduced-motion
-  // this time — the earlier version of this animated every card on the grid
-  // with no such guard, which was the actual problem, not the rotation itself.
-  useEffect(() => {
-    if (photosList.length <= 1) return;
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return;
-    }
-    const id = setInterval(() => {
-      setPhotoIndex((i) => (i + 1) % photosList.length);
-    }, 4000);
-    return () => clearInterval(id);
-  }, [photosList.length]);
-
-  const currentPhoto = photosList[photoIndex] ?? photosList[0];
-
-  const handlePhotoTouchStart = (e: React.TouchEvent) => {
-    touchStartXRef.current = e.touches[0].clientX;
-    didSwipeRef.current = false;
-  };
-
-  const handlePhotoTouchEnd = (e: React.TouchEvent) => {
-    const startX = touchStartXRef.current;
-    touchStartXRef.current = null;
-    if (startX == null || photosList.length <= 1) return;
-    const deltaX = e.changedTouches[0].clientX - startX;
-    if (Math.abs(deltaX) < 30) return;
-    didSwipeRef.current = true;
-    setPhotoIndex((i) => {
-      const next = deltaX < 0 ? i + 1 : i - 1;
-      return (next + photosList.length) % photosList.length;
-    });
-  };
-
-  // A swipe that just changed the photo shouldn't also navigate the card's
-  // wrapping Link to the café detail page.
-  const handleCardClick = (e: React.MouseEvent) => {
-    if (didSwipeRef.current) {
-      e.preventDefault();
-      didSwipeRef.current = false;
-    }
-  };
+  // The owner picks which one shows here by ordering their photos in
+  // Café Settings — that first photo is the cover, and only it ever
+  // renders. No rotation, no swipe: the card shows one deliberate photo,
+  // not whichever one a timer landed on.
+  const coverPhoto = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0] : null;
 
   const isLead = cafe.isLeadListing === true;
   // The one real, non-fabricated signal that makes a café "the launch café":
@@ -171,7 +127,7 @@ export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps)
         />
       )}
 
-      <Link href={`/cafe/${cafe.id}`} className="relative block h-full group" onClick={handleCardClick}>
+      <Link href={`/cafe/${cafe.id}`} className="relative block h-full group">
       <Card
         interactive
         elevation="resting"
@@ -202,14 +158,11 @@ export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps)
         <CardImage
           aspectClass="aspect-[2/1] sm:aspect-[16/9]"
           className="relative w-full flex-shrink-0"
-          onTouchStart={photosList.length > 1 ? handlePhotoTouchStart : undefined}
-          onTouchEnd={photosList.length > 1 ? handlePhotoTouchEnd : undefined}
         >
-          {currentPhoto ? (
+          {coverPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              key={currentPhoto.url}
-              src={currentPhoto.url}
+              src={coverPhoto.url}
               alt={cafe.name}
               className="block h-full w-full object-cover object-center transition-all duration-700 group-hover:scale-105"
               loading={isLive ? 'eager' : 'lazy'}
@@ -252,18 +205,6 @@ export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps)
             )}
           </div>
 
-          {photosList.length > 1 && (
-            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1 z-10 pointer-events-none">
-              {photosList.map((p, i) => (
-                <span
-                  key={p.url}
-                  className={`h-1 rounded-full transition-all duration-300 ${
-                    i === photoIndex ? 'w-3 bg-white' : 'w-1 bg-white/50'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
         </CardImage>
 
         {/* Card Body — one scan-line per fact, so two cards can be compared

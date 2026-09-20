@@ -49,7 +49,9 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
 
       <footer className="border-t border-border bg-card">
         <div className="mx-auto max-w-content px-4 py-6 md:px-6 flex flex-wrap items-center justify-between gap-4">
-          <span className="text-caption text-text-secondary">© {new Date().getFullYear()} KHEL-O. All rights reserved.</span>
+          <span className="text-caption text-text-secondary">
+            © {new Date().getFullYear()} KHEL-O. All rights reserved. Made with ❤️ in Hyderabad
+          </span>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {LEGAL_LINKS.map((link) => (
               <Link

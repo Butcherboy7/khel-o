@@ -9,8 +9,23 @@ import { BookingCard } from '@/components/customer/BookingCard';
 import { SkeletonBookingRow, ErrorState, EmptyState, Button } from '@/components/ui';
 import type { BookingStatus } from '@/types';
 
+// Only for the true "no bookings ever" empty state (the 'all' tab) — a
+// filtered tab like "no cancelled bookings" isn't the moment for a joke,
+// that's just a normal, boring, good outcome. One is picked per mount via
+// useState's lazy initializer so it doesn't reshuffle on every re-render.
+const NO_BOOKINGS_LINES = [
+  "Your booking history is emptier than a café at 6 AM on a Monday.",
+  "Achievement unlocked: Professional Not-Booking-Anything.",
+  "This tab is quieter than a controller with dead batteries.",
+  "404: Bookings not found. Your gaming era hasn't started yet.",
+  "Even NPCs have more scheduled activities than this right now.",
+];
+
 export default function BookingsListPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [noBookingsLine] = useState(
+    () => NO_BOOKINGS_LINES[Math.floor(Math.random() * NO_BOOKINGS_LINES.length)]
+  );
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.bookings.list({
@@ -94,7 +109,7 @@ export default function BookingsListPage() {
             description={
               selectedStatus !== 'all'
                 ? `You don't have any ${selectedStatus.replace('_', ' ')} bookings.`
-                : "You haven't booked any gaming stations yet. Explore verified cafés near you to get started."
+                : noBookingsLine
             }
             icon={<CalendarX className="h-7 w-7 text-primary" />}
             actionLabel="Explore Gaming Cafés"

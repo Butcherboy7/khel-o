@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, type FormEvent } from 'react';
-import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff, ExternalLink } from 'lucide-react';
+import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff, ExternalLink, Star } from 'lucide-react';
 import { Modal, Button, Input, Textarea } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings, type CafePhoto } from '@/lib/api/settings';
 import { getAmenityDisplay } from '@/lib/amenities';
@@ -315,6 +315,21 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
     }
   };
 
+  // The home/listing card shows only photos[0] — no rotation, no swipe.
+  // This is the one-click path to that slot instead of clicking "move up"
+  // repeatedly from wherever a photo happens to sit in the grid.
+  const setAsCover = async (idx: number) => {
+    if (idx <= 0) return;
+    const updated = [...photos];
+    const [photo] = updated.splice(idx, 1);
+    updated.unshift(photo);
+    try {
+      await persistPhotos(updated);
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to set cover photo');
+    }
+  };
+
   const handleAmenitiesSave = async () => {
     setAmenitiesSaving(true);
     setAmenitiesError(null);
@@ -568,9 +583,20 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                               {idx > 0 && (
                                 <button
                                   type="button"
+                                  onClick={() => setAsCover(idx)}
+                                  className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-primary"
+                                  aria-label="Set as cover photo"
+                                  title="Set as cover photo"
+                                >
+                                  <Star className="h-4 w-4" />
+                                </button>
+                              )}
+                              {idx > 0 && (
+                                <button
+                                  type="button"
                                   onClick={() => movePhoto(idx, -1)}
                                   className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-text-primary"
-                                  aria-label="Move earlier / make cover"
+                                  aria-label="Move earlier"
                                 >
                                   <ChevronUp className="h-4 w-4" />
                                 </button>
@@ -636,7 +662,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                 }}
               />
               <p className="text-caption text-text-secondary">
-                JPEG, PNG, or WebP — up to {MAX_PHOTO_MB}MB each. First photo overall is the cover shown on listings.
+                JPEG, PNG, or WebP — up to {MAX_PHOTO_MB}MB each. Tap the star on any photo to set it as the cover — the only photo shown on the home screen and listing cards.
               </p>
             </div>
 

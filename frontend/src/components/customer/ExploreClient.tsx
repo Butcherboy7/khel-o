@@ -653,6 +653,9 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         <p className="text-overline text-text-tertiary">
           © {new Date().getFullYear()} KHEL-O. All rights reserved.
         </p>
+        <p className="text-overline text-text-tertiary">
+          Made with ❤️ in Hyderabad
+        </p>
       </footer>
     </div>
   );
