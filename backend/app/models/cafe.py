@@ -27,6 +27,11 @@ class Cafe(Base):
     city: Mapped[str] = mapped_column(String(100), nullable=False)
     state: Mapped[str] = mapped_column(String(100), nullable=False)
     pincode: Mapped[str] = mapped_column(String(10), nullable=False)
+    # Nullable FK into the owner-populated locations picklist (see
+    # app/models/location.py). city/state/pincode above stay the source of
+    # truth for discovery filtering; this just links a café to the
+    # normalized location record it was created/edited from, where known.
+    location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     google_maps_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

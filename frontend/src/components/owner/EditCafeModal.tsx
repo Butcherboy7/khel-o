@@ -5,8 +5,7 @@ import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, Che
 import { Modal, Button, Input, Textarea } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings, type CafePhoto } from '@/lib/api/settings';
 import { getAmenityDisplay } from '@/lib/amenities';
-import { CITIES_BY_STATE } from '@/constants/cities';
-import { INDIAN_STATES } from '@/constants/states';
+import { LocationSearchInput, type SelectedLocation } from '@/components/ui/LocationSearchInput';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 import { PHOTO_CATEGORIES } from '@/constants/photoCategories';
 
@@ -59,6 +58,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
   const [city, setCity] = useState(settings.city);
   const [state, setState] = useState(settings.state);
   const [pincode, setPincode] = useState(settings.pincode);
+  const [locationId, setLocationId] = useState<number | null>(settings.locationId);
   const [basicSaving, setBasicSaving] = useState(false);
   const [basicError, setBasicError] = useState<string | null>(null);
   const [basicSaved, setBasicSaved] = useState(false);
@@ -123,8 +123,8 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
     setBasicSaving(true);
     setBasicError(null);
     try {
-      await updateCafeDetails(cafeId, { name, description, phoneNumber, addressLine1, city, state, pincode });
-      onSaved({ cafeName: name, description, phoneNumber, addressLine1, city, state, pincode });
+      await updateCafeDetails(cafeId, { name, description, phoneNumber, addressLine1, city, state, pincode, locationId: locationId ?? undefined });
+      onSaved({ cafeName: name, description, phoneNumber, addressLine1, city, state, pincode, locationId });
       setBasicSaved(true);
       setTimeout(() => setBasicSaved(false), 2500);
     } catch (err: unknown) {
@@ -379,46 +379,16 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
             />
             <Input label="Phone Number" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
             <Input label="Address" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} required />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-caption font-semibold text-text-primary">State</label>
-                <select
-                  value={state}
-                  onChange={(e) => {
-                    setState(e.target.value);
-                    setCity('');
-                  }}
-                  className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                  required
-                >
-                  <option value="">Select State</option>
-                  {INDIAN_STATES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                  {state && !INDIAN_STATES.includes(state) && (
-                    <option value={state}>{state} (unsupported — please re-select)</option>
-                  )}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-caption font-semibold text-text-primary">City</label>
-                <select
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:opacity-50"
-                  required
-                  disabled={!state}
-                >
-                  <option value="">{state ? 'Select City' : 'Select a state first'}</option>
-                  {(CITIES_BY_STATE[state] ?? []).map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                  {city && !(CITIES_BY_STATE[state] ?? []).includes(city) && (
-                    <option value={city}>{city} (unsupported — please re-select)</option>
-                  )}
-                </select>
-              </div>
-            </div>
+            <LocationSearchInput
+              label="City / Town"
+              value={locationId ? { id: locationId, name: city, state, district: null, pincode: pincode || null } : null}
+              onChange={(loc: SelectedLocation) => {
+                setLocationId(loc.id);
+                setCity(loc.name);
+                setState(loc.state);
+                if (loc.pincode) setPincode(loc.pincode);
+              }}
+            />
             <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} required />
             <SaveRow saving={basicSaving} saved={basicSaved} label="Save Basic Info" />
           </form>

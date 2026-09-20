@@ -19,6 +19,7 @@ export interface OwnerSettings {
   city: string;
   state: string;
   pincode: string;
+  locationId: number | null;
   amenities: string[];
   photos: CafePhoto[];
   menuPhotos: string[];
@@ -79,6 +80,7 @@ export interface CafeDetailsUpdateParams {
   city?: string;
   state?: string;
   pincode?: string;
+  locationId?: number;
   phoneNumber?: string;
   email?: string;
   amenities?: string[];

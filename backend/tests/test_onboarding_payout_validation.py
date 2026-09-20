@@ -115,3 +115,77 @@ async def test_invalid_business_pan_format_rejected():
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
         assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_non_numeric_bank_account_number_rejected():
+    """The Field(min_length=8, max_length=18) bound alone let a
+    non-numeric 'account number' (e.g. "abcdefgh") through, even though the
+    frontend's /^\\d{8,18}$/ check would have rejected it outright — a
+    frontend/backend disagreement on the payout destination itself."""
+    headers = await _make_gamer_and_headers("nonnumeric_bank")
+    payload = _base_payload(
+        bankAccountNumber="abcdefgh",
+        confirmBankAccountNumber="abcdefgh",
+        bankIfsc="HDFC0000128",
+        accountHolderName="Test Owner",
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+        assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_single_char_account_holder_name_rejected():
+    headers = await _make_gamer_and_headers("short_holder")
+    payload = _base_payload(
+        bankAccountNumber="123456789012",
+        confirmBankAccountNumber="123456789012",
+        bankIfsc="HDFC0000128",
+        accountHolderName="X",
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+        assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_invalid_phone_number_format_rejected():
+    """Backend only bounded phone_number by max_length, accepting any
+    non-empty string — a mismatch with the frontend's
+    /^\\+91[6-9]\\d{9}$/ check on Step 2."""
+    headers = await _make_gamer_and_headers("bad_phone")
+    payload = _base_payload(phoneNumber="12345")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+        assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_invalid_email_format_rejected():
+    """email is optional but, like the frontend, must look like an email
+    when supplied."""
+    headers = await _make_gamer_and_headers("bad_email")
+    payload = _base_payload(email="not-an-email")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+        assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_valid_upi_and_bank_details_succeeds():
+    headers = await _make_gamer_and_headers("valid_upi_and_bank")
+    payload = _base_payload(
+        bankAccountNumber="123456789012",
+        confirmBankAccountNumber="123456789012",
+        bankIfsc="HDFC0000128",
+        accountHolderName="Test Owner",
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+        assert res.status_code == 200, res.text

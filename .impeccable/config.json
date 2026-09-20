@@ -55,7 +55,7 @@
           "frontend/src/app/(owner)/owner/onboarding/page.tsx"
         ],
         "createdAt": "2026-09-15T13:11:05.824Z",
-        "reason": "text-slate-950 (near-black) on bg-emerald-500 is high-contrast, not gray-on-color; hook misreads slate-950 as gray"
+        "reason": "text-slate-950 (near-black) on bg-emerald-500 is strong contrast, not washed-out gray; hook pattern-matches 'slate' as gray-family without checking lightness. Pre-existing code, not touched this session."
       }
     ]
   }

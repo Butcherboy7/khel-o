@@ -120,6 +120,7 @@ class OnboardingSubmitRequest(BaseModel):
     city: str = Field(..., max_length=100)
     state: str = Field(..., max_length=100)
     pincode: str = Field(..., max_length=10)
+    location_id: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     google_maps_url: Optional[str] = None
@@ -131,6 +132,29 @@ class OnboardingSubmitRequest(BaseModel):
     @classmethod
     def _validate_city(cls, v: str) -> str:
         return validate_city(v)
+
+    @field_validator("phone_number")
+    @classmethod
+    def _validate_phone_number(cls, v: str) -> str:
+        # Mirrors the frontend's /^\+91[6-9]\d{9}$/ check (onboarding/page.tsx) —
+        # the Field(max_length=20) above only bounded length, so the API
+        # previously accepted any non-empty string as a "phone number".
+        v = v.strip()
+        if not re.match(r"^\+91[6-9]\d{9}$", v):
+            raise ValueError("Please enter a valid Indian mobile number (+91 XXXXX XXXXX).")
+        return v
+
+    @field_validator("email")
+    @classmethod
+    def _validate_email(cls, v: Optional[str]) -> Optional[str]:
+        # Mirrors the frontend's /^[^\s@]+@[^\s@]+\.[^\s@]+$/ check — email
+        # stays optional, but when supplied it must actually look like one.
+        if not v:
+            return v
+        v = v.strip()
+        if not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", v):
+            raise ValueError("Please enter a valid email address.")
+        return v
 
     @field_validator("google_maps_url")
     @classmethod
@@ -183,6 +207,31 @@ class OnboardingSubmitRequest(BaseModel):
         v = v.strip().upper()
         if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", v):
             raise ValueError("Business PAN must be a valid 10-character PAN (e.g. ABCDE1234F).")
+        return v
+
+    @field_validator("bank_account_number")
+    @classmethod
+    def _validate_bank_account_number(cls, v: Optional[str]) -> Optional[str]:
+        # Mirrors the frontend's /^\d{8,18}$/ check (onboarding/page.tsx) —
+        # the Field(min_length=8, max_length=18) above only bounded length,
+        # so the API previously accepted a non-numeric "account number" that
+        # the frontend would have rejected outright.
+        if not v:
+            return v
+        v = v.strip()
+        if not re.match(r"^\d{8,18}$", v):
+            raise ValueError("Bank account number must be 8-18 digits.")
+        return v
+
+    @field_validator("account_holder_name")
+    @classmethod
+    def _validate_account_holder_name(cls, v: Optional[str]) -> Optional[str]:
+        # Mirrors the frontend's "at least 2 characters" check.
+        if not v:
+            return v
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError("Account holder name must be at least 2 characters.")
         return v
 
     @field_validator("bank_ifsc")
@@ -269,6 +318,7 @@ async def get_owner_settings(
         "city": cafe.city,
         "state": cafe.state,
         "pincode": cafe.pincode,
+        "locationId": cafe.location_id,
         "amenities": cafe.amenities or [],
         "photos": cafe.photos or [],
         "menuPhotos": cafe.menu_photos or [],
@@ -723,6 +773,7 @@ async def submit_onboarding_application(
             city=payload.city,
             state=payload.state,
             pincode=payload.pincode,
+            location_id=payload.location_id,
             latitude=payload.latitude,
             longitude=payload.longitude,
             google_maps_url=payload.google_maps_url,
@@ -753,6 +804,7 @@ async def submit_onboarding_application(
         cafe.city = payload.city
         cafe.state = payload.state
         cafe.pincode = payload.pincode
+        if payload.location_id: cafe.location_id = payload.location_id
         if payload.latitude: cafe.latitude = payload.latitude
         if payload.longitude: cafe.longitude = payload.longitude
         if payload.google_maps_url: cafe.google_maps_url = payload.google_maps_url
@@ -1979,6 +2031,7 @@ class CafeDetailsUpdate(BaseModel):
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=100)
     pincode: Optional[str] = Field(None, max_length=10)
+    location_id: Optional[int] = None
     phone_number: Optional[str] = Field(None, max_length=20)
     email: Optional[str] = None
     amenities: Optional[List[str]] = None
@@ -2279,6 +2332,8 @@ async def update_cafe_details(
         cafe.state = payload.state
     if payload.pincode is not None:
         cafe.pincode = payload.pincode
+    if payload.location_id is not None:
+        cafe.location_id = payload.location_id
     if payload.phone_number is not None:
         cafe.phone_number = payload.phone_number
     if payload.email is not None:

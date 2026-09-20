@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Store,
@@ -21,8 +21,7 @@ import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } 
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, NumericField, Textarea, Card, CardContent, Badge } from '@/components/ui';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
-import { INDIAN_STATES } from '@/constants/states';
-import { CITIES_BY_STATE } from '@/constants/cities';
+import { LocationSearchInput, type SelectedLocation } from '@/components/ui/LocationSearchInput';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import { PLATFORMS, PLATFORM_MODELS } from '@/constants/platforms';
 import type { Platform } from '@/constants/platforms';
@@ -39,6 +38,7 @@ interface OnboardingState {
   city: string;
   state: string;
   pincode: string;
+  locationId: number | null;
   latitude: number | null;
   longitude: number | null;
   googleMapsUrl: string;
@@ -76,6 +76,7 @@ const INITIAL_STATE: OnboardingState = {
   city: '',
   state: '',
   pincode: '',
+  locationId: null,
   latitude: null,
   longitude: null,
   googleMapsUrl: '',
@@ -114,6 +115,13 @@ export default function OnboardingWizardPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
+  const [step2Errors, setStep2Errors] = useState<Record<string, string>>({});
+  const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
+  // First-invalid-field focus target for Step 1: a plain ref map (not
+  // per-field useRef calls) since the set of fields is static and known
+  // up front, so one map covers all of them without extra hooks.
+  const step1FieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
   const [showBankFallback, setShowBankFallback] = useState(false);
   const [customGameInput, setCustomGameInput] = useState<Record<string, string>>({});
   const [agreedToOwnerTerms, setAgreedToOwnerTerms] = useState(false);
@@ -163,8 +171,28 @@ export default function OnboardingWizardPage() {
   }, []);
 
   const updateField = (field: keyof OnboardingState, value: any) => {
-    const updated = { ...formData, [field]: value };
-    setFormData(updated);
+    // Functional update, not a spread off the render-scoped `formData`
+    // closure: two updateField calls fired synchronously in the same
+    // handler (e.g. the GST Yes/No buttons below) previously both spread
+    // from that same stale snapshot, so the second setFormData clobbered
+    // the first field change and the click appeared to do nothing.
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const clearStep1Error = (field: string) => {
+    setStep1Errors((prev) => {
+      if (!(field in prev)) return prev;
+      const { [field]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const clearStep3Error = (field: string) => {
+    setStep3Errors((prev) => {
+      if (!(field in prev)) return prev;
+      const { [field]: _removed, ...rest } = prev;
+      return rest;
+    });
   };
 
   const addCustomGame = (platform: string) => {
@@ -193,83 +221,135 @@ export default function OnboardingWizardPage() {
   const handleNext = async () => {
     setError(null);
     
-    // Step 1: Basic validation
+    // Step 1: Basic validation. Same required set as before (name,
+    // addressLine1, city, state, pincode) — just reported per-field instead
+    // of as one top-level "some field is wrong" banner, since the review
+    // specifically flagged the pincode error rendering at the top of the
+    // page instead of next to the Pincode input.
     if (step === 1) {
-      if (!formData.name || !formData.addressLine1 || !formData.city || !formData.state || !formData.pincode) {
-        setError('Please complete all required business identity, address, and pincode fields.');
+      const errors: Record<string, string> = {};
+
+      if (!formData.name) {
+        errors.name = 'Café name is required.';
+      } else if (formData.name.trim().length < 2) {
+        errors.name = 'Café Name must be at least 2 characters long.';
+      }
+      if (!formData.addressLine1) {
+        errors.addressLine1 = 'Address Line 1 is required.';
+      }
+      // Optional field, but validated when provided — GOOGLE_MAPS_URL_PATTERN
+      // was imported but never actually checked anywhere, so a garbage URL
+      // used to sail through Step 1 and only fail at final submit (the
+      // backend's validate_google_maps_url 422s on it there).
+      if (formData.googleMapsUrl && !GOOGLE_MAPS_URL_PATTERN.test(formData.googleMapsUrl)) {
+        errors.googleMapsUrl = 'Please enter a valid Google Maps link (e.g. https://maps.app.goo.gl/...).';
+      }
+      if (!formData.city || !formData.state) {
+        errors.city = 'Please search and select your city or town.';
+      }
+      if (!formData.pincode) {
+        errors.pincode = 'Pincode is required.';
+      } else if (!/^\d{6}$/.test(formData.pincode)) {
+        errors.pincode = 'Please enter a valid 6-digit Indian pincode.';
+      }
+
+      setStep1Errors(errors);
+      if (Object.keys(errors).length > 0) {
+        setError('Please fix the highlighted fields before continuing.');
+        const fieldOrder = ['name', 'googleMapsUrl', 'addressLine1', 'pincode'];
+        const firstInvalidField = fieldOrder.find((f) => errors[f]);
+        const el = firstInvalidField ? step1FieldRefs.current[firstInvalidField] : null;
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el?.focus();
         return;
       }
-      if (formData.name.trim().length < 2) {
-        setError('Café Name must be at least 2 characters long.');
-        return;
-      }
-      if (!/^\d{6}$/.test(formData.pincode)) {
-        setError('Please enter a valid 6-digit Indian pincode.');
-        return;
-      }
+    } else if (Object.keys(step1Errors).length > 0) {
+      setStep1Errors({});
     }
     
-    // Step 2: Business verification
+    // Step 2: Business verification. Required-field policy mirrors the
+    // backend's OnboardingSubmitRequest (owner.py): phone_number is the only
+    // field declared with `...` (required) there — email, businessPan,
+    // legalDocumentUrl stay optional, and gstin is only required when
+    // hasGst is set. Enforcing this here (not just formatting it when
+    // present) closes the gap where "Next Step" advanced past Step 2 with
+    // no phone number, which the final submit silently papered over with a
+    // hardcoded placeholder number (see handleSubmit below).
     if (step === 2) {
-      if (formData.phoneNumber && !/^\+91[6-9]\d{9}$/.test(formData.phoneNumber)) {
-        setError('Please enter a valid Indian mobile number (+91 XXXXX XXXXX).');
-        return;
+      const errors: Record<string, string> = {};
+
+      if (!formData.phoneNumber) {
+        errors.phoneNumber = 'Business contact phone number is required.';
+      } else if (!/^\+91[6-9]\d{9}$/.test(formData.phoneNumber)) {
+        errors.phoneNumber = 'Please enter a valid Indian mobile number (+91 XXXXX XXXXX).';
       }
+
       if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        setError('Please enter a valid email address.');
-        return;
+        errors.email = 'Please enter a valid email address.';
       }
+
       if (formData.businessPan) {
         const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
         if (!panRegex.test(formData.businessPan.toUpperCase())) {
-          setError('Please enter a valid 10-character Business PAN format (e.g. ABCDE1234F).');
-          return;
+          errors.businessPan = 'Please enter a valid 10-character Business PAN format (e.g. ABCDE1234F).';
         }
       }
+
       if (formData.hasGst && !formData.gstin) {
-        setError('GSTIN is required when you have GST registration.');
-        return;
-      }
-      if (formData.hasGst && formData.gstin) {
+        errors.gstin = 'GSTIN is required when you have GST registration.';
+      } else if (formData.hasGst && formData.gstin) {
         const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
         if (!GSTIN_REGEX.test(formData.gstin.toUpperCase())) {
-          setError('Please enter a valid 15-character GSTIN (e.g. 29ABCDE1234F1Z5).');
-          return;
+          errors.gstin = 'Please enter a valid 15-character GSTIN (e.g. 29ABCDE1234F1Z5).';
         }
       }
-    }
 
-    // Step 3: Payout Details (UPI required, bank fallback optional)
-    if (step === 3) {
-      const upiRegex = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
-      if (!formData.upiVpa || !upiRegex.test(formData.upiVpa)) {
-        setError('Please enter a valid UPI ID (e.g. yourname@okhdfcbank).');
+      setStep2Errors(errors);
+      if (Object.keys(errors).length > 0) {
+        setError('Please fix the highlighted fields before continuing.');
         return;
       }
-      if (formData.upiVpa.trim().toLowerCase() !== formData.confirmUpiVpa.trim().toLowerCase()) {
-        setError('UPI ID and confirmation do not match.');
-        return;
+    } else if (Object.keys(step2Errors).length > 0) {
+      setStep2Errors({});
+    }
+
+    // Step 3: Payout Details. UPI is the only required payout method — the
+    // bank fallback fields stay genuinely optional (validated only if any
+    // of them were filled in), matching both this screen's own copy ("Add
+    // bank details (optional...)") and the backend's model_validator
+    // (owner.py's bank_fields_given check).
+    if (step === 3) {
+      const errors: Record<string, string> = {};
+      const upiRegex = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
+
+      if (!formData.upiVpa || !upiRegex.test(formData.upiVpa)) {
+        errors.upiVpa = 'Please enter a valid UPI ID (e.g. yourname@okhdfcbank).';
+      } else if (formData.upiVpa.trim().toLowerCase() !== formData.confirmUpiVpa.trim().toLowerCase()) {
+        errors.confirmUpiVpa = 'UPI ID and confirmation do not match.';
       }
 
       const bankFieldsGiven = !!(formData.accountHolderName || formData.bankAccountNumber || formData.bankIfsc);
       if (bankFieldsGiven) {
         if (!formData.accountHolderName || formData.accountHolderName.trim().length < 2) {
-          setError('Account holder name must be at least 2 characters.');
-          return;
+          errors.accountHolderName = 'Account holder name must be at least 2 characters.';
         }
         if (!/^\d{8,18}$/.test(formData.bankAccountNumber)) {
-          setError('Bank account number must be 8-18 digits.');
-          return;
-        }
-        if (formData.bankAccountNumber !== formData.confirmBankAccountNumber) {
-          setError('Bank account number and confirmation do not match.');
-          return;
+          errors.bankAccountNumber = 'Bank account number must be 8-18 digits.';
+        } else if (formData.bankAccountNumber !== formData.confirmBankAccountNumber) {
+          errors.confirmBankAccountNumber = 'Bank account number and confirmation do not match.';
         }
         if (!formData.bankIfsc || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(formData.bankIfsc.toUpperCase())) {
-          setError('Please enter a valid Bank IFSC code (e.g. HDFC0000128).');
-          return;
+          errors.bankIfsc = 'Please enter a valid Bank IFSC code (e.g. HDFC0000128).';
         }
       }
+
+      setStep3Errors(errors);
+      if (Object.keys(errors).length > 0) {
+        setError('Please fix the highlighted fields before continuing.');
+        return;
+      }
+    } else if (Object.keys(step3Errors).length > 0) {
+      setStep3Errors({});
     }
 
     // Step 4: Hardware tiers. INITIAL_STATE seeds an empty array (this used
@@ -292,7 +372,15 @@ export default function OnboardingWizardPage() {
     const nextStep = Math.min(step + 1, 6);
     setStep(nextStep);
     try {
-      await saveOnboardingDraft(nextStep, formData);
+      // Payout fields are deliberately excluded from the server-persisted
+      // draft: the final submit already stores them properly (encrypted
+      // bank account number, masked on every later read — see
+      // OwnerPayoutAccount), but this autosave blob is a plain JSON column
+      // (Cafe.draft_data) that round-trips verbatim through GET
+      // /onboarding/draft on every reload. Back/Next within this session is
+      // unaffected — that's plain React state, not this payload.
+      const { upiVpa, confirmUpiVpa, bankAccountNumber, confirmBankAccountNumber, bankIfsc, accountHolderName, ...draftSafeFields } = formData;
+      await saveOnboardingDraft(nextStep, draftSafeFields);
     } catch {
       // Ignore draft save error
     }
@@ -344,10 +432,11 @@ export default function OnboardingWizardPage() {
         city: formData.city,
         state: formData.state,
         pincode: formData.pincode || '560001',
+        locationId: formData.locationId,
         latitude: formData.latitude,
         longitude: formData.longitude,
         googleMapsUrl: formData.googleMapsUrl || undefined,
-        phoneNumber: formData.phoneNumber || user?.phoneNumber || '+919876543210',
+        phoneNumber: formData.phoneNumber,
         email: formData.email || user?.email,
         openingTime: formatTimeString(formData.openingTime),
         closingTime: formatTimeString(formData.closingTime),
@@ -366,7 +455,13 @@ export default function OnboardingWizardPage() {
         confirmBankAccountNumber: formData.bankAccountNumber ? formData.confirmBankAccountNumber : undefined,
         bankAccountNumber: formData.bankAccountNumber || undefined,
         bankIfsc: formData.bankIfsc || undefined,
-        accountHolderName: formData.accountHolderName || user?.fullName || undefined,
+        // Gated the same as the other bank fields above: falling back to
+        // user?.fullName unconditionally (regardless of whether bank
+        // details were entered) made this the only bank field that stayed
+        // truthy for a UPI-only owner, which flipped the backend's
+        // bank_fields_given check to true and 422'd with "missing: bank
+        // account number, bank IFSC" even though bank details are optional.
+        accountHolderName: formData.bankAccountNumber ? (formData.accountHolderName || user?.fullName || undefined) : undefined,
         cancellationPolicy: formData.cancellationPolicy,
         houseRules: formData.houseRules,
         socialLinks: { instagram: formData.instagram, discord: formData.discord },
@@ -540,15 +635,20 @@ export default function OnboardingWizardPage() {
                 </div>
 
                 <Input
+                  ref={(el) => { step1FieldRefs.current.name = el; }}
                   label="Café Name *"
                   placeholder="e.g. Velocity Esports Lounge"
                   value={formData.name}
-                  onChange={(e) => updateField('name', e.target.value)}
+                  onChange={(e) => {
+                    updateField('name', e.target.value);
+                    clearStep1Error('name');
+                  }}
+                  error={step1Errors.name}
                   required
                 />
 
                 <Textarea
-                  label="Café Description"
+                  label="Café Description (Optional)"
                   placeholder="Describe your PC specs, gaming vibe, food options, or tournament setups..."
                   value={formData.description}
                   onChange={(e) => updateField('description', e.target.value)}
@@ -563,17 +663,27 @@ export default function OnboardingWizardPage() {
                     Open Google Maps, search your café, tap Share → Copy link, and paste it here. You can add this later from Settings.
                   </p>
                   <Input
+                    ref={(el) => { step1FieldRefs.current.googleMapsUrl = el; }}
                     placeholder="https://maps.app.goo.gl/..."
                     value={formData.googleMapsUrl}
-                    onChange={(e) => updateField('googleMapsUrl', e.target.value)}
+                    onChange={(e) => {
+                      updateField('googleMapsUrl', e.target.value);
+                      clearStep1Error('googleMapsUrl');
+                    }}
+                    error={step1Errors.googleMapsUrl}
                   />
                 </div>
 
                 <Input
+                  ref={(el) => { step1FieldRefs.current.addressLine1 = el; }}
                   label="Address Line 1 *"
                   placeholder="Building number, street address"
                   value={formData.addressLine1}
-                  onChange={(e) => updateField('addressLine1', e.target.value)}
+                  onChange={(e) => {
+                    updateField('addressLine1', e.target.value);
+                    clearStep1Error('addressLine1');
+                  }}
+                  error={step1Errors.addressLine1}
                   required
                 />
 
@@ -584,54 +694,39 @@ export default function OnboardingWizardPage() {
                   onChange={(e) => updateField('addressLine2', e.target.value)}
                 />
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-caption font-semibold text-text-primary">
-                      State *
-                    </label>
-                    <select
-                      value={formData.state}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, state: e.target.value, city: '' }))}
-                      className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                      required
-                    >
-                      <option value="">Select State</option>
-                      {INDIAN_STATES.map((state) => (
-                        <option key={state} value={state}>
-                          {state}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <LocationSearchInput
+                  label="City / Town *"
+                  value={
+                    formData.locationId
+                      ? { id: formData.locationId, name: formData.city, state: formData.state, district: null, pincode: formData.pincode || null }
+                      : null
+                  }
+                  onChange={(loc: SelectedLocation) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      locationId: loc.id,
+                      city: loc.name,
+                      state: loc.state,
+                      pincode: loc.pincode || prev.pincode,
+                    }));
+                    clearStep1Error('city');
+                    clearStep1Error('state');
+                  }}
+                  error={step1Errors.city || step1Errors.state}
+                />
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-caption font-semibold text-text-primary">
-                      City *
-                    </label>
-                    <select
-                      value={formData.city}
-                      onChange={(e) => updateField('city', e.target.value)}
-                      className="flex h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:opacity-50"
-                      required
-                      disabled={!formData.state}
-                    >
-                      <option value="">{formData.state ? 'Select City' : 'Select a state first'}</option>
-                      {(CITIES_BY_STATE[formData.state] ?? []).map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                    <p className="text-overline text-text-tertiary">
-                      Not seeing your city? KHEL-O is still expanding coverage — contact support.
-                    </p>
-                  </div>
-
-                  <Input
-                    label="Pincode"
-                    placeholder="560001"
-                    value={formData.pincode}
-                    onChange={(e) => updateField('pincode', e.target.value)}
-                  />
-                </div>
+                <Input
+                  ref={(el) => { step1FieldRefs.current.pincode = el; }}
+                  label="Pincode *"
+                  placeholder="560001"
+                  value={formData.pincode}
+                  onChange={(e) => {
+                    updateField('pincode', e.target.value);
+                    clearStep1Error('pincode');
+                  }}
+                  error={step1Errors.pincode}
+                  required
+                />
               </div>
             )}
 
@@ -649,29 +744,52 @@ export default function OnboardingWizardPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-caption font-semibold text-text-primary">
-                      Business Contact Phone Number
+                      Business Contact Phone Number *
                     </label>
-                    <div className="flex items-center gap-2 h-10 rounded-xl border border-border bg-card px-3 focus-within:ring-2 focus-within:ring-primary/20">
+                    <div
+                      className={`flex items-center gap-2 h-10 rounded-xl border bg-card px-3 focus-within:ring-2 focus-within:ring-primary/20 ${
+                        step2Errors.phoneNumber ? 'border-error' : 'border-border'
+                      }`}
+                    >
                       <span className="text-body text-text-secondary select-none">🇮🇳 +91</span>
                       <input
                         type="tel"
                         inputMode="numeric"
                         placeholder="98765 43210"
+                        aria-invalid={step2Errors.phoneNumber ? 'true' : undefined}
                         value={formData.phoneNumber.replace(/^\+91/, '')}
                         onChange={(e) => {
                           const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
                           updateField('phoneNumber', digits ? `+91${digits}` : '');
+                          if (step2Errors.phoneNumber) {
+                            setStep2Errors((prev) => {
+                              const { phoneNumber, ...rest } = prev;
+                              return rest;
+                            });
+                          }
                         }}
                         className="flex-1 bg-transparent text-body text-text-primary focus:outline-none"
                       />
                     </div>
+                    {step2Errors.phoneNumber && (
+                      <p className="text-caption text-error" role="alert">{step2Errors.phoneNumber}</p>
+                    )}
                   </div>
 
                   <Input
-                    label="Official Business Email"
+                    label="Official Business Email (Optional)"
                     placeholder="contact@esportsarena.in"
                     value={formData.email}
-                    onChange={(e) => updateField('email', e.target.value)}
+                    onChange={(e) => {
+                      updateField('email', e.target.value);
+                      if (step2Errors.email) {
+                        setStep2Errors((prev) => {
+                          const { email, ...rest } = prev;
+                          return rest;
+                        });
+                      }
+                    }}
+                    error={step2Errors.email}
                   />
                 </div>
 
@@ -680,7 +798,16 @@ export default function OnboardingWizardPage() {
                     label="Business PAN Number (Optional)"
                     placeholder="ABCDE1234F"
                     value={formData.businessPan}
-                    onChange={(e) => updateField('businessPan', e.target.value.toUpperCase())}
+                    onChange={(e) => {
+                      updateField('businessPan', e.target.value.toUpperCase());
+                      if (step2Errors.businessPan) {
+                        setStep2Errors((prev) => {
+                          const { businessPan, ...rest } = prev;
+                          return rest;
+                        });
+                      }
+                    }}
+                    error={step2Errors.businessPan}
                   />
 
                   <div className="flex flex-col gap-2">
@@ -690,12 +817,7 @@ export default function OnboardingWizardPage() {
                     <div className="flex gap-3">
                       <button
                         type="button"
-                        onClick={() => {
-                          updateField('hasGst', true);
-                          if (!formData.gstin) {
-                            updateField('gstin', '');
-                          }
-                        }}
+                        onClick={() => updateField('hasGst', true)}
                         className={`flex-1 px-4 py-2 rounded-xl text-caption font-semibold transition-all ${
                           formData.hasGst
                             ? 'bg-primary text-white border-2 border-primary'
@@ -724,16 +846,25 @@ export default function OnboardingWizardPage() {
 
                 {formData.hasGst && (
                   <Input
-                    label="GSTIN Number"
+                    label="GSTIN Number *"
                     placeholder="29ABCDE1234F1Z5"
                     value={formData.gstin}
-                    onChange={(e) => updateField('gstin', e.target.value.toUpperCase())}
+                    onChange={(e) => {
+                      updateField('gstin', e.target.value.toUpperCase());
+                      if (step2Errors.gstin) {
+                        setStep2Errors((prev) => {
+                          const { gstin, ...rest } = prev;
+                          return rest;
+                        });
+                      }
+                    }}
+                    error={step2Errors.gstin}
                     required
                   />
                 )}
 
                 <Input
-                  label="Trade License / Registration Document URL"
+                  label="Trade License / Registration Document URL (Optional)"
                   placeholder="https://drive.google.com/... or document link"
                   value={formData.legalDocumentUrl}
                   onChange={(e) => updateField('legalDocumentUrl', e.target.value)}
@@ -762,14 +893,23 @@ export default function OnboardingWizardPage() {
                     label="UPI ID *"
                     placeholder="yourname@okhdfcbank"
                     value={formData.upiVpa}
-                    onChange={(e) => updateField('upiVpa', e.target.value)}
+                    onChange={(e) => {
+                      updateField('upiVpa', e.target.value);
+                      clearStep3Error('upiVpa');
+                      clearStep3Error('confirmUpiVpa');
+                    }}
+                    error={step3Errors.upiVpa}
                     required
                   />
                   <Input
                     label="Confirm UPI ID *"
                     placeholder="yourname@okhdfcbank"
                     value={formData.confirmUpiVpa}
-                    onChange={(e) => updateField('confirmUpiVpa', e.target.value)}
+                    onChange={(e) => {
+                      updateField('confirmUpiVpa', e.target.value);
+                      clearStep3Error('confirmUpiVpa');
+                    }}
+                    error={step3Errors.confirmUpiVpa}
                     required
                   />
                 </div>
@@ -785,13 +925,17 @@ export default function OnboardingWizardPage() {
                 {showBankFallback && (
                   <div className="flex flex-col gap-4 p-4 rounded-2xl border border-border bg-surface">
                     <p className="text-overline text-text-tertiary">
-                      A bank fallback lets us pay you by NEFT/IMPS if a weekly balance ever exceeds what UPI can carry in a single transfer.
+                      A bank fallback lets us pay you by NEFT/IMPS if a weekly balance ever exceeds what UPI can carry in a single transfer. This whole section is optional — but if you fill in any of Account Holder Name, Bank Account Number, or Bank IFSC, the other two become required together (matches the backend's bank_fields_given rule in owner.py).
                     </p>
                     <Input
                       label="Account Holder Name"
                       placeholder="e.g. LXG Gaming Private Limited"
                       value={formData.accountHolderName}
-                      onChange={(e) => updateField('accountHolderName', e.target.value)}
+                      onChange={(e) => {
+                        updateField('accountHolderName', e.target.value);
+                        clearStep3Error('accountHolderName');
+                      }}
+                      error={step3Errors.accountHolderName}
                     />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
@@ -800,7 +944,12 @@ export default function OnboardingWizardPage() {
                         autoComplete="off"
                         placeholder="9180200192847291"
                         value={formData.bankAccountNumber}
-                        onChange={(e) => updateField('bankAccountNumber', e.target.value)}
+                        onChange={(e) => {
+                          updateField('bankAccountNumber', e.target.value);
+                          clearStep3Error('bankAccountNumber');
+                          clearStep3Error('confirmBankAccountNumber');
+                        }}
+                        error={step3Errors.bankAccountNumber}
                       />
                       <Input
                         label="Confirm Bank Account Number"
@@ -808,7 +957,11 @@ export default function OnboardingWizardPage() {
                         autoComplete="off"
                         placeholder="9180200192847291"
                         value={formData.confirmBankAccountNumber}
-                        onChange={(e) => updateField('confirmBankAccountNumber', e.target.value)}
+                        onChange={(e) => {
+                          updateField('confirmBankAccountNumber', e.target.value);
+                          clearStep3Error('confirmBankAccountNumber');
+                        }}
+                        error={step3Errors.confirmBankAccountNumber}
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -818,17 +971,21 @@ export default function OnboardingWizardPage() {
                         autoComplete="off"
                         placeholder="HDFC0000128"
                         value={formData.bankIfsc}
-                        onChange={(e) => updateField('bankIfsc', e.target.value.toUpperCase())}
+                        onChange={(e) => {
+                          updateField('bankIfsc', e.target.value.toUpperCase());
+                          clearStep3Error('bankIfsc');
+                        }}
+                        error={step3Errors.bankIfsc}
                       />
                       <Input
-                        label="Bank Name"
+                        label="Bank Name (Optional)"
                         placeholder="e.g. HDFC Bank"
                         value={formData.bankName}
                         onChange={(e) => updateField('bankName', e.target.value)}
                       />
                     </div>
                     <div className="flex flex-col gap-2">
-                      <label className="text-caption font-semibold text-text-primary">Account Type</label>
+                      <label className="text-caption font-semibold text-text-primary">Account Type (Optional)</label>
                       <div className="flex gap-3">
                         {(['savings', 'current'] as const).map((t) => (
                           <button

@@ -508,14 +508,15 @@ async def test_owner_status_reflects_after_onboarding_submit(async_client: Async
 
 
 @pytest.mark.asyncio
-async def test_cafe_city_must_be_a_supported_city(async_client: AsyncClient):
-    """Regression: city used to be accepted as arbitrary free text (typed by
-    the owner or taken verbatim from Google's geocoded locality), while the
-    discovery filter does an exact match against a fixed city list. A café
-    could end up displayed as "Hyderabad" but never match the "Hyderabad"
-    filter chip, appearing only under "All Cities". City submissions must
-    now be validated against the supported list, and accepted values must
-    normalize to canonical casing regardless of how they were typed."""
+async def test_cafe_city_accepts_any_real_town_and_rejects_garbage(async_client: AsyncClient):
+    """City is no longer restricted to a hardcoded picklist (see
+    app/models/location.py / app/api/v1/locations.py — the search/create-on-miss
+    location flow replaced CITIES_BY_STATE so small towns/villages aren't
+    locked out). The backend field validator now only guards against
+    empty/garbage input; casing consistency for the discovery filter's exact
+    match is the frontend's job (the location search/create flow always
+    submits the exact name of the resolved/created Location row, so the same
+    place is never submitted under two different castings)."""
     async with AsyncSessionLocal() as db:
         gamer = User(
             id=uuid.uuid4(),
@@ -543,29 +544,26 @@ async def test_cafe_city_must_be_a_supported_city(async_client: AsyncClient):
             "confirmUpiVpa": "testowner@okhdfcbank"
         }
 
-        # An unsupported/unrecognized city must be rejected outright, not
-        # silently stored as free text.
+        # Garbage input (too short, or all-digits) must still be rejected.
         bad_res = await async_client.post(
             "/api/v1/owner/onboarding/submit",
-            json={**base_payload, "city": "Secunderabad"},
+            json={**base_payload, "city": "12345"},
             headers=gamer_headers
         )
         assert bad_res.status_code == 422
 
-        # A supported city typed in a different case must be accepted and
-        # normalized to canonical casing — this is what makes the discovery
-        # filter's exact match actually work regardless of how the owner
-        # (or a geocoding auto-fill) typed it.
+        # A small town that was never in the old hardcoded picklist must now
+        # be accepted outright — this is the whole point of the change.
         ok_res = await async_client.post(
             "/api/v1/owner/onboarding/submit",
-            json={**base_payload, "city": "hyderabad"},
+            json={**base_payload, "city": "Kamareddy"},
             headers=gamer_headers
         )
         assert ok_res.status_code == 200
         cafe_id = ok_res.json()["data"]["cafeId"]
 
         cafe = await db.get(Cafe, uuid.UUID(cafe_id))
-        assert cafe.city == "Hyderabad"
+        assert cafe.city == "Kamareddy"
 
         # Approve it so it's visible to the discovery endpoint, then confirm
         # it shows under both "All Cities" (no filter) and its own city's
@@ -594,7 +592,7 @@ async def test_cafe_city_must_be_a_supported_city(async_client: AsyncClient):
         all_cities_res = await async_client.get("/api/v1/cafes", headers=gamer_headers)
         assert any(c["id"] == cafe_id for c in all_cities_res.json()["data"]["items"])
 
-        hyderabad_res = await async_client.get("/api/v1/cafes?city=Hyderabad", headers=gamer_headers)
+        hyderabad_res = await async_client.get("/api/v1/cafes?city=Kamareddy", headers=gamer_headers)
         assert any(c["id"] == cafe_id for c in hyderabad_res.json()["data"]["items"]), (
             "Café must appear under its own city's filter, not only under All Cities"
         )
