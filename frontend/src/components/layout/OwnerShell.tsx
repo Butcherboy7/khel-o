@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, type ReactNode } from 'react';
+import { OwnerAlertProvider } from '@/components/owner/OwnerAlertProvider';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -520,6 +521,7 @@ export function OwnerShell({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
+    <OwnerAlertProvider>
     <div className="min-h-screen bg-surface">
       {/* Owner-only: confirms platform/model on tiers that pre-date this
           redesign. Not shown to staff — the backing endpoint requires a
@@ -555,5 +557,6 @@ export function OwnerShell({
         isStaff={isStaff}
       />
     </div>
+    </OwnerAlertProvider>
   );
 }
