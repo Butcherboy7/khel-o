@@ -23,6 +23,7 @@ from app.models.analytics_event import AnalyticsEvent
 from app.models.cafe_waitlist import CafeWaitlistEntry
 from app.models.campaign import Campaign
 from app.models.location import Location
+from app.models.push_subscription import PushSubscription
 
 __all__ = [
     "User",
@@ -57,4 +58,5 @@ __all__ = [
     "AnalyticsEvent",
     "CafeWaitlistEntry",
     "Location",
+    "PushSubscription",
 ]
