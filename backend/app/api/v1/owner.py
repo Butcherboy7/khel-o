@@ -18,6 +18,7 @@ from app.schemas.owner import (
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository, guess_platform_and_model
+from app.repositories.hardware_tier_unit_repository import HardwareTierUnitRepository
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
 from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.repositories.owner_payout_repository import OwnerPayoutRepository
@@ -107,6 +108,19 @@ class OnboardingHardwareTierItem(BaseModel):
     )
     preset_category: Optional[str] = Field(
         None, max_length=50, validation_alias=AliasChoices("presetCategory", "preset_category")
+    )
+    # Activity tiers (Snooker, Air Hockey, etc.) from PlatformTierConfigurator
+    # — previously accepted nowhere in this schema, so the frontend's submit
+    # transform dropped them and every activity tier landed here shaped like
+    # a generic platform="other" gaming tier with no way to tell it apart.
+    tier_type: Optional[str] = Field(
+        None, validation_alias=AliasChoices("tierType", "tier_type")
+    )
+    activity_kind: Optional[str] = Field(
+        None, max_length=50, validation_alias=AliasChoices("activityKind", "activity_kind")
+    )
+    individual_units: Optional[bool] = Field(
+        None, validation_alias=AliasChoices("individualUnits", "individual_units")
     )
 
     model_config = ConfigDict(populate_by_name=True)
@@ -664,6 +678,12 @@ async def save_onboarding_draft(
     res = await db.execute(stmt)
     cafe = res.scalars().first()
 
+    # The `step` field round-trips through GET /onboarding/draft as part of
+    # this same JSON blob (draft_data has no dedicated `step` column) — it
+    # was previously accepted here but discarded, so a reload always landed
+    # back on Step 1 even though the filled-in field data survived.
+    draft_data = {**payload.draft_data, "step": payload.step}
+
     if not cafe:
         # Create a draft cafe record
         draft_name = payload.draft_data.get("name") or f"{current_user.full_name}'s Café"
@@ -677,12 +697,12 @@ async def save_onboarding_draft(
             phone_number=payload.draft_data.get("phoneNumber") or current_user.phone_number or "+910000000000",
             email=payload.draft_data.get("email") or current_user.email,
             verification_status=VerificationStatus.DRAFT,
-            draft_data=payload.draft_data,
+            draft_data=draft_data,
             is_active=False
         )
         db.add(cafe)
     else:
-        cafe.draft_data = payload.draft_data
+        cafe.draft_data = draft_data
         if payload.draft_data.get("name"):
             cafe.name = payload.draft_data.get("name")
 
@@ -846,11 +866,40 @@ async def submit_onboarding_application(
     # Create Hardware Tiers if provided
     if payload.hardware_tiers:
         tier_repo = HardwareTierRepository(db)
+        unit_repo = HardwareTierUnitRepository(db)
         await tier_repo.deactivate_all_for_cafe(cafe.id)
         for tier_item in payload.hardware_tiers:
             tot = int(tier_item.total_seats or 10)
             app_b = int(tier_item.app_bookable_seats if tier_item.app_bookable_seats is not None else max(1, int(tot * 0.25)))
             price = float(tier_item.hourly_rate or 100)
+
+            # Activity tiers (Snooker, Air Hockey, etc.) never carry a real
+            # platform/model — they used to fall through to the "else"
+            # branch below and get created as platform=None GAMING tiers
+            # indistinguishable from a legacy PC tier, silently losing which
+            # activity they were (see HardwareTierService.add_hardware_tier,
+            # the canonical /cafes/{id}/tiers path, for the shape this
+            # mirrors).
+            if tier_item.tier_type == "activity":
+                name = (tier_item.activity_kind or tier_item.name or "Activity").strip() or "Activity"
+                created = await tier_repo.create({
+                    "cafe_id": cafe.id,
+                    "name": name,
+                    "specs": {},
+                    "price_per_hour": price,
+                    "total_seats": tot,
+                    "app_bookable_seats": app_b,
+                    "active_seats_count": tot,
+                    "preset_category": tier_item.preset_category,
+                    "platform": None,
+                    "model": None,
+                    "tier_type": TierType.ACTIVITY,
+                    "activity_kind": tier_item.activity_kind,
+                    "is_active": True
+                })
+                if tier_item.individual_units:
+                    await unit_repo.sync_units_to_quantity(created.id, created.total_seats, created.activity_kind or created.name or "Unit")
+                continue
 
             raw_platform = tier_item.platform
             model = tier_item.model

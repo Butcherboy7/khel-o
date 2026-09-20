@@ -122,6 +122,7 @@ export default function OnboardingWizardPage() {
   // per-field useRef calls) since the set of fields is static and known
   // up front, so one map covers all of them without extra hooks.
   const step1FieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
+  const isSubmittingRef = useRef(false);
   const [showBankFallback, setShowBankFallback] = useState(false);
   const [customGameInput, setCustomGameInput] = useState<Record<string, string>>({});
   const [agreedToOwnerTerms, setAgreedToOwnerTerms] = useState(false);
@@ -382,7 +383,12 @@ export default function OnboardingWizardPage() {
       const { upiVpa, confirmUpiVpa, bankAccountNumber, confirmBankAccountNumber, bankIfsc, accountHolderName, ...draftSafeFields } = formData;
       await saveOnboardingDraft(nextStep, draftSafeFields);
     } catch {
-      // Ignore draft save error
+      // The step transition above already happened client-side, so don't
+      // block navigation — but a silently-swallowed failure here meant a
+      // refresh right after could lose this step's edits with zero warning
+      // (the header still showed "Auto-Saving Progress"). Surface it instead
+      // so the owner knows to stay on this device/connection until it saves.
+      setError("Your progress couldn't be saved — check your connection. Your answers are safe on this screen, but may be lost if you leave or refresh before it saves.");
     }
   };
 
@@ -393,9 +399,17 @@ export default function OnboardingWizardPage() {
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
+    // The Submit button's own `disabled={isLoading}` only takes effect once
+    // React commits the re-render, which lags a synchronous double-tap (two
+    // click events dispatched before that commit both reach this handler).
+    // Gate on the ref immediately — it's set before any await, so the
+    // second call sees it this same tick and bails before hitting the API.
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setError(null);
 
     if (!agreedToOwnerTerms) {
+      isSubmittingRef.current = false;
       setError('Please agree to the Café Partner Terms & Conditions and Privacy Policy to submit your application.');
       return;
     }
@@ -408,20 +422,37 @@ export default function OnboardingWizardPage() {
       return timeStr;
     };
 
-    const formattedHardwareTiers = (formData.hardwareTiers || []).map((c: TierConfig) => ({
-      platform: c.platform,
-      model: c.model,
-      // Trusts the flag PlatformTierConfigurator already set when the owner
-      // picked "Custom" and typed free text, and falls back to detecting it
-      // from the data (covers a config loaded/left untouched this session)
-      // — either way, never inferred purely from the string on the backend.
-      isCustomModel:
-        c.isCustomModel ||
-        (c.tierType !== 'activity' && c.platform !== 'other' && !PLATFORM_MODELS[c.platform]?.includes(c.model)),
-      hourlyRate: Number(c.pricePerHour) || 100,
-      totalSeats: Number(c.totalSeats) || 4,
-      appBookableSeats: Number(c.appBookableSeats) || Math.max(1, Math.round((Number(c.totalSeats) || 4) * 0.25)),
-    }));
+    const formattedHardwareTiers = (formData.hardwareTiers || []).map((c: TierConfig) =>
+      c.tierType === 'activity'
+        ? {
+            // Activity tiers (Snooker, Air Hockey, etc.) carry no
+            // platform/model — sending platform: 'other' here previously
+            // made the backend create them as indistinguishable
+            // platform="other" GAMING tiers, since OnboardingHardwareTierItem
+            // had no tierType/activityKind field to carry the real shape
+            // through at all.
+            tierType: 'activity',
+            activityKind: c.activityKind,
+            individualUnits: c.individualUnits,
+            hourlyRate: Number(c.pricePerHour) || 100,
+            totalSeats: Number(c.totalSeats) || 4,
+            appBookableSeats: Number(c.appBookableSeats) || Number(c.totalSeats) || 4,
+          }
+        : {
+            platform: c.platform,
+            model: c.model,
+            // Trusts the flag PlatformTierConfigurator already set when the owner
+            // picked "Custom" and typed free text, and falls back to detecting it
+            // from the data (covers a config loaded/left untouched this session)
+            // — either way, never inferred purely from the string on the backend.
+            isCustomModel:
+              c.isCustomModel ||
+              (c.platform !== 'other' && !PLATFORM_MODELS[c.platform]?.includes(c.model)),
+            hourlyRate: Number(c.pricePerHour) || 100,
+            totalSeats: Number(c.totalSeats) || 4,
+            appBookableSeats: Number(c.appBookableSeats) || Math.max(1, Math.round((Number(c.totalSeats) || 4) * 0.25)),
+          }
+    );
 
     try {
       await submitOnboardingApplication({
@@ -479,6 +510,7 @@ export default function OnboardingWizardPage() {
       setError(msg);
     } finally {
       setIsSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 

@@ -460,3 +460,69 @@ async def test_resubmitting_onboarding_preserves_activity_tiers():
         assert len(activity_tiers) == 1
         assert activity_tiers[0].id == activity_tier_id
         assert activity_tiers[0].is_active is True
+
+
+@pytest.mark.asyncio
+async def test_onboarding_submit_creates_activity_tiers_correctly():
+    """Regression test: OnboardingHardwareTierItem previously had no
+    tierType/activityKind/individualUnits fields, so any activity tier
+    (Snooker, Air Hockey, etc.) configured in Step 4 was silently persisted
+    on submit as a generic tier_type=GAMING, platform='other' row, losing
+    its activity classification entirely. Also covers an activity-only
+    café (no gaming platform at all) to confirm Step 4->5->6 doesn't assume
+    a PC/console tier exists."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_activity_create_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Activity Create Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Activity Only Cafe",
+            "addressLine1": "1 Activity Only St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "500001",
+            "phoneNumber": "+919000000077",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {
+                    "tierType": "activity", "activityKind": "Snooker / Pool",
+                    "individualUnits": True, "totalSeats": 2, "appBookableSeats": 2,
+                    "hourlyRate": 300,
+                },
+                {
+                    "tierType": "activity", "activityKind": "Air Hockey",
+                    "individualUnits": True, "totalSeats": 2, "appBookableSeats": 2,
+                    "hourlyRate": 300,
+                },
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 200, res.text
+            cafe_id = uuid.UUID(res.json()["data"]["cafeId"])
+
+        stmt = select(HardwareTier).where(HardwareTier.cafe_id == cafe_id, HardwareTier.is_active == True)
+        result = await db.execute(stmt)
+        tiers = {t.activity_kind: t for t in result.scalars().all()}
+
+        assert set(tiers.keys()) == {"Snooker / Pool", "Air Hockey"}
+        for tier in tiers.values():
+            assert tier.tier_type == TierType.ACTIVITY
+            assert tier.platform is None
+            assert tier.model is None
