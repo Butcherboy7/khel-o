@@ -63,7 +63,7 @@ async def test_410_deletes_the_subscription(db_session):
                    side_effect=WebPushException("gone", response=_FakeResponse(410))):
             sent = await PushService().send_to_users(db_session, [user.id], {"title": "x"})
     assert sent == 0
-    rows = (await db_session.execute(select(PushSubscription))).scalars().all()
+    rows = (await db_session.execute(select(PushSubscription).where(PushSubscription.user_id == user.id))).scalars().all()
     assert rows == []
 
 
@@ -78,7 +78,7 @@ async def test_500_keeps_the_subscription(db_session):
                    side_effect=WebPushException("boom", response=_FakeResponse(500))):
             sent = await PushService().send_to_users(db_session, [user.id], {"title": "x"})
     assert sent == 0
-    rows = (await db_session.execute(select(PushSubscription))).scalars().all()
+    rows = (await db_session.execute(select(PushSubscription).where(PushSubscription.user_id == user.id))).scalars().all()
     assert len(rows) == 1
 
 
