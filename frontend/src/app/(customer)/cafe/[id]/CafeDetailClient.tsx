@@ -138,9 +138,29 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   });
   const joined = waitlist?.joined ?? false;
   const waitingCount = waitlist?.count ?? 0;
+  const waitlistGoal = waitlist?.goal ?? 30;
   const [isJoining, setIsJoining] = useState(false);
   const [contact, setContact] = useState('');
   const [showContactInput, setShowContactInput] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const handleShareWaitlist = async () => {
+    const shareText = `${data?.name ?? 'This café'} isn't bookable on KHEL-O yet — help us get it listed by requesting it too!`;
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title: 'Request this café on KHEL-O', text: shareText, url: shareUrl });
+        return;
+      } catch {
+        // User cancelled the native share sheet — fall through to clipboard copy.
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }
+  };
 
   const handleNotifyMe = async () => {
     if (isJoining) return;
@@ -933,8 +953,28 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               </div>
             )}
 
-            {waitingCount >= 5 && (
-              <p className="text-caption text-text-secondary">{waitingCount} people waiting</p>
+            {waitingCount > 0 && (
+              <div className="flex flex-col gap-1.5 pt-0.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-caption font-semibold text-text-primary">
+                    {waitingCount} / {waitlistGoal} people requested
+                  </span>
+                  {joined && (
+                    <button
+                      onClick={handleShareWaitlist}
+                      className="text-caption font-semibold text-primary hover:underline flex-shrink-0"
+                    >
+                      {shareCopied ? 'Link copied!' : 'Get friends to request too'}
+                    </button>
+                  )}
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-surface overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.round((waitingCount / waitlistGoal) * 100))}%` }}
+                  />
+                </div>
+              </div>
             )}
           </div>
         ) : (

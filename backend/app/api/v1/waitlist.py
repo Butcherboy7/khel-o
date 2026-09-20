@@ -54,14 +54,14 @@ async def join_waitlist(
     Returns 200 rather than 201 on a repeat tap: joining twice is a no-op, not
     an error, and the client should not have to distinguish the two.
     """
-    await _require_cafe(db, cafe_id)
+    cafe = await _require_cafe(db, cafe_id)
     repo = WaitlistRepository(db)
     user_id = current_user.id if current_user else None
 
     await repo.join(cafe_id, user_id, payload.session_id, payload.contact)
     count = await repo.count(cafe_id)
 
-    return {"success": True, "data": {"count": count, "joined": True}}
+    return {"success": True, "data": {"count": count, "joined": True, "goal": cafe.waitlist_goal}}
 
 
 @router.delete("/{cafe_id}/waitlist", status_code=status.HTTP_200_OK)
@@ -71,14 +71,14 @@ async def leave_waitlist(
     current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_cafe(db, cafe_id)
+    cafe = await _require_cafe(db, cafe_id)
     repo = WaitlistRepository(db)
     user_id = current_user.id if current_user else None
 
     await repo.leave(cafe_id, user_id, payload.session_id)
     count = await repo.count(cafe_id)
 
-    return {"success": True, "data": {"count": count, "joined": False}}
+    return {"success": True, "data": {"count": count, "joined": False, "goal": cafe.waitlist_goal}}
 
 
 @router.get("/{cafe_id}/waitlist/count", status_code=status.HTTP_200_OK)
@@ -94,7 +94,7 @@ async def get_waitlist_count(
     needed for the owner-facing demand figure, so hiding it here would mean
     two sources of truth.
     """
-    await _require_cafe(db, cafe_id)
+    cafe = await _require_cafe(db, cafe_id)
     repo = WaitlistRepository(db)
     user_id = current_user.id if current_user else None
 
@@ -103,4 +103,4 @@ async def get_waitlist_count(
     if user_id is not None or sessionId:
         joined = await repo.has_joined(cafe_id, user_id, sessionId or "")
 
-    return {"success": True, "data": {"count": count, "joined": joined}}
+    return {"success": True, "data": {"count": count, "joined": joined, "goal": cafe.waitlist_goal}}

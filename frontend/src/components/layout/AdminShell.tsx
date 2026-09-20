@@ -64,6 +64,7 @@ const adminNavGroups: NavGroup[] = [
     label: 'Cafés',
     items: [
       { label: 'All Cafés', href: '/admin/cafes', icon: Store },
+      { label: 'Café Demand', href: '/admin/leads', icon: Megaphone },
     ],
   },
   {

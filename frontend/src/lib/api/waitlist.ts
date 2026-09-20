@@ -4,6 +4,7 @@ import { useAnalyticsStore } from '@/store/analyticsStore';
 export interface WaitlistStatus {
   count: number;
   joined: boolean;
+  goal: number;
 }
 
 /** The same session id the analytics client sends, deliberately reused rather

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status, Query, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from uuid import UUID
 from datetime import date
@@ -1020,3 +1020,49 @@ async def update_platform_settings_admin(
         entity_id=str(updated.id),
     )
     return {"success": True, "data": {"settings": PlatformSettingsResponse.model_validate(updated)}}
+
+
+# --- CAFÉ DEMAND (WAITLIST OUTREACH) ---
+from app.repositories.waitlist_repository import WaitlistRepository
+
+
+@router.get("/leads/demand", status_code=status.HTTP_200_OK)
+async def get_lead_demand(
+    minCount: int = Query(1, ge=1, alias="minCount"),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-café 'Notify me' demand, ranked highest first, for the outreach
+    team: which unlisted/lead cafés have the most player demand, and the
+    contact details of everyone who left one — the pitch data and the
+    reach-out list in one place."""
+    repo = WaitlistRepository(db)
+    summary = await repo.demand_summary(min_count=minCount)
+    return {"success": True, "data": {"leads": summary}}
+
+
+class WaitlistGoalUpdateRequest(BaseModel):
+    waitlist_goal: int = Field(..., ge=1, le=100000, alias="waitlistGoal")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.patch("/cafes/{cafe_id}/waitlist-goal", status_code=status.HTTP_200_OK)
+async def update_cafe_waitlist_goal(
+    cafe_id: UUID,
+    payload: WaitlistGoalUpdateRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Tune the 'X / goal requested' target shown to visitors — outreach sets
+    this lower once they're already mid-conversation with a café owner, so
+    the on-site counter doesn't look further away than it actually is."""
+    cafe_repo = CafeRepository(db)
+    cafe = await cafe_repo.get_by_id(cafe_id)
+    if not cafe:
+        return {"success": False, "error": {"code": "CAFE_NOT_FOUND", "message": "Café not found"}}
+
+    cafe.waitlist_goal = payload.waitlist_goal
+    await db.commit()
+
+    return {"success": True, "data": {"cafeId": str(cafe.id), "waitlistGoal": cafe.waitlist_goal}}

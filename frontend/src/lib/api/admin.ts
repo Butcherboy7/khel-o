@@ -393,3 +393,24 @@ export async function listCafePayoutHistory(
 ): Promise<{ items: CafePayout[]; total: number; page: number; pageSize: number }> {
   return call(() => apiClient.get('/api/v1/admin/cafe-payouts', { params }));
 }
+
+export interface CafeDemandLead {
+  cafeId: string;
+  cafeName: string;
+  city: string;
+  isLeadListing: boolean;
+  waitlistGoal: number;
+  count: number;
+  firstRequestedAt: string;
+  lastRequestedAt: string;
+  contacts: string[];
+  noContactCount: number;
+}
+
+export async function listCafeDemand(minCount = 1): Promise<{ leads: CafeDemandLead[] }> {
+  return call(() => apiClient.get('/api/v1/admin/leads/demand', { params: { minCount } }));
+}
+
+export async function updateCafeWaitlistGoal(cafeId: string, waitlistGoal: number): Promise<{ cafeId: string; waitlistGoal: number }> {
+  return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/waitlist-goal`, { waitlistGoal }));
+}

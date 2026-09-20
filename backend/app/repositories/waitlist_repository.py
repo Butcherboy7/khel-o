@@ -5,6 +5,7 @@ from sqlalchemy import select, func, delete, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cafe_waitlist import CafeWaitlistEntry
+from app.models.cafe import Cafe
 
 
 class WaitlistRepository:
@@ -81,6 +82,55 @@ class WaitlistRepository:
             .where(self._identity_clause(cafe_id, user_id, session_id))
         )).scalar() or 0
         return total > 0
+
+    async def demand_summary(self, min_count: int = 1) -> List[dict]:
+        """Per-café demand for the outreach team: how many people asked, and
+        the contact details of everyone who supplied one — so outreach can
+        both prioritize (highest count first) and actually reach out.
+
+        Joined to Cafe for name/city/goal in one round trip rather than N+1.
+        """
+        rows = (await self.db.execute(
+            select(
+                Cafe.id, Cafe.name, Cafe.city, Cafe.is_lead_listing, Cafe.waitlist_goal,
+                func.count(CafeWaitlistEntry.id).label("count"),
+                func.min(CafeWaitlistEntry.created_at).label("first_requested_at"),
+                func.max(CafeWaitlistEntry.created_at).label("last_requested_at"),
+            )
+            .join(CafeWaitlistEntry, CafeWaitlistEntry.cafe_id == Cafe.id)
+            .group_by(Cafe.id, Cafe.name, Cafe.city, Cafe.is_lead_listing, Cafe.waitlist_goal)
+            .having(func.count(CafeWaitlistEntry.id) >= min_count)
+            .order_by(func.count(CafeWaitlistEntry.id).desc())
+        )).all()
+
+        cafe_ids = [r.id for r in rows]
+        contacts_by_cafe: Dict[uuid.UUID, List[str]] = {cid: [] for cid in cafe_ids}
+        if cafe_ids:
+            contact_rows = (await self.db.execute(
+                select(CafeWaitlistEntry.cafe_id, CafeWaitlistEntry.contact)
+                .where(CafeWaitlistEntry.cafe_id.in_(cafe_ids), CafeWaitlistEntry.contact.is_not(None))
+            )).all()
+            for cafe_id, contact in contact_rows:
+                contacts_by_cafe[cafe_id].append(contact)
+
+        return [
+            {
+                "cafeId": str(r.id),
+                "cafeName": r.name,
+                "city": r.city,
+                "isLeadListing": r.is_lead_listing,
+                "waitlistGoal": r.waitlist_goal,
+                "count": r.count,
+                "firstRequestedAt": r.first_requested_at,
+                "lastRequestedAt": r.last_requested_at,
+                "contacts": contacts_by_cafe.get(r.id, []),
+                # Requesters with no `contact` string: either signed-in (reachable
+                # via their account) or signed-out visitors who tapped "Notify me"
+                # without leaving a phone/email. Either way, not in `contacts`.
+                "noContactCount": r.count - len(contacts_by_cafe.get(r.id, [])),
+            }
+            for r in rows
+        ]
 
     async def counts_for(self, cafe_ids: List[uuid.UUID]) -> Dict[uuid.UUID, int]:
         """Batch count for the explore grid — one query for the page, not one
