@@ -36,6 +36,7 @@ def upgrade():
         'notifications',
         ['user_id', 'dedupe_key'],
         unique=True,
+        sqlite_where=sa.text('dedupe_key IS NOT NULL'),
         postgresql_where=sa.text('dedupe_key IS NOT NULL'),
     )
 
