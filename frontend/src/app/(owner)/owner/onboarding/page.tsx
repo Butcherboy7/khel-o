@@ -957,7 +957,7 @@ export default function OnboardingWizardPage() {
                 {showBankFallback && (
                   <div className="flex flex-col gap-4 p-4 rounded-2xl border border-border bg-surface">
                     <p className="text-overline text-text-tertiary">
-                      A bank fallback lets us pay you by NEFT/IMPS if a weekly balance ever exceeds what UPI can carry in a single transfer. This whole section is optional — but if you fill in any of Account Holder Name, Bank Account Number, or Bank IFSC, the other two become required together (matches the backend's bank_fields_given rule in owner.py).
+                      A bank fallback lets us pay you by NEFT/IMPS if a weekly balance ever exceeds what UPI can carry in a single transfer. This whole section is optional — but if you fill in any of Account Holder Name, Bank Account Number, or Bank IFSC, the other two become required together (matches the backend&apos;s bank_fields_given rule in owner.py).
                     </p>
                     <Input
                       label="Account Holder Name"

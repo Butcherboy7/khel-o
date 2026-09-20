@@ -149,14 +149,14 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
               onClick={() => setIsAdding(true)}
               className="flex w-full items-center px-4 py-2.5 text-left text-caption font-semibold text-primary hover:bg-surface transition-colors border-t border-border"
             >
-              Can't find your city? Add "{query.trim()}"
+              Can&apos;t find your city? Add &quot;{query.trim()}&quot;
             </button>
           )}
 
           {isAdding && (
             <div className="flex flex-col gap-2 border-t border-border p-4">
               <label className="text-caption font-semibold text-text-primary">
-                Select the state for "{query.trim()}"
+                Select the state for &quot;{query.trim()}&quot;
               </label>
               <select
                 value={newState}
@@ -174,7 +174,7 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
                 onClick={handleCreate}
                 className="mt-1 rounded-xl bg-primary px-4 py-2 text-caption font-semibold text-white"
               >
-                Add "{query.trim()}"
+                Add &quot;{query.trim()}&quot;
               </button>
             </div>
           )}
