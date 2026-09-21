@@ -50,8 +50,26 @@ class MarkReadRequest(BaseModel):
 
 class UnreadCountResponse(BaseModel):
     unread_count: int
-    
+
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class PushSubscriptionKeys(BaseModel):
+    p256dh: str = Field(..., max_length=255)
+    auth: str = Field(..., max_length=255)
+
+
+class PushSubscribeRequest(BaseModel):
+    endpoint: str = Field(..., max_length=512)
+    keys: PushSubscriptionKeys
+
+
+class PushUnsubscribeRequest(BaseModel):
+    endpoint: str = Field(..., max_length=512)
+
+
+class VapidKeyResponse(BaseModel):
+    publicKey: str

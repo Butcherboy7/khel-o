@@ -161,8 +161,8 @@ async def test_both_confirmation_paths_notify_both_parties(db_session):
 
     src = inspect.getsource(ps.PaymentService.handle_webhook)
     assert "_notify_customer" in src, "webhook confirmation does not notify the customer"
-    assert "_notify_owner" in src, "webhook confirmation does not notify the owner"
+    assert "CafeNotifier" in src, "webhook confirmation does not notify the owner"
 
     verify_src = inspect.getsource(ps.PaymentService.verify_payment)
     assert "_notify_customer" in verify_src, "verify_payment does not notify the customer"
-    assert "_notify_owner" in verify_src, "verify_payment does not notify the owner"
+    assert "CafeNotifier" in verify_src, "verify_payment does not notify the owner"

@@ -41,6 +41,10 @@ try {
     // takes over the next time the app is opened fresh instead.
     skipWaiting: false,
     runtimeCaching,
+    // Push handlers cannot live in public/sw.js — next-pwa regenerates that
+    // file on every build. next-pwa compiles worker/index.js separately and
+    // importScripts it into the generated worker.
+    customWorkerDir: 'worker',
   });
 } catch {
   withPWA = (config) => config;

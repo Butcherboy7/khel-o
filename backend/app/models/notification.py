@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, DateTime, Enum, ForeignKey, Boolean
+from sqlalchemy import String, Text, DateTime, Enum, ForeignKey, Boolean, Index, text
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
 
@@ -30,8 +30,23 @@ class Notification(Base):
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     link: Mapped[str | None] = mapped_column(String(500), nullable=True)
     extra_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Idempotency key, format "{event}:{booking_id}". NULL for every row written
+    # before this existed and for any notification with no natural event
+    # identity, which is why the unique index below is partial.
+    dedupe_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_notifications_user_dedupe",
+            "user_id",
+            "dedupe_key",
+            unique=True,
+            sqlite_where=text("dedupe_key IS NOT NULL"),
+            postgresql_where=text("dedupe_key IS NOT NULL"),
+        ),
     )

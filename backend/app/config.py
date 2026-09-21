@@ -86,6 +86,13 @@ class Settings(BaseSettings):
     CAFE_PHOTO_MAX_MB: int = 8
     CAFE_PHOTO_MAX_COUNT: int = 10
 
+    # Web Push (VAPID). Rotating these invalidates every existing browser
+    # subscription, so they are generated once and left alone. Absent private
+    # key => push is disabled and the rest of notifications still works.
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_SUBJECT: str = "mailto:support@khel-o.com"
+
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def normalize_sqlite_url(cls, v: str) -> str:
