@@ -147,8 +147,58 @@ export default function OwnerDashboardPage() {
     }
   };
 
+  // The counter screen is left open for a whole shift. Fetching once on mount
+  // meant a café that opened this at 16:00 was still looking at 16:00 data at
+  // 21:00. The poll is also the fallback for every owner who never enables
+  // push, denied the permission, or whose subscription silently expired.
+  const POLL_INTERVAL_MS = 60_000;
+
   useEffect(() => {
     loadStatusAndOps();
+
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const startPolling = () => {
+      if (timer) return;
+      timer = setInterval(() => {
+        loadStatusAndOps();
+      }, POLL_INTERVAL_MS);
+    };
+
+    const stopPolling = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    // A backgrounded tab does not need fresh data, and a café with the
+    // dashboard open in a stale tab all week should not keep hitting the API.
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        loadStatusAndOps();
+        startPolling();
+      }
+    };
+
+    // Fired by OwnerAlertProvider when a push lands, so a new booking appears
+    // immediately instead of up to a minute later.
+    const onBookingAlert = () => {
+      loadStatusAndOps();
+    };
+
+    if (!document.hidden) startPolling();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('khelo:booking-alert', onBookingAlert);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('khelo:booking-alert', onBookingAlert);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const queryClient = useQueryClient();
