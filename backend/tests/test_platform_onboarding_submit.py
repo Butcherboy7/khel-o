@@ -526,3 +526,410 @@ async def test_onboarding_submit_creates_activity_tiers_correctly():
             assert tier.tier_type == TierType.ACTIVITY
             assert tier.platform is None
             assert tier.model is None
+
+
+@pytest.mark.parametrize("bad_pincode", ["12345", "1234567", "ABCDEF", "560 01", "56000!", ""])
+@pytest.mark.asyncio
+async def test_submit_onboarding_rejects_invalid_pincode(
+    bad_pincode,
+):
+    """Invalid pincodes (not exactly 6 digits) should be rejected with 422."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_pincode_bad_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Pincode Bad Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Pincode Bad Cafe",
+            "addressLine1": "1 Pincode Bad St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": bad_pincode,
+            "phoneNumber": "+919000000088",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 422, f"Expected 422 for pincode '{bad_pincode}', got {res.status_code}: {res.text}"
+
+
+@pytest.mark.asyncio
+async def test_submit_onboarding_accepts_valid_6_digit_pincode():
+    """Valid 6-digit pincodes should be accepted with 200."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_pincode_good_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Pincode Good Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Pincode Good Cafe",
+            "addressLine1": "1 Pincode Good St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "560001",
+            "phoneNumber": "+919000000089",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 200, f"Expected 200 for valid pincode '560001', got {res.status_code}: {res.text}"
+
+
+@pytest.mark.asyncio
+async def test_submit_onboarding_rejects_pincode_location_mismatch():
+    """If the owner picks a location_id whose Location row has a known
+    pincode on file, and the typed pincode contradicts it, submission is
+    rejected with a 422 (ValidationException / PINCODE_MISMATCH) rather than
+    silently persisting a self-contradictory address."""
+    from app.models.location import Location
+
+    async with AsyncSessionLocal() as db:
+        loc = Location(
+            name="Secunderabad", name_norm="secunderabad",
+            state="Telangana", pincode="500003",
+        )
+        db.add(loc)
+        await db.commit()
+        await db.refresh(loc)
+        loc_id = loc.id
+
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_pincode_mismatch_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Pincode Mismatch Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Pincode Mismatch Cafe",
+            "addressLine1": "1 Pincode Mismatch St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "110001",  # Delhi pincode, wrong for Secunderabad
+            "locationId": loc_id,
+            "phoneNumber": "+919000000090",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 422, f"Expected 422 for pincode/location mismatch, got {res.status_code}: {res.text}"
+            assert res.json()["error"]["code"] == "PINCODE_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_submit_onboarding_allows_pincode_when_location_has_none_on_file():
+    """Most Location rows don't have a pincode populated (it's optional, per
+    the Task 2 seed audit). The consistency check must never block
+    submission just because the location's pincode field is empty — only a
+    genuine, known contradiction should be rejected."""
+    from app.models.location import Location
+
+    async with AsyncSessionLocal() as db:
+        loc = Location(
+            name="Some New Town", name_norm="some new town",
+            state="Karnataka", pincode=None,
+        )
+        db.add(loc)
+        await db.commit()
+        await db.refresh(loc)
+        loc_id = loc.id
+
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_pincode_no_loc_pin_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Pincode No Location Pincode Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Pincode No Location Pincode Cafe",
+            "addressLine1": "1 No Location Pincode St",
+            "city": "Bengaluru",
+            "state": "Karnataka",
+            "pincode": "560001",
+            "locationId": loc_id,
+            "phoneNumber": "+919000000091",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 200, f"Expected 200 when location has no pincode on file, got {res.status_code}: {res.text}"
+
+
+@pytest.mark.asyncio
+async def test_get_onboarding_draft_returns_cafe_id_once_a_draft_exists():
+    """save_onboarding_draft already creates a real Cafe row (DRAFT status)
+    the moment an owner clicks 'Next' past Step 1, and its own response
+    already includes cafeId — but get_onboarding_draft (the GET used on page
+    load/reload) didn't return it, leaving the wizard with no way to know
+    which café to attach Step 5 photo uploads to on a fresh page load."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_draft_cafeid_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Draft CafeId Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            save_resp = await client.post(
+                "/api/v1/owner/onboarding/draft",
+                json={"step": 2, "draftData": {"name": "Test Cafe"}},
+                headers=headers,
+            )
+            assert save_resp.status_code == 200, save_resp.text
+            cafe_id = save_resp.json()["data"]["cafeId"]
+            assert cafe_id
+
+            get_resp = await client.get("/api/v1/owner/onboarding/draft", headers=headers)
+            assert get_resp.status_code == 200, get_resp.text
+            assert get_resp.json()["data"]["cafeId"] == cafe_id
+
+
+@pytest.mark.asyncio
+async def test_get_onboarding_draft_returns_none_cafe_id_when_no_cafe_exists():
+    """The `not cafe` branch (a brand-new owner who has never saved a draft
+    or submitted) must return cafeId: None rather than omitting the key."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_draft_no_cafe_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Draft No Cafe Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            get_resp = await client.get("/api/v1/owner/onboarding/draft", headers=headers)
+            assert get_resp.status_code == 200, get_resp.text
+            assert get_resp.json()["data"]["cafeId"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_onboarding_draft_returns_cafe_id_from_post_submission_snapshot():
+    """Once a café has been fully submitted at least once, draft_data is
+    cleared and get_onboarding_draft reconstructs a snapshot instead — that
+    branch's return statement must also carry cafeId (this is the final
+    `return` in the function, reached only after a real submission)."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_draft_snapshot_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Draft Snapshot Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Draft Snapshot Cafe",
+            "addressLine1": "1 Draft Snapshot St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "500001",
+            "phoneNumber": "+919000000099",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            submit_resp = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert submit_resp.status_code == 200, submit_resp.text
+            cafe_id = submit_resp.json()["data"]["cafeId"]
+
+            get_resp = await client.get("/api/v1/owner/onboarding/draft", headers=headers)
+            assert get_resp.status_code == 200, get_resp.text
+            assert get_resp.json()["data"]["cafeId"] == cafe_id
+
+
+@pytest.mark.asyncio
+async def test_onboarding_submit_persists_menu_photos():
+    """menu_photos is a new field on OnboardingSubmitRequest (Task 6),
+    needed so Task 7's Step 5 photo-upload UI can submit the menu-photo
+    URLs it uploaded via the existing cafe-scoped menu-photos/presign
+    endpoint. Cafe.menu_photos is a flat URL-string list (unlike
+    Cafe.photos, which carries a category), so this verifies persistence
+    without any category wrapping."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_menu_photos_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Menu Photos Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Menu Photos Cafe",
+            "addressLine1": "1 Menu Photos St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "500001",
+            "phoneNumber": "+919000000098",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "menuPhotos": ["https://example-bucket.s3.amazonaws.com/menu1.jpg"],
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 200, res.text
+            cafe_id = res.json()["data"]["cafeId"]
+
+        cafe = await db.get(Cafe, uuid.UUID(cafe_id))
+        assert cafe.menu_photos == ["https://example-bucket.s3.amazonaws.com/menu1.jpg"]
+
+
+@pytest.mark.asyncio
+async def test_resubmitting_onboarding_updates_menu_photos():
+    """The update branch of submit_onboarding_application (an existing café
+    resubmitting, e.g. after CHANGES_REQUESTED) must also persist
+    menu_photos, not just the create branch."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_menu_photos_resubmit_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Menu Photos Resubmit Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        base_payload = {
+            "name": "Onboard Menu Photos Resubmit Cafe",
+            "addressLine1": "1 Menu Photos Resubmit St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "500001",
+            "phoneNumber": "+919000000097",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            first = await client.post("/api/v1/owner/onboarding/submit", json=base_payload, headers=headers)
+            assert first.status_code == 200, first.text
+            cafe_id = first.json()["data"]["cafeId"]
+
+            second_payload = dict(base_payload)
+            second_payload["menuPhotos"] = ["https://example-bucket.s3.amazonaws.com/menu-updated.jpg"]
+            second = await client.post("/api/v1/owner/onboarding/submit", json=second_payload, headers=headers)
+            assert second.status_code == 200, second.text
+
+        cafe = await db.get(Cafe, uuid.UUID(cafe_id))
+        assert cafe.menu_photos == ["https://example-bucket.s3.amazonaws.com/menu-updated.jpg"]

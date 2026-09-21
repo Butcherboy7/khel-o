@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
+from app.repositories.hardware_tier_unit_repository import HardwareTierUnitRepository
 from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.review_repository import ReviewRepository
 from app.repositories.user_repository import UserRepository
@@ -26,13 +27,15 @@ class CafeService:
         tier_repo: Optional[HardwareTierRepository] = None,
         promo_repo: Optional[PromotionRepository] = None,
         review_repo: Optional[ReviewRepository] = None,
-        user_repo: Optional[UserRepository] = None
+        user_repo: Optional[UserRepository] = None,
+        unit_repo: Optional[HardwareTierUnitRepository] = None
     ):
         self.cafe_repo = cafe_repo
         self.tier_repo = tier_repo
         self.promo_repo = promo_repo
         self.review_repo = review_repo
         self.user_repo = user_repo
+        self.unit_repo = unit_repo
 
     async def create_cafe(self, owner_id: UUID, cafe_in: CafeCreateRequest) -> CafeResponse:
         cafe_dict = cafe_in.model_dump()
@@ -65,6 +68,11 @@ class CafeService:
         if self.tier_repo:
             active_tiers = await self.tier_repo.get_by_cafe_id(cafe.id, active_only=True)
             tiers_res = [HardwareTierResponse.model_validate(t) for t in active_tiers]
+
+            if self.unit_repo and tiers_res:
+                units_by_tier = await self.unit_repo.list_by_tier_ids([t.id for t in tiers_res])
+                for t in tiers_res:
+                    t.tracking_mode = "individual" if units_by_tier.get(t.id) else "pooled"
 
         active_promos = []
         if self.promo_repo:

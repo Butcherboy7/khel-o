@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Store,
@@ -14,15 +14,17 @@ import {
   CreditCard,
   Monitor,
   Gamepad2,
-  FileText
+  FileText,
+  Pencil
 } from 'lucide-react';
 import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } from '@/lib/api/owner';
-import { uploadCafePhoto, uploadMenuPhoto, updateCafeDetails } from '@/lib/api/settings';
+import { uploadCafePhoto, uploadMenuPhoto } from '@/lib/api/settings';
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, NumericField, Textarea, Card, CardContent, Badge } from '@/components/ui';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 import { LocationSearchInput, type SelectedLocation } from '@/components/ui/LocationSearchInput';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
+import { INDIAN_STATES } from '@/constants/states';
 import { PLATFORMS, PLATFORM_MODELS } from '@/constants/platforms';
 import type { Platform } from '@/constants/platforms';
 import { PRESET_GAMES_BY_PLATFORM } from '@/constants/games';
@@ -63,10 +65,12 @@ interface OnboardingState {
   supportedGames: Record<string, string[]>;
   amenities: string[];
   photos: string[];
+  menuPhotos: string[];
   cancellationPolicy: string;
   houseRules: string[];
   instagram: string;
   discord: string;
+  cafeId: string | null;
 }
 
 const INITIAL_STATE: OnboardingState = {
@@ -101,20 +105,39 @@ const INITIAL_STATE: OnboardingState = {
   hardwareTiers: [],
   supportedGames: {},
   amenities: ['High-speed Wi-Fi', 'Air Conditioned', 'Snacks & Drinks'],
-  photos: ['https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop'],
+  photos: [],
+  menuPhotos: [],
   cancellationPolicy: 'Free cancellation up to 2 hours before session start time.',
   houseRules: ['No outside food or beverages permitted inside station pods.', 'Valid Photo ID required at check-in.'],
   instagram: '',
   discord: '',
+  cafeId: null,
 };
 
-function SummaryRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () => void; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3 bg-surface p-5 rounded-2xl border border-border text-body">
+      <div className="flex items-center justify-between border-b border-border pb-2">
+        <h3 className="font-heading text-h3 text-text-primary">{title}</h3>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="flex items-center gap-1 text-caption font-semibold text-primary hover:underline"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          Edit
+        </button>
+      </div>
+      <div className="flex flex-col gap-2">{children}</div>
+    </div>
+  );
+}
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4">
       <span className="text-text-secondary">{label}:</span>
-      <span className={`text-right font-semibold ${highlight ? 'text-emerald-600' : 'text-text-primary'}`}>
-        {value || 'Not provided'}
-      </span>
+      <span className="font-semibold text-text-primary text-right break-words">{value}</span>
     </div>
   );
 }
@@ -139,17 +162,6 @@ export default function OnboardingWizardPage() {
   const [showBankFallback, setShowBankFallback] = useState(false);
   const [customGameInput, setCustomGameInput] = useState<Record<string, string>>({});
   const [agreedToOwnerTerms, setAgreedToOwnerTerms] = useState(false);
-  // Photo/menu uploads need a real cafe_id to presign against — the draft
-  // café row created by the first autosave. See owner.py's
-  // save_onboarding_draft, which now grants the cafe_owner role at the same
-  // time so these uploads actually work before final submit (previously
-  // every attempt 403'd, and admin's review queue had no real photos).
-  const [cafeId, setCafeId] = useState<string | null>(null);
-  const [menuPhotos, setMenuPhotos] = useState<string[]>([]);
-  const [venuePhotoError, setVenuePhotoError] = useState<string | null>(null);
-  const [menuPhotoError, setMenuPhotoError] = useState<string | null>(null);
-  const [isUploadingVenuePhoto, setIsUploadingVenuePhoto] = useState(false);
-  const [isUploadingMenuPhoto, setIsUploadingMenuPhoto] = useState(false);
 
   // Load server-persisted draft on mount with StrictMode cleanup flag
   useEffect(() => {
@@ -157,8 +169,9 @@ export default function OnboardingWizardPage() {
     async function loadDraft() {
       try {
         const res = await getOnboardingDraft();
-        if (isMounted && res.cafeId) setCafeId(res.cafeId);
-        if (isMounted && res.menuPhotos) setMenuPhotos(res.menuPhotos);
+        if (isMounted && res.cafeId) {
+          setFormData((prev) => ({ ...prev, cafeId: res.cafeId }));
+        }
         if (isMounted && res.draft && Object.keys(res.draft).length > 0) {
           const draft: Record<string, any> = { ...res.draft };
           // Sanitize pre-Platform-V2 drafts: the old hardwareTiers shape
@@ -271,7 +284,10 @@ export default function OnboardingWizardPage() {
       if (formData.googleMapsUrl && !GOOGLE_MAPS_URL_PATTERN.test(formData.googleMapsUrl)) {
         errors.googleMapsUrl = 'Please enter a valid Google Maps link (e.g. https://maps.app.goo.gl/...).';
       }
-      if (!formData.city || !formData.state) {
+      if (!formData.state) {
+        errors.state = 'Please select your state or union territory.';
+      }
+      if (!formData.city) {
         errors.city = 'Please search and select your city or town.';
       }
       if (!formData.pincode) {
@@ -408,7 +424,9 @@ export default function OnboardingWizardPage() {
       // unaffected — that's plain React state, not this payload.
       const { upiVpa, confirmUpiVpa, bankAccountNumber, confirmBankAccountNumber, bankIfsc, accountHolderName, ...draftSafeFields } = formData;
       const saveRes = await saveOnboardingDraft(nextStep, draftSafeFields);
-      if (saveRes.cafeId) setCafeId(saveRes.cafeId);
+      if (saveRes?.cafeId) {
+        setFormData((prev) => ({ ...prev, cafeId: saveRes.cafeId as string }));
+      }
     } catch {
       // The step transition above already happened client-side, so don't
       // block navigation — but a silently-swallowed failure here meant a
@@ -416,63 +434,6 @@ export default function OnboardingWizardPage() {
       // (the header still showed "Auto-Saving Progress"). Surface it instead
       // so the owner knows to stay on this device/connection until it saves.
       setError("Your progress couldn't be saved — check your connection. Your answers are safe on this screen, but may be lost if you leave or refresh before it saves.");
-    }
-  };
-
-  const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-  const MAX_PHOTO_MB = 8;
-  const PLACEHOLDER_PHOTO = INITIAL_STATE.photos[0];
-
-  const handleVenuePhotosSelected = async (files: FileList | null) => {
-    if (!files || files.length === 0 || !cafeId) return;
-    setVenuePhotoError(null);
-    for (const file of Array.from(files)) {
-      if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
-        setVenuePhotoError('Only JPEG, PNG, or WebP images are allowed');
-        continue;
-      }
-      if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
-        setVenuePhotoError(`"${file.name}" is larger than ${MAX_PHOTO_MB}MB`);
-        continue;
-      }
-      setIsUploadingVenuePhoto(true);
-      try {
-        const publicUrl = await uploadCafePhoto(cafeId, file, 'exterior');
-        setFormData((prev) => ({
-          ...prev,
-          photos: [...prev.photos.filter((p) => p !== PLACEHOLDER_PHOTO), publicUrl],
-        }));
-      } catch (err) {
-        setVenuePhotoError(err instanceof Error ? err.message : `"${file.name}" failed to upload.`);
-      } finally {
-        setIsUploadingVenuePhoto(false);
-      }
-    }
-  };
-
-  const handleMenuPhotosSelected = async (files: FileList | null) => {
-    if (!files || files.length === 0 || !cafeId) return;
-    setMenuPhotoError(null);
-    for (const file of Array.from(files)) {
-      if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
-        setMenuPhotoError('Only JPEG, PNG, or WebP images are allowed');
-        continue;
-      }
-      if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
-        setMenuPhotoError(`"${file.name}" is larger than ${MAX_PHOTO_MB}MB`);
-        continue;
-      }
-      setIsUploadingMenuPhoto(true);
-      try {
-        const publicUrl = await uploadMenuPhoto(cafeId, file);
-        const updated = [...menuPhotos, publicUrl];
-        setMenuPhotos(updated);
-        await updateCafeDetails(cafeId, { menuPhotos: updated });
-      } catch (err) {
-        setMenuPhotoError(err instanceof Error ? err.message : `"${file.name}" failed to upload.`);
-      } finally {
-        setIsUploadingMenuPhoto(false);
-      }
     }
   };
 
@@ -558,6 +519,7 @@ export default function OnboardingWizardPage() {
         totalSeats: formattedHardwareTiers.reduce((sum, t) => sum + t.totalSeats, 0) || 1,
         amenities: formData.amenities,
         photos: formData.photos,
+        menuPhotos: formData.menuPhotos,
         supportedGames: formData.supportedGames,
         businessPan: formData.businessPan || undefined,
         gstin: formData.gstin || undefined,
@@ -810,27 +772,62 @@ export default function OnboardingWizardPage() {
                   onChange={(e) => updateField('addressLine2', e.target.value)}
                 />
 
-                <LocationSearchInput
-                  label="City / Town *"
-                  value={
-                    formData.city
-                      ? { id: formData.locationId ?? 0, name: formData.city, state: formData.state, district: null, pincode: formData.pincode || null }
-                      : null
-                  }
-                  onChange={(loc: SelectedLocation) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      // id 0 means "typed via Other" — not a real locations-table row.
-                      locationId: loc.id || null,
-                      city: loc.name,
-                      state: loc.state,
-                      pincode: loc.pincode || prev.pincode,
-                    }));
-                    clearStep1Error('city');
-                    clearStep1Error('state');
-                  }}
-                  error={step1Errors.city || step1Errors.state}
-                />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-h4 text-text-primary">State / UT *</label>
+                  {formData.state ? (
+                    <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+                      <span className="text-body text-text-primary">{formData.state}</span>
+                      {!formData.city && (
+                        <button
+                          type="button"
+                          onClick={() => updateField('state', '')}
+                          className="text-caption font-semibold text-primary"
+                        >
+                          Change
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        updateField('state', e.target.value);
+                        clearStep1Error('state');
+                      }}
+                      className="h-11 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      <option value="" disabled>Select your State / UT</option>
+                      {INDIAN_STATES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  )}
+                  {step1Errors.state && <p className="text-caption text-error" role="alert">{step1Errors.state}</p>}
+                </div>
+
+                {formData.state && (
+                  <LocationSearchInput
+                    label="City / Town / Locality *"
+                    state={formData.state}
+                    value={
+                      formData.city
+                        // id 0 means "typed via Other" — not a real locations-table row.
+                        ? { id: formData.locationId ?? 0, name: formData.city, state: formData.state, district: null, pincode: formData.pincode || null }
+                        : null
+                    }
+                    onChange={(loc: SelectedLocation) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        locationId: loc.id || null,
+                        city: loc.name,
+                        pincode: loc.pincode || prev.pincode,
+                      }));
+                      clearStep1Error('city');
+                    }}
+                    onClear={() => setFormData((prev) => ({ ...prev, locationId: null, city: '' }))}
+                    error={step1Errors.city}
+                  />
+                )}
 
                 <Input
                   ref={(el) => { step1FieldRefs.current.pincode = el; }}
@@ -1176,20 +1173,31 @@ export default function OnboardingWizardPage() {
                 <div>
                   <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
                     <Gamepad2 className="h-5 w-5 text-emerald-500" />
-                    <span>5. Games Supported & Photo Gallery</span>
+                    <span>5. {relevantGamingPlatforms.length > 0 ? 'Games Supported & Photo Gallery' : 'Photo Gallery'}</span>
                   </h2>
                   <p className="text-caption text-text-secondary">Showcase your library of pre-installed games and venue photos.</p>
                 </div>
 
                 <div className="flex flex-col gap-5">
                   {relevantGamingPlatforms.length === 0 && (
-                    <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
-                      <Gamepad2 className="h-4 w-4 flex-shrink-0 text-text-secondary mt-0.5" />
-                      <p className="text-caption text-text-secondary">
-                        You haven&apos;t configured any gaming platforms in the previous step — add a
-                        PC, PlayStation, Xbox, or Nintendo resource there to list the games you support.
-                      </p>
-                    </div>
+                    formData.hardwareTiers.some((t) => t.tierType === 'activity') ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
+                        <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-500 mt-0.5" />
+                        <p className="text-caption text-text-secondary">
+                          You&apos;ve set up {formData.hardwareTiers.filter((t) => t.tierType === 'activity').length}{' '}
+                          physical {formData.hardwareTiers.filter((t) => t.tierType === 'activity').length === 1 ? 'activity' : 'activities'}{' '}
+                          (see Step 4). No gaming platform configuration is needed for a physical-activity café — add photos below.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
+                        <Gamepad2 className="h-4 w-4 flex-shrink-0 text-text-secondary mt-0.5" />
+                        <p className="text-caption text-text-secondary">
+                          You haven&apos;t configured any gaming platforms in the previous step — add a
+                          PC, PlayStation, Xbox, or Nintendo resource there to list the games you support.
+                        </p>
+                      </div>
+                    )
                   )}
                   {relevantGamingPlatforms.map((platform) => {
                     const platformLabel = PLATFORMS.find((p) => p.value === platform)?.label || platform;
@@ -1256,57 +1264,81 @@ export default function OnboardingWizardPage() {
                   })}
                 </div>
 
-                {/* Photos upload for real here — the draft café created by the
-                    first autosave now carries the cafe_owner role (see
-                    save_onboarding_draft), so the presign endpoints work
-                    before final submit. Admin's verification queue needs
-                    real photos to review, not a placeholder. */}
+                {/* Draft-save (handleNext) creates a real, cafe_id-bearing Cafe
+                    row (status=DRAFT) the moment the owner clicks Next past
+                    Step 1, and formData.cafeId is populated from that response
+                    (or from GET /onboarding/draft on reload). That's enough
+                    for the existing cafe-scoped presign endpoints — reused
+                    as-is here — to work during onboarding, not just after
+                    approval. */}
                 <div className="flex flex-col gap-2">
                   <label className="text-caption font-semibold text-text-primary">Venue Photos</label>
-                  {!cafeId ? (
-                    <p className="text-caption text-text-secondary">Complete step 1 first to enable photo upload.</p>
+                  {!formData.cafeId ? (
+                    <p className="text-caption text-text-secondary">Saving your progress — photo upload will be available in a moment.</p>
                   ) : (
                     <>
-                      <div className="flex flex-wrap gap-2">
-                        {formData.photos.filter((p) => p !== PLACEHOLDER_PHOTO).map((url) => (
-                          <img key={url} src={url} alt="Venue" className="h-20 w-20 rounded-xl object-cover border border-border" />
-                        ))}
-                      </div>
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/*"
                         multiple
-                        disabled={isUploadingVenuePhoto}
-                        onChange={(e) => { handleVenuePhotosSelected(e.target.files); e.target.value = ''; }}
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          for (const file of files) {
+                            try {
+                              const url = await uploadCafePhoto(formData.cafeId!, file, 'exterior');
+                              setFormData((prev) => ({ ...prev, photos: [...prev.photos, url] }));
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : 'One of your photos failed to upload. Please try again.');
+                            }
+                          }
+                          e.target.value = '';
+                        }}
                         className="text-caption text-text-secondary"
                       />
-                      {isUploadingVenuePhoto && <p className="text-caption text-text-secondary">Uploading…</p>}
-                      {venuePhotoError && <p className="text-caption text-error" role="alert">{venuePhotoError}</p>}
+                      {formData.photos.length > 0 && (
+                        <div className="grid grid-cols-4 gap-2">
+                          {formData.photos.map((url) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img key={url} src={url} alt="Venue photo" className="aspect-square rounded-lg object-cover border border-border" />
+                          ))}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label className="text-caption font-semibold text-text-primary">Menu (Optional)</label>
-                  {!cafeId ? (
-                    <p className="text-caption text-text-secondary">Complete step 1 first to enable photo upload.</p>
+                  <label className="text-caption font-semibold text-text-primary">Menu Photos (Optional)</label>
+                  {!formData.cafeId ? (
+                    <p className="text-caption text-text-secondary">Saving your progress — photo upload will be available in a moment.</p>
                   ) : (
                     <>
-                      <div className="flex flex-wrap gap-2">
-                        {menuPhotos.map((url) => (
-                          <img key={url} src={url} alt="Menu" className="h-20 w-20 rounded-xl object-cover border border-border" />
-                        ))}
-                      </div>
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/*"
                         multiple
-                        disabled={isUploadingMenuPhoto}
-                        onChange={(e) => { handleMenuPhotosSelected(e.target.files); e.target.value = ''; }}
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          for (const file of files) {
+                            try {
+                              const url = await uploadMenuPhoto(formData.cafeId!, file);
+                              setFormData((prev) => ({ ...prev, menuPhotos: [...prev.menuPhotos, url] }));
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : 'One of your menu photos failed to upload. Please try again.');
+                            }
+                          }
+                          e.target.value = '';
+                        }}
                         className="text-caption text-text-secondary"
                       />
-                      {isUploadingMenuPhoto && <p className="text-caption text-text-secondary">Uploading…</p>}
-                      {menuPhotoError && <p className="text-caption text-error" role="alert">{menuPhotoError}</p>}
+                      {formData.menuPhotos.length > 0 && (
+                        <div className="grid grid-cols-4 gap-2">
+                          {formData.menuPhotos.map((url) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img key={url} src={url} alt="Menu photo" className="aspect-square rounded-lg object-cover border border-border" />
+                          ))}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -1330,87 +1362,68 @@ export default function OnboardingWizardPage() {
                   onChange={(e) => updateField('cancellationPolicy', e.target.value)}
                 />
 
-                <div className="flex flex-col gap-5 bg-surface p-5 rounded-2xl border border-border text-body">
-                  <h3 className="font-heading text-h3 text-text-primary border-b border-border pb-2">Submission Summary</h3>
-
-                  <div className="flex flex-col gap-2">
-                    <h4 className="text-overline font-semibold text-text-tertiary">Venue Details</h4>
-                    <SummaryRow label="Café Name" value={formData.name} />
-                    <SummaryRow label="Description" value={formData.description} />
-                    <SummaryRow
+                <div className="flex flex-col gap-4">
+                  <ReviewSection title="Location" onEdit={() => setStep(1)}>
+                    <ReviewRow label="Venue Name" value={formData.name || 'Not provided'} />
+                    <ReviewRow
                       label="Address"
-                      value={[formData.addressLine1, formData.addressLine2].filter(Boolean).join(', ')}
+                      value={`${formData.addressLine1}${formData.addressLine2 ? ', ' + formData.addressLine2 : ''}` || 'Not provided'}
                     />
-                    <SummaryRow label="City / State" value={[formData.city, formData.state].filter(Boolean).join(', ')} />
-                    <SummaryRow label="Pincode" value={formData.pincode} />
-                    <SummaryRow label="Google Maps Link" value={formData.googleMapsUrl} />
-                    <SummaryRow label="Contact Phone" value={formData.phoneNumber} />
-                  </div>
+                    <ReviewRow label="City / Town / Locality" value={formData.city || 'Not provided'} />
+                    <ReviewRow label="State" value={formData.state || 'Not provided'} />
+                    <ReviewRow label="Pincode" value={formData.pincode || 'Not provided'} />
+                    <ReviewRow label="Maps Link" value={formData.googleMapsUrl || 'Not provided'} />
+                  </ReviewSection>
 
-                  <div className="flex flex-col gap-2">
-                    <h4 className="text-overline font-semibold text-text-tertiary">Business Verification</h4>
-                    <SummaryRow label="Business Email" value={formData.email} />
-                    <SummaryRow label="Business PAN" value={formData.businessPan} />
-                    <SummaryRow label="GSTIN" value={formData.hasGst ? formData.gstin : 'Not registered'} />
-                    <SummaryRow label="Trade License Document" value={formData.legalDocumentUrl} />
-                  </div>
+                  <ReviewSection title="Business Verification" onEdit={() => setStep(2)}>
+                    <ReviewRow label="Business Phone" value={formData.phoneNumber || 'Not provided'} />
+                    <ReviewRow label="Email" value={formData.email || 'Not provided'} />
+                    <ReviewRow label="Business PAN" value={formData.businessPan || 'Not provided'} />
+                    <ReviewRow label="GSTIN" value={formData.hasGst ? (formData.gstin || 'Not provided') : 'Not registered'} />
+                    <ReviewRow label="Legal Document" value={formData.legalDocumentUrl ? 'Uploaded' : 'Not provided'} />
+                  </ReviewSection>
 
-                  <div className="flex flex-col gap-2">
-                    <h4 className="text-overline font-semibold text-text-tertiary">Payout Details</h4>
-                    <SummaryRow label="Payout UPI ID" value={formData.upiVpa} highlight />
+                  <ReviewSection title="Payout" onEdit={() => setStep(3)}>
+                    <ReviewRow label="Payout UPI ID" value={formData.upiVpa || 'Not provided'} />
                     {(formData.accountHolderName || formData.bankIfsc || formData.bankAccountNumber || formData.bankAccountNumberMasked) && (
                       <>
-                        <SummaryRow label="Bank Account Holder" value={formData.accountHolderName} />
-                        <SummaryRow
+                        <ReviewRow label="Bank Account Holder" value={formData.accountHolderName || 'Not provided'} />
+                        <ReviewRow
                           label="Bank Account Number"
-                          value={formData.bankAccountNumber ? `New: ${formData.bankAccountNumber}` : formData.bankAccountNumberMasked}
+                          value={formData.bankAccountNumber ? `New: ${formData.bankAccountNumber}` : (formData.bankAccountNumberMasked || 'Not provided')}
                         />
-                        <SummaryRow label="Bank IFSC" value={formData.bankIfsc} />
-                        <SummaryRow label="Bank Name" value={formData.bankName} />
+                        <ReviewRow label="Bank IFSC" value={formData.bankIfsc || 'Not provided'} />
                       </>
                     )}
-                  </div>
+                  </ReviewSection>
 
-                  <div className="flex flex-col gap-2">
-                    <h4 className="text-overline font-semibold text-text-tertiary">Hours & Hardware</h4>
-                    <SummaryRow label="Operating Hours" value={`${formData.openingTime} – ${formData.closingTime}`} />
-                    {formData.hardwareTiers.length > 0 ? (
-                      <div className="flex flex-col gap-1 pt-1">
-                        {formData.hardwareTiers.map((tier) => (
-                          <div key={tier.id} className="flex justify-between text-caption">
-                            <span className="text-text-secondary">
-                              {tier.platform.toUpperCase()} · {tier.model || 'Unspecified model'} · {tier.totalSeats} seats
-                            </span>
-                            <span className="font-semibold text-text-primary">₹{tier.pricePerHour}/hr</span>
-                          </div>
-                        ))}
-                      </div>
+                  <ReviewSection title="Resources / Activities" onEdit={() => setStep(4)}>
+                    <ReviewRow label="Hours" value={`${formData.openingTime} – ${formData.closingTime}`} />
+                    {formData.hardwareTiers.length === 0 ? (
+                      <ReviewRow label="Resources" value="None configured" />
                     ) : (
-                      <SummaryRow label="Resources" value="" />
+                      formData.hardwareTiers.map((t) => (
+                        <ReviewRow
+                          key={t.id}
+                          label={
+                            t.tierType === 'activity'
+                              ? (t.activityKind || 'Activity')
+                              : (PLATFORMS.find((p) => p.value === t.platform)?.label || t.platform || 'Resource')
+                          }
+                          value={`${t.model || t.tierType} · ${t.totalSeats} seats · ₹${t.pricePerHour}/hr${t.individualUnits ? ' · Individually tracked' : ''}`}
+                        />
+                      ))
                     )}
-                  </div>
+                  </ReviewSection>
 
-                  <div className="flex flex-col gap-2">
-                    <h4 className="text-overline font-semibold text-text-tertiary">Games & Amenities</h4>
-                    {Object.entries(formData.supportedGames).map(([platform, games]) => (
-                      games.length > 0 && (
-                        <SummaryRow key={platform} label={platform.toUpperCase()} value={games.join(', ')} />
-                      )
-                    ))}
-                    <SummaryRow label="Amenities" value={formData.amenities.join(', ')} />
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <h4 className="text-overline font-semibold text-text-tertiary">Policies</h4>
-                    <SummaryRow label="Cancellation Policy" value={formData.cancellationPolicy} />
-                    <SummaryRow label="House Rules" value={formData.houseRules.join('; ')} />
-                  </div>
-
-                  <div className="flex flex-col gap-2 pt-1 border-t border-border">
-                    <h4 className="text-overline font-semibold text-text-tertiary">Photos</h4>
-                    <SummaryRow label="Venue Photos" value={`${formData.photos.filter((p) => p !== PLACEHOLDER_PHOTO).length} uploaded`} />
-                    <SummaryRow label="Menu Photos" value={`${menuPhotos.length} uploaded`} />
-                  </div>
+                  <ReviewSection title="Games / Photos" onEdit={() => setStep(5)}>
+                    <ReviewRow
+                      label="Games"
+                      value={`${Object.values(formData.supportedGames).reduce((sum, list) => sum + list.length, 0)} games across ${Object.keys(formData.supportedGames).filter((k) => formData.supportedGames[k].length > 0).length} platforms`}
+                    />
+                    <ReviewRow label="Venue Photos" value={`${formData.photos.length} uploaded`} />
+                    <ReviewRow label="Menu Photos" value={`${formData.menuPhotos.length} uploaded`} />
+                  </ReviewSection>
                 </div>
 
                 <label className="flex items-start gap-2.5 text-caption text-text-secondary">

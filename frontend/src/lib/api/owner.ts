@@ -139,7 +139,7 @@ export async function getOwnerPayoutSummary(): Promise<OwnerPayoutSummary> {
   return call(() => apiClient.get('/api/v1/owner/payouts/summary'));
 }
 
-export async function getOnboardingDraft(): Promise<{ draft: any; cafeId?: string; menuPhotos?: string[] }> {
+export async function getOnboardingDraft(): Promise<{ draft: any; cafeId: string | null }> {
   return call(() => apiClient.get('/api/v1/owner/onboarding/draft'));
 }
 

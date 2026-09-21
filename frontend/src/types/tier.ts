@@ -24,6 +24,10 @@ export interface HardwareTier {
   activePromotion: Promotion | null;
   tierType: 'gaming' | 'activity';
   activityKind: string | null;
+  /** Whether this tier's seats are tracked as individually-numbered units
+   *  (HardwareTierUnit rows) or as one pooled count. Computed by the
+   *  backend, not a stored flag. */
+  trackingMode?: 'individual' | 'pooled';
   createdAt: string;
   updatedAt: string;
 }

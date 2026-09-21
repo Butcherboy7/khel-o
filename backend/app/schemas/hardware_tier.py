@@ -103,6 +103,11 @@ class HardwareTierResponse(HardwareTierBase):
     active_promotion: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
+    # Not a persisted column — set explicitly by CafeService._build_cafe_response
+    # from whether this tier has HardwareTierUnit child rows. Defaults to
+    # "pooled" for any path that doesn't set it (e.g. non-admin responses that
+    # don't need it).
+    tracking_mode: str = "pooled"
 
     model_config = ConfigDict(
         from_attributes=True,

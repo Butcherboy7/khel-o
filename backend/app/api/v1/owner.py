@@ -25,10 +25,11 @@ from app.repositories.owner_payout_repository import OwnerPayoutRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator, AliasChoices
-from app.constants import validate_city, validate_google_maps_url, PHOTO_CATEGORIES
+from app.constants import validate_city, validate_google_maps_url, validate_pincode, PHOTO_CATEGORIES
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
+from app.models.location import Location
 from app.models.hardware_tier import HardwareTier, PlatformType, TierType
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.booking import Booking, BookingStatus
@@ -174,6 +175,12 @@ class OnboardingSubmitRequest(BaseModel):
     @classmethod
     def _validate_google_maps_url(cls, v: Optional[str]) -> Optional[str]:
         return validate_google_maps_url(v)
+
+    @field_validator("pincode")
+    @classmethod
+    def _validate_pincode(cls, v: str) -> str:
+        return validate_pincode(v)
+
     closing_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Closing time in HH:MM:SS format (required, can be earlier than opening for overnight)")
     total_seats: int = Field(20, ge=1)
     amenities: List[str] = Field(default_factory=list)
@@ -184,6 +191,13 @@ class OnboardingSubmitRequest(BaseModel):
     # accept both or every changes-requested resubmit 422s at the schema
     # boundary before _normalize_photos below ever runs.
     photos: List[Union[str, Dict[str, str]]] = Field(default_factory=list)
+    # Menu photos, uploaded via the cafe-scoped menu-photos/presign endpoint
+    # (Task 7) — a flat URL list, same shape as Cafe.menu_photos (menu
+    # photos are already their own semantic category and don't carry a
+    # `category` field the way `photos` does). Accepts both a plain string
+    # and a {url: ...} dict for symmetry with `photos` above, in case a
+    # future draft round-trip synthesizes the dict shape here too.
+    menu_photos: List[Union[str, Dict[str, str]]] = Field(default_factory=list)
     supported_games: Dict[str, List[str]] = Field(default_factory=dict)
     business_pan: Optional[str] = None
     has_gst: bool = False
@@ -609,19 +623,15 @@ async def get_onboarding_draft(
     cafe = res.scalars().first()
 
     if not cafe:
-        return {"success": True, "data": {"draft": {}}}
+        return {"success": True, "data": {"draft": {}, "cafeId": None}}
 
-    # cafeId/menuPhotos ride alongside the draft (not inside its JSON blob)
-    # so the onboarding wizard can presign photo/menu-photo uploads against
-    # this café — those endpoints need a real cafe_id, and menu photos are
-    # persisted directly on the Cafe row rather than through draft_data.
     if cafe.draft_data:
-        return {"success": True, "data": {"draft": cafe.draft_data, "cafeId": str(cafe.id), "menuPhotos": cafe.menu_photos or []}}
+        return {"success": True, "data": {"draft": cafe.draft_data, "cafeId": str(cafe.id)}}
 
     if cafe.verification_status == VerificationStatus.DRAFT:
         # A brand-new café that hasn't gone through a full submission yet
         # and has no in-progress draft either — nothing to prefill.
-        return {"success": True, "data": {"draft": {}, "cafeId": str(cafe.id), "menuPhotos": cafe.menu_photos or []}}
+        return {"success": True, "data": {"draft": {}, "cafeId": str(cafe.id)}}
 
     # The café was fully submitted at least once, which unconditionally
     # clears draft_data (see the submit handler) — reconstruct an
@@ -632,10 +642,9 @@ async def get_onboarding_draft(
     tiers = await tier_repo.get_by_cafe_id(cafe.id)
 
     # UPI/bank details live on OwnerPayoutAccount, not Cafe, so they need
-    # their own fetch here — see the confirmUpiVpa/bankAccountNumberMasked
-    # fields below. The full (unencrypted) bank account number is never
-    # reconstructed: only a masked display value is safe to send back over
-    # the API, so the owner must re-enter it in full if they want to change it.
+    # their own fetch here. The full (unencrypted) bank account number is
+    # never reconstructed: only a masked display value is safe to send back
+    # over the API, so the owner must re-enter it in full to change it.
     payout_repo = OwnerPayoutRepository(db)
     payout_account = await payout_repo.get_by_owner_id(cafe.owner_id)
 
@@ -660,6 +669,7 @@ async def get_onboarding_draft(
         "closingTime": str(cafe.closing_time)[:5] if cafe.closing_time else "23:00",
         "amenities": cafe.amenities or [],
         "photos": cafe.photos or [],
+        "menuPhotos": cafe.menu_photos or [],
         "supportedGames": cafe.supported_games or {},
         "cancellationPolicy": cafe.cancellation_policy or "",
         "houseRules": cafe.house_rules or [],
@@ -685,7 +695,7 @@ async def get_onboarding_draft(
         snapshot["accountHolderName"] = payout_account.account_holder_name or ""
         snapshot["bankIfsc"] = payout_account.bank_ifsc or ""
         snapshot["bankAccountNumberMasked"] = payout_account.bank_account_number_masked or ""
-    return {"success": True, "data": {"draft": snapshot, "cafeId": str(cafe.id), "menuPhotos": cafe.menu_photos or []}}
+    return {"success": True, "data": {"draft": snapshot, "cafeId": str(cafe.id)}}
 
 @router.post("/onboarding/draft", status_code=status.HTTP_200_OK)
 async def save_onboarding_draft(
@@ -775,6 +785,17 @@ def _normalize_photos(value):
     return [p if isinstance(p, dict) else {"url": p, "category": "exterior"} for p in value]
 
 
+def _normalize_menu_photos(value):
+    """Cafe.menu_photos is stored as a flat list of URL strings (see
+    presign_menu_photo_upload's own comment: menu photos are already their
+    own semantic category and don't get a category field like `photos`
+    does). Normalize dict entries (e.g. a future {url, ...} draft
+    round-trip) down to their url string; plain strings pass through."""
+    if not value:
+        return []
+    return [p if isinstance(p, str) else p.get("url", "") for p in value]
+
+
 @router.post("/onboarding/submit", status_code=status.HTTP_200_OK)
 async def submit_onboarding_application(
     payload: OnboardingSubmitRequest,
@@ -818,6 +839,18 @@ async def submit_onboarding_application(
     res = await db.execute(stmt)
     cafe = res.scalars().first()
 
+    if payload.location_id is not None:
+        loc_stmt = select(Location).where(Location.id == payload.location_id)
+        location = (await db.execute(loc_stmt)).scalars().first()
+        if location and location.pincode and location.pincode != payload.pincode:
+            raise ValidationException(
+                message=(
+                    f"Pincode {payload.pincode} doesn't match {location.name}'s pincode on file "
+                    f"({location.pincode}). Please double-check your pincode."
+                ),
+                error_code="PINCODE_MISMATCH",
+            )
+
     parts = payload.opening_time.split(":")
     opening_time_obj = time(hour=int(parts[0]), minute=int(parts[1]))
     
@@ -845,6 +878,7 @@ async def submit_onboarding_application(
             total_seats=payload.total_seats,
             amenities=payload.amenities,
             photos=_normalize_photos(payload.photos),
+            menu_photos=_normalize_menu_photos(payload.menu_photos),
             supported_games=payload.supported_games,
             business_pan=payload.business_pan,
             gstin=payload.gstin,
@@ -876,6 +910,7 @@ async def submit_onboarding_application(
         cafe.total_seats = payload.total_seats
         cafe.amenities = payload.amenities
         cafe.photos = _normalize_photos(payload.photos)
+        cafe.menu_photos = _normalize_menu_photos(payload.menu_photos)
         cafe.supported_games = payload.supported_games
         cafe.business_pan = payload.business_pan
         cafe.gstin = payload.gstin
@@ -2136,6 +2171,11 @@ class CafeDetailsUpdate(BaseModel):
     @classmethod
     def _validate_city(cls, v: Optional[str]) -> Optional[str]:
         return validate_city(v) if v is not None else v
+
+    @field_validator("pincode")
+    @classmethod
+    def _validate_pincode(cls, v: Optional[str]) -> Optional[str]:
+        return validate_pincode(v) if v is not None else v
 
     @field_validator("google_maps_url")
     @classmethod
