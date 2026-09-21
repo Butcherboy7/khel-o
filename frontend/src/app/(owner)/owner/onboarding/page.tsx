@@ -18,7 +18,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } from '@/lib/api/owner';
-import { uploadCafePhoto, uploadMenuPhoto } from '@/lib/api/settings';
+import { uploadCafePhoto, uploadMenuPhoto, deleteCafePhoto, deleteMenuPhoto } from '@/lib/api/settings';
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, NumericField, Textarea, Card, CardContent, Badge } from '@/components/ui';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
@@ -1298,8 +1298,25 @@ export default function OnboardingWizardPage() {
                       {formData.photos.length > 0 && (
                         <div className="grid grid-cols-4 gap-2">
                           {formData.photos.map((url) => (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img key={url} src={url} alt="Venue photo" className="aspect-square rounded-lg object-cover border border-border" />
+                            <div key={url} className="relative aspect-square">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={url} alt="Venue photo" className="h-full w-full rounded-lg object-cover border border-border" />
+                              <button
+                                type="button"
+                                aria-label="Delete photo"
+                                onClick={async () => {
+                                  try {
+                                    await deleteCafePhoto(formData.cafeId!, url);
+                                    setFormData((prev) => ({ ...prev, photos: prev.photos.filter((p) => p !== url) }));
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : 'Failed to delete photo. Please try again.');
+                                  }
+                                }}
+                                className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white text-xs font-bold hover:bg-black/80"
+                              >
+                                ×
+                              </button>
+                            </div>
                           ))}
                         </div>
                       )}
@@ -1334,8 +1351,25 @@ export default function OnboardingWizardPage() {
                       {formData.menuPhotos.length > 0 && (
                         <div className="grid grid-cols-4 gap-2">
                           {formData.menuPhotos.map((url) => (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img key={url} src={url} alt="Menu photo" className="aspect-square rounded-lg object-cover border border-border" />
+                            <div key={url} className="relative aspect-square">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={url} alt="Menu photo" className="h-full w-full rounded-lg object-cover border border-border" />
+                              <button
+                                type="button"
+                                aria-label="Delete photo"
+                                onClick={async () => {
+                                  try {
+                                    const res = await deleteMenuPhoto(formData.cafeId!, url);
+                                    setFormData((prev) => ({ ...prev, menuPhotos: res.menuPhotos }));
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : 'Failed to delete photo. Please try again.');
+                                  }
+                                }}
+                                className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white text-xs font-bold hover:bg-black/80"
+                              >
+                                ×
+                              </button>
+                            </div>
                           ))}
                         </div>
                       )}

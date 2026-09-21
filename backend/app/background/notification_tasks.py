@@ -7,12 +7,6 @@ from app.models.booking import Booking, BookingStatus
 from app.core.logging import logger
 from app.services.notification_service import NotificationService
 
-async def send_email_notification(to_email: str, subject: str, body: str):
-    logger.info("sending_email", to_email=to_email, subject=subject)
-
-async def send_web_push_notification(user_id: str, title: str, body: str):
-    logger.info("sending_web_push", user_id=user_id, title=title)
-
 async def expire_promotions(db: AsyncSession) -> int:
     now = datetime.now(timezone.utc)
     stmt = update(Promotion).where(
