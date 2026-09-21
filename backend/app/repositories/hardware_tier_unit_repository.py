@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,20 @@ class HardwareTierUnitRepository:
             .order_by(HardwareTierUnit.created_at, HardwareTierUnit.label)
         )
         return list(result.scalars().all())
+
+    async def list_by_tier_ids(self, tier_ids: List[UUID]) -> Dict[UUID, List[HardwareTierUnit]]:
+        """Batch counterpart to list_by_tier — one query for every tier on a
+        café instead of N, used to derive individual-vs-pooled tracking mode
+        for a whole café's tier list without N+1 queries."""
+        if not tier_ids:
+            return {}
+        result = await self.db.execute(
+            select(HardwareTierUnit).where(HardwareTierUnit.tier_id.in_(tier_ids))
+        )
+        by_tier: Dict[UUID, List[HardwareTierUnit]] = {}
+        for unit in result.scalars().all():
+            by_tier.setdefault(unit.tier_id, []).append(unit)
+        return by_tier
 
     async def get_by_id(self, unit_id: UUID) -> Optional[HardwareTierUnit]:
         result = await self.db.execute(select(HardwareTierUnit).where(HardwareTierUnit.id == unit_id))
