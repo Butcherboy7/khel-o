@@ -78,6 +78,9 @@ class UserUpdateRequest(BaseModel):
     # input, never persisted -- see auth.update_me.
     email: Optional[EmailStr] = None
     current_password: Optional[str] = Field(None, max_length=128)
+    # Google-only accounts (no password_hash) prove identity with a fresh
+    # Google id_token instead -- see auth.update_me.
+    google_id_token: Optional[str] = Field(None, max_length=4096)
 
     model_config = ConfigDict(
         alias_generator=to_camel,

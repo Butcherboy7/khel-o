@@ -190,10 +190,12 @@ async def update_me(
     repo = UserRepository(db)
     update_data = payload.model_dump(exclude_unset=True, exclude_none=True)
 
-    # current_password authenticates the change; it is never a stored field.
-    # Popped before anything reaches repo.update regardless of which branch
-    # runs below, so it can't leak into the User model.
+    # current_password / google_id_token authenticate the change; neither is
+    # ever a stored field. Popped before anything reaches repo.update
+    # regardless of which branch runs below, so they can't leak into the
+    # User model.
     current_password = update_data.pop("current_password", None)
+    google_id_token = update_data.pop("google_id_token", None)
 
     new_email = update_data.get("email")
     if new_email is not None:
@@ -203,18 +205,35 @@ async def update_me(
         else:
             # No verification mail is sent: the placeholder @khel-o.com
             # addresses these café-owner accounts ship with do not exist, so a
-            # confirmation link would go nowhere. The password is the proof of
-            # identity instead.
-            if not current_password:
-                raise BadRequestException(
-                    message="Enter your current password to change your email address",
-                    error_code="CURRENT_PASSWORD_REQUIRED",
-                )
-            if not verify_password(current_password, current_user.password_hash):
-                raise BadRequestException(
-                    message="That password is incorrect",
-                    error_code="INVALID_CURRENT_PASSWORD",
-                )
+            # confirmation link would go nowhere. Re-proving identity via the
+            # account's existing sign-in method stands in instead: a password
+            # for password accounts, a fresh Google sign-in for accounts that
+            # only ever authenticated with Google (password_hash is None, so
+            # there is no KHEL-O password to ask for).
+            if current_user.password_hash:
+                if not current_password:
+                    raise BadRequestException(
+                        message="Enter your current password to change your email address",
+                        error_code="CURRENT_PASSWORD_REQUIRED",
+                    )
+                if not verify_password(current_password, current_user.password_hash):
+                    raise BadRequestException(
+                        message="That password is incorrect",
+                        error_code="INVALID_CURRENT_PASSWORD",
+                    )
+            else:
+                if not google_id_token:
+                    raise BadRequestException(
+                        message="Verify with Google to change your email address",
+                        error_code="GOOGLE_REAUTH_REQUIRED",
+                    )
+                service = AuthService(repo)
+                token_info = await service.verify_google_id_token(google_id_token)
+                if token_info.get("sub") != current_user.google_id:
+                    raise BadRequestException(
+                        message="Google verification failed. Please try again.",
+                        error_code="INVALID_GOOGLE_REAUTH",
+                    )
             existing = await repo.get_by_email(new_email)
             if existing and existing.id != current_user.id:
                 raise BadRequestException(

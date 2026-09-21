@@ -110,6 +110,80 @@ async def test_current_password_is_never_persisted(db_session, async_client):
     assert user.password_hash != "rightpass1"
 
 
+async def test_google_only_email_change_requires_google_reauth(db_session, async_client):
+    """Google-only accounts have no password_hash, so they must not be asked
+    for one -- and must not be able to change email with nothing at all."""
+    user = await create_test_user(
+        db_session, email="gowner1@khel-o.com", role=UserRole.CAFE_OWNER,
+        password=None, google_id="google-sub-1",
+    )
+    await db_session.commit()
+
+    resp = await async_client.patch(
+        "/api/v1/auth/me", headers=auth_headers(user), json={"email": "new-g1@real.com"}
+    )
+    assert resp.status_code >= 400, resp.text
+    assert resp.json()["error"]["code"] == "GOOGLE_REAUTH_REQUIRED"
+
+    await db_session.refresh(user)
+    assert user.email == "gowner1@khel-o.com"
+
+
+async def test_google_only_email_change_rejects_mismatched_google_account(
+    db_session, async_client, monkeypatch
+):
+    """A valid Google id_token for a *different* Google account must not
+    authorize changing this user's email."""
+    from app.services.auth_service import AuthService
+
+    user = await create_test_user(
+        db_session, email="gowner2@khel-o.com", role=UserRole.CAFE_OWNER,
+        password=None, google_id="google-sub-2",
+    )
+    await db_session.commit()
+
+    async def fake_verify(self, id_token):
+        return {"sub": "some-other-google-sub", "aud": "test"}
+
+    monkeypatch.setattr(AuthService, "verify_google_id_token", fake_verify)
+
+    resp = await async_client.patch(
+        "/api/v1/auth/me", headers=auth_headers(user),
+        json={"email": "new-g2@real.com", "googleIdToken": "fake-token"},
+    )
+    assert resp.status_code >= 400, resp.text
+    assert resp.json()["error"]["code"] == "INVALID_GOOGLE_REAUTH"
+
+    await db_session.refresh(user)
+    assert user.email == "gowner2@khel-o.com"
+
+
+async def test_google_only_email_change_succeeds_with_matching_google_reauth(
+    db_session, async_client, monkeypatch
+):
+    from app.services.auth_service import AuthService
+
+    user = await create_test_user(
+        db_session, email="gowner3@khel-o.com", role=UserRole.CAFE_OWNER,
+        password=None, google_id="google-sub-3",
+    )
+    await db_session.commit()
+
+    async def fake_verify(self, id_token):
+        return {"sub": "google-sub-3", "aud": "test"}
+
+    monkeypatch.setattr(AuthService, "verify_google_id_token", fake_verify)
+
+    resp = await async_client.patch(
+        "/api/v1/auth/me", headers=auth_headers(user),
+        json={"email": "New-G3@Real.com", "googleIdToken": "fake-token"},
+    )
+    assert resp.status_code == 200, resp.text
+
+    await db_session.refresh(user)
+    assert user.email == "new-g3@real.com"
+
+
 async def test_deactivated_user_cannot_change_email(db_session, async_client):
     """Email is the login identity. A revoked owner holding an unexpired JWT
     must not be able to move their account to an address they control and keep

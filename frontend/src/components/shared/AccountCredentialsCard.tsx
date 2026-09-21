@@ -5,6 +5,7 @@ import { Mail, KeyRound, AlertCircle, CheckCircle2, Pencil } from 'lucide-react'
 import { Card, CardContent, Button, Input } from '@/components/ui';
 import { updateMe, changePassword } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
+import { GoogleReauthButton } from '@/components/auth/GoogleReauthButton';
 
 /**
  * Email + password self-service, shared by the gamer profile and owner
@@ -19,6 +20,7 @@ export function AccountCredentialsCard() {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [emailPassword, setEmailPassword] = useState('');
+  const [googleIdToken, setGoogleIdToken] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailSuccess, setEmailSuccess] = useState(false);
   const [isSavingEmail, setIsSavingEmail] = useState(false);
@@ -38,20 +40,30 @@ export function AccountCredentialsCard() {
     setEmailSuccess(false);
     setNewEmail(user?.email ?? '');
     setEmailPassword('');
+    setGoogleIdToken(null);
     setIsEditingEmail(true);
   }
 
   async function handleEmailSubmit(e: FormEvent) {
     e.preventDefault();
     setEmailError(null);
+    if (!hasPassword && !googleIdToken) {
+      setEmailError('Verify with Google before saving.');
+      return;
+    }
     setIsSavingEmail(true);
     try {
-      const res = await updateMe({ email: newEmail, currentPassword: emailPassword });
+      const res = await updateMe(
+        hasPassword
+          ? { email: newEmail, currentPassword: emailPassword }
+          : { email: newEmail, googleIdToken: googleIdToken! },
+      );
       setUser(res.user);
       setIsEditingEmail(false);
       setEmailSuccess(true);
     } catch (err: any) {
       setEmailError(err?.message || 'Failed to update email.');
+      setGoogleIdToken(null);
     } finally {
       setIsSavingEmail(false);
     }
@@ -132,19 +144,40 @@ export function AccountCredentialsCard() {
                 onChange={(e) => setNewEmail(e.target.value)}
                 required
               />
-              <Input
-                label="Current password *"
-                type="password"
-                placeholder="Confirm it's you"
-                value={emailPassword}
-                onChange={(e) => setEmailPassword(e.target.value)}
-                required
-              />
+              {hasPassword ? (
+                <Input
+                  label="Current password *"
+                  type="password"
+                  placeholder="Confirm it's you"
+                  value={emailPassword}
+                  onChange={(e) => setEmailPassword(e.target.value)}
+                  required
+                />
+              ) : googleIdToken ? (
+                <div className="flex items-center gap-2 text-caption text-emerald-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Verified with Google.</span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <span className="text-caption text-text-secondary">
+                    This account signs in with Google. Verify it&apos;s you to change your email.
+                  </span>
+                  <GoogleReauthButton onToken={setGoogleIdToken} />
+                </div>
+              )}
               <div className="flex items-center gap-2 self-end">
                 <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingEmail(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" variant="primary" size="sm" isLoading={isSavingEmail} loadingText="Saving…">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isSavingEmail}
+                  loadingText="Saving…"
+                  disabled={!hasPassword && !googleIdToken}
+                >
                   Save email
                 </Button>
               </div>

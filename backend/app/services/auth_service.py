@@ -137,25 +137,40 @@ class AuthService:
             "user": await self._user_response_with_roles(user)
         }
 
-    async def login_with_google(self, id_token: str) -> Dict[str, Any]:
+    async def verify_google_id_token(self, id_token: str) -> Dict[str, Any]:
+        """Verify a Google id_token against Google and return its claims.
+
+        Shared by login (any Google claims are enough to log in or link an
+        account) and by the Google-only re-authentication path for account
+        settings (which additionally checks `sub` against the stored
+        google_id -- see auth.update_me).
+        """
         url = f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}"
         async with httpx.AsyncClient() as client:
             res = await client.get(url)
-        
+
         if res.status_code != 200:
             raise AuthException(message="Invalid Google token", error_code="UNAUTHORIZED")
-        
+
         token_info = res.json()
-        
+
         if settings.GOOGLE_CLIENT_ID and token_info.get("aud") != settings.GOOGLE_CLIENT_ID:
             raise AuthException(message="Token audience mismatch", error_code="UNAUTHORIZED")
+
+        if not token_info.get("sub"):
+            raise AuthException(message="Invalid Google payload", error_code="UNAUTHORIZED")
+
+        return token_info
+
+    async def login_with_google(self, id_token: str) -> Dict[str, Any]:
+        token_info = await self.verify_google_id_token(id_token)
 
         google_id = token_info.get("sub")
         email = token_info.get("email", "").strip().lower()
         full_name = token_info.get("name", "Google User")
         avatar_url = token_info.get("picture")
 
-        if not google_id or not email:
+        if not email:
             raise AuthException(message="Invalid Google payload", error_code="UNAUTHORIZED")
 
         # 1. Check if user exists by google_id

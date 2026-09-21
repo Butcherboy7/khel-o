@@ -21,11 +21,14 @@ export async function updateMe(body: {
   fullName?: string;
   phoneNumber?: string;
   // Changing `email` reassigns the login identity, so the backend requires
-  // currentPassword alongside it. No verification mail is sent: the seeded
+  // proof of identity alongside it. No verification mail is sent: the seeded
   // café-owner accounts ship on @khel-o.com addresses that do not exist, so a
-  // confirmation link would go nowhere and the password is the proof instead.
+  // confirmation link would go nowhere. Password accounts prove it with
+  // currentPassword; Google-only accounts (no KHEL-O password) prove it with
+  // a fresh googleIdToken instead.
   email?: string;
   currentPassword?: string;
+  googleIdToken?: string;
 }): Promise<{ user: User }> {
   return call(() => apiClient.patch('/api/v1/auth/me', body));
 }

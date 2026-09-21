@@ -123,21 +123,26 @@ async def create_test_user(
     role: UserRole = UserRole.GAMER,
     full_name: str = "Test User",
     password: str = "password123",
-    cafe_id = None
+    cafe_id = None,
+    google_id: str = None,
 ) -> User:
     """
     Create a test user with proper role mappings.
     ALWAYS use this instead of manually creating User objects.
+
+    Pass password=None and google_id="..." for a Google-only account
+    (no password_hash), mirroring accounts created via /auth/google.
     """
     if email is None:
         email = f"test_{uuid4().hex[:8]}@test.com"
-    
+
     from app.core.security import get_password_hash
-    
+
     user = User(
         id=uuid4(),
         email=email.strip().lower(),
-        password_hash=get_password_hash(password),
+        password_hash=get_password_hash(password) if password is not None else None,
+        google_id=google_id,
         full_name=full_name,
         role=role,
         is_active=True
