@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react';
 import { BellRing, BellOff, Smartphone, AlertCircle } from 'lucide-react';
 import { Card, Button } from '@/components/ui';
-import { enablePush, disablePush, getPushState, type PushState } from '@/lib/alerts/subscribe';
+import {
+  enablePush,
+  disablePush,
+  resolvePushState,
+  resyncPushSubscription,
+  type PushState,
+} from '@/lib/alerts/subscribe';
 
 export function EnableAlertsCard() {
   const [state, setState] = useState<PushState>('unsupported');
@@ -11,8 +17,26 @@ export function EnableAlertsCard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setState(getPushState());
+    let cancelled = false;
+    resolvePushState().then((resolved) => {
+      if (!cancelled) setState(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    // Heal the case where the browser subscription is alive but the server
+    // row was pruned (e.g. after a 410). The endpoint is an idempotent
+    // upsert, so re-posting on every mount with a confirmed live
+    // subscription is harmless.
+    if (state !== 'granted') return;
+    resyncPushSubscription().catch(() => {
+      // Best-effort; a real failure here surfaces the next time a push is
+      // attempted and getPushState/resolvePushState re-checks.
+    });
+  }, [state]);
 
   const handleEnable = async () => {
     setBusy(true);
@@ -35,7 +59,7 @@ export function EnableAlertsCard() {
     setBusy(true);
     try {
       await disablePush();
-      setState(getPushState());
+      setState(await resolvePushState());
     } finally {
       setBusy(false);
     }

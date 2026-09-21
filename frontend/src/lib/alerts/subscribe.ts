@@ -31,6 +31,28 @@ export function getPushState(): PushState {
   return 'default';
 }
 
+/**
+ * Like getPushState(), but when Notification.permission is 'granted' it also
+ * confirms a live browser-side subscription actually exists. Permission can
+ * stay 'granted' while the underlying subscription is gone (a partial
+ * enablePush() failure, a server-side prune, or VAPID key rotation) — in
+ * that case we report 'default' so the UI offers a way to re-enable instead
+ * of claiming alerts are on.
+ */
+export async function resolvePushState(): Promise<PushState> {
+  const state = getPushState();
+  if (state !== 'granted') return state;
+  if (!('serviceWorker' in navigator)) return state;
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    return subscription ? 'granted' : 'default';
+  } catch {
+    return state;
+  }
+}
+
 /** base64url VAPID key → Uint8Array, the only format subscribe() accepts. */
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -76,6 +98,30 @@ export async function enablePush(): Promise<
   });
 
   return 'granted';
+}
+
+/**
+ * Re-POSTs the current live browser subscription to the server. The
+ * subscribe endpoint is an idempotent upsert keyed on endpoint, so this is
+ * safe to call whenever the owner shell mounts with a 'granted' state — it
+ * heals the case where the browser subscription is alive but the server row
+ * was pruned (e.g. after a 410 on a stale send).
+ */
+export async function resyncPushSubscription(): Promise<void> {
+  if (!('serviceWorker' in navigator)) return;
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) return;
+
+  const json = subscription.toJSON() as {
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+  };
+
+  await apiClient.post('/api/v1/notifications/push/subscribe', {
+    endpoint: json.endpoint,
+    keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
+  });
 }
 
 export async function disablePush(): Promise<void> {

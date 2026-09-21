@@ -22,12 +22,17 @@ self.addEventListener('push', (event) => {
         includeUncontrolled: true,
       });
 
-      const visibleClient = clientList.find((c) => c.visibilityState === 'visible');
+      // Only owner-shell windows (/owner/*) mount OwnerAlertProvider, which is
+      // the only thing listening for postMessage. A visible tab on some other
+      // KHEL-O page (e.g. /cafes) has no listener, so it must not suppress the
+      // OS notification.
+      const ownerClients = clientList.filter((c) => c.url.includes('/owner'));
+      const visibleClient = ownerClients.find((c) => c.visibilityState === 'visible');
 
       if (visibleClient) {
         // A tab is on screen. The in-page chime and takeover card are louder and
         // more useful than an OS toast, and firing both would double the alert.
-        clientList.forEach((client) => {
+        ownerClients.forEach((client) => {
           client.postMessage({
             type: 'KHELO_BOOKING_ALERT',
             payload: { title, body, url, dedupeKey, type: payload.type },
@@ -49,6 +54,57 @@ self.addEventListener('push', (event) => {
         requireInteraction: true,
         data: { url },
       });
+    })()
+  );
+});
+
+// Fires when the browser itself invalidates/renews a push subscription
+// (e.g. it expired or the browser rotated it) — distinct from server-side
+// VAPID key rotation, which the browser cannot detect on its own. Mirrors
+// the subscribe-then-POST sequence in enablePush() (frontend/src/lib/alerts/
+// subscribe.ts). Never throws: a SW event handler that throws can break the
+// worker for unrelated events.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        let subscription = event.newSubscription;
+
+        if (!subscription) {
+          const keyRes = await fetch('/api/v1/notifications/push/vapid-key', {
+            credentials: 'include',
+          });
+          if (!keyRes.ok) return;
+          const { publicKey } = await keyRes.json();
+
+          const padding = '='.repeat((4 - (publicKey.length % 4)) % 4);
+          const base64 = (publicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+          const raw = atob(base64);
+          const applicationServerKey = new Uint8Array(raw.length);
+          for (let i = 0; i < raw.length; i += 1) applicationServerKey[i] = raw.charCodeAt(i);
+
+          subscription = await self.registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey,
+          });
+        }
+
+        const json = subscription.toJSON();
+        await fetch('/api/v1/notifications/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            endpoint: json.endpoint,
+            keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
+          }),
+        });
+      } catch (err) {
+        // Best-effort recovery. If this fails (e.g. no cookie-based session
+        // reachable from the SW), EnableAlertsCard's mount-time
+        // resolvePushState()/resyncPushSubscription() checks catch the dead
+        // subscription next time the owner opens the app.
+      }
     })()
   );
 });
