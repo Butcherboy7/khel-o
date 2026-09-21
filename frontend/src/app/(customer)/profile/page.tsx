@@ -106,11 +106,13 @@ export default function ProfilePage() {
   const [phoneError, setPhoneError] = useState('');
   const [nameError, setNameError] = useState('');
 
-  // Defaults to whatever city the app already has you set as (detected via
-  // geolocation or picked on the explore page) rather than a hardcoded city,
-  // so this doesn't silently disagree with what you've set elsewhere.
+  // Seeded from the user's actual persisted `city` first -- the explore
+  // page's location-store city is a separate, unrelated concept (just a
+  // browse filter) and was previously used here by mistake, which is why
+  // editing this field never actually saved: it edited a value that had
+  // nothing to do with the account and was never sent to the backend.
   const [homeCity, setHomeCity] = useState(
-    selectedCity && selectedCity !== 'All Cities' ? selectedCity : 'Bengaluru'
+    user?.city || (selectedCity && selectedCity !== 'All Cities' ? selectedCity : 'Bengaluru')
   );
   const [activities, setActivities] = useState<string[]>(user?.preferences?.activities || []);
   const [favGames, setFavGames] = useState<string[]>(user?.preferences?.favoriteGames || []);
@@ -266,6 +268,7 @@ export default function ProfilePage() {
       const res = await updateMe({
         fullName,
         phoneNumber: `+91 ${phoneNumber}`,
+        city: homeCity,
         preferences: {
           activities,
           preferredTier,

@@ -16,6 +16,7 @@ export interface User {
   cafeId?: string;
   isActive: boolean;
   avatarUrl: string | null;
+  city?: string | null;
   preferences?: UserPreferences;
   // false for accounts that only ever signed in via Google — they have no
   // KHEL-O password to change.

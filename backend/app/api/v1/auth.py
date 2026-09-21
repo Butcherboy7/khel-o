@@ -141,15 +141,18 @@ async def change_password(
         "data": {"message": "Password changed successfully."}
     }
 
-@router.get("/me", status_code=status.HTTP_200_OK)
-async def get_me(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
+async def _build_user_dict(current_user: User, db: AsyncSession) -> dict:
+    """Shared response shape for /me endpoints. `UserResponse` itself has no
+    `roles`/`pendingInvitations` fields -- both are computed here and must be
+    injected by every endpoint that returns a user, or the frontend auth
+    store silently loses them on the next `setUser(res.user)` (this is what
+    made the owner-portal banner flip to the partner banner after any
+    profile save -- update_me used to build its own response without this).
+    """
     from app.api.deps import get_user_roles
-    
+
     roles = await get_user_roles(current_user.id, db)
-    
+
     inv_repo = StaffInvitationRepository(db)
     pending_invs = await inv_repo.get_pending_by_email(current_user.email)
     cafe_repo = CafeRepository(db)
@@ -168,7 +171,14 @@ async def get_me(
     user_dict["roles"] = roles
     user_dict["pendingInvitations"] = pending_invitations_list
     user_dict["hasPassword"] = current_user.password_hash is not None
-    
+    return user_dict
+
+@router.get("/me", status_code=status.HTTP_200_OK)
+async def get_me(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    user_dict = await _build_user_dict(current_user, db)
     return {
         "success": True,
         "data": {
@@ -243,7 +253,7 @@ async def update_me(
             update_data["email"] = new_email
 
     updated = await repo.update(current_user.id, update_data) if update_data else current_user
-    user_dict = UserResponse.model_validate(updated).model_dump(by_alias=True)
+    user_dict = await _build_user_dict(updated, db)
     return {
         "success": True,
         "data": {

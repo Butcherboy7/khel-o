@@ -69,6 +69,7 @@ class UserUpdateRequest(BaseModel):
     full_name: Optional[str] = Field(None, min_length=2, max_length=255)
     phone_number: Optional[str] = Field(None, max_length=20)
     avatar_url: Optional[str] = Field(None, max_length=500)
+    city: Optional[str] = Field(None, max_length=100)
     # Email is the login identity. This system has no email verification at
     # all, so allowing the change adds no bypass -- but the seeded
     # @khel-o.com café-owner addresses do not exist, which makes
@@ -112,6 +113,7 @@ class UserResponse(UserBase):
     id: UUID
     role: UserRole
     is_active: bool
+    city: Optional[str] = None
     preferences: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: Optional[datetime] = None

@@ -29,6 +29,7 @@ export async function updateMe(body: {
   email?: string;
   currentPassword?: string;
   googleIdToken?: string;
+  city?: string;
   preferences?: UserPreferences;
 }): Promise<{ user: User }> {
   return call(() => apiClient.patch('/api/v1/auth/me', body));
