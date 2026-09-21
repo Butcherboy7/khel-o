@@ -34,6 +34,24 @@ export function LocationSearchInput({ value, onChange, onClear, state, error, la
   const [isAdding, setIsAdding] = useState(false);
   const [addError, setAddError] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Click-away close, matching the containerRef + mousedown-listener pattern
+  // already used by SearchBarWithSuggestions.tsx and ExploreClient.tsx's
+  // dropdowns elsewhere in this codebase. Needed because the results
+  // dropdown now opens on focus (before any typing, for the popular-cities
+  // prefetch) — previously an empty query kept isOpen=true but rendered
+  // nothing, so a stray no-close bug was masked by the render guard; now
+  // that the guard is gone, clicking away must actually close it.
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (!isOpen || query.trim().length < 1) {
@@ -107,7 +125,7 @@ export function LocationSearchInput({ value, onChange, onClear, state, error, la
   }
 
   return (
-    <div className="relative flex flex-col gap-1.5">
+    <div ref={containerRef} className="relative flex flex-col gap-1.5">
       <Input
         label={label}
         placeholder="Search for your city, town, or village..."

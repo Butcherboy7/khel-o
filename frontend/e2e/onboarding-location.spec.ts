@@ -71,4 +71,48 @@ test.describe('Onboarding Step 1: state-first location flow', () => {
     // Telangana rows (Task 2) without the owner typing a single character.
     await expect(page.getByText(/, Telangana/).first()).toBeVisible({ timeout: 5000 });
   });
+
+  test('city search finds a named locality, not just major metros', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass123');
+    await page.click('button[type="submit"]');
+    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+
+    await page.goto('/owner/onboarding');
+    await expect(page.locator('h1').filter({ hasText: /Café Onboarding Setup/i })).toBeVisible({ timeout: 10000 });
+
+    const stateSelect = page.locator('select').first();
+    await stateSelect.selectOption('Telangana');
+
+    const citySearch = page.getByPlaceholder(/search for your city/i);
+    await citySearch.fill('Nampally');
+    await expect(page.getByText('Nampally, Telangana')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('clicking outside the city dropdown closes it', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass123');
+    await page.click('button[type="submit"]');
+    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+
+    await page.goto('/owner/onboarding');
+    await expect(page.locator('h1').filter({ hasText: /Café Onboarding Setup/i })).toBeVisible({ timeout: 10000 });
+
+    const stateSelect = page.locator('select').first();
+    await stateSelect.selectOption('Telangana');
+
+    // Focusing (without typing) opens the popular-cities dropdown.
+    const citySearch = page.getByPlaceholder(/search for your city/i);
+    await citySearch.click();
+    const popularResult = page.getByText(/, Telangana/).first();
+    await expect(popularResult).toBeVisible({ timeout: 5000 });
+
+    // Clicking a clearly unrelated field must close the dropdown — there is
+    // no onBlur/click-away handling by accident here, it's an explicit
+    // containerRef + document mousedown listener (see LocationSearchInput.tsx).
+    await page.getByLabel('Café Name *').click();
+    await expect(popularResult).toHaveCount(0);
+  });
 });

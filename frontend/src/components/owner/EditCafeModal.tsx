@@ -6,6 +6,7 @@ import { Modal, Button, Input, Textarea } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings, type CafePhoto } from '@/lib/api/settings';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { LocationSearchInput, type SelectedLocation } from '@/components/ui/LocationSearchInput';
+import { INDIAN_STATES } from '@/constants/states';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 import { PHOTO_CATEGORIES } from '@/constants/photoCategories';
 
@@ -394,17 +395,58 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
             />
             <Input label="Phone Number" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
             <Input label="Address" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} required />
-            <LocationSearchInput
-              label="City / Town"
-              state={state}
-              value={locationId ? { id: locationId, name: city, state, district: null, pincode: pincode || null } : null}
-              onChange={(loc: SelectedLocation) => {
-                setLocationId(loc.id);
-                setCity(loc.name);
-                setState(loc.state);
-                if (loc.pincode) setPincode(loc.pincode);
-              }}
-            />
+
+            {/* State is locked once a city/location is chosen (locationId set),
+                same lock/unlock semantics as onboarding Step 1 — otherwise
+                LocationSearchInput below (scoped to `state`) would silently
+                confine search/create to whatever state happens to be set,
+                with no way to migrate a café to a different state and a risk
+                of creating a location row tagged with the wrong state. */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-caption font-semibold text-text-primary">State / UT</label>
+              {state ? (
+                <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+                  <span className="text-body text-text-primary">{state}</span>
+                  {!locationId && (
+                    <button
+                      type="button"
+                      onClick={() => setState('')}
+                      className="text-caption font-semibold text-primary"
+                    >
+                      Change
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <select
+                  value=""
+                  onChange={(e) => setState(e.target.value)}
+                  className="h-11 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="" disabled>Select your State / UT</option>
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {state && (
+              <LocationSearchInput
+                label="City / Town"
+                state={state}
+                value={locationId ? { id: locationId, name: city, state, district: null, pincode: pincode || null } : null}
+                onChange={(loc: SelectedLocation) => {
+                  setLocationId(loc.id);
+                  setCity(loc.name);
+                  if (loc.pincode) setPincode(loc.pincode);
+                }}
+                onClear={() => {
+                  setLocationId(null);
+                  setCity('');
+                }}
+              />
+            )}
             <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} required />
             <SaveRow saving={basicSaving} saved={basicSaved} label="Save Basic Info" />
           </form>
