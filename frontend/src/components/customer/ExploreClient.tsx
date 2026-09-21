@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Navigation, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { MapPin, Navigation, SlidersHorizontal, ChevronDown, MoreHorizontal } from 'lucide-react';
 import { listCafes } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
@@ -23,6 +23,8 @@ import {
   cafeHasAmenityBucket,
   PRICE_MIN,
   PRICE_MAX,
+  FIXED_ACTIVITY_OPTIONS,
+  type ActivityOption,
   type PlatformFilter,
   type OpenStatusFilter,
   type DistanceFilter,
@@ -100,6 +102,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState(persistedCity || 'All Cities');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('All');
+  const [activityKind, setActivityKind] = useState<string | null>(null);
   const [openStatus, setOpenStatus] = useState<OpenStatusFilter>('any');
   const [sortBy, setSortBy] = useState<SortOption>('recommended');
   const [isLocating, setIsLocating] = useState(false);
@@ -219,6 +222,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
       city: effectiveCity,
       minPrice,
       maxPrice,
+      activityKind: activityKind || undefined,
       limit: 30,
     }),
     queryFn: () =>
@@ -227,10 +231,11 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         city: effectiveCity,
         minPrice,
         maxPrice,
+        activityKind: activityKind || undefined,
         limit: 30,
       }),
     staleTime: 30_000,
-    initialData: matchesServerFetchedDefault ? initialCafes : undefined,
+    initialData: matchesServerFetchedDefault && !activityKind ? initialCafes : undefined,
   });
 
   const cafes = data?.items || [];
@@ -278,9 +283,9 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
       return false;
     }
 
-    if (platformFilter === 'Other' && !cafe.platforms?.some((p) => p === 'nintendo' || p === 'other')) {
-      return false;
-    }
+    // 'Other' activity filtering (Snooker/8-Ball Pool/Bowling/etc.) is done
+    // server-side via the activityKind query param above -- the café list
+    // returned already only contains matches, so no client-side check here.
 
     if (openStatus === 'open_now' && !isCafeOpenNow(cafe.openingTime, cafe.closingTime)) {
       return false;
@@ -324,6 +329,22 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     openNow: cafes.some((c) => c.openingTime != null && c.closingTime != null),
     price: cafes.some((c) => c.startingPrice != null),
   };
+  // "Other" activity options actually present in the current, unfiltered-
+  // by-activity result page: the fixed set (matched case-insensitively)
+  // plus any raw activity_kind values owners set that aren't in it, so a
+  // café offering e.g. "Carrom" is still reachable instead of being
+  // silently unfilterable.
+  const seenActivityKinds = new Set<string>();
+  cafes.forEach((c) => (c.activityKinds || []).forEach((a) => seenActivityKinds.add(a)));
+  const availableActivities: ActivityOption[] = [
+    ...FIXED_ACTIVITY_OPTIONS.filter((opt) =>
+      Array.from(seenActivityKinds).some((a) => a.toLowerCase() === opt.key)
+    ),
+    ...Array.from(seenActivityKinds)
+      .filter((a) => !FIXED_ACTIVITY_OPTIONS.some((opt) => opt.key === a.toLowerCase()))
+      .map((a) => ({ key: a.toLowerCase(), label: a, icon: MoreHorizontal })),
+  ];
+
   const availablePlatformTags = PLATFORM_TAGS.filter(({ key }) => {
     if (key === 'All') return true;
     if (key === 'PC') return facets.pc;
@@ -341,6 +362,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
 
   const hasActiveFilters =
     platformFilter !== 'All' ||
+    activityKind !== null ||
     openStatus !== 'any' ||
     distance !== 'any' ||
     Boolean(searchQuery) ||
@@ -353,6 +375,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     setSearchQuery('');
     handleCityChange('All Cities');
     setPlatformFilter('All');
+    setActivityKind(null);
     setOpenStatus('any');
     setDistance('any');
     setPriceRange([PRICE_MIN, PRICE_MAX]);
@@ -505,6 +528,9 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         onOpenStatusChange={setOpenStatus}
         platform={platformFilter}
         onPlatformChange={setPlatformFilter}
+        availableActivities={availableActivities}
+        activityKind={activityKind}
+        onActivityKindChange={setActivityKind}
         priceRange={priceRange}
         onPriceRangeChange={setPriceRange}
         selectedAmenities={selectedAmenities}

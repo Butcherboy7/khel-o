@@ -35,6 +35,7 @@ async def list_cafes(
     minPrice: Optional[float] = Query(None, alias="minPrice"),
     maxPrice: Optional[float] = Query(None, alias="maxPrice"),
     amenities: Optional[List[str]] = Query(None),
+    activityKind: Optional[str] = Query(None, alias="activityKind"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
     db: AsyncSession = Depends(get_db)
@@ -49,6 +50,7 @@ async def list_cafes(
         min_price=minPrice,
         max_price=maxPrice,
         amenities=amenities,
+        activity_kind=activityKind,
         page=page,
         limit=limit
     )

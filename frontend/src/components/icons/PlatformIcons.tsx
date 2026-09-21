@@ -22,10 +22,6 @@ export function XboxIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-// Not wired to a selectable platform yet — a bookable-type expansion (pool
-// tables, cue sports) is still just a plan, see conversation. Kept here,
-// ready to drop into PLATFORMS/PlatformIcon, so that work is UI-icon-free
-// when it lands instead of starting from scratch.
 export function SnookerIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
@@ -34,6 +30,34 @@ export function SnookerIcon(props: SVGProps<SVGSVGElement>) {
       <circle cx="12" cy="12" r="5.5" fill="#ffffff" />
       <text x="12" y="14.7" textAnchor="middle" fontSize="6.5" fontWeight="800" fill="currentColor" fontFamily="Arial, sans-serif">8</text>
       <circle cx="6.7" cy="6.7" r="1.4" fill="#ffffff" fillOpacity="0.4" />
+    </svg>
+  );
+}
+
+export function PoolIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <title>8-Ball Pool</title>
+      <line x1="2" y1="22" x2="14" y2="10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="16.5" cy="7.5" r="6" fill="currentColor" />
+      <circle cx="16.5" cy="7.5" r="3.2" fill="#ffffff" />
+      <text x="16.5" y="9.6" textAnchor="middle" fontSize="4.2" fontWeight="800" fill="currentColor" fontFamily="Arial, sans-serif">8</text>
+    </svg>
+  );
+}
+
+export function BowlingIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <title>Bowling</title>
+      <path
+        d="M12 1.5c-1.5 0-2 1.4-2 2.6 0 .9.3 1.9.5 2.8.2.8.3 1.5.3 2.1 0 1.9-2.4 3.1-2.4 6.3 0 3.9 1.8 6.7 3.6 6.7s3.6-2.8 3.6-6.7c0-3.2-2.4-4.4-2.4-6.3 0-.6.1-1.3.3-2.1.2-.9.5-1.9.5-2.8 0-1.2-.5-2.6-2-2.6Z"
+        fill="currentColor"
+      />
+      <circle cx="10.6" cy="5.4" r="0.55" fill="#ffffff" />
+      <circle cx="12" cy="5.4" r="0.55" fill="#ffffff" />
+      <circle cx="11.3" cy="6.6" r="0.55" fill="#ffffff" />
+      <circle cx="19" cy="20" r="2.6" fill="currentColor" />
     </svg>
   );
 }

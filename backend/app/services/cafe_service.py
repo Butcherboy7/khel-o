@@ -167,6 +167,7 @@ class CafeService:
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
         amenities: Optional[List[str]] = None,
+        activity_kind: Optional[str] = None,
         page: int = 1,
         limit: int = 20
     ) -> Dict[str, Any]:
@@ -177,6 +178,7 @@ class CafeService:
             min_price=min_price,
             max_price=max_price,
             amenities=amenities,
+            activity_kind=activity_kind,
             page=page,
             limit=limit
         )

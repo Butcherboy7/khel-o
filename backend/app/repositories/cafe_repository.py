@@ -108,6 +108,7 @@ class CafeRepository(BaseRepository[Cafe]):
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
         amenities: Optional[List[str]] = None,
+        activity_kind: Optional[str] = None,
         page: int = 1,
         limit: int = 20
     ) -> Tuple[List[Dict[str, Any]], int]:
@@ -161,6 +162,14 @@ class CafeRepository(BaseRepository[Cafe]):
                 tier_subquery = tier_subquery.where(HardwareTier.price_per_hour <= max_price)
             stmt = stmt.where(Cafe.id.in_(tier_subquery))
 
+        if activity_kind and activity_kind.strip():
+            activity_subquery = select(HardwareTier.cafe_id).where(
+                HardwareTier.is_active == True,
+                HardwareTier.tier_type == TierType.ACTIVITY,
+                func.lower(func.trim(HardwareTier.activity_kind)) == activity_kind.strip().lower()
+            )
+            stmt = stmt.where(Cafe.id.in_(activity_subquery))
+
         stmt = stmt.order_by(Cafe.created_at.desc())
 
         count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -210,6 +219,10 @@ class CafeRepository(BaseRepository[Cafe]):
             # café with even one activity tier would incorrectly report
             # platforms_complete=False.
             platforms_complete = all(t.platform is not None for t in gaming_tiers_for_platforms)
+            activity_kinds = sorted({
+                t.activity_kind.strip() for t in cafe_tiers
+                if t.tier_type == TierType.ACTIVITY and t.activity_kind and t.activity_kind.strip()
+            })
 
             photo_list = list(c.photos) if isinstance(c.photos, list) and c.photos else []
             amenity_list = list(c.amenities) if isinstance(c.amenities, list) and c.amenities else []
@@ -231,6 +244,7 @@ class CafeRepository(BaseRepository[Cafe]):
                 "tier_names": tier_names,
                 "platforms": platforms,
                 "platforms_complete": platforms_complete,
+                "activity_kinds": activity_kinds,
                 "photos": photo_list,
                 "amenities": amenity_list,
                 "has_active_promotion": False,

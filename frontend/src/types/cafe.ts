@@ -14,6 +14,7 @@ export interface CafeListItem {
   startingPrice: number | null;
   tierNames: string[];
   platforms?: string[];
+  activityKinds?: string[];
   /** True only when every active tier has a confirmed real platform. */
   platformsComplete?: boolean;
   photos: { url: string; category: string }[];
@@ -97,6 +98,7 @@ export interface CafeListParams {
   minPrice?: number;
   maxPrice?: number;
   amenities?: string[];
+  activityKind?: string;
   page?: number;
   limit?: number;
 }
