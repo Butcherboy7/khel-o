@@ -42,7 +42,6 @@ export function OwnerAlertProvider({ children }: { children: React.ReactNode }) 
           /* asset missing or still blocked — OS notification still fires */
         }
       );
-      document.removeEventListener('click', unlock);
     };
     document.addEventListener('click', unlock, { once: true });
     return () => document.removeEventListener('click', unlock);
@@ -61,6 +60,8 @@ export function OwnerAlertProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const startChime = useCallback(() => {
+    stopChime();
+
     const play = () => {
       const el = audioRef.current ?? new Audio(CHIME_SRC);
       audioRef.current = el;
@@ -87,7 +88,16 @@ export function OwnerAlertProvider({ children }: { children: React.ReactNode }) 
 
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type !== 'KHELO_BOOKING_ALERT') return;
-      const payload = event.data.payload as AlertPayload;
+      const payload = event.data.payload as AlertPayload | undefined;
+      if (
+        !payload ||
+        typeof payload.title !== 'string' ||
+        typeof payload.body !== 'string' ||
+        typeof payload.url !== 'string' ||
+        typeof payload.dedupeKey !== 'string'
+      ) {
+        return;
+      }
       if (!shouldAlert(payload.dedupeKey)) return;
 
       setAlert(payload);
