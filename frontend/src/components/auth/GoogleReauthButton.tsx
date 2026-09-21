@@ -3,7 +3,9 @@
 import Script from 'next/script';
 import { useCallback, useEffect, useRef } from 'react';
 import { getPublicEnv } from '@/lib/runtimeEnv';
-import '@/types/google-identity';
+// google-identity.d.ts is a global ambient type augmentation, picked up
+// automatically via tsconfig.json's `include` -- it has no runtime module
+// to import, so a value import of it breaks the production webpack build.
 
 interface GoogleReauthButtonProps {
   onToken: (idToken: string) => void;

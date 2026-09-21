@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 import { googleAuth } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { getPublicEnv } from '@/lib/runtimeEnv';
-import '@/types/google-identity';
+// google-identity.d.ts is a global ambient type augmentation, picked up
+// automatically via tsconfig.json's `include` -- it has no runtime module
+// to import, so a value import of it breaks the production webpack build.
 
 interface GoogleSignInButtonProps {
   redirectPath?: string | null;
