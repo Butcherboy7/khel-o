@@ -191,6 +191,13 @@ class OnboardingSubmitRequest(BaseModel):
     # accept both or every changes-requested resubmit 422s at the schema
     # boundary before _normalize_photos below ever runs.
     photos: List[Union[str, Dict[str, str]]] = Field(default_factory=list)
+    # Menu photos, uploaded via the cafe-scoped menu-photos/presign endpoint
+    # (Task 7) — a flat URL list, same shape as Cafe.menu_photos (menu
+    # photos are already their own semantic category and don't carry a
+    # `category` field the way `photos` does). Accepts both a plain string
+    # and a {url: ...} dict for symmetry with `photos` above, in case a
+    # future draft round-trip synthesizes the dict shape here too.
+    menu_photos: List[Union[str, Dict[str, str]]] = Field(default_factory=list)
     supported_games: Dict[str, List[str]] = Field(default_factory=dict)
     business_pan: Optional[str] = None
     has_gst: bool = False
@@ -616,15 +623,15 @@ async def get_onboarding_draft(
     cafe = res.scalars().first()
 
     if not cafe:
-        return {"success": True, "data": {"draft": {}}}
+        return {"success": True, "data": {"draft": {}, "cafeId": None}}
 
     if cafe.draft_data:
-        return {"success": True, "data": {"draft": cafe.draft_data}}
+        return {"success": True, "data": {"draft": cafe.draft_data, "cafeId": str(cafe.id)}}
 
     if cafe.verification_status == VerificationStatus.DRAFT:
         # A brand-new café that hasn't gone through a full submission yet
         # and has no in-progress draft either — nothing to prefill.
-        return {"success": True, "data": {"draft": {}}}
+        return {"success": True, "data": {"draft": {}, "cafeId": str(cafe.id)}}
 
     # The café was fully submitted at least once, which unconditionally
     # clears draft_data (see the submit handler) — reconstruct an
@@ -673,7 +680,7 @@ async def get_onboarding_draft(
             for t in tiers
         ],
     }
-    return {"success": True, "data": {"draft": snapshot}}
+    return {"success": True, "data": {"draft": snapshot, "cafeId": str(cafe.id)}}
 
 @router.post("/onboarding/draft", status_code=status.HTTP_200_OK)
 async def save_onboarding_draft(
@@ -739,6 +746,17 @@ def _normalize_photos(value):
     if not value:
         return []
     return [p if isinstance(p, dict) else {"url": p, "category": "exterior"} for p in value]
+
+
+def _normalize_menu_photos(value):
+    """Cafe.menu_photos is stored as a flat list of URL strings (see
+    presign_menu_photo_upload's own comment: menu photos are already their
+    own semantic category and don't get a category field like `photos`
+    does). Normalize dict entries (e.g. a future {url, ...} draft
+    round-trip) down to their url string; plain strings pass through."""
+    if not value:
+        return []
+    return [p if isinstance(p, str) else p.get("url", "") for p in value]
 
 
 @router.post("/onboarding/submit", status_code=status.HTTP_200_OK)
@@ -823,6 +841,7 @@ async def submit_onboarding_application(
             total_seats=payload.total_seats,
             amenities=payload.amenities,
             photos=_normalize_photos(payload.photos),
+            menu_photos=_normalize_menu_photos(payload.menu_photos),
             supported_games=payload.supported_games,
             business_pan=payload.business_pan,
             gstin=payload.gstin,
@@ -854,6 +873,7 @@ async def submit_onboarding_application(
         cafe.total_seats = payload.total_seats
         cafe.amenities = payload.amenities
         cafe.photos = _normalize_photos(payload.photos)
+        cafe.menu_photos = _normalize_menu_photos(payload.menu_photos)
         cafe.supported_games = payload.supported_games
         cafe.business_pan = payload.business_pan
         cafe.gstin = payload.gstin
