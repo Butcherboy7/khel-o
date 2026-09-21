@@ -389,10 +389,23 @@ export default function AdminPage() {
           <div className="p-3 rounded-xl bg-surface-hover">
             <h4 className="font-semibold text-caption mb-2">Business Identity</h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div><span className="text-text-tertiary">Address:</span> {selectedCafe?.addressLine1}, {selectedCafe?.city}</div>
+              <div><span className="text-text-tertiary">Address:</span> {selectedCafe?.addressLine1}{selectedCafe?.addressLine2 ? `, ${selectedCafe.addressLine2}` : ''}, {selectedCafe?.city}</div>
+              <div><span className="text-text-tertiary">State:</span> {selectedCafe?.state}</div>
               <div><span className="text-text-tertiary">Pincode:</span> {selectedCafe?.pincode}</div>
               <div><span className="text-text-tertiary">Phone:</span> {selectedCafe?.phoneNumber}</div>
               <div><span className="text-text-tertiary">Email:</span> {selectedCafe?.email || 'Not provided'}</div>
+              <div><span className="text-text-tertiary">Hours:</span> {selectedCafe?.openingTime || '—'} – {selectedCafe?.closingTime || '—'}</div>
+              <div className="col-span-2">
+                <span className="text-text-tertiary">Maps Link:</span>{' '}
+                {selectedCafe?.googleMapsUrl ? (
+                  <a href={selectedCafe.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open in Maps</a>
+                ) : 'Not provided'}
+              </div>
+              {selectedCafe?.description && (
+                <div className="col-span-2">
+                  <span className="text-text-tertiary">Description:</span> {selectedCafe.description}
+                </div>
+              )}
             </div>
           </div>
           
@@ -429,12 +442,13 @@ export default function AdminPage() {
                     <span>
                       {tier.name}
                       {tier.tierType === 'activity' && tier.activityKind ? ` (${tier.activityKind})` : ''}
+                      {tier.trackingMode === 'individual' ? ' · Individually tracked' : ' · Pooled'}
                     </span>
                     <span className="text-text-tertiary">
                       {tier.platform
                         ? `${PLATFORMS.find((p) => p.value === tier.platform)?.label ?? tier.platform} · `
                         : ''}
-                      ₹{tier.pricePerHour}/hr · {tier.totalSeats} seats
+                      ₹{tier.pricePerHour}/hr · {tier.appBookableSeats}/{tier.totalSeats} bookable seats
                     </span>
                   </div>
                 ))}
