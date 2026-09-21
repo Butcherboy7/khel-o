@@ -40,8 +40,30 @@ import {
 } from 'lucide-react';
 
 const CITIES = ['Bengaluru', 'Hyderabad', 'Mumbai', 'Delhi', 'Pune', 'Chennai'];
-const GAME_OPTIONS = ['Valorant', 'CS2', 'EA FC 24', 'GTA V', 'Apex Legends', 'Dota 2', 'Fortnite', 'Cyberpunk 2077'];
-const RIG_TIERS = ['Ultra RTX 4080 (240Hz)', 'RTX 4070 Super Rig', 'PS5 DualSense Lounge', 'Standard Esports PC'];
+
+// Fixed, code-defined activity taxonomy (mirrors backend GAMING_ACTIVITIES /
+// NON_GAMING_ACTIVITIES in app/models/user.py) -- adding a new activity is a
+// one-line change here, no migration needed.
+const ACTIVITY_OPTIONS: { value: string; label: string; isGaming: boolean }[] = [
+  { value: 'pc_gaming', label: 'PC Gaming', isGaming: true },
+  { value: 'ps5', label: 'PS5', isGaming: true },
+  { value: 'xbox', label: 'Xbox', isGaming: true },
+  { value: 'nintendo_switch', label: 'Nintendo Switch', isGaming: true },
+  { value: 'snooker', label: 'Snooker', isGaming: false },
+  { value: 'eight_ball_pool', label: '8-Ball Pool', isGaming: false },
+  { value: 'bowling', label: 'Bowling', isGaming: false },
+  { value: 'carrom', label: 'Carrom', isGaming: false },
+  { value: 'foosball', label: 'Foosball', isGaming: false },
+];
+const GAMING_ACTIVITY_VALUES = ACTIVITY_OPTIONS.filter((a) => a.isGaming).map((a) => a.value);
+const PREFERRED_TIER_OPTIONS = [
+  { value: 'budget', label: 'Budget' },
+  { value: 'mid_range', label: 'Mid-Range' },
+  { value: 'high_end', label: 'High-End' },
+  { value: 'ultra', label: 'Ultra' },
+];
+const hasGamingActivity = (activities: string[]) =>
+  activities.some((a) => GAMING_ACTIVITY_VALUES.includes(a));
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -90,8 +112,11 @@ export default function ProfilePage() {
   const [homeCity, setHomeCity] = useState(
     selectedCity && selectedCity !== 'All Cities' ? selectedCity : 'Bengaluru'
   );
-  const [favGames, setFavGames] = useState<string[]>(['Valorant', 'EA FC 24']);
-  const [preferredTier, setPreferredTier] = useState('Ultra RTX 4080 (240Hz)');
+  const [activities, setActivities] = useState<string[]>(user?.preferences?.activities || []);
+  const [favGames, setFavGames] = useState<string[]>(user?.preferences?.favoriteGames || []);
+  const [preferredTier, setPreferredTier] = useState<string | null>(
+    user?.preferences?.preferredTier ?? null
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -218,6 +243,21 @@ export default function ProfilePage() {
     }
   };
 
+  const toggleActivity = (activity: string) => {
+    setActivities((prev) => {
+      const next = prev.includes(activity)
+        ? prev.filter((a) => a !== activity)
+        : [...prev, activity];
+      // Clearing the last gaming activity also clears the fields that only
+      // make sense alongside one, so a stale tier/games list can't be saved.
+      if (!hasGamingActivity(next)) {
+        setPreferredTier(null);
+        setFavGames([]);
+      }
+      return next;
+    });
+  };
+
   const handleSaveProfile = async () => {
     if (phoneError || nameError || phoneNumber.length !== 10) return;
     setSaveError('');
@@ -226,6 +266,11 @@ export default function ProfilePage() {
       const res = await updateMe({
         fullName,
         phoneNumber: `+91 ${phoneNumber}`,
+        preferences: {
+          activities,
+          preferredTier,
+          favoriteGames: favGames,
+        },
       });
       setUser(res.user);
       // The gamer's name is also displayed wherever their past reviews are
@@ -319,7 +364,7 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between">
             <h3 className="font-heading text-h4 text-text-primary flex items-center gap-1.5">
               <Sparkles className="h-4 w-4 text-accent" />
-              <span>Gamer Profile & Hardware Preferences</span>
+              <span>Activity & Hardware Preferences</span>
             </h3>
             <button
               onClick={() => setIsEditOpen(true)}
@@ -332,23 +377,33 @@ export default function ProfilePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-caption">
             <div className="p-3 rounded-2xl bg-surface flex flex-col gap-1">
               <span className="text-overline text-text-secondary flex items-center gap-1">
-                <Gamepad2 className="h-3 w-3 text-primary" /> Favorite Games
+                <Gamepad2 className="h-3 w-3 text-primary" /> Preferred Activities
               </span>
               <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                {favGames.map((g) => (
-                  <span key={g} className="rounded-full bg-card px-2.5 py-0.5 font-semibold text-text-primary border border-border">
-                    {g}
-                  </span>
-                ))}
+                {activities.length === 0 && (
+                  <span className="text-text-secondary">Not set</span>
+                )}
+                {activities.map((a) => {
+                  const opt = ACTIVITY_OPTIONS.find((o) => o.value === a);
+                  return (
+                    <span key={a} className="rounded-full bg-card px-2.5 py-0.5 font-semibold text-text-primary border border-border">
+                      {opt?.label ?? a}
+                    </span>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="p-3 rounded-2xl bg-surface flex flex-col gap-1">
-              <span className="text-overline text-text-secondary flex items-center gap-1">
-                <Cpu className="h-3 w-3 text-accent" /> Preferred Rig Tier
-              </span>
-              <span className="font-semibold text-primary mt-0.5">{preferredTier}</span>
-            </div>
+            {hasGamingActivity(activities) && (
+              <div className="p-3 rounded-2xl bg-surface flex flex-col gap-1">
+                <span className="text-overline text-text-secondary flex items-center gap-1">
+                  <Cpu className="h-3 w-3 text-accent" /> Preferred Hardware Tier
+                </span>
+                <span className="font-semibold text-primary mt-0.5">
+                  {PREFERRED_TIER_OPTIONS.find((t) => t.value === preferredTier)?.label ?? 'Not set'}
+                </span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -574,42 +629,80 @@ export default function ProfilePage() {
           </div>
 
           <div>
-            <label className="text-caption font-semibold text-text-secondary mb-1 block">Preferred Hardware Tier</label>
-            <select
-              value={preferredTier}
-              onChange={(e) => setPreferredTier(e.target.value)}
-              className="w-full rounded-xl border border-border bg-surface px-3.5 py-2 text-body text-text-primary focus:ring-2 focus:ring-primary/40 focus:outline-none"
-            >
-              {RIG_TIERS.map((tier) => (
-                <option key={tier} value={tier}>
-                  {tier}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-caption font-semibold text-text-secondary mb-1.5 block">Favorite Games (Select Multiple)</label>
+            <label className="text-caption font-semibold text-text-secondary mb-1.5 block">Preferred Activities</label>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {GAME_OPTIONS.map((game) => {
-                const isSelected = favGames.includes(game);
+              {ACTIVITY_OPTIONS.map((opt) => {
+                const isSelected = activities.includes(opt.value);
                 return (
                   <button
-                    key={game}
+                    key={opt.value}
                     type="button"
-                    onClick={() => toggleGame(game)}
+                    onClick={() => toggleActivity(opt.value)}
                     className={`rounded-full px-3 py-1 text-caption font-semibold transition-all ${
                       isSelected
-                        ? 'bg-secondary text-white shadow-sm'
+                        ? 'bg-primary text-white shadow-sm'
                         : 'bg-surface text-text-secondary border border-border hover:bg-border/40'
                     }`}
                   >
-                    {game} {isSelected ? '✓' : ''}
+                    {opt.label} {isSelected ? '✓' : ''}
                   </button>
                 );
               })}
             </div>
           </div>
+
+          {hasGamingActivity(activities) && (
+            <>
+              <div>
+                <label className="text-caption font-semibold text-text-secondary mb-1 block">Preferred Hardware Tier</label>
+                <select
+                  value={preferredTier ?? ''}
+                  onChange={(e) => setPreferredTier(e.target.value || null)}
+                  className="w-full rounded-xl border border-border bg-surface px-3.5 py-2 text-body text-text-primary focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                >
+                  <option value="">Not set</option>
+                  {PREFERRED_TIER_OPTIONS.map((tier) => (
+                    <option key={tier.value} value={tier.value}>
+                      {tier.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-caption font-semibold text-text-secondary mb-1.5 block">Favorite Games</label>
+                <p className="text-caption text-text-secondary mb-1">
+                  Type a game and press Enter to add it.
+                </p>
+                <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                  {favGames.map((game) => (
+                    <span
+                      key={game}
+                      className="flex items-center gap-1 rounded-full bg-secondary text-white px-3 py-1 text-caption font-semibold"
+                    >
+                      {game}
+                      <button type="button" onClick={() => toggleGame(game)} className="ml-1">
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  placeholder="e.g. Valorant"
+                  onKeyDown={(e) => {
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (e.key === 'Enter' && val) {
+                      e.preventDefault();
+                      if (!favGames.includes(val)) setFavGames([...favGames, val]);
+                      (e.target as HTMLInputElement).value = '';
+                    }
+                  }}
+                  className="w-full rounded-xl border border-border bg-surface px-3.5 py-2 text-body text-text-primary focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                />
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 

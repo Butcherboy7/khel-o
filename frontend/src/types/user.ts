@@ -1,5 +1,11 @@
 import type { UserRole } from './shared';
 
+export interface UserPreferences {
+  activities: string[];
+  preferredTier: string | null;
+  favoriteGames: string[];
+}
+
 export interface User {
   id: string;
   email: string;
@@ -10,6 +16,7 @@ export interface User {
   cafeId?: string;
   isActive: boolean;
   avatarUrl: string | null;
+  preferences?: UserPreferences;
   // false for accounts that only ever signed in via Google — they have no
   // KHEL-O password to change.
   hasPassword?: boolean;

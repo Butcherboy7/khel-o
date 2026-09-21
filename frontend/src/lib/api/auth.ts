@@ -1,5 +1,5 @@
 import { apiClient, call } from './client';
-import type { User, RegisterRequest, LoginRequest, AuthTokens } from '@/types';
+import type { User, UserPreferences, RegisterRequest, LoginRequest, AuthTokens } from '@/types';
 
 export async function register(body: RegisterRequest): Promise<AuthTokens & { user: User }> {
   return call(() => apiClient.post('/api/v1/auth/register', body));
@@ -29,6 +29,7 @@ export async function updateMe(body: {
   email?: string;
   currentPassword?: string;
   googleIdToken?: string;
+  preferences?: UserPreferences;
 }): Promise<{ user: User }> {
   return call(() => apiClient.patch('/api/v1/auth/me', body));
 }

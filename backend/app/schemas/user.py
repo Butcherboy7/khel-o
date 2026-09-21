@@ -1,8 +1,8 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
-from app.models.user import UserRole
+from app.models.user import UserRole, GAMING_ACTIVITIES, PREFERRED_TIERS
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -81,6 +81,25 @@ class UserUpdateRequest(BaseModel):
     # Google-only accounts (no password_hash) prove identity with a fresh
     # Google id_token instead -- see auth.update_me.
     google_id_token: Optional[str] = Field(None, max_length=4096)
+    # Whole-document replace, not a partial merge: the client always sends
+    # the full current preferences shape
+    # ({"activities": [...], "preferredTier": str|None, "favoriteGames": [...]}).
+    preferences: Optional[Dict[str, Any]] = None
+
+    @model_validator(mode='after')
+    def validate_preferences_gaming_requirement(self) -> 'UserUpdateRequest':
+        if self.preferences is not None:
+            activities = self.preferences.get('activities') or []
+            tier = self.preferences.get('preferredTier')
+            games = self.preferences.get('favoriteGames') or []
+            has_gaming = any(a in GAMING_ACTIVITIES for a in activities)
+            if not has_gaming and (tier or games):
+                raise ValueError(
+                    'preferredTier and favoriteGames require at least one gaming activity'
+                )
+            if tier is not None and tier not in PREFERRED_TIERS:
+                raise ValueError(f'preferredTier must be one of {sorted(PREFERRED_TIERS)}')
+        return self
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -93,6 +112,7 @@ class UserResponse(UserBase):
     id: UUID
     role: UserRole
     is_active: bool
+    preferences: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: Optional[datetime] = None
 

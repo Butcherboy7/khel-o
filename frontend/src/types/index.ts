@@ -12,7 +12,7 @@ export type {
   PresetCategory,
 } from './shared';
 
-export type { User, RegisterRequest, LoginRequest } from './user';
+export type { User, UserPreferences, RegisterRequest, LoginRequest } from './user';
 
 export type {
   CafeListItem,

@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, DateTime, Enum
+from typing import Any
+from sqlalchemy import String, Boolean, DateTime, Enum, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
 
@@ -11,6 +12,14 @@ class UserRole(str, enum.Enum):
     CAFE_OWNER = "cafe_owner"
     STAFF = "staff"
     ADMIN = "admin"
+
+# Fixed, code-defined taxonomy (not DB-driven) -- new activities are added
+# here, no migration needed since `User.preferences.activities` is a JSON
+# array of the string values.
+GAMING_ACTIVITIES = {"pc_gaming", "ps5", "xbox", "nintendo_switch"}
+NON_GAMING_ACTIVITIES = {"snooker", "eight_ball_pool", "bowling", "carrom", "foosball"}
+ALL_ACTIVITIES = GAMING_ACTIVITIES | NON_GAMING_ACTIVITIES
+PREFERRED_TIERS = {"budget", "mid_range", "high_end", "ultra"}
 
 class User(Base):
     __tablename__ = "users"
@@ -32,5 +41,10 @@ class User(Base):
     acquisition_source: Mapped[str | None] = mapped_column(String(100), nullable=True)
     acquisition_medium: Mapped[str | None] = mapped_column(String(100), nullable=True)
     acquisition_campaign: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Activity-based preferences: {"activities": [...], "preferredTier":
+    # str|None, "favoriteGames": [...]}. Stored as one blob rather than a
+    # separate table/columns since it's a single user-owned JSON document
+    # with no independent lifecycle or ownership rules.
+    preferences: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
