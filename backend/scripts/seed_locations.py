@@ -20,6 +20,7 @@ import json
 from pathlib import Path
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.location import Location, normalize_location_name
@@ -37,7 +38,10 @@ async def seed_locations(db: AsyncSession, entries: list[dict]) -> int:
     """Insert each entry using the same get-or-create shape as POST
     /locations (see app/api/v1/locations.py) -- skips anything that already
     exists on (name_norm, state), so this is safe to re-run and safe to run
-    against a table that already has owner-created rows."""
+    against a table that already has owner-created rows (regardless of
+    whether that existing row came from an owner via POST /locations or from
+    a previous run of this script -- the SELECT-before-INSERT dedup check is
+    provenance-agnostic)."""
     inserted = 0
     for entry in entries:
         name = " ".join(entry["name"].strip().split())
@@ -50,9 +54,23 @@ async def seed_locations(db: AsyncSession, entries: list[dict]) -> int:
             continue
 
         db.add(Location(name=name, name_norm=name_norm, state=state, district=entry.get("district")))
-        inserted += 1
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Same "lost the race, not really an error" handling as
+            # POST /locations: something else (another concurrent writer, or
+            # a duplicate (name_norm, state) pair within locations_seed.json
+            # itself) won this row between our SELECT and our INSERT. Roll
+            # back just this row's failed insert and move on instead of
+            # aborting the whole seed run -- but if a re-select still finds
+            # nothing, this wasn't a benign race, so let it propagate.
+            await db.rollback()
+            res = await db.execute(stmt)
+            if not res.scalars().first():
+                raise
+        else:
+            inserted += 1
 
-    await db.commit()
     return inserted
 
 
