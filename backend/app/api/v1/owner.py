@@ -2135,6 +2135,11 @@ class CafeDetailsUpdate(BaseModel):
     def _validate_city(cls, v: Optional[str]) -> Optional[str]:
         return validate_city(v) if v is not None else v
 
+    @field_validator("pincode")
+    @classmethod
+    def _validate_pincode(cls, v: Optional[str]) -> Optional[str]:
+        return validate_pincode(v) if v is not None else v
+
     @field_validator("google_maps_url")
     @classmethod
     def _validate_google_maps_url(cls, v: Optional[str]) -> Optional[str]:
