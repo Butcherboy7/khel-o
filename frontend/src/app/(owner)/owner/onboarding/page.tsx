@@ -14,10 +14,10 @@ import {
   CreditCard,
   Monitor,
   Gamepad2,
-  FileText,
-  Image as ImageIcon
+  FileText
 } from 'lucide-react';
 import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } from '@/lib/api/owner';
+import { uploadCafePhoto, uploadMenuPhoto } from '@/lib/api/settings';
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, NumericField, Textarea, Card, CardContent, Badge } from '@/components/ui';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
@@ -63,10 +63,12 @@ interface OnboardingState {
   supportedGames: Record<string, string[]>;
   amenities: string[];
   photos: string[];
+  menuPhotos: string[];
   cancellationPolicy: string;
   houseRules: string[];
   instagram: string;
   discord: string;
+  cafeId: string | null;
 }
 
 const INITIAL_STATE: OnboardingState = {
@@ -100,11 +102,13 @@ const INITIAL_STATE: OnboardingState = {
   hardwareTiers: [],
   supportedGames: {},
   amenities: ['High-speed Wi-Fi', 'Air Conditioned', 'Snacks & Drinks'],
-  photos: ['https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop'],
+  photos: [],
+  menuPhotos: [],
   cancellationPolicy: 'Free cancellation up to 2 hours before session start time.',
   houseRules: ['No outside food or beverages permitted inside station pods.', 'Valid Photo ID required at check-in.'],
   instagram: '',
   discord: '',
+  cafeId: null,
 };
 
 export default function OnboardingWizardPage() {
@@ -134,6 +138,9 @@ export default function OnboardingWizardPage() {
     async function loadDraft() {
       try {
         const res = await getOnboardingDraft();
+        if (isMounted && res.cafeId) {
+          setFormData((prev) => ({ ...prev, cafeId: res.cafeId }));
+        }
         if (isMounted && res.draft && Object.keys(res.draft).length > 0) {
           const draft: Record<string, any> = { ...res.draft };
           // Sanitize pre-Platform-V2 drafts: the old hardwareTiers shape
@@ -385,7 +392,10 @@ export default function OnboardingWizardPage() {
       // /onboarding/draft on every reload. Back/Next within this session is
       // unaffected — that's plain React state, not this payload.
       const { upiVpa, confirmUpiVpa, bankAccountNumber, confirmBankAccountNumber, bankIfsc, accountHolderName, ...draftSafeFields } = formData;
-      await saveOnboardingDraft(nextStep, draftSafeFields);
+      const saveRes = await saveOnboardingDraft(nextStep, draftSafeFields);
+      if (saveRes?.cafeId) {
+        setFormData((prev) => ({ ...prev, cafeId: saveRes.cafeId as string }));
+      }
     } catch {
       // The step transition above already happened client-side, so don't
       // block navigation — but a silently-swallowed failure here meant a
@@ -478,6 +488,7 @@ export default function OnboardingWizardPage() {
         totalSeats: formattedHardwareTiers.reduce((sum, t) => sum + t.totalSeats, 0) || 1,
         amenities: formData.amenities,
         photos: formData.photos,
+        menuPhotos: formData.menuPhotos,
         supportedGames: formData.supportedGames,
         businessPan: formData.businessPan || undefined,
         gstin: formData.gstin || undefined,
@@ -1220,43 +1231,83 @@ export default function OnboardingWizardPage() {
                   })}
                 </div>
 
-                {/* Photos are uploaded from the device AFTER the café exists: the
-                    presigned-upload endpoint is scoped to a real cafe_id
-                    (/owner/cafes/{cafe_id}/photos/presign), so there is nothing to
-                    sign against until this form is submitted. Asking an owner to
-                    paste an image URL here was the wrong ask — point them at the
-                    real uploader instead. */}
+                {/* Draft-save (handleNext) creates a real, cafe_id-bearing Cafe
+                    row (status=DRAFT) the moment the owner clicks Next past
+                    Step 1, and formData.cafeId is populated from that response
+                    (or from GET /onboarding/draft on reload). That's enough
+                    for the existing cafe-scoped presign endpoints — reused
+                    as-is here — to work during onboarding, not just after
+                    approval. */}
                 <div className="flex flex-col gap-2">
                   <label className="text-caption font-semibold text-text-primary">Venue Photos</label>
-                  <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
-                    <div className="h-9 w-9 flex-shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                      <ImageIcon className="h-4 w-4" />
-                    </div>
-                    <p className="text-caption text-text-secondary">
-                      You&apos;ll upload real photos straight from your phone or computer as soon as
-                      this café is created — head to{' '}
-                      <span className="font-semibold text-text-primary">
-                        Café Settings → Edit Profile → Amenities &amp; Photos
-                      </span>
-                      . Until then your listing shows a placeholder image.
-                    </p>
-                  </div>
+                  {!formData.cafeId ? (
+                    <p className="text-caption text-text-secondary">Saving your progress — photo upload will be available in a moment.</p>
+                  ) : (
+                    <>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          for (const file of files) {
+                            try {
+                              const url = await uploadCafePhoto(formData.cafeId!, file, 'exterior');
+                              setFormData((prev) => ({ ...prev, photos: [...prev.photos, url] }));
+                            } catch {
+                              setError('One of your photos failed to upload. Please try again.');
+                            }
+                          }
+                          e.target.value = '';
+                        }}
+                        className="text-caption text-text-secondary"
+                      />
+                      {formData.photos.length > 0 && (
+                        <div className="grid grid-cols-4 gap-2">
+                          {formData.photos.map((url) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img key={url} src={url} alt="Venue photo" className="aspect-square rounded-lg object-cover border border-border" />
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label className="text-caption font-semibold text-text-primary">Menu (Optional)</label>
-                  <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
-                    <div className="h-9 w-9 flex-shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                      <ImageIcon className="h-4 w-4" />
-                    </div>
-                    <p className="text-caption text-text-secondary">
-                      Have food or drinks? You&apos;ll be able to upload your menu photo from{' '}
-                      <span className="font-semibold text-text-primary">
-                        Café Settings → Edit Profile → Menu
-                      </span>
-                      {' '}as soon as your café is approved.
-                    </p>
-                  </div>
+                  <label className="text-caption font-semibold text-text-primary">Menu Photos (Optional)</label>
+                  {!formData.cafeId ? (
+                    <p className="text-caption text-text-secondary">Saving your progress — photo upload will be available in a moment.</p>
+                  ) : (
+                    <>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          for (const file of files) {
+                            try {
+                              const url = await uploadMenuPhoto(formData.cafeId!, file);
+                              setFormData((prev) => ({ ...prev, menuPhotos: [...prev.menuPhotos, url] }));
+                            } catch {
+                              setError('One of your menu photos failed to upload. Please try again.');
+                            }
+                          }
+                          e.target.value = '';
+                        }}
+                        className="text-caption text-text-secondary"
+                      />
+                      {formData.menuPhotos.length > 0 && (
+                        <div className="grid grid-cols-4 gap-2">
+                          {formData.menuPhotos.map((url) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img key={url} src={url} alt="Menu photo" className="aspect-square rounded-lg object-cover border border-border" />
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}
