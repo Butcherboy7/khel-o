@@ -396,9 +396,10 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
             <Input label="Address" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} required />
             <LocationSearchInput
               label="City / Town"
-              value={locationId ? { id: locationId, name: city, state, district: null, pincode: pincode || null } : null}
+              value={city ? { id: locationId ?? 0, name: city, state, district: null, pincode: pincode || null } : null}
               onChange={(loc: SelectedLocation) => {
-                setLocationId(loc.id);
+                // id 0 means "typed via Other" — not a real locations-table row.
+                setLocationId(loc.id || null);
                 setCity(loc.name);
                 setState(loc.state);
                 if (loc.pincode) setPincode(loc.pincode);

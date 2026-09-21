@@ -14,13 +14,3 @@ export async function searchLocations(q: string, state?: string): Promise<Locati
     apiClient.get('/api/v1/locations/search', { params: { q, state } })
   );
 }
-
-// POST /api/v1/locations — get-or-create
-export async function createLocation(params: {
-  name: string;
-  state: string;
-  district?: string;
-  pincode?: string;
-}): Promise<LocationResult> {
-  return call<LocationResult>(() => apiClient.post('/api/v1/locations', params));
-}

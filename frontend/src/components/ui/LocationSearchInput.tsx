@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/Input';
 import { INDIAN_STATES } from '@/constants/states';
-import { searchLocations, createLocation, type LocationResult } from '@/lib/api/locations';
+import { searchLocations, type LocationResult } from '@/lib/api/locations';
 
 export interface SelectedLocation {
+  /** 0 means "typed via Other" — not a row in the shared locations table. */
   id: number;
   name: string;
   state: string;
@@ -59,19 +60,17 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
     setIsAdding(false);
   };
 
-  const handleCreate = async () => {
+  // "Other" never writes to the shared locations table — a typo or a
+  // one-off village name typed here would otherwise pollute every future
+  // owner's search results. It only sets this café's own city/state.
+  const handleCreate = () => {
     if (!newState) {
       setAddError('Please select a state.');
       return;
     }
     setAddError('');
-    try {
-      const loc = await createLocation({ name: query.trim(), state: newState });
-      selectLocation(loc);
-      setNewState('');
-    } catch (e: any) {
-      setAddError(e?.message || "Couldn't add this location.");
-    }
+    selectLocation({ id: 0, name: query.trim(), state: newState, district: null, pincode: null });
+    setNewState('');
   };
 
   if (value && !isOpen) {
@@ -149,7 +148,7 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
               onClick={() => setIsAdding(true)}
               className="flex w-full items-center px-4 py-2.5 text-left text-caption font-semibold text-primary hover:bg-surface transition-colors border-t border-border"
             >
-              Can&apos;t find your city? Add &quot;{query.trim()}&quot;
+              Other — city not listed
             </button>
           )}
 
@@ -174,7 +173,7 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
                 onClick={handleCreate}
                 className="mt-1 rounded-xl bg-primary px-4 py-2 text-caption font-semibold text-white"
               >
-                Add &quot;{query.trim()}&quot;
+                Use &quot;{query.trim()}&quot;
               </button>
             </div>
           )}

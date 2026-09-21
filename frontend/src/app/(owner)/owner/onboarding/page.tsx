@@ -813,14 +813,15 @@ export default function OnboardingWizardPage() {
                 <LocationSearchInput
                   label="City / Town *"
                   value={
-                    formData.locationId
-                      ? { id: formData.locationId, name: formData.city, state: formData.state, district: null, pincode: formData.pincode || null }
+                    formData.city
+                      ? { id: formData.locationId ?? 0, name: formData.city, state: formData.state, district: null, pincode: formData.pincode || null }
                       : null
                   }
                   onChange={(loc: SelectedLocation) => {
                     setFormData((prev) => ({
                       ...prev,
-                      locationId: loc.id,
+                      // id 0 means "typed via Other" — not a real locations-table row.
+                      locationId: loc.id || null,
                       city: loc.name,
                       state: loc.state,
                       pincode: loc.pincode || prev.pincode,
