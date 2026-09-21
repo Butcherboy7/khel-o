@@ -609,3 +609,114 @@ async def test_submit_onboarding_accepts_valid_6_digit_pincode():
         async with AsyncClient(transport=transport, base_url="http://testserver") as client:
             res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
             assert res.status_code == 200, f"Expected 200 for valid pincode '560001', got {res.status_code}: {res.text}"
+
+
+@pytest.mark.asyncio
+async def test_submit_onboarding_rejects_pincode_location_mismatch():
+    """If the owner picks a location_id whose Location row has a known
+    pincode on file, and the typed pincode contradicts it, submission is
+    rejected with a 422 (ValidationException / PINCODE_MISMATCH) rather than
+    silently persisting a self-contradictory address."""
+    from app.models.location import Location
+
+    async with AsyncSessionLocal() as db:
+        loc = Location(
+            name="Secunderabad", name_norm="secunderabad",
+            state="Telangana", pincode="500003",
+        )
+        db.add(loc)
+        await db.commit()
+        await db.refresh(loc)
+        loc_id = loc.id
+
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_pincode_mismatch_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Pincode Mismatch Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Pincode Mismatch Cafe",
+            "addressLine1": "1 Pincode Mismatch St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "110001",  # Delhi pincode, wrong for Secunderabad
+            "locationId": loc_id,
+            "phoneNumber": "+919000000090",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 422, f"Expected 422 for pincode/location mismatch, got {res.status_code}: {res.text}"
+            assert res.json()["error"]["code"] == "PINCODE_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_submit_onboarding_allows_pincode_when_location_has_none_on_file():
+    """Most Location rows don't have a pincode populated (it's optional, per
+    the Task 2 seed audit). The consistency check must never block
+    submission just because the location's pincode field is empty — only a
+    genuine, known contradiction should be rejected."""
+    from app.models.location import Location
+
+    async with AsyncSessionLocal() as db:
+        loc = Location(
+            name="Some New Town", name_norm="some new town",
+            state="Karnataka", pincode=None,
+        )
+        db.add(loc)
+        await db.commit()
+        await db.refresh(loc)
+        loc_id = loc.id
+
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_pincode_no_loc_pin_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Pincode No Location Pincode Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Pincode No Location Pincode Cafe",
+            "addressLine1": "1 No Location Pincode St",
+            "city": "Bengaluru",
+            "state": "Karnataka",
+            "pincode": "560001",
+            "locationId": loc_id,
+            "phoneNumber": "+919000000091",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 200, f"Expected 200 when location has no pincode on file, got {res.status_code}: {res.text}"

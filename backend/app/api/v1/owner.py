@@ -29,6 +29,7 @@ from app.constants import validate_city, validate_google_maps_url, validate_pinc
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
+from app.models.location import Location
 from app.models.hardware_tier import HardwareTier, PlatformType, TierType
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.booking import Booking, BookingStatus
@@ -782,6 +783,18 @@ async def submit_onboarding_application(
     stmt = select(Cafe).where(Cafe.owner_id == current_user.id).order_by(Cafe.created_at.desc())
     res = await db.execute(stmt)
     cafe = res.scalars().first()
+
+    if payload.location_id is not None:
+        loc_stmt = select(Location).where(Location.id == payload.location_id)
+        location = (await db.execute(loc_stmt)).scalars().first()
+        if location and location.pincode and location.pincode != payload.pincode:
+            raise ValidationException(
+                message=(
+                    f"Pincode {payload.pincode} doesn't match {location.name}'s pincode on file "
+                    f"({location.pincode}). Please double-check your pincode."
+                ),
+                error_code="PINCODE_MISMATCH",
+            )
 
     parts = payload.opening_time.split(":")
     opening_time_obj = time(hour=int(parts[0]), minute=int(parts[1]))
