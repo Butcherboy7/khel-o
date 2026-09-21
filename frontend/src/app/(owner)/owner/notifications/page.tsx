@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Bell, CheckCheck, Ticket, Sparkles, AlertCircle, RefreshCw, X, Trash2 } from 'lucide-react';
 import { Badge, Button, ErrorState, Skeleton } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { EnableAlertsCard } from '@/components/owner/EnableAlertsCard';
 import { apiClient } from '@/lib/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -133,6 +134,8 @@ export default function OwnerNotificationsPage() {
           ) : undefined
         }
       />
+
+      <EnableAlertsCard />
 
       {isLoading && (
         <div className="space-y-3">
