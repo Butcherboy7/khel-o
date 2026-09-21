@@ -25,7 +25,7 @@ from app.repositories.owner_payout_repository import OwnerPayoutRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator, AliasChoices
-from app.constants import validate_city, validate_google_maps_url, PHOTO_CATEGORIES
+from app.constants import validate_city, validate_google_maps_url, validate_pincode, PHOTO_CATEGORIES
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
@@ -174,6 +174,12 @@ class OnboardingSubmitRequest(BaseModel):
     @classmethod
     def _validate_google_maps_url(cls, v: Optional[str]) -> Optional[str]:
         return validate_google_maps_url(v)
+
+    @field_validator("pincode")
+    @classmethod
+    def _validate_pincode(cls, v: str) -> str:
+        return validate_pincode(v)
+
     closing_time: str = Field(..., pattern=r"^\d{2}:\d{2}:\d{2}$", description="Closing time in HH:MM:SS format (required, can be earlier than opening for overnight)")
     total_seats: int = Field(20, ge=1)
     amenities: List[str] = Field(default_factory=list)

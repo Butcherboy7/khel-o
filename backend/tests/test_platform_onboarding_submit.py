@@ -526,3 +526,86 @@ async def test_onboarding_submit_creates_activity_tiers_correctly():
             assert tier.tier_type == TierType.ACTIVITY
             assert tier.platform is None
             assert tier.model is None
+
+
+@pytest.mark.parametrize("bad_pincode", ["12345", "1234567", "ABCDEF", "560 01", "56000!", ""])
+@pytest.mark.asyncio
+async def test_submit_onboarding_rejects_invalid_pincode(
+    bad_pincode,
+):
+    """Invalid pincodes (not exactly 6 digits) should be rejected with 422."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_pincode_bad_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Pincode Bad Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Pincode Bad Cafe",
+            "addressLine1": "1 Pincode Bad St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": bad_pincode,
+            "phoneNumber": "+919000000088",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 422, f"Expected 422 for pincode '{bad_pincode}', got {res.status_code}: {res.text}"
+
+
+@pytest.mark.asyncio
+async def test_submit_onboarding_accepts_valid_6_digit_pincode():
+    """Valid 6-digit pincodes should be accepted with 200."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"onboard_pincode_good_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Onboard Pincode Good Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "name": "Onboard Pincode Good Cafe",
+            "addressLine1": "1 Pincode Good St",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "pincode": "560001",
+            "phoneNumber": "+919000000089",
+            "openingTime": "09:00:00",
+            "closingTime": "21:00:00",
+            "upiVpa": "testowner@okhdfcbank",
+            "confirmUpiVpa": "testowner@okhdfcbank",
+            "hardwareTiers": [
+                {"platform": "pc", "model": "RTX 4070", "totalSeats": 6, "appBookableSeats": 2, "hourlyRate": 120},
+            ],
+        }
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            res = await client.post("/api/v1/owner/onboarding/submit", json=payload, headers=headers)
+            assert res.status_code == 200, f"Expected 200 for valid pincode '560001', got {res.status_code}: {res.text}"

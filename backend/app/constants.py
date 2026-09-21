@@ -1,3 +1,6 @@
+import re
+
+
 # City is no longer restricted to a hardcoded picklist (see app/models/location.py
 # and app/api/v1/locations.py for the search/create-on-miss flow that replaced
 # CITIES_BY_STATE). This just guards against empty/garbage input at the write
@@ -8,6 +11,15 @@ def validate_city(city: str) -> str:
     cleaned = " ".join(city.strip().split())
     if len(cleaned) < 2 or cleaned.replace(" ", "").isdigit():
         raise ValueError(f"'{city}' is not a valid city.")
+    return cleaned
+
+
+def validate_pincode(pincode: str) -> str:
+    """Reject anything that isn't exactly 6 numeric digits. Use as a Pydantic
+    field_validator on any schema field that sets Cafe.pincode."""
+    cleaned = pincode.strip()
+    if not re.match(r"^\d{6}$", cleaned):
+        raise ValueError("Pincode must be exactly 6 digits.")
     return cleaned
 
 
