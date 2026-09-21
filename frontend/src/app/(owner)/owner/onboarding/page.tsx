@@ -1129,20 +1129,31 @@ export default function OnboardingWizardPage() {
                 <div>
                   <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
                     <Gamepad2 className="h-5 w-5 text-emerald-500" />
-                    <span>5. Games Supported & Photo Gallery</span>
+                    <span>5. {relevantGamingPlatforms.length > 0 ? 'Games Supported & Photo Gallery' : 'Photo Gallery'}</span>
                   </h2>
                   <p className="text-caption text-text-secondary">Showcase your library of pre-installed games and venue photos.</p>
                 </div>
 
                 <div className="flex flex-col gap-5">
                   {relevantGamingPlatforms.length === 0 && (
-                    <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
-                      <Gamepad2 className="h-4 w-4 flex-shrink-0 text-text-secondary mt-0.5" />
-                      <p className="text-caption text-text-secondary">
-                        You haven&apos;t configured any gaming platforms in the previous step — add a
-                        PC, PlayStation, Xbox, or Nintendo resource there to list the games you support.
-                      </p>
-                    </div>
+                    formData.hardwareTiers.some((t) => t.tierType === 'activity') ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
+                        <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-500 mt-0.5" />
+                        <p className="text-caption text-text-secondary">
+                          You&apos;ve set up {formData.hardwareTiers.filter((t) => t.tierType === 'activity').length}{' '}
+                          physical {formData.hardwareTiers.filter((t) => t.tierType === 'activity').length === 1 ? 'activity' : 'activities'}{' '}
+                          (see Step 4). No gaming platform configuration is needed for a physical-activity café — add photos below.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-3.5">
+                        <Gamepad2 className="h-4 w-4 flex-shrink-0 text-text-secondary mt-0.5" />
+                        <p className="text-caption text-text-secondary">
+                          You haven&apos;t configured any gaming platforms in the previous step — add a
+                          PC, PlayStation, Xbox, or Nintendo resource there to list the games you support.
+                        </p>
+                      </div>
+                    )
                   )}
                   {relevantGamingPlatforms.map((platform) => {
                     const platformLabel = PLATFORMS.find((p) => p.value === platform)?.label || platform;
