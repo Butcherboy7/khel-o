@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Store,
@@ -14,7 +14,8 @@ import {
   CreditCard,
   Monitor,
   Gamepad2,
-  FileText
+  FileText,
+  Pencil
 } from 'lucide-react';
 import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } from '@/lib/api/owner';
 import { uploadCafePhoto, uploadMenuPhoto } from '@/lib/api/settings';
@@ -110,6 +111,34 @@ const INITIAL_STATE: OnboardingState = {
   discord: '',
   cafeId: null,
 };
+
+function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () => void; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3 bg-surface p-5 rounded-2xl border border-border text-body">
+      <div className="flex items-center justify-between border-b border-border pb-2">
+        <h3 className="font-heading text-h3 text-text-primary">{title}</h3>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="flex items-center gap-1 text-caption font-semibold text-primary hover:underline"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          Edit
+        </button>
+      </div>
+      <div className="flex flex-col gap-2">{children}</div>
+    </div>
+  );
+}
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <span className="text-text-secondary">{label}:</span>
+      <span className="font-semibold text-text-primary text-right break-words">{value}</span>
+    </div>
+  );
+}
 
 export default function OnboardingWizardPage() {
   const router = useRouter();
@@ -1329,30 +1358,58 @@ export default function OnboardingWizardPage() {
                   onChange={(e) => updateField('cancellationPolicy', e.target.value)}
                 />
 
-                <div className="flex flex-col gap-3 bg-surface p-5 rounded-2xl border border-border text-body">
-                  <h3 className="font-heading text-h3 text-text-primary border-b border-border pb-2">Submission Summary</h3>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Venue Name:</span>
-                    <span className="font-semibold text-text-primary">{formData.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Location:</span>
-                    <span className="font-semibold text-text-primary">{formData.city}, {formData.state}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Resources & Pricing:</span>
-                    <span className="font-semibold text-text-primary">{formData.hardwareTiers.length} Resources Configured</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Games Supported:</span>
-                    <span className="font-semibold text-text-primary">
-                      {Object.values(formData.supportedGames).reduce((sum, list) => sum + list.length, 0)} Games
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Payout UPI ID:</span>
-                    <span className="font-semibold text-emerald-600">{formData.upiVpa || 'Not Provided'}</span>
-                  </div>
+                <div className="flex flex-col gap-4">
+                  <ReviewSection title="Location" onEdit={() => setStep(1)}>
+                    <ReviewRow label="Venue Name" value={formData.name || 'Not provided'} />
+                    <ReviewRow
+                      label="Address"
+                      value={`${formData.addressLine1}${formData.addressLine2 ? ', ' + formData.addressLine2 : ''}` || 'Not provided'}
+                    />
+                    <ReviewRow label="City / Town / Locality" value={formData.city || 'Not provided'} />
+                    <ReviewRow label="State" value={formData.state || 'Not provided'} />
+                    <ReviewRow label="Pincode" value={formData.pincode || 'Not provided'} />
+                    <ReviewRow label="Maps Link" value={formData.googleMapsUrl || 'Not provided'} />
+                  </ReviewSection>
+
+                  <ReviewSection title="Business Verification" onEdit={() => setStep(2)}>
+                    <ReviewRow label="Business Phone" value={formData.phoneNumber || 'Not provided'} />
+                    <ReviewRow label="Email" value={formData.email || 'Not provided'} />
+                    <ReviewRow label="Business PAN" value={formData.businessPan || 'Not provided'} />
+                    <ReviewRow label="GSTIN" value={formData.hasGst ? (formData.gstin || 'Not provided') : 'Not registered'} />
+                    <ReviewRow label="Legal Document" value={formData.legalDocumentUrl ? 'Uploaded' : 'Not provided'} />
+                  </ReviewSection>
+
+                  <ReviewSection title="Payout" onEdit={() => setStep(3)}>
+                    <ReviewRow label="Payout UPI ID" value={formData.upiVpa || 'Not provided'} />
+                  </ReviewSection>
+
+                  <ReviewSection title="Resources / Activities" onEdit={() => setStep(4)}>
+                    <ReviewRow label="Hours" value={`${formData.openingTime} – ${formData.closingTime}`} />
+                    {formData.hardwareTiers.length === 0 ? (
+                      <ReviewRow label="Resources" value="None configured" />
+                    ) : (
+                      formData.hardwareTiers.map((t) => (
+                        <ReviewRow
+                          key={t.id}
+                          label={
+                            t.tierType === 'activity'
+                              ? (t.activityKind || 'Activity')
+                              : (PLATFORMS.find((p) => p.value === t.platform)?.label || t.platform || 'Resource')
+                          }
+                          value={`${t.model || t.tierType} · ${t.totalSeats} seats · ₹${t.pricePerHour}/hr${t.individualUnits ? ' · Individually tracked' : ''}`}
+                        />
+                      ))
+                    )}
+                  </ReviewSection>
+
+                  <ReviewSection title="Games / Photos" onEdit={() => setStep(5)}>
+                    <ReviewRow
+                      label="Games"
+                      value={`${Object.values(formData.supportedGames).reduce((sum, list) => sum + list.length, 0)} games across ${Object.keys(formData.supportedGames).filter((k) => formData.supportedGames[k].length > 0).length} platforms`}
+                    />
+                    <ReviewRow label="Venue Photos" value={`${formData.photos.length} uploaded`} />
+                    <ReviewRow label="Menu Photos" value={`${formData.menuPhotos.length} uploaded`} />
+                  </ReviewSection>
                 </div>
 
                 <label className="flex items-start gap-2.5 text-caption text-text-secondary">
