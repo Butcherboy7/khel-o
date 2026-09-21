@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/Input';
-import { INDIAN_STATES } from '@/constants/states';
 import { searchLocations, createLocation, type LocationResult } from '@/lib/api/locations';
 
 export interface SelectedLocation {
@@ -16,17 +15,23 @@ export interface SelectedLocation {
 interface LocationSearchInputProps {
   value: SelectedLocation | null;
   onChange: (location: SelectedLocation) => void;
+  onClear?: () => void;
+  state: string;
   error?: string;
   label?: string;
 }
 
-export function LocationSearchInput({ value, onChange, error, label = 'City / Town' }: LocationSearchInputProps) {
+// Searches locations scoped to a single, already-chosen state (state
+// selection now lives one level up in the onboarding wizard — see
+// (owner)/owner/onboarding/page.tsx Step 1 — and is locked before this
+// component is ever rendered), so "Add a new place" just reuses `state`
+// instead of asking for it again.
+export function LocationSearchInput({ value, onChange, onClear, state, error, label = 'City / Town' }: LocationSearchInputProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<LocationResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
-  const [newState, setNewState] = useState('');
   const [addError, setAddError] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -39,7 +44,7 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
     debounceRef.current = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await searchLocations(query.trim());
+        const res = await searchLocations(query.trim(), state);
         setResults(res);
       } catch {
         setResults([]);
@@ -50,7 +55,7 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, isOpen]);
+  }, [query, isOpen, state]);
 
   const selectLocation = (loc: LocationResult) => {
     onChange(loc);
@@ -60,15 +65,10 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
   };
 
   const handleCreate = async () => {
-    if (!newState) {
-      setAddError('Please select a state.');
-      return;
-    }
     setAddError('');
     try {
-      const loc = await createLocation({ name: query.trim(), state: newState });
+      const loc = await createLocation({ name: query.trim(), state });
       selectLocation(loc);
-      setNewState('');
     } catch (e: any) {
       setAddError(e?.message || "Couldn't add this location.");
     }
@@ -92,6 +92,7 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
           <button
             type="button"
             onClick={() => {
+              onClear?.();
               setIsOpen(true);
               setQuery('');
             }}
@@ -116,11 +117,28 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
           setIsOpen(true);
           setIsAdding(false);
         }}
-        onFocus={() => setIsOpen(true)}
+        onFocus={async () => {
+          setIsOpen(true);
+          // Popular-cities prefetch: on first focus, before the owner has
+          // typed anything, show this state's locations (ordered by name —
+          // Task 2's seed puts state capitals/major metros first only
+          // incidentally, this isn't a ranking system) so there's something
+          // useful to tap instead of a blank dropdown.
+          if (query.trim().length === 0 && results.length === 0) {
+            setIsSearching(true);
+            try {
+              setResults(await searchLocations('', state));
+            } catch {
+              setResults([]);
+            } finally {
+              setIsSearching(false);
+            }
+          }
+        }}
         error={error}
       />
 
-      {isOpen && query.trim().length > 0 && (
+      {isOpen && (
         <div className="absolute top-full z-10 mt-1 w-full rounded-xl border border-border bg-card shadow-lg max-h-72 overflow-y-auto">
           {isSearching && (
             <p className="px-4 py-3 text-caption text-text-secondary">Searching...</p>
@@ -143,7 +161,7 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
               </button>
             ))}
 
-          {!isSearching && !isAdding && results.length === 0 && (
+          {!isSearching && !isAdding && query.trim().length > 0 && results.length === 0 && (
             <button
               type="button"
               onClick={() => setIsAdding(true)}
@@ -155,19 +173,9 @@ export function LocationSearchInput({ value, onChange, error, label = 'City / To
 
           {isAdding && (
             <div className="flex flex-col gap-2 border-t border-border p-4">
-              <label className="text-caption font-semibold text-text-primary">
-                Select the state for &quot;{query.trim()}&quot;
-              </label>
-              <select
-                value={newState}
-                onChange={(e) => setNewState(e.target.value)}
-                className="h-10 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="">Select State</option>
-                {INDIAN_STATES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <p className="text-caption font-semibold text-text-primary">
+                Add &quot;{query.trim()}&quot; in {state}?
+              </p>
               {addError && <p className="text-caption text-error" role="alert">{addError}</p>}
               <button
                 type="button"

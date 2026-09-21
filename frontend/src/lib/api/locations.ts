@@ -9,9 +9,12 @@ export interface LocationResult {
 }
 
 // GET /api/v1/locations/search
-export async function searchLocations(q: string, state?: string): Promise<LocationResult[]> {
+// query may be '' — the backend treats an empty/omitted q as a state-only
+// "popular cities" query (ordered by name) when state is provided, used by
+// LocationSearchInput's on-focus prefetch before the owner types anything.
+export async function searchLocations(query: string, state?: string): Promise<LocationResult[]> {
   return call<LocationResult[]>(() =>
-    apiClient.get('/api/v1/locations/search', { params: { q, state } })
+    apiClient.get('/api/v1/locations/search', { params: { q: query || undefined, state } })
   );
 }
 

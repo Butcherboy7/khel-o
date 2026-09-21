@@ -23,6 +23,7 @@ import { Button, Input, NumericField, Textarea, Card, CardContent, Badge } from 
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 import { LocationSearchInput, type SelectedLocation } from '@/components/ui/LocationSearchInput';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
+import { INDIAN_STATES } from '@/constants/states';
 import { PLATFORMS, PLATFORM_MODELS } from '@/constants/platforms';
 import type { Platform } from '@/constants/platforms';
 import { PRESET_GAMES_BY_PLATFORM } from '@/constants/games';
@@ -245,7 +246,10 @@ export default function OnboardingWizardPage() {
       if (formData.googleMapsUrl && !GOOGLE_MAPS_URL_PATTERN.test(formData.googleMapsUrl)) {
         errors.googleMapsUrl = 'Please enter a valid Google Maps link (e.g. https://maps.app.goo.gl/...).';
       }
-      if (!formData.city || !formData.state) {
+      if (!formData.state) {
+        errors.state = 'Please select your state or union territory.';
+      }
+      if (!formData.city) {
         errors.city = 'Please search and select your city or town.';
       }
       if (!formData.pincode) {
@@ -726,26 +730,61 @@ export default function OnboardingWizardPage() {
                   onChange={(e) => updateField('addressLine2', e.target.value)}
                 />
 
-                <LocationSearchInput
-                  label="City / Town *"
-                  value={
-                    formData.locationId
-                      ? { id: formData.locationId, name: formData.city, state: formData.state, district: null, pincode: formData.pincode || null }
-                      : null
-                  }
-                  onChange={(loc: SelectedLocation) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      locationId: loc.id,
-                      city: loc.name,
-                      state: loc.state,
-                      pincode: loc.pincode || prev.pincode,
-                    }));
-                    clearStep1Error('city');
-                    clearStep1Error('state');
-                  }}
-                  error={step1Errors.city || step1Errors.state}
-                />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-h4 text-text-primary">State / UT *</label>
+                  {formData.state ? (
+                    <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+                      <span className="text-body text-text-primary">{formData.state}</span>
+                      {!formData.locationId && (
+                        <button
+                          type="button"
+                          onClick={() => updateField('state', '')}
+                          className="text-caption font-semibold text-primary"
+                        >
+                          Change
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        updateField('state', e.target.value);
+                        clearStep1Error('state');
+                      }}
+                      className="h-11 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      <option value="" disabled>Select your State / UT</option>
+                      {INDIAN_STATES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  )}
+                  {step1Errors.state && <p className="text-caption text-error" role="alert">{step1Errors.state}</p>}
+                </div>
+
+                {formData.state && (
+                  <LocationSearchInput
+                    label="City / Town / Locality *"
+                    state={formData.state}
+                    value={
+                      formData.locationId
+                        ? { id: formData.locationId, name: formData.city, state: formData.state, district: null, pincode: formData.pincode || null }
+                        : null
+                    }
+                    onChange={(loc: SelectedLocation) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        locationId: loc.id,
+                        city: loc.name,
+                        pincode: loc.pincode || prev.pincode,
+                      }));
+                      clearStep1Error('city');
+                    }}
+                    onClear={() => setFormData((prev) => ({ ...prev, locationId: null, city: '' }))}
+                    error={step1Errors.city}
+                  />
+                )}
 
                 <Input
                   ref={(el) => { step1FieldRefs.current.pincode = el; }}

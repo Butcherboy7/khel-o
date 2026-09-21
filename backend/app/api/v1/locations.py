@@ -56,20 +56,28 @@ router = APIRouter()
 
 @router.get("/search", status_code=200)
 async def search_locations(
-    q: str = Query(..., min_length=1, max_length=100),
+    # q is now optional: an empty/omitted q with a state provided powers the
+    # "popular cities" prefetch (frontend fires this on focus, before the
+    # owner has typed anything) — it returns that state's rows ordered by
+    # name rather than 422ing on a missing search term. A bare q with no
+    # state, or neither, still falls through to the empty-results guard
+    # below exactly as before.
+    q: Optional[str] = Query(None, max_length=100),
     state: Optional[str] = Query(None),
     limit: int = Query(10, ge=1, le=25),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    term = normalize_location_name(q)
-    if not term:
+    term = normalize_location_name(q) if q else ""
+    if not term and not state:
         return {"success": True, "data": []}
-    stmt = select(Location).where(func.lower(Location.name_norm).like(f"%{term}%"))
+    stmt = select(Location)
+    if term:
+        stmt = stmt.where(func.lower(Location.name_norm).like(f"%{term}%"))
     if state:
         stmt = stmt.where(func.lower(Location.state) == state.strip().lower())
     stmt = stmt.order_by(
-        func.lower(Location.name_norm).like(f"{term}%").desc(),
+        func.lower(Location.name_norm).like(f"{term}%").desc() if term else Location.name,
         Location.name,
     ).limit(limit)
     res = await db.execute(stmt)
