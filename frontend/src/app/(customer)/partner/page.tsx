@@ -47,7 +47,7 @@ const PROCESS_STEPS = [
   { step: 2, title: 'Business Verification', description: 'PAN, GSTIN, trade license document — all optional' },
   { step: 3, title: 'Payout Details', description: 'UPI ID for weekly payouts (required)' },
   { step: 4, title: 'Hours & Resources', description: 'Operating hours, gaming tiers, pricing' },
-  { step: 5, title: 'Games & Photo Gallery', description: 'Supported games list — venue/menu photos are added after approval' },
+  { step: 5, title: 'Games & Photo Gallery', description: 'Supported games list, venue photos, and menu photos' },
   { step: 6, title: 'Review & Submit', description: 'Final review before submission' },
 ];
 

@@ -611,13 +611,17 @@ async def get_onboarding_draft(
     if not cafe:
         return {"success": True, "data": {"draft": {}}}
 
+    # cafeId/menuPhotos ride alongside the draft (not inside its JSON blob)
+    # so the onboarding wizard can presign photo/menu-photo uploads against
+    # this café — those endpoints need a real cafe_id, and menu photos are
+    # persisted directly on the Cafe row rather than through draft_data.
     if cafe.draft_data:
-        return {"success": True, "data": {"draft": cafe.draft_data}}
+        return {"success": True, "data": {"draft": cafe.draft_data, "cafeId": str(cafe.id), "menuPhotos": cafe.menu_photos or []}}
 
     if cafe.verification_status == VerificationStatus.DRAFT:
         # A brand-new café that hasn't gone through a full submission yet
         # and has no in-progress draft either — nothing to prefill.
-        return {"success": True, "data": {"draft": {}}}
+        return {"success": True, "data": {"draft": {}, "cafeId": str(cafe.id), "menuPhotos": cafe.menu_photos or []}}
 
     # The café was fully submitted at least once, which unconditionally
     # clears draft_data (see the submit handler) — reconstruct an
@@ -681,7 +685,7 @@ async def get_onboarding_draft(
         snapshot["accountHolderName"] = payout_account.account_holder_name or ""
         snapshot["bankIfsc"] = payout_account.bank_ifsc or ""
         snapshot["bankAccountNumberMasked"] = payout_account.bank_account_number_masked or ""
-    return {"success": True, "data": {"draft": snapshot}}
+    return {"success": True, "data": {"draft": snapshot, "cafeId": str(cafe.id), "menuPhotos": cafe.menu_photos or []}}
 
 @router.post("/onboarding/draft", status_code=status.HTTP_200_OK)
 async def save_onboarding_draft(
@@ -716,6 +720,28 @@ async def save_onboarding_draft(
             is_active=False
         )
         db.add(cafe)
+
+        # Grant CAFE_OWNER as soon as a draft café exists, not only at final
+        # submit — photo upload (presign endpoints) requires this role, and
+        # the onboarding wizard's own copy tells the owner they can upload
+        # venue/menu photos as soon as their café is created. Without this,
+        # every upload attempt made before final submit 403'd, and — since
+        # nothing else prompted the owner to upload again post-approval —
+        # admin's verification queue had no real photos to review.
+        from app.models.user_role import UserRoleMapping
+        import uuid as _uuid
+        stmt_check_owner = select(UserRoleMapping).where(
+            UserRoleMapping.user_id == current_user.id,
+            UserRoleMapping.role == UserRole.CAFE_OWNER
+        )
+        res_owner = await db.execute(stmt_check_owner)
+        if not res_owner.scalars().first():
+            db.add(UserRoleMapping(
+                id=_uuid.uuid4(),
+                user_id=current_user.id,
+                role=UserRole.CAFE_OWNER,
+                cafe_id=None
+            ))
     else:
         cafe.draft_data = draft_data
         if payload.draft_data.get("name"):

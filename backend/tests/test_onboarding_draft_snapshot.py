@@ -7,6 +7,56 @@ from app.core.security import create_access_token, get_password_hash
 from app.database import AsyncSessionLocal
 
 
+@pytest.fixture(autouse=True)
+def _s3_settings(monkeypatch):
+    from app.config import settings
+    import app.services.storage_service as storage_service
+    monkeypatch.setattr(settings, "AWS_S3_BUCKET", "khelo-test-bucket", raising=False)
+    monkeypatch.setattr(settings, "AWS_ACCESS_KEY_ID", "test-key", raising=False)
+    monkeypatch.setattr(settings, "AWS_SECRET_ACCESS_KEY", "test-secret", raising=False)
+    monkeypatch.setattr(storage_service, "_client", None, raising=False)
+
+
+@pytest.mark.asyncio
+async def test_first_draft_save_grants_cafe_owner_role_so_photo_upload_works_pre_submit():
+    """A gamer mid-onboarding-wizard must be able to presign a photo upload
+    against their in-progress draft café — the onboarding UI itself tells
+    them to do this, and admin's verification queue needs real photos to
+    review, not a placeholder. Previously cafe_owner was only granted at
+    final submit, so every upload attempt before that 403'd."""
+    async with AsyncSessionLocal() as db:
+        gamer = User(
+            id=uuid.uuid4(),
+            email=f"draft_photo_{uuid.uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="Draft Photo Test",
+            role=UserRole.GAMER,
+            is_active=True
+        )
+        db.add(gamer)
+        await db.commit()
+
+        token = create_access_token(subject=str(gamer.id), role=gamer.role.value)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            draft_res = await client.post(
+                "/api/v1/owner/onboarding/draft",
+                json={"step": 1, "draftData": {"name": "Draft Photo Cafe"}},
+                headers=headers,
+            )
+            assert draft_res.status_code == 200, draft_res.text
+            cafe_id = draft_res.json()["data"]["cafeId"]
+
+            presign_res = await client.post(
+                f"/api/v1/owner/cafes/{cafe_id}/photos/presign",
+                json={"contentType": "image/jpeg", "category": "exterior"},
+                headers=headers,
+            )
+            assert presign_res.status_code == 200, presign_res.text
+
+
 @pytest.mark.asyncio
 async def test_draft_endpoint_synthesizes_snapshot_after_full_submit():
     async with AsyncSessionLocal() as db:
