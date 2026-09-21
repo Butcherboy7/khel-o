@@ -119,6 +119,39 @@ export async function presignCafePhotoUpload(
   return call(() => apiClient.post(`/api/v1/owner/cafes/${cafeId}/photos/presign`, { contentType, category }));
 }
 
+// S3 error responses are XML, not JSON, so axios's own error handling never
+// surfaces them — without this, every direct-to-S3 PUT failure (expired
+// presigned URL, bucket policy denial, wrong signature) collapses into the
+// generic "Request failed with status code 4xx" that told the owner nothing
+// about what actually went wrong or whether retrying would help.
+function extractS3ErrorDetail(err: unknown): string | null {
+  const data = (err as { response?: { data?: unknown } })?.response?.data;
+  if (typeof data !== 'string' || !data.includes('<Error>')) return null;
+  const code = data.match(/<Code>(.*?)<\/Code>/)?.[1];
+  const message = data.match(/<Message>(.*?)<\/Message>/)?.[1];
+  return [code, message].filter(Boolean).join(': ') || null;
+}
+
+async function putToPresignedUrl(
+  uploadUrl: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<void> {
+  try {
+    await axios.put(uploadUrl, file, {
+      headers: { 'Content-Type': file.type },
+      onUploadProgress: (evt) => {
+        if (onProgress && evt.total) {
+          onProgress(Math.round((evt.loaded / evt.total) * 100));
+        }
+      },
+    });
+  } catch (err) {
+    const detail = extractS3ErrorDetail(err);
+    throw new Error(detail ? `Upload rejected by storage: ${detail}` : `"${file.name}" failed to upload — please try again.`);
+  }
+}
+
 // Uploads a file directly to S3 via a presigned URL, reporting progress.
 export async function uploadCafePhoto(
   cafeId: string,
@@ -127,14 +160,7 @@ export async function uploadCafePhoto(
   onProgress?: (percent: number) => void
 ): Promise<string> {
   const { uploadUrl, publicUrl } = await presignCafePhotoUpload(cafeId, file.type, category);
-  await axios.put(uploadUrl, file, {
-    headers: { 'Content-Type': file.type },
-    onUploadProgress: (evt) => {
-      if (onProgress && evt.total) {
-        onProgress(Math.round((evt.loaded / evt.total) * 100));
-      }
-    },
-  });
+  await putToPresignedUrl(uploadUrl, file, onProgress);
   return publicUrl;
 }
 
@@ -162,12 +188,7 @@ export async function uploadMenuPhoto(
   onProgress?: (percent: number) => void
 ): Promise<string> {
   const { uploadUrl, publicUrl } = await presignMenuPhotoUpload(cafeId, file.type);
-  await axios.put(uploadUrl, file, {
-    headers: { 'Content-Type': file.type },
-    onUploadProgress: (evt) => {
-      if (onProgress && evt.total) onProgress(Math.round((evt.loaded / evt.total) * 100));
-    },
-  });
+  await putToPresignedUrl(uploadUrl, file, onProgress);
   return publicUrl;
 }
 

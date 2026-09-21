@@ -72,3 +72,11 @@ async def test_draft_endpoint_synthesizes_snapshot_after_full_submit():
             assert draft["legalDocumentUrl"] == "https://example.com/legal-doc.pdf"
             assert draft["instagram"] == "khelo_snapshot"
             assert draft["discord"] == "khelo#1234"
+
+            # Payout details (OwnerPayoutAccount, a separate table from Cafe)
+            # must also survive the round trip. Previously the snapshot never
+            # read OwnerPayoutAccount at all, so re-entering the wizard after
+            # a rejection/changes-requested cycle silently blanked the UPI ID
+            # the owner had already submitted.
+            assert draft["upiVpa"] == "testowner@okhdfcbank"
+            assert draft["confirmUpiVpa"] == "testowner@okhdfcbank"

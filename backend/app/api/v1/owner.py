@@ -626,6 +626,15 @@ async def get_onboarding_draft(
     # CHANGES_REQUESTED café) doesn't start blank.
     tier_repo = HardwareTierRepository(db)
     tiers = await tier_repo.get_by_cafe_id(cafe.id)
+
+    # UPI/bank details live on OwnerPayoutAccount, not Cafe, so they need
+    # their own fetch here — see the confirmUpiVpa/bankAccountNumberMasked
+    # fields below. The full (unencrypted) bank account number is never
+    # reconstructed: only a masked display value is safe to send back over
+    # the API, so the owner must re-enter it in full if they want to change it.
+    payout_repo = OwnerPayoutRepository(db)
+    payout_account = await payout_repo.get_by_owner_id(cafe.owner_id)
+
     snapshot = {
         "name": cafe.name,
         "description": cafe.description or "",
@@ -666,6 +675,12 @@ async def get_onboarding_draft(
             for t in tiers
         ],
     }
+    if payout_account:
+        snapshot["upiVpa"] = payout_account.upi_vpa or ""
+        snapshot["confirmUpiVpa"] = payout_account.upi_vpa or ""
+        snapshot["accountHolderName"] = payout_account.account_holder_name or ""
+        snapshot["bankIfsc"] = payout_account.bank_ifsc or ""
+        snapshot["bankAccountNumberMasked"] = payout_account.bank_account_number_masked or ""
     return {"success": True, "data": {"draft": snapshot}}
 
 @router.post("/onboarding/draft", status_code=status.HTTP_200_OK)

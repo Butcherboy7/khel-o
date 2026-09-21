@@ -36,20 +36,18 @@ const PARTNER_BENEFITS = [
 ];
 
 const REQUIREMENTS = [
-  'Valid business registration (Trade License/Shop & Establishment)',
-  'Minimum 5 gaming PCs or console stations',
-  'Functional hardware meeting minimum specs (GTX 1660 or above)',
-  'Active bank account for payouts',
-  'GST registration (optional but recommended for tax benefits)',
-  'High-speed internet connection (minimum 50 Mbps)',
+  'A UPI ID for weekly payouts',
+  'At least one gaming resource (PC, console, or other station) with pricing',
+  'Business PAN, GSTIN, and trade license are optional but speed up verification',
+  'Recommended: 5+ gaming stations and GTX 1660-class or better hardware for the best listing performance',
 ];
 
 const PROCESS_STEPS = [
   { step: 1, title: 'Venue Details', description: 'Café name, address, location, contact info' },
-  { step: 2, title: 'Business Verification', description: 'PAN, GSTIN, trade license document' },
-  { step: 3, title: 'Payout Details', description: 'UPI ID for weekly payouts' },
-  { step: 4, title: 'Hours & Resources', description: 'Operating hours, GPU tiers, pricing' },
-  { step: 5, title: 'Amenities & Games', description: 'Facilities, supported games list' },
+  { step: 2, title: 'Business Verification', description: 'PAN, GSTIN, trade license document — all optional' },
+  { step: 3, title: 'Payout Details', description: 'UPI ID for weekly payouts (required)' },
+  { step: 4, title: 'Hours & Resources', description: 'Operating hours, gaming tiers, pricing' },
+  { step: 5, title: 'Games & Photo Gallery', description: 'Supported games list — venue/menu photos are added after approval' },
   { step: 6, title: 'Review & Submit', description: 'Final review before submission' },
 ];
 
@@ -109,7 +107,7 @@ export default function PartnerIntroPage() {
                 What You&apos;ll Need
               </h2>
               <p className="text-caption text-text-secondary">
-                Documents and requirements for verification
+                What&apos;s required to submit, plus what we recommend
               </p>
             </div>
           </div>

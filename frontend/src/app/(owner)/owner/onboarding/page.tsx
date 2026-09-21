@@ -52,6 +52,7 @@ interface OnboardingState {
   confirmUpiVpa: string;
   bankAccountNumber: string;
   confirmBankAccountNumber: string;
+  bankAccountNumberMasked: string;
   bankIfsc: string;
   accountHolderName: string;
   bankName: string;
@@ -90,6 +91,7 @@ const INITIAL_STATE: OnboardingState = {
   confirmUpiVpa: '',
   bankAccountNumber: '',
   confirmBankAccountNumber: '',
+  bankAccountNumberMasked: '',
   bankIfsc: '',
   accountHolderName: '',
   bankName: '',
@@ -105,6 +107,17 @@ const INITIAL_STATE: OnboardingState = {
   instagram: '',
   discord: '',
 };
+
+function SummaryRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <span className="text-text-secondary">{label}:</span>
+      <span className={`text-right font-semibold ${highlight ? 'text-emerald-600' : 'text-text-primary'}`}>
+        {value || 'Not provided'}
+      </span>
+    </div>
+  );
+}
 
 export default function OnboardingWizardPage() {
   const router = useRouter();
@@ -974,7 +987,7 @@ export default function OnboardingWizardPage() {
                         label="Bank Account Number"
                         name="bank-account-number"
                         autoComplete="off"
-                        placeholder="9180200192847291"
+                        placeholder={formData.bankAccountNumberMasked || '9180200192847291'}
                         value={formData.bankAccountNumber}
                         onChange={(e) => {
                           updateField('bankAccountNumber', e.target.value);
@@ -982,6 +995,7 @@ export default function OnboardingWizardPage() {
                           clearStep3Error('confirmBankAccountNumber');
                         }}
                         error={step3Errors.bankAccountNumber}
+                        hint={formData.bankAccountNumberMasked ? `On file: ${formData.bankAccountNumberMasked}. Leave blank to keep it, or enter a new number to replace it.` : undefined}
                       />
                       <Input
                         label="Confirm Bank Account Number"
@@ -1228,30 +1242,85 @@ export default function OnboardingWizardPage() {
                   onChange={(e) => updateField('cancellationPolicy', e.target.value)}
                 />
 
-                <div className="flex flex-col gap-3 bg-surface p-5 rounded-2xl border border-border text-body">
+                <div className="flex flex-col gap-5 bg-surface p-5 rounded-2xl border border-border text-body">
                   <h3 className="font-heading text-h3 text-text-primary border-b border-border pb-2">Submission Summary</h3>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Venue Name:</span>
-                    <span className="font-semibold text-text-primary">{formData.name}</span>
+
+                  <div className="flex flex-col gap-2">
+                    <h4 className="text-overline font-semibold text-text-tertiary">Venue Details</h4>
+                    <SummaryRow label="Café Name" value={formData.name} />
+                    <SummaryRow label="Description" value={formData.description} />
+                    <SummaryRow
+                      label="Address"
+                      value={[formData.addressLine1, formData.addressLine2].filter(Boolean).join(', ')}
+                    />
+                    <SummaryRow label="City / State" value={[formData.city, formData.state].filter(Boolean).join(', ')} />
+                    <SummaryRow label="Pincode" value={formData.pincode} />
+                    <SummaryRow label="Google Maps Link" value={formData.googleMapsUrl} />
+                    <SummaryRow label="Contact Phone" value={formData.phoneNumber} />
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Location:</span>
-                    <span className="font-semibold text-text-primary">{formData.city}, {formData.state}</span>
+
+                  <div className="flex flex-col gap-2">
+                    <h4 className="text-overline font-semibold text-text-tertiary">Business Verification</h4>
+                    <SummaryRow label="Business Email" value={formData.email} />
+                    <SummaryRow label="Business PAN" value={formData.businessPan} />
+                    <SummaryRow label="GSTIN" value={formData.hasGst ? formData.gstin : 'Not registered'} />
+                    <SummaryRow label="Trade License Document" value={formData.legalDocumentUrl} />
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Resources & Pricing:</span>
-                    <span className="font-semibold text-text-primary">{formData.hardwareTiers.length} Resources Configured</span>
+
+                  <div className="flex flex-col gap-2">
+                    <h4 className="text-overline font-semibold text-text-tertiary">Payout Details</h4>
+                    <SummaryRow label="Payout UPI ID" value={formData.upiVpa} highlight />
+                    {(formData.accountHolderName || formData.bankIfsc || formData.bankAccountNumber || formData.bankAccountNumberMasked) && (
+                      <>
+                        <SummaryRow label="Bank Account Holder" value={formData.accountHolderName} />
+                        <SummaryRow
+                          label="Bank Account Number"
+                          value={formData.bankAccountNumber ? `New: ${formData.bankAccountNumber}` : formData.bankAccountNumberMasked}
+                        />
+                        <SummaryRow label="Bank IFSC" value={formData.bankIfsc} />
+                        <SummaryRow label="Bank Name" value={formData.bankName} />
+                      </>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Games Supported:</span>
-                    <span className="font-semibold text-text-primary">
-                      {Object.values(formData.supportedGames).reduce((sum, list) => sum + list.length, 0)} Games
-                    </span>
+
+                  <div className="flex flex-col gap-2">
+                    <h4 className="text-overline font-semibold text-text-tertiary">Hours & Hardware</h4>
+                    <SummaryRow label="Operating Hours" value={`${formData.openingTime} – ${formData.closingTime}`} />
+                    {formData.hardwareTiers.length > 0 ? (
+                      <div className="flex flex-col gap-1 pt-1">
+                        {formData.hardwareTiers.map((tier) => (
+                          <div key={tier.id} className="flex justify-between text-caption">
+                            <span className="text-text-secondary">
+                              {tier.platform.toUpperCase()} · {tier.model || 'Unspecified model'} · {tier.totalSeats} seats
+                            </span>
+                            <span className="font-semibold text-text-primary">₹{tier.pricePerHour}/hr</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <SummaryRow label="Resources" value="" />
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Payout UPI ID:</span>
-                    <span className="font-semibold text-emerald-600">{formData.upiVpa || 'Not Provided'}</span>
+
+                  <div className="flex flex-col gap-2">
+                    <h4 className="text-overline font-semibold text-text-tertiary">Games & Amenities</h4>
+                    {Object.entries(formData.supportedGames).map(([platform, games]) => (
+                      games.length > 0 && (
+                        <SummaryRow key={platform} label={platform.toUpperCase()} value={games.join(', ')} />
+                      )
+                    ))}
+                    <SummaryRow label="Amenities" value={formData.amenities.join(', ')} />
                   </div>
+
+                  <div className="flex flex-col gap-2">
+                    <h4 className="text-overline font-semibold text-text-tertiary">Policies</h4>
+                    <SummaryRow label="Cancellation Policy" value={formData.cancellationPolicy} />
+                    <SummaryRow label="House Rules" value={formData.houseRules.join('; ')} />
+                  </div>
+
+                  <p className="text-caption text-text-tertiary italic pt-1 border-t border-border">
+                    Venue and menu photos are uploaded after approval, from Café Settings — they are not part of this submission.
+                  </p>
                 </div>
 
                 <label className="flex items-start gap-2.5 text-caption text-text-secondary">
