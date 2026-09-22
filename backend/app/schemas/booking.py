@@ -82,6 +82,11 @@ class BookingResponse(BookingBase):
     booking_reference: str
     gamer_id: UUID
     end_time: time
+    # Overrides BookingBase's ge=1.0/le=8.0 — that constraint is a creation-time
+    # business rule (min 1hr bookings), not something historical rows must satisfy.
+    # Legacy bookings created before that rule existed can have duration < 1,
+    # and this is a read-only schema — it must reflect stored data, not re-validate it.
+    duration_hours: float
     base_amount: float
     discount_amount: float
     gateway_fee: float
