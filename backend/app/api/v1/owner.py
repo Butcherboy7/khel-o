@@ -333,6 +333,17 @@ async def get_owner_settings(
     if not cafe:
         raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
 
+    # Games are only configurable for platforms the café actually has an
+    # active gaming tier for right now — same gate onboarding uses, and what
+    # /cafes/{id}/details enforces on save. Sent here so Café Settings can
+    # show the games section exactly when it's applicable, and automatically
+    # pick it back up if a PC/console tier is added later.
+    tier_repo = HardwareTierRepository(db)
+    active_tiers = await tier_repo.get_by_cafe_id(cafe.id, active_only=True)
+    gaming_platforms = sorted({
+        t.platform.value for t in active_tiers if t.tier_type != TierType.ACTIVITY and t.platform
+    })
+
     cafe_data = {
         "cafeId": str(cafe.id),
         "cafeName": cafe.name,
@@ -353,6 +364,8 @@ async def get_owner_settings(
         "latitude": cafe.latitude,
         "longitude": cafe.longitude,
         "googleMapsUrl": cafe.google_maps_url,
+        "supportedGames": cafe.supported_games or {},
+        "gamingPlatforms": gaming_platforms,
     }
 
     return {
@@ -2166,6 +2179,7 @@ class CafeDetailsUpdate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     google_maps_url: Optional[str] = None
+    supported_games: Optional[Dict[str, List[str]]] = None
 
     @field_validator("city")
     @classmethod
@@ -2487,6 +2501,24 @@ async def update_cafe_details(
         cafe.longitude = payload.longitude
     if payload.google_maps_url is not None:
         cafe.google_maps_url = payload.google_maps_url
+    if payload.supported_games is not None:
+        # Merge in only entries for platforms the café currently has an
+        # active gaming tier for — mirrors onboarding's relevantGamingPlatforms
+        # gate, so an owner can't set games for a platform with no matching
+        # tier. Deliberately a merge, not a replace: a platform's games that
+        # go dormant (its tier removed) are left untouched in storage rather
+        # than wiped by this call, so they reappear automatically if a
+        # matching tier is added back later instead of being lost for good.
+        tier_repo = HardwareTierRepository(db)
+        active_tiers = await tier_repo.get_by_cafe_id(cafe.id, active_only=True)
+        active_gaming_platforms = {
+            t.platform for t in active_tiers if t.tier_type != TierType.ACTIVITY and t.platform
+        }
+        merged_games = dict(cafe.supported_games or {})
+        for platform, games in payload.supported_games.items():
+            if platform in active_gaming_platforms:
+                merged_games[platform] = games
+        cafe.supported_games = merged_games
 
     await db.commit()
     await db.refresh(cafe)
@@ -2503,7 +2535,8 @@ async def update_cafe_details(
                 "photos": cafe.photos,
                 "latitude": cafe.latitude,
                 "longitude": cafe.longitude,
-                "googleMapsUrl": cafe.google_maps_url
+                "googleMapsUrl": cafe.google_maps_url,
+                "supportedGames": cafe.supported_games or {}
             }
         }
     }

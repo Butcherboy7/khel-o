@@ -115,6 +115,25 @@ class CafeService:
         resp.average_rating = avg_rating
         resp.total_reviews = total_revs
 
+        # Customer/owner-facing café response only: only show games for
+        # platforms the café currently has an active gaming tier for. A café
+        # that dropped its last PC/console tier (e.g. went activity-only)
+        # shouldn't keep showing Dota/CS to customers — but we don't touch
+        # the stored cafe.supported_games itself, so if a matching gaming
+        # tier comes back later the owner's old game list reappears in
+        # Café Settings instead of being permanently lost. Admin's detail
+        # view (AdminCafeDetailResponse) intentionally bypasses this filter —
+        # admin review must see the raw submitted data, not a trimmed view.
+        if response_cls is CafeResponse and getattr(resp, "supported_games", None):
+            active_gaming_platforms = {
+                t.platform for t in tiers_res if t.tier_type != "activity" and t.platform
+            }
+            resp.supported_games = {
+                platform: games
+                for platform, games in resp.supported_games.items()
+                if platform in active_gaming_platforms
+            }
+
         if hasattr(resp, "owner") and getattr(resp, "owner", None) is None and self.user_repo:
             owner_obj = await self.user_repo.get_by_id(cafe.owner_id)
             if owner_obj:

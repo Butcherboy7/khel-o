@@ -26,6 +26,11 @@ export interface OwnerSettings {
   latitude: number | null;
   longitude: number | null;
   googleMapsUrl: string | null;
+  supportedGames: Record<string, string[]>;
+  /** Platforms the café currently has an active gaming tier for — the only
+   *  ones configurable in the Games section right now. Empty for an
+   *  activity-only café. */
+  gamingPlatforms: string[];
 }
 
 export interface SettingsResponse {
@@ -89,13 +94,14 @@ export interface CafeDetailsUpdateParams {
   latitude?: number;
   longitude?: number;
   googleMapsUrl?: string;
+  supportedGames?: Record<string, string[]>;
 }
 
 // PATCH /api/v1/owner/cafes/{cafeId}/details
 export async function updateCafeDetails(
   cafeId: string,
   params: CafeDetailsUpdateParams
-): Promise<{ cafe: { id: string; name: string; description: string | null; city: string; amenities: string[]; photos: CafePhoto[]; latitude: number | null; longitude: number | null } }> {
+): Promise<{ cafe: { id: string; name: string; description: string | null; city: string; amenities: string[]; photos: CafePhoto[]; latitude: number | null; longitude: number | null; supportedGames: Record<string, string[]> } }> {
   return call(() => apiClient.patch(`/api/v1/owner/cafes/${cafeId}/details`, params));
 }
 

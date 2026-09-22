@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, type FormEvent } from 'react';
-import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff, ExternalLink, Star } from 'lucide-react';
+import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff, ExternalLink, Star, Gamepad2 } from 'lucide-react';
 import { Modal, Button, Input, Textarea } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings, type CafePhoto } from '@/lib/api/settings';
 import { getAmenityDisplay } from '@/lib/amenities';
@@ -9,6 +9,8 @@ import { LocationSearchInput, type SelectedLocation } from '@/components/ui/Loca
 import { INDIAN_STATES } from '@/constants/states';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 import { PHOTO_CATEGORIES } from '@/constants/photoCategories';
+import { PLATFORMS } from '@/constants/platforms';
+import { PRESET_GAMES_BY_PLATFORM } from '@/constants/games';
 
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_MB = 8;
@@ -34,13 +36,14 @@ const PRESET_AMENITIES = [
   'Wheelchair accessible',
 ];
 
-type Tab = 'basic' | 'location' | 'hours' | 'amenities';
+type Tab = 'basic' | 'location' | 'hours' | 'amenities' | 'games';
 
 const TABS: { id: Tab; label: string; icon: typeof Store }[] = [
   { id: 'basic', label: 'Basic Info', icon: Store },
   { id: 'location', label: 'Location', icon: MapPin },
   { id: 'hours', label: 'Hours', icon: Clock },
   { id: 'amenities', label: 'Amenities & Photos', icon: Sparkles },
+  { id: 'games', label: 'Games', icon: Gamepad2 },
 ];
 
 function toHHMM(time: string | null): string {
@@ -96,6 +99,53 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
   const [menuUploadError, setMenuUploadError] = useState<string | null>(null);
   const [deletingMenuUrl, setDeletingMenuUrl] = useState<string | null>(null);
   const [menuUploadingCount, setMenuUploadingCount] = useState(0);
+
+  // Games — only configurable for platforms the café currently has an
+  // active gaming tier for (settings.gamingPlatforms). Empty when the café
+  // is activity-only; automatically picks back up once a PC/console tier
+  // exists, since the backend merges rather than overwrites per platform.
+  const [supportedGames, setSupportedGames] = useState<Record<string, string[]>>(settings.supportedGames || {});
+  const [customGameInput, setCustomGameInput] = useState<Record<string, string>>({});
+  const [gamesSaving, setGamesSaving] = useState(false);
+  const [gamesError, setGamesError] = useState<string | null>(null);
+  const [gamesSaved, setGamesSaved] = useState(false);
+
+  const toggleGame = (platform: string, game: string) => {
+    const existing = supportedGames[platform] || [];
+    const updated = existing.includes(game) ? existing.filter((g) => g !== game) : [...existing, game];
+    setSupportedGames((prev) => ({ ...prev, [platform]: updated }));
+  };
+
+  const removeGame = (platform: string, game: string) => {
+    const existing = supportedGames[platform] || [];
+    setSupportedGames((prev) => ({ ...prev, [platform]: existing.filter((g) => g !== game) }));
+  };
+
+  const addCustomGame = (platform: string) => {
+    const name = customGameInput[platform]?.trim();
+    if (!name) return;
+    const existing = supportedGames[platform] || [];
+    if (!existing.includes(name)) {
+      setSupportedGames((prev) => ({ ...prev, [platform]: [...existing, name] }));
+    }
+    setCustomGameInput((prev) => ({ ...prev, [platform]: '' }));
+  };
+
+  const handleGamesSave = async () => {
+    setGamesSaving(true);
+    setGamesError(null);
+    try {
+      const res = await updateCafeDetails(cafeId, { supportedGames });
+      setSupportedGames(res.cafe.supportedGames);
+      onSaved({ supportedGames: res.cafe.supportedGames });
+      setGamesSaved(true);
+      setTimeout(() => setGamesSaved(false), 2500);
+    } catch (err: unknown) {
+      setGamesError(err instanceof Error ? err.message : 'Failed to update games');
+    } finally {
+      setGamesSaving(false);
+    }
+  };
 
   // Saved amenities may be seeded snake_case slugs ("ac", "ps5_zone") or these
   // Title Case presets — both resolve to the same canonical label via
@@ -771,6 +821,92 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
             </div>
 
             <SaveRow saving={amenitiesSaving} saved={amenitiesSaved} label="Save Amenities" onClick={handleAmenitiesSave} />
+          </div>
+        )}
+
+        {/* GAMES — only shown/editable for platforms the café currently has
+            an active gaming tier for. Amenities above are unaffected by
+            this — they stay available regardless of gaming platforms. */}
+        {activeTab === 'games' && (
+          <div className="flex flex-col gap-5">
+            {gamesError && (
+              <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">{gamesError}</div>
+            )}
+
+            {settings.gamingPlatforms.length === 0 ? (
+              <div className="p-4 rounded-xl bg-surface-hover border border-border text-caption text-text-secondary">
+                This café has no PC/console gaming resource yet, so there&apos;s nothing to configure here.
+                Add a PC, PlayStation, Xbox, or Nintendo resource under Resources & Pricing and this section
+                will let you pick the games it supports.
+              </div>
+            ) : (
+              settings.gamingPlatforms.map((platform) => {
+                const platformLabel = PLATFORMS.find((p) => p.value === platform)?.label || platform;
+                const presets: string[] =
+                  platform === 'other' ? [] : (PRESET_GAMES_BY_PLATFORM[platform as keyof typeof PRESET_GAMES_BY_PLATFORM] || []);
+                const selected = supportedGames[platform] || [];
+                return (
+                  <div key={platform} className="flex flex-col gap-2">
+                    <label className="text-caption font-semibold text-text-primary">
+                      {platformLabel} — Pre-Installed Games
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {presets.map((game) => {
+                        const isSelected = selected.includes(game);
+                        return (
+                          <button
+                            key={game}
+                            type="button"
+                            onClick={() => toggleGame(platform, game)}
+                            className={`p-2.5 rounded-xl text-caption font-semibold flex items-center justify-between border transition-all ${
+                              isSelected
+                                ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600'
+                                : 'bg-surface border-border text-text-secondary hover:bg-border/40'
+                            }`}
+                          >
+                            <span>{game}</span>
+                            {isSelected && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                          </button>
+                        );
+                      })}
+                      {selected
+                        .filter((game) => !presets.includes(game))
+                        .map((game) => (
+                          <button
+                            key={game}
+                            type="button"
+                            onClick={() => removeGame(platform, game)}
+                            className="p-2.5 rounded-xl text-caption font-semibold flex items-center justify-between border bg-emerald-500/10 border-emerald-500 text-emerald-600 transition-all"
+                          >
+                            <span>{game}</span>
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          </button>
+                        ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Not listed? Type a game name and add it"
+                        value={customGameInput[platform] || ''}
+                        onChange={(e) => setCustomGameInput((prev) => ({ ...prev, [platform]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addCustomGame(platform);
+                          }
+                        }}
+                      />
+                      <Button type="button" variant="secondary" onClick={() => addCustomGame(platform)}>
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {settings.gamingPlatforms.length > 0 && (
+              <SaveRow saving={gamesSaving} saved={gamesSaved} label="Save Games" onClick={handleGamesSave} />
+            )}
           </div>
         )}
       </div>
