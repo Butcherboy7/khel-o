@@ -1,0 +1,27 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: khel_o_caddy
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - khel_o_net
+      - khel_o_dev_net
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  khel_o_net:
+    external: true
+  khel_o_dev_net:
+    external: true

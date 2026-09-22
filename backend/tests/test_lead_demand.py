@@ -80,8 +80,13 @@ async def test_admin_lead_demand_ranks_by_count_and_lists_contacts(db_session, a
     assert by_name["Quiet Lead Cafe"]["count"] == 1
     assert by_name["Quiet Lead Cafe"]["noContactCount"] == 1
 
-    # Ranked highest demand first.
-    assert leads[0]["cafeName"] == "Popular Lead Cafe"
+    # Ranked highest demand first. Assert relative order between the two
+    # cafes created in this test rather than absolute list position — the
+    # test DB schema is created once per session (see conftest.py), so
+    # other test modules' lead-listing cafes with the same count can also
+    # be present here.
+    names = [l["cafeName"] for l in leads]
+    assert names.index("Popular Lead Cafe") < names.index("Quiet Lead Cafe")
 
 
 async def test_admin_can_update_waitlist_goal(db_session, async_client):

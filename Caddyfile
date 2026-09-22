@@ -44,3 +44,46 @@ khel-o.online, www.khel-o.online {
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
 }
+
+dev.khel-o.com, www.dev.khel-o.com {
+	encode gzip
+
+	# Next.js frontend route (injects window.__ENV__ for the browser) —
+	# must win over the /api/* backend proxy below despite sharing the
+	# prefix. Caddy sorts `handle` blocks by path specificity, so this
+	# more specific match takes priority regardless of file order.
+	handle /api/runtime-env {
+		reverse_proxy khel_o_dev_frontend:3000
+	}
+
+	handle /api/* {
+		reverse_proxy khel_o_dev_backend:8000
+	}
+
+	handle /health {
+		reverse_proxy khel_o_dev_backend:8000
+	}
+
+	handle /static/* {
+		reverse_proxy khel_o_dev_backend:8000
+	}
+
+	handle /docs {
+		reverse_proxy khel_o_dev_backend:8000
+	}
+
+	handle /openapi.json {
+		reverse_proxy khel_o_dev_backend:8000
+	}
+
+	handle {
+		reverse_proxy khel_o_dev_frontend:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}
