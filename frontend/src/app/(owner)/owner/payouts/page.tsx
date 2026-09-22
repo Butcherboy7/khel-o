@@ -94,7 +94,7 @@ export default function OwnerPayoutsPage() {
               label: 'Pending settlement',
               value: `₹${pendingSettlement.toFixed(0)}`,
               tone: pendingSettlement > 0 ? 'warning' : 'neutral',
-              hint: 'With Razorpay, not yet ours',
+              hint: 'Payment captured — Razorpay settlement pending (~2 business days)',
             },
             {
               label: 'Available for payout',
