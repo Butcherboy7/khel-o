@@ -10,31 +10,31 @@ khel-o.online, www.khel-o.online {
 	# prefix. Caddy sorts `handle` blocks by path specificity, so this
 	# more specific match takes priority regardless of file order.
 	handle /api/runtime-env {
-		reverse_proxy frontend:3000
+		reverse_proxy khel_o_frontend:3000
 	}
 
 	handle /api/* {
-		reverse_proxy backend:8000
+		reverse_proxy khel_o_backend:8000
 	}
 
 	handle /health {
-		reverse_proxy backend:8000
+		reverse_proxy khel_o_backend:8000
 	}
 
 	handle /static/* {
-		reverse_proxy backend:8000
+		reverse_proxy khel_o_backend:8000
 	}
 
 	handle /docs {
-		reverse_proxy backend:8000
+		reverse_proxy khel_o_backend:8000
 	}
 
 	handle /openapi.json {
-		reverse_proxy backend:8000
+		reverse_proxy khel_o_backend:8000
 	}
 
 	handle {
-		reverse_proxy frontend:3000
+		reverse_proxy khel_o_frontend:3000
 	}
 
 	header {
