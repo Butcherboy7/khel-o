@@ -58,6 +58,45 @@ async def list_outstanding_cafe_payouts(
     return {"success": True, "data": {"cafes": cafes}}
 
 
+@router.post("/reconcile-settlements", status_code=status.HTTP_200_OK)
+async def reconcile_settlements(
+    settlementDate: Optional[str] = Query(None, description="YYYY-MM-DD, defaults to today (IST-agnostic UTC date)"),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Polls the Razorpay settlement recon API for one date and marks any
+    matching PlatformFee rows settled. This is the daily reconciliation
+    fallback for when the settlement.processed webhook is missed — intended
+    to be called once a day by an external scheduler (cron/GH Actions). Safe
+    to call repeatedly for the same date; already-settled rows are no-ops."""
+    from app.services.settlement_service import SettlementService
+    from datetime import date as _date, datetime as _datetime, timezone as _timezone
+
+    target = _date.fromisoformat(settlementDate) if settlementDate else _datetime.now(_timezone.utc).date()
+    result = await SettlementService(db).reconcile_date(target)
+    return {"success": True, "data": result}
+
+
+@router.post("/run-weekly", status_code=status.HTTP_200_OK)
+async def run_weekly_payout_allocation(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Creates a PENDING CafePayout batch (with items) per café that has a
+    settled, unallocated balance. Does not move money — an admin still
+    records the actual bank transfer via mark-paid. Intended to be called
+    once a week by an external scheduler; safe to re-run (see
+    CafePayoutRepository.run_weekly_allocation)."""
+    repo = CafePayoutRepository(db)
+    results = await repo.run_weekly_allocation(admin_id=current_admin.id)
+    return {"success": True, "data": {"cafes": results}}
+
+
+# NOTE: routes below use "/{cafe_id}" and MUST stay after every literal-path
+# route above (reconcile-settlements, run-weekly, etc.) — FastAPI matches
+# routes in registration order, and a literal path like "/run-weekly" would
+# otherwise be captured by "/{cafe_id}" first, failing UUID validation with
+# a 422 "Request validation failed" instead of ever reaching its own handler.
 @router.get("/{cafe_id}/breakdown", status_code=status.HTTP_200_OK)
 async def get_cafe_payout_breakdown(
     cafe_id: UUID,
@@ -248,40 +287,6 @@ async def create_cafe_payout(
             }
         },
     }
-
-
-@router.post("/reconcile-settlements", status_code=status.HTTP_200_OK)
-async def reconcile_settlements(
-    settlementDate: Optional[str] = Query(None, description="YYYY-MM-DD, defaults to today (IST-agnostic UTC date)"),
-    current_admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    """Polls the Razorpay settlement recon API for one date and marks any
-    matching PlatformFee rows settled. This is the daily reconciliation
-    fallback for when the settlement.processed webhook is missed — intended
-    to be called once a day by an external scheduler (cron/GH Actions). Safe
-    to call repeatedly for the same date; already-settled rows are no-ops."""
-    from app.services.settlement_service import SettlementService
-    from datetime import date as _date, datetime as _datetime, timezone as _timezone
-
-    target = _date.fromisoformat(settlementDate) if settlementDate else _datetime.now(_timezone.utc).date()
-    result = await SettlementService(db).reconcile_date(target)
-    return {"success": True, "data": result}
-
-
-@router.post("/run-weekly", status_code=status.HTTP_200_OK)
-async def run_weekly_payout_allocation(
-    current_admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    """Creates a PENDING CafePayout batch (with items) per café that has a
-    settled, unallocated balance. Does not move money — an admin still
-    records the actual bank transfer via mark-paid. Intended to be called
-    once a week by an external scheduler; safe to re-run (see
-    CafePayoutRepository.run_weekly_allocation)."""
-    repo = CafePayoutRepository(db)
-    results = await repo.run_weekly_allocation(admin_id=current_admin.id)
-    return {"success": True, "data": {"cafes": results}}
 
 
 @router.patch("/payouts/{payout_id}/mark-paid", status_code=status.HTTP_200_OK)

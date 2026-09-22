@@ -180,30 +180,34 @@ export default function AdminCafePayoutsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="secondary"
-            size="sm"
-            isLoading={reconcileMutation.isPending}
-            onClick={() => {
-              if (window.confirm('Poll Razorpay settlement data for today and mark any newly-settled payments? This runs automatically once a day — use this only to check now.')) {
-                reconcileMutation.mutate();
-              }
-            }}
-          >
-            Reconcile Now
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            isLoading={weeklyMutation.isPending}
-            onClick={() => {
-              if (window.confirm('Create this week\'s payout batches for every café with a settled balance? This runs automatically on the configured payout day — use this only for an out-of-cycle run.')) {
-                weeklyMutation.mutate();
-              }
-            }}
-          >
-            Run Weekly Payout
-          </Button>
+          <Tooltip content="Reconciles captured/settled payments against our ledger — checks Razorpay for payments that have settled and marks them payable. Does not create or send any money.">
+            <Button
+              variant="secondary"
+              size="sm"
+              isLoading={reconcileMutation.isPending}
+              onClick={() => {
+                if (window.confirm('Reconcile Now: poll Razorpay settlement data for today and mark any newly-settled payments as payable. This runs automatically once a day — use this only to check now. No money moves.')) {
+                  reconcileMutation.mutate();
+                }
+              }}
+            >
+              Reconcile Now
+            </Button>
+          </Tooltip>
+          <Tooltip content="Creates this week's payout batch for every café with settled, unallocated money — a record to be paid manually via bank transfer. Does not send any money itself.">
+            <Button
+              variant="secondary"
+              size="sm"
+              isLoading={weeklyMutation.isPending}
+              onClick={() => {
+                if (window.confirm("Run Weekly Payout: create this week's payout batch for every café with a settled balance. This only creates payout records for you to pay manually and mark as paid — it does NOT send a bank transfer. Runs automatically on the configured payout day; use this only for an out-of-cycle run.")) {
+                  weeklyMutation.mutate();
+                }
+              }}
+            >
+              Run Weekly Payout
+            </Button>
+          </Tooltip>
           <button
             type="button"
             onClick={() => refetch()}
