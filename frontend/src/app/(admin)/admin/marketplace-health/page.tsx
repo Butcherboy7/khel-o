@@ -30,12 +30,36 @@ export default function MarketplaceHealthPage() {
 
       {data && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Completed" value={data.completedCount} subtext={`${successRate}% of ${data.totalBookings}`} />
-          <StatCard label="Cancelled" value={data.cancelledCount} />
-          <StatCard label="No-Shows" value={data.noShowCount} />
-          <StatCard label="Failed" value={data.failedCount} />
-          <StatCard label="Total Searches" value={data.totalSearches} />
-          <StatCard label="Searches, No Results" value={data.searchesWithNoResults} subtext={`${noResultRate}%`} />
+          <StatCard
+            label="Completed"
+            value={data.completedCount}
+            subtext={`${successRate}% of ${data.totalBookings} bookings ever made`}
+          />
+          <StatCard
+            label="Cancelled"
+            value={data.cancelledCount}
+            subtext="Cancelled by gamer or owner"
+          />
+          <StatCard
+            label="No-Shows"
+            value={data.noShowCount}
+            subtext="Confirmed but gamer never checked in"
+          />
+          <StatCard
+            label="Failed Payments"
+            value={data.failedCount}
+            subtext="Booking attempt where payment failed"
+          />
+          <StatCard
+            label="Total Searches"
+            value={data.totalSearches}
+            subtext="Explore page loads incl. filter/query changes"
+          />
+          <StatCard
+            label="Searches, No Results"
+            value={data.searchesWithNoResults}
+            subtext={`${noResultRate}% of searches returned 0 cafés`}
+          />
         </div>
       )}
     </div>

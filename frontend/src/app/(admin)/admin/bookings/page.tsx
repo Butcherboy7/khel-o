@@ -86,7 +86,7 @@ export default function AdminBookingsPage() {
     return (
       b.bookingReference?.toLowerCase().includes(q) ||
       b.gamerName?.toLowerCase().includes(q) ||
-      (b as any).cafeName?.toLowerCase().includes(q)
+      b.cafeName?.toLowerCase().includes(q)
     );
   });
 
@@ -223,10 +223,10 @@ export default function AdminBookingsPage() {
                 {/* Café + Tier */}
                 <div className="min-w-0">
                   <p className="text-xs text-text-primary truncate">
-                    {(b as any).cafeName || '—'}
+                    {b.cafeName || '—'}
                   </p>
                   <p className="text-[11px] text-text-tertiary truncate">
-                    {(b as any).tierName || '—'} · {b.durationHours}h
+                    {b.tierName || '—'} · {b.durationHours}h
                   </p>
                 </div>
 
