@@ -34,8 +34,6 @@ import {
 } from '@/components/ui';
 import { formatCurrencyCompact } from '@/lib/format';
 import type { AdminCafe } from '@/types';
-import { PHOTO_CATEGORIES } from '@/constants/photoCategories';
-import { PLATFORMS } from '@/constants/platforms';
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
@@ -248,16 +246,16 @@ export default function AdminPage() {
                     <p className="text-caption text-text-secondary line-clamp-2">{cafe.description}</p>
                   )}
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedCafe(cafe)}
-                    className="text-caption"
+                  <Link
+                    href={`/admin/cafes/${cafe.id}/review`}
+                    className="text-caption font-semibold text-primary hover:underline"
                   >
-                    View Full Details →
-                  </Button>
+                    Review Full Application →
+                  </Link>
 
-                  {/* Inline Action Buttons */}
+                  {/* Inline Action Buttons — full review lives on its own page;
+                      these stay here for a fast approve/reject without leaving
+                      the queue when the admin already knows the application. */}
                   <div className="flex items-center justify-end gap-3 border-t border-border pt-3">
                     <Button
                       variant="destructive-outline"
@@ -378,161 +376,6 @@ export default function AdminPage() {
         </div>
       </Modal>
 
-      {/* Full Details Modal */}
-      <Modal
-        isOpen={!!selectedCafe && !isRejectModalOpen && !isChangesModalOpen}
-        onClose={() => setSelectedCafe(null)}
-        title={`Application Details: ${selectedCafe?.name}`}
-        description="Full onboarding information for verification review."
-      >
-        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
-          <div className="p-3 rounded-xl bg-surface-hover">
-            <h4 className="font-semibold text-caption mb-2">Business Identity</h4>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div><span className="text-text-tertiary">Address:</span> {selectedCafe?.addressLine1}{selectedCafe?.addressLine2 ? `, ${selectedCafe.addressLine2}` : ''}, {selectedCafe?.city}</div>
-              <div><span className="text-text-tertiary">State:</span> {selectedCafe?.state}</div>
-              <div><span className="text-text-tertiary">Pincode:</span> {selectedCafe?.pincode}</div>
-              <div><span className="text-text-tertiary">Phone:</span> {selectedCafe?.phoneNumber}</div>
-              <div><span className="text-text-tertiary">Email:</span> {selectedCafe?.email || 'Not provided'}</div>
-              <div><span className="text-text-tertiary">Hours:</span> {selectedCafe?.openingTime || '—'} – {selectedCafe?.closingTime || '—'}</div>
-              <div className="col-span-2">
-                <span className="text-text-tertiary">Maps Link:</span>{' '}
-                {selectedCafe?.googleMapsUrl ? (
-                  <a href={selectedCafe.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open in Maps</a>
-                ) : 'Not provided'}
-              </div>
-              {selectedCafe?.description && (
-                <div className="col-span-2">
-                  <span className="text-text-tertiary">Description:</span> {selectedCafe.description}
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div className="p-3 rounded-xl bg-surface-hover">
-            <h4 className="font-semibold text-caption mb-2">Verification Documents</h4>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div><span className="text-text-tertiary">Business PAN:</span> {selectedCafe?.businessPan || 'Not provided'}</div>
-              <div><span className="text-text-tertiary">GSTIN:</span> {selectedCafe?.gstin || 'Not provided'}</div>
-              <div className="col-span-2">
-                <span className="text-text-tertiary">Legal Doc:</span>{' '}
-                {selectedCafe?.legalDocumentUrl ? (
-                  <a href={selectedCafe.legalDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">View Document</a>
-                ) : 'Not provided'}
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-3 rounded-xl bg-surface-hover">
-            <h4 className="font-semibold text-caption mb-2">Payout Destination</h4>
-            <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-              <div><span className="text-text-tertiary">UPI ID:</span> {selectedCafe?.upiVpa || 'Not provided'}</div>
-              <div><span className="text-text-tertiary">Account Holder:</span> {selectedCafe?.accountHolderName || 'Not provided'}</div>
-              <div><span className="text-text-tertiary">Account #:</span> {selectedCafe?.bankAccountNumber ? `••••${selectedCafe.bankAccountNumber.slice(-4)}` : 'Not provided'}</div>
-              <div><span className="text-text-tertiary">IFSC:</span> {selectedCafe?.bankIfsc || 'Not provided'}</div>
-            </div>
-          </div>
-          
-          {selectedCafe?.tiers && selectedCafe.tiers.length > 0 && (
-            <div className="p-3 rounded-xl bg-surface-hover">
-              <h4 className="font-semibold text-caption mb-2">Resources & Pricing</h4>
-              <div className="flex flex-col gap-1 text-xs">
-                {selectedCafe.tiers.map((tier) => (
-                  <div key={tier.id} className="flex justify-between">
-                    <span>
-                      {tier.name}
-                      {tier.tierType === 'activity' && tier.activityKind ? ` (${tier.activityKind})` : ''}
-                      {tier.trackingMode === 'individual' ? ' · Individually tracked' : ' · Pooled'}
-                    </span>
-                    <span className="text-text-tertiary">
-                      {tier.platform
-                        ? `${PLATFORMS.find((p) => p.value === tier.platform)?.label ?? tier.platform} · `
-                        : ''}
-                      ₹{tier.pricePerHour}/hr · {tier.appBookableSeats}/{tier.totalSeats} bookable seats
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedCafe?.photos && selectedCafe.photos.length > 0 && (
-            <div className="p-3 rounded-xl bg-surface-hover">
-              <h4 className="font-semibold text-caption mb-2">Photos</h4>
-              <div className="flex flex-col gap-3">
-                {PHOTO_CATEGORIES.map(({ value, label }) => {
-                  const categoryPhotos = selectedCafe.photos.filter((p) => p.category === value);
-                  if (categoryPhotos.length === 0) return null;
-                  return (
-                    <div key={value}>
-                      <p className="text-overline text-text-tertiary mb-1">{label}</p>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {categoryPhotos.map((photo) => (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            key={photo.url}
-                            src={photo.url}
-                            alt={`${label} photo`}
-                            className="aspect-square rounded-lg object-cover border border-border"
-                            loading="lazy"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {selectedCafe?.menuPhotos && selectedCafe.menuPhotos.length > 0 && (
-            <div className="p-3 rounded-xl bg-surface-hover">
-              <h4 className="font-semibold text-caption mb-2">Menu</h4>
-              <div className="grid grid-cols-4 gap-1.5">
-                {selectedCafe.menuPhotos.map((url) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={url} src={url} alt="Menu photo" className="aspect-square rounded-lg object-cover border border-border" loading="lazy" />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedCafe?.supportedGames && Object.keys(selectedCafe.supportedGames).length > 0 && (
-            <div className="p-3 rounded-xl bg-surface-hover">
-              <h4 className="font-semibold text-caption mb-2">Games</h4>
-              <div className="flex flex-col gap-2">
-                {Object.entries(selectedCafe.supportedGames)
-                  .filter(([, games]) => games.length > 0)
-                  .map(([platform, games]) => (
-                    <div key={platform}>
-                      <p className="text-overline text-text-tertiary mb-1">
-                        {PLATFORMS.find((p) => p.value === platform)?.label || platform}
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {games.map((game) => (
-                          <Badge key={game} variant="default" size="sm">{game}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
-          <Button variant="ghost" onClick={() => setSelectedCafe(null)}>Close</Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setIsChangesModalOpen(true);
-            }}
-          >
-            Request Changes
-          </Button>
-          <Button variant="primary" onClick={() => { if (selectedCafe) approveMutation.mutate(selectedCafe.id); }}>Approve Café</Button>
-        </div>
-      </Modal>
     </div>
   );
 }
