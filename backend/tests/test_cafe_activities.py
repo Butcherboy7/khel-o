@@ -719,14 +719,19 @@ async def test_past_session_today_does_not_block_maintenance():
 
         # An hour-long session that ended an hour ago today, still CONFIRMED
         # (nothing has read/auto-transitioned it) — must not block anything.
+        # Derive session_date from the same past datetime as the times
+        # themselves (not now.date()) so this stays correct when "now" is
+        # shortly after midnight IST and the 2h/1h lookback wraps into the
+        # previous calendar day.
         now = now_ist()
-        past_start = (now - timedelta(hours=2)).time().replace(microsecond=0)
-        past_end = (now - timedelta(hours=1)).time().replace(microsecond=0)
+        past_start_dt = now - timedelta(hours=2)
+        past_end_dt = now - timedelta(hours=1)
         past_booking = Booking(
             id=uuid4(), booking_reference=f"PAST{uuid4().hex[:8].upper()}",
             gamer_id=owner.id, cafe_id=cafe.id, hardware_tier_id=tier.id,
-            seats_count=3, session_date=now.date(),
-            start_time=past_start, end_time=past_end, duration_hours=1,
+            seats_count=3, session_date=past_start_dt.date(),
+            start_time=past_start_dt.time().replace(microsecond=0),
+            end_time=past_end_dt.time().replace(microsecond=0), duration_hours=1,
             base_amount=1200, total_amount=1200, status=BookingStatus.CONFIRMED,
         )
         db.add(past_booking)
