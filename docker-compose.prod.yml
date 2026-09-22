@@ -80,4 +80,5 @@ volumes:
 
 networks:
   khel_o_net:
+    name: khel_o_net
     driver: bridge
