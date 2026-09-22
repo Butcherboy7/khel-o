@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: [main]
+    branches: [main, dev]
 
 permissions:
   id-token: write   # required to mint the OIDC token for AssumeRoleWithWebIdentity
@@ -15,6 +15,21 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve deploy target
+        id: target
+        run: |
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          if [ "$BRANCH" = "main" ]; then
+            echo "dir=/opt/khelo-prod" >> "$GITHUB_OUTPUT"
+            echo "env=prod" >> "$GITHUB_OUTPUT"
+          elif [ "$BRANCH" = "dev" ]; then
+            echo "dir=/opt/khelo-dev" >> "$GITHUB_OUTPUT"
+            echo "env=dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unknown branch: $BRANCH" >&2
+            exit 1
+          fi
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -24,11 +39,14 @@ jobs:
       - name: Trigger deploy on EC2 via SSM
         id: send
         run: |
+          DIR="${{ steps.target.outputs.dir }}"
+          ENVIRONMENT="${{ steps.target.outputs.env }}"
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids i-0098e44a41a17ac8e \
             --document-name AWS-RunShellScript \
-            --comment "GitHub Actions deploy: ${{ github.event.workflow_run.head_sha }}" \
-            --parameters commands='["cd /opt/khelo && git fetch origin main && git reset --hard origin/main", "bash /opt/khelo/scripts/deploy_remote.sh"]' \
+            --comment "GitHub Actions deploy ($ENVIRONMENT): ${{ github.event.workflow_run.head_sha }}" \
+            --parameters commands="[\"cd $DIR && git fetch origin $BRANCH && git reset --hard origin/$BRANCH\", \"bash $DIR/scripts/deploy_remote.sh $ENVIRONMENT\"]" \
             --query "Command.CommandId" --output text)
           echo "command_id=$COMMAND_ID" >> "$GITHUB_OUTPUT"
 
