@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: khel_o_dev_postgres
+    restart: unless-stopped
+    env_file:
+      - .env.dev
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - khel_o_dev_net
+    # No host port published — only reachable by other containers on khel_o_dev_net.
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: khel_o_dev_backend
+    restart: unless-stopped
+    env_file:
+      - .env.dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - qrdata_dev:/app/static/qr
+    networks:
+      - khel_o_dev_net
+    # No host port published — only Caddy talks to this over khel_o_dev_net.
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      # P0-A3: only the Sentry DSN is still a build ARG (see Dockerfile
+      # comment for why). Everything else in NEXT_PUBLIC_* is read from
+      # env_file below at container start, not baked into the image.
+      args:
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
+    container_name: khel_o_dev_frontend
+    restart: unless-stopped
+    env_file:
+      - .env.dev
+    depends_on:
+      - backend
+    networks:
+      - khel_o_dev_net
+    # No host port published — only Caddy talks to this over khel_o_dev_net.
+
+volumes:
+  pgdata_dev:
+  qrdata_dev:
+
+networks:
+  khel_o_dev_net:
+    driver: bridge
