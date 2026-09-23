@@ -37,11 +37,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      # P0-A3: only the Sentry DSN is still a build ARG (see Dockerfile
-      # comment for why). Everything else in NEXT_PUBLIC_* is read from
-      # env_file below at container start, not baked into the image.
+      # P0-A3: the Sentry DSN and the app URL are the only build ARGs (see
+      # Dockerfile comment for why). Everything else in NEXT_PUBLIC_* is read
+      # from env_file below at container start, not baked into the image.
       args:
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
     container_name: khel_o_frontend
     restart: unless-stopped
     env_file:
