@@ -118,7 +118,7 @@ export default function AdminLeadsPage() {
                       {lead.noContactCount > 0 && (
                         <>
                           <span>·</span>
-                          <span>{lead.noContactCount} via account</span>
+                          <span>{lead.noContactCount} unreachable</span>
                         </>
                       )}
                     </div>

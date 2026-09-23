@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cafe_waitlist import CafeWaitlistEntry
 from app.models.cafe import Cafe
+from app.models.user import User
 
 
 class WaitlistRepository:
@@ -106,12 +107,33 @@ class WaitlistRepository:
         cafe_ids = [r.id for r in rows]
         contacts_by_cafe: Dict[uuid.UUID, List[str]] = {cid: [] for cid in cafe_ids}
         if cafe_ids:
+            # Signed-out visitors: whatever free-text phone/email they typed.
             contact_rows = (await self.db.execute(
                 select(CafeWaitlistEntry.cafe_id, CafeWaitlistEntry.contact)
                 .where(CafeWaitlistEntry.cafe_id.in_(cafe_ids), CafeWaitlistEntry.contact.is_not(None))
             )).all()
             for cafe_id, contact in contact_rows:
                 contacts_by_cafe[cafe_id].append(contact)
+
+            # Signed-in visitors weren't asked for a contact (they're already
+            # reachable via their account -- asking again is pure friction),
+            # but that account's phone/email is real launch-blast reach and
+            # was previously invisible here, only counted as "noContactCount".
+            # Pull it from the account instead of leaving it uncontactable.
+            account_rows = (await self.db.execute(
+                select(CafeWaitlistEntry.cafe_id, User.full_name, User.phone_number, User.email)
+                .join(User, User.id == CafeWaitlistEntry.user_id)
+                .where(
+                    CafeWaitlistEntry.cafe_id.in_(cafe_ids),
+                    CafeWaitlistEntry.contact.is_(None),
+                    CafeWaitlistEntry.user_id.is_not(None),
+                )
+            )).all()
+            for cafe_id, full_name, phone_number, email in account_rows:
+                reachable = phone_number or email
+                if not reachable:
+                    continue
+                contacts_by_cafe[cafe_id].append(f"{full_name} — {reachable}")
 
         return [
             {
@@ -124,9 +146,9 @@ class WaitlistRepository:
                 "firstRequestedAt": r.first_requested_at,
                 "lastRequestedAt": r.last_requested_at,
                 "contacts": contacts_by_cafe.get(r.id, []),
-                # Requesters with no `contact` string: either signed-in (reachable
-                # via their account) or signed-out visitors who tapped "Notify me"
-                # without leaving a phone/email. Either way, not in `contacts`.
+                # Truly unreachable: signed-out visitors who tapped "Notify me"
+                # without leaving a phone/email (or a signed-in account somehow
+                # missing both). Everyone else is now in `contacts` above.
                 "noContactCount": r.count - len(contacts_by_cafe.get(r.id, [])),
             }
             for r in rows

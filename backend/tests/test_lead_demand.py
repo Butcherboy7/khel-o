@@ -89,6 +89,39 @@ async def test_admin_lead_demand_ranks_by_count_and_lists_contacts(db_session, a
     assert names.index("Popular Lead Cafe") < names.index("Quiet Lead Cafe")
 
 
+async def test_admin_lead_demand_surfaces_signed_in_users_account_contact(db_session, async_client):
+    """A signed-in visitor isn't asked for a contact when tapping Notify Me
+    (they're already reachable via their account) -- but that account's
+    phone/email must still show up in the outreach contact list, not just get
+    invisibly counted as noContactCount."""
+    admin = await create_test_user(db_session, role=UserRole.ADMIN)
+    gamer = await create_test_user(
+        db_session, role=UserRole.GAMER, full_name="Priya Sharma", email="priya@real.com",
+    )
+    gamer.phone_number = "9123456789"
+    await db_session.commit()
+    cafe = await _make_cafe(db_session, "Account Contact Cafe")
+
+    r = await async_client.post(
+        f"/api/v1/cafes/{cafe.id}/waitlist",
+        json={"sessionId": "irrelevant-when-signed-in"},
+        headers=auth_headers(gamer),
+    )
+    assert r.status_code == 200, r.text
+
+    headers = auth_headers(admin, is_admin=True)
+    resp = await async_client.get("/api/v1/admin/leads/demand", headers=headers)
+    assert resp.status_code == 200, resp.text
+    leads = resp.json()["data"]["leads"]
+    lead = next(l for l in leads if l["cafeName"] == "Account Contact Cafe")
+
+    assert lead["count"] == 1
+    assert lead["noContactCount"] == 0, "a signed-in user's own account contact must not count as unreachable"
+    assert len(lead["contacts"]) == 1
+    assert "Priya Sharma" in lead["contacts"][0]
+    assert "9123456789" in lead["contacts"][0]
+
+
 async def test_admin_can_update_waitlist_goal(db_session, async_client):
     admin = await create_test_user(db_session, role=UserRole.ADMIN)
     cafe = await _make_cafe(db_session, "Goal Cafe")
