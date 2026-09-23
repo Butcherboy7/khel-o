@@ -589,10 +589,21 @@ async def test_cafe_city_accepts_any_real_town_and_rejects_garbage(async_client:
         )
         assert approve_res.status_code == 200
 
-        all_cities_res = await async_client.get("/api/v1/cafes", headers=gamer_headers)
+        # This café was onboarded with no hardware tiers, so admin approval
+        # routes it to Booking Soon (is_lead_listing) rather than straight to
+        # live -- and Booking Soon cafés now rank below live ones in search
+        # results, so a plain unfiltered page can miss it once the shared
+        # test DB has accumulated a page of live cafés. Filter by name
+        # (still exercises the "All Cities" / no-city-filter path) instead
+        # of relying on default pagination to include it.
+        all_cities_res = await async_client.get(
+            "/api/v1/cafes", params={"query": "City Regression Cafe"}, headers=gamer_headers
+        )
         assert any(c["id"] == cafe_id for c in all_cities_res.json()["data"]["items"])
 
-        hyderabad_res = await async_client.get("/api/v1/cafes?city=Kamareddy", headers=gamer_headers)
+        hyderabad_res = await async_client.get(
+            "/api/v1/cafes", params={"city": "Kamareddy", "query": "City Regression Cafe"}, headers=gamer_headers
+        )
         assert any(c["id"] == cafe_id for c in hyderabad_res.json()["data"]["items"]), (
             "Café must appear under its own city's filter, not only under All Cities"
         )

@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.user import User
 from app.models.hardware_tier import HardwareTier, TierType
+from app.models.review import Review
 from app.repositories.base import BaseRepository
 from app.core.time import now_ist
 
@@ -170,7 +171,28 @@ class CafeRepository(BaseRepository[Cafe]):
             )
             stmt = stmt.where(Cafe.id.in_(activity_subquery))
 
-        stmt = stmt.order_by(Cafe.created_at.desc())
+        # Live cafés (bookable) rank above Booking Soon ones, and within each
+        # group the most-reviewed / highest-rated cafés lead -- social proof
+        # is the whole point of a ranked explore page. One grouped subquery
+        # joined in for ordering, not fetched per-row, to keep this a single
+        # query rather than N+1.
+        review_agg = (
+            select(
+                Review.cafe_id.label("cafe_id"),
+                func.avg(Review.rating).label("avg_rating"),
+                func.count(Review.id).label("review_count"),
+            )
+            .where(Review.is_visible == True)
+            .group_by(Review.cafe_id)
+            .subquery()
+        )
+        stmt = stmt.outerjoin(review_agg, review_agg.c.cafe_id == Cafe.id)
+        stmt = stmt.order_by(
+            Cafe.is_lead_listing.asc(),
+            func.coalesce(review_agg.c.review_count, 0).desc(),
+            func.coalesce(review_agg.c.avg_rating, 0).desc(),
+            Cafe.created_at.desc(),
+        )
 
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self.db.execute(count_stmt)
