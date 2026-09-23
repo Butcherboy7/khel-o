@@ -17,8 +17,9 @@ import {
   Eye,
   PauseCircle,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
-import { listAdminCafes, suspendCafe, reactivateCafe, updateCafeDescriptionAdmin, goLiveCafe } from '@/lib/api/admin';
+import { listAdminCafes, suspendCafe, reactivateCafe, updateCafeDescriptionAdmin, goLiveCafe, deleteCafe } from '@/lib/api/admin';
 import { PerformanceTab } from './PerformanceTab';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
@@ -81,6 +82,9 @@ export default function AdminCafesPage() {
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
   const [suspendError, setSuspendError] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [descriptionSaved, setDescriptionSaved] = useState(false);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
@@ -91,6 +95,8 @@ export default function AdminCafesPage() {
     setDescriptionDraft(selectedCafe?.description ?? '');
     setDescriptionSaved(false);
     setDescriptionError(null);
+    setDeleteConfirmName('');
+    setDeleteError(null);
   }, [selectedCafe?.id]);
 
   const params = {
@@ -135,6 +141,21 @@ export default function AdminCafesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
       setSelectedCafe(null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ cafeId, confirmName }: { cafeId: string; confirmName: string }) =>
+      deleteCafe(cafeId, confirmName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      setIsDeleteModalOpen(false);
+      setSelectedCafe(null);
+      setDeleteConfirmName('');
+      setDeleteError(null);
+    },
+    onError: (err) => {
+      setDeleteError((err as Error)?.message ?? 'Failed to delete café. Please try again.');
     },
   });
 
@@ -360,7 +381,7 @@ export default function AdminCafesPage() {
 
       {/* Detail Modal */}
       <Modal
-        isOpen={!!selectedCafe && !isSuspendModalOpen}
+        isOpen={!!selectedCafe && !isSuspendModalOpen && !isDeleteModalOpen}
         onClose={() => setSelectedCafe(null)}
         title={selectedCafe?.name ?? 'Café Details'}
         description={`${selectedCafe?.city}, ${selectedCafe?.state} · ${statusLabel(selectedCafe?.verificationStatus ?? 'pending', selectedCafe?.isLeadListing)}`}
@@ -471,6 +492,25 @@ export default function AdminCafesPage() {
                 <p className="text-xs text-text-secondary">{selectedCafe.rejectionReason}</p>
               </div>
             )}
+
+            {/* Danger zone — permanent delete, for test/duplicate cafés only.
+                The server refuses this outright if the café has any booking,
+                so this stays available regardless of status rather than
+                trying to predict that client-side. */}
+            <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20 flex items-center justify-between gap-3">
+              <div>
+                <h4 className="font-semibold text-caption text-red-600">Danger Zone</h4>
+                <p className="text-xs text-text-secondary">Permanently delete this café. Only works if it has zero bookings — use Suspend for anything with real history.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-red-500/30 bg-red-500/5 text-xs font-semibold text-red-600 hover:bg-red-500/15 transition-colors whitespace-nowrap flex-shrink-0"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </button>
+            </div>
           </div>
         )}
       </Modal>
@@ -516,6 +556,51 @@ export default function AdminCafesPage() {
         <p className={`text-xs mt-1 ${suspendReason.trim().length < 10 ? 'text-text-tertiary' : 'text-emerald-600'}`}>
           Minimum 10 characters — {suspendReason.trim().length}/10
         </p>
+      </Modal>
+
+      {/* Delete Modal — permanent, so it gets its own typed-confirmation gate
+          rather than just a click, unlike Suspend (which is reversible via
+          Reactivate). */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => { setIsDeleteModalOpen(false); setDeleteConfirmName(''); setDeleteError(null); }}
+        title={`Delete: ${selectedCafe?.name}`}
+        description="This permanently removes the café and everything attached to it (tiers, photos, waitlist, promotions). This cannot be undone. Cafés with any booking are refused automatically."
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="ghost" onClick={() => { setIsDeleteModalOpen(false); setDeleteConfirmName(''); setDeleteError(null); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              isLoading={deleteMutation.isPending}
+              loadingText="Deleting…"
+              disabled={!selectedCafe || deleteConfirmName !== selectedCafe.name}
+              onClick={() => {
+                if (selectedCafe) {
+                  deleteMutation.mutate({ cafeId: selectedCafe.id, confirmName: deleteConfirmName });
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Permanently Delete
+            </Button>
+          </div>
+        }
+      >
+        {deleteError && (
+          <p className="text-xs text-error mb-2">{deleteError}</p>
+        )}
+        <label className="text-xs font-semibold text-text-secondary">
+          Type the café name (<span className="font-mono text-text-primary">{selectedCafe?.name}</span>) to confirm
+        </label>
+        <input
+          type="text"
+          value={deleteConfirmName}
+          onChange={(e) => setDeleteConfirmName(e.target.value)}
+          placeholder={selectedCafe?.name}
+          className="w-full h-10 mt-1.5 px-3 rounded-xl border border-border bg-surface text-caption text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-error/40"
+        />
       </Modal>
         </>
       )}

@@ -4,7 +4,7 @@ from typing import Optional
 from uuid import UUID
 from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete, update, func
 
 from app.database import get_db
 from app.schemas.admin import (
@@ -28,8 +28,18 @@ from app.services.review_service import ReviewService
 from app.api.deps import require_admin
 from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
-from app.models.cafe import VerificationStatus
-from app.core.exceptions import BadRequestException, NotFoundException
+from app.models.cafe import Cafe, VerificationStatus
+from app.models.booking import Booking
+from app.models.hardware_tier import HardwareTier
+from app.models.cafe_waitlist import CafeWaitlistEntry
+from app.models.review import Review
+from app.models.promotion import Promotion
+from app.models.cafe_payout import CafePayout
+from app.models.cafe_payout_adjustment import CafePayoutAdjustment
+from app.models.staff_invitation import StaffInvitation
+from app.models.support_ticket import SupportTicket
+from app.models.analytics_event import AnalyticsEvent
+from app.core.exceptions import BadRequestException, NotFoundException, ConflictException
 
 router = APIRouter()
 
@@ -729,6 +739,88 @@ async def toggle_review_visibility(
     }
 
 # --- CAFÉ SUSPENSION / ACTIVATION ---
+
+class CafeDeleteRequest(BaseModel):
+    # Typed confirmation, not just a click -- this is the one admin action in
+    # this file with no undo. Checked server-side (not just as a UI gate) so
+    # a stray/scripted call can't wipe a café by id alone.
+    confirm_name: str = Field(..., min_length=1)
+
+
+@router.delete("/cafes/{cafe_id}", status_code=status.HTTP_200_OK)
+async def delete_cafe(
+    cafe_id: UUID,
+    payload: CafeDeleteRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Permanently delete a café that never took a real booking.
+
+    For cleaning up test/duplicate listings, not for anything with real
+    activity -- a café with ANY booking (any status, including cancelled) is
+    refused outright, no override. That is the actual safety boundary here;
+    everything else about this café is just data hanging off it. Suspend is
+    the tool for a café that has real history and needs to come down.
+    """
+    cafe_repo = CafeRepository(db)
+    cafe = await cafe_repo.get_by_id(cafe_id)
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+
+    if payload.confirm_name != cafe.name:
+        raise BadRequestException(
+            message="Café name didn't match. Nothing was deleted.",
+            error_code="DELETE_CONFIRMATION_MISMATCH",
+        )
+
+    booking_count = (await db.execute(
+        select(func.count()).select_from(Booking).where(Booking.cafe_id == cafe_id)
+    )).scalar() or 0
+    if booking_count > 0:
+        raise ConflictException(
+            message=f"This café has {booking_count} booking(s) on record and cannot be permanently deleted. Suspend it instead.",
+            error_code="CAFE_HAS_BOOKINGS",
+        )
+
+    cafe_name = cafe.name
+
+    # Dependents with their own FK chain (hardware_tier_units -> hardware_tiers,
+    # cafe_payout_items -> cafe_payouts) are already ON DELETE CASCADE at the
+    # DB level, so deleting the parent row here is enough for those two.
+    await db.execute(delete(HardwareTier).where(HardwareTier.cafe_id == cafe_id))
+    await db.execute(delete(CafeWaitlistEntry).where(CafeWaitlistEntry.cafe_id == cafe_id))
+    await db.execute(delete(Review).where(Review.cafe_id == cafe_id))
+    await db.execute(delete(Promotion).where(Promotion.cafe_id == cafe_id))
+    await db.execute(delete(CafePayoutAdjustment).where(CafePayoutAdjustment.cafe_id == cafe_id))
+    await db.execute(delete(CafePayout).where(CafePayout.cafe_id == cafe_id))
+    await db.execute(delete(StaffInvitation).where(StaffInvitation.venue_id == cafe_id))
+    await db.execute(delete(UserRoleMapping).where(UserRoleMapping.cafe_id == cafe_id))
+    # Nullable references: detach rather than delete, so support/analytics
+    # history survives the café that generated it.
+    await db.execute(update(SupportTicket).where(SupportTicket.cafe_id == cafe_id).values(cafe_id=None))
+    await db.execute(update(AnalyticsEvent).where(AnalyticsEvent.cafe_id == cafe_id).values(cafe_id=None))
+
+    await db.execute(delete(Cafe).where(Cafe.id == cafe_id))
+    await db.commit()
+
+    service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=cafe_repo,
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db),
+    )
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="cafe.delete",
+        entity_type="cafe",
+        entity_id=str(cafe_id),
+        entity_name=cafe_name,
+    )
+
+    return {"success": True, "data": {"id": str(cafe_id), "name": cafe_name, "deleted": True}}
+
 
 class CafeSuspendRequest(BaseModel):
     reason: str = Field(..., min_length=10, description="Reason for suspension (min 10 chars)")

@@ -104,6 +104,13 @@ export async function reactivateCafe(cafeId: string): Promise<{ id: string; name
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/reactivate`));
 }
 
+// Permanently deletes a café with zero bookings on record (test/duplicate
+// cleanup). Refused server-side if the café has any booking, or if
+// confirmName doesn't match the café's actual name.
+export async function deleteCafe(cafeId: string, confirmName: string): Promise<{ id: string; name: string; deleted: boolean }> {
+  return call(() => apiClient.delete(`/api/v1/admin/cafes/${cafeId}`, { data: { confirm_name: confirmName } }));
+}
+
 // Flips an approved "Booking Soon" café (isLeadListing) to fully bookable.
 export async function goLiveCafe(cafeId: string): Promise<{ isLeadListing: boolean; bookableStations: number; alreadyLive: boolean }> {
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/go-live`));
