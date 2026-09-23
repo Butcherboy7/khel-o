@@ -1,7 +1,13 @@
 import type { MetadataRoute } from 'next';
 import { listCafes } from '@/lib/api/cafes';
+import { citySlug } from '@/constants/cities';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
+
+// Without this, Next statically prerenders this route once at `next build`
+// time — inside an isolated builder container with no network path to the
+// backend at all — freezing the sitemap at just the static routes below.
+export const dynamic = 'force-dynamic';
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
@@ -21,8 +27,14 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
 // the live café count ever approaches it.
 const MAX_PAGES = 20;
 
-async function getCafeUrls(): Promise<MetadataRoute.Sitemap> {
-  const urls: MetadataRoute.Sitemap = [];
+interface CafeUrlsResult {
+  cafeUrls: MetadataRoute.Sitemap;
+  cityUrls: MetadataRoute.Sitemap;
+}
+
+async function getCafeUrls(): Promise<CafeUrlsResult> {
+  const cafeUrls: MetadataRoute.Sitemap = [];
+  const cities = new Set<string>();
 
   try {
     let page = 1;
@@ -31,11 +43,12 @@ async function getCafeUrls(): Promise<MetadataRoute.Sitemap> {
     do {
       const result = await listCafes({ page, limit: 50 });
       for (const cafe of result.items) {
-        urls.push({
+        cafeUrls.push({
           url: `${SITE_URL}/cafe/${cafe.id}`,
           changeFrequency: 'weekly',
           priority: 0.8,
         });
+        cities.add(cafe.city);
       }
       totalPages = result.totalPages;
       page += 1;
@@ -45,10 +58,16 @@ async function getCafeUrls(): Promise<MetadataRoute.Sitemap> {
     // rather than failing the whole sitemap.
   }
 
-  return urls;
+  const cityUrls: MetadataRoute.Sitemap = Array.from(cities).map((city) => ({
+    url: `${SITE_URL}/cafes/${citySlug(city)}`,
+    changeFrequency: 'weekly',
+    priority: 0.9,
+  }));
+
+  return { cafeUrls, cityUrls };
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const cafeUrls = await getCafeUrls();
-  return [...STATIC_ROUTES, ...cafeUrls];
+  const { cafeUrls, cityUrls } = await getCafeUrls();
+  return [...STATIC_ROUTES, ...cityUrls, ...cafeUrls];
 }

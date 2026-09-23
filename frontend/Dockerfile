@@ -22,12 +22,21 @@ COPY . .
 # GET /api/runtime-env and injected into the browser as window.__ENV__ — see
 # src/lib/runtimeEnv.ts and docs/audit/frontend-env-audit.md.
 #
-# NEXT_PUBLIC_SENTRY_DSN is the one exception, still build-time: Sentry's
+# NEXT_PUBLIC_SENTRY_DSN is one exception, still build-time: Sentry's
 # client bootstrap (instrumentation-client.ts) runs before our injected
 # runtime-env script can reliably execute, and a DSN is meant to be public
 # (it only allows submitting events, not reading data) — see the audit doc.
+#
+# NEXT_PUBLIC_APP_URL is the other exception: sitemap.ts and robots.ts are
+# statically generated at build time (no native fetch() call for Next to key
+# dynamic rendering off), so getPublicEnv's runtime-env fallback never runs
+# for them — whatever this is at `npm run build` time is permanently frozen
+# into sitemap.xml/robots.txt. It rarely changes, so re-baking on rotation is
+# an acceptable tradeoff for getting a correct canonical domain.
 ARG NEXT_PUBLIC_SENTRY_DSN=
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_APP_URL=
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_TELEMETRY_DISABLED 1
 
 RUN npm run build

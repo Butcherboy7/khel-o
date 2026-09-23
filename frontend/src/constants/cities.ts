@@ -45,3 +45,18 @@ export const CITIES_BY_STATE: Record<string, string[]> = {
 };
 
 export const SUPPORTED_CITIES = Array.from(new Set(Object.values(CITIES_BY_STATE).flat())).sort();
+
+// URL-safe form of a city name for /cafes/[city] routes, e.g. "Navi Mumbai" ->
+// "navi-mumbai". One-way; use citySlugToName to resolve a slug back to the
+// canonical stored city value.
+export function citySlug(city: string): string {
+  return city.toLowerCase().replace(/\s+/g, '-');
+}
+
+// Resolves a /cafes/[city] slug back to the exact city string stored on a
+// café (city is not free text — see the comment on CITIES_BY_STATE), or null
+// if the slug doesn't match any supported city.
+export function citySlugToName(slug: string): string | null {
+  const match = SUPPORTED_CITIES.find((city) => citySlug(city) === slug.toLowerCase());
+  return match ?? null;
+}
