@@ -5,13 +5,19 @@ import { usePathname } from 'next/navigation';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { CustomerShell } from '@/components/layout/CustomerShell';
 
-// Browsable without an account: discovery, a café's public listing, and the
-// booking wizard up to the point of payment. Auth is only required at the
-// "Confirm & Pay" action itself (checked inline in bookings/new), and on
-// every other customer route below (bookings list/detail, rewards, profile,
-// notifications, support, partner) via AuthGuard as before.
+// Browsable without an account: discovery, a café's public listing, city
+// landing pages, and the booking wizard up to the point of payment. Auth is
+// only required at the "Confirm & Pay" action itself (checked inline in
+// bookings/new), and on every other customer route below (bookings
+// list/detail, rewards, profile, notifications, support, partner) via
+// AuthGuard as before.
 function isPublicPath(pathname: string): boolean {
-  return pathname === '/' || pathname.startsWith('/cafe/') || pathname === '/bookings/new';
+  return (
+    pathname === '/' ||
+    pathname.startsWith('/cafe/') ||
+    pathname.startsWith('/cafes/') ||
+    pathname === '/bookings/new'
+  );
 }
 
 /**
