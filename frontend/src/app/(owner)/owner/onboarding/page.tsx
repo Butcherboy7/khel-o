@@ -395,17 +395,17 @@ export default function OnboardingWizardPage() {
       setStep3Errors({});
     }
 
-    // Step 4: Hardware tiers. INITIAL_STATE seeds an empty array (this used
-    // to be unreachable because two tiers were pre-seeded) — an owner must
-    // not be able to click through to a live, unbookable, zero-tier café.
-    // Mirrors owner/tiers/page.tsx's blank-model guard so both consumers of
+    // Step 4: Hardware tiers. Zero tiers is allowed — an application with no
+    // resources configured yet is published as a public "Booking Soon"
+    // listing on admin approval, not a live bookable café, so there's no
+    // "unbookable" risk any more (see admin.py verify_cafe). This lets an
+    // owner (or KHEL-O outreach filling in whatever info is available)
+    // submit without knowing final hardware/pricing yet and complete it
+    // later. Any tier that IS added must still have a model, though — mirrors
+    // owner/tiers/page.tsx's blank-model guard so both consumers of
     // PlatformTierConfigurator enforce the same guarantee.
     if (step === 4) {
-      if (!formData.hardwareTiers || formData.hardwareTiers.length === 0) {
-        setError('Please add at least one resource before continuing.');
-        return;
-      }
-      const hasBlankModel = formData.hardwareTiers.some((t) => !t.model || !t.model.trim());
+      const hasBlankModel = (formData.hardwareTiers || []).some((t) => !t.model || !t.model.trim());
       if (hasBlankModel) {
         setError('Please select a model for every resource before continuing.');
         return;

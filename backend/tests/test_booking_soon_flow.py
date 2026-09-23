@@ -1,11 +1,19 @@
 """End-to-end test for the owner-application -> Booking Soon -> Go Live flow.
 
 Satvik (an owner) creates an account and submits a café application with
-whatever info he has. Admin approves it: the café becomes a public "Booking
-Soon" listing (is_lead_listing=True) but is NOT bookable yet. Only after the
-owner adds real hardware/seats and admin clicks "Go Live" does the café
-become normally bookable. Reuses the existing is_lead_listing / waitlist /
-booking-rejection machinery -- no new entities.
+whatever info he has -- no hardware tiers yet. Admin approves it: the café
+becomes a public "Booking Soon" listing (is_lead_listing=True) but is NOT
+bookable yet. Only after the owner adds real hardware/seats and admin clicks
+"Go Live" does the café become normally bookable.
+
+A DIFFERENT owner (XYZ Café) does full self-service onboarding and submits
+with real hardware tiers already configured. For that application there is
+nothing left to wait for, so approval itself takes the café straight to
+live -- no separate Go Live click required. See test_approving_a_complete_
+application_goes_straight_to_live below.
+
+Reuses the existing is_lead_listing / waitlist / booking-rejection
+machinery -- no new entities.
 """
 import uuid
 
@@ -162,3 +170,47 @@ async def test_reverifying_an_already_live_cafe_does_not_reset_booking_soon(db_s
     await db_session.refresh(cafe)
     assert cafe.is_lead_listing is False
     assert cafe.bookable_stations == 7
+
+
+@pytest.mark.asyncio
+async def test_approving_a_complete_application_goes_straight_to_live(db_session, async_client):
+    """XYZ Café does full self-service onboarding: address, hours, AND real
+    hardware tiers with real seats, all before ever submitting. There is
+    nothing left for it to wait for, so admin approval should take it
+    straight to bookable -- not park it in Booking Soon for a redundant
+    second Go Live click."""
+    from app.models.user import UserRole
+
+    owner = await create_test_user(db_session, email="xyz_owner@real.com", role=UserRole.GAMER)
+    admin = await create_test_user(db_session, email="admin_bs4@test.com", role=UserRole.ADMIN)
+    cafe = await _pending_application(db_session, owner)
+    db_session.add(HardwareTier(
+        id=uuid.uuid4(), cafe_id=cafe.id, name="PC", price_per_hour=150,
+        total_seats=20, app_bookable_seats=0, platform=PlatformType.PC, specs={},
+    ))
+    await db_session.commit()
+
+    resp = await async_client.patch(
+        f"/api/v1/admin/cafes/{cafe.id}/verify",
+        json={"status": "verified"},
+        headers=auth_headers(admin, is_admin=True),
+    )
+    assert resp.status_code == 200, resp.text
+
+    await db_session.refresh(cafe)
+    assert cafe.verification_status == VerificationStatus.VERIFIED
+    assert cafe.is_lead_listing is False, "a fully-onboarded application must not be stuck in Booking Soon"
+    assert cafe.bookable_stations > 0, "capacity must open automatically, not require a separate Go Live click"
+
+    # Public detail confirms it -- no Notify Me, normal bookable listing.
+    detail = await async_client.get(f"/api/v1/cafes/{cafe.id}")
+    assert detail.status_code == 200
+    assert detail.json()["data"]["cafe"]["isLeadListing"] is False
+
+    # Go Live on an already-live café is a harmless idempotent no-op.
+    go_live_resp = await async_client.patch(
+        f"/api/v1/admin/cafes/{cafe.id}/go-live",
+        headers=auth_headers(admin, is_admin=True),
+    )
+    assert go_live_resp.status_code == 200
+    assert go_live_resp.json()["data"]["alreadyLive"] is True

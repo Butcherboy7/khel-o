@@ -33,6 +33,27 @@ from app.core.exceptions import BadRequestException, NotFoundException
 
 router = APIRouter()
 
+
+async def _open_bookable_capacity(cafe, tier_repo: HardwareTierRepository, tiers: list, total_seats: int) -> None:
+    """Opens real booking capacity on a café that has confirmed hardware.
+
+    Same 70%-of-seats rule used everywhere else this happens (owner's
+    self-claim endpoint, the bookings-pause resume toggle,
+    CafeRepository.update_verification_status) -- kept as one shared spot
+    within this file since both /verify (for an already-complete
+    application) and /go-live now need it.
+    """
+    cafe.bookable_stations = max(1, round(total_seats * 0.7))
+    cafe.app_bookable_seats = cafe.bookable_stations
+    ratio = cafe.bookable_stations / total_seats
+    for t in tiers:
+        if t.app_bookable_seats_locked:
+            continue
+        scaled = max(0, min(t.total_seats, round(t.total_seats * ratio)))
+        if scaled == 0 and t.total_seats >= 1:
+            scaled = 1
+        await tier_repo.update(t.id, {"app_bookable_seats": scaled})
+
 # --- PLATFORM ANALYTICS ---
 @router.get("/analytics", status_code=status.HTTP_200_OK)
 async def get_admin_analytics(
@@ -175,15 +196,27 @@ async def verify_cafe(
         if hasattr(cafe, field):
             setattr(cafe, field, value)
 
-    # Approved (or re-approved after changes were requested) but never given
-    # real capacity yet: publish it as a "Booking Soon" listing rather than a
-    # normal bookable café that can never return a slot. Admin flips this off
-    # explicitly via the go-live endpoint once the owner has finished
-    # onboarding. A café that already has bookable_stations (e.g. a
-    # suspended-then-reactivated live café going through /verify again) is
-    # left alone so re-verifying never un-launches it.
+    # A café that already has bookable_stations (e.g. a suspended-then-
+    # reactivated live café going through /verify again) is left alone so
+    # re-verifying never un-launches it.
     if payload.status == "verified" and cafe.bookable_stations == 0:
-        cafe.is_lead_listing = True
+        tier_repo = HardwareTierRepository(db)
+        tiers = await tier_repo.get_by_cafe_id(cafe.id)
+        total_seats = sum(t.total_seats for t in tiers) if tiers else 0
+        if total_seats > 0:
+            # Owner already did full onboarding -- real hardware with real
+            # seats is on file, so there's nothing left to wait for. Approval
+            # IS the go-live moment; don't make the admin click twice.
+            cafe.is_lead_listing = False
+            await _open_bookable_capacity(cafe, tier_repo, tiers, total_seats)
+        else:
+            # No hardware on file yet (a bare-bones/outreach application, e.g.
+            # KHEL-O created the account with whatever info was available
+            # before the real owner took over). Publish as a "Booking Soon"
+            # listing rather than a bookable café that can never return a
+            # slot. Admin flips this off via /go-live once the owner has
+            # added real hardware.
+            cafe.is_lead_listing = True
 
     if payload.status == "verified":
         from app.models.user_role import UserRoleMapping
@@ -801,16 +834,7 @@ async def go_live_cafe(
     cafe.is_lead_listing = False
 
     if cafe.bookable_stations == 0:
-        cafe.bookable_stations = max(1, round(total_seats * 0.7))
-        cafe.app_bookable_seats = cafe.bookable_stations
-        ratio = cafe.bookable_stations / total_seats
-        for t in tiers:
-            if t.app_bookable_seats_locked:
-                continue
-            scaled = max(0, min(t.total_seats, round(t.total_seats * ratio)))
-            if scaled == 0 and t.total_seats >= 1:
-                scaled = 1
-            await tier_repo.update(t.id, {"app_bookable_seats": scaled})
+        await _open_bookable_capacity(cafe, tier_repo, tiers, total_seats)
 
     await db.commit()
     await db.refresh(cafe)
