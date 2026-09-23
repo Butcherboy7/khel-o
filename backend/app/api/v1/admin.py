@@ -28,6 +28,8 @@ from app.services.review_service import ReviewService
 from app.api.deps import require_admin
 from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
+from app.models.cafe import VerificationStatus
+from app.core.exceptions import BadRequestException, NotFoundException
 
 router = APIRouter()
 
@@ -168,11 +170,21 @@ async def verify_cafe(
     update_fields = {"verification_status": payload.status, "is_active": is_active}
     if payload.reason is not None:
         update_fields["rejection_reason"] = payload.reason
-    
+
     for field, value in update_fields.items():
         if hasattr(cafe, field):
             setattr(cafe, field, value)
-    
+
+    # Approved (or re-approved after changes were requested) but never given
+    # real capacity yet: publish it as a "Booking Soon" listing rather than a
+    # normal bookable café that can never return a slot. Admin flips this off
+    # explicitly via the go-live endpoint once the owner has finished
+    # onboarding. A café that already has bookable_stations (e.g. a
+    # suspended-then-reactivated live café going through /verify again) is
+    # left alone so re-verifying never un-launches it.
+    if payload.status == "verified" and cafe.bookable_stations == 0:
+        cafe.is_lead_listing = True
+
     if payload.status == "verified":
         from app.models.user_role import UserRoleMapping
         import uuid
@@ -740,6 +752,89 @@ async def reactivate_cafe(
         entity_id=str(cafe_id),
     )
     return {"success": True, "data": result}
+
+
+@router.patch("/cafes/{cafe_id}/go-live", status_code=status.HTTP_200_OK)
+async def go_live_cafe(
+    cafe_id: UUID,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Flip an approved "Booking Soon" café to fully bookable.
+
+    Mirrors /owner/cafe/claim's capacity-opening logic (same 70%-of-seats
+    rule), but is admin-triggered rather than owner self-service: this is the
+    "Approved != Live" gate for an owner-submitted application, not the
+    research-listed-café claim flow that endpoint covers. Requires the café
+    to already be an approved (verified) listing and to have real hardware
+    tiers with seats -- otherwise "Go Live" would publish a bookable café
+    that can never return a slot.
+    """
+    cafe_repo = CafeRepository(db)
+    cafe = await cafe_repo.get_by_id(cafe_id)
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+
+    if cafe.verification_status != VerificationStatus.VERIFIED:
+        raise BadRequestException(
+            message="Approve this café's application before going live.",
+            error_code="GO_LIVE_REQUIRES_APPROVAL",
+        )
+
+    # Idempotent: a double-click must not re-scale seats an admin/owner has
+    # since tuned down by hand.
+    if not cafe.is_lead_listing:
+        return {
+            "success": True,
+            "data": {"isLeadListing": False, "bookableStations": cafe.bookable_stations, "alreadyLive": True},
+        }
+
+    tier_repo = HardwareTierRepository(db)
+    tiers = await tier_repo.get_by_cafe_id(cafe.id)
+    total_seats = sum(t.total_seats for t in tiers) if tiers else 0
+    if total_seats <= 0:
+        raise BadRequestException(
+            message="Add stations and their hourly rate before going live.",
+            error_code="GO_LIVE_REQUIRES_HARDWARE",
+        )
+
+    cafe.is_lead_listing = False
+
+    if cafe.bookable_stations == 0:
+        cafe.bookable_stations = max(1, round(total_seats * 0.7))
+        cafe.app_bookable_seats = cafe.bookable_stations
+        ratio = cafe.bookable_stations / total_seats
+        for t in tiers:
+            if t.app_bookable_seats_locked:
+                continue
+            scaled = max(0, min(t.total_seats, round(t.total_seats * ratio)))
+            if scaled == 0 and t.total_seats >= 1:
+                scaled = 1
+            await tier_repo.update(t.id, {"app_bookable_seats": scaled})
+
+    await db.commit()
+    await db.refresh(cafe)
+
+    service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db),
+    )
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="cafe.go_live",
+        entity_type="cafe",
+        entity_id=str(cafe_id),
+        entity_name=cafe.name,
+    )
+
+    return {
+        "success": True,
+        "data": {"isLeadListing": cafe.is_lead_listing, "bookableStations": cafe.bookable_stations, "alreadyLive": False},
+    }
 
 
 class CafeDescriptionUpdateRequest(BaseModel):

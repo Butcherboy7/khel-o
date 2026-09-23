@@ -18,7 +18,7 @@ import {
   PauseCircle,
   ChevronRight,
 } from 'lucide-react';
-import { listAdminCafes, suspendCafe, reactivateCafe, updateCafeDescriptionAdmin } from '@/lib/api/admin';
+import { listAdminCafes, suspendCafe, reactivateCafe, updateCafeDescriptionAdmin, goLiveCafe } from '@/lib/api/admin';
 import { PerformanceTab } from './PerformanceTab';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
@@ -38,8 +38,9 @@ import type { AdminCafe, VerificationStatus } from '@/types';
 
 function statusVariant(
   s: VerificationStatus,
+  isLeadListing?: boolean,
 ): 'success' | 'warning' | 'error' | 'default' {
-  if (s === 'verified') return 'success';
+  if (s === 'verified') return isLeadListing ? 'warning' : 'success';
   if (s === 'pending') return 'warning';
   if (s === 'changes_requested') return 'warning';
   if (s === 'rejected') return 'error';
@@ -47,7 +48,8 @@ function statusVariant(
   return 'default';
 }
 
-function statusLabel(s: VerificationStatus): string {
+function statusLabel(s: VerificationStatus, isLeadListing?: boolean): string {
+  if (s === 'verified' && isLeadListing) return 'Booking Soon';
   const map: Record<VerificationStatus, string> = {
     verified: 'Live',
     pending: 'Pending',
@@ -133,6 +135,17 @@ export default function AdminCafesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
       setSelectedCafe(null);
+    },
+  });
+
+  const goLiveMutation = useMutation({
+    mutationFn: (cafeId: string) => goLiveCafe(cafeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      setSelectedCafe(null);
+    },
+    onError: (err) => {
+      window.alert((err as Error)?.message ?? 'Failed to go live. Please try again.');
     },
   });
 
@@ -272,8 +285,8 @@ export default function AdminCafesPage() {
                       <span className="truncate">{cafe.city}, {cafe.state}</span>
                     </div>
                   </div>
-                  <Badge variant={statusVariant(cafe.verificationStatus)} size="sm" className="flex-shrink-0">
-                    {statusLabel(cafe.verificationStatus)}
+                  <Badge variant={statusVariant(cafe.verificationStatus, cafe.isLeadListing)} size="sm" className="flex-shrink-0">
+                    {statusLabel(cafe.verificationStatus, cafe.isLeadListing)}
                   </Badge>
                 </div>
 
@@ -304,7 +317,19 @@ export default function AdminCafesPage() {
                     Details
                   </button>
 
-                  {cafe.verificationStatus === 'verified' && (
+                  {cafe.verificationStatus === 'verified' && cafe.isLeadListing && (
+                    <button
+                      type="button"
+                      onClick={() => goLiveMutation.mutate(cafe.id)}
+                      disabled={goLiveMutation.isPending}
+                      className="flex items-center gap-1 h-8 px-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-xs font-semibold text-emerald-600 hover:bg-emerald-500/15 transition-colors whitespace-nowrap disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Go Live
+                    </button>
+                  )}
+
+                  {cafe.verificationStatus === 'verified' && !cafe.isLeadListing && (
                     <button
                       type="button"
                       onClick={() => { setSelectedCafe(cafe); setIsSuspendModalOpen(true); }}
@@ -338,7 +363,7 @@ export default function AdminCafesPage() {
         isOpen={!!selectedCafe && !isSuspendModalOpen}
         onClose={() => setSelectedCafe(null)}
         title={selectedCafe?.name ?? 'Café Details'}
-        description={`${selectedCafe?.city}, ${selectedCafe?.state} · ${statusLabel(selectedCafe?.verificationStatus ?? 'pending')}`}
+        description={`${selectedCafe?.city}, ${selectedCafe?.state} · ${statusLabel(selectedCafe?.verificationStatus ?? 'pending', selectedCafe?.isLeadListing)}`}
       >
         {selectedCafe && (
           <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">

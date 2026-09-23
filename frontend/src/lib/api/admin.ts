@@ -104,6 +104,11 @@ export async function reactivateCafe(cafeId: string): Promise<{ id: string; name
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/reactivate`));
 }
 
+// Flips an approved "Booking Soon" café (isLeadListing) to fully bookable.
+export async function goLiveCafe(cafeId: string): Promise<{ isLeadListing: boolean; bookableStations: number; alreadyLive: boolean }> {
+  return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/go-live`));
+}
+
 export async function updateCafeDescriptionAdmin(cafeId: string, description: string): Promise<{ id: string; name: string; description: string }> {
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/description`, { description }));
 }
