@@ -35,6 +35,9 @@ import { ChangesRequestedView } from '@/components/owner/ChangesRequestedView';
 import { RejectedView } from '@/components/owner/RejectedView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
 import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
+import { InfoTip } from '@/components/owner/InfoTip';
+import { PageTip } from '@/components/owner/PageTip';
+import { INFO_TIPS, PAGE_GUIDES } from '@/lib/ownerGuideCopy';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
 export default function OwnerDashboardPage() {
@@ -409,6 +412,7 @@ export default function OwnerDashboardPage() {
             <h1 className="font-heading text-h1 text-text-primary text-balance">
               {(statusState.cafe?.name as string) || (isStaff ? 'Staff Desk' : 'Your Café')}
             </h1>
+            <InfoTip text={PAGE_GUIDES.dashboard.info} label="About the dashboard" />
             <Badge
               variant={
                 cafeSettings?.isEmergencyMode
@@ -453,6 +457,8 @@ export default function OwnerDashboardPage() {
           <span>Refresh</span>
         </Button>
       </div>
+
+      <PageTip page="dashboard" />
 
       {/* Staff open this portal to do exactly one thing, so it gets the first
           screen and a full-width target rather than a decorated banner. */}
@@ -660,7 +666,10 @@ export default function OwnerDashboardPage() {
               <Monitor className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <h2 className="font-heading text-h3 text-text-primary">Seats open for online booking</h2>
+              <h2 className="flex items-center gap-1 font-heading text-h3 text-text-primary">
+                Seats open for online booking
+                <InfoTip text={INFO_TIPS.dashboardOnlineSeats} label="About online seats" />
+              </h2>
               <p className="max-w-prose text-caption text-text-secondary">
                 Customers can book these through the KHEL-O app. The rest you keep for walk-ins.
               </p>

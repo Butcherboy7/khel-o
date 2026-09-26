@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Any
-from sqlalchemy import String, DateTime, ForeignKey, JSON
+from sqlalchemy import String, DateTime, ForeignKey, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -16,6 +16,7 @@ class AnalyticsEvent(Base):
     driftable source of truth for no benefit.
     """
     __tablename__ = "analytics_events"
+    __table_args__ = (Index("ix_analytics_events_type_created_at", "event_type", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     session_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)

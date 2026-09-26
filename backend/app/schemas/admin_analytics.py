@@ -149,3 +149,40 @@ class CampaignStatsResponse(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class TrafficTotals(BaseModel):
+    visitors: int
+    page_views: int
+    active_users: int
+    signups: int
+    bookings: int
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+
+class TrafficBucket(TrafficTotals):
+    bucket: str
+
+
+class TopPageItem(BaseModel):
+    path: str
+    views: int
+
+
+class TrafficResponse(BaseModel):
+    granularity: str
+    start: str
+    end: str
+    totals: TrafficTotals
+    previous_totals: TrafficTotals
+    series: List[TrafficBucket]
+    top_pages: List[TopPageItem]
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )

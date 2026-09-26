@@ -74,6 +74,7 @@ export default function OwnerAnalyticsPage() {
   return (
     <div className="flex flex-col gap-5">
       <OwnerPageHeader
+        guide="analytics"
         title="Insights"
         description="When you're busiest, which stations earn most, and how many customers come back."
       />

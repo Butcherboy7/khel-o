@@ -186,6 +186,7 @@ export default function OwnerAvailabilityPage() {
   return (
     <div className="flex flex-col gap-6">
       <OwnerPageHeader
+        guide="availability"
         title="Free seats"
         description="What's taken and what's open, hour by hour."
       />

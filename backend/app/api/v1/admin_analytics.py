@@ -1,3 +1,4 @@
+from datetime import date
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,4 +109,17 @@ async def get_funnel(
 ):
     service = AdminAnalyticsService(db)
     result = await service.get_funnel()
+    return {"success": True, "data": result}
+
+
+@router.get("/traffic", status_code=status.HTTP_200_OK)
+async def get_traffic(
+    granularity: str = Query("day", pattern="^(day|week|month)$"),
+    periods: int = Query(30, ge=1, le=366),
+    end: date | None = Query(None),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    service = AdminAnalyticsService(db)
+    result = await service.get_traffic(granularity=granularity, periods=periods, end=end)
     return {"success": True, "data": result}

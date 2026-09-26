@@ -90,6 +90,7 @@ export default function OwnerNotificationsPage() {
   return (
     <div className="flex flex-col gap-6">
       <OwnerPageHeader
+        guide="notifications"
         title="Alerts"
         description="New bookings, cancellations and payment problems land here."
         action={

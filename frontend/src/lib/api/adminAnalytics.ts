@@ -106,6 +106,30 @@ export async function getFunnel(): Promise<FunnelData> {
   return call(() => apiClient.get('/api/v1/admin/analytics/funnels'));
 }
 
+export type TrafficGranularity = 'day' | 'week' | 'month';
+
+export interface TrafficTotals {
+  visitors: number;
+  pageViews: number;
+  activeUsers: number;
+  signups: number;
+  bookings: number;
+}
+
+export interface TrafficData {
+  granularity: TrafficGranularity;
+  start: string;
+  end: string;
+  totals: TrafficTotals;
+  previousTotals: TrafficTotals;
+  series: (TrafficTotals & { bucket: string })[];
+  topPages: { path: string; views: number }[];
+}
+
+export async function getTraffic(granularity: TrafficGranularity, periods: number): Promise<TrafficData> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/traffic', { params: { granularity, periods } }));
+}
+
 export interface CampaignItem {
   id: string;
   name: string;

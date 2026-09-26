@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
+import { PAGE_GUIDES, type GuidePage } from '@/lib/ownerGuideCopy';
+import { InfoTip } from './InfoTip';
+import { PageTip } from './PageTip';
 
 interface OwnerPageHeaderProps {
   /** Plain-language name of the screen. Kept short so it never wraps on a phone. */
@@ -8,6 +11,8 @@ interface OwnerPageHeaderProps {
   description?: string;
   /** The single most likely action on this screen. Goes full-width on mobile. */
   action?: ReactNode;
+  /** Adds the ⓘ beside the title and the first-visits “How this page works” tip. */
+  guide?: GuidePage;
   className?: string;
 }
 
@@ -28,12 +33,16 @@ export function OwnerPageHeader({
   title,
   description,
   action,
+  guide,
   className,
 }: OwnerPageHeaderProps) {
   return (
     <header className={cn('flex flex-col gap-4', className)}>
       <div className="flex flex-col gap-1">
-        <h1 className="font-heading text-h1 text-text-primary text-balance">{title}</h1>
+        <div className="flex items-center gap-1.5">
+          <h1 className="font-heading text-h1 text-text-primary text-balance">{title}</h1>
+          {guide && <InfoTip text={PAGE_GUIDES[guide].info} label={`About ${title}`} />}
+        </div>
         {description && (
           <p className="max-w-prose text-body text-text-secondary">{description}</p>
         )}
@@ -44,6 +53,8 @@ export function OwnerPageHeader({
       {action && (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">{action}</div>
       )}
+
+      {guide && <PageTip page={guide} />}
     </header>
   );
 }

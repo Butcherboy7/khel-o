@@ -46,5 +46,8 @@ class User(Base):
     # separate table/columns since it's a single user-owned JSON document
     # with no independent lifecycle or ownership rules.
     preferences: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    # Owner/staff in-app guidance progress ({sessions, pages: {key: {views, dismissed}}}).
+    # Kept apart from `preferences`, which the profile page replaces wholesale.
+    guide_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

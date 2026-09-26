@@ -312,6 +312,7 @@ export default function HardwareTiersPage() {
       )}
 
       <OwnerPageHeader
+        guide="tiers"
         title="Resources & Pricing"
         description="Group your machines by what they are — gaming PCs, PS5s, a snooker table — and set an hourly rate for each group."
         action={

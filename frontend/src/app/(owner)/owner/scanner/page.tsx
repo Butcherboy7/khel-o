@@ -609,6 +609,7 @@ export default function ScannerPage() {
       <div id="qr-reader-file-temp" className="hidden" />
 
       <OwnerPageHeader
+        guide="scanner"
         title="Scan & check in"
         description="Point your camera at the QR code on the customer's phone. No camera? Upload a screenshot, or look them up by name."
       />

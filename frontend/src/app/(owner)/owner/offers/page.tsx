@@ -350,6 +350,7 @@ export default function OwnerOffersPage() {
   return (
     <div className="flex flex-col gap-6">
       <OwnerPageHeader
+        guide="offers"
         title="Offers"
         description="Run a discount, a fixed-price deal, or a flat amount off. It applies automatically at checkout — and each one also gets a code you can share or print as a QR."
         action={

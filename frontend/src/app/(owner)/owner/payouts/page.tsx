@@ -66,6 +66,7 @@ export default function OwnerPayoutsPage() {
   return (
     <div className="flex flex-col gap-8">
       <OwnerPageHeader
+        guide="payouts"
         title="Payouts"
         description="What customers paid, what KHEL-O kept, and what has reached your bank."
       />

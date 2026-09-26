@@ -6,6 +6,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { RoleSyncProvider } from '@/components/providers/RoleSyncProvider';
 import { PwaUpdatePrompt } from '@/components/PwaUpdatePrompt';
+import { PageViewTracker } from '@/components/layout/PageViewTracker';
 
 /* ── QueryClient Factory ─────────────────────────────────────────── */
 
@@ -67,6 +68,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <RoleSyncProvider>
           <AnimatePresence mode="wait">{children}</AnimatePresence>
           <PwaUpdatePrompt />
+          <PageViewTracker />
         </RoleSyncProvider>
       </AuthInitializer>
     </QueryClientProvider>
