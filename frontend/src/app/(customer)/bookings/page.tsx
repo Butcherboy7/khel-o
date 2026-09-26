@@ -105,7 +105,7 @@ export default function BookingsListPage() {
 
         {!isLoading && !isError && bookings.length === 0 && (
           <EmptyState
-            title="No Bookings Found"
+            title={selectedStatus !== 'all' ? 'Nothing here' : 'No bookings yet'}
             description={
               selectedStatus !== 'all'
                 ? `You don't have any ${selectedStatus.replace('_', ' ')} bookings.`

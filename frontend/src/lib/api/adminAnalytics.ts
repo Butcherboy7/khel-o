@@ -157,3 +157,22 @@ export interface CampaignStats {
 export async function getCampaignStats(campaignId: string): Promise<CampaignStats> {
   return call(() => apiClient.get(`/api/v1/admin/analytics/campaigns/${campaignId}`));
 }
+
+export interface ShareTotals {
+  shares: number;
+  opens: number;
+  signups: number;
+  bookings: number;
+}
+
+export interface ShareReport {
+  start: string;
+  end: string;
+  totals: ShareTotals;
+  byChannel: (ShareTotals & { channel: string })[];
+  byCafe: (ShareTotals & { cafeId: string; cafeName: string })[];
+}
+
+export async function getShareReport(start: string, end: string): Promise<ShareReport> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/shares', { params: { start, end } }));
+}

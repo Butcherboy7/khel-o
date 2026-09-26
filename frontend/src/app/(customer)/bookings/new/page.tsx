@@ -1092,6 +1092,11 @@ function BookingWizardContent() {
           <div className="px-3.5 pb-3 flex flex-col gap-1.5 text-xs text-text-secondary">
             <p>Payments secured by Razorpay — your card and UPI details are never stored by KHEL-O.</p>
             <p>Free cancellation up to 2 hours before your session — full refund to your original payment method.</p>
+            <p>
+              <a href="/refund-policy" target="_blank" className="font-semibold text-primary hover:underline">
+                Read the refund policy
+              </a>
+            </p>
           </div>
         )}
       </div>
@@ -1108,6 +1113,9 @@ function BookingWizardContent() {
             <div className="font-heading text-h1 font-bold text-text-primary">
               <span className="rupee-symbol">₹</span>{finalTotal}
             </div>
+            <span className="text-caption text-text-secondary">
+              Total incl. ₹{serviceFee.toFixed(0)} platform fee · no hidden charges
+            </span>
           </div>
 
           <button
@@ -1131,9 +1139,13 @@ function BookingWizardContent() {
               ? 'Sold Out'
               : windowRemainingSeats < seatsCount
               ? `Only ${windowRemainingSeats} Seat${windowRemainingSeats > 1 ? 's' : ''} Left`
-              : 'Continue to Payment'}
+              : `Pay ₹${finalTotal} securely`}
           </button>
         </div>
+        <p className="max-w-content mx-auto mt-2 flex items-center justify-center gap-1.5 text-[11px] text-text-secondary sm:justify-end">
+          <ShieldCheck className="h-3.5 w-3.5 text-success" aria-hidden />
+          Secured by Razorpay · UPI, cards &amp; wallets · Instant confirmation
+        </p>
       </div>
     </div>
 
@@ -1163,8 +1175,10 @@ export default function BookingWizardPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex justify-center p-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col gap-6 max-w-2xl mx-auto py-6" aria-busy="true">
+          <Skeleton className="h-8 w-48 rounded-xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
         </div>
       }
     >

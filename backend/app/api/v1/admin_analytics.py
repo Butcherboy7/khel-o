@@ -123,3 +123,20 @@ async def get_traffic(
     service = AdminAnalyticsService(db)
     result = await service.get_traffic(granularity=granularity, periods=periods, end=end)
     return {"success": True, "data": result}
+
+
+@router.get("/shares", status_code=status.HTTP_200_OK)
+async def get_share_report(
+    start: date | None = Query(None),
+    end: date | None = Query(None),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.admin_analytics_service import IST
+    from datetime import datetime, timedelta
+
+    end = end or datetime.now(IST).date()
+    start = start or end - timedelta(days=29)
+    service = AdminAnalyticsService(db)
+    result = await service.get_share_report(start=start, end=end)
+    return {"success": True, "data": result}
