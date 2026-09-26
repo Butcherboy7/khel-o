@@ -251,6 +251,7 @@ class CafeRepository(BaseRepository[Cafe]):
 
             items.append({
                 "id": c.id,
+                "slug": c.slug,
                 "name": c.name,
                 "city": c.city,
                 "state": c.state,
@@ -359,3 +360,7 @@ class CafeRepository(BaseRepository[Cafe]):
         items = list(result.scalars().all())
 
         return items, total
+
+    async def get_by_slug(self, slug: str) -> Optional[Cafe]:
+        result = await self.db.execute(select(Cafe).where(Cafe.slug == slug))
+        return result.scalars().first()

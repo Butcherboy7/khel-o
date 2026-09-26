@@ -12,8 +12,17 @@ export async function listCafes(params: CafeListParams): Promise<PaginatedRespon
   return call(() => apiClient.get('/api/v1/cafes', { params }));
 }
 
-export async function getCafe(cafeId: string): Promise<{ cafe: CafeDetail }> {
-  return call(() => apiClient.get(`/api/v1/cafes/${cafeId}`));
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const isCafeUuid = (value: string) => UUID_RE.test(value);
+
+/** Public café page path — the readable slug when the café has one. */
+export const cafePath = (cafe: { id: string; slug?: string | null }) => `/cafe/${cafe.slug || cafe.id}`;
+
+/** Accepts either a café id or its slug (what /cafe/<param> URLs carry). */
+export async function getCafe(idOrSlug: string): Promise<{ cafe: CafeDetail }> {
+  const path = isCafeUuid(idOrSlug) ? idOrSlug : `slug/${encodeURIComponent(idOrSlug)}`;
+  return call(() => apiClient.get(`/api/v1/cafes/${path}`));
 }
 
 export async function createCafe(body: CafeCreateRequest): Promise<{ cafe: CafeDetail }> {

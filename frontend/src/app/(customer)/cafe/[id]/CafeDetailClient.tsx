@@ -64,7 +64,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
-  const cafeId = params.id as string;
+  // The URL segment may be a slug; every API call below (reviews, waitlist,
+  // analytics) needs the real id, which the server-fetched café carries.
+  const cafeId = initialCafe?.id ?? (params.id as string);
 
   useEffect(() => {
     fireAnalyticsEvent('venue_viewed', { cafeId });

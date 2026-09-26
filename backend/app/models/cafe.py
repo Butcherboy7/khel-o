@@ -1,11 +1,12 @@
 import uuid
 from datetime import datetime, timezone, time
 from typing import Any
-from sqlalchemy import String, Text, Boolean, DateTime, Enum, ForeignKey, Numeric, Integer, Time, JSON
+from sqlalchemy import event, or_, select, String, Text, Boolean, DateTime, Enum, ForeignKey, Numeric, Integer, Time, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
 
 from app.database import Base
+from app.core.slug import cafe_base_slug, unique_slug
 
 class VerificationStatus(str, enum.Enum):
     DRAFT = "draft"
@@ -21,6 +22,9 @@ class Cafe(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Public URL key (/cafe/<slug>). Set once on insert and never changed on
+    # rename, so shared and indexed links keep working.
+    slug: Mapped[str | None] = mapped_column(String(160), unique=True, index=True, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     address_line1: Mapped[str] = mapped_column(String(255), nullable=False)
     address_line2: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -78,3 +82,14 @@ class Cafe(Base):
     booking_cap_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+@event.listens_for(Cafe, "before_insert")
+def _assign_slug(mapper, connection, target: Cafe) -> None:
+    if target.slug:
+        return
+    base = cafe_base_slug(target.name, target.city)
+    taken = set(connection.execute(
+        select(Cafe.slug).where(or_(Cafe.slug == base, Cafe.slug.like(f"{base}-%")))
+    ).scalars())
+    target.slug = unique_slug(base, taken)

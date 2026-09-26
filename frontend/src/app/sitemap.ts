@@ -1,6 +1,8 @@
 import type { MetadataRoute } from 'next';
-import { listCafes } from '@/lib/api/cafes';
+import { listCafes, cafePath } from '@/lib/api/cafes';
 import { citySlug } from '@/constants/cities';
+import { activitiesFor } from '@/lib/seoActivities';
+import type { CafeListItem } from '@/types';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
@@ -34,7 +36,7 @@ interface CafeUrlsResult {
 
 async function getCafeUrls(): Promise<CafeUrlsResult> {
   const cafeUrls: MetadataRoute.Sitemap = [];
-  const cities = new Set<string>();
+  const byCity = new Map<string, CafeListItem[]>();
 
   try {
     let page = 1;
@@ -44,11 +46,11 @@ async function getCafeUrls(): Promise<CafeUrlsResult> {
       const result = await listCafes({ page, limit: 50 });
       for (const cafe of result.items) {
         cafeUrls.push({
-          url: `${SITE_URL}/cafe/${cafe.id}`,
+          url: `${SITE_URL}${cafePath(cafe)}`,
           changeFrequency: 'weekly',
           priority: 0.8,
         });
-        cities.add(cafe.city);
+        byCity.set(cafe.city, [...(byCity.get(cafe.city) ?? []), cafe]);
       }
       totalPages = result.totalPages;
       page += 1;
@@ -58,11 +60,16 @@ async function getCafeUrls(): Promise<CafeUrlsResult> {
     // rather than failing the whole sitemap.
   }
 
-  const cityUrls: MetadataRoute.Sitemap = Array.from(cities).map((city) => ({
-    url: `${SITE_URL}/cafes/${citySlug(city)}`,
-    changeFrequency: 'weekly',
-    priority: 0.9,
-  }));
+  // City pages, plus a page per activity that at least one café there offers
+  // (same rule the /cafes/<city>/<activity> route uses to 404 empty combos).
+  const cityUrls: MetadataRoute.Sitemap = Array.from(byCity.entries()).flatMap(([city, cafes]) => [
+    { url: `${SITE_URL}/cafes/${citySlug(city)}`, changeFrequency: 'weekly' as const, priority: 0.9 },
+    ...activitiesFor(cafes).map(({ activity }) => ({
+      url: `${SITE_URL}/cafes/${citySlug(city)}/${activity.slug}`,
+      changeFrequency: 'weekly' as const,
+      priority: 0.85,
+    })),
+  ]);
 
   return { cafeUrls, cityUrls };
 }
