@@ -4,7 +4,8 @@ import { listCafes, cafePath } from '@/lib/api/cafes';
 import { citySlugToName } from '@/constants/cities';
 import Link from 'next/link';
 import { CafeCard } from '@/components/customer/CafeCard';
-import { activitiesFor } from '@/lib/seoActivities';
+import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
+import { getSeoPage } from '@/lib/api/seo';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
@@ -92,7 +93,8 @@ export default async function CityCafesPage({ params }: PageProps) {
   const prices = cafes.map((c) => c.startingPrice).filter((p): p is number => p != null);
   const minPrice = prices.length > 0 ? Math.min(...prices) : null;
   const faqItems = buildFaqItems(city, minPrice);
-  const activities = activitiesFor(cafes);
+  // Links to this city's indexable landing pages (games, GPUs, prices…).
+  const seo = await getSeoPage(slug).catch(() => null);
 
   const itemListJsonLd = {
     '@context': 'https://schema.org',
@@ -131,31 +133,22 @@ export default async function CityCafesPage({ params }: PageProps) {
 
       <div className="max-w-5xl mx-auto w-full flex flex-col gap-6 py-6">
         <header className="flex flex-col gap-1">
+          <nav aria-label="Breadcrumb" className="text-caption text-text-secondary">
+            <Link href="/browse" className="hover:text-primary">All cities</Link> / {city}
+          </nav>
           <h1 className="font-heading text-h1 text-text-primary">Gaming Cafés in {city}</h1>
           <p className="text-body text-text-secondary">
             {cafes.length} café{cafes.length === 1 ? '' : 's'} available to book online in {city}.
           </p>
         </header>
 
-        {activities.length > 0 && (
-          <nav aria-label={`Browse ${city} by activity`} className="flex flex-wrap gap-2">
-            {activities.map(({ activity, cafes: matched }) => (
-              <Link
-                key={activity.slug}
-                href={`/cafes/${slug}/${activity.slug}`}
-                className="rounded-full border border-border bg-card px-3 py-1.5 text-caption font-semibold text-text-primary hover:border-primary hover:text-primary transition-colors"
-              >
-                {activity.label} <span className="text-text-secondary">({matched.length})</span>
-              </Link>
-            ))}
-          </nav>
-        )}
-
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {cafes.map((cafe) => (
             <CafeCard key={cafe.id} cafe={cafe} />
           ))}
         </div>
+
+        {seo && <SeoLinkGroups links={seo.related} title={`Explore ${city}`} />}
 
         <section className="flex flex-col gap-4 pt-4">
           <h2 className="font-heading text-h2 text-text-primary">Frequently asked questions</h2>

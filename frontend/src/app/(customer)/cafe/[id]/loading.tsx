@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 // Streams instantly while the server fetches the café, instead of leaving the
 // previous page frozen on a slow connection.

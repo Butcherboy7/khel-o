@@ -3,6 +3,9 @@ import type { Metadata } from 'next';
 import { permanentRedirect } from 'next/navigation';
 import { getCafe, cafePath, isCafeUuid } from '@/lib/api/cafes';
 import { PLATFORMS } from '@/constants/platforms';
+import Link from 'next/link';
+import { getCafeLinks } from '@/lib/api/seo';
+import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
 import type { CafeDetail } from '@/types';
 import { CafeDetailClient } from './CafeDetailClient';
 
@@ -68,6 +71,10 @@ export default async function CafeDetailPage({ params }: PageProps) {
   // permanently to the readable URL so search engines transfer their ranking.
   if (cafe?.slug && isCafeUuid(id)) permanentRedirect(cafePath(cafe));
 
+  // Café → locality → game/hardware pages → nearby cafés, so every café is
+  // linked into the rest of the site (no orphan pages) and vice versa.
+  const links = cafe ? await getCafeLinks(cafe.id).catch(() => null) : null;
+
   const jsonLd = cafe
     ? {
         '@context': 'https://schema.org',
@@ -124,6 +131,35 @@ export default async function CafeDetailPage({ params }: PageProps) {
         />
       )}
       <CafeDetailClient initialCafe={cafe ?? undefined} />
+      {links && (
+        <div className="flex flex-col gap-6 pt-8 pb-28 border-t border-border mt-8">
+          <nav aria-label="Breadcrumb" className="text-caption text-text-secondary">
+            <Link href="/browse" className="hover:text-primary">All cities</Link> /{' '}
+            <Link href={links.city.path} className="hover:text-primary">{links.city.name}</Link> / {cafe?.name}
+          </nav>
+          {links.nearby.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <h2 className="font-heading text-h2 text-text-primary">Nearby gaming cafés</h2>
+              <ul className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card">
+                {links.nearby.map((n) => (
+                  <li key={n.id}>
+                    <Link href={n.path} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-surface">
+                      <span className="font-semibold text-text-primary">{n.name}</span>
+                      <span className="text-caption text-text-secondary whitespace-nowrap">
+                        {n.km} km{n.minPrice != null ? ` · from ₹${n.minPrice}/hr` : ''}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <SeoLinkGroups links={links.facets} title={`More in ${links.city.name}`} />
+          <Link href={links.city.path} className="text-body font-semibold text-primary hover:underline">
+            See all gaming cafés in {links.city.name} →
+          </Link>
+        </div>
+      )}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { Skeleton, SkeletonCafeGrid } from '@/components/ui';
+import { Skeleton, SkeletonCafeGrid } from '@/components/ui/Skeleton';
 
 // Also covers /cafes/<city>/<activity>, which has no loading file of its own.
 export default function CityLoading() {
