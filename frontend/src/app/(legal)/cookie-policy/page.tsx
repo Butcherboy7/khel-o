@@ -51,7 +51,8 @@ export default function CookiePolicyPage() {
             <td>Anonymous session ID &amp; referral source (e.g. <code>utm_source</code>)</td>
             <td>
               Lets us see which channel (e.g. Instagram, Google, a referral link) brought a signup to the
-              Platform, purely in aggregate. Not used to build a cross-site advertising profile.
+              Platform, and count visits and which of our pages are opened, purely in aggregate. Not used to
+              build a cross-site advertising profile.
             </td>
             <td>Browser local storage</td>
             <td>Until you clear site data</td>

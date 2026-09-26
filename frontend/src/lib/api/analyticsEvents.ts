@@ -7,7 +7,8 @@ export type AnalyticsEventType =
   | 'booking_flow_started'
   | 'campaign_landing_view'
   | 'campaign_cta_click'
-  | 'campaign_instagram_click';
+  | 'campaign_instagram_click'
+  | 'page_view';
 
 export function fireAnalyticsEvent(
   eventType: AnalyticsEventType,

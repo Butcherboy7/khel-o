@@ -1,4 +1,5 @@
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
+from collections import Counter
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +10,38 @@ from app.models.platform_fee import PlatformFee
 from app.models.hardware_tier import HardwareTier
 from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign import Campaign
-from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse, AttributionItem, FunnelResponse, CampaignItem, CampaignStatsResponse
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse, AttributionItem, FunnelResponse, CampaignItem, CampaignStatsResponse, TrafficResponse, TrafficTotals, TrafficBucket, TopPageItem
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _bucket_start(d: date, granularity: str) -> date:
+    if granularity == "week":
+        return d - timedelta(days=d.weekday())
+    if granularity == "month":
+        return d.replace(day=1)
+    return d
+
+
+def _shift_bucket(d: date, granularity: str, n: int) -> date:
+    """Move a bucket start n buckets forward (n<0 = back)."""
+    if granularity == "day":
+        return d + timedelta(days=n)
+    if granularity == "week":
+        return d + timedelta(weeks=n)
+    months = d.year * 12 + (d.month - 1) + n
+    return date(months // 12, months % 12 + 1, 1)
+
+
+def _ist_midnight_utc(d: date) -> datetime:
+    return datetime(d.year, d.month, d.day, tzinfo=IST).astimezone(timezone.utc)
+
+
+def _ist_date(ts: datetime) -> date:
+    # SQLite hands back naive datetimes; everything is stored as UTC.
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(IST).date()
 
 
 class AdminAnalyticsService:
@@ -374,4 +406,108 @@ class AdminAnalyticsService:
             venue_views=event_counts.get("venue_viewed", 0),
             bookings_started=event_counts.get("booking_flow_started", 0),
             bookings_confirmed_or_completed=bookings_confirmed,
+        )
+
+    async def get_traffic(self, granularity: str, periods: int, end: date | None = None) -> TrafficResponse:
+        """Visitors / page views / active users / signups / bookings per IST day, week or month.
+
+        The range is the `periods` buckets ending with the one containing `end`
+        (today in IST by default); `previous_totals` covers the same number of
+        buckets immediately before it, for period-over-period comparison.
+        """
+        end = end or datetime.now(IST).date()
+        last = _bucket_start(end, granularity)
+        buckets = [_shift_bucket(last, granularity, i - periods + 1) for i in range(periods)]
+        range_start, range_end = buckets[0], _shift_bucket(last, granularity, 1)
+        prev_start = _shift_bucket(range_start, granularity, -periods)
+        window = (_ist_midnight_utc(prev_start), _ist_midnight_utc(range_end))
+
+        def bucket_of(ts: datetime) -> date | None:
+            d = _ist_date(ts)
+            if d < prev_start or d >= range_end:
+                return None
+            return _bucket_start(d, granularity) if d >= range_start else prev_start
+
+        views = (await self.db.execute(
+            select(AnalyticsEvent.session_id, AnalyticsEvent.created_at, AnalyticsEvent.event_metadata)
+            .where(AnalyticsEvent.event_type == "page_view", AnalyticsEvent.created_at >= window[0], AnalyticsEvent.created_at < window[1])
+        )).all()
+        active = (await self.db.execute(
+            select(AnalyticsEvent.user_id, AnalyticsEvent.created_at)
+            .where(AnalyticsEvent.user_id.is_not(None), AnalyticsEvent.created_at >= window[0], AnalyticsEvent.created_at < window[1])
+        )).all()
+        signups = (await self.db.execute(
+            select(User.created_at).where(User.created_at >= window[0], User.created_at < window[1])
+        )).scalars().all()
+        bookings = (await self.db.execute(
+            select(Booking.created_at).where(
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                Booking.created_at >= window[0], Booking.created_at < window[1],
+            )
+        )).scalars().all()
+
+        # Keyed by bucket start; prev_start (always before buckets[0]) collects the
+        # whole previous period in one key.
+        keys = [prev_start, *buckets]
+        sessions = {k: set() for k in keys}
+        users = {k: set() for k in keys}
+        page_views, signup_n, booking_n = Counter(), Counter(), Counter()
+        paths: Counter[str] = Counter()
+        range_sessions: set[str] = set()
+        range_users: set = set()
+
+        for session_id, ts, meta in views:
+            k = bucket_of(ts)
+            if k is None:
+                continue
+            sessions[k].add(session_id)
+            page_views[k] += 1
+            if k != prev_start:
+                range_sessions.add(session_id)
+                paths[str((meta or {}).get("path") or "/")] += 1
+        for user_id, ts in active:
+            k = bucket_of(ts)
+            if k is None:
+                continue
+            users[k].add(user_id)
+            if k != prev_start:
+                range_users.add(user_id)
+        for ts in signups:
+            if (k := bucket_of(ts)) is not None:
+                signup_n[k] += 1
+        for ts in bookings:
+            if (k := bucket_of(ts)) is not None:
+                booking_n[k] += 1
+
+        series = [
+            TrafficBucket(
+                bucket=b.isoformat(),
+                visitors=len(sessions[b]),
+                page_views=page_views[b],
+                active_users=len(users[b]),
+                signups=signup_n[b],
+                bookings=booking_n[b],
+            )
+            for b in buckets
+        ]
+        return TrafficResponse(
+            granularity=granularity,
+            start=range_start.isoformat(),
+            end=(range_end - timedelta(days=1)).isoformat(),
+            totals=TrafficTotals(
+                visitors=len(range_sessions),
+                page_views=sum(s.page_views for s in series),
+                active_users=len(range_users),
+                signups=sum(s.signups for s in series),
+                bookings=sum(s.bookings for s in series),
+            ),
+            previous_totals=TrafficTotals(
+                visitors=len(sessions[prev_start]),
+                page_views=page_views[prev_start],
+                active_users=len(users[prev_start]),
+                signups=signup_n[prev_start],
+                bookings=booking_n[prev_start],
+            ),
+            series=series,
+            top_pages=[TopPageItem(path=p, views=n) for p, n in paths.most_common(10)],
         )

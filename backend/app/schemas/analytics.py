@@ -17,6 +17,7 @@ class AnalyticsEventType(str, Enum):
     CAMPAIGN_LANDING_VIEW = "campaign_landing_view"
     CAMPAIGN_CTA_CLICK = "campaign_cta_click"
     CAMPAIGN_INSTAGRAM_CLICK = "campaign_instagram_click"
+    PAGE_VIEW = "page_view"
 
 
 MAX_METADATA_BYTES = 2048
