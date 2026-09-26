@@ -9,6 +9,10 @@ pages:
   * 1 matching café    -> rendered for users, `noindex` (too thin to rank on)
   * all cafés in city  -> rendered, `noindex`, canonical to the city page
                           (it would be a duplicate of it)
+  * same cafés as another  -> `noindex`, canonical to the one kept: per
+    page in the city           identical café set only the most specific
+                               page survives (activity > game > gpu >
+                               price; lowest price cap first)
   * otherwise (>= 2, a real subset) -> indexable, in the sitemap, linked
 
 Only indexable pages are linked from other pages or listed in sitemaps, so
@@ -187,6 +191,25 @@ class SeoService:
                 members[s].append(c)
         return [(facets[s], members[s]) for s in facets]
 
+    @staticmethod
+    def _specificity(facet: Facet) -> tuple:
+        cap = int(facet.slug.split("-")[1]) if facet.type == "price" else 0
+        return (["activity", "game", "gpu", "price"].index(facet.type), cap, facet.slug)
+
+    def _indexable(self, city_cafes: list[CafeFacts]) -> dict[str, str]:
+        """slug -> canonical slug for every facet page in the city that passes
+        eligibility. A page whose café set duplicates a more specific page's
+        maps to that page instead of itself."""
+        kept_by_set: dict[frozenset, str] = {}
+        result: dict[str, str] = {}
+        eligible = [
+            (f, m) for f, m in self._facet_pages(city_cafes) if self._eligibility(len(m), len(city_cafes))
+        ]
+        for facet, matched in sorted(eligible, key=lambda fm: self._specificity(fm[0])):
+            key = frozenset(c.id for c in matched)
+            result[facet.slug] = kept_by_set.setdefault(key, facet.slug)
+        return result
+
     async def list_indexable_pages(self) -> list[dict]:
         facts = await self._load()
         by_city: dict[str, list[CafeFacts]] = defaultdict(list)
@@ -197,8 +220,9 @@ class SeoService:
             city = self._city_label(cafes)
             pages.append({"path": f"/cafes/{city_slug}", "title": f"Gaming Cafés in {city}", "type": "city",
                           "city": city, "cafe_count": len(cafes)})
+            canon = self._indexable(cafes)
             for facet, matched in self._facet_pages(cafes):
-                if self._eligibility(len(matched), len(cafes)):
+                if canon.get(facet.slug) == facet.slug:
                     pages.append({"path": f"/cafes/{city_slug}/{facet.slug}", "title": f"{facet.heading} in {city}",
                                   "type": facet.type, "city": city, "cafe_count": len(matched)})
         return pages
@@ -212,10 +236,11 @@ class SeoService:
         city_path = f"/cafes/{city_slug}"
 
         facet_pages = self._facet_pages(city_cafes)
+        canon = self._indexable(city_cafes)
         related = [
             {"path": f"{city_path}/{facet.slug}", "label": facet.label, "type": facet.type, "count": len(m)}
             for facet, m in facet_pages
-            if self._eligibility(len(m), len(city_cafes)) and facet.slug != facet_slug
+            if canon.get(facet.slug) == facet.slug and facet.slug != facet_slug
         ]
         related.sort(key=lambda r: (["activity", "game", "gpu", "price"].index(r["type"]), -r["count"], r["label"]))
 
@@ -226,9 +251,14 @@ class SeoService:
             if hit is None:
                 return None
             facet, matched = hit
-            index = self._eligibility(len(matched), len(city_cafes))
-            duplicate = len(matched) == len(city_cafes)
-            canonical = city_path if duplicate else f"{city_path}/{facet_slug}"
+            target = canon.get(facet_slug)
+            index = target == facet_slug
+            if len(matched) == len(city_cafes):
+                canonical = city_path  # same as the city page
+            elif target:
+                canonical = f"{city_path}/{target}"  # itself, or the page it duplicates
+            else:
+                canonical = f"{city_path}/{facet_slug}"  # thin: noindex, self-canonical
 
         prices = [c.min_price for c in matched if c.min_price is not None]
         games = Counter(g for c in matched for g in c.games)
@@ -257,11 +287,11 @@ class SeoService:
             return None
         city_cafes = [f for f in facts if f.city_slug == me.city_slug]
         city_path = f"/cafes/{me.city_slug}"
-        members = {facet.slug: m for facet, m in self._facet_pages(city_cafes)}
+        canon = self._indexable(city_cafes)
         facets = [
             {"path": f"{city_path}/{s}", "label": facet.label, "type": facet.type}
             for s, facet in me.facets.items()
-            if self._eligibility(len(members.get(s, [])), len(city_cafes))
+            if canon.get(s) == s
         ]
         nearby = []
         if me.coords:

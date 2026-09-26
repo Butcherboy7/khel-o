@@ -58,8 +58,11 @@ async def test_eligibility_index_noindex_and_duplicate(async_client, db_session)
     await _cafe(db_session, city, "A", gpu="RTX 4090", platform="pc", games=["Valorant"], price=80)
     await _cafe(db_session, city, "B", gpu="NVIDIA RTX 4090", platform="pc", games=["Valorant", "CS2"], price=120)
     await _cafe(db_session, city, "C", platform="playstation", price=200)
+    # A PC without a listed GPU: makes rtx-4090 {A,B} a distinct subset of
+    # pc-gaming/valorant {A,B,D}, which in turn is not the whole city.
+    await _cafe(db_session, city, "D", platform="pc", games=["Valorant"], price=180)
 
-    # 2 of 3 cafés → a real, distinct subset → indexable
+    # 2 of 4 cafés → a real, distinct subset → indexable
     page = (await async_client.get("/api/v1/seo/page", params={"city": slug, "facet": "rtx-4090"})).json()["data"]
     assert page["index"] is True
     assert page["facet"]["type"] == "gpu"
@@ -83,7 +86,8 @@ async def test_eligibility_index_noindex_and_duplicate(async_client, db_session)
     city_page = (await async_client.get("/api/v1/seo/page", params={"city": slug})).json()["data"]
     related = {r["path"] for r in city_page["related"]}
     assert f"/cafes/{slug}/rtx-4090" in related
-    assert f"/cafes/{slug}/valorant" in related
+    assert f"/cafes/{slug}/pc-gaming" in related
+    assert f"/cafes/{slug}/valorant" not in related  # same cafés as pc-gaming
     assert f"/cafes/{slug}/cs2" not in related
 
     # Sitemap index: only indexable pages, city page included
@@ -103,3 +107,21 @@ async def test_cafe_links_facets_and_nearby(async_client, db_session):
     assert data["city"]["path"] == f"/cafes/{city.lower()}"
     assert any(n["name"] == "B" for n in data["nearby"])
     assert all(n["id"] != str(a.id) for n in data["nearby"])
+
+
+@pytest.mark.asyncio
+async def test_identical_cafe_sets_keep_only_most_specific(async_client, db_session):
+    city = f"Dupeton{uuid4().hex[:6]}"
+    slug = city.lower()
+    await _cafe(db_session, city, "A", platform="pc", price=90)
+    await _cafe(db_session, city, "B", platform="pc", price=95)
+    await _cafe(db_session, city, "C", platform="playstation", price=400)
+
+    # pc-gaming, under-100 ... under-300 all match exactly {A, B}
+    pages = {p["path"] for p in (await async_client.get("/api/v1/seo/pages")).json()["data"]}
+    assert f"/cafes/{slug}/pc-gaming" in pages
+    assert not any(p.startswith(f"/cafes/{slug}/under-") for p in pages)
+
+    dup = (await async_client.get("/api/v1/seo/page", params={"city": slug, "facet": "under-200"})).json()["data"]
+    assert dup["index"] is False
+    assert dup["canonical"] == f"/cafes/{slug}/pc-gaming"
