@@ -10,7 +10,7 @@ from app.models.platform_fee import PlatformFee
 from app.models.hardware_tier import HardwareTier
 from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign import Campaign
-from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse, AttributionItem, FunnelResponse, CampaignItem, CampaignStatsResponse, TrafficResponse, TrafficTotals, TrafficBucket, TopPageItem
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse, AttributionItem, FunnelResponse, CampaignItem, CampaignStatsResponse, TrafficResponse, TrafficTotals, TrafficBucket, TopPageItem, ShareReportResponse, ShareTotals, ShareChannelItem, ShareCafeItem
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -510,4 +510,90 @@ class AdminAnalyticsService:
             ),
             series=series,
             top_pages=[TopPageItem(path=p, views=n) for p, n in paths.most_common(10)],
+        )
+
+    async def get_share_report(self, start: date, end: date) -> ShareReportResponse:
+        """Shares made (share_created), links opened (share_opened, matched to the
+        share by its `sid`), and signups/bookings from people whose first touch
+        was a shared link (acquisition_source='share'; campaign = café slug)."""
+        window = (_ist_midnight_utc(start), _ist_midnight_utc(start + timedelta(days=(end - start).days + 1)))
+        in_window = lambda col: (col >= window[0], col < window[1])  # noqa: E731
+
+        events = (await self.db.execute(
+            select(AnalyticsEvent.event_type, AnalyticsEvent.cafe_id, AnalyticsEvent.event_metadata)
+            .where(AnalyticsEvent.event_type.in_(["share_created", "share_opened"]), *in_window(AnalyticsEvent.created_at))
+        )).all()
+
+        channel = lambda meta: str((meta or {}).get("channel") or "other")  # noqa: E731
+        sid_cafe: dict[str, object] = {}
+        channels: dict[str, Counter] = {}
+        cafes: dict[object, Counter] = {}
+
+        for kind, cafe_id, meta in events:
+            if kind == "share_created":
+                channels.setdefault(channel(meta), Counter())["shares"] += 1
+                if cafe_id:
+                    sid_cafe[str((meta or {}).get("sid"))] = cafe_id
+                    cafes.setdefault(cafe_id, Counter())["shares"] += 1
+        for kind, _, meta in events:
+            if kind == "share_opened":
+                channels.setdefault(channel(meta), Counter())["opens"] += 1
+                cafe_id = sid_cafe.get(str((meta or {}).get("sid")))
+                if cafe_id:
+                    cafes.setdefault(cafe_id, Counter())["opens"] += 1
+
+        # Campaign is the café slug (café page shares) or its id (booking-pass
+        # shares, which only know the id) — map both back to the café.
+        slug_to_cafe = {}
+        for cid, slug in (await self.db.execute(select(Cafe.id, Cafe.slug))).all():
+            slug_to_cafe[str(cid)] = cid
+            if slug:
+                slug_to_cafe[slug] = cid
+        signups = (await self.db.execute(
+            select(User.id, User.acquisition_medium, User.acquisition_campaign)
+            .where(User.acquisition_source == "share", *in_window(User.created_at))
+        )).all()
+        user_bookings = dict((await self.db.execute(
+            select(Booking.gamer_id, func.count(Booking.id))
+            .where(
+                Booking.gamer_id.in_([u.id for u in signups] or [None]),
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                *in_window(Booking.created_at),
+            )
+            .group_by(Booking.gamer_id)
+        )).all())
+
+        for user_id, medium, campaign in signups:
+            n = user_bookings.get(user_id, 0)
+            ch = channels.setdefault(str(medium or "other"), Counter())
+            ch["signups"] += 1
+            ch["bookings"] += n
+            cafe_id = slug_to_cafe.get(campaign)
+            if cafe_id:
+                cafes.setdefault(cafe_id, Counter())["signups"] += 1
+                cafes[cafe_id]["bookings"] += n
+
+        names = dict((await self.db.execute(
+            select(Cafe.id, Cafe.name).where(Cafe.id.in_(list(cafes) or [None]))
+        )).all())
+        pick = lambda c: {k: c[k] for k in ("shares", "opens", "signups", "bookings")}  # noqa: E731
+        by_channel = sorted(
+            (ShareChannelItem(channel=k, **pick(c)) for k, c in channels.items()),
+            key=lambda i: (-i.shares, -i.opens),
+        )
+        by_cafe = sorted(
+            (ShareCafeItem(cafe_id=str(k), cafe_name=names.get(k, "Unknown café"), **pick(c)) for k, c in cafes.items()),
+            key=lambda i: (-i.shares, -i.opens),
+        )
+        return ShareReportResponse(
+            start=start.isoformat(),
+            end=end.isoformat(),
+            totals=ShareTotals(
+                shares=sum(i.shares for i in by_channel),
+                opens=sum(i.opens for i in by_channel),
+                signups=len(signups),
+                bookings=sum(user_bookings.values()),
+            ),
+            by_channel=by_channel,
+            by_cafe=by_cafe,
         )

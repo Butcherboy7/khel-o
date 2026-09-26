@@ -8,7 +8,9 @@ export type AnalyticsEventType =
   | 'campaign_landing_view'
   | 'campaign_cta_click'
   | 'campaign_instagram_click'
-  | 'page_view';
+  | 'page_view'
+  | 'share_created'
+  | 'share_opened';
 
 export function fireAnalyticsEvent(
   eventType: AnalyticsEventType,

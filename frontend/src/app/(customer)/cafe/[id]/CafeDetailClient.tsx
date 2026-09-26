@@ -21,7 +21,8 @@ import {
   Tag,
   X,
 } from 'lucide-react';
-import { getCafe } from '@/lib/api/cafes';
+import { getCafe, cafePath } from '@/lib/api/cafes';
+import { getPlatformFeePercentage } from '@/lib/api/bookings';
 import { listCafeReviews, createReview, getReviewSettings } from '@/lib/api/reviews';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
@@ -44,6 +45,7 @@ const GoogleLocationDisplay = dynamic(
   }
 );
 import { ShareModal } from '@/components/customer/ShareModal';
+import { createShare } from '@/lib/share';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
 
@@ -67,6 +69,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   // The URL segment may be a slug; every API call below (reviews, waitlist,
   // analytics) needs the real id, which the server-fetched café carries.
   const cafeId = initialCafe?.id ?? (params.id as string);
+  const { data: platformFeeData } = useQuery({
+    queryKey: ['platform-fee-percentage'],
+    queryFn: getPlatformFeePercentage,
+    staleTime: 60_000,
+  });
+  const feePercent = platformFeeData?.platformFeePercentage ?? 4;
 
   useEffect(() => {
     fireAnalyticsEvent('venue_viewed', { cafeId });
@@ -150,7 +158,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
 
   const handleShareWaitlist = async () => {
     const shareText = `${data?.name ?? 'This café'} isn't bookable on KHEL-O yet — help us get it listed by requesting it too!`;
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+    const shareUrl = createShare(
+      { path: cafePath(data ?? { id: cafeId }), context: 'waitlist', cafeId, campaign: data?.slug ?? cafeId },
+      'native'
+    );
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({ title: 'Request this café on KHEL-O', text: shareText, url: shareUrl });
@@ -989,6 +1000,11 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             <div className="font-data text-price-lg font-bold text-text-primary">
               <span className="rupee-symbol">₹</span>{activeTier?.pricePerHour ?? minPrice}<span className="text-caption font-normal text-text-secondary">/hr</span>
             </div>
+            {/* The fee is shown before checkout so the final total never
+                surprises anyone — surprise fees are the top checkout drop-off. */}
+            <span className="text-caption text-text-secondary">
+              + {feePercent}% platform fee at checkout
+            </span>
           </div>
 
           {/* A <button> nested inside this Link (the previous markup) is
@@ -1009,7 +1025,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       <ShareModal
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
-        title={cafe.name}
+        heading="Share this café"
+        message={`Check out ${cafe.name} on KHEL-O. Book a seat online:`}
+        path={cafePath(cafe)}
+        context="cafe"
+        cafeId={cafe.id}
+        campaign={cafe.slug ?? cafe.id}
       />
 
       <LoginRequiredDialog

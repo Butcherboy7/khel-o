@@ -21,6 +21,7 @@ import {
   X,
   Activity,
   TrendingUp,
+  Share2,
   Monitor,
   MapPin,
   Megaphone,
@@ -78,6 +79,7 @@ const adminNavGroups: NavGroup[] = [
     label: 'Analytics',
     items: [
       { label: 'Traffic', href: '/admin/analytics/traffic', icon: TrendingUp },
+      { label: 'Shares', href: '/admin/analytics/shares', icon: Share2 },
       { label: 'Geography', href: '/admin/analytics/geography', icon: MapPin },
       { label: 'Revenue', href: '/admin/analytics/revenue', icon: IndianRupee },
       { label: 'Attribution', href: '/admin/analytics/attribution', icon: Megaphone },

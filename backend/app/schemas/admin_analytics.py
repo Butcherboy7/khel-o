@@ -186,3 +186,37 @@ class TrafficResponse(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+
+class ShareTotals(BaseModel):
+    shares: int
+    opens: int
+    signups: int
+    bookings: int
+
+
+class ShareChannelItem(ShareTotals):
+    channel: str
+
+
+class ShareCafeItem(ShareTotals):
+    cafe_id: str
+    cafe_name: str
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+
+class ShareReportResponse(BaseModel):
+    start: str
+    end: str
+    totals: ShareTotals
+    by_channel: List[ShareChannelItem]
+    by_cafe: List[ShareCafeItem]
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )

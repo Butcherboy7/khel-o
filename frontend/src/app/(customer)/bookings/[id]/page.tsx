@@ -1,5 +1,7 @@
 'use client';
 
+import { ShareModal } from '@/components/customer/ShareModal';
+
 import { Hint } from '@/components/customer/Hint';
 
 import { useState } from 'react';
@@ -57,7 +59,9 @@ export default function BookingDetailPage() {
 
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
-  const [copiedLink, setCopiedLink] = useState(false);
+  // Shares the café page, not this booking — the booking link is private
+  // to its owner and useless to a friend.
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [isRetryingPayment, setIsRetryingPayment] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
 
@@ -136,24 +140,6 @@ export default function BookingDetailPage() {
     }
   };
 
-  const handleShare = async () => {
-    const shareData = {
-      title: 'KHEL-O Booking Confirmation',
-      text: `Check out my booking at ${data?.cafeName || 'Gaming Café'} on KHEL-O!`,
-      url: window.location.href,
-    };
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch {
-        // Share dismissed
-      }
-    } else {
-      navigator.clipboard.writeText(window.location.href).catch(() => {});
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
-    }
-  };
 
   const handleAddToCalendar = () => {
     if (!data) return;
@@ -454,11 +440,11 @@ export default function BookingDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleShare}
+              onClick={() => setIsShareOpen(true)}
               className="gap-2 text-caption font-semibold"
             >
               <Share2 className="h-4 w-4 text-accent" />
-              <span>{copiedLink ? 'Link Copied!' : 'Share Booking'}</span>
+              <span>Invite friends</span>
             </Button>
           </div>
 
@@ -466,6 +452,19 @@ export default function BookingDetailPage() {
             <ShieldCheck className="h-4 w-4 text-primary flex-shrink-0" />
             <span>Show this QR code at the café desk for instant check-in.</span>
           </div>
+
+          {data.cafeId && (
+            <ShareModal
+              isOpen={isShareOpen}
+              onClose={() => setIsShareOpen(false)}
+              heading="Invite friends"
+              message={`I'm playing at ${data.cafeName || 'a gaming café'} on KHEL-O. Join me, book a seat here:`}
+              path={`/cafe/${data.cafeId}`}
+              context="booking"
+              cafeId={data.cafeId}
+              campaign={data.cafeId}
+            />
+          )}
 
           {/* Navigation & Cancel Actions */}
           <div className="flex flex-col gap-2 w-full pt-2">
