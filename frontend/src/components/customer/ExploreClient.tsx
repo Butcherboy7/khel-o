@@ -539,10 +539,19 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
       <div className="flex items-center justify-between gap-2 -mb-1">
         <p className="text-caption font-semibold text-text-secondary truncate" aria-live="polite">
           {isLoading ? 'Finding places…' : `${resultCount} ${placeWord} in ${cityLabel}`}
-          {hasActiveFilters && !isLoading && (
+          {/* The city is where you are, not a filter to "clear". */}
+          {(activity !== null || advancedFilterCount > 0 || Boolean(searchQuery)) && !isLoading && (
             <>
               {' · '}
-              <button type="button" onClick={handleResetFilters} className="font-bold text-primary hover:underline">
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setActivity(null);
+                  handleClearAdvancedFilters();
+                }}
+                className="font-bold text-primary hover:underline"
+              >
                 Clear
               </button>
             </>
