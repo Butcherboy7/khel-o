@@ -35,7 +35,7 @@ import { ChangesRequestedView } from '@/components/owner/ChangesRequestedView';
 import { RejectedView } from '@/components/owner/RejectedView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
 import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
-import { InfoTip } from '@/components/owner/InfoTip';
+import { InfoTip } from '@/components/shared/InfoTip';
 import { PageTip } from '@/components/owner/PageTip';
 import { INFO_TIPS, PAGE_GUIDES } from '@/lib/ownerGuideCopy';
 import { getPublicEnv } from '@/lib/runtimeEnv';

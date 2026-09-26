@@ -1,5 +1,7 @@
 'use client';
 
+import { Hint } from '@/components/customer/Hint';
+
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -350,6 +352,7 @@ export default function BookingDetailPage() {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-surface border border-border shadow-card w-full">
+              <Hint id="pass" emphasis className="w-full" />
               <div className="bg-white p-3 rounded-xl shadow-card">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

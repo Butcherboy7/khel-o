@@ -7,7 +7,7 @@ import { Card, CardContent, Button, Skeleton } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
 import { getOwnerSettings, toggleEmergencyMode, toggleBookingsPaused, type OwnerSettings } from '@/lib/api/settings';
 import { SettingsHeader } from '@/components/owner/SettingsHeader';
-import { InfoTip } from '@/components/owner/InfoTip';
+import { InfoTip } from '@/components/shared/InfoTip';
 import { PageTip } from '@/components/owner/PageTip';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { EmergencyModeCard } from '@/components/owner/EmergencyModeCard';

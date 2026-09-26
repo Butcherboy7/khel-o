@@ -27,7 +27,7 @@ import {
   EmptyState,
 } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
-import { InfoTip } from '@/components/owner/InfoTip';
+import { InfoTip } from '@/components/shared/InfoTip';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { formatSessionDate, formatTime, getOwnerPayoutAmount } from '@/lib/format';
 

@@ -12,6 +12,8 @@ interface InfoTipProps {
   align?: 'start' | 'end';
   /** What the icon explains, for screen readers (“About bookings”). */
   label?: string;
+  /** Customer-facing: never pulses and never touches the owner guide API. */
+  quiet?: boolean;
   className?: string;
 }
 
@@ -20,10 +22,10 @@ interface InfoTipProps {
  * on a phone. Pulses during the owner's first few sessions so they discover
  * help exists; a tapped icon stops pulsing since it's been found.
  */
-export function InfoTip({ text, align = 'start', label = 'What is this?', className }: InfoTipProps) {
+export function InfoTip({ text, align = 'start', label = 'What is this?', quiet = false, className }: InfoTipProps) {
   const [open, setOpen] = useState(false);
   const [found, setFound] = useState(false);
-  const pulse = useGuidePulse() && !found;
+  const pulse = useGuidePulse(!quiet) && !found;
   const wrapRef = useRef<HTMLSpanElement>(null);
   const popId = useId();
 
@@ -50,7 +52,10 @@ export function InfoTip({ text, align = 'start', label = 'What is this?', classN
         aria-label={label}
         aria-expanded={open}
         aria-describedby={open ? popId : undefined}
-        onClick={() => {
+        onClick={(e) => {
+          // Often sits inside a card that is itself a link — explain, don't navigate.
+          e.preventDefault();
+          e.stopPropagation();
           setOpen((o) => !o);
           setFound(true);
         }}

@@ -8,10 +8,11 @@ import { PULSE_SESSIONS, TIP_VISITS, type GuidePage } from '@/lib/ownerGuideCopy
 const GUIDE_KEY = ['owner', 'guide'] as const;
 const SESSION_FLAG = 'khelo-owner-guide-session';
 
-function useGuideState() {
+function useGuideState(enabled = true) {
   return useQuery({
     queryKey: GUIDE_KEY,
     queryFn: getGuideState,
+    enabled,
     staleTime: Infinity,
     retry: false,
   });
@@ -44,8 +45,9 @@ export function useGuideSession() {
 }
 
 /** Whether ⓘ icons should pulse (the owner's first few sessions). */
-export function useGuidePulse(): boolean {
-  const { data } = useGuideState();
+export function useGuidePulse(enabled = true): boolean {
+  const { data } = useGuideState(enabled);
+  if (!enabled) return false;
   return !!data && data.sessions <= PULSE_SESSIONS;
 }
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { Hint } from '@/components/customer/Hint';
+
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -465,6 +467,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             <span className="text-caption text-text-secondary">Tap to select</span>
           )}
         </div>
+        <Hint id="cafe" />
 
         <>
             <div className="flex flex-col gap-2.5">
