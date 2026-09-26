@@ -18,6 +18,16 @@ export async function listActivities(city?: string): Promise<ActivityFacet[]> {
   return call(() => apiClient.get('/api/v1/cafes/activities', { params: { city } }));
 }
 
+export interface CafeLive {
+  openNow: boolean;
+  tiers: { tierId: string; bookable: number; freeNow: number }[];
+}
+
+/** Stations free to book right now, per tier (KHEL-O bookings only). */
+export async function getCafeLive(cafeId: string): Promise<CafeLive> {
+  return call(() => apiClient.get(`/api/v1/cafes/${cafeId}/live`));
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const isCafeUuid = (value: string) => UUID_RE.test(value);

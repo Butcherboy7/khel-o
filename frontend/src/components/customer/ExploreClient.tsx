@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Navigation, SlidersHorizontal, ChevronDown, LayoutGrid } from 'lucide-react';
+import { MapPin, Navigation, SlidersHorizontal, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { listCafes, listActivities } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
@@ -25,19 +25,14 @@ import {
   cafeHasAmenityBucket,
   PRICE_MIN,
   PRICE_MAX,
+  SORT_LABELS,
   type OpenStatusFilter,
   type DistanceFilter,
+  type SortOption,
 } from '@/components/customer/CafeFilterSheet';
 import { SkeletonCafeGrid, ErrorState, EmptyState } from '@/components/ui';
 import type { CafeListItem, PaginatedResponse } from '@/types';
 
-type SortOption = 'recommended' | 'rating' | 'price' | 'distance';
-const SORT_LABELS: Record<SortOption, string> = {
-  recommended: 'Recommended',
-  rating: 'Top rated',
-  price: 'Price: Low to high',
-  distance: 'Nearest',
-};
 
 const KNOWN_CITIES = ['All Cities', ...SUPPORTED_CITIES];
 
@@ -352,7 +347,7 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
 
   const advancedFilterCount =
     (distance !== 'any' ? 1 : 0) +
-    (openStatus === 'opening_soon' ? 1 : 0) +
+    (openStatus === 'open_now' ? 1 : 0) +
     (minPrice !== undefined || maxPrice !== undefined ? 1 : 0) +
     selectedAmenities.length;
 
@@ -411,83 +406,37 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
     </div>
   );
 
-  const filterChipsRow = (
-    <div className="relative">
-      {/* Edge-fades on the trailing side hint that the row scrolls
-          horizontally, since chips otherwise clip mid-word at the viewport
-          edge with no visual cue. */}
-      <div
-        className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1"
-        style={{ maskImage: 'linear-gradient(to right, black 92%, transparent)', WebkitMaskImage: 'linear-gradient(to right, black 92%, transparent)' }}
-      >
-        {facets.openNow && (
-        <button
-          onClick={() => setOpenStatus((v) => (v === 'open_now' ? 'any' : 'open_now'))}
-          className={`rounded-full px-4 min-h-[36px] text-caption font-semibold flex-shrink-0 transition-all ${
-            openStatus === 'open_now'
-              ? 'bg-secondary text-white shadow-card font-bold'
-              : 'bg-card text-text-secondary border border-border hover:bg-surface'
-          }`}
-        >
-          Open now
-        </button>
-        )}
-
-        {/* Everything most people never touch (distance, opening-soon,
-            price range, amenities) lives behind this one sheet instead of
-            adding permanent chips for filters most searches don't need. */}
-        <button
-          onClick={() => setIsFilterSheetOpen(true)}
-          className={`flex items-center gap-1.5 rounded-full px-4 min-h-[36px] text-caption font-semibold flex-shrink-0 transition-all ${
-            advancedFilterCount > 0
-              ? 'bg-secondary text-white shadow-card font-bold'
-              : 'bg-card text-text-secondary border border-border hover:bg-surface'
-          }`}
-          aria-haspopup="dialog"
-          aria-expanded={isFilterSheetOpen}
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          <span>Filters{advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ''}</span>
-        </button>
-
-        {hasActiveFilters && (
-          <button
-            onClick={handleResetFilters}
-            className="rounded-full px-3.5 min-h-[36px] text-caption font-bold flex-shrink-0 transition-all text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20"
-          >
-            Clear ✕
-          </button>
-        )}
-      </div>
-
-      <CafeFilterSheet
-        isOpen={isFilterSheetOpen}
-        onClose={() => setIsFilterSheetOpen(false)}
-        hasLocation={hasLocation}
-        onRequestLocation={handleDetectLocation}
-        distance={distance}
-        onDistanceChange={setDistance}
-        openStatus={openStatus}
-        onOpenStatusChange={setOpenStatus}
-        priceRange={priceRange}
-        onPriceRangeChange={setPriceRange}
-        selectedAmenities={selectedAmenities}
-        onAmenitiesChange={setSelectedAmenities}
-        resultCount={sortedCafes.length}
-        hasAdvancedFilters={advancedFilterCount > 0}
-        showPrice={facets.price}
-        onClearAll={handleClearAdvancedFilters}
-      />
-    </div>
+  const filterSheet = (
+    <CafeFilterSheet
+      isOpen={isFilterSheetOpen}
+      onClose={() => setIsFilterSheetOpen(false)}
+      hasLocation={hasLocation}
+      onRequestLocation={handleDetectLocation}
+      distance={distance}
+      onDistanceChange={setDistance}
+      openNow={openStatus === 'open_now'}
+      onOpenNowChange={(on) => setOpenStatus(on ? 'open_now' : 'any')}
+      showOpenNow={facets.openNow}
+      sortBy={sortBy}
+      onSortChange={setSortBy}
+      priceRange={priceRange}
+      onPriceRangeChange={setPriceRange}
+      selectedAmenities={selectedAmenities}
+      onAmenitiesChange={setSelectedAmenities}
+      resultCount={sortedCafes.length}
+      hasAdvancedFilters={advancedFilterCount > 0}
+      showPrice={facets.price}
+      onClearAll={handleClearAdvancedFilters}
+    />
   );
 
-  // "What are you playing today?" — the primary filter. Gaming activities
-  // lead (the backend orders them first); snooker, bowling etc. follow as
-  // more ways to play. Hidden when the city offers just one thing.
+  // "What are you playing today?" — the primary filter, built from what the
+  // city actually offers (GET /cafes/activities; gaming comes back first).
+  // It scrolls sideways and runs to the screen edge, so a chip cut off at
+  // the edge reads as "swipe for more"; the fade makes that explicit.
   const activityRow = activities.length > 1 && (
-    <nav aria-label="What are you playing today?" className="flex flex-col gap-1.5">
-      <span className="text-caption font-semibold text-text-secondary">What are you playing today?</span>
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 pb-0.5">
+    <div className="relative -mx-4 md:mx-0">
+      <nav aria-label="Activity" className="flex gap-2 overflow-x-auto scrollbar-hide px-4 pr-10 md:px-0">
         {[{ key: null, label: 'All' } as { key: string | null; label: string }, ...activities].map(({ key, label }) => {
           const isSelected = activity === key;
           return (
@@ -496,50 +445,69 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
               type="button"
               onClick={() => setActivity(key)}
               aria-pressed={isSelected}
-              className={`flex flex-shrink-0 items-center gap-2 rounded-xl border px-3.5 min-h-[44px] text-caption font-semibold transition-colors ${
+              className={`flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 min-h-[40px] text-caption font-semibold transition-colors ${
                 isSelected
-                  ? 'border-secondary bg-secondary text-white'
+                  ? 'border-secondary bg-secondary text-white font-bold'
                   : 'border-border bg-card text-text-primary hover:bg-surface'
               }`}
             >
-              {key ? <ActivityIcon activity={key} className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-              <span className="whitespace-nowrap">{label}</span>
+              {key && <ActivityIcon activity={key} className="h-4 w-4" />}
+              {label}
             </button>
           );
         })}
-      </div>
-    </nav>
+      </nav>
+      <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface to-transparent" />
+    </div>
   );
 
-  // The current search location must always be visible, not just implied by
-  // an unlabeled pill — so this spells out whether it's the "no location
-  // picked yet" state, a GPS fix, or a manually-chosen city.
   const locationLabel =
     selectedCity === 'All Cities'
-      ? 'Choose location'
+      ? 'All cities'
       : isPreciseLocation
         ? `Near you · ${selectedCity}`
-        : `Near · ${selectedCity}`;
+        : selectedCity;
+
+  const resultCount = sortedCafes.length;
+  const placeWord = resultCount === 1 ? 'place' : 'places';
+  const cityLabel = selectedCity === 'All Cities' ? 'all cities' : selectedCity;
 
   return (
-    <div className="flex flex-col gap-4 max-w-wide mx-auto">
-      {/* Discovery header — one compact block covering brand tagline,
-          search, platform filters, and location/sort, whether or not the
-          visitor is signed in. This page is public (see
-          (customer)/layout.tsx isPublicPath), so a signed-out visitor or
-          crawler lands here directly; the product action (search a café,
-          pick a platform, find one) is the page itself, not something
-          buried below a marketing hero. */}
-      <div className="flex flex-col gap-2.5">
-        <div>
-          <h1 className="font-heading text-h2 md:text-h1 font-bold text-text-primary tracking-tight">
-            {firstName ? `Hey ${firstName}` : 'Find the best gaming cafés'}
-          </h1>
-          <p className="text-caption text-text-secondary">
-            {firstName ? 'Find gaming stations near you' : 'Book your rig. Play more.'}
-          </p>
-        </div>
+    <div className="flex flex-col gap-3.5 max-w-wide mx-auto">
+      {/* The first thing the eye lands on says what KHEL-O is (book gaming
+          cafés) and how it works (live slots, pay, walk in). Signed-in users
+          get their name as a small line above, never instead of it. This
+          page is public, so a first-time visitor or crawler lands here. */}
+      <div className="flex flex-col gap-1">
+        {firstName && <span className="text-caption font-semibold text-text-secondary">Hey {firstName}</span>}
+        <h1 className="font-heading text-h2 md:text-h1 font-bold text-text-primary tracking-tight text-balance">
+          Book gaming cafés near you
+        </h1>
+        <p className="text-body text-text-secondary">See free stations live, pay online, walk in and play.</p>
+      </div>
 
+      {/* One bar: where (city), what (search), and how (filters). */}
+      <div className="relative flex h-[52px] items-center gap-2.5 rounded-full border border-border bg-card pl-3.5 pr-1.5 shadow-card focus-within:border-primary">
+        <div className="relative flex-shrink-0" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setShowCityDropdown(!showCityDropdown)}
+            className="flex items-center gap-1 text-caption font-bold text-text-primary min-h-[40px] max-w-[132px]"
+            aria-haspopup="listbox"
+            aria-expanded={showCityDropdown}
+            aria-label={`Location: ${locationLabel}`}
+          >
+            {isPreciseLocation ? (
+              <Navigation className="h-4 w-4 flex-shrink-0 text-primary" />
+            ) : (
+              <MapPin className="h-4 w-4 flex-shrink-0 text-primary" />
+            )}
+            <span className="truncate">{selectedCity === 'All Cities' ? 'All cities' : selectedCity}</span>
+            <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-text-secondary" />
+          </button>
+          {cityDropdownPanel}
+        </div>
+        <span aria-hidden="true" className="h-6 w-px flex-shrink-0 bg-border" />
         <SearchBarWithSuggestions
           value={searchQuery}
           onChange={setSearchQuery}
@@ -548,38 +516,52 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
           cities={SUPPORTED_CITIES}
           activities={activities}
         />
+        <button
+          type="button"
+          onClick={() => setIsFilterSheetOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={isFilterSheetOpen}
+          aria-label={advancedFilterCount > 0 ? `Filters, ${advancedFilterCount} on` : 'Filters'}
+          className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-white transition-transform active:scale-95"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          {advancedFilterCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-card bg-primary px-1 text-[10px] font-bold">
+              {advancedFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
 
-        {activityRow}
+      {activityRow}
+      {filterSheet}
 
-        {filterChipsRow}
-
-        <div className="flex items-center justify-between gap-2">
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setShowCityDropdown(!showCityDropdown)}
-              className="flex items-center gap-1 text-caption font-semibold text-text-secondary hover:text-primary transition-colors min-h-[32px]"
-              aria-haspopup="listbox"
-              aria-expanded={showCityDropdown}
-            >
-              <MapPin className="h-3.5 w-3.5 text-primary" />
-              <span>{locationLabel}</span>
-              <ChevronDown className="h-3 w-3" />
-            </button>
-            {cityDropdownPanel}
-          </div>
-
-          <div className="relative" ref={sortRef}>
-            <button
-              onClick={() => setShowSortDropdown(!showSortDropdown)}
-              className="flex items-center gap-1 text-caption font-semibold text-text-secondary hover:text-primary transition-colors min-h-[32px]"
-              aria-haspopup="listbox"
-              aria-expanded={showSortDropdown}
-            >
-              <span>Sort: {SORT_LABELS[sortBy]}</span>
-              <ChevronDown className="h-3 w-3" />
-            </button>
-            {sortDropdownPanel}
-          </div>
+      <div className="flex items-center justify-between gap-2 -mb-1">
+        <p className="text-caption font-semibold text-text-secondary truncate" aria-live="polite">
+          {isLoading ? 'Finding places…' : `${resultCount} ${placeWord} in ${cityLabel}`}
+          {hasActiveFilters && !isLoading && (
+            <>
+              {' · '}
+              <button type="button" onClick={handleResetFilters} className="font-bold text-primary hover:underline">
+                Clear
+              </button>
+            </>
+          )}
+        </p>
+        <div className="relative flex-shrink-0" ref={sortRef}>
+          <button
+            type="button"
+            onClick={() => setShowSortDropdown(!showSortDropdown)}
+            className="flex items-center gap-1 text-caption font-bold text-text-primary min-h-[36px] pl-2"
+            aria-haspopup="listbox"
+            aria-expanded={showSortDropdown}
+            aria-label={`Sort: ${SORT_LABELS[sortBy]}`}
+          >
+            <ArrowUpDown className="h-3.5 w-3.5 text-text-secondary" />
+            <span>{SORT_LABELS[sortBy]}</span>
+            <ChevronDown className="h-3 w-3 text-text-secondary" />
+          </button>
+          {sortDropdownPanel}
         </div>
       </div>
 

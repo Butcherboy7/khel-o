@@ -116,20 +116,22 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
   };
 
   return (
-    <div ref={containerRef} className="relative flex-1">
+    // Not `relative`: it sits inside the home page's search pill, and the
+    // suggestions panel positions against that whole pill, not this input.
+    <div ref={containerRef} className="flex-1 min-w-0">
       <div className="relative flex items-center">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+        <Search className="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
         <input
           type="text"
           aria-label="Search cafés, cities, activities or games"
-          placeholder="Search a café, city, game or activity"
+          placeholder="Try Valorant, PS5, snooker"
           value={value}
           onFocus={() => setIsOpen(true)}
           onChange={(e) => {
             onChange(e.target.value);
             setIsOpen(true);
           }}
-          className="h-12 w-full rounded-full border border-border bg-card pl-11 pr-10 text-body text-text-primary placeholder:text-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-card transition-all"
+          className="h-11 w-full bg-transparent pl-6 pr-7 text-body text-text-primary placeholder:text-text-secondary/70 focus:outline-none"
         />
         {value && (
           <button
@@ -138,7 +140,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
               setIsOpen(false);
             }}
             aria-label="Clear search"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary p-1"
+            className="absolute right-0 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary p-1"
           >
             <X className="h-4 w-4" />
           </button>
@@ -151,7 +153,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
           when no game/tier keyword matches: the actual result count and
           empty state are handled by the café grid, not duplicated here. */}
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute top-14 left-0 right-0 z-overlay rounded-3xl bg-card border border-border/80 shadow-overlay p-3 flex flex-col gap-1 max-h-72 overflow-y-auto animate-in fade-in">
+        <div className="absolute top-[calc(100%+8px)] left-0 right-0 z-overlay rounded-3xl bg-card border border-border/80 shadow-overlay p-3 flex flex-col gap-1 max-h-72 overflow-y-auto animate-in fade-in">
           {suggestions.map((s) => (
               <button
                 key={s.id}
