@@ -34,13 +34,17 @@ function getPlatformSummary(cafe: CafeListItem): string | null {
   const confirmed = getConfirmedPlatforms(cafe);
   if (confirmed.length > 0) {
     const labels = confirmed.map((p) => PLATFORM_SHORT_LABELS[p]).filter((l): l is string => Boolean(l));
-    if (labels.length > 0) return labels.join(' · ');
+    if (labels.length > 0) return [...labels, ...(cafe.activityKinds ?? [])].join(' · ');
   }
-  // Not yet migrated to confirmed per-tier platforms — fall back to the
-  // same generic, non-overclaiming tier-name heuristic used elsewhere.
   const parts: string[] = [];
-  if (hasPcTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) parts.push('PC');
-  if (hasConsoleTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) parts.push('Console');
+  // Not yet migrated to confirmed per-tier platforms — fall back to the
+  // tier-name heuristic, but only when there ARE tiers: with none, the
+  // heuristic's "assume PC" default labelled a billiards hall "PC".
+  if (cafe.tierNames.length > 0) {
+    if (hasPcTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) parts.push('PC');
+    if (hasConsoleTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) parts.push('Console');
+  }
+  (cafe.activityKinds ?? []).forEach((k) => parts.push(k));
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 

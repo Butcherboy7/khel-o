@@ -1,6 +1,5 @@
 'use client';
 
-import { Hint } from '@/components/customer/Hint';
 
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -20,15 +19,16 @@ import {
   Images,
   Tag,
   X,
+  ArrowRight,
 } from 'lucide-react';
-import { getCafe, cafePath } from '@/lib/api/cafes';
+import { getCafe, cafePath, getCafeLive } from '@/lib/api/cafes';
 import { listCafeReviews, createReview, getReviewSettings } from '@/lib/api/reviews';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
 import { getWaitlistStatus, joinWaitlist, leaveWaitlist } from '@/lib/api/waitlist';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Button, Skeleton, ErrorState } from '@/components/ui';
-import { PLATFORMS, type Platform } from '@/constants/platforms';
+import { PLATFORMS } from '@/constants/platforms';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import dynamic from 'next/dynamic';
 
@@ -125,6 +125,16 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     enabled: Boolean(cafeId),
     staleTime: 60_000,
     initialData: initialCafe,
+  });
+
+  // Stations free to book right now, per tier — the strongest "go now"
+  // signal on the page. Lead listings take no bookings, so no query.
+  const { data: liveData } = useQuery({
+    queryKey: ['cafes', 'live', cafeId],
+    queryFn: () => getCafeLive(cafeId),
+    enabled: Boolean(cafeId) && initialCafe?.isLeadListing !== true,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
   const { data: serverReviewsData, refetch: refetchReviews } = useQuery({
@@ -265,16 +275,23 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     (cafe.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
     cheapestTier;
 
-  const isOpenNow = isCafeOpenNow(cafe.openingTime, cafe.closingTime);
-  const openStatusLabel = isOpenNow
-    ? 'Open now'
-    : cafe.openingTime
-      ? `Opens ${formatTime(cafe.openingTime)}`
-      : 'Closed';
-
-  const platformBadges = Array.from(
-    new Set((cafe.tiers ?? []).map((t) => t.platform).filter((p): p is Platform => Boolean(p)))
-  ).map((p) => ({ value: p, label: PLATFORMS.find((entry) => entry.value === p)?.label || p }));
+  // isCafeOpenNow treats missing hours as open; with no hours on file we
+  // say nothing rather than claim a real business is open.
+  const hoursKnown = Boolean(cafe.openingTime && cafe.closingTime);
+  const isOpenNow = hoursKnown && isCafeOpenNow(cafe.openingTime, cafe.closingTime);
+  const openStatusLabel = !hoursKnown
+    ? null
+    : isOpenNow
+      ? `Open till ${formatTime(cafe.closingTime!)}`
+      : `Opens ${formatTime(cafe.openingTime!)}`;
+  // "DG Gaming Cafe, Bowenpally" -> "Bowenpally": the café's own name
+  // repeated in its address adds nothing next to the title.
+  const area =
+    (cafe.addressLine1 || '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part && part.toLowerCase() !== cafe.name.toLowerCase())[0] || cafe.city;
+  const freeNowByTier = new Map((liveData?.tiers ?? []).map((t) => [t.tierId, t.freeNow]));
 
   const amenityBadges = (cafe.amenities ?? []).slice(0, 3).map((a) => getAmenityDisplay(a));
 
@@ -312,7 +329,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     // on ordinary bookable cafés too, not just the lead-listing variant).
     <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-40 md:pb-20">
       {/* Hero Header Image with Gallery Arrows */}
-      <div ref={heroRef} className="relative h-52 sm:h-64 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4">
+      <div ref={heroRef} className="relative h-48 sm:h-64 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4">
         {currentPhoto ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -341,7 +358,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         {/* Top Controls */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
           <Link href="/">
-            <button aria-label="Back to search" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-colors">
+            <button aria-label="Back to search" className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-secondary shadow-card hover:bg-surface transition-colors">
               <ChevronLeft className="h-5 w-5" />
             </button>
           </Link>
@@ -349,7 +366,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <button
             onClick={() => setIsShareOpen(true)}
             aria-label="Share this café"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-secondary shadow-card hover:bg-white transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-secondary shadow-card hover:bg-surface transition-colors"
           >
             <Share2 className="h-4 w-4" />
           </button>
@@ -375,89 +392,71 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           </>
         )}
 
-        {/* Photo Indicators */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
-          {photosList.map((_, idx) => (
-            <div
-              key={idx}
-              className={`h-2 rounded-full transition-all ${
-                idx === photoIndex ? 'w-6 bg-white' : 'w-2 bg-white/50'
-              }`}
-            />
-          ))}
-        </div>
+        {photosList.length > 1 && (
+          <span className="absolute bottom-3 right-3 z-10 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-bold text-white tabular-nums">
+            {(photoIndex % photosList.length) + 1} / {photosList.length}
+          </span>
+        )}
       </div>
 
-      {/* Title & Metadata Block */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="font-heading text-display text-text-primary">{cafe.name}</h1>
-            {cafe.googleMapsUrl ? (
+      {/* Title and the facts that decide "can I go?" on one line each —
+          hours, area, directions — so the setups and prices below make the
+          first screen instead of a grid of badges. */}
+      <div className="flex flex-col gap-1.5 -mt-2">
+        <div className="flex items-baseline justify-between gap-3">
+          <h1 className="font-heading text-h1 text-text-primary">{cafe.name}</h1>
+          <span className="flex flex-shrink-0 items-center gap-1 text-caption text-text-secondary">
+            <Star className="h-3.5 w-3.5 fill-warning text-warning" />
+            <span className="font-bold text-text-primary">
+              {cafe.averageRating && cafe.averageRating > 0 ? cafe.averageRating.toFixed(1) : 'New'}
+            </span>
+            {cafe.totalReviews > 0 && <span>({cafe.totalReviews})</span>}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption text-text-secondary">
+          {openStatusLabel && (
+            <>
+              <span className={`flex items-center gap-1.5 font-bold ${isOpenNow ? 'text-success' : 'text-text-secondary'}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${isOpenNow ? 'bg-success' : 'bg-text-tertiary'}`} />
+                {openStatusLabel}
+              </span>
+              <span aria-hidden="true">·</span>
+            </>
+          )}
+          <span>{area}</span>
+          {distanceLabel && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{distanceLabel} away</span>
+            </>
+          )}
+          {cafe.googleMapsUrl && (
+            <>
+              <span aria-hidden="true">·</span>
               <a
                 href={cafe.googleMapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-body text-text-secondary flex items-center gap-1 mt-1 hover:text-primary hover:underline w-fit"
+                className="flex items-center gap-0.5 font-semibold text-primary hover:underline"
               >
-                <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
-                <span>{cafe.addressLine1}, {cafe.city}</span>
+                <MapPin className="h-3.5 w-3.5" />
+                Directions
               </a>
-            ) : (
-              <p className="text-body text-text-secondary flex items-center gap-1 mt-1">
-                <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
-                <span>{cafe.addressLine1}, {cafe.city}</span>
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1 font-heading text-h3 font-bold text-text-primary flex-shrink-0">
-            <Star className="h-5 w-5 fill-warning text-warning" />
-            <span>{cafe.averageRating && cafe.averageRating > 0 ? cafe.averageRating.toFixed(1) : 'New'}</span>
-            <span className="text-caption font-normal text-text-secondary">
-              ({cafe.totalReviews || 0} review{cafe.totalReviews === 1 ? '' : 's'})
-            </span>
-          </div>
+            </>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className={`rounded-full px-3 py-1 text-caption font-semibold ${
-              isOpenNow ? 'bg-success/10 text-success' : 'bg-surface text-text-secondary'
-            }`}
-          >
-            {openStatusLabel}
-          </span>
-          {cafe.openingTime && cafe.closingTime && (
-            <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-accent" />
-              {formatTime(cafe.openingTime)} - {formatTime(cafe.closingTime)}
-            </span>
-          )}
-          {distanceLabel && (
-            <span className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary">
-              {distanceLabel} away
-            </span>
-          )}
-          {platformBadges.map(({ value, label }) => (
-            <span
-              key={value}
-              className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary flex items-center gap-1.5"
-            >
-              <PlatformIcon platform={value} className="h-3.5 w-3.5 text-primary" />
-              {label}
-            </span>
-          ))}
-          {amenityBadges.map(({ icon: AmenityIcon, label }) => (
-            <span
-              key={label}
-              className="rounded-full bg-surface px-3 py-1 text-caption font-semibold text-text-secondary flex items-center gap-1.5"
-            >
-              <AmenityIcon className="h-3.5 w-3.5 text-primary" />
-              {label}
-            </span>
-          ))}
-        </div>
+        {amenityBadges.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption font-semibold text-text-secondary">
+            {amenityBadges.map(({ icon: AmenityIcon, label }) => (
+              <span key={label} className="flex items-center gap-1">
+                <AmenityIcon className="h-3.5 w-3.5 text-primary" />
+                {label}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Hardware Tiers Section — selectable here so "Book now" already
@@ -466,14 +465,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           cards: a list scans in one pass regardless of how many tiers a
           café lists, where a 3-up grid starts wrapping awkwardly past three. */}
       {gamingTiers.length > 0 && (
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-heading text-h2 text-text-primary">Hardware tiers</h2>
-          {gamingTiers.length > 1 && (
-            <span className="text-caption text-text-secondary">Tap to select</span>
-          )}
-        </div>
-        <Hint id="cafe" />
+      <section className="flex flex-col gap-2.5">
+        <h2 className="font-heading text-h3 text-text-primary">Choose your setup</h2>
 
         <>
             <div className="flex flex-col gap-2.5">
@@ -491,10 +484,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                     key={tier.id}
                     type="button"
                     onClick={() => setSelectedTierId(tier.id)}
-                    className={`flex items-center gap-4 p-4 rounded-2xl text-left border transition-all active:scale-[0.99] ${
-                      isSelected
-                        ? 'border-accent bg-accent/5 ring-2 ring-accent/60 shadow-card'
-                        : 'border-border/80 bg-card hover:shadow-float hover:bg-surface'
+                    aria-pressed={isSelected}
+                    className={`flex items-center gap-3 p-3 rounded-2xl text-left border-2 bg-card transition-all active:scale-[0.99] ${
+                      isSelected ? 'border-primary shadow-card' : 'border-border hover:bg-surface'
                     }`}
                   >
                     <div
@@ -531,8 +523,14 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                             {tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station'}
                           </span>
                         )}
-                        <span className="text-text-secondary/50">·</span>
-                        <span>{tier.totalSeats || 18} seats</span>
+                        {tier.totalSeats > 0 && (
+                          <>
+                            <span className="text-text-secondary/50">·</span>
+                            <span>
+                              {tier.totalSeats} station{tier.totalSeats === 1 ? '' : 's'}
+                            </span>
+                          </>
+                        )}
                       </div>
                       {discount > 0 && tier.activePromotion?.title && (
                         <p className="text-[11px] text-accent font-medium mt-0.5 truncate">{tier.activePromotion.title}</p>
@@ -540,13 +538,6 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                     </div>
 
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      {isSelected ? (
-                        <div className="h-5 w-5 rounded-full border-2 border-accent bg-accent flex items-center justify-center">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-white" />
-                        </div>
-                      ) : (
-                        <div className="h-5 w-5" />
-                      )}
                       {discount > 0 ? (
                         <div className="flex items-baseline gap-1.5">
                           <span className="text-caption text-text-tertiary line-through">
@@ -563,11 +554,27 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                           <span className="text-caption font-normal text-text-secondary">/hr</span>
                         </div>
                       )}
+                      {liveData?.openNow && freeNowByTier.has(tier.id) && (
+                        <span
+                          className={`text-[11px] font-bold ${
+                            (freeNowByTier.get(tier.id) ?? 0) > 0 ? 'text-success' : 'text-warning'
+                          }`}
+                        >
+                          {(freeNowByTier.get(tier.id) ?? 0) > 0
+                            ? `${freeNowByTier.get(tier.id)} free now`
+                            : 'All in use now'}
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
               })}
             </div>
+
+            <p className="flex items-center gap-1.5 text-caption text-text-secondary">
+              <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-success" />
+              Instant confirmation · Full refund if you cancel 2+ hrs before
+            </p>
 
             {hasPcTier && gamingTiers.length > 1 && (
               <button
@@ -598,7 +605,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       { label: 'Hardware', get: (t: (typeof gamingTiers)[number]) => t.specs?.gpu || t.specs?.console || t.specs?.other || t.model || '—' },
                       { label: 'RAM', get: (t: (typeof gamingTiers)[number]) => t.specs?.ram || '—' },
                       { label: 'Monitor', get: (t: (typeof gamingTiers)[number]) => t.specs?.monitor || '—' },
-                      { label: 'Seats', get: (t: (typeof gamingTiers)[number]) => String(t.totalSeats || 18) },
+                      { label: 'Stations', get: (t: (typeof gamingTiers)[number]) => (t.totalSeats > 0 ? String(t.totalSeats) : '—') },
                       { label: 'Price', get: (t: (typeof gamingTiers)[number]) => `₹${t.pricePerHour}/hr` },
                     ].map((row) => (
                       <tr key={row.label} className="border-t border-border/60">
@@ -1008,9 +1015,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               the Link itself as the button avoids the nesting entirely. */}
           <Link
             href={`/bookings/new?cafeId=${cafe.id}${activeTier ? `&tierId=${activeTier.id}` : ''}`}
-            className="inline-flex items-center justify-center rounded-2xl bg-secondary px-8 py-3.5 font-heading text-btn font-semibold text-white shadow-float hover:bg-secondary/90 transition-colors"
+            className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-primary px-6 py-3.5 font-heading text-btn font-semibold text-white shadow-float hover:bg-primary-dark transition-colors"
           >
-            Book now
+            Pick a time
+            <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
         )}

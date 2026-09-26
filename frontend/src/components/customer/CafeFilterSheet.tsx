@@ -16,6 +16,13 @@ import type { CafeListItem } from '@/types';
 
 export type OpenStatusFilter = 'any' | 'open_now' | 'opening_soon';
 export type DistanceFilter = 'any' | 1 | 3 | 5 | 10;
+export type SortOption = 'recommended' | 'distance' | 'price' | 'rating';
+export const SORT_LABELS: Record<SortOption, string> = {
+  recommended: 'Best match',
+  distance: 'Nearest',
+  price: 'Cheapest',
+  rating: 'Top rated',
+};
 
 /** Amenity filter buckets — grouped by real, seeded amenity slugs (see
  *  lib/amenities.ts's AMENITY_MAP), not the mockup's literal labels, so
@@ -47,12 +54,6 @@ export function cafeHasAmenityBucket(cafe: CafeListItem, bucket: AmenityBucket):
   const cafeKeys = new Set((cafe.amenities || []).map(normalizeAmenityKey));
   return bucket.keys.some((k) => cafeKeys.has(k));
 }
-
-const OPEN_STATUS_OPTIONS: { key: OpenStatusFilter; label: string }[] = [
-  { key: 'any', label: 'Any' },
-  { key: 'open_now', label: 'Open now' },
-  { key: 'opening_soon', label: 'Opening soon' },
-];
 
 function ChipButton({
   isSelected,
@@ -94,8 +95,13 @@ interface CafeFilterSheetProps {
   onRequestLocation: () => void;
   distance: DistanceFilter;
   onDistanceChange: (v: DistanceFilter) => void;
-  openStatus: OpenStatusFilter;
-  onOpenStatusChange: (v: OpenStatusFilter) => void;
+  openNow: boolean;
+  onOpenNowChange: (v: boolean) => void;
+  /** False when no café in the results has hours on file — the toggle
+      would only ever empty the list. */
+  showOpenNow?: boolean;
+  sortBy: SortOption;
+  onSortChange: (v: SortOption) => void;
   priceRange: [number, number];
   onPriceRangeChange: (v: [number, number]) => void;
   selectedAmenities: string[];
@@ -109,7 +115,7 @@ interface CafeFilterSheetProps {
   onClearAll: () => void;
 }
 
-/** The "Filters" bottom sheet — distance, open status, price range,
+/** The "Filters" bottom sheet — open now, sort, price, distance
  *  and amenities live here so the always-visible chip row above stays down
  *  to the handful of filters most searches actually use. Everything below
  *  filters the live café list as it changes; "Show N cafés" just closes the
@@ -121,8 +127,11 @@ export function CafeFilterSheet({
   onRequestLocation,
   distance,
   onDistanceChange,
-  openStatus,
-  onOpenStatusChange,
+  openNow,
+  onOpenNowChange,
+  showOpenNow = true,
+  sortBy,
+  onSortChange,
   priceRange,
   onPriceRangeChange,
   selectedAmenities,
@@ -176,35 +185,51 @@ export function CafeFilterSheet({
           )}
         </div>
 
-        {/* Distance */}
-        <div className="flex flex-col gap-2.5">
-          <SectionLabel>Distance</SectionLabel>
-          <div className="flex flex-wrap gap-2">
-            <ChipButton isSelected={distance === 'any'} onClick={() => handleDistanceClick('any')}>
-              Any
-            </ChipButton>
-            {DISTANCE_OPTIONS.map((km) => (
-              <ChipButton key={km} isSelected={distance === km} onClick={() => handleDistanceClick(km)}>
-                Within {km} km
-              </ChipButton>
-            ))}
-          </div>
-          {!hasLocation && (
-            <p className="flex items-center gap-1 text-caption text-text-secondary">
-              <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-              Enable location to filter by distance.
-            </p>
-          )}
-        </div>
+        {/* Open now — first, because "can I go right now?" is the question
+            most people open the filters to answer. */}
+        {showOpenNow && (
+          <label
+            htmlFor="filter-open-now"
+            className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3.5"
+          >
+            <span className="flex flex-col gap-0.5">
+              <span className="text-body-emphasis font-bold text-text-primary">Open now</span>
+              <span className="text-caption text-text-secondary">Only places you can walk into right now</span>
+            </span>
+            <span className="relative h-7 w-12 flex-shrink-0">
+              <input
+                id="filter-open-now"
+                type="checkbox"
+                role="switch"
+                checked={openNow}
+                onChange={(e) => onOpenNowChange(e.target.checked)}
+                className="peer absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+              />
+              <span className="absolute inset-0 rounded-full bg-border transition-colors peer-checked:bg-secondary peer-focus-visible:ring-2 peer-focus-visible:ring-primary" />
+              <span className="absolute left-[3px] top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-card transition-transform peer-checked:translate-x-5" />
+            </span>
+          </label>
+        )}
 
-        {/* Open status */}
+        {/* Sort — also on the page next to the result count; here so the
+            sheet is a complete "how do I want to see this" panel. */}
         <div className="flex flex-col gap-2.5">
-          <SectionLabel>Open status</SectionLabel>
-          <div className="flex flex-wrap gap-2">
-            {OPEN_STATUS_OPTIONS.map((opt) => (
-              <ChipButton key={opt.key} isSelected={openStatus === opt.key} onClick={() => onOpenStatusChange(opt.key)}>
-                {opt.label}
-              </ChipButton>
+          <SectionLabel>Sort by</SectionLabel>
+          <div className="grid grid-cols-4 gap-1.5">
+            {(Object.keys(SORT_LABELS) as SortOption[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onSortChange(key)}
+                aria-pressed={sortBy === key}
+                className={`min-h-[40px] rounded-xl border px-1 text-caption font-semibold transition-colors ${
+                  sortBy === key
+                    ? 'border-secondary bg-secondary text-white font-bold'
+                    : 'border-border bg-card text-text-primary hover:bg-surface'
+                }`}
+              >
+                {SORT_LABELS[key]}
+              </button>
             ))}
           </div>
         </div>
@@ -259,6 +284,27 @@ export function CafeFilterSheet({
           </div>
         </div>
         )}
+
+        {/* Distance */}
+        <div className="flex flex-col gap-2.5">
+          <SectionLabel>Distance</SectionLabel>
+          <div className="flex flex-wrap gap-2">
+            <ChipButton isSelected={distance === 'any'} onClick={() => handleDistanceClick('any')}>
+              Any
+            </ChipButton>
+            {DISTANCE_OPTIONS.map((km) => (
+              <ChipButton key={km} isSelected={distance === km} onClick={() => handleDistanceClick(km)}>
+                Within {km} km
+              </ChipButton>
+            ))}
+          </div>
+          {!hasLocation && (
+            <p className="flex items-center gap-1 text-caption text-text-secondary">
+              <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+              Enable location to filter by distance.
+            </p>
+          )}
+        </div>
 
         {/* Amenities */}
         <div className="flex flex-col gap-2.5">

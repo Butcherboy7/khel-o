@@ -22,7 +22,7 @@ class ActivityDef:
 
 CATALOG: tuple[ActivityDef, ...] = (
     ActivityDef("pc-gaming", "PC Gaming", "gaming", 0),
-    ActivityDef("console", "PlayStation / Console", "gaming", 1),
+    ActivityDef("console", "Console", "gaming", 1),
     ActivityDef("racing-simulator", "Racing Simulator", "gaming", 2),
     ActivityDef("vr", "VR", "gaming", 3),
     ActivityDef("snooker", "Snooker", "more", 10),
@@ -83,18 +83,15 @@ def tier_activity(tier) -> tuple[str, str] | None:
 def cafe_activities(tiers: Iterable) -> dict[str, str]:
     """key -> raw label for every activity a café's active tiers offer.
 
-    A café with no tiers yet (e.g. a Booking Soon listing) is a gaming café
-    by default, matching how it has always been shown under PC.
+    A café with no tiers yet (e.g. a Booking Soon listing) offers nothing we
+    can vouch for, so it gets no activity rather than a guessed "PC" — a
+    billiards hall listed under PC gaming was exactly that bug.
     """
     found: dict[str, str] = {}
-    any_tier = False
     for t in tiers:
-        any_tier = True
         a = tier_activity(t)
         if a:
             found.setdefault(*a)
-    if not any_tier:
-        found["pc-gaming"] = "PC Gaming"
     return found
 
 

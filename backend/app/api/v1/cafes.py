@@ -103,6 +103,64 @@ async def get_cafe(
         }
     }
 
+@router.get("/{cafe_id}/live", status_code=status.HTTP_200_OK)
+async def get_cafe_live(cafe_id: UUID, db: AsyncSession = Depends(get_db)):
+    """How many app-bookable stations per tier are free right now (IST).
+
+    Counts only KHEL-O bookings, so it is "free to book now", not a claim
+    about walk-ins. Closed, paused or lead-listing cafés report 0 free.
+    """
+    from datetime import timedelta
+    from app.core.time import now_ist
+    from app.core.exceptions import NotFoundException
+    from app.models.booking import Booking, BookingStatus
+    from app.models.hardware_tier import HardwareTier
+
+    cafe = await CafeRepository(db).get_by_id(cafe_id)
+    if not cafe:
+        raise NotFoundException(message="Cafe not found", error_code="CAFE_NOT_FOUND")
+    tiers = (await db.execute(
+        select(HardwareTier).where(HardwareTier.cafe_id == cafe_id, HardwareTier.is_active == True)  # noqa: E712
+    )).scalars().all()
+
+    now = now_ist()
+    today, t = now.date(), now.time().replace(tzinfo=None)
+    closed = bool(cafe.bookings_paused or cafe.is_emergency_mode or cafe.is_lead_listing or cafe.bookable_stations == 0)
+    if cafe.opening_time and cafe.closing_time and not closed:
+        o, c = cafe.opening_time, cafe.closing_time
+        closed = not (o <= t < c) if o < c else not (t >= o or t < c)
+
+    rows = (await db.execute(
+        select(Booking.hardware_tier_id, Booking.session_date, Booking.start_time, Booking.end_time, Booking.seats_count).where(
+            Booking.hardware_tier_id.in_([x.id for x in tiers] or [None]),
+            Booking.session_date.in_([today, today - timedelta(days=1)]),
+            Booking.status.in_([BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED,
+                                BookingStatus.CHECKED_IN, BookingStatus.ACTIVE]),
+        )
+    )).all()
+    busy: dict = {}
+    for tier_id, day, start, end, seats in rows:
+        overnight = end <= start
+        covers = (
+            (day == today and start <= t and (overnight or t < end))
+            or (day != today and overnight and t < end)
+        )
+        if covers:
+            busy[tier_id] = busy.get(tier_id, 0) + (seats or 1)
+
+    out = []
+    for x in tiers:
+        bookable = x.app_bookable_seats or 0
+        if cafe.bookable_stations is not None and cafe.bookable_stations >= 0:
+            bookable = min(bookable, cafe.bookable_stations)
+        out.append({
+            "tierId": str(x.id),
+            "bookable": bookable,
+            "freeNow": 0 if closed else max(0, bookable - busy.get(x.id, 0)),
+        })
+    return {"success": True, "data": {"openNow": not closed, "tiers": out}}
+
+
 @router.get("/{cafe_id}/availability", status_code=status.HTTP_200_OK)
 async def get_cafe_availability(
     request: Request,
