@@ -5,6 +5,8 @@ import type { Review } from './review';
 import type { User } from './user';
 
 export interface CafeListItem {
+  /** Readable URL key: /cafe/<slug>. Null only for rows created before slugs existed. */
+  slug?: string | null;
   id: string;
   name: string;
   city: string;
@@ -37,6 +39,7 @@ export interface CafeListItem {
 }
 
 export interface Cafe {
+  slug?: string | null;
   id: string;
   ownerId: string;
   name: string;

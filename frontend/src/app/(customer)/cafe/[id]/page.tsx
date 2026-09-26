@@ -1,6 +1,8 @@
 import { cache } from 'react';
 import type { Metadata } from 'next';
-import { getCafe } from '@/lib/api/cafes';
+import { permanentRedirect } from 'next/navigation';
+import { getCafe, cafePath, isCafeUuid } from '@/lib/api/cafes';
+import { PLATFORMS } from '@/constants/platforms';
 import type { CafeDetail } from '@/types';
 import { CafeDetailClient } from './CafeDetailClient';
 
@@ -33,9 +35,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : null;
   const priceLine = minPrice ? ` Starting from ₹${minPrice}/hr.` : '';
-  const platformLine = cafe.tiers && cafe.tiers.length > 0
-    ? ` ${Array.from(new Set(cafe.tiers.map((t) => t.platform).filter(Boolean))).join(', ')}.`
-    : '';
+  // Human labels ("PlayStation, PC Gaming"), not raw enum values.
+  const platformLabels = Array.from(new Set((cafe.tiers ?? []).map((t) => t.platform).filter(Boolean)))
+    .map((p) => PLATFORMS.find((x) => x.value === p)?.label)
+    .filter((label): label is string => !!label && label !== 'Other');
+  const platformLine = platformLabels.length > 0 ? ` ${platformLabels.join(', ')}.` : '';
 
   const title = `${cafe.name} — Gaming Café in ${cafe.city}`;
   const description = `Book a gaming station at ${cafe.name} in ${cafe.city}.${priceLine}${platformLine} Check real-time availability and pay online on KHEL-O.`;
@@ -45,12 +49,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title,
     description,
     alternates: {
-      canonical: `/cafe/${cafe.id}`,
+      canonical: cafePath(cafe),
     },
     openGraph: {
       title,
       description,
-      url: `${SITE_URL}/cafe/${cafe.id}`,
+      url: `${SITE_URL}${cafePath(cafe)}`,
       images: image ? [{ url: image }] : undefined,
     },
   };
@@ -60,13 +64,17 @@ export default async function CafeDetailPage({ params }: PageProps) {
   const { id } = await params;
   const cafe = await getCafeCached(id);
 
+  // Old /cafe/<uuid> links (shared, bookmarked, already indexed) move
+  // permanently to the readable URL so search engines transfer their ranking.
+  if (cafe?.slug && isCafeUuid(id)) permanentRedirect(cafePath(cafe));
+
   const jsonLd = cafe
     ? {
         '@context': 'https://schema.org',
         '@type': 'SportsActivityLocation',
         name: cafe.name,
         description: cafe.description || `Gaming café in ${cafe.city}`,
-        url: `${SITE_URL}/cafe/${cafe.id}`,
+        url: `${SITE_URL}${cafePath(cafe)}`,
         image: cafe.photos && cafe.photos.length > 0 ? cafe.photos.map((p) => p.url) : undefined,
         telephone: cafe.phoneNumber || undefined,
         address: {
@@ -80,6 +88,18 @@ export default async function CafeDetailPage({ params }: PageProps) {
         geo: cafe.latitude != null && cafe.longitude != null
           ? { '@type': 'GeoCoordinates', latitude: cafe.latitude, longitude: cafe.longitude }
           : undefined,
+        // Same hours every day — that's all the café model stores. Lets Google
+        // show "Open now" and match "open late" searches.
+        ...(cafe.openingTime && cafe.closingTime
+          ? {
+              openingHoursSpecification: {
+                '@type': 'OpeningHoursSpecification',
+                dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                opens: cafe.openingTime.slice(0, 5),
+                closes: cafe.closingTime.slice(0, 5),
+              },
+            }
+          : {}),
         ...(cafe.totalReviews > 0
           ? {
               aggregateRating: {

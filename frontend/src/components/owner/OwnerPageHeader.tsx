@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { PAGE_GUIDES, type GuidePage } from '@/lib/ownerGuideCopy';
-import { InfoTip } from './InfoTip';
+import { InfoTip } from '@/components/shared/InfoTip';
 import { PageTip } from './PageTip';
 
 interface OwnerPageHeaderProps {

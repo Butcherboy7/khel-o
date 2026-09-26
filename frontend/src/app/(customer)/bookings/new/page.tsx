@@ -1,5 +1,9 @@
 'use client';
 
+import { Hint } from '@/components/customer/Hint';
+import { InfoTip } from '@/components/shared/InfoTip';
+import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
+
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
@@ -735,6 +739,8 @@ function BookingWizardContent() {
         </div>
       </div>
 
+      <Hint id="booking" />
+
       {/* Tier switcher — the tier itself is picked on the café page (one
           fewer full step here, no re-reading the same specs twice); this
           chip is only for the rarer case of changing your mind, and doing
@@ -969,7 +975,10 @@ function BookingWizardContent() {
         )}
 
         <div className="flex items-center justify-between">
-          <span>Platform Fee</span>
+          <span className="inline-flex items-center gap-0.5">
+            Platform Fee
+            <InfoTip quiet text={CUSTOMER_INFO.platformFee} label="What is the platform fee?" />
+          </span>
           <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
         </div>
 

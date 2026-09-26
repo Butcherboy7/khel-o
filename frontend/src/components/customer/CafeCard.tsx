@@ -9,6 +9,7 @@ import { hasConsoleTier, hasPcTier } from '@/lib/platformTags';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import type { Platform } from '@/constants/platforms';
 import type { CafeListItem } from '@/types';
+import { cafePath } from '@/lib/api/cafes';
 
 // Short labels for the card's one-line platform summary. 'other' is
 // deliberately excluded — it isn't a specific claim worth surfacing here.
@@ -127,7 +128,7 @@ export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps)
         />
       )}
 
-      <Link href={`/cafe/${cafe.id}`} className="relative block h-full group">
+      <Link href={cafePath(cafe)} className="relative block h-full group">
       <Card
         interactive
         elevation="resting"

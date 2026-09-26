@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { listCafes } from '@/lib/api/cafes';
+import { listCafes, cafePath } from '@/lib/api/cafes';
 import { ExploreClient } from '@/components/customer/ExploreClient';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
@@ -73,7 +73,7 @@ export default async function ExplorePage() {
         itemListElement: initialCafes.items.map((cafe, index) => ({
           '@type': 'ListItem',
           position: index + 1,
-          url: `${SITE_URL}/cafe/${cafe.id}`,
+          url: `${SITE_URL}${cafePath(cafe)}`,
           name: cafe.name,
         })),
       }

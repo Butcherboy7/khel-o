@@ -118,6 +118,7 @@ class CafeVerifyRequest(BaseModel):
 
 class CafeListItem(BaseModel):
     id: UUID
+    slug: Optional[str] = None
     name: str
     city: str
     state: str
@@ -157,6 +158,7 @@ class CafeListItem(BaseModel):
 
 class CafeResponse(CafeBase):
     id: UUID
+    slug: Optional[str] = None
     owner_id: UUID
     verification_status: VerificationStatus
     is_active: bool

@@ -59,6 +59,20 @@ async def list_cafes(
         "data": result
     }
 
+@router.get("/slug/{slug}", status_code=status.HTTP_200_OK)
+async def get_cafe_by_slug(
+    slug: str,
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.core.exceptions import NotFoundException
+    cafe = await CafeRepository(db).get_by_slug(slug)
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+    # Same visibility rules and payload as lookup by id.
+    return await get_cafe(cafe.id, current_user=current_user, db=db)
+
+
 @router.get("/{cafe_id}", status_code=status.HTTP_200_OK)
 async def get_cafe(
     cafe_id: UUID,

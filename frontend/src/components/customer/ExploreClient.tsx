@@ -1,5 +1,7 @@
 'use client';
 
+import { Hint } from '@/components/customer/Hint';
+
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -642,6 +644,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
             gets ~270-300px — wider than the 279px it had at 1200px/4-col. A
             6th column would take cards down to ~245px, which starts
             truncating café names and city labels. */}
+        {!isLoading && !isError && sortedCafes.length > 0 && <Hint id="explore" className="mb-2" />}
         {!isLoading && !isError && sortedCafes.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {sortedCafes.map((cafe) => (

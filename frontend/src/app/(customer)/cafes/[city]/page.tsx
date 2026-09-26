@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { listCafes } from '@/lib/api/cafes';
+import { listCafes, cafePath } from '@/lib/api/cafes';
 import { citySlugToName } from '@/constants/cities';
+import Link from 'next/link';
 import { CafeCard } from '@/components/customer/CafeCard';
+import { activitiesFor } from '@/lib/seoActivities';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
@@ -90,6 +92,7 @@ export default async function CityCafesPage({ params }: PageProps) {
   const prices = cafes.map((c) => c.startingPrice).filter((p): p is number => p != null);
   const minPrice = prices.length > 0 ? Math.min(...prices) : null;
   const faqItems = buildFaqItems(city, minPrice);
+  const activities = activitiesFor(cafes);
 
   const itemListJsonLd = {
     '@context': 'https://schema.org',
@@ -97,7 +100,7 @@ export default async function CityCafesPage({ params }: PageProps) {
     itemListElement: cafes.map((cafe, index) => ({
       '@type': 'ListItem',
       position: index + 1,
-      url: `${SITE_URL}/cafe/${cafe.id}`,
+      url: `${SITE_URL}${cafePath(cafe)}`,
       name: cafe.name,
     })),
   };
@@ -133,6 +136,20 @@ export default async function CityCafesPage({ params }: PageProps) {
             {cafes.length} café{cafes.length === 1 ? '' : 's'} available to book online in {city}.
           </p>
         </header>
+
+        {activities.length > 0 && (
+          <nav aria-label={`Browse ${city} by activity`} className="flex flex-wrap gap-2">
+            {activities.map(({ activity, cafes: matched }) => (
+              <Link
+                key={activity.slug}
+                href={`/cafes/${slug}/${activity.slug}`}
+                className="rounded-full border border-border bg-card px-3 py-1.5 text-caption font-semibold text-text-primary hover:border-primary hover:text-primary transition-colors"
+              >
+                {activity.label} <span className="text-text-secondary">({matched.length})</span>
+              </Link>
+            ))}
+          </nav>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {cafes.map((cafe) => (
