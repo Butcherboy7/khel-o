@@ -27,6 +27,8 @@ import {
   EmptyState,
 } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { InfoTip } from '@/components/owner/InfoTip';
+import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { formatSessionDate, formatTime, getOwnerPayoutAmount } from '@/lib/format';
 
 export default function OwnerBookingsPage() {
@@ -98,6 +100,7 @@ export default function OwnerBookingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <OwnerPageHeader
+        guide="bookings"
         title="Bookings"
         description="Find a booking, check someone in, or free up a seat nobody paid for."
       />
@@ -122,20 +125,30 @@ export default function OwnerBookingsPage() {
             onChange={(e) => setSelectedDate(e.target.value)}
           />
 
-          <Select
-            label="Show"
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-          >
-            <option value="all">Everything</option>
-            <option value="pending_payment">Not paid yet</option>
-            <option value="confirmed">Paid, not arrived</option>
-            <option value="checked_in">Checked in</option>
-            <option value="active">Playing now</option>
-            <option value="completed">Finished</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="no_show">Never showed up</option>
-          </Select>
+          <div className="flex items-end gap-1">
+            <div className="min-w-0 flex-1">
+              <Select
+                label="Show"
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+              >
+                <option value="all">Everything</option>
+                <option value="pending_payment">Not paid yet</option>
+                <option value="confirmed">Paid, not arrived</option>
+                <option value="checked_in">Checked in</option>
+                <option value="active">Playing now</option>
+                <option value="completed">Finished</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="no_show">Never showed up</option>
+              </Select>
+            </div>
+            <InfoTip
+              text={INFO_TIPS.bookingsStatusFilter}
+              label="What the statuses mean"
+              align="end"
+              className="mb-2"
+            />
+          </div>
         </div>
       </div>
 

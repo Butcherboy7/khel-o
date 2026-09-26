@@ -44,6 +44,7 @@ export default function OwnerReviewsPage() {
   return (
     <div className="flex flex-col gap-6">
       <OwnerPageHeader
+        guide="reviews"
         title="Reviews"
         description="What customers said after playing here. Anything you reply is public — everyone reading the review sees it."
       />

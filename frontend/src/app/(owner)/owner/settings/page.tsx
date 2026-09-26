@@ -7,6 +7,9 @@ import { Card, CardContent, Button, Skeleton } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
 import { getOwnerSettings, toggleEmergencyMode, toggleBookingsPaused, type OwnerSettings } from '@/lib/api/settings';
 import { SettingsHeader } from '@/components/owner/SettingsHeader';
+import { InfoTip } from '@/components/owner/InfoTip';
+import { PageTip } from '@/components/owner/PageTip';
+import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { EmergencyModeCard } from '@/components/owner/EmergencyModeCard';
 import { BookingsPauseCard } from '@/components/owner/BookingsPauseCard';
 import { PayoutDetailsCard } from '@/components/owner/PayoutDetailsCard';
@@ -132,6 +135,8 @@ export default function OwnerSettingsPage() {
         cafeName={settings.cafeName}
       />
 
+      <PageTip page="settings" />
+
       {error && (
         <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 text-caption flex items-center gap-2">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -142,7 +147,10 @@ export default function OwnerSettingsPage() {
       {/* Section 1: Operational Controls */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1 border-b border-border pb-2.5">
-          <h2 className="font-heading text-h2 text-text-primary">Stop taking bookings</h2>
+          <h2 className="flex items-center gap-1 font-heading text-h2 text-text-primary">
+            Stop taking bookings
+            <InfoTip text={INFO_TIPS.settingsStopBookings} label="About pausing and emergency mode" />
+          </h2>
           <p className="text-caption text-text-secondary">
             Two ways to close the doors: pause online bookings for a busy evening, or shut everything
             down in a real emergency.

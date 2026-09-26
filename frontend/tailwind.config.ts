@@ -193,12 +193,20 @@ const config: Config = {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.4' },
         },
+        // Owner-guide ⓘ icons: an expanding ring (not a size change) so the
+        // icon stays put and legible while still catching a new owner's eye.
+        'guide-ring': {
+          '0%': { boxShadow: '0 0 0 0 rgb(229 77 66 / 0.55)' },
+          '70%': { boxShadow: '0 0 0 7px rgb(229 77 66 / 0)' },
+          '100%': { boxShadow: '0 0 0 0 rgb(229 77 66 / 0)' },
+        },
       },
       animation: {
         'skeleton-pulse': 'skeleton-pulse 2s ease-in-out infinite',
         'fade-in-up': 'fade-in-up var(--duration-slow) var(--ease-out) both',
         'live-sweep': 'live-sweep 6s linear infinite',
         'live-dot': 'live-dot 2s ease-in-out infinite',
+        'guide-ring': 'guide-ring 1.8s ease-out infinite',
       },
     },
   },

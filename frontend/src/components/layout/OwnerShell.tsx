@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
+import { useGuideSession } from '@/hooks/useOwnerGuide';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 import { PlatformReconfirmModal } from '@/components/owner/PlatformReconfirmModal';
 import { apiClient } from '@/lib/api/client';
@@ -519,6 +520,7 @@ export function OwnerShell({
   isStaff?: boolean;
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  useGuideSession();
 
   return (
     <OwnerAlertProvider>

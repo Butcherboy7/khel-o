@@ -110,6 +110,7 @@ export default function OwnerStaffPage() {
   return (
     <div className="flex flex-col gap-8">
       <OwnerPageHeader
+        guide="staff"
         title="Your team"
         description="Give the people working your desk their own login, so nobody has to share yours."
         action={
