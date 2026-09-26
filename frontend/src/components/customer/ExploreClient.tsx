@@ -672,6 +672,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           aria-label="Legal and company links"
           className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-caption text-text-secondary"
         >
+          <Link href="/browse" className="hover:text-primary transition-colors">Browse All Cafés</Link>
           <Link href="/about" className="hover:text-primary transition-colors">About Us</Link>
           <Link href="/terms" className="hover:text-primary transition-colors">Terms &amp; Conditions</Link>
           <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>

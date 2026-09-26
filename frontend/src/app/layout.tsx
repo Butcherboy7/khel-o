@@ -35,6 +35,11 @@ const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  // Google Search Console ownership check — set NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+  // to the token from Search Console's "HTML tag" method; omitted when unset.
+  verification: getPublicEnv('NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION', '')
+    ? { google: getPublicEnv('NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION', '') }
+    : undefined,
   title: {
     default: 'KHEL-O — Book Gaming Cafés Near You',
     template: '%s | KHEL-O',
