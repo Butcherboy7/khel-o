@@ -17,6 +17,8 @@ export interface CafeListItem {
   tierNames: string[];
   platforms?: string[];
   activityKinds?: string[];
+  /** Normalized activity keys ('pc-gaming', 'console', 'snooker', ...). */
+  activities?: string[];
   /** True only when every active tier has a confirmed real platform. */
   platformsComplete?: boolean;
   photos: { url: string; category: string }[];
@@ -95,6 +97,14 @@ export interface AdminCafe extends CafeDetail {
   owner: User;
 }
 
+/** One thing you can play, as offered in a city (GET /cafes/activities). */
+export interface ActivityFacet {
+  key: string;
+  label: string;
+  group: 'gaming' | 'more';
+  count: number;
+}
+
 export interface CafeListParams {
   city?: string;
   query?: string;
@@ -102,6 +112,8 @@ export interface CafeListParams {
   maxPrice?: number;
   amenities?: string[];
   activityKind?: string;
+  /** Activity key from /cafes/activities. */
+  activity?: string;
   page?: number;
   limit?: number;
 }

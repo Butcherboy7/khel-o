@@ -66,3 +66,37 @@ async def test_cafe_list_item_exposes_activity_kinds(async_client, db_session):
     assert r.status_code == 200
     match = next(c for c in r.json()["data"]["items"] if c["id"] == str(cafe.id))
     assert match["activityKinds"] == ["Bowling"]
+
+
+@pytest.mark.asyncio
+async def test_activities_are_normalized_and_filterable(async_client, db_session):
+    pool = await _cafe_with_tier(db_session, "Eight Ball Pool", name="Pool Hall")
+    ps = await _cafe_with_tier(db_session, None, tier_type=TierType.GAMING, name="PS5 Den")
+
+    r = await async_client.get("/api/v1/cafes", params={"city": "Hyderabad", "limit": 50})
+    items = {c["id"]: c for c in r.json()["data"]["items"]}
+    assert items[str(pool.id)]["activities"] == ["pool"]
+    assert items[str(ps.id)]["activities"] == ["console"]  # name fallback: "PS5 Den Tier"
+
+    r = await async_client.get("/api/v1/cafes", params={"activity": "pool"})
+    ids = [c["id"] for c in r.json()["data"]["items"]]
+    assert str(pool.id) in ids and str(ps.id) not in ids
+
+
+@pytest.mark.asyncio
+async def test_activities_endpoint_lists_city_activities_gaming_first(async_client, db_session):
+    await _cafe_with_tier(db_session, "VR Gaming", name="VR Arena")
+    await _cafe_with_tier(db_session, "Snooker", name="Cue Club")
+    await _cafe_with_tier(db_session, "Carrom", name="Carrom Corner")
+
+    r = await async_client.get("/api/v1/cafes/activities", params={"city": "Hyderabad"})
+    assert r.status_code == 200
+    acts = {a["key"]: a for a in r.json()["data"]}
+    assert acts["vr"]["group"] == "gaming" and acts["vr"]["label"] == "VR"
+    assert acts["snooker"]["count"] >= 1
+    assert acts["carrom"]["label"] == "Carrom" and acts["carrom"]["group"] == "more"
+    keys = [a["key"] for a in r.json()["data"]]
+    assert keys.index("vr") < keys.index("snooker") < keys.index("carrom")
+
+    r = await async_client.get("/api/v1/cafes/activities", params={"city": "Nowhere"})
+    assert r.json()["data"] == []

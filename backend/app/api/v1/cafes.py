@@ -36,6 +36,7 @@ async def list_cafes(
     maxPrice: Optional[float] = Query(None, alias="maxPrice"),
     amenities: Optional[List[str]] = Query(None),
     activityKind: Optional[str] = Query(None, alias="activityKind"),
+    activity: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
     db: AsyncSession = Depends(get_db)
@@ -51,6 +52,7 @@ async def list_cafes(
         max_price=maxPrice,
         amenities=amenities,
         activity_kind=activityKind,
+        activity=activity,
         page=page,
         limit=limit
     )
@@ -58,6 +60,15 @@ async def list_cafes(
         "success": True,
         "data": result
     }
+
+@router.get("/activities", status_code=status.HTTP_200_OK)
+async def list_activities(
+    city: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """What can be played in a city, gaming first — drives the explore filters."""
+    return {"success": True, "data": await CafeRepository(db).activity_counts(city)}
+
 
 @router.get("/slug/{slug}", status_code=status.HTTP_200_OK)
 async def get_cafe_by_slug(

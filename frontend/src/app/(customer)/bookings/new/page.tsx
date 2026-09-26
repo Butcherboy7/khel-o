@@ -1104,7 +1104,7 @@ function BookingWizardContent() {
       {/* Sticky Bottom Action & Total Price Bar — sits above the mobile bottom nav
           (bottom-nav is z-nav/40, fixed bottom-0) rather than underneath it, otherwise
           the nav bar silently eats the first tap on this button on mobile. */}
-      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
+      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card border-t border-border p-4 shadow-overlay">
         <div className="max-w-content mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <span className="text-caption text-text-secondary block truncate">

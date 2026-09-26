@@ -6,13 +6,13 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Navigation, SlidersHorizontal, ChevronDown, MoreHorizontal } from 'lucide-react';
-import { listCafes } from '@/lib/api/cafes';
+import { MapPin, Navigation, SlidersHorizontal, ChevronDown, LayoutGrid } from 'lucide-react';
+import { listCafes, listActivities } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
 import { useDebounce } from '@/hooks/useDebounce';
 import { calculateDistance, isCafeOpenNow, getCafeOpenStatus } from '@/lib/format';
-import { hasPcTier, hasPlatformTier } from '@/lib/platformTags';
+import { ActivityIcon } from '@/components/icons/PlatformIcons';
 import { SUPPORTED_CITIES } from '@/constants/cities';
 import { SocialLinks } from '@/components/layout/SocialLinks';
 import { useAuthStore } from '@/store/authStore';
@@ -25,21 +25,11 @@ import {
   cafeHasAmenityBucket,
   PRICE_MIN,
   PRICE_MAX,
-  FIXED_ACTIVITY_OPTIONS,
-  type ActivityOption,
-  type PlatformFilter,
   type OpenStatusFilter,
   type DistanceFilter,
 } from '@/components/customer/CafeFilterSheet';
 import { SkeletonCafeGrid, ErrorState, EmptyState } from '@/components/ui';
 import type { CafeListItem, PaginatedResponse } from '@/types';
-
-const PLATFORM_TAGS: { key: PlatformFilter; label: string }[] = [
-  { key: 'All', label: 'All' },
-  { key: 'PC', label: 'PC' },
-  { key: 'PS5', label: 'PS5' },
-  { key: 'Xbox', label: 'Xbox' },
-];
 
 type SortOption = 'recommended' | 'rating' | 'price' | 'distance';
 const SORT_LABELS: Record<SortOption, string> = {
@@ -80,9 +70,11 @@ interface ExploreClientProps {
       Only wired up as react-query initialData when the visitor's actual
       filters match this exact unfiltered query — see the guard below. */
   initialCafes?: PaginatedResponse<CafeListItem>;
+  /** Secondary homepage content, rendered below the café grid. */
+  children?: React.ReactNode;
 }
 
-export function ExploreClient({ initialCafes }: ExploreClientProps) {
+export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const firstName = user?.fullName ? user.fullName.split(' ')[0] : null;
@@ -103,8 +95,9 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState(persistedCity || 'All Cities');
-  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('All');
-  const [activityKind, setActivityKind] = useState<string | null>(null);
+  // Activity key from /cafes/activities ('pc-gaming', 'console', 'snooker',
+  // ...). The list is data-driven, so a new activity needs no code here.
+  const [activity, setActivity] = useState<string | null>(null);
   const [openStatus, setOpenStatus] = useState<OpenStatusFilter>('any');
   const [sortBy, setSortBy] = useState<SortOption>('recommended');
   const [isLocating, setIsLocating] = useState(false);
@@ -224,7 +217,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
       city: effectiveCity,
       minPrice,
       maxPrice,
-      activityKind: activityKind || undefined,
+      activity: activity || undefined,
       limit: 30,
     }),
     queryFn: () =>
@@ -233,12 +226,26 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         city: effectiveCity,
         minPrice,
         maxPrice,
-        activityKind: activityKind || undefined,
+        activity: activity || undefined,
         limit: 30,
       }),
     staleTime: 30_000,
-    initialData: matchesServerFetchedDefault && !activityKind ? initialCafes : undefined,
+    initialData: matchesServerFetchedDefault && !activity ? initialCafes : undefined,
   });
+
+  // What can be played in the selected city — only these become chips.
+  const { data: activities = [] } = useQuery({
+    queryKey: ['cafes', 'activities', effectiveCity ?? null],
+    queryFn: () => listActivities(effectiveCity),
+    staleTime: 5 * 60_000,
+  });
+
+  // Switching city can leave a selected activity that city doesn't offer.
+  useEffect(() => {
+    if (activity && activities.length > 0 && !activities.some((a) => a.key === activity)) {
+      setActivity(null);
+    }
+  }, [activities, activity]);
 
   const cafes = data?.items || [];
 
@@ -251,7 +258,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     fireAnalyticsEvent('search_performed', {
       metadata: {
         city: effectiveCity ?? null,
-        platformFilter: platformFilter ?? null,
+        activity: activity ?? null,
         minPrice: minPrice ?? null,
         maxPrice: maxPrice ?? null,
         queryText: debouncedQuery || null,
@@ -259,7 +266,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveCity, debouncedQuery, minPrice, maxPrice, platformFilter, data]);
+  }, [effectiveCity, debouncedQuery, minPrice, maxPrice, activity, data]);
 
   const hasLocation = userLat != null && userLng != null;
   const distanceOf = (cafe: CafeListItem): number =>
@@ -267,28 +274,9 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
       ? calculateDistance(userLat!, userLng!, cafe.latitude, cafe.longitude)
       : Infinity;
 
-  // Filter Logic — platform branches derive from the café's actual configured
-  // hardware tier names (see lib/platformTags.ts), never from the café's own
-  // name. A café called "Velocity Lounge" isn't a console venue just because
-  // its name contains "velocity" — that was the root cause of BUG #3 (card
-  // showed "PS5 / Consoles" with zero console tiers configured).
+  // Activity filtering happens server-side (the `activity` param above);
+  // the rest narrows the returned page client-side.
   const filteredCafes = cafes.filter((cafe) => {
-    if (platformFilter === 'PC' && !hasPcTier(cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
-      return false;
-    }
-
-    if (platformFilter === 'PS5' && !hasPlatformTier('playstation', cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
-      return false;
-    }
-
-    if (platformFilter === 'Xbox' && !hasPlatformTier('xbox', cafe.tierNames, cafe.platforms, cafe.platformsComplete)) {
-      return false;
-    }
-
-    // 'Other' activity filtering (Snooker/8-Ball Pool/Bowling/etc.) is done
-    // server-side via the activityKind query param above -- the café list
-    // returned already only contains matches, so no client-side check here.
-
     if (openStatus === 'open_now' && !isCafeOpenNow(cafe.openingTime, cafe.closingTime)) {
       return false;
     }
@@ -320,40 +308,12 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
     sortedCafes.sort((a, b) => distanceOf(a) - distanceOf(b));
   }
 
-  // Which facets anything in this result set could actually satisfy. With 22
-  // researched cafés carrying no confirmed tiers, hours or prices, the
-  // platform chips and Open-now would otherwise sit there guaranteeing zero
-  // results. A filter that cannot return anything should not be on screen.
+  // A filter that cannot return anything should not be on screen (22
+  // researched cafés carry no confirmed hours or prices yet).
   const facets = {
-    pc: cafes.some((c) => hasPcTier(c.tierNames, c.platforms, c.platformsComplete)),
-    ps5: cafes.some((c) => hasPlatformTier('playstation', c.tierNames, c.platforms, c.platformsComplete)),
-    xbox: cafes.some((c) => hasPlatformTier('xbox', c.tierNames, c.platforms, c.platformsComplete)),
     openNow: cafes.some((c) => c.openingTime != null && c.closingTime != null),
     price: cafes.some((c) => c.startingPrice != null),
   };
-  // "Other" activity options actually present in the current, unfiltered-
-  // by-activity result page: the fixed set (matched case-insensitively)
-  // plus any raw activity_kind values owners set that aren't in it, so a
-  // café offering e.g. "Carrom" is still reachable instead of being
-  // silently unfilterable.
-  const seenActivityKinds = new Set<string>();
-  cafes.forEach((c) => (c.activityKinds || []).forEach((a) => seenActivityKinds.add(a)));
-  const availableActivities: ActivityOption[] = [
-    ...FIXED_ACTIVITY_OPTIONS.filter((opt) =>
-      Array.from(seenActivityKinds).some((a) => a.toLowerCase() === opt.key)
-    ),
-    ...Array.from(seenActivityKinds)
-      .filter((a) => !FIXED_ACTIVITY_OPTIONS.some((opt) => opt.key === a.toLowerCase()))
-      .map((a) => ({ key: a.toLowerCase(), label: a, icon: MoreHorizontal })),
-  ];
-
-  const availablePlatformTags = PLATFORM_TAGS.filter(({ key }) => {
-    if (key === 'All') return true;
-    if (key === 'PC') return facets.pc;
-    if (key === 'PS5') return facets.ps5;
-    if (key === 'Xbox') return facets.xbox;
-    return true;
-  });
 
   // Cities that actually have something to show, so the picker never offers a
   // city that returns an empty grid.
@@ -363,8 +323,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
   const selectableCities = ['All Cities', ...(citiesWithResults.length > 0 ? citiesWithResults : SUPPORTED_CITIES)];
 
   const hasActiveFilters =
-    platformFilter !== 'All' ||
-    activityKind !== null ||
+    activity !== null ||
     openStatus !== 'any' ||
     distance !== 'any' ||
     Boolean(searchQuery) ||
@@ -376,8 +335,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
   const handleResetFilters = () => {
     setSearchQuery('');
     handleCityChange('All Cities');
-    setPlatformFilter('All');
-    setActivityKind(null);
+    setActivity(null);
     setOpenStatus('any');
     setDistance('any');
     setPriceRange([PRICE_MIN, PRICE_MAX]);
@@ -462,23 +420,6 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1"
         style={{ maskImage: 'linear-gradient(to right, black 92%, transparent)', WebkitMaskImage: 'linear-gradient(to right, black 92%, transparent)' }}
       >
-        {availablePlatformTags.map(({ key, label }) => {
-          const isSelected = platformFilter === key;
-          return (
-            <button
-              key={key}
-              onClick={() => setPlatformFilter(key)}
-              className={`rounded-full px-4 min-h-[36px] text-caption font-semibold flex-shrink-0 transition-all ${
-                isSelected
-                  ? 'bg-secondary text-white shadow-card font-bold'
-                  : 'bg-card text-text-secondary border border-border hover:bg-surface'
-              }`}
-            >
-              {label}
-            </button>
-          );
-        })}
-
         {facets.openNow && (
         <button
           onClick={() => setOpenStatus((v) => (v === 'open_now' ? 'any' : 'open_now'))}
@@ -528,11 +469,6 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         onDistanceChange={setDistance}
         openStatus={openStatus}
         onOpenStatusChange={setOpenStatus}
-        platform={platformFilter}
-        onPlatformChange={setPlatformFilter}
-        availableActivities={availableActivities}
-        activityKind={activityKind}
-        onActivityKindChange={setActivityKind}
         priceRange={priceRange}
         onPriceRangeChange={setPriceRange}
         selectedAmenities={selectedAmenities}
@@ -543,6 +479,36 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         onClearAll={handleClearAdvancedFilters}
       />
     </div>
+  );
+
+  // "What are you playing today?" — the primary filter. Gaming activities
+  // lead (the backend orders them first); snooker, bowling etc. follow as
+  // more ways to play. Hidden when the city offers just one thing.
+  const activityRow = activities.length > 1 && (
+    <nav aria-label="What are you playing today?" className="flex flex-col gap-1.5">
+      <span className="text-caption font-semibold text-text-secondary">What are you playing today?</span>
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 pb-0.5">
+        {[{ key: null, label: 'All' } as { key: string | null; label: string }, ...activities].map(({ key, label }) => {
+          const isSelected = activity === key;
+          return (
+            <button
+              key={key ?? 'all'}
+              type="button"
+              onClick={() => setActivity(key)}
+              aria-pressed={isSelected}
+              className={`flex flex-shrink-0 items-center gap-2 rounded-xl border px-3.5 min-h-[44px] text-caption font-semibold transition-colors ${
+                isSelected
+                  ? 'border-secondary bg-secondary text-white'
+                  : 'border-border bg-card text-text-primary hover:bg-surface'
+              }`}
+            >
+              {key ? <ActivityIcon activity={key} className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+              <span className="whitespace-nowrap">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 
   // The current search location must always be visible, not just implied by
@@ -578,9 +544,12 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           value={searchQuery}
           onChange={setSearchQuery}
           onSelectCity={setSelectedCity}
-          onSelectTag={(tag) => setPlatformFilter(tag as PlatformFilter)}
+          onSelectTag={setActivity}
           cities={SUPPORTED_CITIES}
+          activities={activities}
         />
+
+        {activityRow}
 
         {filterChipsRow}
 
@@ -633,7 +602,7 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
         {!isLoading && !isError && sortedCafes.length === 0 && (
           <EmptyState
             title="No gaming cafés found"
-            description={`No cafés match "${searchQuery || platformFilter}" in ${selectedCity}. Try a different search, or explore what's nearby instead.`}
+            description={`No places match${searchQuery ? ` "${searchQuery}"` : ''} in ${selectedCity === 'All Cities' ? 'any city' : selectedCity} yet. Try a different search, or explore what's nearby instead.`}
             actionLabel="Clear All Filters"
             onAction={handleResetFilters}
           />
@@ -662,6 +631,8 @@ export function ExploreClient({ initialCafes }: ExploreClientProps) {
           to book a slot and track your bookings.
         </p>
       )}
+
+      {children}
 
       {/* Legal footer — the social row sits above the policy links and is
           separated by more space than the links give each other, so the two

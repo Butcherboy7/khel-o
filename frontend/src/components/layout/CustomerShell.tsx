@@ -53,7 +53,7 @@ function CustomerHeader() {
   const unreadCount = unreadData?.unreadCount || 0;
 
   return (
-    <header className="sticky top-0 z-nav w-full border-b border-border/60 bg-card/95 backdrop-blur-md">
+    <header className="sticky top-0 z-nav w-full border-b border-border bg-card">
       <div className="mx-auto flex h-16 max-w-wide items-center justify-between px-4 md:px-6">
         {/* Brand Logo */}
         <Link href="/" className="flex items-center gap-2">

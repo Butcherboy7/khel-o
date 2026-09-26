@@ -20,6 +20,7 @@ export type {
   CafeDetail,
   AdminCafe,
   CafeListParams,
+  ActivityFacet,
   CafeCreateRequest,
   CafeUpdateRequest,
   AdminCafeListParams,

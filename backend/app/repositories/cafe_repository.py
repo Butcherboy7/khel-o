@@ -10,6 +10,7 @@ from app.models.hardware_tier import HardwareTier, TierType
 from app.models.review import Review
 from app.repositories.base import BaseRepository
 from app.core.time import now_ist
+from app.core.activities import activity_def, cafe_activities, sort_keys
 
 class CafeRepository(BaseRepository[Cafe]):
     def __init__(self, db: AsyncSession):
@@ -102,6 +103,50 @@ class CafeRepository(BaseRepository[Cafe]):
             counts[s_str] = cnt
         return counts
 
+    @staticmethod
+    def _visible_cafes():
+        return select(Cafe).where(
+            Cafe.verification_status == VerificationStatus.VERIFIED,
+            Cafe.is_active == True,
+            Cafe.is_emergency_mode == False,
+            Cafe.bookings_paused == False
+        )
+
+    async def _activities_by_cafe(self, city: Optional[str] = None) -> Dict[UUID, Dict[str, str]]:
+        # Activities are derived from tiers in Python (see app/core/activities.py),
+        # so filtering/counting loads every visible café's tiers — a few
+        # hundred rows at most, far cheaper than mirroring the rules in SQL.
+        stmt = self._visible_cafes().with_only_columns(Cafe.id)
+        if city and city.strip():
+            stmt = stmt.where(func.lower(func.trim(Cafe.city)) == city.strip().lower())
+        cafe_ids = list((await self.db.execute(stmt)).scalars().all())
+        if not cafe_ids:
+            return {}
+        tiers = (await self.db.execute(
+            select(HardwareTier).where(HardwareTier.cafe_id.in_(cafe_ids), HardwareTier.is_active == True)
+        )).scalars().all()
+        by_cafe: Dict[UUID, List[HardwareTier]] = {cid: [] for cid in cafe_ids}
+        for t in tiers:
+            by_cafe[t.cafe_id].append(t)
+        return {cid: cafe_activities(ts) for cid, ts in by_cafe.items()}
+
+    async def _cafe_ids_with_activity(self, key: str) -> List[UUID]:
+        return [cid for cid, acts in (await self._activities_by_cafe()).items() if key in acts]
+
+    async def activity_counts(self, city: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Activities on offer in a city (all cities if None), with café counts."""
+        counts: Dict[str, int] = {}
+        labels: Dict[str, str] = {}
+        for acts in (await self._activities_by_cafe(city)).values():
+            for key, raw in acts.items():
+                counts[key] = counts.get(key, 0) + 1
+                labels.setdefault(key, raw)
+        out = []
+        for key in sort_keys(counts):
+            d = activity_def(key, labels[key])
+            out.append({"key": key, "label": d.label, "group": d.group, "count": counts[key]})
+        return out
+
     async def flex_search_verified(
         self,
         city: Optional[str] = None,
@@ -110,15 +155,11 @@ class CafeRepository(BaseRepository[Cafe]):
         max_price: Optional[float] = None,
         amenities: Optional[List[str]] = None,
         activity_kind: Optional[str] = None,
+        activity: Optional[str] = None,
         page: int = 1,
         limit: int = 20
     ) -> Tuple[List[Dict[str, Any]], int]:
-        stmt = select(Cafe).where(
-            Cafe.verification_status == VerificationStatus.VERIFIED,
-            Cafe.is_active == True,
-            Cafe.is_emergency_mode == False,
-            Cafe.bookings_paused == False
-        )
+        stmt = self._visible_cafes()
 
         if city and city.strip():
             # func.trim on both sides: new cafés are now validated against a
@@ -170,6 +211,10 @@ class CafeRepository(BaseRepository[Cafe]):
                 func.lower(func.trim(HardwareTier.activity_kind)) == activity_kind.strip().lower()
             )
             stmt = stmt.where(Cafe.id.in_(activity_subquery))
+
+        if activity and activity.strip():
+            ids = await self._cafe_ids_with_activity(activity.strip().lower())
+            stmt = stmt.where(Cafe.id.in_(ids or [None]))
 
         # Live cafés (bookable) rank above Booking Soon ones, and within each
         # group the most-reviewed / highest-rated cafés lead -- social proof
@@ -268,6 +313,7 @@ class CafeRepository(BaseRepository[Cafe]):
                 "platforms": platforms,
                 "platforms_complete": platforms_complete,
                 "activity_kinds": activity_kinds,
+                "activities": sort_keys(cafe_activities(cafe_tiers)),
                 "photos": photo_list,
                 "amenities": amenity_list,
                 "has_active_promotion": False,
