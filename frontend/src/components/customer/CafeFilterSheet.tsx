@@ -2,7 +2,6 @@
 
 import {
   Monitor,
-  MoreHorizontal,
   Snowflake,
   Coffee,
   ParkingCircle,
@@ -13,25 +12,8 @@ import {
 } from 'lucide-react';
 import { BottomSheet, Button } from '@/components/ui';
 import { normalizeAmenityKey } from '@/lib/amenities';
-import { PlayStationIcon, XboxIcon, SnookerIcon, PoolIcon, BowlingIcon } from '@/components/icons/PlatformIcons';
 import type { CafeListItem } from '@/types';
 
-export type PlatformFilter = 'All' | 'PC' | 'PS5' | 'Xbox' | 'Other';
-
-/** Fixed non-console activities with dedicated icons/labels. Matched
- *  case-insensitively against HardwareTier.activity_kind (free text set by
- *  owners), so "snooker"/"Snooker"/"SNOOKER" all resolve to the same chip. */
-export interface ActivityOption {
-  key: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-export const FIXED_ACTIVITY_OPTIONS: ActivityOption[] = [
-  { key: 'snooker', label: 'Snooker', icon: SnookerIcon },
-  { key: 'eight ball pool', label: '8-Ball Pool', icon: PoolIcon },
-  { key: 'bowling', label: 'Bowling', icon: BowlingIcon },
-];
 export type OpenStatusFilter = 'any' | 'open_now' | 'opening_soon';
 export type DistanceFilter = 'any' | 1 | 3 | 5 | 10;
 
@@ -65,13 +47,6 @@ export function cafeHasAmenityBucket(cafe: CafeListItem, bucket: AmenityBucket):
   const cafeKeys = new Set((cafe.amenities || []).map(normalizeAmenityKey));
   return bucket.keys.some((k) => cafeKeys.has(k));
 }
-
-const PLATFORM_OPTIONS: { key: PlatformFilter; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: 'PC', label: 'PC', icon: Monitor },
-  { key: 'PS5', label: 'PS5', icon: PlayStationIcon },
-  { key: 'Xbox', label: 'Xbox', icon: XboxIcon },
-  { key: 'Other', label: 'Other', icon: MoreHorizontal },
-];
 
 const OPEN_STATUS_OPTIONS: { key: OpenStatusFilter; label: string }[] = [
   { key: 'any', label: 'Any' },
@@ -121,14 +96,6 @@ interface CafeFilterSheetProps {
   onDistanceChange: (v: DistanceFilter) => void;
   openStatus: OpenStatusFilter;
   onOpenStatusChange: (v: OpenStatusFilter) => void;
-  platform: PlatformFilter;
-  onPlatformChange: (v: PlatformFilter) => void;
-  /** Other-activity options actually available in the current results —
-   *  fixed ones (Snooker/8-Ball Pool/Bowling) plus any additional raw
-   *  activity_kind values cafés have set that aren't in the fixed list. */
-  availableActivities: ActivityOption[];
-  activityKind: string | null;
-  onActivityKindChange: (v: string | null) => void;
   priceRange: [number, number];
   onPriceRangeChange: (v: [number, number]) => void;
   selectedAmenities: string[];
@@ -142,7 +109,7 @@ interface CafeFilterSheetProps {
   onClearAll: () => void;
 }
 
-/** The "Filters" bottom sheet — distance, open status, platform, price range,
+/** The "Filters" bottom sheet — distance, open status, price range,
  *  and amenities live here so the always-visible chip row above stays down
  *  to the handful of filters most searches actually use. Everything below
  *  filters the live café list as it changes; "Show N cafés" just closes the
@@ -156,11 +123,6 @@ export function CafeFilterSheet({
   onDistanceChange,
   openStatus,
   onOpenStatusChange,
-  platform,
-  onPlatformChange,
-  availableActivities,
-  activityKind,
-  onActivityKindChange,
   priceRange,
   onPriceRangeChange,
   selectedAmenities,
@@ -245,76 +207,6 @@ export function CafeFilterSheet({
               </ChipButton>
             ))}
           </div>
-        </div>
-
-        {/* Platform / Type */}
-        <div className="flex flex-col gap-2.5">
-          <SectionLabel>Platform / Type</SectionLabel>
-          <div className="grid grid-cols-4 gap-2.5">
-            {PLATFORM_OPTIONS.map(({ key, label, icon: Icon }) => {
-              const isSelected = platform === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    if (key === 'Other') {
-                      // Toggling "Other" only opens/closes the activity
-                      // panel below -- it doesn't filter by itself, since
-                      // "other" isn't a real bookable activity on its own.
-                      onPlatformChange(isSelected ? 'All' : 'Other');
-                      if (isSelected) onActivityKindChange(null);
-                      return;
-                    }
-                    onPlatformChange(isSelected ? 'All' : key);
-                    onActivityKindChange(null);
-                  }}
-                  className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 py-3 px-1 transition-colors ${
-                    isSelected
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'border-border bg-card text-text-secondary hover:bg-surface'
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-[11px] font-semibold">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {platform === 'Other' && (
-            <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3">
-              <span className="text-caption font-semibold text-text-secondary">
-                Choose an activity
-              </span>
-              {availableActivities.length === 0 ? (
-                <p className="text-caption text-text-secondary">
-                  No non-console activities available right now.
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {availableActivities.map(({ key, label, icon: Icon }) => {
-                    const isSelected = activityKind === key;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => onActivityKindChange(isSelected ? null : key)}
-                        className={`flex items-center gap-1.5 rounded-full border-2 px-3 py-1.5 text-caption font-semibold transition-colors ${
-                          isSelected
-                            ? 'border-primary bg-primary/5 text-primary'
-                            : 'border-border bg-card text-text-primary hover:bg-surface'
-                        }`}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Price per hour — two overlapping native range inputs sharing one

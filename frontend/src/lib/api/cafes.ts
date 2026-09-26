@@ -6,10 +6,16 @@ import type {
   CafeCreateRequest,
   CafeUpdateRequest,
   CafeListParams,
+  ActivityFacet,
 } from '@/types';
 
 export async function listCafes(params: CafeListParams): Promise<PaginatedResponse<CafeListItem>> {
   return call(() => apiClient.get('/api/v1/cafes', { params }));
+}
+
+/** Activities on offer in a city (all cities when omitted), gaming first. */
+export async function listActivities(city?: string): Promise<ActivityFacet[]> {
+  return call(() => apiClient.get('/api/v1/cafes/activities', { params: { city } }));
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -22,7 +22,6 @@ import {
   X,
 } from 'lucide-react';
 import { getCafe, cafePath } from '@/lib/api/cafes';
-import { getPlatformFeePercentage } from '@/lib/api/bookings';
 import { listCafeReviews, createReview, getReviewSettings } from '@/lib/api/reviews';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
@@ -69,12 +68,6 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   // The URL segment may be a slug; every API call below (reviews, waitlist,
   // analytics) needs the real id, which the server-fetched café carries.
   const cafeId = initialCafe?.id ?? (params.id as string);
-  const { data: platformFeeData } = useQuery({
-    queryKey: ['platform-fee-percentage'],
-    queryFn: getPlatformFeePercentage,
-    staleTime: 60_000,
-  });
-  const feePercent = platformFeeData?.platformFeePercentage ?? 4;
 
   useEffect(() => {
     fireAnalyticsEvent('venue_viewed', { cafeId });
@@ -920,7 +913,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       {/* Sticky Bottom Action Bar — offset must include the safe-area inset too,
           not just the nav bar's base height, or the home-indicator padding on
           notched iPhones still overlaps this bar's bottom edge. */}
-      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card/95 backdrop-blur-md border-t border-border/80 p-4 shadow-overlay">
+      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card border-t border-border p-4 shadow-overlay">
         {isLead ? (
           /* Lead listing: KHEL-O listed this café from research and the venue
              has not agreed to take bookings yet, so there is no price to show
@@ -1000,10 +993,11 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             <div className="font-data text-price-lg font-bold text-text-primary">
               <span className="rupee-symbol">₹</span>{activeTier?.pricePerHour ?? minPrice}<span className="text-caption font-normal text-text-secondary">/hr</span>
             </div>
-            {/* The fee is shown before checkout so the final total never
-                surprises anyone — surprise fees are the top checkout drop-off. */}
+            {/* Flag the fee before checkout so the total never surprises
+                anyone, but as an amount-at-checkout, not a percentage — "4%"
+                reads as money lost; the exact rupee figure is on checkout. */}
             <span className="text-caption text-text-secondary">
-              + {feePercent}% platform fee at checkout
+              + platform fee at checkout
             </span>
           </div>
 

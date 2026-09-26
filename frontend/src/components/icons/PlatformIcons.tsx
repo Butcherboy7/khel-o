@@ -1,7 +1,7 @@
 // Brand marks for console platform badges (customer tier selection).
 // Path data from Simple Icons (CC0 dedication) — https://simpleicons.org
 import type { SVGProps } from 'react';
-import { Monitor, Gamepad2, MoreHorizontal } from 'lucide-react';
+import { Monitor, Gamepad2, MoreHorizontal, Glasses, CarFront, Target } from 'lucide-react';
 import type { Platform } from '@/constants/platforms';
 
 export function PlayStationIcon(props: SVGProps<SVGSVGElement>) {
@@ -84,5 +84,29 @@ export function PlatformIcon({
       return <Gamepad2 className={className} />;
     default:
       return <MoreHorizontal className={className} />;
+  }
+}
+
+/** Icon for an activity key from /cafes/activities. Keys the backend adds
+ *  later (a new owner-set activity) fall back to a generic mark, so a new
+ *  activity shows up in the filters without a frontend release. */
+export function ActivityIcon({ activity, className }: { activity: string; className?: string }) {
+  switch (activity) {
+    case 'pc-gaming':
+      return <Monitor className={className} />;
+    case 'console':
+      return <PlayStationIcon className={className} />;
+    case 'snooker':
+      return <SnookerIcon className={className} />;
+    case 'pool':
+      return <PoolIcon className={className} />;
+    case 'bowling':
+      return <BowlingIcon className={className} />;
+    case 'vr':
+      return <Glasses className={className} />;
+    case 'racing-simulator':
+      return <CarFront className={className} />;
+    default:
+      return <Target className={className} />;
   }
 }

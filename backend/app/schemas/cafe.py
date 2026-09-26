@@ -130,6 +130,8 @@ class CafeListItem(BaseModel):
     tier_names: List[str] = Field(default_factory=list)
     platforms: List[str] = Field(default_factory=list)
     activity_kinds: List[str] = Field(default_factory=list)
+    # Normalized activity keys (app/core/activities.py) — what the filters use.
+    activities: List[str] = Field(default_factory=list)
     # True only when every active tier has a confirmed real platform. See
     # cafe_repository.py's computation and lib/platformTags.ts's consumer.
     platforms_complete: bool = False

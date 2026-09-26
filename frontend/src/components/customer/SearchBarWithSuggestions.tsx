@@ -15,17 +15,25 @@ interface SearchSuggestion {
 
 const COMMON_GAMES = ['Valorant', 'Counter-Strike 2', 'GTA V', 'EA FC 24', 'Cyberpunk 2077', 'Apex Legends'];
 const HARDWARE_TIERS = ['RTX 4090', 'RTX 4080 Super', 'RTX 4070', 'PS5 Console Lounge', 'GTX 1660 Budget'];
-const ACTIVITIES = ['PC', 'PS5', 'Xbox'];
+// Extra words people type for an activity whose label doesn't contain them.
+const ACTIVITY_SEARCH_ALIASES: Record<string, string> = {
+  'pc-gaming': 'pc computer rig',
+  console: 'ps5 ps4 playstation xbox switch',
+  pool: '8 ball billiards',
+};
 
 interface SearchBarProps {
   value: string;
   onChange: (val: string) => void;
   onSelectCity: (city: string) => void;
-  onSelectTag: (tag: string) => void;
+  /** Activity key chosen from a suggestion. */
+  onSelectTag: (activityKey: string) => void;
   cities: string[];
+  /** Activities on offer (from /cafes/activities) — never a hardcoded list. */
+  activities?: { key: string; label: string }[];
 }
 
-export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSelectTag, cities }: SearchBarProps) {
+export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSelectTag, cities, activities = [] }: SearchBarProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -56,16 +64,18 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
       });
     });
 
-    // Platform/activity matches (PS5, Xbox, PC — not everyone is here for a rig)
-    ACTIVITIES.filter((a) => a.toLowerCase().includes(queryLower)).forEach((a) => {
-      suggestions.push({
-        id: `activity-${a}`,
-        title: a,
-        subtitle: 'Platform',
-        type: 'activity',
-        filterValue: a,
+    // Activity matches (PC, console, snooker, ...) — not everyone is here for a rig
+    activities
+      .filter((a) => `${a.label} ${a.key} ${ACTIVITY_SEARCH_ALIASES[a.key] ?? ''}`.toLowerCase().includes(queryLower))
+      .forEach((a) => {
+        suggestions.push({
+          id: `activity-${a.key}`,
+          title: a.label,
+          subtitle: 'Activity',
+          type: 'activity',
+          filterValue: a.key,
+        });
       });
-    });
 
     // Game matches
     COMMON_GAMES.filter((g) => g.toLowerCase().includes(queryLower)).forEach((g) => {
@@ -95,7 +105,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
       onSelectCity(s.title);
       onChange('');
     } else if (s.type === 'activity') {
-      onSelectTag(s.title);
+      onSelectTag(s.filterValue ?? s.title);
       onChange('');
     } else if (s.type === 'game' || s.type === 'tier') {
       onChange(s.title);
@@ -111,8 +121,8 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
         <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
         <input
           type="text"
-          aria-label="Search cafés, cities, platforms or games"
-          placeholder="Search by city, café, PS5/Xbox/PC, or game"
+          aria-label="Search cafés, cities, activities or games"
+          placeholder="Search a café, city, game or activity"
           value={value}
           onFocus={() => setIsOpen(true)}
           onChange={(e) => {

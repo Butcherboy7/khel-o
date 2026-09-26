@@ -2,6 +2,8 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { listCafes, cafePath } from '@/lib/api/cafes';
 import { ExploreClient } from '@/components/customer/ExploreClient';
+import { HomeSections } from '@/components/customer/HomeSections';
+import { SkeletonCafeGrid } from '@/components/ui/Skeleton';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
@@ -27,42 +29,6 @@ async function getInitialCafes() {
   }
 }
 
-// Plain, honest answers only — no invented city counts, guarantees, or
-// aggregate stats. See docs/lovable/owner-onboarding-experience-prompt.md
-// Part B for why unverifiable numbers stay out of user-facing copy.
-const FAQ_ITEMS = [
-  {
-    question: 'What is KHEL-O?',
-    answer:
-      'KHEL-O is a booking platform for gaming cafés in India. Search for a café near you, check real-time station availability, book a time slot, and pay online.',
-  },
-  {
-    question: 'Do I need to book in advance?',
-    answer:
-      'No — you can book right up to your session time as long as a station is still available. Booking ahead just guarantees your slot at busy hours.',
-  },
-  {
-    question: 'How do I pay?',
-    answer:
-      'You pay online when you book, through Razorpay. Your booking gives you a QR pass — show it at the café counter to check in.',
-  },
-  {
-    question: 'Can I cancel a booking?',
-    answer:
-      'Yes. Cancelling up to 2 hours before your session start time gets you a full refund automatically to your original payment method. Cancellations within 2 hours of the session, or no-shows, are not eligible for a refund.',
-  },
-  {
-    question: 'Is KHEL-O available in my city?',
-    answer:
-      'KHEL-O is expanding city by city. Use the city selector on the homepage to see which gaming cafés are currently listed near you.',
-  },
-  {
-    question: 'I own a gaming café — can I list it?',
-    answer:
-      'Yes, listing is free. Visit /partner to see what is needed and start your café setup.',
-  },
-] as const;
-
 export default async function ExplorePage() {
   const initialCafes = await getInitialCafes();
 
@@ -79,19 +45,6 @@ export default async function ExplorePage() {
       }
     : null;
 
-  const faqJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: FAQ_ITEMS.map((item) => ({
-      '@type': 'Question',
-      name: item.question,
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: item.answer,
-      },
-    })),
-  };
-
   return (
     <>
       {itemListJsonLd && (
@@ -100,34 +53,28 @@ export default async function ExplorePage() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
         />
       )}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
-      <Suspense fallback={null}>
-        <ExploreClient initialCafes={initialCafes} />
+      {/* The fallback mirrors the explore layout (header, chips, café grid),
+          so on a slow load the café area is what appears first. The
+          secondary sections are passed in as children and render below the
+          grid inside ExploreClient, so they can never jump ahead of it. */}
+      <Suspense fallback={<ExploreFallback />}>
+        <ExploreClient initialCafes={initialCafes}>
+          <HomeSections />
+        </ExploreClient>
       </Suspense>
-
-      {/* Plain <details>/<summary> — no client JS needed, so the Q&A text is
-          in the raw HTML for crawlers and answer-engine bots to read and cite
-          directly, matching the FAQPage JSON-LD above. */}
-      <section className="max-w-5xl mx-auto w-full flex flex-col gap-4 pb-8">
-        <h2 className="font-heading text-h2 text-text-primary">Frequently asked questions</h2>
-        <div className="flex flex-col gap-2">
-          {FAQ_ITEMS.map((item) => (
-            <details
-              key={item.question}
-              className="group rounded-2xl bg-card border border-border/80 p-4 open:shadow-card"
-            >
-              <summary className="cursor-pointer list-none font-heading text-body-emphasis text-text-primary flex items-center justify-between gap-3">
-                <span>{item.question}</span>
-                <span className="text-text-secondary transition-transform group-open:rotate-45 flex-shrink-0">+</span>
-              </summary>
-              <p className="text-body text-text-secondary mt-2">{item.answer}</p>
-            </details>
-          ))}
-        </div>
-      </section>
     </>
+  );
+}
+
+function ExploreFallback() {
+  return (
+    <div className="flex flex-col gap-4 max-w-wide mx-auto" aria-busy="true">
+      <div className="flex flex-col gap-2.5">
+        <div className="h-8 w-64 max-w-full rounded-lg bg-border/60 animate-pulse" />
+        <div className="h-12 w-full rounded-full bg-border/60 animate-pulse" />
+        <div className="h-9 w-72 max-w-full rounded-full bg-border/60 animate-pulse" />
+      </div>
+      <SkeletonCafeGrid count={6} />
+    </div>
   );
 }
