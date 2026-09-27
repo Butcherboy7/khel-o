@@ -24,6 +24,7 @@ from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.repositories.owner_payout_repository import OwnerPayoutRepository
 from app.services.owner_service import OwnerService, IST
 from app.services.notification_service import NotificationService
+from app.services.owner_insights_service import build_insights
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator, AliasChoices
 from app.constants import validate_city, validate_google_maps_url, validate_pincode, PHOTO_CATEGORIES
 from app.api.deps import require_cafe_owner, require_staff_or_owner, get_current_active_user, require_cafe_ownership
@@ -1604,6 +1605,7 @@ def _hours_touched(booking) -> list[int]:
 
 @router.get("/analytics", status_code=status.HTTP_200_OK)
 async def get_owner_analytics(
+    days: int = Query(30, ge=7, le=90, description="Insights period, in days"),
     current_owner: User = Depends(require_cafe_owner),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1619,6 +1621,7 @@ async def get_owner_analytics(
     returning_customer_rate = 0.0
     average_duration_hours = 0.0
     peak_occupancy_percent = 0.0
+    insights = None
 
     if cafe_ids:
         tier_stmt = select(HardwareTier).where(HardwareTier.cafe_id.in_(cafe_ids))
@@ -1727,6 +1730,8 @@ async def get_owner_analytics(
                 for d, v in revenue_by_day.items()
             ]
 
+        insights = await build_insights(db, cafe_ids, tiers, bookings, settlement_by_booking, days)
+
     return {
         "success": True,
         "data": {
@@ -1737,6 +1742,7 @@ async def get_owner_analytics(
             "returningCustomerRate": returning_customer_rate,
             "averageDurationHours": average_duration_hours,
             "peakOccupancyPercent": peak_occupancy_percent,
+            "insights": insights,
         }
     }
 
