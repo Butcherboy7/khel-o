@@ -47,6 +47,10 @@ interface AnalyticsState {
   sessionId: string;
   attribution: Attribution | null;
   lastTouch: LastTouch | null;
+  /** Our own test device (opened once with ?internal=1): events are marked
+   *  so campaign and traffic numbers leave them out. */
+  internal: boolean;
+  setInternal: (on: boolean) => void;
   /** The last touch if still within its window, else null. */
   currentTouch: () => LastTouch | null;
   captureAttributionFromUrl: (params: URLSearchParams) => void;
@@ -59,6 +63,8 @@ export const useAnalyticsStore = create<AnalyticsState>()(
       sessionId: generateSessionId(),
       attribution: null,
       lastTouch: null,
+      internal: false,
+      setInternal: (on) => set({ internal: on }),
       currentTouch: () => {
         const touch = get().lastTouch;
         return touch && Date.now() - touch.at < TOUCH_TTL_MS ? touch : null;

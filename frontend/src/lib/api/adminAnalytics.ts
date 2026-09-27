@@ -213,6 +213,16 @@ export interface AdCampaignReport {
     sharedLocation: number;
     googleSigninFailed: number;
   };
+  checkout: {
+    bookingStarted: number;
+    loginShown: number;
+    paymentOpened: number;
+    paymentFailed: number;
+    paymentDismissed: number;
+    completed: number;
+  };
+  /** Test-device and staff/owner visitors left out of this report. */
+  internalExcluded: number;
   byAd: { ad: string; sessions: number; viewedCafe: number; acted: number; booked: number }[];
   devices: NamedCount[];
   inAppBrowser: NamedCount[];
@@ -241,10 +251,17 @@ export async function getAdCampaignReport(params: {
   campaign?: string | null;
   from: string;
   to: string;
+  includeInternal?: boolean;
 }): Promise<AdCampaignReport> {
   return call(() =>
     apiClient.get('/api/v1/admin/analytics/ad-campaigns/report', {
-      params: { source: params.source, campaign: params.campaign || undefined, from: params.from, to: params.to },
+      params: {
+        source: params.source,
+        campaign: params.campaign || undefined,
+        from: params.from,
+        to: params.to,
+        includeInternal: params.includeInternal || undefined,
+      },
     })
   );
 }

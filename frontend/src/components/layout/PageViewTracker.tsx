@@ -19,6 +19,9 @@ export function PageViewTracker() {
     // the source first, so this very page_view already carries the campaign.
     // Signup attribution is first-touch; events carry the latest touch.
     const params = new URLSearchParams(window.location.search);
+    // ?internal=1 marks this browser as one of our test devices (=0 undoes it).
+    const internal = params.get('internal');
+    if (internal === '1' || internal === '0') useAnalyticsStore.getState().setInternal(internal === '1');
     if (params.get('utm_source') || params.get('fbclid')) {
       useAnalyticsStore.getState().captureAttributionFromUrl(params);
       if (params.get('utm_source')) recordShareOpen(params);

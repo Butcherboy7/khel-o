@@ -106,7 +106,7 @@ async def test_campaign_funnel_counts_unique_visitors_per_stage(db_session, asyn
     assert r.status_code == 200, r.text
     data = r.json()["data"]
     stages = {s["key"]: s["sessions"] for s in data["funnel"]}
-    assert stages == {"landed": 2, "viewed": 2, "acted": 2, "signed_in": 1, "booked": 1}
+    assert stages == {"landed": 2, "viewed": 2, "acted": 2, "signed_in": 1, "payment_opened": 0, "booked": 1}
     assert data["totals"]["notifyMe"] == 1 and data["totals"]["gmv"] == 208.0
     assert {x["ad"]: x["booked"] for x in data["byAd"]} == {"reel-1": 1, "reel-2": 0}
     assert {x["name"]: x["sessions"] for x in data["inAppBrowser"]} == {"instagram": 1, "browser": 1}
@@ -116,6 +116,71 @@ async def test_campaign_funnel_counts_unique_visitors_per_stage(db_session, asyn
 
     opts = (await async_client.get("/api/v1/admin/analytics/ad-campaigns", headers=auth_headers(admin, is_admin=True))).json()
     assert any(o["campaign"] == camp and o["sessions"] == 2 for o in opts["data"]["campaigns"])
+
+
+async def test_checkout_steps_and_internal_traffic_left_out(db_session, async_client):
+    admin = await create_test_user(db_session, role=UserRole.ADMIN)
+    owner = await create_test_user(db_session, role=UserRole.CAFE_OWNER)
+    gamer = await create_test_user(db_session)
+    await db_session.commit()
+    cafe, _ = await _cafe(db_session, owner, "Checkout Arena")
+    camp = f"co-{uuid4().hex[:6]}"
+    utm = {"utm": {"s": "meta", "m": "paid_social", "c": camp, "t": "reel-1"}}
+    real, tester, staff = (f"s-{x}-{uuid4().hex[:6]}" for x in ("real", "test", "staff"))
+
+    # A real visitor: asked to log in, opens payment, it fails, closes it.
+    for etype in ("page_view", "booking_flow_started", "checkout_login_shown"):
+        await _event(async_client, real, etype, cafe.id, utm)
+    for etype in ("payment_opened", "payment_failed", "payment_dismissed"):
+        await _event(async_client, real, etype, cafe.id, utm, headers=auth_headers(gamer))
+    # Our test phone (?internal=1) and an owner account browsing: kept out.
+    await _event(async_client, tester, "page_view", metadata={**utm, "internal": True})
+    await _event(async_client, staff, "page_view", metadata=utm)
+    await _event(async_client, staff, "venue_viewed", cafe.id, utm, headers=auth_headers(owner))
+
+    today = date.today()
+    params = {"source": "meta", "campaign": camp, "from": (today - timedelta(days=1)).isoformat(), "to": today.isoformat()}
+    hdr = auth_headers(admin, is_admin=True)
+    data = (await async_client.get("/api/v1/admin/analytics/ad-campaigns/report", params=params, headers=hdr)).json()["data"]
+    assert data["totals"]["visitors"] == 1
+    assert data["internalExcluded"] == 2
+    assert data["checkout"] == {
+        "bookingStarted": 1, "loginShown": 1, "paymentOpened": 1,
+        "paymentFailed": 1, "paymentDismissed": 1, "completed": 0,
+    }
+    with_tests = (await async_client.get(
+        "/api/v1/admin/analytics/ad-campaigns/report", params={**params, "includeInternal": "true"}, headers=hdr,
+    )).json()["data"]
+    assert with_tests["totals"]["visitors"] == 3 and with_tests["internalExcluded"] == 0
+
+    stored = (await db_session.execute(
+        select(AnalyticsEvent.event_metadata).where(AnalyticsEvent.session_id == staff, AnalyticsEvent.event_type == "venue_viewed")
+    )).scalar_one()
+    assert stored.get("internal") is True
+
+async def test_one_booking_counted_once_across_visits(db_session, async_client):
+    admin = await create_test_user(db_session, role=UserRole.ADMIN)
+    owner = await create_test_user(db_session, role=UserRole.CAFE_OWNER)
+    gamer = await create_test_user(db_session)
+    await db_session.commit()
+    cafe, tier = await _cafe(db_session, owner, "Twice Arena")
+    camp = f"twice-{uuid4().hex[:6]}"
+    utm = {"utm": {"s": "meta", "c": camp, "t": "reel-1"}}
+    # Same person taps the ad on two visits (two sessions) and books once.
+    for sid in (f"s1-{uuid4().hex[:6]}", f"s2-{uuid4().hex[:6]}"):
+        await _event(async_client, sid, "page_view", metadata=utm, headers=auth_headers(gamer))
+    db_session.add(_booking(gamer, cafe, tier, amount=416.0))
+    await db_session.commit()
+    today = date.today()
+    data = (await async_client.get(
+        "/api/v1/admin/analytics/ad-campaigns/report",
+        params={"source": "meta", "campaign": camp, "from": (today - timedelta(days=1)).isoformat(), "to": today.isoformat()},
+        headers=auth_headers(admin, is_admin=True),
+    )).json()["data"]
+    assert data["totals"]["visitors"] == 2
+    assert data["totals"]["booked"] == 1 and data["totals"]["bookings"] == 1
+    assert data["totals"]["gmv"] == 416.0
+
 
 
 async def test_area_report_rolls_up_bookings_and_player_flows(db_session, async_client):

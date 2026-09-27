@@ -158,6 +158,7 @@ async def get_ad_campaign_report(
     campaign: str | None = Query(None, max_length=100),
     start: date = Query(..., alias="from"),
     end: date = Query(..., alias="to"),
+    include_internal: bool = Query(False, alias="includeInternal"),
     current_admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -166,7 +167,7 @@ async def get_ad_campaign_report(
 
     if end < start or (end - start).days > 92:
         raise BadRequestException(message="Pick a range of up to 3 months", error_code="INVALID_RANGE")
-    data = await growth_report_service.campaign_report(db, source, campaign or None, start, end)
+    data = await growth_report_service.campaign_report(db, source, campaign or None, start, end, include_internal)
     return {"success": True, "data": data}
 
 

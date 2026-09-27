@@ -11,9 +11,8 @@ import {
 } from '@/lib/api/adminAnalytics';
 import { SkeletonCard } from '@/components/ui';
 import { formatCurrency } from '@/lib/format';
-
-const LINK_TEMPLATE =
-  'https://khel-o.com/?utm_source=meta&utm_medium=paid_social&utm_campaign={{campaign.name}}&utm_content={{ad.name}}';
+import { cn } from '@/lib/cn';
+import { CampaignLinkGenerator } from '@/components/admin/CampaignLinkGenerator';
 
 const isoDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 const pct = (n: number) => `${Math.round(n * 100)}%`;
@@ -77,12 +76,62 @@ function Bars({ title, rows }: { title: string; rows: NamedCount[] }) {
 
 function pitchLine(r: AdCampaignReport, spend: number | null): string {
   const t = r.totals;
-  const lead = spend ? `We spent ₹${spend.toLocaleString('en-IN')} promoting KHEL-O on Instagram` : 'Our Instagram campaign';
+  const lead = spend ? `We spent ₹${spend.toLocaleString('en-IN')} promoting KHEL-O on Instagram and` : 'Our Instagram campaign';
   const parts = [`${t.viewedCafe} opened a café page`];
   if (t.notifyMe) parts.push(`${t.notifyMe} tapped “Notify me” for cafés not yet on KHEL-O`);
   if (t.bookingStarted) parts.push(`${t.bookingStarted} started a booking`);
   if (t.booked) parts.push(`${t.booked} booked (${formatCurrency(t.gmv)} in sessions)`);
-  return `${lead} and brought ${t.visitors} real visitors to the platform. ${parts.join(', ')}.`;
+  return `${lead} brought ${t.visitors} real visitors to the platform. ${parts.join(', ')}.`;
+}
+
+/** Checkout, in plain words: how many got to each step and where they gave up. */
+function CheckoutLosses({ report }: { report: AdCampaignReport }) {
+  const c = report.checkout;
+  if (!c || c.bookingStarted === 0) return null;
+  const rows = [
+    { label: 'Picked a slot and tapped Book', n: c.bookingStarted, note: 'Started checking out', bad: false, good: false },
+    { label: 'Asked to log in or sign up', n: c.loginShown, note: 'Weren’t logged in yet when they tried to pay' },
+    { label: 'Reached the payment screen', n: c.paymentOpened, note: 'Saw the UPI / card options' },
+    { label: 'Payment failed', n: c.paymentFailed, note: 'Card declined, UPI timed out, etc.', bad: true },
+    { label: 'Closed payment without paying', n: c.paymentDismissed, note: 'Changed their mind at the last step', bad: true },
+    { label: 'Paid and booked', n: c.completed, note: 'Money received', good: true },
+  ];
+  const lostBeforePay = Math.max(0, c.bookingStarted - c.paymentOpened);
+  const lostAtPay = Math.max(0, c.paymentOpened - c.completed);
+  const takeaway =
+    lostBeforePay === 0 && lostAtPay === 0
+      ? 'Everyone who started checking out paid.'
+      : lostBeforePay >= lostAtPay
+      ? `Most people who gave up did so before reaching payment (${lostBeforePay} of ${c.bookingStarted}), usually at the login step.`
+      : `Most people who gave up did so on the payment screen (${lostAtPay} of ${c.paymentOpened}).`;
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+      <div>
+        <h2 className="font-heading text-h3 text-text-primary">Where checkout loses people</h2>
+        <p className="text-caption text-text-secondary">Counted in visitors from this campaign, after they tapped Book.</p>
+      </div>
+      <ul className="flex flex-col divide-y divide-border">
+        {rows.map((r) => (
+          <li key={r.label} className="flex flex-col gap-1.5 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-body text-text-primary">{r.label}</div>
+                <div className="text-caption text-text-secondary">{r.note}</div>
+              </div>
+              <span className="font-data text-h3 font-bold tabular-nums text-text-primary">{r.n}</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface" aria-hidden>
+              <div
+                className={cn('h-full rounded-full', r.bad ? 'bg-warning' : r.good ? 'bg-success' : 'bg-primary')}
+                style={{ width: `${Math.round((r.n / c.bookingStarted) * 100)}%` }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="rounded-lg bg-surface px-3 py-2 text-caption text-text-primary">{takeaway}</p>
+    </section>
+  );
 }
 
 export default function AdCampaignsPage() {
@@ -91,6 +140,7 @@ export default function AdCampaignsPage() {
   const [to, setTo] = useState(isoDay(today));
   const [selected, setSelected] = useState<string>('');
   const [spend, setSpend] = useState('');
+  const [includeTests, setIncludeTests] = useState(false);
   const { copied, copy } = useCopy();
 
   const { data: options } = useQuery({
@@ -113,8 +163,8 @@ export default function AdCampaignsPage() {
   }, [selected]);
 
   const { data: report, isLoading } = useQuery({
-    queryKey: ['admin', 'analytics', 'ad-report', source, campaign, from, to],
-    queryFn: () => getAdCampaignReport({ source, campaign: campaign || null, from, to }),
+    queryKey: ['admin', 'analytics', 'ad-report', source, campaign, from, to, includeTests],
+    queryFn: () => getAdCampaignReport({ source, campaign: campaign || null, from, to, includeInternal: includeTests }),
     enabled: Boolean(source),
     staleTime: 30_000,
   });
@@ -140,24 +190,7 @@ export default function AdCampaignsPage() {
         </p>
       </div>
 
-      <section className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4">
-        <span className="text-caption font-semibold text-text-primary">Ad destination URL (paste into Meta Ads)</span>
-        <div className="flex flex-wrap items-center gap-2">
-          <code className="min-w-0 flex-1 break-all rounded-lg bg-surface px-3 py-2 text-[12px] text-text-primary">{LINK_TEMPLATE}</code>
-          <button
-            type="button"
-            onClick={() => copy('link', LINK_TEMPLATE)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-caption font-semibold hover:bg-surface"
-          >
-            {copied === 'link' ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied === 'link' ? 'Copied' : 'Copy'}
-          </button>
-        </div>
-        <p className="text-caption text-text-secondary">
-          Meta fills in the campaign and ad names, so each Reel shows up separately below. Clicks without tags are still
-          counted as Meta.
-        </p>
-      </section>
+      <CampaignLinkGenerator collapsible />
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
@@ -194,6 +227,10 @@ export default function AdCampaignsPage() {
             onChange={(e) => onSpend(e.target.value)}
             className="min-h-input w-28 rounded-lg border border-border bg-card px-3 text-body font-normal"
           />
+        </label>
+        <label className="flex min-h-input items-center gap-2 text-caption font-semibold text-text-primary">
+          <input type="checkbox" checked={includeTests} onChange={(e) => setIncludeTests(e.target.checked)} className="h-4 w-4 accent-primary" />
+          Include our own test visits
         </label>
       </div>
 
@@ -245,6 +282,14 @@ export default function AdCampaignsPage() {
               )}
             </p>
           </section>
+
+          <CheckoutLosses report={report} />
+          {report.internalExcluded > 0 && (
+            <p className="text-caption text-text-secondary">
+              {report.internalExcluded} visit{report.internalExcluded === 1 ? '' : 's'} from our team&apos;s phones or
+              staff/owner accounts left out of these numbers.
+            </p>
+          )}
 
           <section className="flex flex-col gap-2 rounded-2xl bg-secondary p-4 text-white">
             <span className="text-overline text-white/70">Owner pitch line</span>

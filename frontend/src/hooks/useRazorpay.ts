@@ -16,6 +16,8 @@ interface RazorpayOptions {
     razorpay_signature: string;
   }) => void;
   onDismiss?: () => void;
+  /** Razorpay reported the payment as failed (card declined, UPI timeout…). */
+  onFailed?: (reason: string) => void;
   prefill?: {
     name?: string;
     email?: string;
@@ -32,7 +34,10 @@ interface RazorpayOptions {
 
 declare global {
   interface Window {
-    Razorpay: new (options: RazorpayOptions) => { open: () => void };
+    Razorpay: new (options: RazorpayOptions) => {
+      open: () => void;
+      on: (event: 'payment.failed', cb: (res: { error?: { reason?: string; code?: string } }) => void) => void;
+    };
   }
 }
 
@@ -126,6 +131,7 @@ export function useRazorpay() {
       },
     });
 
+    rzp.on('payment.failed', (res) => options.onFailed?.(res.error?.reason || res.error?.code || 'unknown'));
     rzp.open();
   };
 

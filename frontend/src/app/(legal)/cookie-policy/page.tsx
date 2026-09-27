@@ -9,7 +9,7 @@ export default function CookiePolicyPage() {
   return (
     <>
       <h1>Cookie Policy</h1>
-      <p className="prose-legal-updated">Last updated: 16 September 2026</p>
+      <p className="prose-legal-updated">Last updated: 28 September 2026</p>
 
       <p>
         This policy explains the cookies and browser storage KHEL-O (&quot;we&quot;, &quot;us&quot;) uses when
@@ -56,6 +56,30 @@ export default function CookiePolicyPage() {
             </td>
             <td>Browser local storage</td>
             <td>Until you clear site data</td>
+          </tr>
+          <tr>
+            <td>
+              Campaign details from the link you opened (<code>utm_medium</code>, <code>utm_campaign</code>,{' '}
+              <code>utm_content</code>, or Meta&apos;s <code>fbclid</code>)
+            </td>
+            <td>
+              Tells us which of our posts, ads, QR codes or links you came from, so we can see which ones actually
+              help people find and book a venue. Attached to the steps you take on KHEL-O (for example opening a
+              venue, starting a booking, reaching payment, completing a booking) and counted in aggregate. We read
+              only the tag in the link; we do not receive your Instagram or Facebook account details.
+            </td>
+            <td>Browser local storage</td>
+            <td>30 days after your last tagged visit</td>
+          </tr>
+          <tr>
+            <td>Device type &amp; in-app browser</td>
+            <td>
+              Worked out on our server from your browser&apos;s standard User-Agent header: phone, tablet or
+              computer, and whether you opened KHEL-O inside the Instagram or Facebook app. Stored as that label
+              only, to fix problems on the devices people really use.
+            </td>
+            <td>Stored with the anonymous events above (not on your device)</td>
+            <td>With those events</td>
           </tr>
           <tr>
             <td>Google Sign-In session cookie</td>

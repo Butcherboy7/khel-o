@@ -47,6 +47,12 @@ def _utm(meta: dict) -> dict:
     return u if isinstance(u, dict) else {}
 
 
+def _internal_sessions(rows) -> set[str]:
+    """Sessions that touched any internal event (our test devices, staff or
+    owner accounts). Dropped whole, so their earlier anonymous visits go too."""
+    return {r[0] for r in rows if isinstance(r[4], dict) and r[4].get("internal")}
+
+
 def _searched(meta: dict) -> bool:
     return any(meta.get(k) not in (None, "") for k in ("queryText", "activity", "minPrice", "maxPrice"))
 
@@ -72,7 +78,11 @@ async def campaign_options(db: AsyncSession, days: int = 90) -> list[dict]:
     """Every (source, campaign) seen recently, busiest first, for the picker."""
     end = datetime.now(timezone.utc)
     seen: dict[tuple[str, str], dict[str, Any]] = {}
-    for sid, _, _, _, meta, ts in await _events(db, end - timedelta(days=days), end):
+    rows = await _events(db, end - timedelta(days=days), end)
+    internal = _internal_sessions(rows)
+    for sid, _, _, _, meta, ts in rows:
+        if sid in internal:
+            continue
         u = _utm(meta)
         if not u.get("s"):
             continue
@@ -88,10 +98,15 @@ async def campaign_options(db: AsyncSession, days: int = 90) -> list[dict]:
 
 
 async def campaign_report(
-    db: AsyncSession, source: str, campaign: Optional[str], start_day: date, end_day: date
+    db: AsyncSession, source: str, campaign: Optional[str], start_day: date, end_day: date,
+    include_internal: bool = False,
 ) -> dict:
     start, end = _utc(start_day), _utc(end_day + timedelta(days=1))
     rows = await _events(db, start, end)
+    internal = _internal_sessions(rows)
+    internal_rows = [r for r in rows if r[0] in internal]
+    if not include_internal:
+        rows = [r for r in rows if r[0] not in internal]
 
     by_session: dict[str, list] = defaultdict(list)
     for r in rows:
@@ -136,13 +151,17 @@ async def campaign_report(
     cafe_views, cafe_notify, cafe_starts = Counter(), Counter(), Counter()
     gmv, bookings = 0.0, 0
 
-    for sid, evs in cohort.items():
+    # A booking is credited once, to that person's earliest visit in the
+    # campaign; the same account visiting again must not count it twice.
+    counted: set[uuid.UUID] = set()
+    for sid, evs in sorted(cohort.items(), key=lambda kv: kv[1][0][5]):
         types = {e[2] for e in evs}
         tagged = next(e for e in evs if matches(e[4]))
         ad = _utm(tagged[4]).get("t") or "(not tagged)"
         meta0 = next((e[4] for e in evs if isinstance(e[4], dict) and e[4].get("dev")), {})
         users = users_of[sid]
-        s_bookings = [b for u in users for b in booked_by.get(u, [])]
+        s_bookings = [b for u in users for b in booked_by.get(u, []) if b.id not in counted]
+        counted.update(b.id for b in s_bookings)
 
         flags = {
             "landed": True,
@@ -157,6 +176,11 @@ async def campaign_report(
             "returned": len({_ist_day(e[5]) for e in evs}) >= 2,
             "located": "location_shared" in types,
             "signin_failed": "google_signin_failed" in types,
+            "login_shown": "checkout_login_shown" in types,
+            "payment_opened": "payment_opened" in types,
+            "payment_failed": "payment_failed" in types,
+            "payment_dismissed": "payment_dismissed" in types,
+            "completed": "booking_completed" in types,
         }
         for k, v in flags.items():
             if v:
@@ -195,6 +219,7 @@ async def campaign_report(
         ("viewed", "Opened a café"),
         ("acted", "Tapped Book or Notify me"),
         ("signed_in", "Signed in"),
+        ("payment_opened", "Opened payment"),
         ("booked", "Booked"),
     ]
     funnel = []
@@ -232,6 +257,18 @@ async def campaign_report(
             "sharedLocation": stage["located"],
             "googleSigninFailed": stage["signin_failed"],
         },
+        # Where checkout loses people, in visitors: shown the login screen,
+        # opened payment, saw a failure, closed the payment sheet, finished.
+        "checkout": {
+            "bookingStarted": stage["started"],
+            "loginShown": stage["login_shown"],
+            "paymentOpened": stage["payment_opened"],
+            "paymentFailed": stage["payment_failed"],
+            "paymentDismissed": stage["payment_dismissed"],
+            "completed": stage["completed"],
+        },
+        # Test/staff visitors left out of this campaign's numbers.
+        "internalExcluded": 0 if include_internal else len({r[0] for r in internal_rows if matches(r[4])}),
         "byAd": [
             {"ad": ad, "sessions": c["landed"], "viewedCafe": c["viewed"], "acted": c["acted"], "booked": c["booked"]}
             for ad, c in sorted(by_ad.items(), key=lambda kv: kv[1]["landed"], reverse=True)

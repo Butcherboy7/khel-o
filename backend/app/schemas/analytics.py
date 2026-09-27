@@ -24,6 +24,12 @@ class AnalyticsEventType(str, Enum):
     CITY_SELECTED = "city_selected"
     NOTIFY_ME = "notify_me"
     GOOGLE_SIGNIN_FAILED = "google_signin_failed"
+    # Checkout, after "Book": where a paid session is won or lost.
+    CHECKOUT_LOGIN_SHOWN = "checkout_login_shown"
+    PAYMENT_OPENED = "payment_opened"
+    PAYMENT_FAILED = "payment_failed"
+    PAYMENT_DISMISSED = "payment_dismissed"
+    BOOKING_COMPLETED = "booking_completed"
 
 
 MAX_METADATA_BYTES = 2048

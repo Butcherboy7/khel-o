@@ -457,6 +457,8 @@ class AdminAnalyticsService:
         range_users: set = set()
 
         for session_id, ts, meta in views:
+            if (meta or {}).get("internal"):
+                continue  # our own test devices and staff/owner accounts
             k = bucket_of(ts)
             if k is None:
                 continue

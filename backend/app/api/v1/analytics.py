@@ -6,11 +6,12 @@ from fastapi import Depends
 
 from app.api.deps import get_optional_user
 from app.database import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.analytics import AnalyticsEventCreateRequest, AnalyticsEventType
 from app.repositories.analytics_event_repository import AnalyticsEventRepository
 from app.core.localities import locality_for
 
+INTERNAL_ROLES = {UserRole.ADMIN, UserRole.CAFE_OWNER, UserRole.STAFF}
 router = APIRouter()
 
 
@@ -55,6 +56,13 @@ async def create_analytics_event(
             return None
         city, locality = locality_for(lat, lng)
         metadata = {**metadata, "city": city, "locality": locality}
+    # Our own test devices (?internal=1) and staff/owner accounts are kept
+    # but marked, so campaign and traffic numbers can leave them out.
+    internal = metadata.pop("internal", None) is True or (
+        current_user is not None and current_user.role in INTERNAL_ROLES
+    )
+    if internal:
+        metadata["internal"] = True
     device, iab = _device(request.headers.get("user-agent", ""))
     metadata["dev"] = device
     if iab:

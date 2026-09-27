@@ -709,6 +709,7 @@ function BookingWizardContent() {
     if (!isAuthenticated) {
       setError(null);
       setShowLoginPrompt(true);
+      fireAnalyticsEvent('checkout_login_shown', { cafeId, metadata: { tierId: activeTier.id } });
       return;
     }
 
@@ -741,6 +742,8 @@ function BookingWizardContent() {
       const order = await createPaymentOrder(booking.id);
 
       // Step 3: Trigger Razorpay Checkout Modal
+      const payMeta = { bookingId: booking.id, amount: order.amount };
+      fireAnalyticsEvent('payment_opened', { cafeId, metadata: payMeta });
       displayRazorpay({
         order_id: order.razorpayOrderId,
         amount: order.amount * 100,
@@ -754,8 +757,12 @@ function BookingWizardContent() {
           contact: user?.phoneNumber || undefined,
         },
         onDismiss: () => {
+          fireAnalyticsEvent('payment_dismissed', { cafeId, metadata: payMeta });
           setIsProcessing(false);
           router.push(`/bookings/${booking.id}`);
+        },
+        onFailed: (reason) => {
+          fireAnalyticsEvent('payment_failed', { cafeId, metadata: { ...payMeta, reason: reason.slice(0, 60) } });
         },
         handler: async (paymentResponse) => {
           try {
@@ -764,10 +771,12 @@ function BookingWizardContent() {
               razorpayPaymentId: paymentResponse.razorpay_payment_id,
               razorpaySignature: paymentResponse.razorpay_signature,
             });
+            fireAnalyticsEvent('booking_completed', { cafeId, metadata: payMeta });
             queryClient.invalidateQueries({ queryKey: ['cafe-availability'] });
             queryClient.invalidateQueries({ queryKey: queryKeys.cafes.detail(cafeId) });
             router.push(`/bookings/${booking.id}`);
           } catch (verifyErr: any) {
+            fireAnalyticsEvent('payment_failed', { cafeId, metadata: { ...payMeta, reason: 'verification' } });
             setError(verifyErr?.message || 'Payment verification failed.');
             setIsProcessing(false);
           }

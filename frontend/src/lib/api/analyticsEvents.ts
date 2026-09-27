@@ -14,7 +14,12 @@ export type AnalyticsEventType =
   | 'location_shared'
   | 'city_selected'
   | 'notify_me'
-  | 'google_signin_failed';
+  | 'google_signin_failed'
+  | 'checkout_login_shown'
+  | 'payment_opened'
+  | 'payment_failed'
+  | 'payment_dismissed'
+  | 'booking_completed';
 
 export function fireAnalyticsEvent(
   eventType: AnalyticsEventType,
@@ -27,12 +32,15 @@ export function fireAnalyticsEvent(
   // in-app browser are added server-side from the User-Agent.
   const touch = store.currentTouch();
   const utm = touch ? { s: touch.s, m: touch.m, c: touch.c, t: touch.t } : undefined;
+  const metadata: Record<string, unknown> = { ...(opts.metadata ?? {}) };
+  if (utm) metadata.utm = utm;
+  if (store.internal) metadata.internal = true;
   apiClient
     .post('/api/v1/analytics/events', {
       sessionId,
       eventType,
       cafeId: opts.cafeId,
-      metadata: utm ? { ...(opts.metadata ?? {}), utm } : opts.metadata ?? {},
+      metadata,
     })
     .catch(() => {
       // Fire-and-forget: a dropped analytics event must never surface as a
