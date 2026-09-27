@@ -538,5 +538,13 @@ class BookingRepository(BaseRepository[Booking]):
             if hasattr(booking, field) and value is not None:
                 setattr(booking, field, value)
         await self.db.commit()
+        # Every status change (payment confirmed, failed, expired, cancelled,
+        # refunded, released) passes through here, so an offer's redeemed
+        # count follows the money: it counts only paid bookings.
+        if "status" in update_data and booking.promotion_id:
+            from app.repositories.promotion_repository import PromotionRepository
+
+            await PromotionRepository(self.db).recount_uses(booking.promotion_id)
+            await self.db.commit()
         await self.db.refresh(booking)
         return booking

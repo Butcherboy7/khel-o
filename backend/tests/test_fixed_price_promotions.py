@@ -197,7 +197,9 @@ async def test_promotion_type_locked_after_first_redemption(async_client: AsyncC
             base_amount=Decimal("480.00"), session_datetime=now,
             duration_hours=Decimal("4"), seats_count=1,
         )
-        await db.commit()
+        # Applying only prices a pending booking; a redemption is counted
+        # once the booking is paid. Simulate that paid redemption.
+        await PromotionRepository(db).increment_uses(uuid.UUID(promo_id))
 
     # Type switch now rejected...
     resp = await async_client.patch(
@@ -296,7 +298,8 @@ async def test_owner_cannot_permanently_delete_redeemed_promotion(async_client: 
             base_amount=Decimal("480.00"), session_datetime=now,
             duration_hours=Decimal("4"), seats_count=1,
         )
-        await db.commit()
+        # Redeemed = paid; simulate the payment having gone through.
+        await PromotionRepository(db).increment_uses(uuid.UUID(promo_id))
 
     resp = await async_client.delete(f"/api/v1/promotions/{promo_id}", params={"permanent": True}, headers=auth_headers(owner))
     assert resp.status_code == 422

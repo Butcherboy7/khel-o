@@ -612,6 +612,7 @@ async def get_owner_status(
             "cafe": {
                 "id": str(cafe.id),
                 "name": cafe.name,
+                "slug": cafe.slug,
                 "city": cafe.city,
                 "verificationStatus": status_str,
                 "rejectionReason": cafe.rejection_reason,
@@ -1971,26 +1972,14 @@ async def delete_staff_user(
     if not owner_cafe:
         raise NotFoundException("Staff member not found")
 
-    from app.models.user_role import UserRoleMapping
-    stmt_mapping = select(UserRoleMapping).where(
-        UserRoleMapping.user_id == staff_id,
-        UserRoleMapping.role == UserRole.STAFF,
-        UserRoleMapping.cafe_id == owner_cafe.id
-    )
-    res_mapping = await db.execute(stmt_mapping)
-    if not res_mapping.scalars().first():
+    # Removes their staff access to this café only. Their KHEL-O account
+    # stays, as a normal player account; access ends on their next request.
+    if not await UserRepository(db).revoke_staff(staff_id, owner_cafe.id):
         raise NotFoundException("Staff member not found")
-
-    user_repo = UserRepository(db)
-    staff_user = await user_repo.get_by_id(staff_id)
-    if not staff_user or staff_user.role != UserRole.STAFF:
-        raise NotFoundException("Staff member not found")
-
-    await user_repo.update(staff_id, {"is_active": False})
     return {
         "success": True,
         "data": {
-            "message": "Staff member deactivated successfully"
+            "message": "Staff member removed"
         }
     }
 

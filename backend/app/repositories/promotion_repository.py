@@ -90,6 +90,39 @@ class PromotionRepository(BaseRepository[Promotion]):
         await self.db.refresh(promo)
         return promo
 
+    async def recount_uses(self, promotion_id: UUID) -> int:
+        """current_uses = bookings with this offer that were actually paid
+        for. Recomputed (not +1/-1) so it is idempotent: payment callbacks,
+        webhooks, cancellations and refunds can all call it any number of
+        times and it stays right."""
+        from sqlalchemy import func, select
+        from app.models.booking import Booking, REDEEMED_STATUSES
+
+        count = (await self.db.execute(
+            select(func.count(Booking.id)).where(
+                Booking.promotion_id == promotion_id, Booking.status.in_(REDEEMED_STATUSES)
+            )
+        )).scalar() or 0
+        await self.db.execute(update(Promotion).where(Promotion.id == promotion_id).values(current_uses=count))
+        return count
+
+    async def pending_holds(self, promotion_id: UUID) -> int:
+        """Unpaid bookings still inside their 15-minute payment window. They
+        hold an offer slot (so the last slot can't be sold twice) without
+        counting as redeemed."""
+        from datetime import datetime, timedelta, timezone
+        from sqlalchemy import func, select
+        from app.models.booking import Booking, BookingStatus
+
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+        return (await self.db.execute(
+            select(func.count(Booking.id)).where(
+                Booking.promotion_id == promotion_id,
+                Booking.status == BookingStatus.PENDING_PAYMENT,
+                Booking.created_at >= cutoff,
+            )
+        )).scalar() or 0
+
     async def increment_uses(self, promotion_id: UUID) -> None:
         stmt = update(Promotion).where(Promotion.id == promotion_id).values(
             current_uses=Promotion.current_uses + 1

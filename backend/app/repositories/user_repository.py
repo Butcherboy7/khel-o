@@ -164,6 +164,50 @@ class UserRepository(BaseRepository[User]):
         
         return True
 
+    async def revoke_staff(self, user_id: UUID, cafe_id: UUID) -> bool:
+        """Take away someone's staff access to one café. Their account stays
+        (they can still book as a player). Authorization reads role mappings,
+        so access ends on their very next request; the pending invitations
+        for that café are cancelled too so an old link can't re-add them.
+        Returns False when they weren't staff there."""
+        from sqlalchemy import delete, func, select, update
+        from app.models.staff_invitation import StaffInvitation
+        from app.models.user_role import UserRoleMapping
+
+        removed = (await self.db.execute(
+            delete(UserRoleMapping).where(
+                UserRoleMapping.user_id == user_id,
+                UserRoleMapping.cafe_id == cafe_id,
+                UserRoleMapping.role == UserRole.STAFF,
+            )
+        )).rowcount
+        if not removed:
+            return False
+        user = await self.get_by_id(user_id)
+        if user is not None:
+            await self.db.execute(
+                update(StaffInvitation)
+                .where(
+                    StaffInvitation.venue_id == cafe_id,
+                    func.lower(StaffInvitation.email) == (user.email or "").lower(),
+                    StaffInvitation.status == "pending",
+                )
+                .values(status="cancelled")
+            )
+            # Primary role drives which app they see (owner console vs
+            # player app): drop back to player unless they still hold an
+            # elevated role somewhere else.
+            elevated = (await self.db.execute(
+                select(func.count(UserRoleMapping.id)).where(
+                    UserRoleMapping.user_id == user_id, UserRoleMapping.role != UserRole.GAMER
+                )
+            )).scalar() or 0
+            if not elevated:
+                user.role = UserRole.GAMER
+                await self.ensure_gamer_role(user_id)
+        await self.db.commit()
+        return True
+
     async def update_role(self, user_id: UUID, role: UserRole, cafe_id: Optional[UUID] = None) -> Optional[User]:
         user = await self.get_by_id(user_id)
         if not user:

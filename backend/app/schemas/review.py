@@ -40,6 +40,15 @@ class ReviewUpdate(BaseModel):
         populate_by_name=True
     )
 
+class ReviewUpdateRequest(BaseModel):
+    rating: Optional[int] = Field(None, ge=1, le=5)
+    comment: Optional[str] = Field(None, max_length=2000)
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 class ReviewReplyRequest(BaseModel):
     reply: str = Field(..., min_length=1, max_length=2000)
 
@@ -61,6 +70,7 @@ class ReviewResponse(ReviewBase):
     is_visible: bool
     owner_reply: Optional[str] = None
     owner_replied_at: Optional[datetime] = None
+    edited_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

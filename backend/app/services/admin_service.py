@@ -627,29 +627,8 @@ class AdminService:
 
     async def revoke_staff(self, user_id: UUID, cafe_id: UUID) -> Dict[str, Any]:
         """Remove a staff UserRoleMapping and cancel any pending invitations for this user+café."""
-        from app.models.user_role import UserRoleMapping
-        from app.models.user import UserRole
-        from sqlalchemy import delete
-
-        # Remove role mapping
-        await self.db.execute(
-            delete(UserRoleMapping).where(
-                UserRoleMapping.user_id == user_id,
-                UserRoleMapping.cafe_id == cafe_id,
-                UserRoleMapping.role == UserRole.STAFF,
-            )
-        )
-        # Revert user primary role to gamer if they have no other role mappings
-        remaining = (await self.db.execute(
-            select(func.count(UserRoleMapping.id)).where(UserRoleMapping.user_id == user_id)
-        )).scalar() or 0
-        if remaining == 0:
-            user = await self.user_repo.get_by_id(user_id)
-            if user:
-                user.role = UserRole.GAMER
-
-        await self.db.commit()
-        return {"userId": str(user_id), "cafeId": str(cafe_id), "revoked": True}
+        revoked = await self.user_repo.revoke_staff(user_id, cafe_id)
+        return {"userId": str(user_id), "cafeId": str(cafe_id), "revoked": revoked}
 
     # ── Audit Log ────────────────────────────────────────────────────────────
 

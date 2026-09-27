@@ -28,6 +28,8 @@ import {
   EmptyState,
 } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { InfoTip } from '@/components/shared/InfoTip';
+import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
@@ -453,6 +455,7 @@ export default function OwnerOffersPage() {
                       <div className="flex items-center gap-1.5 sm:col-span-2">
                         <Users className="h-3.5 w-3.5 flex-shrink-0" />
                         <span>{p.currentUses} / {p.maxUses} redeemed</span>
+                        <InfoTip text={INFO_TIPS.offersRedeemed} label="What counts as redeemed" quiet />
                       </div>
                     )}
                   </div>

@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, status, Query
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.review import ReviewCreateRequest, ReviewResponse, ReviewReplyRequest
+from fastapi.responses import Response
+from app.schemas.review import ReviewCreateRequest, ReviewResponse, ReviewReplyRequest, ReviewUpdateRequest
 from app.repositories.review_repository import ReviewRepository
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -31,7 +32,10 @@ async def create_review(
     review_repo = ReviewRepository(db)
     booking_repo = BookingRepository(db)
     service = ReviewService(review_repo, booking_repo)
-    result = await service.submit_review(current_user.id, current_user.full_name, payload)
+    settings = await PlatformSettingsRepository(db).get_or_create()
+    result = await service.submit_review(
+        current_user.id, current_user.full_name, payload, require_booking=settings.reviews_require_booking
+    )
     return {
         "success": True,
         "data": {
@@ -54,6 +58,52 @@ async def get_cafe_reviews(
         "success": True,
         "data": result
     }
+
+@router.get("/cafe/{cafe_id}/qr.png")
+async def review_qr_code(cafe_id: UUID, db: AsyncSession = Depends(get_db)):
+    """QR code for a café's counter or table: scanning it opens the café's
+    KHEL-O page at the review form. Only encodes a public page, so no auth."""
+    import io
+
+    import qrcode
+
+    from app.config import settings as app_settings
+    from app.core.exceptions import NotFoundException
+
+    cafe = await CafeRepository(db).get_by_id(cafe_id)
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=16, border=3)
+    qr.add_data(review_link(app_settings.FRONTEND_URL, cafe.slug or str(cafe.id)))
+    qr.make(fit=True)
+    buf = io.BytesIO()
+    qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
+    return Response(
+        content=buf.getvalue(),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400", "Content-Disposition": f'inline; filename="review-qr-{cafe.slug or cafe.id}.png"'},
+    )
+
+
+def review_link(frontend_url: str, slug: str) -> str:
+    return (
+        f"{frontend_url.rstrip('/')}/cafe/{slug}"
+        f"?utm_source=qr&utm_medium=review&utm_campaign=review-{slug}#write-review"
+    )
+
+
+@router.patch("/{review_id}", status_code=status.HTTP_200_OK)
+async def edit_review(
+    review_id: UUID,
+    payload: ReviewUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """The reviewer edits their own review; it then shows an "Edited" tag."""
+    service = ReviewService(ReviewRepository(db), BookingRepository(db))
+    result = await service.edit_review(review_id, current_user.id, payload.rating, payload.comment)
+    return {"success": True, "data": {"review": result}}
+
 
 @router.patch("/{review_id}/reply", status_code=status.HTTP_200_OK)
 async def reply_to_review(

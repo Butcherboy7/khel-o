@@ -27,18 +27,36 @@ class ReviewService:
             "is_visible": review.is_visible,
             "owner_reply": review.owner_reply,
             "owner_replied_at": review.owner_replied_at,
+            "edited_at": review.edited_at,
             "gamer_name": gamer_name,
             "cafe_name": cafe_name,
             "created_at": review.created_at,
             "updated_at": review.updated_at
         })
 
-    async def submit_review(self, gamer_id: UUID, user_full_name: str, review_in: ReviewCreateRequest) -> ReviewResponse:
+    async def submit_review(
+        self, gamer_id: UUID, user_full_name: str, review_in: ReviewCreateRequest, require_booking: bool = True
+    ) -> ReviewResponse:
         cafe_id = review_in.cafe_id
         booking_id = review_in.booking_id
+        booking = await self.booking_repo.get_by_id(booking_id) if booking_id else None
+
+        if booking is None:
+            # A review with no KHEL-O booking behind it (walk-ins, e.g. from
+            # the café's review QR code). Enforced here, not only in the UI.
+            if require_booking:
+                raise ValidationException(
+                    message="You need a booking at this café to leave a review.",
+                    error_code="REVIEW_REQUIRES_BOOKING",
+                )
+            booking_id = None
+            if cafe_id and await self.review_repo.get_walk_in_review(cafe_id, gamer_id):
+                raise ConflictException(
+                    message="You've already reviewed this café. You can edit your review instead.",
+                    error_code="REVIEW_ALREADY_EXISTS",
+                )
 
         if booking_id:
-            booking = await self.booking_repo.get_by_id(booking_id)
             if booking:
                 cafe_id = booking.cafe_id
                 if str(booking.gamer_id) != str(gamer_id):
@@ -129,6 +147,30 @@ class ReviewService:
             raise NotFoundException(message="Review not found", error_code="REVIEW_NOT_FOUND")
         first_name = await self._first_name_for_review(updated)
         return self._to_response(updated, first_name)
+
+    async def edit_review(self, review_id: UUID, gamer_id: UUID, rating: Optional[int], comment: Optional[str]) -> ReviewResponse:
+        """The reviewer changes their own review. Marks it edited (shown as
+        an "Edited" tag) only when the rating or text actually changes."""
+        from datetime import datetime, timezone
+
+        review = await self.review_repo.get_by_id(review_id)
+        if not review:
+            raise NotFoundException(message="Review not found", error_code="REVIEW_NOT_FOUND")
+        if str(review.gamer_id) != str(gamer_id):
+            raise ForbiddenException(message="You can only edit your own review", error_code="FORBIDDEN")
+        changed = False
+        if rating is not None and rating != review.rating:
+            review.rating = rating
+            changed = True
+        if comment is not None and comment.strip() != (review.comment or ""):
+            review.comment = comment.strip()
+            changed = True
+        if changed:
+            review.edited_at = datetime.now(timezone.utc)
+            await self.review_repo.db.commit()
+            await self.review_repo.db.refresh(review)
+        first_name = await self._first_name_for_review(review)
+        return self._to_response(review, first_name)
 
     async def reply_to_review(self, review_id: UUID, owner_id: UUID, reply: str) -> ReviewResponse:
         """Let a café owner post a public reply to a review on their own café."""

@@ -150,6 +150,18 @@ class ReviewRepository(BaseRepository[Review]):
         await self.db.refresh(review)
         return review
 
+    async def get_walk_in_review(self, cafe_id: UUID, gamer_id: UUID) -> Optional[Review]:
+        """This person's review of this café that isn't tied to a real
+        booking (one per person per café)."""
+        from app.models.booking import Booking
+
+        stmt = select(Review).where(
+            Review.cafe_id == cafe_id,
+            Review.gamer_id == gamer_id,
+            ~Review.booking_id.in_(select(Booking.id)),
+        )
+        return (await self.db.execute(stmt)).scalars().first()
+
     async def set_owner_reply(self, review_id: UUID, reply: str) -> Optional[Review]:
         from datetime import datetime, timezone
         review = await self.get_by_id(review_id)

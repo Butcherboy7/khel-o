@@ -7,6 +7,8 @@ import { listOwnerStaff, deleteOwnerStaff } from '@/lib/api/owner';
 import { createStaffInvitation, listStaffInvitations, cancelStaffInvitation, type StaffInvitation } from '@/lib/api/invitations';
 import { Card, CardContent, Button, Input, Badge, EmptyState, PageSpinner } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { InfoTip } from '@/components/shared/InfoTip';
+import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { useAuthStore } from '@/store/authStore';
 
 export default function OwnerStaffPage() {
@@ -29,6 +31,9 @@ export default function OwnerStaffPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  // Two-tap remove: the first tap asks, the second removes.
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -85,15 +90,23 @@ export default function OwnerStaffPage() {
     }
   };
 
-  const handleDeleteStaff = async (staffId: string) => {
+  const handleDeleteStaff = async (staffId: string, name: string) => {
+    setRemovingId(staffId);
     try {
       await deleteOwnerStaff(staffId);
-      setMsg({ type: 'success', text: 'Staff member deactivated.' });
+      setMsg({ type: 'success', text: `${name} removed. They can no longer check customers in or see your bookings.` });
+      setConfirmRemoveId(null);
       loadData();
     } catch (err: any) {
-      setMsg({ type: 'error', text: err?.message || 'Failed to deactivate staff.' });
+      setMsg({ type: 'error', text: err?.message || 'Couldn’t remove them. Please try again.' });
+    } finally {
+      setRemovingId(null);
     }
   };
+
+  // Accepted invites already show up as a person below and cancelled ones
+  // are done with; only the ones still waiting (or lapsed) need attention.
+  const openInvitations = invitations.filter((i) => i.status === 'pending' || i.status === 'expired');
 
   const copyLink = (url: string, token: string) => {
     navigator.clipboard.writeText(url).catch(() => {});
@@ -165,19 +178,20 @@ export default function OwnerStaffPage() {
       </Card>
 
       {/* Pending Invitations Section */}
-      {invitations.length > 0 && (
+      {openInvitations.length > 0 && (
         <Card elevation="raised" className="bg-surface border border-border">
           <CardContent className="p-6 flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
                 <Mail className="h-5 w-5 text-indigo-400" />
-                <span>Pending Invitations</span>
+                <span>Invited, not joined yet</span>
+                <InfoTip text={INFO_TIPS.staffInvitations} label="About invitations" />
               </h2>
-              <Badge variant="default" size="sm">{invitations.filter(i => i.status === 'pending').length} Pending</Badge>
+              <Badge variant="default" size="sm">{openInvitations.filter(i => i.status === 'pending').length} waiting</Badge>
             </div>
 
             <div className="flex flex-col gap-3">
-              {invitations.map((inv) => (
+              {openInvitations.map((inv) => (
                 <div
                   key={inv.id}
                   className="p-4 rounded-2xl bg-surface-hover border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4"
@@ -243,7 +257,10 @@ export default function OwnerStaffPage() {
       {/* Staff List */}
       <Card elevation="raised" className="bg-surface border border-border">
         <CardContent className="p-6 flex flex-col gap-4">
-          <h2 className="font-heading text-h2 text-text-primary">People with a login</h2>
+          <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
+            People with a login
+            <InfoTip text={INFO_TIPS.staffRemove} label="About removing staff" />
+          </h2>
 
           {staffList.length === 0 ? (
             // The old copy pointed at a button that, by the time you had scrolled
@@ -262,7 +279,7 @@ export default function OwnerStaffPage() {
               {staffList.map((member) => (
                 <div
                   key={member.id}
-                  className="p-4 rounded-2xl bg-surface-hover border border-border flex items-center justify-between gap-4"
+                  className="p-4 rounded-2xl bg-surface-hover border border-border flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
@@ -274,17 +291,34 @@ export default function OwnerStaffPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <Badge variant="success" size="sm">Check-In Staff</Badge>
-                    <button
-                      onClick={() => handleDeleteStaff(member.id)}
-                      className="text-rose-500 hover:text-rose-600 p-2"
-                      title="Deactivate staff account"
-                      aria-label="Deactivate staff account"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  {confirmRemoveId === member.id ? (
+                    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Remove ${member.fullName}?`}>
+                      <span className="text-caption text-text-secondary">Remove {member.fullName.split(' ')[0]}? Access ends right away.</span>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        isLoading={removingId === member.id}
+                        onClick={() => handleDeleteStaff(member.id, member.fullName)}
+                      >
+                        Remove
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setConfirmRemoveId(null)}>
+                        Keep
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <Badge variant="success" size="sm">Check-In Staff</Badge>
+                      <button
+                        onClick={() => setConfirmRemoveId(member.id)}
+                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl px-2.5 text-caption font-semibold text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+                        aria-label={`Remove ${member.fullName} from your team`}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
