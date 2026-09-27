@@ -1,6 +1,5 @@
 'use client';
 
-import { Hint } from '@/components/customer/Hint';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
 
@@ -25,7 +24,7 @@ import {
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
 import { previewKheloCode } from '@/lib/api/promotions';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
-import { createBooking, getPlatformFeePercentage } from '@/lib/api/bookings';
+import { listBookings, createBooking, getPlatformFeePercentage } from '@/lib/api/bookings';
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useRazorpay } from '@/hooks/useRazorpay';
@@ -162,6 +161,16 @@ function BookingWizardContent() {
   // authoritative amount using whatever rate is live at booking-creation
   // time. Falls back to today's known rate while the request is in flight
   // so the summary doesn't flash a $0 fee on first paint.
+  // Anyone who has booked before has used the time slider, so its one-time
+  // coachmark is skipped for them (shares the My Bookings cache entry).
+  const { data: pastBookings } = useQuery({
+    queryKey: queryKeys.bookings.list({ limit: 1 }),
+    queryFn: () => listBookings({ limit: 1 }),
+    enabled: isAuthenticated,
+    staleTime: 5 * 60_000,
+  });
+  const hasBookedBefore = (pastBookings?.items?.length ?? 0) > 0;
+
   const { data: platformFeeData } = useQuery({
     queryKey: ['platform-fee-percentage'],
     queryFn: getPlatformFeePercentage,
@@ -590,6 +599,9 @@ function BookingWizardContent() {
   const serviceFee = Math.round(subtotal * (SERVICE_FEE_PERCENT / 100) * 100) / 100;
   const finalTotal = subtotal + serviceFee;
 
+  // ₹187.2 -> "187.20", ₹180 -> "180": rupees with paise only when present.
+  const money = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+
   const handleTimelineChange = (newStartTime: string, newDurationHours: number, dayOffset: number) => {
     userHasSelectedSlot.current = true;
     setSelectedTime(newStartTime);
@@ -739,8 +751,6 @@ function BookingWizardContent() {
         </div>
       </div>
 
-      <Hint id="booking" />
-
       {/* Tier switcher — the tier itself is picked on the café page (one
           fewer full step here, no re-reading the same specs twice); this
           chip is only for the rarer case of changing your mind, and doing
@@ -876,6 +886,7 @@ function BookingWizardContent() {
         totalSeats={totalSeatsForTier}
         requestedSeats={seatsCount}
         remainingSeats={windowRemainingSeats}
+        skipCoachmark={hasBookedBefore}
       />
 
       {/* Players — compact horizontal row. Renamed from "Seats": this count
@@ -984,8 +995,12 @@ function BookingWizardContent() {
 
         <div className="flex items-center justify-between pt-1.5 mt-0.5 border-t border-border/60">
           <span className="font-heading font-bold text-text-primary">Total</span>
-          <span className="font-heading font-bold text-body-emphasis text-text-primary"><span className="rupee-symbol">₹</span>{finalTotal}</span>
+          <span className="font-heading font-bold text-body-emphasis text-text-primary"><span className="rupee-symbol">₹</span>{money(finalTotal)}</span>
         </div>
+        <p className="flex items-center gap-1.5 pt-1 text-[11px] text-text-secondary">
+          <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0 text-success" aria-hidden />
+          Secured by Razorpay · UPI, cards &amp; wallets · Instant confirmation
+        </p>
       </div>
 
       {/* Game — free-text combobox: types any name, datalist merely suggests
@@ -1104,17 +1119,17 @@ function BookingWizardContent() {
       {/* Sticky Bottom Action & Total Price Bar — sits above the mobile bottom nav
           (bottom-nav is z-nav/40, fixed bottom-0) rather than underneath it, otherwise
           the nav bar silently eats the first tap on this button on mobile. */}
-      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card border-t border-border p-4 shadow-overlay">
-        <div className="max-w-content mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card border-t border-border px-4 py-3 shadow-overlay">
+        {/* Compact on purpose: the total, what it's made of, and the pay
+            button in one row, so the slider above keeps the screen. The
+            Razorpay line lives in the price summary above, not here. */}
+        <div className="max-w-content mx-auto flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <span className="text-caption text-text-secondary block truncate">
-              {formatSessionDate(effectiveSessionDate)} • {formatTime(selectedTime)} • {durationHours} hr
-            </span>
-            <div className="font-heading text-h1 font-bold text-text-primary">
-              <span className="rupee-symbol">₹</span>{finalTotal}
+            <div className="font-heading text-h2 font-bold leading-tight text-text-primary">
+              <span className="rupee-symbol">₹</span>{money(finalTotal)}
             </div>
-            <span className="text-caption text-text-secondary">
-              Total incl. ₹{serviceFee.toFixed(0)} platform fee · no hidden charges
+            <span className="block truncate text-caption text-text-secondary">
+              ₹{money(subtotal)} session + ₹{money(serviceFee)} platform fee
             </span>
           </div>
 
@@ -1127,7 +1142,7 @@ function BookingWizardContent() {
               Boolean(cafe.bookingsPaused) ||
               windowRemainingSeats < seatsCount
             }
-            className="w-full sm:w-auto min-h-btn rounded-2xl bg-secondary px-8 sm:px-10 py-3.5 font-heading text-btn font-bold text-white shadow-float hover:bg-secondary/90 active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="flex-shrink-0 min-h-btn rounded-2xl bg-primary px-6 py-3 font-heading text-btn font-bold text-white shadow-float hover:bg-primary-dark active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {isProcessing
               ? 'Processing...'
@@ -1139,13 +1154,9 @@ function BookingWizardContent() {
               ? 'Sold Out'
               : windowRemainingSeats < seatsCount
               ? `Only ${windowRemainingSeats} Seat${windowRemainingSeats > 1 ? 's' : ''} Left`
-              : `Pay ₹${finalTotal} securely`}
+              : `Pay ₹${money(finalTotal)}`}
           </button>
         </div>
-        <p className="max-w-content mx-auto mt-2 flex items-center justify-center gap-1.5 text-[11px] text-text-secondary sm:justify-end">
-          <ShieldCheck className="h-3.5 w-3.5 text-success" aria-hidden />
-          Secured by Razorpay · UPI, cards &amp; wallets · Instant confirmation
-        </p>
       </div>
     </div>
 
