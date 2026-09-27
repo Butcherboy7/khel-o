@@ -22,9 +22,9 @@ export default function PrivacyPage() {
         <li><strong>Account information:</strong> full name, email address, phone number (optional), and a hashed password. We never store your password in plain text.</li>
         <li><strong>Booking information:</strong> the café, hardware tier, date/time, and seat count you book, plus your booking history.</li>
         <li><strong>Payment information:</strong> we do not collect or store card, UPI, or bank details ourselves. Payments are processed by Razorpay, and we only retain the payment status, amount, and Razorpay&apos;s transaction reference for our records.</li>
-        <li><strong>Location:</strong> if you grant permission, we use your device&apos;s approximate location to show nearby cafés. You can decline this and search by city/area instead.</li>
+        <li><strong>Location:</strong> if you grant permission, we use your device&apos;s approximate location to show nearby cafés. For aggregate area statistics we record only the neighbourhood that location falls in (e.g. &ldquo;Madhapur&rdquo;), never your coordinates. You can decline this and search by city/area instead.</li>
         <li><strong>Usage data:</strong> basic technical logs (device type, IP address, pages visited) collected automatically to keep the Platform secure and to fix bugs, via our error-monitoring tool (Sentry).</li>
-        <li><strong>Referral/attribution data:</strong> an anonymous session identifier and, if present, the campaign source in the link you arrived from (e.g. <code>utm_source</code>), stored in your browser&apos;s local storage. Used only to see in aggregate which channel brought signups — never to build a cross-site advertising profile.</li>
+        <li><strong>Referral/attribution data:</strong> an anonymous session identifier and, if present, the campaign and ad in the link you arrived from (e.g. <code>utm_source</code>, <code>utm_content</code>), stored in your browser&apos;s local storage. Used only to see in aggregate which channel or ad brought visitors, signups and bookings — never to build a cross-site advertising profile.</li>
       </ul>
       <p>See our <a href="/cookie-policy">Cookie Policy</a> for the full list of what we store in your browser and why.</p>
 

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { googleAuth } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { getPublicEnv } from '@/lib/runtimeEnv';
+import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
 // google-identity.d.ts is a global ambient type augmentation, picked up
 // automatically via tsconfig.json's `include` -- it has no runtime module
 // to import, so a value import of it breaks the production webpack build.
@@ -50,6 +51,9 @@ export function GoogleSignInButton({ redirectPath, onError, onSuccess }: GoogleS
       } catch (err: unknown) {
         const message =
           (err as { message?: string })?.message || 'Google sign-in failed. Please try again.';
+        // Counted per browser (the server stamps Instagram/Facebook in-app
+        // browsers), so the ad report shows whether sign-in breaks there.
+        fireAnalyticsEvent('google_signin_failed', { metadata: { message: message.slice(0, 120) } });
         onError?.(message);
       }
     },

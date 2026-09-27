@@ -30,6 +30,7 @@ import {
   Banknote,
   QrCode,
   type LucideIcon,
+  Target,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
@@ -80,7 +81,8 @@ const adminNavGroups: NavGroup[] = [
     items: [
       { label: 'Traffic', href: '/admin/analytics/traffic', icon: TrendingUp },
       { label: 'Shares', href: '/admin/analytics/shares', icon: Share2 },
-      { label: 'Geography', href: '/admin/analytics/geography', icon: MapPin },
+      { label: 'Areas', href: '/admin/analytics/geography', icon: MapPin },
+      { label: 'Ad campaigns', href: '/admin/analytics/ads', icon: Target },
       { label: 'Revenue', href: '/admin/analytics/revenue', icon: IndianRupee },
       { label: 'Attribution', href: '/admin/analytics/attribution', icon: Megaphone },
       { label: 'Campaigns', href: '/admin/analytics/campaigns', icon: QrCode },

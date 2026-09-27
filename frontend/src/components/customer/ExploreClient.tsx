@@ -179,6 +179,11 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
         setIsLocating(false);
         const { latitude, longitude } = pos.coords;
         setUserCoords(latitude, longitude);
+        // For area analytics. The server turns this into a neighbourhood
+        // name and stores only that; coordinates are rounded (~100 m) anyway.
+        fireAnalyticsEvent('location_shared', {
+          metadata: { lat: Math.round(latitude * 1000) / 1000, lng: Math.round(longitude * 1000) / 1000 },
+        });
         const detected = findClosestCity(latitude, longitude);
         handleCityChange(detected, true);
       },
@@ -358,6 +363,7 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
           key={city}
           onClick={() => {
             handleCityChange(city);
+            fireAnalyticsEvent('city_selected', { metadata: { city } });
             setShowCityDropdown(false);
           }}
           className={`p-2.5 rounded-xl text-caption font-semibold text-left transition-colors flex items-center justify-between ${

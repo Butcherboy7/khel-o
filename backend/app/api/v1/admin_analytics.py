@@ -140,3 +140,43 @@ async def get_share_report(
     service = AdminAnalyticsService(db)
     result = await service.get_share_report(start=start, end=end)
     return {"success": True, "data": result}
+
+
+@router.get("/ad-campaigns", status_code=status.HTTP_200_OK)
+async def list_ad_campaigns(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services import growth_report_service
+
+    return {"success": True, "data": {"campaigns": await growth_report_service.campaign_options(db)}}
+
+
+@router.get("/ad-campaigns/report", status_code=status.HTTP_200_OK)
+async def get_ad_campaign_report(
+    source: str = Query(..., min_length=1, max_length=100),
+    campaign: str | None = Query(None, max_length=100),
+    start: date = Query(..., alias="from"),
+    end: date = Query(..., alias="to"),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.core.exceptions import BadRequestException
+    from app.services import growth_report_service
+
+    if end < start or (end - start).days > 92:
+        raise BadRequestException(message="Pick a range of up to 3 months", error_code="INVALID_RANGE")
+    data = await growth_report_service.campaign_report(db, source, campaign or None, start, end)
+    return {"success": True, "data": data}
+
+
+@router.get("/areas", status_code=status.HTTP_200_OK)
+async def get_area_report(
+    city: str = Query("Hyderabad", min_length=2, max_length=100),
+    days: int = Query(90, ge=7, le=365),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services import growth_report_service
+
+    return {"success": True, "data": await growth_report_service.area_report(db, city, days)}

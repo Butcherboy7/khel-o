@@ -184,6 +184,11 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const joinFromSheet = useCallback(
     async (value?: string) => {
       await joinWaitlist(cafeId, value);
+      fireAnalyticsEvent('notify_me', {
+        cafeId,
+        // From the sheet, no contact means the one-tap Google path.
+        metadata: { method: value ? 'contact' : 'google' },
+      });
       await refetchWaitlist();
     },
     [cafeId, refetchWaitlist],
@@ -205,6 +210,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         await leaveWaitlist(cafeId);
       } else {
         await joinWaitlist(cafeId);
+        fireAnalyticsEvent('notify_me', { cafeId, metadata: { method: 'signed_in' } });
         setNotifyStep('done');
         setNotifyOpen(true);
       }
