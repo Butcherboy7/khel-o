@@ -46,7 +46,7 @@ export type {
   PaymentVerifyResponse,
 } from './payment';
 
-export type { Promotion, PromotionDetail, PromotionCreateRequest, PromotionUpdateRequest } from './promotion';
+export type { Promotion, PromotionDetail, PromotionCreateRequest, PromotionUpdateRequest, PromotionPlayMode } from './promotion';
 
 export type { Review, ReviewCreateRequest } from './review';
 

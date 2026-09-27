@@ -48,6 +48,15 @@ import { getPublicEnv } from '@/lib/runtimeEnv';
 import { cn } from '@/lib/cn';
 import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 
+// Little send-off under a confirmed booking. Picked from the reference so it
+// stays the same on every visit.
+const SEND_OFFS = ['Player one, ready.', 'GG in advance.', 'Save point created.', 'Game on. See you there.', 'Your spot is locked in.'];
+function sendOffLine(ref: string) {
+  let h = 0;
+  for (let i = 0; i < ref.length; i++) h = (h * 31 + ref.charCodeAt(i)) >>> 0;
+  return SEND_OFFS[h % SEND_OFFS.length];
+}
+
 export default function BookingDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -266,7 +275,15 @@ export default function BookingDetailPage() {
               : 'Confirmed Booking'}
           </span>
           <h1 className="font-heading text-h2 text-white">{booking.cafeName || 'Gaming Café'}</h1>
-          <p className="text-caption text-white/90">{booking.tierName || 'Hardware Tier'}</p>
+          <p className="text-caption text-white/90">
+            {booking.tierName || 'Hardware Tier'}
+            {booking.playersCount && booking.playersCount > (booking.seatsCount ?? 1)
+              ? ` · Co-op, ${booking.playersCount} players`
+              : ''}
+          </p>
+          {isConfirmed && booking.status !== 'completed' && (
+            <p className="mt-1 text-caption italic text-white/70">{sendOffLine(booking.bookingReference)}</p>
+          )}
         </div>
 
         {/* QR Code / Void / Pending Payment Container */}

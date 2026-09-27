@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MapPin, Star, Zap, ArrowRight } from 'lucide-react';
+import { MapPin, Star, Zap, ArrowRight, Users } from 'lucide-react';
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow, formatTime } from '@/lib/format';
@@ -275,6 +275,14 @@ export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps)
                 )}
                 <span className="text-text-secondary truncate">{platformSummary}</span>
               </>
+            )}
+            {cafe.hasCoop && (
+              // Inline, never its own row — the card height stays put.
+              <span className="flex flex-shrink-0 items-center gap-0.5 font-semibold text-primary-dark" title="Friends can share one console here">
+                <span className="text-text-secondary/50 font-normal mr-1">·</span>
+                <Users className="h-3 w-3" aria-hidden />
+                Co-op
+              </span>
             )}
           </div>
 

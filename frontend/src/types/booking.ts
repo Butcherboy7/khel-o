@@ -15,6 +15,10 @@ export interface Booking {
   startTime: string;
   endTime: string;
   durationHours: number;
+  /** Consoles/units held. */
+  seatsCount?: number;
+  /** People playing; more than seatsCount = co-op on one unit. */
+  playersCount?: number | null;
   baseAmount: number;
   discountAmount: number;
   gatewayFee: number;
@@ -52,6 +56,8 @@ export interface BookingCreateRequest {
   startTime: string;
   durationHours: number;
   seatsCount?: number;
+  /** People playing; more than seatsCount = co-op on one unit. */
+  playersCount?: number;
   promotionId?: string;
   /** KHELO code alternative to promotionId — see promo-code entry field on
       the booking wizard and the /redeem/[code] QR deep-link page. */

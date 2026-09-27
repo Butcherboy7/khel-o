@@ -19,6 +19,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SearchBarWithSuggestions } from '@/components/customer/SearchBarWithSuggestions';
+import { KonamiEgg } from '@/components/customer/KonamiEgg';
 import {
   CafeFilterSheet,
   AMENITY_BUCKETS,
@@ -480,6 +481,7 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
 
   return (
     <div className="flex flex-col gap-3.5 max-w-wide mx-auto">
+      <KonamiEgg />
       {/* The first thing the eye lands on says what KHEL-O is (book gaming
           cafés) and how it works (live slots, pay, walk in). Signed-in users
           get their name as a small line above, never instead of it. This
@@ -487,9 +489,9 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
       <div className="flex flex-col gap-1">
         {firstName && <span className="text-caption font-semibold text-text-secondary">Hey {firstName}</span>}
         <h1 className="font-heading text-h2 md:text-h1 font-bold text-text-primary tracking-tight text-balance">
-          Book gaming cafés near you
+          Book gaming cafés &amp; game zones near you
         </h1>
-        <p className="text-body text-text-secondary">See free stations live, pay online, walk in and play.</p>
+        <p className="text-body text-text-secondary">PCs, consoles, VR, snooker and bowling. See free slots live, pay online, walk in and play.</p>
       </div>
 
       {/* One bar: where (city), what (search), and how (filters). */}

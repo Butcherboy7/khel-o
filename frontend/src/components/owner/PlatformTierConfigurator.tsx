@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn';
 import type { TierConfig } from '@/types/tier';
 import { safeRandomUUID } from '@/lib/uuid';
 
+import { SetupBookingOptions } from './SetupBookingOptions';
 interface PlatformTierConfiguratorProps {
   configs: TierConfig[];
   onChange: (configs: TierConfig[]) => void;
@@ -298,6 +299,8 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
               onChange={(n) => updateConfig(config.id, { pricePerHour: n, appBookableSeats: config.totalSeats })}
             />
 
+            <SetupBookingOptions config={config} onChange={(patch) => updateConfig(config.id, patch)} />
+
             <div className="flex flex-col gap-1.5 sm:col-span-2">
               <label className="text-overline font-semibold text-text-secondary">Availability tracking</label>
               <div className="flex gap-2">
@@ -479,6 +482,8 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                   value={config.pricePerHour}
                   onChange={(n) => updateConfig(config.id, { pricePerHour: n })}
                 />
+
+                <SetupBookingOptions config={config} onChange={(patch) => updateConfig(config.id, patch)} />
 
                 <div className="flex items-end justify-end gap-2 sm:col-span-2">
                   <button

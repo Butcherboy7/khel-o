@@ -1,6 +1,8 @@
 import { apiClient, call } from './client';
 
 export type PromotionType = 'percentage' | 'fixed_amount' | 'fixed_price';
+/** 'any' | 'solo' (own console) | 'coop' (friends sharing one). */
+export type PromotionPlayMode = 'any' | 'solo' | 'coop';
 
 export interface Promotion {
   id: string;
@@ -13,6 +15,7 @@ export interface Promotion {
   fixedPriceAmount: number | null;
   minDurationHours: number | null;
   applicableTierId: string | null;
+  playMode?: PromotionPlayMode;
   validFrom: string;
   validUntil: string;
   daysOfWeek: number[];
@@ -36,6 +39,7 @@ export interface PromotionCreateInput {
   fixedPriceAmount?: number | null;
   minDurationHours?: number | null;
   applicableTierId?: string | null;
+  playMode?: PromotionPlayMode;
   validFrom: string;
   validUntil: string;
   daysOfWeek: number[];
@@ -54,6 +58,7 @@ export interface PromotionUpdateInput {
   fixedPriceAmount?: number | null;
   minDurationHours?: number | null;
   applicableTierId?: string | null;
+  playMode?: PromotionPlayMode;
   validFrom?: string;
   validUntil?: string;
   daysOfWeek?: number[];
@@ -77,6 +82,7 @@ export interface CodeRedemption {
   regularPrice: number | null;
   savingsAmount: number | null;
   applicableTierId: string | null;
+  playMode?: 'any' | 'solo' | 'coop';
   validFrom: string;
   validUntil: string;
   daysOfWeek: number[];

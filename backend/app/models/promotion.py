@@ -45,6 +45,8 @@ class Promotion(Base):
     fixed_price_amount: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     min_duration_hours: Mapped[float | None] = mapped_column(Numeric(4, 2), nullable=True)
     applicable_tier_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hardware_tiers.id"), nullable=True)
+    # 'any' | 'solo' (own console) | 'coop' (friends sharing one console)
+    play_mode: Mapped[str] = mapped_column(String(10), default='any', server_default='any', nullable=False)
     valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     days_of_week: Mapped[dict[str, Any]] = mapped_column(JSON, default=list, nullable=False)

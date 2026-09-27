@@ -20,7 +20,9 @@ import {
   X,
   PauseCircle,
   Sparkles,
+  Gamepad2,
 } from 'lucide-react';
+import { cn } from '@/lib/cn';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
 import { previewKheloCode } from '@/lib/api/promotions';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
@@ -115,10 +117,16 @@ function BookingWizardContent() {
     const d = parseFloat(searchParams.get('duration') || '');
     return Number.isFinite(d) && d > 0 ? d : 2;
   });
+  // People playing (the Players stepper). How many consoles that holds is
+  // `consolesCount` below: 1 in co-op, one each otherwise.
   const [seatsCount, setSeatsCount] = useState(() => {
     const s = parseInt(searchParams.get('seats') || '', 10);
     return Number.isFinite(s) && s > 0 ? s : 1;
   });
+  const [coopChosen, setCoopChosen] = useState(() => searchParams.get('coop') === '1');
+  const [showCoopNotice, setShowCoopNotice] = useState(false);
+  const initialDurationParam = useRef(searchParams.get('duration'));
+  const durationDefaultedFor = useRef<string | null>(null);
   // Selections restore from the URL so a login redirect mid-flow (an
   // unauthenticated visitor tapping "Continue to Payment") lands the user
   // back on exactly what they'd picked, not a blank wizard. Tier is kept as
@@ -241,6 +249,7 @@ function BookingWizardContent() {
     params.set('dayOffset', String(selectedDateOffset));
     params.set('duration', String(durationHours));
     params.set('seats', String(seatsCount));
+    if (coopChosen) params.set('coop', '1');
     // Fall back to selectedTierId (set synchronously from the URL on mount)
     // so this effect — which also runs while `cafe` is still loading and
     // `activeTier` is briefly undefined — never overwrites the URL with the
@@ -249,7 +258,7 @@ function BookingWizardContent() {
     const tierIdToPersist = activeTier?.id || selectedTierId;
     if (tierIdToPersist) params.set('tierId', tierIdToPersist);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [cafeId, selectedDate, selectedTime, selectedDateOffset, durationHours, seatsCount, activeTier?.id, selectedTierId, pathname, router]);
+  }, [cafeId, selectedDate, selectedTime, selectedDateOffset, durationHours, seatsCount, coopChosen, activeTier?.id, selectedTierId, pathname, router]);
 
   const { data: availabilityData } = useQuery({
     queryKey: ['cafe-availability', cafeId, activeTier?.id, selectedDate],
@@ -311,6 +320,44 @@ function BookingWizardContent() {
     );
   }, [totalSeatsForTier, mergedBookedSlots, selectedTime, durationHours, cafe?.openingTime]);
 
+  // Co-op: friends share ONE console. Offered when the owner allows it and
+  // the group fits on one; forced when there aren't enough free consoles
+  // for everyone to have their own.
+  const coopMax = activeTier?.coopEnabled ? (activeTier.coopMaxPlayers ?? 2) : 0;
+  const canCoop = seatsCount >= 2 && seatsCount <= coopMax;
+  const canSeparate = seatsCount <= windowRemainingSeats;
+  const isCoop = canCoop && (coopChosen || !canSeparate);
+  const consolesCount = isCoop ? 1 : seatsCount;
+  const maxPlayers = Math.min(6, Math.max(windowRemainingSeats, coopMax));
+  const minDurationMin = Math.max(15, activeTier?.minBookingMinutes ?? 60);
+  const durationStep = minDurationMin % 30 === 0 ? 30 : 15;
+  const durationLabel = durationHours < 1 ? `${Math.round(durationHours * 60)} min` : `${durationHours} hr`;
+
+  // Start on the setup's default length (owner-set) unless the URL already
+  // carried one, and never below its minimum.
+  useEffect(() => {
+    if (!activeTier || durationDefaultedFor.current === activeTier.id) return;
+    const firstTier = durationDefaultedFor.current === null;
+    durationDefaultedFor.current = activeTier.id;
+    const minH = minDurationMin / 60;
+    if (!(firstTier && initialDurationParam.current) && activeTier.defaultBookingMinutes) {
+      setDurationHours(Math.max(minH, activeTier.defaultBookingMinutes / 60));
+    } else {
+      setDurationHours((d) => Math.max(minH, d));
+    }
+  }, [activeTier, minDurationMin]);
+
+  const chooseCoop = (next: boolean) => {
+    if (next && !isCoop) setShowCoopNotice(true);
+    if (!next) setShowCoopNotice(false);
+    setCoopChosen(next);
+  };
+  useEffect(() => {
+    if (!showCoopNotice) return;
+    const t = setTimeout(() => setShowCoopNotice(false), 7000);
+    return () => clearTimeout(t);
+  }, [showCoopNotice]);
+
   // Listen for real-time seat cap updates from owner dashboard
   useEffect(() => {
     const handleSeatCapUpdate = () => {
@@ -355,7 +402,7 @@ function BookingWizardContent() {
     // and explains why, instead of quietly picking a new time.
     if (userHasSelectedSlot.current) return;
 
-    const key = `${selectedDate}|${activeTier?.id || ''}|${seatsCount}`;
+    const key = `${selectedDate}|${activeTier?.id || ''}|${consolesCount}`;
     if (lastAutoSelectKey.current === key) return;
     lastAutoSelectKey.current = key;
 
@@ -389,7 +436,7 @@ function BookingWizardContent() {
             occupied += (bs as any).seatsCount || 1;
           }
         }
-        if (occupied + seatsCount > totalSeats) {
+        if (occupied + consolesCount > totalSeats) {
           isAvailable = false;
           break;
         }
@@ -418,7 +465,7 @@ function BookingWizardContent() {
               occupied += (bs as any).seatsCount || 1;
             }
           }
-          if (occupied + seatsCount > totalSeats) {
+          if (occupied + consolesCount > totalSeats) {
             isAvailable = false;
             break;
           }
@@ -428,7 +475,7 @@ function BookingWizardContent() {
           const { time, dayOffset } = minutesToTimeAndDayOffset(m);
           setSelectedTime(time);
           setSelectedDateOffset(dayOffset);
-          setDurationHours(1);
+          setDurationHours((d) => Math.max(d, minDurationMin / 60, 1));
           foundFirstSlot = true;
           break;
         }
@@ -440,7 +487,7 @@ function BookingWizardContent() {
       setSelectedTime(time);
       setSelectedDateOffset(dayOffset);
     }
-  }, [cafe, availabilityData, mergedBookedSlots, selectedDate, activeTier?.id, seatsCount]);
+  }, [cafe, availabilityData, mergedBookedSlots, selectedDate, activeTier?.id, consolesCount, minDurationMin]);
 
   // Fire once per (cafe, tier) selection, not on every render — this must
   // stay above the early returns below (rules of hooks: this component
@@ -489,7 +536,8 @@ function BookingWizardContent() {
   // recomputes and is authoritative. SERVICE_FEE_PERCENT comes from the
   // Super Admin-controlled platform fee rate fetched above.
   const pricePerHour = activeTier?.pricePerHour || 100;
-  const baseTotal = Math.round(pricePerHour * durationHours * seatsCount);
+  const coopRate = pricePerHour + Number(activeTier?.coopExtraPlayerPrice ?? 0) * (seatsCount - 1);
+  const baseTotal = Math.round((isCoop ? coopRate : pricePerHour * consolesCount) * durationHours);
 
   // Café-specific promotions are created by the owner (Owner → Promotional
   // Offers) and apply automatically at checkout — no code to type. Eligibility
@@ -525,10 +573,11 @@ function BookingWizardContent() {
       slotHour >= activePromo.startHour &&
       slotHour < activePromo.endHour &&
       (activePromo.maxUses == null || activePromo.currentUses < activePromo.maxUses) &&
-      promoDurationMatches;
+      promoDurationMatches &&
+      playModeMatches(activePromo.playMode, isCoop);
     if (promoEligible) {
       if (activePromo.promotionType === 'fixed_price') {
-        discountAmount = Math.max(baseTotal - Number(activePromo.fixedPriceAmount) * seatsCount, 0);
+        discountAmount = Math.max(baseTotal - Number(activePromo.fixedPriceAmount) * consolesCount, 0);
       } else if (activePromo.promotionType === 'fixed_amount') {
         discountAmount = Number(activePromo.fixedDiscountAmount);
       } else {
@@ -574,16 +623,19 @@ function BookingWizardContent() {
         slotHour >= codeRedemption.startHour &&
         slotHour < codeRedemption.endHour &&
         (codeRedemption.maxUses == null || codeRedemption.currentUses < codeRedemption.maxUses) &&
-        codeDurationMatches;
+        codeDurationMatches &&
+        playModeMatches(codeRedemption.playMode, isCoop);
       if (!codeEligible) {
-        codeIneligibleReason = !codeDurationMatches
+        codeIneligibleReason = !playModeMatches(codeRedemption.playMode, isCoop)
+          ? (codeRedemption.playMode === 'coop' ? 'This code is for co-op only — pick Co-op above to use it.' : "This code isn't for co-op bookings.")
+          : !codeDurationMatches
           ? `This deal applies to exactly ${codeRedemption.minDurationHours} hour(s) — adjust your duration to apply it.`
           : `Valid ${codeRedemption.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, ${codeRedemption.startHour}:00–${codeRedemption.endHour}:00 — pick a slot in that window to apply it.`;
       }
     }
     if (codeEligible) {
       if (codeRedemption.promotionType === 'fixed_price') {
-        discountAmount = Math.max(baseTotal - Number(codeRedemption.fixedPriceAmount) * seatsCount, 0);
+        discountAmount = Math.max(baseTotal - Number(codeRedemption.fixedPriceAmount) * consolesCount, 0);
       } else if (codeRedemption.promotionType === 'fixed_amount') {
         discountAmount = Number(codeRedemption.fixedDiscountAmount);
       } else {
@@ -671,7 +723,8 @@ function BookingWizardContent() {
         sessionDate: effectiveSessionDate,
         startTime: selectedTime,
         durationHours: durationHours,
-        seatsCount: seatsCount,
+        seatsCount: consolesCount,
+        playersCount: seatsCount,
         // A validated KHELO code takes precedence over the auto-applied
         // tier promo (see the discount calc above) — sent as promoCode so
         // the backend resolves+re-validates it fresh rather than trusting
@@ -884,19 +937,23 @@ function BookingWizardContent() {
         onChange={handleTimelineChange}
         bookedSlots={mergedBookedSlots}
         totalSeats={totalSeatsForTier}
-        requestedSeats={seatsCount}
+        requestedSeats={consolesCount}
         remainingSeats={windowRemainingSeats}
         skipCoachmark={hasBookedBefore}
+        minDurationMinutes={minDurationMin}
+        stepMinutes={durationStep}
       />
 
       {/* Players — compact horizontal row. Renamed from "Seats": this count
           is how many people are using the tier's gaming capacity, not a
           specific physical seat assignment. */}
-      <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center justify-between gap-3">
+      <div className="relative p-3.5 rounded-2xl bg-card border border-border/80">
+      <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <span className="font-heading text-body font-bold text-text-primary flex items-center gap-1.5">
             <Users className="h-4 w-4 text-primary flex-shrink-0" />
             Players
+            {coopMax > 0 && <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" />}
           </span>
           <p className="text-caption text-text-secondary truncate">How many people are playing?</p>
         </div>
@@ -913,14 +970,63 @@ function BookingWizardContent() {
           <span className="w-6 text-center font-heading text-body font-bold">{seatsCount}</span>
           <button
             type="button"
-            onClick={() => setSeatsCount((s) => Math.min(windowRemainingSeats, 6, s + 1))}
-            disabled={seatsCount >= windowRemainingSeats || seatsCount >= 6}
+            onClick={() => setSeatsCount((s) => Math.min(maxPlayers, s + 1))}
+            disabled={seatsCount >= maxPlayers}
             aria-label="Increase players"
             className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <Plus className="h-4 w-4" />
           </button>
         </div>
+      </div>
+
+        {/* Co-op vs own consoles — lives inside the Players card and only
+            appears when there's a real choice to make (2+ players on a
+            setup whose owner allows sharing). */}
+        {canCoop && (
+          <div role="radiogroup" aria-label="How you'll play" className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3">
+            {([
+              { coop: true, title: 'Co-op', sub: `1 console · ₹${Math.round(coopRate)}/hr`, off: false, why: '' },
+              { coop: false, title: 'Own consoles', sub: `${seatsCount} consoles · ₹${Math.round(pricePerHour * seatsCount)}/hr`, off: !canSeparate, why: `Only ${windowRemainingSeats} free now` },
+            ] as const).map((o) => {
+              const on = o.coop === isCoop;
+              return (
+                <button
+                  key={o.title}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  disabled={o.off}
+                  onClick={() => chooseCoop(o.coop)}
+                  className={cn(
+                    'min-w-0 rounded-xl border-[1.5px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                    on ? 'border-primary bg-primary/[0.06]' : 'border-border bg-card hover:border-text-secondary/40',
+                    o.off && 'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  <span className={cn('block font-heading text-body font-bold', on ? 'text-primary-dark' : 'text-text-primary')}>{o.title}</span>
+                  <span className="block truncate text-caption text-text-secondary">{o.off ? o.why : o.sub}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* One-time heads-up when co-op is picked. Floats over the card's top
+            edge instead of pushing the layout, and leaves on its own. */}
+        {showCoopNotice && isCoop && (
+          <div
+            role="status"
+            className="absolute inset-x-3 bottom-full z-20 mb-2 flex items-start gap-2 rounded-xl bg-secondary px-3 py-2.5 text-caption text-white shadow-float motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1"
+          >
+            <Gamepad2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" aria-hidden />
+            <p className="min-w-0 flex-1 leading-snug">{CUSTOMER_INFO.coopNotice}</p>
+            <button type="button" onClick={() => setShowCoopNotice(false)} className="flex-shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-white/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              Got it
+            </button>
+            <span className="absolute left-8 top-full border-[6px] border-transparent border-t-secondary" aria-hidden />
+          </div>
+        )}
       </div>
 
       {/* Price summary — sits directly under Players so the whole decision
@@ -931,7 +1037,8 @@ function BookingWizardContent() {
       <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex flex-col gap-1.5 text-caption text-text-secondary">
         <div className="flex items-center justify-between gap-3">
           <span className="min-w-0 truncate">
-            {activeTier?.name || 'Standard'} · {durationHours} hr · {seatsCount} player{seatsCount > 1 ? 's' : ''}
+            {activeTier?.name || 'Standard'} · {durationLabel} · {seatsCount} player{seatsCount > 1 ? 's' : ''}
+            {isCoop && ' · co-op'}
           </span>
           <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{baseTotal}</span>
         </div>
@@ -980,7 +1087,7 @@ function BookingWizardContent() {
             <Sparkles className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
             <span>
               🔥 You&apos;re 1 hour away from {dealNudge.title} — save ₹
-              {Math.max(pricePerHour * dealNudge.minDurationHours! * seatsCount - Number(dealNudge.fixedPriceAmount) * seatsCount, 0).toFixed(0)}. Switch to {dealNudge.minDurationHours}h?
+              {Math.max(pricePerHour * dealNudge.minDurationHours! * consolesCount - Number(dealNudge.fixedPriceAmount) * consolesCount, 0).toFixed(0)}. Switch to {dealNudge.minDurationHours}h?
             </span>
           </button>
         )}
@@ -1140,7 +1247,7 @@ function BookingWizardContent() {
               isProcessing ||
               Boolean(cafe.isEmergencyMode) ||
               Boolean(cafe.bookingsPaused) ||
-              windowRemainingSeats < seatsCount
+              windowRemainingSeats < consolesCount
             }
             className="flex-shrink-0 min-h-btn rounded-2xl bg-primary px-6 py-3 font-heading text-btn font-bold text-white shadow-float hover:bg-primary-dark active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
@@ -1152,7 +1259,7 @@ function BookingWizardContent() {
               ? 'Bookings Paused'
               : windowRemainingSeats === 0
               ? 'Sold Out'
-              : windowRemainingSeats < seatsCount
+              : windowRemainingSeats < consolesCount
               ? `Only ${windowRemainingSeats} Seat${windowRemainingSeats > 1 ? 's' : ''} Left`
               : `Pay ₹${money(finalTotal)}`}
           </button>
@@ -1180,6 +1287,12 @@ function BookingWizardContent() {
       />
     </>
   );
+}
+
+/** Whether an offer's play mode ('any' | 'solo' | 'coop') fits this booking. */
+function playModeMatches(mode: string | undefined | null, isCoop: boolean) {
+  if (!mode || mode === 'any') return true;
+  return mode === 'coop' ? isCoop : !isCoop;
 }
 
 export default function BookingWizardPage() {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react';
-import { AlertTriangle, Sparkles, Plus, Minus, Move } from 'lucide-react';
+import { AlertTriangle, Sparkles, Plus, Minus, Move, Flame } from 'lucide-react';
 import {
   timeToMinutes,
   minutesToTimeAndDayOffset,
@@ -22,8 +22,9 @@ interface AvailabilityBadge {
   skipCoachmark?: boolean;
 }
 
-// Mirrors the API contract: BookingCreateRequest.duration_hours is
-// Field(..., ge=1.0, le=8.0), re-checked in booking_service. Anything the
+// Default floor. The API floor is 15 min; each setup's own minimum
+// (min_booking_minutes) arrives as the minDurationMinutes prop and is
+// re-checked in booking_service. Anything the
 // picker lets a customer build outside this range is quoted a price and then
 // rejected with a 422 at submit, so both bounds must match on both sides.
 const MIN_DURATION_HOURS = 1;
@@ -48,6 +49,10 @@ interface TimelineRangePickerProps {
   remainingSeats?: number;
   /** Skip the one-time slider coachmark (e.g. the user has booked before). */
   skipCoachmark?: boolean;
+  /** Shortest session this setup allows (owner-set; VR is often 15). */
+  minDurationMinutes?: number;
+  /** Snap step for start/length: 15 for short-session setups, else 30. */
+  stepMinutes?: number;
 }
 
 function formatPlayoTime(minutes: number): string {
@@ -70,7 +75,12 @@ export function TimelineRangePicker({
   requestedSeats = 1,
   remainingSeats,
   skipCoachmark = false,
+  minDurationMinutes = MIN_DURATION_MIN,
+  stepMinutes = 30,
 }: TimelineRangePickerProps) {
+  const G = stepMinutes;
+  const minDurMin = Math.max(G, minDurationMinutes);
+  const minDurHours = minDurMin / 60;
   const outerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -157,7 +167,7 @@ export function TimelineRangePicker({
     if (selectedDate === getTodayString()) {
       const now = new Date();
       const cur = now.getHours() * 60 + now.getMinutes();
-      return Math.max(openMin, Math.ceil((cur + 10) / 30) * 30);
+      return Math.max(openMin, Math.ceil((cur + 10) / G) * G);
     }
     return openMin;
   }, [selectedDate, openMin]);
@@ -166,30 +176,30 @@ export function TimelineRangePicker({
   const selStart = useMemo(() => {
     let s = timeToMinutes(startTime);
     if (s < openMin) s += 1440;
-    return Math.max(minValidStart, Math.min(closeMin - MIN_DURATION_MIN, s));
-  }, [startTime, openMin, closeMin, minValidStart]);
+    return Math.max(minValidStart, Math.min(closeMin - minDurMin, s));
+  }, [startTime, openMin, closeMin, minValidStart, minDurMin]);
 
-  const durMin = Math.max(MIN_DURATION_MIN, Math.round(durationHours * 60));
+  const durMin = Math.max(minDurMin, Math.round(durationHours * 60));
   const selEnd = Math.min(closeMin, selStart + durMin);
 
   // ── Dynamic Slot Width Scale (Compresses dynamically for large durations) ──
   const sidePadding = Math.max(40, containerWidth / 3);
   const maxAvailPx = Math.max(100, containerWidth - 64);
   const slotW = useMemo(() => {
-    const numSlots = durMin / 30;
-    const baseW = 42; // Sophisticated tight slot width (84px per hour)
+    const numSlots = durMin / G;
+    const baseW = 42 * (G / 30); // 84px per hour whatever the step
     if (numSlots * baseW > maxAvailPx) {
       return Math.max(10, maxAvailPx / numSlots);
     }
     return baseW;
-  }, [durMin, maxAvailPx]);
+  }, [durMin, maxAvailPx, G]);
 
   const spanMin = closeMin - openMin;
-  const trackWidthPx = (spanMin / 30) * slotW;
+  const trackWidthPx = (spanMin / G) * slotW;
 
   const minToPx = useCallback(
-    (m: number) => sidePadding + ((m - openMin) / 30) * slotW,
-    [openMin, slotW, sidePadding]
+    (m: number) => sidePadding + ((m - openMin) / G) * slotW,
+    [openMin, slotW, sidePadding, G]
   );
 
   const startPx = minToPx(selStart);
@@ -225,8 +235,8 @@ export function TimelineRangePicker({
 
     const centerViewPx = scrollRef.current.scrollLeft + containerWidth / 2;
     const startViewPx = centerViewPx - rangePx / 2;
-    const rawMin = openMin + ((startViewPx - sidePadding) / slotW) * 30;
-    const snappedMin = Math.round(rawMin / 30) * 30;
+    const rawMin = openMin + ((startViewPx - sidePadding) / slotW) * G;
+    const snappedMin = Math.round(rawMin / G) * G;
     const clampedMin = Math.max(minValidStart, Math.min(closeMin - durMin, snappedMin));
 
     if (clampedMin !== selStart) {
@@ -266,20 +276,20 @@ export function TimelineRangePicker({
       }
       dragAxis.current = 'h';
     }
-    const deltaMin = Math.round((dx / slotW) * 30 / 30) * 30;
+    const deltaMin = Math.round(dx / slotW) * G;
 
     if (dragMode === 'start') {
       // Dragging the start handle left grows the session; it may not grow past
       // the API's maximum duration.
       const earliestStart = Math.max(minValidStart, selEnd - MAX_DURATION_MIN);
-      const newStart = Math.max(earliestStart, Math.min(selEnd - MIN_DURATION_MIN, dragStartMin.current + deltaMin));
-      const newDur = Math.max(MIN_DURATION_HOURS, (selEnd - newStart) / 60);
+      const newStart = Math.max(earliestStart, Math.min(selEnd - minDurMin, dragStartMin.current + deltaMin));
+      const newDur = Math.max(minDurHours, (selEnd - newStart) / 60);
       const startOffset = minutesToTimeAndDayOffset(newStart);
       onChange(startOffset.time, newDur, startOffset.dayOffset);
     } else if (dragMode === 'end') {
       const latestEnd = Math.min(closeMin, selStart + MAX_DURATION_MIN);
-      const newEnd = Math.max(selStart + MIN_DURATION_MIN, Math.min(latestEnd, dragStartMin.current + dragDurMin.current + deltaMin));
-      const newDur = Math.max(MIN_DURATION_HOURS, (newEnd - selStart) / 60);
+      const newEnd = Math.max(selStart + minDurMin, Math.min(latestEnd, dragStartMin.current + dragDurMin.current + deltaMin));
+      const newDur = Math.max(minDurHours, (newEnd - selStart) / 60);
       const startOffset = minutesToTimeAndDayOffset(selStart);
       onChange(startOffset.time, newDur, startOffset.dayOffset);
     } else if (dragMode === 'pan') {
@@ -308,9 +318,9 @@ export function TimelineRangePicker({
         : -1;
 
     const list: { start: number; state: 'AVAILABLE' | 'BOOKED' | 'PAST' }[] = [];
-    for (let m = openMin; m < closeMin; m += 30) {
+    for (let m = openMin; m < closeMin; m += G) {
       let state: 'AVAILABLE' | 'BOOKED' | 'PAST' = 'AVAILABLE';
-      if (nowMin >= 0 && m + 30 <= nowMin) {
+      if (nowMin >= 0 && m + G <= nowMin) {
         state = 'PAST';
       } else {
         let totalOccupiedSeats = 0;
@@ -318,7 +328,7 @@ export function TimelineRangePicker({
           let bS = timeToMinutes(bs.startTime);
           let bE = timeToMinutes(bs.endTime);
           if (bE <= bS) bE += 1440;
-          if (m < bE && m + 30 > bS) {
+          if (m < bE && m + G > bS) {
             totalOccupiedSeats += bs.seatsCount || 1;
           }
         }
@@ -329,7 +339,7 @@ export function TimelineRangePicker({
       list.push({ start: m, state });
     }
     return list;
-  }, [openMin, closeMin, selectedDate, bookedSlots, totalSeats, requestedSeats]);
+  }, [openMin, closeMin, selectedDate, bookedSlots, totalSeats, requestedSeats, G]);
 
   const isSelectionValid = useMemo(() => {
     if (selStart < minValidStart || selEnd > closeMin) return false;
@@ -339,7 +349,7 @@ export function TimelineRangePicker({
   }, [selStart, selEnd, minValidStart, closeMin, segments]);
 
   const adjustDuration = (deltaHours: number) => {
-    const newDur = Math.max(MIN_DURATION_HOURS, Math.min(MAX_DURATION_HOURS, durationHours + deltaHours));
+    const newDur = Math.max(minDurHours, Math.min(MAX_DURATION_HOURS, durationHours + deltaHours));
     if (selStart + newDur * 60 <= closeMin) {
       const { time, dayOffset } = minutesToTimeAndDayOffset(selStart);
       onChange(time, newDur, dayOffset);
@@ -347,13 +357,13 @@ export function TimelineRangePicker({
   };
 
   const findNextSlot = () => {
-    for (let m = minValidStart; m <= closeMin - 60; m += 30) {
-      const ok1 = segments.find((s) => s.start === m)?.state === 'AVAILABLE';
-      const ok2 = segments.find((s) => s.start === m + 30)?.state === 'AVAILABLE';
-      if (ok1 && ok2) {
+    const want = Math.max(minDurMin, durMin);
+    for (let m = minValidStart; m <= closeMin - want; m += G) {
+      const ok = segments.filter((s) => s.start >= m && s.start < m + want).every((s) => s.state === 'AVAILABLE');
+      if (ok) {
         isUserScrolling.current = false;
         const { time, dayOffset } = minutesToTimeAndDayOffset(m);
-        onChange(time, 2, dayOffset);
+        onChange(time, want / 60, dayOffset);
         return;
       }
     }
@@ -423,19 +433,25 @@ export function TimelineRangePicker({
           <div className="flex items-center gap-2.5 bg-white rounded-2xl px-3 py-1.5 border border-border/60 shadow-sm">
             <button
               type="button"
-              onClick={() => adjustDuration(-0.5)}
-              disabled={durationHours <= 0.5}
+              onClick={() => adjustDuration(-G / 60)}
+              disabled={durMin <= minDurMin}
+              aria-label="Shorter session"
               className="flex h-11 w-11 -m-1 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Minus className="h-3.5 w-3.5" />
             </button>
-            <span className="font-bold text-[13px] text-text-primary min-w-[65px] text-center">
+            <span className="inline-flex min-w-[65px] items-center justify-center gap-0.5 text-center text-[13px] font-bold text-text-primary">
               {durMin} Mins
+              {/* Easter egg: a long session earns a little flame. */}
+              {durMin >= 240 && (
+                <Flame className="h-3 w-3 text-primary animate-in zoom-in-50 duration-300" aria-label="Marathon session" />
+              )}
             </span>
             <button
               type="button"
-              onClick={() => adjustDuration(0.5)}
-              disabled={selEnd + 30 > closeMin || durationHours >= MAX_DURATION_HOURS}
+              onClick={() => adjustDuration(G / 60)}
+              disabled={selEnd + G > closeMin || durationHours >= MAX_DURATION_HOURS}
+              aria-label="Longer session"
               className="flex h-11 w-11 -m-1 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -564,7 +580,7 @@ export function TimelineRangePicker({
               style={{ position: 'absolute', top: 42, left: sidePadding, width: trackWidthPx, height: 3 }}
             >
               {segments.map((seg) => {
-                const x = ((seg.start - openMin) / 30) * slotW;
+                const x = ((seg.start - openMin) / G) * slotW;
                 let style: React.CSSProperties = {
                   backgroundColor: '#22c55e', // Available: solid green
                 };
@@ -589,7 +605,7 @@ export function TimelineRangePicker({
                   <div
                     key={seg.start}
                     role="img"
-                    aria-label={`${formatMinutesTo12h(seg.start)} to ${formatMinutesTo12h(seg.start + 30)}: ${stateLabel}`}
+                    aria-label={`${formatMinutesTo12h(seg.start)} to ${formatMinutesTo12h(seg.start + G)}: ${stateLabel}`}
                     style={{
                       position: 'absolute',
                       left: x,

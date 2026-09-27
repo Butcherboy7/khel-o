@@ -17,6 +17,8 @@ export interface CafeListItem {
   tierNames: string[];
   platforms?: string[];
   activityKinds?: string[];
+  /** A setup here lets friends share one console (co-op pricing). */
+  hasCoop?: boolean;
   /** Normalized activity keys ('pc-gaming', 'console', 'snooker', ...). */
   activities?: string[];
   /** True only when every active tier has a confirmed real platform. */

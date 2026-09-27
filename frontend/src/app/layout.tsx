@@ -41,11 +41,11 @@ export const metadata: Metadata = {
     ? { google: getPublicEnv('NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION', '') }
     : undefined,
   title: {
-    default: 'KHEL-O — Book Gaming Cafés Near You',
+    default: 'KHEL-O — Book Gaming Cafés & Game Zones Near You',
     template: '%s | KHEL-O',
   },
   description:
-    'Find and book PC and console gaming cafés near you. Check real-time seat availability, compare prices, and pay online — no calling ahead.',
+    'Find and book gaming cafés, VR, snooker, pool and bowling near you. See live availability, compare prices and pay online — no calling ahead.',
   keywords: [
     'gaming café',
     'book gaming PC',
@@ -54,6 +54,10 @@ export const metadata: Metadata = {
     'gaming lounge booking',
     'PS5 café booking',
     'gaming café near me',
+    'snooker booking',
+    'pool table near me',
+    'bowling alley booking',
+    'VR gaming near me',
   ],
   authors: [{ name: 'KHEL-O' }],
   manifest: '/manifest.json',
@@ -74,15 +78,15 @@ export const metadata: Metadata = {
     locale: 'en_IN',
     siteName: 'KHEL-O',
     url: SITE_URL,
-    title: 'KHEL-O — Book Gaming Cafés Near You',
+    title: 'KHEL-O — Book Gaming Cafés & Game Zones Near You',
     description:
-      'Find and book PC and console gaming cafés near you. Check real-time seat availability, compare prices, and pay online — no calling ahead.',
+      'Find and book gaming cafés, VR, snooker, pool and bowling near you. See live availability, compare prices and pay online — no calling ahead.',
   },
   twitter: {
     card: 'summary',
-    title: 'KHEL-O — Book Gaming Cafés Near You',
+    title: 'KHEL-O — Book Gaming Cafés & Game Zones Near You',
     description:
-      'Find and book PC and console gaming cafés near you. Check real-time seat availability, compare prices, and pay online.',
+      'Find and book gaming cafés, VR, snooker, pool and bowling near you. See live availability, compare prices and pay online.',
   },
 };
 

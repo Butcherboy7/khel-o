@@ -11,6 +11,7 @@ import {
   deleteOwnerPromotionPermanently,
   type Promotion,
   type PromotionType,
+  type PromotionPlayMode,
 } from '@/lib/api/promotions';
 import { listCafeTiers } from '@/lib/api/tiers';
 import { getOwnerCafeId } from '@/lib/api/owner';
@@ -78,6 +79,7 @@ interface FormState {
   fixedPriceAmount: string;
   minDurationHours: number;
   applicableTierId: string;
+  playMode: PromotionPlayMode;
   validFrom: string;
   validUntil: string;
   daysOfWeek: number[];
@@ -98,6 +100,7 @@ function emptyForm(): FormState {
     fixedPriceAmount: '',
     minDurationHours: 4,
     applicableTierId: '',
+    playMode: 'any',
     validFrom: new Date().toISOString().slice(0, 10),
     validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
@@ -177,6 +180,7 @@ export default function OwnerOffersPage() {
       fixedPriceAmount: p.fixedPriceAmount != null ? String(p.fixedPriceAmount) : '',
       minDurationHours: p.minDurationHours ?? 4,
       applicableTierId: p.applicableTierId ?? '',
+      playMode: p.playMode ?? 'any',
       validFrom: toDateInput(p.validFrom),
       validUntil: toDateInput(p.validUntil),
       daysOfWeek: p.daysOfWeek,
@@ -216,6 +220,7 @@ export default function OwnerOffersPage() {
         promotionType: form.promotionType,
         ...typeFieldsPayload(),
         applicableTierId: form.applicableTierId || null,
+        playMode: coopOfferable ? form.playMode : 'any',
         validFrom: `${form.validFrom}T00:00:00`,
         validUntil: `${form.validUntil}T23:59:59`,
         daysOfWeek: form.daysOfWeek,
@@ -239,6 +244,7 @@ export default function OwnerOffersPage() {
         description: form.description || undefined,
         ...(typeLocked ? {} : { promotionType: form.promotionType, ...typeFieldsPayload() }),
         applicableTierId: form.applicableTierId || null,
+        playMode: coopOfferable ? form.playMode : 'any',
         validFrom: `${form.validFrom}T00:00:00`,
         validUntil: `${form.validUntil}T23:59:59`,
         daysOfWeek: form.daysOfWeek,
@@ -288,6 +294,8 @@ export default function OwnerOffersPage() {
   };
 
   const selectedTier = tiers.find((t) => t.id === form.applicableTierId);
+  // Play mode only matters where friends can actually share a console.
+  const coopOfferable = selectedTier ? !!selectedTier.coopEnabled : tiers.some((t) => t.coopEnabled);
   const regularPricePreview =
     form.promotionType === 'fixed_price' && selectedTier
       ? selectedTier.pricePerHour * form.minDurationHours
@@ -696,6 +704,31 @@ export default function OwnerOffersPage() {
               <p className="text-caption text-text-secondary">A fixed-price deal must apply to one specific setup, since its regular price is calculated from that setup&apos;s hourly rate.</p>
             )}
           </div>
+
+          {coopOfferable && (
+            <div className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-0.5 text-caption font-semibold text-text-primary">
+                How they play
+                <InfoTip text="Co-op = friends sharing one console. Run a deal just for groups (e.g. 20% off co-op) without discounting solo play." label="About play mode" />
+              </span>
+              <div role="radiogroup" aria-label="How they play" className="grid grid-cols-3 gap-1 rounded-xl border border-border bg-surface p-1">
+                {([['any', 'Any booking'], ['solo', 'Own console'], ['coop', 'Co-op']] as const).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    role="radio"
+                    aria-checked={form.playMode === v}
+                    onClick={() => setForm({ ...form, playMode: v })}
+                    className={`h-9 rounded-lg text-caption font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                      form.playMode === v ? 'bg-card text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input

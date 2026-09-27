@@ -54,6 +54,16 @@ class HardwareTier(Base):
     active_seats_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     preset_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
     price_per_hour: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    # Co-op: friends share ONE console. Price = price_per_hour +
+    # coop_extra_player_price per extra player, up to coop_max_players.
+    # Inventory is unchanged — a co-op booking still holds one unit.
+    coop_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false', nullable=False)
+    coop_max_players: Mapped[int] = mapped_column(Integer, default=2, server_default='2', nullable=False)
+    coop_extra_player_price: Mapped[float] = mapped_column(Numeric(10, 2), default=0, server_default='0', nullable=False)
+    # Shortest bookable session for this setup (VR: 15, most consoles: 60)
+    # and the length checkout starts on; null = checkout's own default.
+    min_booking_minutes: Mapped[int] = mapped_column(Integer, default=60, server_default='60', nullable=False)
+    default_booking_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

@@ -43,6 +43,9 @@ class Booking(Base):
     cafe_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cafes.id"), nullable=False)
     hardware_tier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("hardware_tiers.id"), nullable=False)
     seats_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # People playing. More players than seats_count = co-op (sharing one
+    # console). Null on bookings made before co-op existed = seats_count.
+    players_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     session_date: Mapped[date] = mapped_column(Date, nullable=False)
     start_time: Mapped[time] = mapped_column(Time, nullable=False)
     end_time: Mapped[time] = mapped_column(Time, nullable=False)

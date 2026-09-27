@@ -324,6 +324,7 @@ class CafeRepository(BaseRepository[Cafe]):
                 "platforms": platforms,
                 "platforms_complete": platforms_complete,
                 "activity_kinds": activity_kinds,
+                "has_coop": any(getattr(t, 'coop_enabled', False) and t.is_active for t in cafe_tiers),
                 "activities": sort_keys(cafe_activities(cafe_tiers)),
                 "photos": photo_list,
                 "amenities": amenity_list,

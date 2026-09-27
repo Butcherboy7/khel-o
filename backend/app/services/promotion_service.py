@@ -141,6 +141,7 @@ class PromotionService:
             "fixed_price_amount": promo_in.fixed_price_amount,
             "min_duration_hours": promo_in.min_duration_hours,
             "applicable_tier_id": promo_in.applicable_tier_id,
+            "play_mode": promo_in.play_mode,
             "valid_from": promo_in.valid_from,
             "valid_until": promo_in.valid_until,
             "days_of_week": promo_in.days_of_week,
@@ -193,6 +194,7 @@ class PromotionService:
                     regular_price=regular_price,
                     savings_amount=savings_amount,
                     applicable_tier_name=tier_name,
+                    play_mode=getattr(p, 'play_mode', None) or 'any',
                     valid_until=p.valid_until,
                     start_hour=p.start_hour,
                     end_hour=p.end_hour,
@@ -406,6 +408,7 @@ class PromotionService:
             regular_price=regular_price,
             savings_amount=savings_amount,
             applicable_tier_id=promo.applicable_tier_id,
+            play_mode=getattr(promo, 'play_mode', None) or 'any',
             valid_from=promo.valid_from,
             valid_until=promo.valid_until,
             days_of_week=promo.days_of_week,
@@ -439,6 +442,7 @@ class PromotionService:
         session_datetime: Optional[datetime] = None,
         duration_hours: Optional[Decimal] = None,
         seats_count: int = 1,
+        is_coop: bool = False,
     ) -> Decimal:
         # Row-locked so a concurrent booking applying the same promo can't read
         # current_uses until this one commits — closes the race where N
@@ -477,6 +481,13 @@ class PromotionService:
 
         if promo.applicable_tier_id and str(promo.applicable_tier_id) != str(tier_id):
             raise ValidationException(message="Promotion does not apply to the selected hardware tier", error_code="PROMOTION_TIER_MISMATCH")
+
+        mode = getattr(promo, 'play_mode', None) or 'any'
+        if (mode == 'coop' and not is_coop) or (mode == 'solo' and is_coop):
+            raise ValidationException(
+                message="This offer is only for co-op (sharing a console)" if mode == 'coop' else "This offer is only for playing on your own console",
+                error_code="PROMOTION_PLAY_MODE_MISMATCH"
+            )
 
         if promo.promotion_type == PromotionType.FIXED_PRICE:
             # The deal price is defined for exactly min_duration_hours — a

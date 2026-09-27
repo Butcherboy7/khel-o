@@ -110,6 +110,11 @@ class HardwareTierService:
             "model": tier_in.model,
             "tier_type": tier_in.tier_type,
             "activity_kind": tier_in.activity_kind,
+            "coop_enabled": tier_in.coop_enabled,
+            "coop_max_players": tier_in.coop_max_players,
+            "coop_extra_player_price": tier_in.coop_extra_player_price,
+            "min_booking_minutes": tier_in.min_booking_minutes,
+            "default_booking_minutes": tier_in.default_booking_minutes,
             "is_active": True
         }
 

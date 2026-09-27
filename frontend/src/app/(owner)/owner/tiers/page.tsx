@@ -22,6 +22,7 @@ import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigu
 import { ActivityUnitsManager } from '@/components/owner/ActivityUnitsManager';
 import { PLATFORM_MODELS } from '@/constants/platforms';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { bookingOptionsFrom, bookingOptionsPayload } from '@/components/owner/SetupBookingOptions';
 import type { HardwareTier, TierConfig, TierCreateRequest, TierUpdateRequest } from '@/types';
 import { Edit, AlertCircle, Power, PowerOff, Plus, Zap, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
 
@@ -114,6 +115,7 @@ export default function HardwareTiersPage() {
               tierType: 'activity',
               activityKind: config.activityKind,
               individualUnits: config.individualUnits,
+              ...bookingOptionsPayload(config),
             }
           : {
               specs: {},
@@ -125,6 +127,7 @@ export default function HardwareTiersPage() {
               isCustomModel:
                 config.isCustomModel ||
                 (config.platform !== 'other' && !PLATFORM_MODELS[config.platform]?.includes(config.model)),
+              ...bookingOptionsPayload(config),
             };
       return createTier(targetId, payload);
     },
@@ -157,6 +160,7 @@ export default function HardwareTiersPage() {
               pricePerHour: config.pricePerHour,
               specs: {},
               activityKind: config.activityKind,
+              ...bookingOptionsPayload(config),
             }
           : {
               totalSeats: config.totalSeats,
@@ -167,6 +171,7 @@ export default function HardwareTiersPage() {
               isCustomModel:
                 config.isCustomModel ||
                 (config.platform !== 'other' && !PLATFORM_MODELS[config.platform]?.includes(config.model)),
+              ...bookingOptionsPayload(config),
             };
       return updateTier(targetId, editingTierId!, payload);
     },
@@ -239,6 +244,7 @@ export default function HardwareTiersPage() {
         tierType: 'activity',
         activityKind: tier.activityKind ?? undefined,
         individualUnits: true,
+        ...bookingOptionsFrom(tier),
       }]);
       setLegacyTierDefaults(null);
     } else if (tier.platform && tier.model) {
@@ -251,6 +257,7 @@ export default function HardwareTiersPage() {
         pricePerHour: tier.pricePerHour,
         tierType: tier.tierType,
         activityKind: tier.activityKind ?? undefined,
+        ...bookingOptionsFrom(tier),
       }]);
       setLegacyTierDefaults(null);
     } else {

@@ -1,6 +1,6 @@
 import re
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
-from typing import Optional, List
+from typing import Literal, Optional, List
 from uuid import UUID
 from datetime import datetime
 
@@ -30,6 +30,7 @@ class PromotionBase(BaseModel):
     # 1-hour minimum duration (BookingBase.duration_hours, ge=1.0).
     min_duration_hours: Optional[float] = Field(None, ge=1.0, le=8.0)
     applicable_tier_id: Optional[UUID] = None
+    play_mode: Literal['any', 'solo', 'coop'] = 'any'
     valid_from: datetime
     valid_until: datetime
     days_of_week: List[int] = Field(default_factory=list)
@@ -92,6 +93,7 @@ class PromotionUpdate(BaseModel):
     fixed_price_amount: Optional[float] = Field(None, gt=0)
     min_duration_hours: Optional[float] = Field(None, ge=1.0, le=8.0)
     applicable_tier_id: Optional[UUID] = None
+    play_mode: Optional[Literal['any', 'solo', 'coop']] = None
     valid_from: Optional[datetime] = None
     valid_until: Optional[datetime] = None
     days_of_week: Optional[List[int]] = None
@@ -147,6 +149,7 @@ class ActivePromotionResponse(BaseModel):
     regular_price: Optional[float] = None
     savings_amount: Optional[float] = None
     applicable_tier_name: Optional[str] = None
+    play_mode: str = 'any'
     valid_until: datetime
     start_hour: int
     end_hour: int
@@ -182,6 +185,7 @@ class CodeRedemptionResponse(BaseModel):
     regular_price: Optional[float] = None
     savings_amount: Optional[float] = None
     applicable_tier_id: Optional[UUID] = None
+    play_mode: str = 'any'
     valid_from: datetime
     valid_until: datetime
     days_of_week: List[int]

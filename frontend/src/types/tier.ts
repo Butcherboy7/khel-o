@@ -28,6 +28,13 @@ export interface HardwareTier {
    *  (HardwareTierUnit rows) or as one pooled count. Computed by the
    *  backend, not a stored flag. */
   trackingMode?: 'individual' | 'pooled';
+  /** Co-op: friends share ONE unit for coopExtraPlayerPrice per extra player/hr. */
+  coopEnabled?: boolean;
+  coopMaxPlayers?: number;
+  coopExtraPlayerPrice?: number;
+  /** Shortest session (VR is often 15) and the length checkout starts on. */
+  minBookingMinutes?: number;
+  defaultBookingMinutes?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,6 +58,13 @@ export interface TierCreateRequest {
   /** Create-only — see backend HardwareTierCreate.individual_units. Absent
    *  or false = pooled capacity, never sent/used again after creation. */
   individualUnits?: boolean;
+  /** Co-op: friends share ONE unit for coopExtraPlayerPrice per extra player/hr. */
+  coopEnabled?: boolean;
+  coopMaxPlayers?: number;
+  coopExtraPlayerPrice?: number;
+  /** Shortest session (VR is often 15) and the length checkout starts on. */
+  minBookingMinutes?: number;
+  defaultBookingMinutes?: number | null;
 }
 
 export interface TierUpdateRequest {
@@ -67,6 +81,13 @@ export interface TierUpdateRequest {
   model?: string;
   isCustomModel?: boolean;
   activityKind?: string;
+  /** Co-op: friends share ONE unit for coopExtraPlayerPrice per extra player/hr. */
+  coopEnabled?: boolean;
+  coopMaxPlayers?: number;
+  coopExtraPlayerPrice?: number;
+  /** Shortest session (VR is often 15) and the length checkout starts on. */
+  minBookingMinutes?: number;
+  defaultBookingMinutes?: number | null;
 }
 
 export interface TierConfig {
@@ -84,4 +105,11 @@ export interface TierConfig {
   /** This component's own working state for the create-time toggle — see
    *  TierCreateRequest.individualUnits above for what it maps to on submit. */
   individualUnits?: boolean;
+  /** Co-op: friends share ONE unit for coopExtraPlayerPrice per extra player/hr. */
+  coopEnabled?: boolean;
+  coopMaxPlayers?: number;
+  coopExtraPlayerPrice?: number;
+  /** Shortest session (VR is often 15) and the length checkout starts on. */
+  minBookingMinutes?: number;
+  defaultBookingMinutes?: number | null;
 }

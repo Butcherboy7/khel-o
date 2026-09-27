@@ -79,9 +79,11 @@ class BookingService:
                 error_code="INVALID_START_TIME"
             )
 
-        if booking_in.duration_hours < 1.0 or booking_in.duration_hours > 8.0:
+        min_minutes = int(getattr(tier, 'min_booking_minutes', None) or 60)
+        duration_minutes = round(booking_in.duration_hours * 60)
+        if duration_minutes < min_minutes or booking_in.duration_hours > 8.0 or duration_minutes % 15 != 0:
             raise ValidationException(
-                message="Duration must be between 1.0 and 8.0 hours",
+                message=f"This setup can be booked for {min_minutes} minutes to 8 hours, in 15-minute steps",
                 error_code="INVALID_DURATION"
             )
 
@@ -104,6 +106,17 @@ class BookingService:
             )
 
         seats_requested = getattr(booking_in, 'seats_count', 1)
+        players = booking_in.players_count or seats_requested
+        # Co-op: more people than consoles means friends share ONE console.
+        is_coop = players > seats_requested
+        if is_coop:
+            if not getattr(tier, 'coop_enabled', False):
+                raise ValidationException(message="This setup doesn't allow sharing a console", error_code="COOP_NOT_ALLOWED")
+            if seats_requested != 1 or players > int(tier.coop_max_players or 2):
+                raise ValidationException(
+                    message=f"Up to {tier.coop_max_players} players can share one console here",
+                    error_code="COOP_TOO_MANY_PLAYERS"
+                )
 
         # Seat Availability Checking (with locking) - uses tier app_bookable_seats for inventory
         overlapping_count, capacity = await self.booking_repo.get_overlapping_bookings_count_with_lock(
@@ -136,7 +149,11 @@ class BookingService:
         # Financial Math (Decimal) & Promotion Application
         price_per_hour = Decimal(str(tier.price_per_hour))
         duration = Decimal(str(booking_in.duration_hours))
-        base_amount = price_per_hour * duration * seats_requested
+        if is_coop:
+            extra = Decimal(str(tier.coop_extra_player_price or 0))
+            base_amount = (price_per_hour + extra * (players - 1)) * duration
+        else:
+            base_amount = price_per_hour * duration * seats_requested
 
         discount_amount = Decimal('0.00')
         # promotion_id wins if both are somehow present — it's the
@@ -167,6 +184,7 @@ class BookingService:
                 # not "now" (see promotion_service.apply_promotion_to_booking)
                 duration_hours=duration,
                 seats_count=seats_requested,
+                is_coop=is_coop,
             )
 
         subtotal = base_amount - discount_amount
@@ -197,6 +215,7 @@ class BookingService:
             "end_time": end_time,
             "duration_hours": float(duration),
             "seats_count": seats_requested,
+            "players_count": players,
             "base_amount": float(base_amount),
             "discount_amount": float(discount_amount),
             "gateway_fee": float(gateway_fee),

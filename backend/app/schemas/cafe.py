@@ -130,6 +130,8 @@ class CafeListItem(BaseModel):
     tier_names: List[str] = Field(default_factory=list)
     platforms: List[str] = Field(default_factory=list)
     activity_kinds: List[str] = Field(default_factory=list)
+    # Any active setup lets friends share one console (co-op pricing).
+    has_coop: bool = False
     # Normalized activity keys (app/core/activities.py) — what the filters use.
     activities: List[str] = Field(default_factory=list)
     # True only when every active tier has a confirmed real platform. See

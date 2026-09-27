@@ -25,6 +25,11 @@ class HardwareTierBase(BaseModel):
     is_custom_model: bool = False
     tier_type: TierType = TierType.GAMING
     activity_kind: Optional[str] = Field(None, max_length=50)
+    coop_enabled: bool = False
+    coop_max_players: int = Field(2, ge=2, le=4)
+    coop_extra_player_price: float = Field(0.0, ge=0.0)
+    min_booking_minutes: int = Field(60, ge=15, le=240)
+    default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
 
     @model_validator(mode='after')
     def validate_seats(self) -> 'HardwareTierBase':
@@ -66,6 +71,11 @@ class HardwareTierUpdate(BaseModel):
     model: Optional[str] = Field(None, max_length=100)
     is_custom_model: Optional[bool] = None
     activity_kind: Optional[str] = Field(None, max_length=50)
+    coop_enabled: Optional[bool] = None
+    coop_max_players: Optional[int] = Field(None, ge=2, le=4)
+    coop_extra_player_price: Optional[float] = Field(None, ge=0.0)
+    min_booking_minutes: Optional[int] = Field(None, ge=15, le=240)
+    default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
 
     @model_validator(mode='after')
     def validate_seats_update(self) -> 'HardwareTierUpdate':

@@ -13,6 +13,11 @@ export type CustomerHintId = keyof typeof CUSTOMER_HINTS;
 export const CUSTOMER_INFO = {
   platformFee:
     "A small fee that keeps KHEL-O running: secure online payment and instant confirmation. The café's own price is unchanged.",
+  coop:
+    'Co-op = friends share one console, with a controller each. Cheaper per head, but only for games you play together on one screen (FC, Tekken, It Takes Two).',
+  coopNotice:
+    "Co-op means one console, one screen. Pick a game you can play together, like FC, Tekken or It Takes Two. GTA story mode won't work.",
+  minTime: 'The shortest session this café allows for this setup.',
 } as const;
 
 /** A hint stops appearing after this many sightings. */

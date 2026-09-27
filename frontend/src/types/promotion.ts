@@ -1,3 +1,5 @@
+export type PromotionPlayMode = 'any' | 'solo' | 'coop';
+
 export type PromotionType = 'percentage' | 'fixed_amount' | 'fixed_price';
 
 export interface Promotion {
@@ -16,6 +18,8 @@ export interface Promotion {
   savingsAmount: number | null;
   applicableTierId: string | null;
   applicableTierName: string | null;
+  /** 'any' | 'solo' (own console) | 'coop' (friends sharing one). */
+  playMode?: PromotionPlayMode;
   validFrom: string;
   validUntil: string;
   daysOfWeek: number[];
@@ -40,6 +44,7 @@ export interface PromotionCreateRequest {
   fixedPriceAmount?: number | null;
   minDurationHours?: number | null;
   applicableTierId?: string | null;
+  playMode?: PromotionPlayMode;
   validFrom: string;
   validUntil: string;
   daysOfWeek: number[];
@@ -57,6 +62,7 @@ export interface PromotionUpdateRequest {
   fixedPriceAmount?: number | null;
   minDurationHours?: number | null;
   applicableTierId?: string | null;
+  playMode?: PromotionPlayMode;
   validFrom?: string;
   validUntil?: string;
   daysOfWeek?: number[];

@@ -15,6 +15,7 @@ import {
   Share2,
   Navigation,
   Gamepad2,
+  Users,
   CheckCircle2,
   Images,
   Tag,
@@ -53,6 +54,8 @@ import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow, formatTime } from '@/lib/format';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
+import { InfoTip } from '@/components/shared/InfoTip';
+import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
 import type { CafeDetail } from '@/types';
 
 interface CafeDetailClientProps {
@@ -506,16 +509,24 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                 // not just once they're on the price summary there.
                 const discount = tier.activePromotion?.discountPercentage ?? 0;
                 const discountedPrice = discount > 0 ? Math.round(tier.pricePerHour * (1 - discount / 100)) : tier.pricePerHour;
+                const coopRate = tier.coopEnabled ? tier.pricePerHour + Number(tier.coopExtraPlayerPrice ?? 0) : 0;
                 return (
-                  <button
+                  // Stretched-button card: one full-size select button sits
+                  // under the content so the co-op ⓘ can be its own button
+                  // (a button can't live inside another button).
+                  <div
                     key={tier.id}
-                    type="button"
-                    onClick={() => setSelectedTierId(tier.id)}
-                    aria-pressed={isSelected}
-                    className={`flex items-center gap-3 p-3 rounded-2xl text-left border-2 bg-card transition-all active:scale-[0.99] ${
+                    className={`relative flex items-center gap-3 p-3 rounded-2xl text-left border-2 bg-card transition-all active:scale-[0.99] ${
                       isSelected ? 'border-primary shadow-card' : 'border-border hover:bg-surface'
                     }`}
                   >
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTierId(tier.id)}
+                      aria-pressed={isSelected}
+                      aria-label={`${tier.name}, ₹${tier.pricePerHour} per hour${tier.coopEnabled ? ', co-op available' : ''}`}
+                      className="absolute inset-0 rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    />
                     <div
                       className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${
                         isSelected ? 'bg-accent/15 text-accent' : 'bg-surface text-text-secondary'
@@ -527,6 +538,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
+                        {tier.coopEnabled && (
+                          <span className="flex items-center gap-1 rounded-full bg-primary/[0.08] px-2 py-0.5 text-[11px] font-bold text-primary-dark flex-shrink-0">
+                            <Users className="h-3 w-3" aria-hidden />
+                            Co-op
+                          </span>
+                        )}
                         {discount > 0 && (
                           <span className="flex items-center gap-1 rounded-full bg-accent/10 text-accent px-2 py-0.5 text-[11px] font-bold flex-shrink-0">
                             <Tag className="h-3 w-3" />
@@ -562,6 +579,17 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       {discount > 0 && tier.activePromotion?.title && (
                         <p className="text-[11px] text-accent font-medium mt-0.5 truncate">{tier.activePromotion.title}</p>
                       )}
+                      {/* Co-op price, only once this setup is picked — no extra
+                          height on the list otherwise. */}
+                      {tier.coopEnabled && isSelected && (
+                        <p className="mt-1 flex items-center gap-1 text-caption text-text-secondary motion-safe:animate-in motion-safe:fade-in">
+                          <span className="truncate">
+                            {(tier.coopMaxPlayers ?? 2) > 2 ? `2–${tier.coopMaxPlayers}` : '2'} on 1 console from{' '}
+                            <span className="font-data font-bold text-text-primary"><span className="rupee-symbol">₹</span>{coopRate}/hr</span>
+                          </span>
+                          <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" className="relative z-10 -my-1" />
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -593,7 +621,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                         </span>
                       )}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
