@@ -108,6 +108,25 @@
   }
 
   /* ── Base Styles ── */
+  html,
+  body {
+    /* Nothing may widen the page sideways: on a phone a few stray pixels
+       (a decorative glow, a wide chip row) let the page wobble and zoom
+       out while scrolling. clip, not hidden, so position: sticky still works. */
+    overflow-x: clip;
+  }
+
+  /* iOS zooms the whole page into any text field under 16px when it is
+     tapped, and leaves it zoomed. 16px on iOS only; other devices keep the
+     designed size. */
+  @supports (-webkit-touch-callout: none) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
