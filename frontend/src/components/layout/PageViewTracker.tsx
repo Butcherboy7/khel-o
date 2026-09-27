@@ -14,16 +14,16 @@ export function PageViewTracker() {
 
   useEffect(() => {
     if (!pathname || pathname.startsWith('/admin')) return;
-    fireAnalyticsEvent('page_view', { metadata: { path: pathname } });
 
-    // Landing from a tracked link (shares, campaign links): remember the
-    // source now, first-touch wins, so a signup later in the visit — on any
-    // page — is attributed to it, and log the open if it was a share.
+    // Landing from a tracked link (shares, campaign links, Meta ads): remember
+    // the source first, so this very page_view already carries the campaign.
+    // Signup attribution is first-touch; events carry the latest touch.
     const params = new URLSearchParams(window.location.search);
-    if (params.get('utm_source')) {
+    if (params.get('utm_source') || params.get('fbclid')) {
       useAnalyticsStore.getState().captureAttributionFromUrl(params);
-      recordShareOpen(params);
+      if (params.get('utm_source')) recordShareOpen(params);
     }
+    fireAnalyticsEvent('page_view', { metadata: { path: pathname } });
   }, [pathname]);
 
   return null;

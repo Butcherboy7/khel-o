@@ -176,3 +176,105 @@ export interface ShareReport {
 export async function getShareReport(start: string, end: string): Promise<ShareReport> {
   return call(() => apiClient.get('/api/v1/admin/analytics/shares', { params: { start, end } }));
 }
+
+// ---- Ad campaign funnel & area report (growth_report_service) ----
+
+export interface AdCampaignOption {
+  source: string;
+  campaign: string | null;
+  sessions: number;
+  first: string;
+  last: string;
+}
+
+export interface NamedCount {
+  name: string;
+  sessions: number;
+}
+
+export interface AdCampaignReport {
+  source: string;
+  campaign: string | null;
+  from: string;
+  to: string;
+  funnel: { key: string; label: string; sessions: number; ofLanded: number; ofPrevious: number | null }[];
+  totals: {
+    visitors: number;
+    searched: number;
+    viewedCafe: number;
+    notifyMe: number;
+    bookingStarted: number;
+    signedIn: number;
+    newAccounts: number;
+    booked: number;
+    bookings: number;
+    gmv: number;
+    cameBack: number;
+    sharedLocation: number;
+    googleSigninFailed: number;
+  };
+  byAd: { ad: string; sessions: number; viewedCafe: number; acted: number; booked: number }[];
+  devices: NamedCount[];
+  inAppBrowser: NamedCount[];
+  visitorType: NamedCount[];
+  areas: NamedCount[];
+  cities: NamedCount[];
+  daily: { date: string; sessions: number }[];
+  cafes: {
+    cafeId: string;
+    name: string;
+    area: string;
+    isLeadListing: boolean;
+    views: number;
+    notifyMe: number;
+    bookingStarts: number;
+    bookings: number;
+  }[];
+}
+
+export async function listAdCampaigns(): Promise<{ campaigns: AdCampaignOption[] }> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/ad-campaigns'));
+}
+
+export async function getAdCampaignReport(params: {
+  source: string;
+  campaign?: string | null;
+  from: string;
+  to: string;
+}): Promise<AdCampaignReport> {
+  return call(() =>
+    apiClient.get('/api/v1/admin/analytics/ad-campaigns/report', {
+      params: { source: params.source, campaign: params.campaign || undefined, from: params.from, to: params.to },
+    })
+  );
+}
+
+export interface AreaRow {
+  area: string;
+  playersNearby: number;
+  cafeViewers: number;
+  notifyMe: number;
+  cafes: { live: number; comingSoon: number };
+  bookings: number;
+  gmv: number;
+  uniqueBookers: number;
+  avgBookingValue: number | null;
+  avgHours: number | null;
+  avgPerHour: number | null;
+  peakHour: number | null;
+  peakDay: string | null;
+  lowData: boolean;
+}
+
+export interface AreaReport {
+  city: string;
+  days: number;
+  totals: { visitors: number; sharedLocation: number; bookings: number; gmv: number; avgBookingValue: number | null };
+  areas: AreaRow[];
+  flows: { from: string; to: string; sessions: number }[];
+  cities: { city: string; sessions: number }[];
+}
+
+export async function getAreaReport(city: string, days: number): Promise<AreaReport> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/areas', { params: { city, days } }));
+}

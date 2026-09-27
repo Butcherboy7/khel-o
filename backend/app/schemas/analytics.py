@@ -20,6 +20,10 @@ class AnalyticsEventType(str, Enum):
     PAGE_VIEW = "page_view"
     SHARE_CREATED = "share_created"
     SHARE_OPENED = "share_opened"
+    LOCATION_SHARED = "location_shared"
+    CITY_SELECTED = "city_selected"
+    NOTIFY_ME = "notify_me"
+    GOOGLE_SIGNIN_FAILED = "google_signin_failed"
 
 
 MAX_METADATA_BYTES = 2048
