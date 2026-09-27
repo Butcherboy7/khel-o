@@ -22,7 +22,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { getCafe, cafePath, getCafeLive } from '@/lib/api/cafes';
-import { listCafeReviews, createReview, getReviewSettings } from '@/lib/api/reviews';
+import { listCafeReviews, createReview, getReviewSettings, editReview } from '@/lib/api/reviews';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
 import { getWaitlistStatus, joinWaitlist, leaveWaitlist } from '@/lib/api/waitlist';
@@ -115,6 +115,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   }, [lightbox.open]);
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState('');
+  const [editingReview, setEditingReview] = useState(false);
+  const [editRating, setEditRating] = useState(5);
+  const [editComment, setEditComment] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [submittedReview, setSubmittedReview] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
@@ -314,6 +318,11 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const amenityBadges = (cafe.amenities ?? []).slice(0, 3).map((a) => getAmenityDisplay(a));
 
   const fetchedReviews = serverReviewsData?.items ?? [];
+  // The signed-in visitor's own review of this café, if any: shown with an
+  // Edit button, and it replaces the "leave a review" form.
+  const myReview = user ? fetchedReviews.find((r) => r.gamerId === user.id) : undefined;
+  const reviewDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   const ratingCounts = [5, 4, 3, 2, 1].map((star) => ({
     star,
     count: fetchedReviews.filter((r) => Math.round(r.rating) === star).length,
@@ -837,8 +846,11 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           </div>
         )}
 
-        {/* Submit Review Card */}
-        <div className="p-5 rounded-2xl bg-card border border-border/80 flex flex-col gap-3">
+        {/* Submit Review Card — #write-review is where the café's review QR
+            code lands. Hidden once this visitor has reviewed (they edit
+            their review in the list instead). */}
+        {!myReview && (
+        <div id="write-review" className="p-5 rounded-2xl bg-card border border-border/80 flex flex-col gap-3 scroll-mt-4">
           <h4 className="font-heading text-body font-bold text-text-primary">Leave a Rating & Review</h4>
           <div className="flex items-center gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
@@ -909,23 +921,110 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             {isSubmittingReview ? 'Submitting...' : submittedReview ? 'Review Posted ✓' : 'Submit Review'}
           </Button>
         </div>
+        )}
 
         {/* List Reviews */}
         {fetchedReviews.length > 0 ? (
-          fetchedReviews.map((rev) => (
-            <div key={rev.id} className="p-4 rounded-2xl bg-card border border-border/80 flex flex-col gap-1">
-              <div className="flex items-center justify-between">
-                <span className="font-heading text-body font-bold text-text-primary">
-                  {rev.gamerName || 'Verified Gamer'}
-                </span>
-                <div className="flex items-center text-warning">
-                  <Star className="h-4 w-4 fill-warning" />
-                  <span className="text-caption font-bold ml-1">{rev.rating}.0</span>
+          fetchedReviews.map((rev) => {
+            const isMine = rev.id === myReview?.id;
+            if (isMine && editingReview) {
+              return (
+                <div key={rev.id} id="write-review" className="p-4 rounded-2xl bg-card border-2 border-primary flex flex-col gap-3 scroll-mt-4">
+                  <span className="font-heading text-body font-bold text-text-primary">Edit your review</span>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setEditRating(star)}
+                        aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                        aria-pressed={star <= editRating}
+                        className="p-1"
+                      >
+                        <Star className={`h-6 w-6 ${star <= editRating ? 'fill-warning text-warning' : 'text-text-secondary/40'}`} />
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={editComment}
+                    onChange={(e) => setEditComment(e.target.value)}
+                    className="w-full rounded-xl bg-surface border border-border p-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[80px]"
+                  />
+                  {reviewError && <p className="text-caption text-error">{reviewError}</p>}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => { setEditingReview(false); setReviewError(null); }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      isLoading={isSavingEdit}
+                      onClick={async () => {
+                        setIsSavingEdit(true);
+                        setReviewError(null);
+                        try {
+                          await editReview(rev.id, { rating: editRating, comment: editComment });
+                          setEditingReview(false);
+                          refetchReviews();
+                          refetch();
+                        } catch (err: unknown) {
+                          setReviewError((err as Error)?.message || "Couldn't save your changes.");
+                        } finally {
+                          setIsSavingEdit(false);
+                        }
+                      }}
+                    >
+                      Save changes
+                    </Button>
+                  </div>
                 </div>
+              );
+            }
+            return (
+              <div key={rev.id} id={isMine ? 'write-review' : undefined} className="p-4 rounded-2xl bg-card border border-border/80 flex flex-col gap-1.5 scroll-mt-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col">
+                    <span className="font-heading text-body font-bold text-text-primary">
+                      {isMine ? 'You' : rev.gamerName || 'Verified Gamer'}
+                    </span>
+                    <span className="text-[11px] text-text-secondary">
+                      {reviewDate(rev.createdAt)}
+                      {rev.editedAt && (
+                        <span title={`Edited ${reviewDate(rev.editedAt)}`} className="ml-1.5 rounded-full bg-surface px-1.5 py-0.5 font-semibold">
+                          Edited
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center text-warning flex-shrink-0">
+                    <Star className="h-4 w-4 fill-warning" />
+                    <span className="text-caption font-bold ml-1">{rev.rating}.0</span>
+                  </div>
+                </div>
+                {rev.comment && <p className="text-caption text-text-secondary">{rev.comment}</p>}
+                {rev.ownerReply && (
+                  <div className="mt-1 rounded-xl border-l-2 border-primary bg-surface px-3 py-2">
+                    <span className="text-[11px] font-bold text-text-primary">Reply from {cafe.name}</span>
+                    <p className="text-caption text-text-secondary">{rev.ownerReply}</p>
+                  </div>
+                )}
+                {isMine && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditRating(rev.rating);
+                      setEditComment(rev.comment ?? '');
+                      setReviewError(null);
+                      setEditingReview(true);
+                    }}
+                    className="self-start min-h-[36px] text-caption font-semibold text-primary hover:underline"
+                  >
+                    Edit your review
+                  </button>
+                )}
               </div>
-              <p className="text-caption text-text-secondary">{rev.comment}</p>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="p-6 rounded-2xl bg-card border border-border/60 text-center">
             <Star className="h-8 w-8 text-warning/40 mx-auto mb-2" />

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Star, MessageSquare, Edit3, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, Badge, Button, Textarea, SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { ReviewShareCard } from '@/components/owner/ReviewShareCard';
 import { getOwnerStatus } from '@/lib/api/owner';
 import { listCafeReviews, replyToReview } from '@/lib/api/reviews';
 import type { Review } from '@/types';
@@ -49,6 +50,10 @@ export default function OwnerReviewsPage() {
         description="What customers said after playing here. Anything you reply is public — everyone reading the review sees it."
       />
 
+      {cafeId && (
+        <ReviewShareCard cafeId={cafeId} cafeSlug={statusRes?.cafe?.slug} cafeName={statusRes?.cafe?.name ?? 'your café'} />
+      )}
+
       {isLoading && (
         <div className="flex flex-col gap-4">
           <SkeletonCard />
@@ -87,6 +92,7 @@ export default function OwnerReviewsPage() {
                       </span>
                       <p className="text-xs text-text-secondary mt-0.5">
                         {new Date(rev.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {rev.editedAt && <span className="ml-1.5 rounded-full bg-surface px-1.5 py-0.5 font-semibold">Edited</span>}
                       </p>
                     </div>
                     <Badge variant="warning" size="md" className="flex items-center gap-1 flex-shrink-0">
@@ -99,7 +105,7 @@ export default function OwnerReviewsPage() {
 
                   {rev.ownerReply && !isReplying && (
                     <div className="rounded-xl bg-primary/5 border border-primary/20 p-3.5 flex flex-col gap-1">
-                      <span className="text-caption font-bold text-primary uppercase tracking-wide">Your reply</span>
+                      <span className="text-caption font-bold text-primary uppercase tracking-wide">Your reply · shown publicly</span>
                       <p className="text-caption text-text-primary">{rev.ownerReply}</p>
                     </div>
                   )}

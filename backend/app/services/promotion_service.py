@@ -453,11 +453,16 @@ class PromotionService:
         if str(promo.cafe_id) != str(cafe_id):
             raise ValidationException(message="Promotion does not belong to this café", error_code="PROMOTION_CAFE_MISMATCH")
 
-        if promo.max_uses is not None and promo.current_uses >= promo.max_uses:
-            raise ValidationException(
-                message="This promotion has reached its maximum uses",
-                error_code="PROMOTION_EXHAUSTED"
-            )
+        # Paid redemptions plus unpaid bookings still inside their payment
+        # window: the last slot can't be taken twice, and an abandoned
+        # checkout frees its slot after 15 minutes.
+        if promo.max_uses is not None:
+            held = await self.promo_repo.pending_holds(promotion_id)
+            if promo.current_uses + held >= promo.max_uses:
+                raise ValidationException(
+                    message="This promotion has reached its maximum uses",
+                    error_code="PROMOTION_EXHAUSTED"
+                )
 
         # Eligibility (day-of-week, hour window, valid_from/until) must be
         # checked against the booked SESSION's date/time, not the moment the
@@ -508,18 +513,10 @@ class PromotionService:
         if discount_amount < 0:
             discount_amount = Decimal('0.00')
 
-        # Increment now, while still holding the row lock acquired above —
-        # that gap between validation and increment was exactly where the
-        # race lived. Deliberately NOT committing here: this UPDATE rides in
-        # the same open transaction as the caller's booking insert, so if
-        # booking creation fails after this point, the increment rolls back
-        # with it instead of being wasted on a booking that never happened.
-        from sqlalchemy import update as sa_update
-        from app.models.promotion import Promotion
-        await self.promo_repo.db.execute(
-            sa_update(Promotion).where(Promotion.id == promotion_id).values(current_uses=Promotion.current_uses + 1)
-        )
-
+        # Not counted as redeemed here: the booking is only pending payment.
+        # current_uses is recounted from paid bookings whenever a booking's
+        # status changes (BookingRepository.update), so it only moves on a
+        # successful payment and moves back on a cancellation or refund.
         return discount_amount
 
     async def increment_promotion_uses(self, promotion_id: UUID) -> None:

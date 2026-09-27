@@ -128,7 +128,7 @@ async def test_duplicate_khelo_code_rejected(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_booking_creation_with_promo_code_applies_discount_and_increments_uses(async_client: AsyncClient):
+async def test_booking_creation_with_promo_code_applies_discount_and_holds_the_slot(async_client: AsyncClient):
     async with AsyncSessionLocal() as db:
         owner, gamer, cafe, tier = await _make_cafe_owner_gamer(db)
 
@@ -162,9 +162,12 @@ async def test_booking_creation_with_promo_code_applies_discount_and_increments_
         from sqlalchemy import select
         result = await db.execute(select(Promotion).where(Promotion.khelo_code == "BOOKME25"))
         refreshed = result.scalars().first()
-        assert refreshed.current_uses == 1
+        # Not redeemed yet: the booking is only pending payment. Redemptions
+        # count once paid (see test_offer_redemption_and_reviews).
+        assert refreshed.current_uses == 0
 
-    # A second booking against the now-exhausted (max_uses=1) code must be rejected
+    # The unpaid booking still holds the only slot (max_uses=1) during its
+    # payment window, so a second booking must be rejected
     booking_payload_2 = {**booking_payload, "startTime": "22:00:00"}
     res2 = await async_client.post("/api/v1/bookings", json=booking_payload_2, headers=auth_headers(gamer))
     assert res2.status_code != 201

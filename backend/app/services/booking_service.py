@@ -224,9 +224,8 @@ class BookingService:
         self.booking_repo.db.add(fee_obj)
         await self.booking_repo.db.commit()
 
-        # promotion_id's current_uses was already incremented inside
-        # apply_promotion_to_booking, atomically under the same row lock that
-        # served the max_uses check above — no separate increment here.
+        # The offer is not counted as redeemed yet: that happens when the
+        # payment succeeds (BookingRepository.update recounts it).
 
         return BookingResponse.model_validate(created)
 

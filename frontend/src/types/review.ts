@@ -13,6 +13,8 @@ export interface Review {
   isVisible: boolean;
   ownerReply: string | null;
   ownerRepliedAt: string | null;
+  /** Set when the reviewer changed their rating or text; shows "Edited". */
+  editedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

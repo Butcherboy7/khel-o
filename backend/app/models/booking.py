@@ -23,6 +23,17 @@ class BookingStatus(str, enum.Enum):
     # booking stops counting toward capacity the instant this is set.
     RELEASED_BY_OWNER = "released_by_owner"
 
+# Paid for: the only states in which an offer counts as redeemed. A pending,
+# failed, cancelled/refunded or owner-released booking never does.
+REDEEMED_STATUSES = (
+    BookingStatus.CONFIRMED,
+    BookingStatus.CHECKED_IN,
+    BookingStatus.ACTIVE,
+    BookingStatus.COMPLETED,
+    BookingStatus.NO_SHOW,
+)
+
+
 class Booking(Base):
     __tablename__ = "bookings"
 

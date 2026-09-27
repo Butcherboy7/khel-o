@@ -130,6 +130,14 @@ export const INFO_TIPS = {
     'How many seats of each type customers can book in the app. The rest are kept for people who walk in.',
   settingsStopBookings:
     'Pause = no new app bookings, but walk-ins are fine. Emergency = nobody can book at all. Either way, bookings already made stay valid.',
+  offersRedeemed:
+    'Counts only customers who paid with this offer. If someone starts checkout but doesn’t pay, or cancels later, it doesn’t count.',
+  staffInvitations:
+    'People you invited who haven’t set up their login yet. Copy the link to send it again, or cancel it if you invited the wrong person. Links stop working after the date shown.',
+  staffRemove:
+    'Removing someone takes away their staff access straight away. Their own KHEL-O account stays, so they can still book as a player.',
+  reviewsQr:
+    'Anyone who scans this or opens the link lands on your café page at the review box. They sign in once, then rate you in a few seconds.',
 } as const;
 
 /** A page's tip box shows for this many visits unless dismissed for good. */
