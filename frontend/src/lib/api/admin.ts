@@ -417,6 +417,9 @@ export interface CafeDemandLead {
   lastRequestedAt: string;
   contacts: string[];
   noContactCount: number;
+  /** Subscribed, de-duplicated inboxes a broadcast would reach. */
+  emailableCount: number;
+  slug: string | null;
 }
 
 export async function listCafeDemand(minCount = 1): Promise<{ leads: CafeDemandLead[] }> {
@@ -425,4 +428,28 @@ export async function listCafeDemand(minCount = 1): Promise<{ leads: CafeDemandL
 
 export async function updateCafeWaitlistGoal(cafeId: string, waitlistGoal: number): Promise<{ cafeId: string; waitlistGoal: number }> {
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/waitlist-goal`, { waitlistGoal }));
+}
+
+/** Downloads the waitlist as a CSV (one café, or every café when no id).
+ *  Goes through apiClient so the admin's bearer token is attached. */
+export async function downloadWaitlistCsv(cafeId?: string): Promise<void> {
+  const url = cafeId ? `/api/v1/admin/leads/${cafeId}/export.csv` : '/api/v1/admin/leads/export.csv';
+  const res = await apiClient.get(url, { responseType: 'blob' });
+  const disposition = String(res.headers['content-disposition'] ?? '');
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'khelo-waitlist.csv';
+  const href = URL.createObjectURL(res.data as Blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(href);
+}
+
+export async function broadcastToWaitlist(
+  cafeId: string,
+  body: { subject: string; message: string; test: boolean }
+): Promise<{ sent: number; test: boolean; to?: string }> {
+  return call(() => apiClient.post(`/api/v1/admin/leads/${cafeId}/broadcast`, body));
 }

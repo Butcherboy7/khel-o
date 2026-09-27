@@ -2887,6 +2887,8 @@ async def claim_lead_listing(
 
     await db.commit()
     await db.refresh(cafe)
+    from app.services import waitlist_mailer
+    waitlist_mailer.schedule_launch_notifications(cafe.id)
 
     return {
         "success": True,
