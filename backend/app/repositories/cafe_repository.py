@@ -169,25 +169,36 @@ class CafeRepository(BaseRepository[Cafe]):
             stmt = stmt.where(func.lower(func.trim(Cafe.city)) == city.strip().lower())
 
         if query and query.strip():
-            search_pattern = f"%{query.strip().lower()}%"
-            tier_match_subquery = select(HardwareTier.cafe_id).where(
-                HardwareTier.is_active == True,
-                or_(
-                    func.lower(HardwareTier.name).like(search_pattern),
-                    func.lower(HardwareTier.description).like(search_pattern),
-                    func.lower(cast(HardwareTier.specs, String)).like(search_pattern),
-                    func.lower(HardwareTier.preset_category).like(search_pattern)
+            def matches(word: str):
+                pattern = f"%{word}%"
+                tier_match_subquery = select(HardwareTier.cafe_id).where(
+                    HardwareTier.is_active == True,
+                    or_(
+                        func.lower(HardwareTier.name).like(pattern),
+                        func.lower(HardwareTier.description).like(pattern),
+                        func.lower(cast(HardwareTier.specs, String)).like(pattern),
+                        func.lower(HardwareTier.preset_category).like(pattern)
+                    )
                 )
-            )
+                return or_(
+                    func.lower(Cafe.name).like(pattern),
+                    func.lower(Cafe.description).like(pattern),
+                    func.lower(Cafe.city).like(pattern),
+                    func.lower(Cafe.state).like(pattern),
+                    func.lower(Cafe.address_line1).like(pattern),
+                    func.lower(cast(Cafe.amenities, String)).like(pattern),
+                    Cafe.id.in_(tier_match_subquery)
+                )
+
+            words = query.strip().lower().split()
+            # Every word must match somewhere ("rockstar hyderabad"), and the
+            # name also matches with spaces ignored, because phone keyboards
+            # autocorrect "Rockstar" to "Rock star".
+            compact = "".join(words)
             stmt = stmt.where(
                 or_(
-                    func.lower(Cafe.name).like(search_pattern),
-                    func.lower(Cafe.description).like(search_pattern),
-                    func.lower(Cafe.city).like(search_pattern),
-                    func.lower(Cafe.state).like(search_pattern),
-                    func.lower(Cafe.address_line1).like(search_pattern),
-                    func.lower(cast(Cafe.amenities, String)).like(search_pattern),
-                    Cafe.id.in_(tier_match_subquery)
+                    and_(*[matches(w) for w in words]),
+                    func.replace(func.lower(Cafe.name), " ", "").like(f"%{compact}%"),
                 )
             )
 

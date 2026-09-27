@@ -121,15 +121,23 @@ export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps)
           Kept off the box-shadow/ring entirely so it never dims text
           contrast inside the card. prefers-reduced-motion freezes the
           rotation globally (globals.css), it doesn't need its own guard. */}
+      {/* The spinning layer is much bigger than the card and is clipped to
+          the card's outline. Rotating a card-sized box directly made it poke
+          past the screen edge mid-turn (a tall card turned sideways is wider
+          than a phone), so the page kept widening and iOS kept re-zooming. */}
       {isLive && (
         <div
           aria-hidden="true"
-          className="absolute -inset-[3px] rounded-3xl opacity-80 blur-[4px] animate-live-sweep pointer-events-none"
-          style={{
-            background:
-              'conic-gradient(from 0deg, #E54D4200 0%, #E54D4299 20%, #E54D4200 40%)',
-          }}
-        />
+          className="absolute -inset-[3px] overflow-hidden rounded-3xl pointer-events-none"
+        >
+          <div
+            className="absolute -inset-full opacity-80 blur-[4px] animate-live-sweep"
+            style={{
+              background:
+                'conic-gradient(from 0deg, #E54D4200 0%, #E54D4299 20%, #E54D4200 40%)',
+            }}
+          />
+        </div>
       )}
 
       <Link href={cafePath(cafe)} className="relative block h-full group">
