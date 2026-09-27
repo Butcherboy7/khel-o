@@ -27,8 +27,13 @@ class CafeWaitlistEntry(Base):
     session_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     # Only set for signed-out visitors who supplied a phone/email to be reached on.
     contact: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Stamped by the phase-2 launch blast; unused in phase 1 but present so the
-    # table does not need re-migrating for it.
+    # Optional one-tap answer after joining: 'weekday_evenings' | 'weekends'
+    # | 'late_nights'. Aggregated for the owner demand page.
+    play_time: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Set from the unsubscribe link in any waitlist email; no further
+    # waitlist emails go to this person (see services/waitlist_mailer.py).
+    unsubscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Stamped when the "now live" email went out, so it is sent once.
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False

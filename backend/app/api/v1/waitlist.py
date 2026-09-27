@@ -104,3 +104,37 @@ async def get_waitlist_count(
         joined = await repo.has_joined(cafe_id, user_id, sessionId or "")
 
     return {"success": True, "data": {"count": count, "joined": joined, "goal": cafe.waitlist_goal}}
+
+
+class WaitlistPlayTimeRequest(BaseModel):
+    session_id: str = Field(..., max_length=64)
+    play_time: str = Field(..., max_length=20)
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+@router.patch("/{cafe_id}/waitlist/play-time", status_code=status.HTTP_200_OK)
+async def set_waitlist_play_time(
+    cafe_id: UUID,
+    payload: WaitlistPlayTimeRequest,
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """The optional one-tap "when would you play?" answer after joining."""
+    from sqlalchemy import select
+    from app.core.exceptions import BadRequestException
+    from app.models.cafe_waitlist import CafeWaitlistEntry
+    from app.services.waitlist_mailer import PLAY_TIMES
+
+    if payload.play_time not in PLAY_TIMES:
+        raise BadRequestException(message="Unknown play time", error_code="INVALID_PLAY_TIME")
+    repo = WaitlistRepository(db)
+    user_id = current_user.id if current_user else None
+    entry = (await db.execute(
+        select(CafeWaitlistEntry).where(repo._identity_clause(cafe_id, user_id, payload.session_id))
+    )).scalar_one_or_none()
+    if entry is None:
+        raise NotFoundException(message="Join the list first", error_code="NOT_ON_WAITLIST")
+    entry.play_time = payload.play_time
+    await db.commit()
+    return {"success": True, "data": {"playTime": entry.play_time}}

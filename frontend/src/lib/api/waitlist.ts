@@ -38,3 +38,15 @@ export async function leaveWaitlist(cafeId: string): Promise<WaitlistStatus> {
     })
   );
 }
+
+export type PlayTime = 'weekday_evenings' | 'weekends' | 'late_nights';
+
+/** The optional one-tap "when would you usually play?" answer. */
+export async function setWaitlistPlayTime(cafeId: string, playTime: PlayTime): Promise<{ playTime: PlayTime }> {
+  return call(() =>
+    apiClient.patch(`/api/v1/cafes/${cafeId}/waitlist/play-time`, {
+      sessionId: sessionId(),
+      playTime,
+    })
+  );
+}

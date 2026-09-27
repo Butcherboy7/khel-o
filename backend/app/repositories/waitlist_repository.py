@@ -93,13 +93,13 @@ class WaitlistRepository:
         """
         rows = (await self.db.execute(
             select(
-                Cafe.id, Cafe.name, Cafe.city, Cafe.is_lead_listing, Cafe.waitlist_goal,
+                Cafe.id, Cafe.name, Cafe.city, Cafe.slug, Cafe.is_lead_listing, Cafe.waitlist_goal,
                 func.count(CafeWaitlistEntry.id).label("count"),
                 func.min(CafeWaitlistEntry.created_at).label("first_requested_at"),
                 func.max(CafeWaitlistEntry.created_at).label("last_requested_at"),
             )
             .join(CafeWaitlistEntry, CafeWaitlistEntry.cafe_id == Cafe.id)
-            .group_by(Cafe.id, Cafe.name, Cafe.city, Cafe.is_lead_listing, Cafe.waitlist_goal)
+            .group_by(Cafe.id, Cafe.name, Cafe.city, Cafe.slug, Cafe.is_lead_listing, Cafe.waitlist_goal)
             .having(func.count(CafeWaitlistEntry.id) >= min_count)
             .order_by(func.count(CafeWaitlistEntry.id).desc())
         )).all()
@@ -140,6 +140,7 @@ class WaitlistRepository:
                 "cafeId": str(r.id),
                 "cafeName": r.name,
                 "city": r.city,
+                "slug": r.slug,
                 "isLeadListing": r.is_lead_listing,
                 "waitlistGoal": r.waitlist_goal,
                 "count": r.count,

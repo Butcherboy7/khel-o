@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Copy, Check, Megaphone, ChevronDown, ChevronUp } from 'lucide-react';
-import { listCafeDemand, updateCafeWaitlistGoal, type CafeDemandLead } from '@/lib/api/admin';
+import { Users, Copy, Check, Megaphone, ChevronDown, ChevronUp, Download, Mail, Link2 } from 'lucide-react';
+import { listCafeDemand, updateCafeWaitlistGoal, downloadWaitlistCsv, type CafeDemandLead } from '@/lib/api/admin';
+import { WaitlistBroadcast } from '@/components/admin/WaitlistBroadcast';
 import { Card, CardContent, Badge, ErrorState, EmptyState, PageSpinner } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
 
@@ -15,6 +16,9 @@ export default function AdminLeadsPage() {
   const [expandedCafeId, setExpandedCafeId] = useState<string | null>(null);
   const [copiedCafeId, setCopiedCafeId] = useState<string | null>(null);
   const [goalDrafts, setGoalDrafts] = useState<Record<string, string>>({});
+  const [composeCafeId, setComposeCafeId] = useState<string | null>(null);
+  const [linkCopiedId, setLinkCopiedId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin', 'leads-demand'],
@@ -37,6 +41,26 @@ export default function AdminLeadsPage() {
     setTimeout(() => setCopiedCafeId(null), 2000);
   };
 
+  const handleExport = async (cafeId?: string) => {
+    setExporting(cafeId ?? 'all');
+    try {
+      await downloadWaitlistCsv(cafeId);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  // The owner pitch link: live counts, no names or contacts, not indexed.
+  const handleCopyDemandLink = async (lead: CafeDemandLead) => {
+    if (!lead.slug) return;
+    await navigator.clipboard.writeText(`${window.location.origin}/demand/${lead.slug}`);
+    setLinkCopiedId(lead.cafeId);
+    setTimeout(() => setLinkCopiedId(null), 2000);
+  };
+
+  const actionClass =
+    'inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-caption font-semibold text-text-primary hover:bg-surface disabled:opacity-40 transition-colors';
+
   if (isLoading) return <PageSpinner label="Loading café demand" />;
   if (isError) {
     return (
@@ -50,6 +74,7 @@ export default function AdminLeadsPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
           <Megaphone className="h-6 w-6 text-primary" />
@@ -59,6 +84,13 @@ export default function AdminLeadsPage() {
           Cafés ranked by how many players tapped &ldquo;Notify me&rdquo; — the pitch data and the reach-out
           contact list for outreach, in one place.
         </p>
+      </div>
+        {leads.length > 0 && (
+          <button onClick={() => handleExport()} disabled={exporting !== null} className={actionClass}>
+            <Download className="h-3.5 w-3.5" />
+            {exporting === 'all' ? 'Exporting…' : 'Export all (CSV)'}
+          </button>
+        )}
       </div>
 
       {leads.length === 0 ? (
@@ -115,6 +147,8 @@ export default function AdminLeadsPage() {
                       <span>First request {formatRelativeTime(lead.firstRequestedAt)}</span>
                       <span>·</span>
                       <span>{lead.contacts.length} contact{lead.contacts.length === 1 ? '' : 's'} collected</span>
+                      <span>·</span>
+                      <span>{lead.emailableCount} emailable</span>
                       {lead.noContactCount > 0 && (
                         <>
                           <span>·</span>
@@ -123,7 +157,7 @@ export default function AdminLeadsPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <label className="flex items-center gap-1.5 text-caption text-text-secondary">
                         Goal
                         <input
@@ -157,6 +191,33 @@ export default function AdminLeadsPage() {
                         )}
                       </button>
 
+                      <button onClick={() => handleExport(lead.cafeId)} disabled={exporting !== null} className={actionClass}>
+                        <Download className="h-3.5 w-3.5" />
+                        {exporting === lead.cafeId ? 'Exporting…' : 'CSV'}
+                      </button>
+
+                      <button
+                        onClick={() => setComposeCafeId(composeCafeId === lead.cafeId ? null : lead.cafeId)}
+                        disabled={lead.emailableCount === 0}
+                        className={actionClass}
+                      >
+                        <Mail className="h-3.5 w-3.5" /> Email list
+                      </button>
+
+                      {lead.slug && (
+                        <button onClick={() => handleCopyDemandLink(lead)} className={actionClass}>
+                          {linkCopiedId === lead.cafeId ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-success" /> Copied
+                            </>
+                          ) : (
+                            <>
+                              <Link2 className="h-3.5 w-3.5" /> Owner link
+                            </>
+                          )}
+                        </button>
+                      )}
+
                       <button
                         onClick={() => setExpandedCafeId(isExpanded ? null : lead.cafeId)}
                         className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-caption font-semibold text-text-primary hover:bg-surface transition-colors"
@@ -166,6 +227,10 @@ export default function AdminLeadsPage() {
                       </button>
                     </div>
                   </div>
+
+                  {composeCafeId === lead.cafeId && (
+                    <WaitlistBroadcast lead={lead} onClose={() => setComposeCafeId(null)} />
+                  )}
 
                   {isExpanded && (
                     <div className="rounded-xl bg-surface p-3 flex flex-col gap-1">

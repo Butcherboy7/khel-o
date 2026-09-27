@@ -1,7 +1,7 @@
 'use client';
 
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter, usePathname } from 'next/navigation';
@@ -26,6 +26,7 @@ import { listCafeReviews, createReview, getReviewSettings } from '@/lib/api/revi
 import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
 import { getWaitlistStatus, joinWaitlist, leaveWaitlist } from '@/lib/api/waitlist';
+import { NotifyMeSheet, type NotifyStep } from '@/components/customer/NotifyMeSheet';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Button, Skeleton, ErrorState } from '@/components/ui';
 import { PLATFORMS } from '@/constants/platforms';
@@ -155,8 +156,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const waitingCount = waitlist?.count ?? 0;
   const waitlistGoal = waitlist?.goal ?? 30;
   const [isJoining, setIsJoining] = useState(false);
-  const [contact, setContact] = useState('');
-  const [showContactInput, setShowContactInput] = useState(false);
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifyStep, setNotifyStep] = useState<NotifyStep>('signin');
   const [shareCopied, setShareCopied] = useState(false);
 
   const handleShareWaitlist = async () => {
@@ -180,12 +181,22 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     }
   };
 
+  const joinFromSheet = useCallback(
+    async (value?: string) => {
+      await joinWaitlist(cafeId, value);
+      await refetchWaitlist();
+    },
+    [cafeId, refetchWaitlist],
+  );
+
   const handleNotifyMe = async () => {
     if (isJoining) return;
-    // Signed-out visitors give us a way to reach them; signed-in ones are
-    // already reachable, so asking again would be friction for nothing.
-    if (!isAuthenticated && !showContactInput && !joined) {
-      setShowContactInput(true);
+    // Signed-out visitors get the sheet: one-tap Google (which also gives
+    // us a real inbox), or phone/email one tap away. Signed-in visitors are
+    // already reachable, so they join on the spot and see the confirmation.
+    if (!isAuthenticated && !joined) {
+      setNotifyStep('signin');
+      setNotifyOpen(true);
       return;
     }
     setIsJoining(true);
@@ -193,8 +204,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       if (joined) {
         await leaveWaitlist(cafeId);
       } else {
-        await joinWaitlist(cafeId, contact.trim() || undefined);
-        setShowContactInput(false);
+        await joinWaitlist(cafeId);
+        setNotifyStep('done');
+        setNotifyOpen(true);
       }
       await refetchWaitlist();
     } finally {
@@ -917,6 +929,20 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         )}
       </section>
 
+      {isLead && (
+        <NotifyMeSheet
+          isOpen={notifyOpen}
+          step={notifyStep}
+          onStepChange={setNotifyStep}
+          onClose={() => setNotifyOpen(false)}
+          cafeId={cafeId}
+          cafeName={cafe.name}
+          onJoin={joinFromSheet}
+          onShare={handleShareWaitlist}
+          shareCopied={shareCopied}
+        />
+      )}
+
       {/* Sticky Bottom Action Bar — offset must include the safe-area inset too,
           not just the nav bar's base height, or the home-indicator padding on
           notched iPhones still overlaps this bar's bottom edge. */}
@@ -932,7 +958,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                 <span className="text-overline text-text-secondary">Booking soon</span>
                 <p className="text-caption text-text-secondary">
                   {joined
-                    ? "We'll message you the moment booking opens."
+                    ? "We'll tell you the day bookings open."
                     : "We're onboarding this café right now."}
                 </p>
               </div>
@@ -948,26 +974,6 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                 {joined ? '✓ Notifying you' : 'Notify me'}
               </button>
             </div>
-
-            {showContactInput && !joined && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={contact}
-                  onChange={(e) => setContact(e.target.value)}
-                  placeholder="Phone or email"
-                  aria-label="Phone number or email to notify you on"
-                  className="flex-1 min-h-input rounded-xl border border-border bg-card px-3 text-body text-text-primary placeholder:text-text-secondary/70"
-                />
-                <button
-                  onClick={handleNotifyMe}
-                  disabled={isJoining || contact.trim().length === 0}
-                  className="rounded-xl bg-primary px-4 py-2.5 font-heading text-btn font-semibold text-white disabled:opacity-60"
-                >
-                  Done
-                </button>
-              </div>
-            )}
 
             {waitingCount > 0 && (
               <div className="flex flex-col gap-1.5 pt-0.5">

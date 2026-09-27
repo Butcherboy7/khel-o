@@ -13,9 +13,11 @@ import { getPublicEnv } from '@/lib/runtimeEnv';
 interface GoogleSignInButtonProps {
   redirectPath?: string | null;
   onError?: (message: string) => void;
+  /** Stay on the page: called once signed in, instead of redirecting. */
+  onSuccess?: () => void;
 }
 
-export function GoogleSignInButton({ redirectPath, onError }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({ redirectPath, onError, onSuccess }: GoogleSignInButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -26,6 +28,10 @@ export function GoogleSignInButton({ redirectPath, onError }: GoogleSignInButton
         const res = await googleAuth(response.credential);
         setAuth(res.user, res.accessToken, res.refreshToken);
 
+        if (onSuccess) {
+          onSuccess();
+          return;
+        }
         if (redirectPath) {
           router.push(redirectPath);
           return;
@@ -47,7 +53,7 @@ export function GoogleSignInButton({ redirectPath, onError }: GoogleSignInButton
         onError?.(message);
       }
     },
-    [redirectPath, router, setAuth, onError],
+    [redirectPath, router, setAuth, onError, onSuccess],
   );
 
   const initialize = useCallback(() => {

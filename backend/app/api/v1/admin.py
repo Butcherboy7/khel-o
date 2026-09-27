@@ -40,6 +40,7 @@ from app.models.staff_invitation import StaffInvitation
 from app.models.support_ticket import SupportTicket
 from app.models.analytics_event import AnalyticsEvent
 from app.core.exceptions import BadRequestException, NotFoundException, ConflictException
+from app.services import waitlist_mailer
 
 router = APIRouter()
 
@@ -198,6 +199,7 @@ async def verify_cafe(
         raise HTTPException(status_code=404, detail="Cafe not found")
     
     is_active = (payload.status == "verified")
+    went_live = False
     update_fields = {"verification_status": payload.status, "is_active": is_active}
     if payload.reason is not None:
         update_fields["rejection_reason"] = payload.reason
@@ -217,6 +219,7 @@ async def verify_cafe(
             # Owner already did full onboarding -- real hardware with real
             # seats is on file, so there's nothing left to wait for. Approval
             # IS the go-live moment; don't make the admin click twice.
+            went_live = cafe.is_lead_listing is not False
             cafe.is_lead_listing = False
             await _open_bookable_capacity(cafe, tier_repo, tiers, total_seats)
         else:
@@ -267,6 +270,8 @@ async def verify_cafe(
     
     await db.commit()
     await db.refresh(cafe)
+    if went_live:
+        waitlist_mailer.schedule_launch_notifications(cafe.id)
 
     audit_service = AdminService(
         db=db,
@@ -930,6 +935,7 @@ async def go_live_cafe(
 
     await db.commit()
     await db.refresh(cafe)
+    waitlist_mailer.schedule_launch_notifications(cafe.id)
 
     service = AdminService(
         db=db,
@@ -1252,7 +1258,123 @@ async def get_lead_demand(
     reach-out list in one place."""
     repo = WaitlistRepository(db)
     summary = await repo.demand_summary(min_count=minCount)
+    for lead in summary:
+        # How many a broadcast would actually reach: real, subscribed,
+        # de-duplicated inboxes (phone-only entries are CSV-only).
+        people = await waitlist_mailer.recipients(db, UUID(lead["cafeId"]))
+        lead["emailableCount"] = sum(1 for p in people if p.email)
     return {"success": True, "data": {"leads": summary}}
+
+
+_CSV_COLUMNS = ["Cafe", "City", "Name", "Email", "Phone / contact", "Joined at", "Usually plays", "Signed in", "Unsubscribed"]
+
+
+async def _waitlist_csv(db: AsyncSession, cafe_id: Optional[UUID]) -> str:
+    import csv
+    import io
+
+    stmt = (
+        select(CafeWaitlistEntry, Cafe.name, Cafe.city, User)
+        .join(Cafe, Cafe.id == CafeWaitlistEntry.cafe_id)
+        .outerjoin(User, User.id == CafeWaitlistEntry.user_id)
+        .order_by(Cafe.name, CafeWaitlistEntry.created_at)
+    )
+    if cafe_id is not None:
+        stmt = stmt.where(CafeWaitlistEntry.cafe_id == cafe_id)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(_CSV_COLUMNS)
+
+    def cell(value: Optional[str]) -> str:
+        # Spreadsheet formula injection: a typed "contact" like =HYPERLINK(...)
+        # must open as text, not run, in Excel/Sheets.
+        value = value or ""
+        return "'" + value if value[:1] in ("=", "+", "-", "@") else value
+
+    for entry, cafe_name, city, user in (await db.execute(stmt)).all():
+        email = waitlist_mailer._email_of(user, entry.contact)
+        contact = entry.contact if entry.contact and entry.contact != email else (user.phone_number if user else None)
+        writer.writerow([
+            cell(cafe_name), cell(city), cell(user.full_name if user else None), cell(email), cell(contact),
+            entry.created_at.isoformat() if entry.created_at else "",
+            waitlist_mailer.PLAY_TIMES.get(entry.play_time or "", ""),
+            "yes" if entry.user_id else "no",
+            "yes" if entry.unsubscribed_at else "no",
+        ])
+    # BOM so Excel opens the UTF-8 (names in Indic scripts, é) correctly.
+    return "\ufeff" + buf.getvalue()
+
+
+async def _audit(db: AsyncSession, admin: User, action: str, entity_id: str, entity_name: str, reason: Optional[str] = None) -> None:
+    await AdminService(
+        db=db, user_repo=UserRepository(db), cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db), promo_repo=PromotionRepository(db),
+    ).write_audit_log(
+        admin_id=admin.id, admin_email=admin.email, action=action,
+        entity_type="cafe", entity_id=entity_id, entity_name=entity_name, reason=reason,
+    )
+
+
+def _csv_response(body: str, filename: str):
+    from fastapi.responses import Response
+
+    return Response(
+        content=body.encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"},
+    )
+
+
+@router.get("/leads/export.csv")
+async def export_all_waitlists(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Everyone on every café's "Notify me" list, one row per request.
+    Contains personal data, so every download is audit-logged."""
+    body = await _waitlist_csv(db, None)
+    await _audit(db, current_admin, "waitlist.export", "all", "All cafés")
+    return _csv_response(body, "khelo-waitlist-all.csv")
+
+
+@router.get("/leads/{cafe_id}/export.csv")
+async def export_cafe_waitlist(
+    cafe_id: UUID,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    cafe = await db.get(Cafe, cafe_id)
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+    body = await _waitlist_csv(db, cafe_id)
+    await _audit(db, current_admin, "waitlist.export", str(cafe_id), cafe.name)
+    return _csv_response(body, f"khelo-waitlist-{cafe.slug or cafe_id}.csv")
+
+
+class WaitlistBroadcastRequest(BaseModel):
+    subject: str = Field(..., min_length=3, max_length=120)
+    message: str = Field(..., min_length=10, max_length=3000)
+    test: bool = False
+
+
+@router.post("/leads/{cafe_id}/broadcast", status_code=status.HTTP_200_OK)
+async def broadcast_to_waitlist(
+    cafe_id: UUID,
+    payload: WaitlistBroadcastRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Email one café's list. `test` sends a single copy to the admin
+    first; only this café's list is ever addressed."""
+    cafe = await db.get(Cafe, cafe_id)
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+    if payload.test:
+        sent = await waitlist_mailer.send_broadcast(db, cafe_id, payload.subject, payload.message, test_to=current_admin.email)
+        return {"success": True, "data": {"sent": sent, "test": True, "to": current_admin.email}}
+    sent = await waitlist_mailer.send_broadcast(db, cafe_id, payload.subject, payload.message)
+    await _audit(db, current_admin, "waitlist.broadcast", str(cafe_id), cafe.name, reason=f"{payload.subject} ({sent} sent)")
+    return {"success": True, "data": {"sent": sent, "test": False}}
 
 
 class WaitlistGoalUpdateRequest(BaseModel):
