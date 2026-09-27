@@ -136,6 +136,18 @@ export const INFO_TIPS = {
     'People you invited who haven’t set up their login yet. Copy the link to send it again, or cancel it if you invited the wrong person. Links stop working after the date shown.',
   staffRemove:
     'Removing someone takes away their staff access straight away. Their own KHEL-O account stays, so they can still book as a player.',
+  insightsEarnings:
+    'What your café earned from app bookings, after the KHEL-O fee. Refunded bookings are left out. Walk-ins paid at the desk aren’t included.',
+  insightsNextSteps:
+    'Suggestions picked from your own numbers for this period. They change as your bookings change.',
+  insightsWeek:
+    'Each square is one hour of one weekday. The darker it is, the more of your seats were in use on average. Tap a square to see the number.',
+  insightsCustomers:
+    'New = first booking at your café was in this period. Returning = they had booked with you before. Regulars are the players who came most often.',
+  insightsFunnel:
+    'How many people opened your café page on KHEL-O, how many started to book, and how many bookings were paid. A big drop means something on your page is putting people off.',
+  insightsStations:
+    'Earnings divided by the number of seats, so 2 PS5s and 10 PCs can be compared fairly. “How full” is the share of opening hours those seats were booked.',
   reviewsQr:
     'Anyone who scans this or opens the link lands on your café page at the review box. They sign in once, then rate you in a few seconds.',
 } as const;

@@ -159,8 +159,48 @@ export async function getOwnerBookings(params: OwnerBookingParams = {}): Promise
   return call(() => apiClient.get('/api/v1/owner/bookings', { params }));
 }
 
-export async function getOwnerAnalytics(): Promise<any> {
-  return call(() => apiClient.get('/api/v1/owner/analytics'));
+export async function getOwnerAnalytics(days = 30): Promise<any> {
+  return call(() => apiClient.get('/api/v1/owner/analytics', { params: { days } }));
+}
+
+/** A 3-hour stretch of one weekday, e.g. Saturday 18:00-21:00. */
+export interface InsightSlot {
+  day: string;
+  startHour: number;
+  endHour: number;
+  percent: number;
+}
+
+/** GET /owner/analytics -> data.insights: everything for the chosen period. */
+export interface OwnerInsights {
+  days: number;
+  from: string;
+  to: string;
+  /** False until there are enough bookings for busy/quiet times to mean anything. */
+  enoughData: boolean;
+  earnings: {
+    total: number;
+    previous: number;
+    bookings: number;
+    previousBookings: number;
+    hoursPlayed: number;
+    avgPerBooking: number;
+  };
+  /** Daily points up to 31 days, weekly beyond. */
+  trend: { date: string; revenue: number; bookings: number }[];
+  week: {
+    /** Hours of the day in display order, e.g. [10, 11, ..., 23, 0, 1]. */
+    hours: number[];
+    /** grid[weekday Mon=0][index into hours] = % of seats in use on average. */
+    grid: number[][];
+    busiest: InsightSlot | null;
+    quietest: InsightSlot | null;
+    averageFull: number;
+  };
+  customers: { total: number; new: number; returning: number; regulars: { name: string; visits: number }[] };
+  funnel: { pageVisitors: number; startedBooking: number; paid: number };
+  stations: { tierName: string; seats: number; revenue: number; bookings: number; perSeat: number; percentFull: number }[];
+  reviews: { average: number | null; count: number; newInPeriod: number };
 }
 
 export interface PayoutDestination {
