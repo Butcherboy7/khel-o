@@ -18,6 +18,8 @@ interface BookedSlot {
 
 interface AvailabilityBadge {
   remainingSeats?: number;
+  /** Skip the one-time slider coachmark (e.g. the user has booked before). */
+  skipCoachmark?: boolean;
 }
 
 // Mirrors the API contract: BookingCreateRequest.duration_hours is
@@ -44,6 +46,8 @@ interface TimelineRangePickerProps {
   totalSeats?: number;
   requestedSeats?: number;
   remainingSeats?: number;
+  /** Skip the one-time slider coachmark (e.g. the user has booked before). */
+  skipCoachmark?: boolean;
 }
 
 function formatPlayoTime(minutes: number): string {
@@ -65,6 +69,7 @@ export function TimelineRangePicker({
   totalSeats = 10,
   requestedSeats = 1,
   remainingSeats,
+  skipCoachmark = false,
 }: TimelineRangePickerProps) {
   const outerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -85,6 +90,12 @@ export function TimelineRangePicker({
   // Drag interaction states
   const [dragMode, setDragMode] = useState<'start' | 'end' | 'pan' | null>(null);
   const dragStartX = useRef(0);
+  const dragStartY = useRef(0);
+  // Direction lock for a drag: nothing moves until the finger has clearly
+  // gone sideways ('h'); a mostly-vertical start ('v') abandons the drag so
+  // the page scrolls instead (the handles use touch-action: pan-y, so the
+  // browser takes vertical pans natively and cancels our pointer).
+  const dragAxis = useRef<'h' | 'v' | null>(null);
   const dragStartMin = useRef(0);
   const dragDurMin = useRef(0);
 
@@ -94,20 +105,30 @@ export function TimelineRangePicker({
   const HINT_KEY = 'khelo_timeline_hint_seen';
   const [showHint, setShowHint] = useState(false);
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!window.localStorage.getItem(HINT_KEY)) {
+    if (typeof window === 'undefined' || skipCoachmark) return;
+    let seen = false;
+    try {
+      seen = Boolean(window.localStorage.getItem(HINT_KEY));
+    } catch {
+      seen = true; // storage blocked: don't nag on every visit
+    }
+    if (!seen) {
       setShowHint(true);
       const timer = setTimeout(() => {
         setShowHint(false);
-        window.localStorage.setItem(HINT_KEY, '1');
+        try {
+          window.localStorage.setItem(HINT_KEY, '1');
+        } catch {}
       }, 4000);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [skipCoachmark]);
   const dismissHint = useCallback(() => {
     if (typeof window === 'undefined') return;
     setShowHint(false);
-    window.localStorage.setItem(HINT_KEY, '1');
+    try {
+      window.localStorage.setItem(HINT_KEY, '1');
+    } catch {}
   }, []);
 
   // Measure container width
@@ -226,6 +247,8 @@ export function TimelineRangePicker({
     dismissHint();
     setDragMode(mode);
     dragStartX.current = e.clientX;
+    dragStartY.current = e.clientY;
+    dragAxis.current = e.pointerType === 'mouse' ? 'h' : null;
     dragStartMin.current = selStart;
     dragDurMin.current = durMin;
   };
@@ -233,6 +256,16 @@ export function TimelineRangePicker({
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragMode) return;
     const dx = e.clientX - dragStartX.current;
+    if (dragAxis.current !== 'h') {
+      const dy = e.clientY - dragStartY.current;
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        dragAxis.current = 'v';
+        handlePointerUp(e);
+        return;
+      }
+      dragAxis.current = 'h';
+    }
     const deltaMin = Math.round((dx / slotW) * 30 / 30) * 30;
 
     if (dragMode === 'start') {
@@ -446,24 +479,20 @@ export function TimelineRangePicker({
 
       {/* ── Dynamic Timeline Canvas (100% Unified Coordinates) ── */}
       <div ref={outerRef} className="relative overflow-hidden bg-white pt-3 pb-2" style={{ height: 104 }}>
+        {/* One-time coachmark, sitting right on the slider it explains —
+            the only unfamiliar control on this page. Gone after 4s or on
+            the first touch of the timeline. */}
         {showHint && (
-          <div
-            className="absolute inset-x-3 top-1 z-30 flex items-start gap-2 rounded-xl bg-text-primary px-3 py-2 text-white shadow-lg"
+          <button
+            type="button"
+            onClick={dismissHint}
             role="status"
+            aria-label="Swipe left or right to pick your time. Tap to dismiss."
+            className="absolute left-1/2 top-1 z-30 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-secondary px-3 py-1.5 text-[12px] font-semibold text-white shadow-float animate-in fade-in"
           >
-            <Move className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-white/80" />
-            <p className="text-[11.5px] leading-snug font-medium">
-              Drag the two dots to adjust your start &amp; end time — swipe the timeline left or right to see other hours.
-            </p>
-            <button
-              type="button"
-              onClick={dismissHint}
-              className="ml-auto flex-shrink-0 text-white/60 hover:text-white text-[11px] font-bold px-1"
-              aria-label="Dismiss hint"
-            >
-              ✕
-            </button>
-          </div>
+            <Move className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+            Swipe left or right to pick your time
+          </button>
         )}
         <div
           ref={scrollRef}
@@ -473,14 +502,12 @@ export function TimelineRangePicker({
           // this horizontal scroller gets misread by mobile Safari/Chrome as
           // the browser's own edge-swipe back/forward gesture, popping the
           // nav chrome up mid-drag.
-          // touchAction 'pan-x': this container's content (95px) is taller
-          // than its clipped box (86px), which lets iOS Safari treat a
-          // vertical drag anywhere on it as a rubber-band scroll of the
-          // scroller itself — the whole timeline visibly slides down under
-          // the thumb before snapping back. Restricting touch panning to the
-          // x-axis stops that; vertical drags fall through to the page's own
-          // scroll instead.
-          style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', touchAction: 'pan-x' }}
+          // touchAction 'pan-x pan-y': the browser locks each gesture to one
+          // axis — sideways scrolls the timeline, up/down scrolls the page.
+          // ('pan-x' alone swallowed vertical swipes over the slider, so the
+          // page wouldn't scroll.) The content is 95px inside a 104px box
+          // with overflow-y hidden, so there is nothing to rubber-band.
+          style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', touchAction: 'pan-x pan-y' }}
         >
           <div
             style={{ width: trackWidthPx + sidePadding * 2, height: 95, position: 'relative' }}
@@ -593,7 +620,7 @@ export function TimelineRangePicker({
                 alignItems: 'center',
                 zIndex: 12,
                 cursor: 'grab',
-                touchAction: 'none',
+                touchAction: 'pan-y',
               }}
             >
               <div
@@ -622,7 +649,7 @@ export function TimelineRangePicker({
                 transform: 'translate(-50%, -50%)',
                 zIndex: 20,
                 cursor: 'ew-resize',
-                touchAction: 'none',
+                touchAction: 'pan-y',
                 width: 56,
                 height: 56,
                 display: 'flex',
@@ -659,7 +686,7 @@ export function TimelineRangePicker({
                 transform: 'translate(-50%, -50%)',
                 zIndex: 20,
                 cursor: 'ew-resize',
-                touchAction: 'none',
+                touchAction: 'pan-y',
                 width: 56,
                 height: 56,
                 display: 'flex',
