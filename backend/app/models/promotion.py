@@ -44,6 +44,9 @@ class Promotion(Base):
     # out of sync with the tier's actual rate.
     fixed_price_amount: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     min_duration_hours: Mapped[float | None] = mapped_column(Numeric(4, 2), nullable=True)
+    # PERCENTAGE/FIXED_AMOUNT only — the shortest booking (minutes) this
+    # offer applies to. See app/core/duration.py for the allowed ladder.
+    min_booking_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     applicable_tier_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hardware_tiers.id"), nullable=True)
     # 'any' | 'solo' (own console) | 'coop' (friends sharing one console)
     play_mode: Mapped[str] = mapped_column(String(10), default='any', server_default='any', nullable=False)

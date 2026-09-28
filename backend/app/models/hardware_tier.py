@@ -54,6 +54,12 @@ class HardwareTier(Base):
     active_seats_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     preset_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
     price_per_hour: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    # Optional per-length overrides. Null = derive from price_per_hour
+    # (hourly/4 for 15 min, hourly/2 for 30 min) — see
+    # PricingService.base_price. Only meaningful when min_booking_minutes
+    # allows that length.
+    price_15m: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    price_30m: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     # Co-op: friends share ONE console. Price = price_per_hour +
     # coop_extra_player_price per extra player, up to coop_max_players.
     # Inventory is unchanged — a co-op booking still holds one unit.

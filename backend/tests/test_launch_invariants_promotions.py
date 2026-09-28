@@ -26,6 +26,7 @@ def _promo_payload(**overrides):
     payload = {
         "title": "QA Offer",
         "discountPercentage": 10,
+        "minBookingMinutes": 60,
         "validFrom": (now - timedelta(days=1)).isoformat(),
         "validUntil": (now + timedelta(days=30)).isoformat(),
         "daysOfWeek": [0, 1, 2, 3, 4, 5, 6],
@@ -99,6 +100,7 @@ async def test_discount_is_taken_from_the_cafes_settlement(db_session):
     discount = await service.apply_promotion_to_booking(
         promotion_id=promo.id, cafe_id=cafe.id, tier_id=tier.id,
         base_amount=Decimal("100.00"), session_datetime=session_dt,
+        duration_hours=Decimal("1"),
     )
 
     subtotal = Decimal("100.00") - discount
@@ -116,13 +118,17 @@ async def test_absurd_discount_cannot_produce_negative_money(db_session):
 
     The 1..50 schema bound blocks this through the API, but promotion rows are
     also written by seeds, migrations and admin scripts, which bypass Pydantic.
-    apply_promotion_to_booking multiplies out whatever percentage it finds, so
-    a row holding >100 would yield a discount larger than the booking itself —
-    a negative subtotal, hence negative settlement, negative fee and a negative
-    customer total. Money must never go negative regardless of the input.
+    A row holding >100 would multiply out to a discount larger than the
+    booking itself — a negative subtotal, hence negative settlement, negative
+    fee and a negative customer total. Money must never go negative regardless
+    of the input: apply_promotion_to_booking now refuses to apply such an
+    offer at all (PROMOTION_WOULD_ZERO) rather than silently clamping the
+    discount down to the booking's full price (see the "never free" rule —
+    docs/superpowers/specs/2026-09-28-duration-pricing-offer-safety-design.md).
     """
     from app.services.promotion_service import PromotionService
     from app.repositories.promotion_repository import PromotionRepository
+    from app.core.exceptions import ValidationException
 
     owner, cafe, tier = await _make_owner_and_cafe(db_session, "promo_absurd")
 
@@ -137,13 +143,10 @@ async def test_absurd_discount_cannot_produce_negative_money(db_session):
 
     service = PromotionService(PromotionRepository(db_session), db_session)
     session_dt = now_ist().replace(hour=18, minute=0, second=0, microsecond=0) + timedelta(days=1)
-    discount = await service.apply_promotion_to_booking(
-        promotion_id=promo.id, cafe_id=cafe.id, tier_id=tier.id,
-        base_amount=Decimal("100.00"), session_datetime=session_dt,
-    )
-
-    assert discount <= Decimal("100.00"), (
-        f"discount of {discount} exceeds the ₹100 booking — this makes subtotal, "
-        "café settlement and the customer's total all negative"
-    )
-    assert Decimal("100.00") - discount >= Decimal("0.00")
+    with pytest.raises(ValidationException) as exc_info:
+        await service.apply_promotion_to_booking(
+            promotion_id=promo.id, cafe_id=cafe.id, tier_id=tier.id,
+            base_amount=Decimal("100.00"), session_datetime=session_dt,
+            duration_hours=Decimal("1"),
+        )
+    assert exc_info.value.error_code == "PROMOTION_WOULD_ZERO"

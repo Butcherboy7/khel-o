@@ -94,7 +94,7 @@ async def test_last_slot_is_held_during_checkout_then_freed(db_session):
     booking_id = booking.id
     service = PromotionService(PromotionRepository(db_session), CafeRepository(db_session), HardwareTierRepository(db_session))
     now = datetime.now(timezone.utc)
-    args = dict(promotion_id=promo.id, cafe_id=cafe.id, tier_id=tier.id, base_amount=Decimal("100"), session_datetime=now)
+    args = dict(promotion_id=promo.id, cafe_id=cafe.id, tier_id=tier.id, base_amount=Decimal("100"), session_datetime=now, duration_hours=Decimal("1"))
 
     with pytest.raises(ValidationException):
         await service.apply_promotion_to_booking(**args)  # someone is paying for the last slot
