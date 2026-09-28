@@ -54,6 +54,10 @@ function promoDiscountLabel(type: string, discountPercentage: number | null): st
   return `-${discountPercentage}%`;
 }
 
+function fmtMinutesLabel(minutes: number): string {
+  return minutes < 60 ? `${minutes} min` : `${minutes / 60} hour(s)`;
+}
+
 function BookingWizardContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -559,6 +563,14 @@ function BookingWizardContent() {
   const promoDurationMatches = !activePromo || activePromo.promotionType !== 'fixed_price'
     ? true
     : durationHours === activePromo.minDurationHours;
+  // A PERCENTAGE/FIXED_AMOUNT offer only applies once the booking meets its
+  // own minimum length (owner-set on the offer, defaults to 60 min) — same
+  // never-shorter-than-intended rule the backend enforces as
+  // PROMOTION_DURATION_TOO_SHORT in promotion_service.py.
+  const promoMinLengthMet =
+    !activePromo || activePromo.promotionType === 'fixed_price'
+      ? true
+      : Math.round(durationHours * 60) >= (activePromo.minBookingMinutes ?? 60);
   if (activePromo) {
     const slotDate = new Date(`${effectiveSessionDate}T${selectedTime}`);
     const validFrom = new Date(activePromo.validFrom);
@@ -574,6 +586,7 @@ function BookingWizardContent() {
       slotHour < activePromo.endHour &&
       (activePromo.maxUses == null || activePromo.currentUses < activePromo.maxUses) &&
       promoDurationMatches &&
+      promoMinLengthMet &&
       playModeMatches(activePromo.playMode, isCoop);
     if (promoEligible) {
       if (activePromo.promotionType === 'fixed_price') {
@@ -616,6 +629,9 @@ function BookingWizardContent() {
       const pythonWeekday = (slotDate.getDay() + 6) % 7;
       const slotHour = parseInt(selectedTime.split(':')[0], 10);
       const codeDurationMatches = codeRedemption.promotionType !== 'fixed_price' || durationHours === codeRedemption.minDurationHours;
+      const codeMinLengthMet =
+        codeRedemption.promotionType === 'fixed_price' ||
+        Math.round(durationHours * 60) >= (codeRedemption.minBookingMinutes ?? 60);
       codeEligible =
         slotDate >= validFrom &&
         slotDate <= validUntil &&
@@ -624,12 +640,15 @@ function BookingWizardContent() {
         slotHour < codeRedemption.endHour &&
         (codeRedemption.maxUses == null || codeRedemption.currentUses < codeRedemption.maxUses) &&
         codeDurationMatches &&
+        codeMinLengthMet &&
         playModeMatches(codeRedemption.playMode, isCoop);
       if (!codeEligible) {
         codeIneligibleReason = !playModeMatches(codeRedemption.playMode, isCoop)
           ? (codeRedemption.playMode === 'coop' ? 'This code is for co-op only — pick Co-op above to use it.' : "This code isn't for co-op bookings.")
           : !codeDurationMatches
           ? `This deal applies to exactly ${codeRedemption.minDurationHours} hour(s) — adjust your duration to apply it.`
+          : !codeMinLengthMet
+          ? `This code applies to bookings of ${fmtMinutesLabel(codeRedemption.minBookingMinutes ?? 60)} or more — adjust your duration to apply it.`
           : `Valid ${codeRedemption.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, ${codeRedemption.startHour}:00–${codeRedemption.endHour}:00 — pick a slot in that window to apply it.`;
       }
     }
@@ -1082,6 +1101,8 @@ function BookingWizardContent() {
             <span>
               {!promoDurationMatches
                 ? `${activePromo.title} applies to exactly ${activePromo.minDurationHours} hour(s) — adjust your duration to apply it.`
+                : !promoMinLengthMet
+                ? `${activePromo.title} applies to bookings of ${fmtMinutesLabel(activePromo.minBookingMinutes ?? 60)} or more — adjust your duration to apply it.`
                 : `${activePromo.title} available ${activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, ${activePromo.startHour}:00–${activePromo.endHour}:00 — pick a slot in that window to apply it.`}
             </span>
           </p>

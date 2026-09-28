@@ -14,6 +14,8 @@ export interface Promotion {
   fixedDiscountAmount: number | null;
   fixedPriceAmount: number | null;
   minDurationHours: number | null;
+  /** PERCENTAGE/FIXED_AMOUNT only: shortest booking (minutes) this offer applies to. */
+  minBookingMinutes: number | null;
   applicableTierId: string | null;
   playMode?: PromotionPlayMode;
   validFrom: string;
@@ -38,6 +40,7 @@ export interface PromotionCreateInput {
   fixedDiscountAmount?: number | null;
   fixedPriceAmount?: number | null;
   minDurationHours?: number | null;
+  minBookingMinutes?: number | null;
   applicableTierId?: string | null;
   playMode?: PromotionPlayMode;
   validFrom: string;
@@ -57,6 +60,7 @@ export interface PromotionUpdateInput {
   fixedDiscountAmount?: number | null;
   fixedPriceAmount?: number | null;
   minDurationHours?: number | null;
+  minBookingMinutes?: number | null;
   applicableTierId?: string | null;
   playMode?: PromotionPlayMode;
   validFrom?: string;
@@ -79,6 +83,7 @@ export interface CodeRedemption {
   fixedDiscountAmount: number | null;
   fixedPriceAmount: number | null;
   minDurationHours: number | null;
+  minBookingMinutes: number | null;
   regularPrice: number | null;
   savingsAmount: number | null;
   applicableTierId: string | null;

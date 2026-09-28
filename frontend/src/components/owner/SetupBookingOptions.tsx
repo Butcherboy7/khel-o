@@ -6,30 +6,66 @@ import { NumericField } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import type { TierConfig } from '@/types';
 
-const MIN_OPTIONS = [15, 30, 45, 60, 90, 120];
-const DEFAULT_OPTIONS = [15, 30, 45, 60, 90, 120, 180];
+/** Only these three are valid "shortest booking" values now — above 1 hour,
+ *  every setup allows 30-minute steps regardless of this setting. Matches
+ *  app/core/duration.py on the backend. */
+const MIN_OPTIONS: { value: 15 | 30 | 60; label: string }[] = [
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 60, label: '1 hr' },
+];
 
-const fmt = (m: number) => (m < 60 ? `${m} min` : m % 60 === 0 ? `${m / 60} hr` : `${(m / 60).toFixed(1)} hr`);
+const DEFAULT_OPTIONS = [15, 30, 60, 90, 120, 180];
+
+export const fmtDuration = (m: number) => (m < 60 ? `${m} min` : m % 60 === 0 ? `${m / 60} hr` : `${Math.floor(m / 60)} hr ${m % 60}`);
+const fmt = fmtDuration;
+
+/** Every bookable length for a setup whose shortest booking is `min` —
+ *  mirrors app/core/duration.py's allowed_minutes exactly. */
+export function allowedMinutes(min: 15 | 30 | 60): number[] {
+  const lengths = [15, 30].filter((m) => m >= min);
+  for (let m = 60; m <= 480; m += 30) lengths.push(m);
+  return lengths;
+}
+
+/** Same math as backend PricingService.base_price_for_minutes — what a
+ *  customer pays at a given length, given the owner's inputs so far. */
+export function priceForMinutes(minutes: number, hourly: number, price15?: number | null, price30?: number | null): number {
+  if (minutes === 15) return price15 ?? hourly / 4;
+  if (minutes === 30) return price30 ?? hourly / 2;
+  return (hourly * minutes) / 60;
+}
 
 /** New-tier defaults and the edit-modal prefill share one shape. */
-type BookingOptionFields = Pick<TierConfig, 'coopEnabled' | 'coopMaxPlayers' | 'coopExtraPlayerPrice' | 'minBookingMinutes' | 'defaultBookingMinutes'>;
+type BookingOptionFields = Pick<
+  TierConfig,
+  'coopEnabled' | 'coopMaxPlayers' | 'coopExtraPlayerPrice' | 'minBookingMinutes' | 'defaultBookingMinutes' | 'price15m' | 'price30m'
+>;
 
 export function bookingOptionsFrom(src: BookingOptionFields | undefined) {
   return {
     coopEnabled: src?.coopEnabled ?? false,
     coopMaxPlayers: src?.coopMaxPlayers ?? 2,
     coopExtraPlayerPrice: src?.coopExtraPlayerPrice ?? 0,
-    minBookingMinutes: src?.minBookingMinutes ?? 60,
+    minBookingMinutes: (src?.minBookingMinutes ?? 60) as 15 | 30 | 60,
     defaultBookingMinutes: src?.defaultBookingMinutes ?? null,
+    price15m: src?.price15m ?? null,
+    price30m: src?.price30m ?? null,
   };
 }
 
 /** What a create/update payload sends. Co-op only exists for consoles. */
 export function bookingOptionsPayload(config: TierConfig) {
   const o = bookingOptionsFrom(config);
+  const allowed = allowedMinutes(o.minBookingMinutes);
   const minutes = {
     minBookingMinutes: o.minBookingMinutes,
-    defaultBookingMinutes: o.defaultBookingMinutes && o.defaultBookingMinutes >= o.minBookingMinutes ? o.defaultBookingMinutes : null,
+    defaultBookingMinutes: o.defaultBookingMinutes && allowed.includes(o.defaultBookingMinutes) ? o.defaultBookingMinutes : null,
+    // A 15-min price only means something when 15 min is actually bookable
+    // (same for 30) — clear it rather than send a stale value the backend
+    // would reject once "Shortest booking" moves up past it.
+    price15m: o.minBookingMinutes <= 15 ? o.price15m : null,
+    price30m: o.minBookingMinutes <= 30 ? o.price30m : null,
   };
   if (config.tierType === 'activity' || config.platform === 'pc') return { ...minutes, coopEnabled: false };
   return { ...minutes, coopEnabled: o.coopEnabled, coopMaxPlayers: o.coopMaxPlayers, coopExtraPlayerPrice: o.coopExtraPlayerPrice };
@@ -41,12 +77,17 @@ interface Props {
 }
 
 /**
- * Co-op pricing (consoles only) and booking-length limits for one setup.
- * Sits under "Price per hour" inside the configurator card.
+ * Co-op pricing (consoles only), booking-length limits, and per-length
+ * pricing for one setup. Sits under "Price per hour" inside the
+ * configurator card.
  */
 export function SetupBookingOptions({ config, onChange }: Props) {
   const o = bookingOptionsFrom(config);
   const showCoop = config.tierType !== 'activity' && config.platform !== 'pc';
+  const hourly = config.pricePerHour || 0;
+  const allowed = allowedMinutes(o.minBookingMinutes);
+  const previewLengths = allowed.filter((m) => m <= 120); // 15/30/1h/1h30/2h — enough to prove the ladder without a huge table
+  const playerCounts = showCoop && o.coopEnabled ? Array.from({ length: o.coopMaxPlayers }, (_, i) => i + 1) : [1];
   const selectCls =
     'h-11 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30';
 
@@ -108,45 +149,48 @@ export function SetupBookingOptions({ config, onChange }: Props) {
                   ))}
                 </div>
               </div>
-              <NumericField
-                label="Extra per extra player (₹/hr)"
-                min={0}
-                value={o.coopExtraPlayerPrice}
-                onChange={(n) => onChange({ coopExtraPlayerPrice: n })}
-              />
-              <div className="rounded-lg bg-surface px-3 py-2 text-caption sm:col-span-2">
-                <span className="text-text-secondary">Customers see: </span>
-                {Array.from({ length: o.coopMaxPlayers }, (_, i) => i + 1).map((p, i) => {
-                  const rate = config.pricePerHour + o.coopExtraPlayerPrice * (p - 1);
-                  return (
-                    <span key={p} className="whitespace-nowrap text-text-primary">
-                      {i > 0 && <span className="text-text-secondary/50"> · </span>}
-                      {p}P <span className="font-data font-bold">₹{rate}/hr</span>
-                    </span>
-                  );
-                })}
-              </div>
+              <span className="flex flex-col gap-1.5">
+                <span className="flex items-center gap-0.5 text-overline font-semibold text-text-secondary">
+                  Extra per friend
+                  <InfoTip
+                    text="Added for each extra player sharing one console. It's charged per hour, so a 30-minute co-op session adds half of this, and a 15-minute one adds a quarter."
+                    label="About the co-op surcharge"
+                  />
+                </span>
+                <NumericField label="₹ per hour" min={0} value={o.coopExtraPlayerPrice} onChange={(n) => onChange({ coopExtraPlayerPrice: n })} />
+              </span>
             </div>
           )}
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <span className="flex flex-col gap-1.5">
           <span className="flex items-center gap-0.5 text-overline font-semibold text-text-secondary">
             Shortest booking
-            <InfoTip text="The least time a customer can book. VR and arcade often work best at 15 minutes." label="About shortest booking" />
+            <InfoTip
+              text="The shortest session customers can book. Above 1 hour, bookings go up in 30-minute steps (1 hr, 1 hr 30, 2 hr, …) no matter what you pick here."
+              label="About shortest booking"
+            />
           </span>
-          <select
-            className={selectCls}
-            value={o.minBookingMinutes}
-            onChange={(e) => onChange({ minBookingMinutes: Number(e.target.value) })}
-          >
-            {MIN_OPTIONS.map((m) => (
-              <option key={m} value={m}>{fmt(m)}</option>
+          <div className="inline-flex w-full gap-1 rounded-xl border border-border bg-surface p-1" role="radiogroup" aria-label="Shortest booking">
+            {MIN_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={o.minBookingMinutes === value}
+                onClick={() => onChange({ minBookingMinutes: value })}
+                className={cn(
+                  'h-9 flex-1 rounded-lg text-body font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                  o.minBookingMinutes === value ? 'bg-card text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'
+                )}
+              >
+                {label}
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        </span>
         <label className="flex flex-col gap-1.5">
           <span className="flex items-center gap-0.5 text-overline font-semibold text-text-secondary">
             Checkout starts at
@@ -158,11 +202,94 @@ export function SetupBookingOptions({ config, onChange }: Props) {
             onChange={(e) => onChange({ defaultBookingMinutes: e.target.value ? Number(e.target.value) : null })}
           >
             <option value="">Standard (2 hr)</option>
-            {DEFAULT_OPTIONS.filter((m) => m >= o.minBookingMinutes).map((m) => (
+            {DEFAULT_OPTIONS.filter((m) => allowed.includes(m)).map((m) => (
               <option key={m} value={m}>{fmt(m)}</option>
             ))}
           </select>
         </label>
+      </div>
+
+      {o.minBookingMinutes < 60 && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {o.minBookingMinutes <= 15 && (
+            <span className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-0.5 text-overline font-semibold text-text-secondary">
+                15-min price
+                <InfoTip
+                  text="What a customer pays for a 15-minute session. Leave it blank to keep it at a quarter of your hourly rate."
+                  label="About the 15-minute price"
+                />
+              </span>
+              <NumericField
+                label="₹"
+                min={0}
+                value={o.price15m ?? Math.round((hourly / 4) * 100) / 100}
+                onChange={(n) => onChange({ price15m: n })}
+              />
+            </span>
+          )}
+          <span className="flex flex-col gap-1.5">
+            <span className="flex items-center gap-0.5 text-overline font-semibold text-text-secondary">
+              30-min price
+              <InfoTip
+                text="What a customer pays for a 30-minute session. Leave it blank to keep it at half your hourly rate."
+                label="About the 30-minute price"
+              />
+            </span>
+            <NumericField
+              label="₹"
+              min={0}
+              value={o.price30m ?? Math.round((hourly / 2) * 100) / 100}
+              onChange={(n) => onChange({ price30m: n })}
+            />
+          </span>
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+        <table className="w-full text-caption">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="px-3 py-2 text-left font-semibold text-text-secondary">Length</th>
+              {playerCounts.map((p) => (
+                <th key={p} className="px-3 py-2 text-right font-semibold text-text-secondary">
+                  {playerCounts.length > 1 ? `${p}P` : 'Price'}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {previewLengths.map((m) => {
+              const base = priceForMinutes(m, hourly, o.price15m, o.price30m);
+              const isOwnerSet = (m === 15 && o.price15m != null) || (m === 30 && o.price30m != null) || m === 60;
+              return (
+                <tr key={m} className="border-b border-border/60 last:border-0">
+                  <td className="px-3 py-2 text-text-primary">{fmt(m)}</td>
+                  {playerCounts.map((p) => {
+                    const extra = showCoop && o.coopEnabled ? (o.coopExtraPlayerPrice * (p - 1) * m) / 60 : 0;
+                    const total = Math.round((base + extra) * 100) / 100;
+                    return (
+                      <td
+                        key={p}
+                        className={cn('px-3 py-2 text-right font-data', isOwnerSet && p === 1 ? 'font-bold text-accent' : 'text-text-primary')}
+                      >
+                        ₹{total}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="flex items-start gap-1 border-t border-border px-3 py-2 text-caption text-text-secondary">
+          <InfoTip
+            text="Exactly what customers will pay. The bold red numbers are prices you set; the rest are worked out from your hourly rate."
+            label="About this preview"
+            quiet
+          />
+          What customers will pay, worked out live from what&apos;s above.
+        </p>
       </div>
     </div>
   );

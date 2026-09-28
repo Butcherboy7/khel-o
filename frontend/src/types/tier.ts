@@ -32,9 +32,16 @@ export interface HardwareTier {
   coopEnabled?: boolean;
   coopMaxPlayers?: number;
   coopExtraPlayerPrice?: number;
-  /** Shortest session (VR is often 15) and the length checkout starts on. */
+  /** Shortest session (VR is often 15) and the length checkout starts on. Only
+   *  15, 30 or 60 are valid now — above 1 hour every setup allows 30-minute
+   *  steps regardless of this value. */
   minBookingMinutes?: number;
   defaultBookingMinutes?: number | null;
+  /** Optional overrides for a 15/30-min session. Null/undefined = derived
+   *  from pricePerHour (hourly/4, hourly/2). Only meaningful when
+   *  minBookingMinutes allows that length. */
+  price15m?: number | null;
+  price30m?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,9 +69,16 @@ export interface TierCreateRequest {
   coopEnabled?: boolean;
   coopMaxPlayers?: number;
   coopExtraPlayerPrice?: number;
-  /** Shortest session (VR is often 15) and the length checkout starts on. */
+  /** Shortest session (VR is often 15) and the length checkout starts on. Only
+   *  15, 30 or 60 are valid now — above 1 hour every setup allows 30-minute
+   *  steps regardless of this value. */
   minBookingMinutes?: number;
   defaultBookingMinutes?: number | null;
+  /** Optional overrides for a 15/30-min session. Null/undefined = derived
+   *  from pricePerHour (hourly/4, hourly/2). Only meaningful when
+   *  minBookingMinutes allows that length. */
+  price15m?: number | null;
+  price30m?: number | null;
 }
 
 export interface TierUpdateRequest {
@@ -85,9 +99,16 @@ export interface TierUpdateRequest {
   coopEnabled?: boolean;
   coopMaxPlayers?: number;
   coopExtraPlayerPrice?: number;
-  /** Shortest session (VR is often 15) and the length checkout starts on. */
+  /** Shortest session (VR is often 15) and the length checkout starts on. Only
+   *  15, 30 or 60 are valid now — above 1 hour every setup allows 30-minute
+   *  steps regardless of this value. */
   minBookingMinutes?: number;
   defaultBookingMinutes?: number | null;
+  /** Optional overrides for a 15/30-min session. Null/undefined = derived
+   *  from pricePerHour (hourly/4, hourly/2). Only meaningful when
+   *  minBookingMinutes allows that length. */
+  price15m?: number | null;
+  price30m?: number | null;
 }
 
 export interface TierConfig {
@@ -109,7 +130,14 @@ export interface TierConfig {
   coopEnabled?: boolean;
   coopMaxPlayers?: number;
   coopExtraPlayerPrice?: number;
-  /** Shortest session (VR is often 15) and the length checkout starts on. */
+  /** Shortest session (VR is often 15) and the length checkout starts on. Only
+   *  15, 30 or 60 are valid now — above 1 hour every setup allows 30-minute
+   *  steps regardless of this value. */
   minBookingMinutes?: number;
   defaultBookingMinutes?: number | null;
+  /** Optional overrides for a 15/30-min session. Null/undefined = derived
+   *  from pricePerHour (hourly/4, hourly/2). Only meaningful when
+   *  minBookingMinutes allows that length. */
+  price15m?: number | null;
+  price30m?: number | null;
 }

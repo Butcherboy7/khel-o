@@ -25,3 +25,47 @@ export async function getPlatformFeePercentage(): Promise<{ platformFeePercentag
 export async function cancelBooking(bookingId: string, reason?: string): Promise<{ booking: BookingDetail }> {
   return call(() => apiClient.post(`/api/v1/bookings/${bookingId}/cancel`, { reason }));
 }
+
+export interface QuoteRequest {
+  cafeId: string;
+  hardwareTierId: string;
+  sessionDate: string;
+  startTime: string;
+  durationHours: number;
+  seatsCount: number;
+  playersCount?: number | null;
+  promotionId?: string | null;
+  promoCode?: string | null;
+}
+
+export interface QuoteAppliedOffer {
+  id: string;
+  title: string;
+  label: string;
+}
+
+export interface QuoteOfferHint {
+  id: string;
+  title: string;
+  message: string;
+}
+
+/** Server-computed price + eligibility preview — the single source of truth
+ * checkout uses instead of re-implementing offer eligibility client-side
+ * (that duplicated logic is what let an offer show as available but never
+ * actually apply). No auth required. */
+export interface QuoteResponse {
+  baseAmount: number;
+  discountAmount: number;
+  subtotal: number;
+  platformFee: number;
+  total: number;
+  appliedOffer: QuoteAppliedOffer | null;
+  offerHint: QuoteOfferHint | null;
+  allowedMinutes: number[];
+  pricesByMinutes: Record<number, number>;
+}
+
+export async function getBookingQuote(body: QuoteRequest): Promise<QuoteResponse> {
+  return call(() => apiClient.post('/api/v1/bookings/quote', body));
+}
