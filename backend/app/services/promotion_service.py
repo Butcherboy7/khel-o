@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 from decimal import Decimal
 from datetime import datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.repositories.promotion_repository import PromotionRepository
@@ -17,6 +18,7 @@ from app.schemas.promotion import (
     CodeRedemptionResponse
 )
 from app.models.promotion import Promotion, PromotionType
+from app.models.booking import Booking
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 from app.core.time import IST
 from app.core.duration import allowed_minutes
@@ -369,12 +371,16 @@ class PromotionService:
         await self.promo_repo.deactivate(promotion_id)
 
     async def delete_promotion(self, promotion_id: UUID, owner_id: UUID) -> None:
-        """Permanent delete — only allowed for a promotion that has never
-        been redeemed (current_uses == 0). One that has must be paused
-        instead: a booking's Booking.promotion_id would otherwise point at a
-        row that no longer exists, and a promotion with real redemption
-        history is exactly the kind of thing an owner shouldn't be able to
-        make disappear."""
+        """Permanent delete — only allowed for a promotion no Booking row
+        references at all. current_uses alone isn't enough to check: it
+        only increments once a booking is CONFIRMED, but a booking that's
+        still PENDING_PAYMENT, FAILED, or CANCELLED also holds
+        Booking.promotion_id (set at creation, before payment), and
+        Booking.promotion_id has no ON DELETE behavior — hard-deleting a
+        promotion referenced by one of those raises an IntegrityError that
+        surfaced to owners as a bare 500 ("An unexpected error occurred on
+        the server"). Any referencing booking, confirmed or not, must route
+        through pause instead."""
         promo = await self.promo_repo.get_by_id(promotion_id)
         if not promo:
             raise NotFoundException(message="Promotion not found", error_code="PROMOTION_NOT_FOUND")
@@ -390,7 +396,23 @@ class PromotionService:
                 error_code="PROMOTION_HAS_HISTORY"
             )
 
-        await self.promo_repo.delete(promotion_id)
+        has_any_booking = (await self.promo_repo.db.execute(
+            select(Booking.id).where(Booking.promotion_id == promotion_id).limit(1)
+        )).first()
+        if has_any_booking:
+            raise ValidationException(
+                message="This offer has bookings attached to it and can't be deleted — pause it instead to keep booking history intact.",
+                error_code="PROMOTION_HAS_HISTORY"
+            )
+
+        try:
+            await self.promo_repo.delete(promotion_id)
+        except IntegrityError:
+            await self.promo_repo.db.rollback()
+            raise ValidationException(
+                message="This offer has bookings attached to it and can't be deleted — pause it instead to keep booking history intact.",
+                error_code="PROMOTION_HAS_HISTORY"
+            )
 
     async def preview_code(self, code: str, cafe_id: Optional[UUID] = None) -> CodeRedemptionResponse:
         """Public, unauthenticated lookup used by the customer-side code-entry
