@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
 from app.models.hardware_tier import PlatformType, TierType
+from app.core.duration import allowed_minutes as _allowed_minutes
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -28,8 +29,12 @@ class HardwareTierBase(BaseModel):
     coop_enabled: bool = False
     coop_max_players: int = Field(2, ge=2, le=4)
     coop_extra_player_price: float = Field(0.0, ge=0.0)
-    min_booking_minutes: int = Field(60, ge=15, le=240)
+    # Only 15/30/60 are valid "shortest booking" values now — above 1 hour,
+    # every setup allows 30-minute steps regardless of this field.
+    min_booking_minutes: int = Field(60, ge=15, le=60)
     default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
+    price_15m: Optional[float] = Field(None, gt=0.0)
+    price_30m: Optional[float] = Field(None, gt=0.0)
 
     @model_validator(mode='after')
     def validate_seats(self) -> 'HardwareTierBase':
@@ -37,6 +42,23 @@ class HardwareTierBase(BaseModel):
             self.app_bookable_seats = self.total_seats
         if self.reserved_walkin_seats is None or (self.app_bookable_seats + self.reserved_walkin_seats != self.total_seats):
             self.reserved_walkin_seats = max(0, self.total_seats - self.app_bookable_seats)
+        return self
+
+    @model_validator(mode='after')
+    def validate_duration_ladder(self) -> 'HardwareTierBase':
+        if self.min_booking_minutes not in (15, 30, 60):
+            raise ValueError("minBookingMinutes must be 15, 30, or 60")
+        allowed = _allowed_minutes(self.min_booking_minutes)
+        if self.default_booking_minutes is not None and self.default_booking_minutes not in allowed:
+            raise ValueError("defaultBookingMinutes must be one of the setup's allowed lengths")
+        if self.min_booking_minutes > 15 and self.price_15m is not None:
+            raise ValueError("price15m only applies when shortest booking is 15 minutes")
+        if self.min_booking_minutes > 30 and self.price_30m is not None:
+            raise ValueError("price30m only applies when shortest booking is 15 or 30 minutes")
+        if self.price_15m is not None and self.price_30m is not None and self.price_15m > self.price_30m:
+            raise ValueError("price15m cannot be greater than price30m")
+        if self.price_30m is not None and self.price_30m > self.price_per_hour:
+            raise ValueError("price30m cannot be greater than the hourly price")
         return self
 
     model_config = ConfigDict(
@@ -74,8 +96,10 @@ class HardwareTierUpdate(BaseModel):
     coop_enabled: Optional[bool] = None
     coop_max_players: Optional[int] = Field(None, ge=2, le=4)
     coop_extra_player_price: Optional[float] = Field(None, ge=0.0)
-    min_booking_minutes: Optional[int] = Field(None, ge=15, le=240)
+    min_booking_minutes: Optional[int] = Field(None, ge=15, le=60)
     default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
+    price_15m: Optional[float] = Field(None, gt=0.0)
+    price_30m: Optional[float] = Field(None, gt=0.0)
 
     @model_validator(mode='after')
     def validate_seats_update(self) -> 'HardwareTierUpdate':
@@ -87,6 +111,19 @@ class HardwareTierUpdate(BaseModel):
                 raise ValueError("totalSeats must equal appBookableSeats + reservedWalkinSeats")
         elif total is not None and bookable is not None and bookable > total:
             raise ValueError("appBookableSeats cannot exceed totalSeats")
+        return self
+
+    @model_validator(mode='after')
+    def validate_duration_ladder_update(self) -> 'HardwareTierUpdate':
+        if self.min_booking_minutes is not None and self.min_booking_minutes not in (15, 30, 60):
+            raise ValueError("minBookingMinutes must be 15, 30, or 60")
+        if self.price_15m is not None and self.price_30m is not None and self.price_15m > self.price_30m:
+            raise ValueError("price15m cannot be greater than price30m")
+        # min_booking_minutes/default_booking_minutes/price cross-field
+        # consistency (e.g. price15m needs min_booking_minutes == 15) is
+        # re-checked against the merged row in HardwareTierService.update_tier,
+        # the same pattern PromotionService.update_promotion uses — a PATCH
+        # here may not carry every field needed to validate in isolation.
         return self
 
     model_config = ConfigDict(

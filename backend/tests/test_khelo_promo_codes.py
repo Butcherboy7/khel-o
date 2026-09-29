@@ -71,6 +71,7 @@ async def test_owner_can_assign_khelo_code_and_customer_can_preview_it(async_cli
         "cafeId": str(cafe.id),
         "title": "Weeknight Happy Hour",
         "discountPercentage": 20,
+        "minBookingMinutes": 60,
         "validFrom": (now - timedelta(days=1)).isoformat(),
         "validUntil": (now + timedelta(days=30)).isoformat(),
         "daysOfWeek": [0, 1, 2, 3, 4, 5, 6],
@@ -108,6 +109,7 @@ async def test_duplicate_khelo_code_rejected(async_client: AsyncClient):
     base_payload = {
         "cafeId": str(cafe.id),
         "discountPercentage": 10,
+        "minBookingMinutes": 60,
         "validFrom": (now - timedelta(days=1)).isoformat(),
         "validUntil": (now + timedelta(days=30)).isoformat(),
         "daysOfWeek": [0, 1, 2, 3, 4, 5, 6],

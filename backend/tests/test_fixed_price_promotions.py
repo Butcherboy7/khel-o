@@ -315,6 +315,50 @@ async def test_owner_cannot_permanently_delete_redeemed_promotion(async_client: 
 
 
 @pytest.mark.asyncio
+async def test_owner_cannot_permanently_delete_promotion_with_unpaid_booking(async_client: AsyncClient):
+    """A booking created against an offer (checkout started, never paid)
+    keeps Booking.promotion_id set even though current_uses never
+    incremented — hard-deleting the promotion in that state used to raise
+    an uncaught IntegrityError (a bare 500 to the owner) since the FK has no
+    ON DELETE behavior. Must be refused with PROMOTION_HAS_HISTORY instead,
+    same as an already-redeemed offer."""
+    from app.models.booking import Booking, BookingStatus
+    from datetime import date, time
+
+    async with AsyncSessionLocal() as db:
+        owner, cafe, tier = await _make_cafe_owner(db)
+
+    now = datetime.now(timezone.utc)
+    payload = _fixed_price_payload(cafe.id, tier.id, now)
+    resp = await async_client.post("/api/v1/promotions", json=payload, headers=auth_headers(owner))
+    promo_id = uuid.UUID(resp.json()["data"]["promotion"]["id"])
+
+    gamer = User(
+        id=uuid.uuid4(), email=f"fp_gamer_{uuid.uuid4().hex[:8]}@test.com", full_name="FP Gamer",
+        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+    )
+    async with AsyncSessionLocal() as db:
+        db.add(gamer)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid.uuid4(), user_id=gamer.id, role=UserRole.GAMER))
+        db.add(Booking(
+            id=uuid.uuid4(), booking_reference=f"FP-{uuid.uuid4().hex[:8].upper()}", gamer_id=gamer.id,
+            cafe_id=cafe.id, hardware_tier_id=tier.id, session_date=date.today(),
+            start_time=time(18, 0), end_time=time(22, 0), duration_hours=4.0,
+            base_amount=480.0, discount_amount=120.0, gateway_fee=0.0, convenience_fee=0.0,
+            total_amount=360.0, status=BookingStatus.PENDING_PAYMENT, promotion_id=promo_id,
+        ))
+        await db.commit()
+
+    resp = await async_client.delete(f"/api/v1/promotions/{promo_id}", params={"permanent": True}, headers=auth_headers(owner))
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["error"]["code"] == "PROMOTION_HAS_HISTORY"
+
+    resp = await async_client.get(f"/api/v1/promotions/{promo_id}")
+    assert resp.status_code == 200  # still there
+
+
+@pytest.mark.asyncio
 async def test_active_promotions_list_includes_regular_price_and_savings(async_client: AsyncClient):
     async with AsyncSessionLocal() as db:
         owner, cafe, tier = await _make_cafe_owner(db)

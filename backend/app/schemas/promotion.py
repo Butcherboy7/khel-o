@@ -5,6 +5,7 @@ from uuid import UUID
 from datetime import datetime
 
 from app.models.promotion import PromotionType
+from app.core.duration import allowed_minutes
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -28,7 +29,14 @@ class PromotionBase(BaseModel):
     fixed_price_amount: Optional[float] = Field(None, gt=0)
     # "4" in "4 hours for ₹360". Floor matches the booking system's own
     # 1-hour minimum duration (BookingBase.duration_hours, ge=1.0).
-    min_duration_hours: Optional[float] = Field(None, ge=1.0, le=8.0)
+    # FIXED_PRICE only: the exact length the deal is for (0.25 = 15 min,
+    # up to 8.0) — must be one of app.core.duration.allowed_minutes(15).
+    min_duration_hours: Optional[float] = Field(None, ge=0.25, le=8.0)
+    # PERCENTAGE/FIXED_AMOUNT only: the shortest booking (in minutes) this
+    # offer applies to, so a flat ₹ or % discount can't reduce a short
+    # session to near-zero. Must be one of allowed_minutes(15). Not used
+    # for FIXED_PRICE, which already only matches its exact length.
+    min_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
     applicable_tier_id: Optional[UUID] = None
     play_mode: Literal['any', 'solo', 'coop'] = 'any'
     valid_from: datetime
@@ -49,25 +57,6 @@ class PromotionBase(BaseModel):
             raise ValueError("KHELO code must be 4-20 letters/digits (A-Z, 0-9)")
         return v
 
-    @model_validator(mode="after")
-    def check_fields_match_type(self):
-        if self.promotion_type == PromotionType.PERCENTAGE:
-            if self.discount_percentage is None:
-                raise ValueError("discount_percentage is required for a percentage offer")
-            if self.fixed_discount_amount is not None or self.fixed_price_amount is not None or self.min_duration_hours is not None:
-                raise ValueError("A percentage offer cannot also set fixed-amount/fixed-price fields")
-        elif self.promotion_type == PromotionType.FIXED_AMOUNT:
-            if self.fixed_discount_amount is None:
-                raise ValueError("fixed_discount_amount is required for a fixed-amount-off offer")
-            if self.discount_percentage is not None or self.fixed_price_amount is not None or self.min_duration_hours is not None:
-                raise ValueError("A fixed-amount offer cannot also set percentage/fixed-price fields")
-        elif self.promotion_type == PromotionType.FIXED_PRICE:
-            if self.fixed_price_amount is None or self.min_duration_hours is None:
-                raise ValueError("fixed_price_amount and min_duration_hours are required for a fixed-price deal")
-            if self.discount_percentage is not None or self.fixed_discount_amount is not None:
-                raise ValueError("A fixed-price offer cannot also set percentage/fixed-amount fields")
-        return self
-
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True
@@ -75,6 +64,44 @@ class PromotionBase(BaseModel):
 
 class PromotionCreate(PromotionBase):
     cafe_id: UUID
+
+    # Only enforced at create time — NOT inherited by PromotionResponse.
+    # PromotionResponse also extends PromotionBase (so its camelCase field
+    # set matches), but it must still be able to serialize a legacy/edge row
+    # (e.g. one created before min_booking_minutes existed) for reading —
+    # see PromotionService.get_promotions_for_owner and the bug this fixed
+    # (a strict "shape must match type" check on PromotionBase itself broke
+    # reading any such row with a pydantic ValidationError, 2026-09-28).
+    @model_validator(mode="after")
+    def check_fields_match_type(self):
+        if self.promotion_type == PromotionType.PERCENTAGE:
+            if self.discount_percentage is None:
+                raise ValueError("discount_percentage is required for a percentage offer")
+            if self.fixed_discount_amount is not None or self.fixed_price_amount is not None or self.min_duration_hours is not None:
+                raise ValueError("A percentage offer cannot also set fixed-amount/fixed-price fields")
+            if self.min_booking_minutes is None:
+                raise ValueError("min_booking_minutes is required for a percentage offer")
+        elif self.promotion_type == PromotionType.FIXED_AMOUNT:
+            if self.fixed_discount_amount is None:
+                raise ValueError("fixed_discount_amount is required for a fixed-amount-off offer")
+            if self.discount_percentage is not None or self.fixed_price_amount is not None or self.min_duration_hours is not None:
+                raise ValueError("A fixed-amount offer cannot also set percentage/fixed-price fields")
+            if self.min_booking_minutes is None:
+                raise ValueError("min_booking_minutes is required for a fixed-amount-off offer")
+        elif self.promotion_type == PromotionType.FIXED_PRICE:
+            if self.fixed_price_amount is None or self.min_duration_hours is None:
+                raise ValueError("fixed_price_amount and min_duration_hours are required for a fixed-price deal")
+            if self.discount_percentage is not None or self.fixed_discount_amount is not None:
+                raise ValueError("A fixed-price offer cannot also set percentage/fixed-amount fields")
+            if self.min_booking_minutes is not None:
+                raise ValueError("A fixed-price offer uses min_duration_hours (its exact length), not min_booking_minutes")
+        if self.min_duration_hours is not None:
+            minutes = round(self.min_duration_hours * 60)
+            if minutes not in allowed_minutes(15):
+                raise ValueError("minDurationHours must be a bookable length: 15/30 min, then 30-minute steps after 1 hour")
+        if self.min_booking_minutes is not None and self.min_booking_minutes not in allowed_minutes(15):
+            raise ValueError("minBookingMinutes must be a bookable length: 15/30 min, then 30-minute steps after 1 hour")
+        return self
 
 PromotionCreateRequest = PromotionCreate
 
@@ -91,7 +118,8 @@ class PromotionUpdate(BaseModel):
     discount_percentage: Optional[int] = Field(None, ge=1, le=50)
     fixed_discount_amount: Optional[float] = Field(None, gt=0)
     fixed_price_amount: Optional[float] = Field(None, gt=0)
-    min_duration_hours: Optional[float] = Field(None, ge=1.0, le=8.0)
+    min_duration_hours: Optional[float] = Field(None, ge=0.25, le=8.0)
+    min_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
     applicable_tier_id: Optional[UUID] = None
     play_mode: Optional[Literal['any', 'solo', 'coop']] = None
     valid_from: Optional[datetime] = None
@@ -143,6 +171,7 @@ class ActivePromotionResponse(BaseModel):
     fixed_discount_amount: Optional[float] = None
     fixed_price_amount: Optional[float] = None
     min_duration_hours: Optional[float] = None
+    min_booking_minutes: Optional[int] = None
     # Populated by the service (derived from the tier's hourly rate at read
     # time, never stored) only for FIXED_PRICE offers, so the client can show
     # "₹480 → ₹360, save ₹120" without doing the math itself.
@@ -182,6 +211,7 @@ class CodeRedemptionResponse(BaseModel):
     fixed_discount_amount: Optional[float] = None
     fixed_price_amount: Optional[float] = None
     min_duration_hours: Optional[float] = None
+    min_booking_minutes: Optional[int] = None
     regular_price: Optional[float] = None
     savings_amount: Optional[float] = None
     applicable_tier_id: Optional[UUID] = None

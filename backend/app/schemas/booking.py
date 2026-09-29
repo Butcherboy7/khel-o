@@ -132,3 +132,60 @@ class BookingListResponse(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True
     )
+
+class QuoteRequest(BaseModel):
+    """What checkout sends whenever the slot/length/players/offer changes.
+    Mirrors BookingBase but never creates anything — see
+    BookingService.get_quote. session_date/start_time are needed (not just
+    duration) because an offer's day-of-week/hour window is evaluated
+    against the actual booked slot, not "now"."""
+    cafe_id: UUID
+    hardware_tier_id: UUID
+    session_date: date
+    start_time: time
+    duration_hours: float = Field(..., ge=0.25, le=8.0)
+    seats_count: int = Field(1, ge=1, le=6)
+    players_count: Optional[int] = Field(None, ge=1, le=6)
+    promotion_id: Optional[UUID] = None
+    promo_code: Optional[str] = Field(None, max_length=20)
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
+class AppliedOffer(BaseModel):
+    id: UUID
+    title: str
+    label: str  # e.g. "20% off", "deal price", "-₹60"
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class OfferHint(BaseModel):
+    """The best offer that ALMOST applied, and why not — so checkout can
+    say "Happy Hour works on bookings of 1 hr or more" instead of just
+    hiding the offer."""
+    id: UUID
+    title: str
+    message: str
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class QuoteResponse(BaseModel):
+    base_amount: float
+    discount_amount: float
+    subtotal: float
+    platform_fee: float
+    total: float
+    applied_offer: Optional[AppliedOffer] = None
+    offer_hint: Optional[OfferHint] = None
+    allowed_minutes: List[int]
+    # duration (minutes) -> base price at that length, for this tier/players/
+    # co-op combo — lets a client show a length picker's prices without a
+    # round trip per length.
+    prices_by_minutes: dict[int, float]
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )

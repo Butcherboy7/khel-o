@@ -14,6 +14,7 @@ import {
   type PromotionPlayMode,
 } from '@/lib/api/promotions';
 import { listCafeTiers } from '@/lib/api/tiers';
+import { allowedMinutes, priceForMinutes, fmtDuration } from '@/components/owner/SetupBookingOptions';
 import { getOwnerCafeId } from '@/lib/api/owner';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import {
@@ -51,6 +52,52 @@ function generateCode(): string {
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+/** 0-24 (this offer's own start_hour/end_hour storage, where 24 = midnight
+ *  at the end of the day) -> "6 PM" for a 12-hour display everywhere. */
+function hour12(h: number): string {
+  const hh = h % 24;
+  const suffix = hh < 12 ? 'AM' : 'PM';
+  const display = hh % 12 === 0 ? 12 : hh % 12;
+  return `${display} ${suffix}`;
+}
+
+/** Offer form's hour selects: 0-23 for start, 1-24 for end (24 = midnight). */
+const START_HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h);
+const END_HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h + 1);
+
+/** Lengths a percentage/fixed-amount offer's 'minimum booking length' can be
+ *  set to — any bookable length works here (unlike a setup's own shortest-
+ *  booking control, this isn't limited to 15/30/60). */
+const OFFER_MIN_LENGTH_OPTIONS = allowedMinutes(15).filter((m) => m <= 240);
+
+/** "Only for bookings of at least ___" — shared between the discount and
+ *  fixed-amount-off forms. Stops a flat ₹/% discount from applying to a
+ *  booking so short it makes the session nearly (or entirely) free. */
+function MinBookingLengthField({ value, disabled, onChange }: { value: number; disabled: boolean; onChange: (m: number) => void }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="flex items-center gap-0.5 text-caption font-semibold text-text-primary">
+        Only for bookings of at least *
+        <InfoTip
+          text="Stops a flat ₹ or % discount from applying to a booking so short it makes the session nearly free. Defaults to 1 hour."
+          label="About the minimum booking length"
+        />
+      </span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="h-10 w-full rounded-xl border border-border bg-card px-3 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+      >
+        {OFFER_MIN_LENGTH_OPTIONS.map((m) => (
+          <option key={m} value={m}>{fmtDuration(m)}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+
 function promotionStatus(p: Promotion): { label: string; variant: 'success' | 'default' | 'error' } {
   if (!p.isActive) return { label: 'Paused', variant: 'default' };
   const now = new Date();
@@ -78,6 +125,7 @@ interface FormState {
   fixedDiscountAmount: string;
   fixedPriceAmount: string;
   minDurationHours: number;
+  minBookingMinutes: number;
   applicableTierId: string;
   playMode: PromotionPlayMode;
   validFrom: string;
@@ -98,7 +146,8 @@ function emptyForm(): FormState {
     discountPercentage: 15,
     fixedDiscountAmount: '',
     fixedPriceAmount: '',
-    minDurationHours: 4,
+    minDurationHours: 1,
+    minBookingMinutes: 60,
     applicableTierId: '',
     playMode: 'any',
     validFrom: new Date().toISOString().slice(0, 10),
@@ -178,7 +227,8 @@ export default function OwnerOffersPage() {
       discountPercentage: p.discountPercentage ?? 15,
       fixedDiscountAmount: p.fixedDiscountAmount != null ? String(p.fixedDiscountAmount) : '',
       fixedPriceAmount: p.fixedPriceAmount != null ? String(p.fixedPriceAmount) : '',
-      minDurationHours: p.minDurationHours ?? 4,
+      minDurationHours: p.minDurationHours ?? 1,
+      minBookingMinutes: p.minBookingMinutes ?? 60,
       applicableTierId: p.applicableTierId ?? '',
       playMode: p.playMode ?? 'any',
       validFrom: toDateInput(p.validFrom),
@@ -203,12 +253,21 @@ export default function OwnerOffersPage() {
 
   const typeFieldsPayload = () => {
     if (form.promotionType === 'percentage') {
-      return { discountPercentage: Number(form.discountPercentage), fixedDiscountAmount: null, fixedPriceAmount: null, minDurationHours: null };
+      return {
+        discountPercentage: Number(form.discountPercentage), fixedDiscountAmount: null, fixedPriceAmount: null,
+        minDurationHours: null, minBookingMinutes: form.minBookingMinutes,
+      };
     }
     if (form.promotionType === 'fixed_amount') {
-      return { discountPercentage: null, fixedDiscountAmount: Number(form.fixedDiscountAmount), fixedPriceAmount: null, minDurationHours: null };
+      return {
+        discountPercentage: null, fixedDiscountAmount: Number(form.fixedDiscountAmount), fixedPriceAmount: null,
+        minDurationHours: null, minBookingMinutes: form.minBookingMinutes,
+      };
     }
-    return { discountPercentage: null, fixedDiscountAmount: null, fixedPriceAmount: Number(form.fixedPriceAmount), minDurationHours: Number(form.minDurationHours) };
+    return {
+      discountPercentage: null, fixedDiscountAmount: null, fixedPriceAmount: Number(form.fixedPriceAmount),
+      minDurationHours: Number(form.minDurationHours), minBookingMinutes: null,
+    };
   };
 
   const createMut = useMutation({
@@ -298,12 +357,40 @@ export default function OwnerOffersPage() {
   const coopOfferable = selectedTier ? !!selectedTier.coopEnabled : tiers.some((t) => t.coopEnabled);
   const regularPricePreview =
     form.promotionType === 'fixed_price' && selectedTier
-      ? selectedTier.pricePerHour * form.minDurationHours
+      ? priceForMinutes(Math.round(form.minDurationHours * 60), selectedTier.pricePerHour, selectedTier.price15m, selectedTier.price30m)
       : null;
   const savingsPreview =
     regularPricePreview != null && form.fixedPriceAmount
       ? Math.max(regularPricePreview - Number(form.fixedPriceAmount), 0)
       : null;
+
+  // Live "what this offer does to each length" table — the setup it previews
+  // against is the chosen tier, or (for an all-tiers % / ₹ off offer) the
+  // first tier, just to show something concrete.
+  const previewTier = selectedTier ?? tiers[0] ?? null;
+  const previewLengths = previewTier ? allowedMinutes((previewTier.minBookingMinutes as 15 | 30 | 60) ?? 60).filter((m) => m <= 120) : [];
+  const previewRows = previewTier
+    ? previewLengths.map((m) => {
+        const base = priceForMinutes(m, previewTier.pricePerHour, previewTier.price15m, previewTier.price30m);
+        let eligible = false;
+        let finalPrice: number | null = null;
+        if (form.promotionType === 'fixed_price') {
+          eligible = m === Math.round(form.minDurationHours * 60);
+          if (eligible && form.fixedPriceAmount) finalPrice = Number(form.fixedPriceAmount);
+        } else {
+          eligible = m >= form.minBookingMinutes;
+          if (eligible) {
+            const discount =
+              form.promotionType === 'fixed_amount' ? Number(form.fixedDiscountAmount) || 0 : (base * form.discountPercentage) / 100;
+            // Mirrors the backend's "never free" guard — an offer that would
+            // zero out (or exceed) this length's price simply doesn't apply.
+            finalPrice = discount > 0 && discount < base ? Math.round((base - discount) * 100) / 100 : null;
+            if (finalPrice == null) eligible = false;
+          }
+        }
+        return { minutes: m, base, eligible, finalPrice };
+      })
+    : [];
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -328,10 +415,14 @@ export default function OwnerOffersPage() {
         setFormError('Enter the deal price, in rupees.');
         return;
       }
-      if (!form.minDurationHours || form.minDurationHours < 1) {
-        setFormError('Enter how many hours this deal covers.');
+      if (!allowedMinutes(15).includes(Math.round(form.minDurationHours * 60))) {
+        setFormError('Choose a bookable deal length.');
         return;
       }
+    }
+    if ((form.promotionType === 'percentage' || form.promotionType === 'fixed_amount') && !OFFER_MIN_LENGTH_OPTIONS.includes(form.minBookingMinutes)) {
+      setFormError('Choose the shortest booking this offer applies to.');
+      return;
     }
     if (new Date(form.validUntil) <= new Date(form.validFrom)) {
       setFormError('End date must be after the start date.');
@@ -441,6 +532,9 @@ export default function OwnerOffersPage() {
                     )}
                     <span className="text-caption text-text-secondary">{tierName ?? 'All tiers'}</span>
                   </div>
+                  {(p.promotionType === 'percentage' || p.promotionType === 'fixed_amount') && p.minBookingMinutes != null && (
+                    <p className="text-caption text-text-secondary">Bookings of {fmtDuration(p.minBookingMinutes)} or more</p>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-caption text-text-secondary">
                     <div className="flex items-center gap-1.5">
@@ -452,7 +546,7 @@ export default function OwnerOffersPage() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5 flex-shrink-0" />
-                      <span>{p.startHour}:00 – {p.endHour}:00</span>
+                      <span>{hour12(p.startHour)} – {hour12(p.endHour)}</span>
                     </div>
                     <div className="flex items-center gap-1.5 sm:col-span-2">
                       <span className="font-semibold text-text-primary">
@@ -622,39 +716,50 @@ export default function OwnerOffersPage() {
           />
 
           {form.promotionType === 'percentage' && (
-            <NumericField
-              label="Discount % (1-50) *"
-              min={1}
-              max={50}
-              disabled={typeLocked}
-              value={form.discountPercentage}
-              onChange={(n) => setForm({ ...form, discountPercentage: n })}
-            />
+            <div className="flex flex-col gap-3">
+              <NumericField
+                label="Discount % (1-50) *"
+                min={1}
+                max={50}
+                disabled={typeLocked}
+                value={form.discountPercentage}
+                onChange={(n) => setForm({ ...form, discountPercentage: n })}
+              />
+              <MinBookingLengthField value={form.minBookingMinutes} disabled={typeLocked} onChange={(m) => setForm({ ...form, minBookingMinutes: m })} />
+            </div>
           )}
 
           {form.promotionType === 'fixed_amount' && (
-            <Input
-              label="Amount off (₹) *"
-              type="number"
-              min={1}
-              disabled={typeLocked}
-              placeholder="e.g. 100"
-              value={form.fixedDiscountAmount}
-              onChange={(e) => setForm({ ...form, fixedDiscountAmount: e.target.value })}
-            />
+            <div className="flex flex-col gap-3">
+              <Input
+                label="Amount off (₹) *"
+                type="number"
+                min={1}
+                disabled={typeLocked}
+                placeholder="e.g. 100"
+                value={form.fixedDiscountAmount}
+                onChange={(e) => setForm({ ...form, fixedDiscountAmount: e.target.value })}
+              />
+              <MinBookingLengthField value={form.minBookingMinutes} disabled={typeLocked} onChange={(m) => setForm({ ...form, minBookingMinutes: m })} />
+            </div>
           )}
 
           {form.promotionType === 'fixed_price' && (
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <NumericField
-                  label="Minimum Duration (hours) *"
-                  min={1}
-                  max={8}
-                  disabled={typeLocked}
-                  value={form.minDurationHours}
-                  onChange={(n) => setForm({ ...form, minDurationHours: n })}
-                />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-caption font-semibold text-text-primary">Deal length *</label>
+                  <select
+                    value={Math.round(form.minDurationHours * 60)}
+                    disabled={typeLocked}
+                    onChange={(e) => setForm({ ...form, minDurationHours: Number(e.target.value) / 60 })}
+                    className="h-10 w-full rounded-xl border border-border bg-card px-3 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                  >
+                    {allowedMinutes(15).filter((m) => m <= 480).map((m) => (
+                      <option key={m} value={m}>{fmtDuration(m)}</option>
+                    ))}
+                  </select>
+                </div>
                 <Input
                   label="Deal Price (₹) *"
                   type="number"
@@ -748,20 +853,30 @@ export default function OwnerOffersPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <NumericField
-              label="Start Hour (0-23) *"
-              min={0}
-              max={23}
-              value={form.startHour}
-              onChange={(n) => setForm({ ...form, startHour: n })}
-            />
-            <NumericField
-              label="End Hour (1-24) *"
-              min={1}
-              max={24}
-              value={form.endHour}
-              onChange={(n) => setForm({ ...form, endHour: n })}
-            />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-caption font-semibold text-text-primary">Time of day — from *</label>
+              <select
+                value={form.startHour}
+                onChange={(e) => setForm({ ...form, startHour: Number(e.target.value) })}
+                className="h-10 w-full rounded-xl border border-border bg-card px-3 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {START_HOUR_OPTIONS.map((h) => (
+                  <option key={h} value={h}>{hour12(h)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-caption font-semibold text-text-primary">to *</label>
+              <select
+                value={form.endHour}
+                onChange={(e) => setForm({ ...form, endHour: Number(e.target.value) })}
+                className="h-10 w-full rounded-xl border border-border bg-card px-3 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {END_HOUR_OPTIONS.map((h) => (
+                  <option key={h} value={h}>{hour12(h)}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -786,6 +901,34 @@ export default function OwnerOffersPage() {
               })}
             </div>
           </div>
+
+          {previewTier && previewRows.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-0.5 text-caption font-semibold text-text-primary">
+                How it works out on {previewTier.name}
+                <InfoTip
+                  text="Exactly what this offer does to each booking length on this setup — 'Not eligible' means the length is too short (or, for a fixed-price deal, the wrong length) for this offer to apply."
+                  label="About this preview"
+                />
+              </span>
+              <div className="overflow-hidden rounded-xl border border-border bg-surface">
+                {previewRows.map((row) => (
+                  <div key={row.minutes} className="flex items-center justify-between border-b border-border/60 px-3 py-2 text-caption last:border-0">
+                    <span className="text-text-primary">{fmtDuration(row.minutes)} · ₹{row.base}</span>
+                    {row.eligible && row.finalPrice != null ? (
+                      <span className="font-data font-bold text-success">₹{row.finalPrice}</span>
+                    ) : (
+                      <span className="text-text-secondary">Not eligible</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="flex items-start gap-1.5 rounded-xl border border-dashed border-border bg-surface px-3 py-2 text-caption text-text-secondary">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+                An offer can never make a booking free. If a discount would bring the price to ₹0 or below, it simply doesn&apos;t apply to that length.
+              </p>
+            </div>
+          )}
 
           <Input
             label="Max Redemptions (optional)"

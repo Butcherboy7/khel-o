@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 from decimal import Decimal
 from datetime import datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.repositories.promotion_repository import PromotionRepository
@@ -17,9 +18,25 @@ from app.schemas.promotion import (
     CodeRedemptionResponse
 )
 from app.models.promotion import Promotion, PromotionType
+from app.models.booking import Booking
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
+from app.core.time import IST
+from app.core.duration import allowed_minutes
+from app.services.pricing_service import base_price_for_minutes
 
 logger = logging.getLogger(__name__)
+
+
+def _format_hour_12h(hour: int) -> str:
+    """0-24 (Promotion.start_hour/end_hour's storage format) -> "12 AM".."12 AM",
+    matching the 24-value shown as midnight-of-next-day for end_hour."""
+    h = hour % 24
+    suffix = "AM" if h < 12 else "PM"
+    display = h % 12
+    if display == 0:
+        display = 12
+    return f"{display} {suffix}"
+
 
 class PromotionService:
     def __init__(
@@ -48,12 +65,19 @@ class PromotionService:
         if not (valid_from <= now <= valid_until):
             return False
 
+        # Day-of-week/hour windows are café-local (IST), not UTC — a
+        # "6pm-11pm" offer must show/apply around 6-11pm in India, not
+        # 6-11pm UTC (12:30am-4:30am IST). Convert whatever tz `now` carries
+        # (UTC for the café-listing/"now" path, IST already for a booked
+        # session's start_datetime) to IST before reading weekday()/hour.
+        now_ist = now.astimezone(IST)
+
         # Day of week check (0=Monday, 6=Sunday)
-        if now.weekday() not in promo.days_of_week:
+        if now_ist.weekday() not in promo.days_of_week:
             return False
 
         # Hour window check (start_hour <= current_hour < end_hour)
-        if not (promo.start_hour <= now.hour < promo.end_hour):
+        if not (promo.start_hour <= now_ist.hour < promo.end_hour):
             return False
 
         # Max uses check
@@ -140,6 +164,7 @@ class PromotionService:
             "fixed_discount_amount": promo_in.fixed_discount_amount,
             "fixed_price_amount": promo_in.fixed_price_amount,
             "min_duration_hours": promo_in.min_duration_hours,
+            "min_booking_minutes": promo_in.min_booking_minutes,
             "applicable_tier_id": promo_in.applicable_tier_id,
             "play_mode": promo_in.play_mode,
             "valid_from": promo_in.valid_from,
@@ -191,6 +216,7 @@ class PromotionService:
                     fixed_discount_amount=p.fixed_discount_amount,
                     fixed_price_amount=p.fixed_price_amount,
                     min_duration_hours=p.min_duration_hours,
+                    min_booking_minutes=p.min_booking_minutes,
                     regular_price=regular_price,
                     savings_amount=savings_amount,
                     applicable_tier_name=tier_name,
@@ -212,7 +238,8 @@ class PromotionService:
         other promotion type or if the tier can't be resolved."""
         if promo.promotion_type != PromotionType.FIXED_PRICE or not tier or not promo.min_duration_hours:
             return None, None
-        regular_price = float(Decimal(str(tier.price_per_hour)) * Decimal(str(promo.min_duration_hours)))
+        minutes = round(float(promo.min_duration_hours) * 60)
+        regular_price = float(base_price_for_minutes(tier, minutes))
         savings = round(regular_price - float(promo.fixed_price_amount), 2)
         return round(regular_price, 2), max(savings, 0.0)
 
@@ -275,8 +302,15 @@ class PromotionService:
             "fixed_discount_amount": update_dict.get("fixed_discount_amount", promo.fixed_discount_amount),
             "fixed_price_amount": update_dict.get("fixed_price_amount", promo.fixed_price_amount),
             "min_duration_hours": update_dict.get("min_duration_hours", promo.min_duration_hours),
+            "min_booking_minutes": update_dict.get("min_booking_minutes", promo.min_booking_minutes),
             "applicable_tier_id": update_dict.get("applicable_tier_id", promo.applicable_tier_id),
         }
+        if merged["promotion_type"] in (PromotionType.PERCENTAGE, PromotionType.FIXED_AMOUNT):
+            if merged["min_booking_minutes"] not in allowed_minutes(15):
+                raise ValidationException(
+                    message="Minimum booking length must be a bookable length: 15/30 min, then 30-minute steps after 1 hour",
+                    error_code="INVALID_MIN_BOOKING_MINUTES"
+                )
         if merged["promotion_type"] == PromotionType.PERCENTAGE:
             if merged["discount_percentage"] is None or not (1 <= merged["discount_percentage"] <= 50):
                 raise ValidationException(message="Discount percentage must be between 1 and 50", error_code="INVALID_DISCOUNT")
@@ -337,12 +371,16 @@ class PromotionService:
         await self.promo_repo.deactivate(promotion_id)
 
     async def delete_promotion(self, promotion_id: UUID, owner_id: UUID) -> None:
-        """Permanent delete — only allowed for a promotion that has never
-        been redeemed (current_uses == 0). One that has must be paused
-        instead: a booking's Booking.promotion_id would otherwise point at a
-        row that no longer exists, and a promotion with real redemption
-        history is exactly the kind of thing an owner shouldn't be able to
-        make disappear."""
+        """Permanent delete — only allowed for a promotion no Booking row
+        references at all. current_uses alone isn't enough to check: it
+        only increments once a booking is CONFIRMED, but a booking that's
+        still PENDING_PAYMENT, FAILED, or CANCELLED also holds
+        Booking.promotion_id (set at creation, before payment), and
+        Booking.promotion_id has no ON DELETE behavior — hard-deleting a
+        promotion referenced by one of those raises an IntegrityError that
+        surfaced to owners as a bare 500 ("An unexpected error occurred on
+        the server"). Any referencing booking, confirmed or not, must route
+        through pause instead."""
         promo = await self.promo_repo.get_by_id(promotion_id)
         if not promo:
             raise NotFoundException(message="Promotion not found", error_code="PROMOTION_NOT_FOUND")
@@ -358,7 +396,23 @@ class PromotionService:
                 error_code="PROMOTION_HAS_HISTORY"
             )
 
-        await self.promo_repo.delete(promotion_id)
+        has_any_booking = (await self.promo_repo.db.execute(
+            select(Booking.id).where(Booking.promotion_id == promotion_id).limit(1)
+        )).first()
+        if has_any_booking:
+            raise ValidationException(
+                message="This offer has bookings attached to it and can't be deleted — pause it instead to keep booking history intact.",
+                error_code="PROMOTION_HAS_HISTORY"
+            )
+
+        try:
+            await self.promo_repo.delete(promotion_id)
+        except IntegrityError:
+            await self.promo_repo.db.rollback()
+            raise ValidationException(
+                message="This offer has bookings attached to it and can't be deleted — pause it instead to keep booking history intact.",
+                error_code="PROMOTION_HAS_HISTORY"
+            )
 
     async def preview_code(self, code: str, cafe_id: Optional[UUID] = None) -> CodeRedemptionResponse:
         """Public, unauthenticated lookup used by the customer-side code-entry
@@ -405,6 +459,7 @@ class PromotionService:
             fixed_discount_amount=promo.fixed_discount_amount,
             fixed_price_amount=promo.fixed_price_amount,
             min_duration_hours=promo.min_duration_hours,
+            min_booking_minutes=promo.min_booking_minutes,
             regular_price=regular_price,
             savings_amount=savings_amount,
             applicable_tier_id=promo.applicable_tier_id,
@@ -468,6 +523,31 @@ class PromotionService:
                     error_code="PROMOTION_EXHAUSTED"
                 )
 
+        discount_amount = self._evaluate_and_price(
+            promo, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop
+        )
+
+        # Not counted as redeemed here: the booking is only pending payment.
+        # current_uses is recounted from paid bookings whenever a booking's
+        # status changes (BookingRepository.update), so it only moves on a
+        # successful payment and moves back on a cancellation or refund.
+        return discount_amount
+
+    def _evaluate_and_price(
+        self,
+        promo: Promotion,
+        tier_id: UUID,
+        base_amount: Decimal,
+        session_datetime: Optional[datetime],
+        duration_hours: Optional[Decimal],
+        seats_count: int,
+        is_coop: bool,
+    ) -> Decimal:
+        """The eligibility + discount math shared by apply_promotion_to_booking
+        (row-locked, authoritative) and get_best_quote_offer (unlocked,
+        preview-only for the /bookings/quote endpoint). Raises
+        ValidationException with an error_code on any ineligibility — callers
+        that want a "why not" message for a UI hint should catch it."""
         # Eligibility (day-of-week, hour window, valid_from/until) must be
         # checked against the booked SESSION's date/time, not the moment the
         # customer happens to click "Pay Now" — a "weeknights after 6pm" promo
@@ -502,17 +582,39 @@ class PromotionService:
                 )
             deal_total = Decimal(str(promo.fixed_price_amount)) * seats_count
             discount_amount = (base_amount - deal_total).quantize(Decimal('0.01'))
-        elif promo.promotion_type == PromotionType.FIXED_AMOUNT:
-            discount_amount = Decimal(str(promo.fixed_discount_amount)).quantize(Decimal('0.01'))
         else:
-            # Rule 5 Math: discount_amount = base_amount * (discount_percentage / 100)
-            discount_percentage = Decimal(str(promo.discount_percentage))
-            discount_amount = (base_amount * (discount_percentage / Decimal('100'))).quantize(Decimal('0.01'))
+            # PERCENTAGE/FIXED_AMOUNT: only applies to bookings at or above
+            # this offer's minimum length — a flat ₹/% discount otherwise
+            # bites hardest on the shortest, cheapest bookings (this is what
+            # let a ₹60-off offer make a ₹90 15-min booking nearly free).
+            duration_minutes = round(float(duration_hours) * 60) if duration_hours is not None else None
+            required_minutes = promo.min_booking_minutes or 60
+            if duration_minutes is None or duration_minutes < required_minutes:
+                raise ValidationException(
+                    message=f"This offer applies to bookings of {required_minutes} minutes or more",
+                    error_code="PROMOTION_DURATION_TOO_SHORT"
+                )
+            if promo.promotion_type == PromotionType.FIXED_AMOUNT:
+                discount_amount = Decimal(str(promo.fixed_discount_amount)).quantize(Decimal('0.01'))
+            else:
+                # Rule 5 Math: discount_amount = base_amount * (discount_percentage / 100)
+                discount_percentage = Decimal(str(promo.discount_percentage))
+                discount_amount = (base_amount * (discount_percentage / Decimal('100'))).quantize(Decimal('0.01'))
 
-        # Never discount more than the booking is worth (or below zero for a
-        # fixed-price deal on a tier whose rate has since dropped). Bad data
-        # from seeds/migrations/admin scripts bypassing Pydantic bounds is
-        # the same defensive reason as before this comment moved here.
+        # An offer can never make a booking free (or negative). Rather than
+        # clamping to base_amount (which would silently turn a "₹60 off"
+        # deal into "100% off" for anything priced ≤ ₹60), the offer simply
+        # doesn't apply at all when it would zero out or exceed the price.
+        # FIXED_PRICE is exempt: its "discount" is base_amount minus a fixed
+        # deal price, and a ₹0 deal price is a valid (if unusual) deal an
+        # owner explicitly configured — the never-free guard exists for
+        # flat/percentage discounts computed off a variable base_amount, not
+        # for a price the owner typed in directly.
+        if promo.promotion_type != PromotionType.FIXED_PRICE and discount_amount >= base_amount:
+            raise ValidationException(
+                message="This offer can't be applied to this booking — it would make it free",
+                error_code="PROMOTION_WOULD_ZERO"
+            )
         if discount_amount > base_amount:
             logger.warning(
                 f"Promotion {promo.id} ({promo.promotion_type}) computed a "
@@ -524,11 +626,60 @@ class PromotionService:
         if discount_amount < 0:
             discount_amount = Decimal('0.00')
 
-        # Not counted as redeemed here: the booking is only pending payment.
-        # current_uses is recounted from paid bookings whenever a booking's
-        # status changes (BookingRepository.update), so it only moves on a
-        # successful payment and moves back on a cancellation or refund.
         return discount_amount
+
+    async def get_best_quote_offer(
+        self,
+        cafe_id: UUID,
+        tier_id: UUID,
+        base_amount: Decimal,
+        session_datetime: datetime,
+        duration_hours: Decimal,
+        seats_count: int,
+        is_coop: bool,
+    ):
+        """Preview-only (no row lock, no side effects) equivalent of
+        apply_promotion_to_booking, used by the /bookings/quote endpoint so
+        checkout can show the auto-applied offer before the customer pays.
+        Returns (applied: Promotion|None, discount: Decimal, hint: Promotion|None,
+        hint_message: str|None) — `hint` is the best offer that almost
+        applied, for an "works on bookings of 1hr+" message."""
+        candidates = await self.promo_repo.get_active_for_cafe(cafe_id, datetime.now(timezone.utc))
+        # Only offers for this tier (or "all tiers") are even candidates —
+        # matches apply_promotion_to_booking's PROMOTION_TIER_MISMATCH check.
+        candidates = [p for p in candidates if not p.applicable_tier_id or str(p.applicable_tier_id) == str(tier_id)]
+
+        best_applied, best_discount = None, Decimal('0.00')
+        best_hint, best_hint_message = None, None
+        for promo in candidates:
+            try:
+                discount = self._evaluate_and_price(
+                    promo, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop
+                )
+            except ValidationException as e:
+                # Only offer a "you're close" hint for the failure modes a
+                # customer can actually act on by changing the slot/length —
+                # not for ones outside their control (exhausted, wrong tier).
+                if e.error_code in ("PROMOTION_INACTIVE", "PROMOTION_DURATION_MISMATCH", "PROMOTION_DURATION_TOO_SHORT"):
+                    if best_hint is None:
+                        best_hint = promo
+                        if e.error_code == "PROMOTION_DURATION_MISMATCH":
+                            best_hint_message = f"Works on bookings of exactly {promo.min_duration_hours} hour(s)."
+                        elif e.error_code == "PROMOTION_DURATION_TOO_SHORT":
+                            required = promo.min_booking_minutes or 60
+                            length_label = f"{required} min" if required < 60 else f"{required // 60} hr" + (f" {required % 60} min" if required % 60 else "")
+                            best_hint_message = f"Works on bookings of {length_label} or more."
+                        else:
+                            start_label = _format_hour_12h(promo.start_hour)
+                            end_label = _format_hour_12h(promo.end_hour)
+                            best_hint_message = f"Valid {start_label}–{end_label} on select days."
+                continue
+            if discount > best_discount:
+                best_applied, best_discount = promo, discount
+
+        if best_applied is not None:
+            best_hint, best_hint_message = None, None
+        return best_applied, best_discount, best_hint, best_hint_message
 
     async def increment_promotion_uses(self, promotion_id: UUID) -> None:
         """Deprecated as a separate step for the booking-creation path — apply_promotion_to_booking

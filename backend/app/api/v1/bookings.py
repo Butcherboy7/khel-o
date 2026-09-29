@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.schemas.booking import BookingCreateRequest, BookingCancelRequest
+from app.schemas.booking import BookingCreateRequest, BookingCancelRequest, QuoteRequest
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
@@ -36,6 +36,27 @@ async def create_booking(
         "data": {
             "booking": result
         }
+    }
+
+@router.post("/quote", status_code=status.HTTP_200_OK)
+async def get_quote(
+    payload: QuoteRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """No auth required — checkout calls this on every slot/length/player
+    change, including before the customer has logged in. Read-only: never
+    creates a booking or touches promotion redemption counts."""
+    booking_repo = BookingRepository(db)
+    cafe_repo = CafeRepository(db)
+    tier_repo = HardwareTierRepository(db)
+    promo_repo = PromotionRepository(db)
+    promo_service = PromotionService(promo_repo, cafe_repo, tier_repo)
+
+    service = BookingService(booking_repo, cafe_repo, tier_repo, promo_service=promo_service)
+    result = await service.get_quote(payload)
+    return {
+        "success": True,
+        "data": result
     }
 
 @router.get("", status_code=status.HTTP_200_OK)

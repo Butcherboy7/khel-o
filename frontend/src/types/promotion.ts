@@ -12,6 +12,8 @@ export interface Promotion {
   fixedDiscountAmount: number | null;
   fixedPriceAmount: number | null;
   minDurationHours: number | null;
+  /** PERCENTAGE/FIXED_AMOUNT only: shortest booking (minutes) this offer applies to. */
+  minBookingMinutes: number | null;
   /** Derived by the backend from the tier's hourly rate — never stored,
    *  only present on FIXED_PRICE offers. */
   regularPrice: number | null;

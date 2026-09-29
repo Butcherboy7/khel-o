@@ -7,11 +7,14 @@ from uuid import UUID, uuid4
 from datetime import datetime, timezone, timedelta, date, time
 
 from app.core.time import IST, session_end_ist
+from app.core.duration import allowed_minutes
+from app.services.pricing_service import base_price
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.services.promotion_service import PromotionService
-from app.schemas.booking import BookingCreateRequest, BookingResponse, BookingCancelRequest
+from app.schemas.booking import BookingCreateRequest, BookingResponse, BookingCancelRequest, QuoteRequest, QuoteResponse
+from app.services.pricing_service import base_price_for_minutes
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User, UserRole
 from app.models.cafe import VerificationStatus
@@ -81,9 +84,12 @@ class BookingService:
 
         min_minutes = int(getattr(tier, 'min_booking_minutes', None) or 60)
         duration_minutes = round(booking_in.duration_hours * 60)
-        if duration_minutes < min_minutes or booking_in.duration_hours > 8.0 or duration_minutes % 15 != 0:
+        # Only 15, 30, 60, then 30-minute steps up to 8 hours are bookable —
+        # e.g. 45 min and 1h15 are never valid, even on a 15-min-minimum
+        # setup. See app/core/duration.py.
+        if duration_minutes not in allowed_minutes(min_minutes):
             raise ValidationException(
-                message=f"This setup can be booked for {min_minutes} minutes to 8 hours, in 15-minute steps",
+                message=f"This setup can be booked for {min_minutes}, then in 30-minute steps after 1 hour, up to 8 hours",
                 error_code="INVALID_DURATION"
             )
 
@@ -147,13 +153,8 @@ class BookingService:
             )
 
         # Financial Math (Decimal) & Promotion Application
-        price_per_hour = Decimal(str(tier.price_per_hour))
         duration = Decimal(str(booking_in.duration_hours))
-        if is_coop:
-            extra = Decimal(str(tier.coop_extra_player_price or 0))
-            base_amount = (price_per_hour + extra * (players - 1)) * duration
-        else:
-            base_amount = price_per_hour * duration * seats_requested
+        base_amount = base_price(tier, booking_in.duration_hours, players=players, is_coop=is_coop, seats=seats_requested)
 
         discount_amount = Decimal('0.00')
         # promotion_id wins if both are somehow present — it's the
@@ -247,6 +248,107 @@ class BookingService:
         # payment succeeds (BookingRepository.update recounts it).
 
         return BookingResponse.model_validate(created)
+
+    async def get_quote(self, quote_in: 'QuoteRequest') -> 'QuoteResponse':
+        """Read-only price/eligibility preview for checkout — same math as
+        create_booking (base_price, allowed lengths, fee, auto-picked
+        offer), no booking is created and nothing is written. This is what
+        makes the price checkout shows match what create_booking actually
+        charges: both call the same pricing/promotion code."""
+        if not self.tier_repo:
+            raise ValidationException(message="Hardware tier repository missing", error_code="INTERNAL_ERROR")
+        tier = await self.tier_repo.get_by_id(quote_in.hardware_tier_id)
+        if not tier or str(tier.cafe_id) != str(quote_in.cafe_id) or not tier.is_active:
+            raise ValidationException(message="Selected hardware tier is not available", error_code="TIER_NOT_AVAILABLE")
+
+        min_minutes = int(getattr(tier, 'min_booking_minutes', None) or 60)
+        allowed = allowed_minutes(min_minutes)
+        duration_minutes = round(quote_in.duration_hours * 60)
+        if duration_minutes not in allowed:
+            raise ValidationException(
+                message=f"This setup can be booked for {min_minutes}, then in 30-minute steps after 1 hour, up to 8 hours",
+                error_code="INVALID_DURATION"
+            )
+
+        seats_requested = quote_in.seats_count
+        players = quote_in.players_count or seats_requested
+        is_coop = players > seats_requested
+
+        start_datetime = datetime.combine(quote_in.session_date, quote_in.start_time).replace(tzinfo=IST)
+        duration = Decimal(str(quote_in.duration_hours))
+        base_amount = base_price(tier, quote_in.duration_hours, players=players, is_coop=is_coop, seats=seats_requested)
+
+        discount_amount = Decimal('0.00')
+        applied_offer = None
+        offer_hint = None
+
+        if self.promo_service:
+            resolved_promotion_id = quote_in.promotion_id
+            if not resolved_promotion_id and quote_in.promo_code:
+                try:
+                    resolved_promotion_id = await self.promo_service.resolve_code_to_promotion_id(
+                        code=quote_in.promo_code, cafe_id=quote_in.cafe_id
+                    )
+                except ValidationException:
+                    resolved_promotion_id = None
+
+            if resolved_promotion_id:
+                promo = await self.promo_service.promo_repo.get_by_id(resolved_promotion_id)
+                if promo and str(promo.cafe_id) == str(quote_in.cafe_id):
+                    try:
+                        discount_amount = self.promo_service._evaluate_and_price(
+                            promo, quote_in.hardware_tier_id, base_amount, start_datetime, duration, seats_requested, is_coop
+                        )
+                        applied_offer = (promo, self._offer_label(promo))
+                    except ValidationException:
+                        pass
+            else:
+                promo, discount_amount, hint_promo, hint_message = await self.promo_service.get_best_quote_offer(
+                    cafe_id=quote_in.cafe_id,
+                    tier_id=quote_in.hardware_tier_id,
+                    base_amount=base_amount,
+                    session_datetime=start_datetime,
+                    duration_hours=duration,
+                    seats_count=seats_requested,
+                    is_coop=is_coop,
+                )
+                if promo is not None:
+                    applied_offer = (promo, self._offer_label(promo))
+                elif hint_promo is not None:
+                    offer_hint = (hint_promo, hint_message)
+
+        subtotal = base_amount - discount_amount
+        platform_settings = await PlatformSettingsRepository(self.booking_repo.db).get_or_create()
+        service_fee_percent = Decimal(str(platform_settings.platform_fee_percentage))
+        platform_fee = (subtotal * service_fee_percent / Decimal('100')).quantize(Decimal('0.01'))
+        total = subtotal + platform_fee
+
+        from app.schemas.booking import QuoteResponse, AppliedOffer, OfferHint
+
+        prices_by_minutes = {
+            m: float(base_price_for_minutes(tier, m, players=players, is_coop=is_coop, seats=seats_requested))
+            for m in allowed if m <= 480
+        }
+
+        return QuoteResponse(
+            base_amount=float(base_amount),
+            discount_amount=float(discount_amount),
+            subtotal=float(subtotal),
+            platform_fee=float(platform_fee),
+            total=float(total),
+            applied_offer=AppliedOffer(id=applied_offer[0].id, title=applied_offer[0].title, label=applied_offer[1]) if applied_offer else None,
+            offer_hint=OfferHint(id=offer_hint[0].id, title=offer_hint[0].title, message=offer_hint[1]) if offer_hint else None,
+            allowed_minutes=allowed,
+            prices_by_minutes=prices_by_minutes,
+        )
+
+    @staticmethod
+    def _offer_label(promo) -> str:
+        if promo.promotion_type.value == 'fixed_price':
+            return 'deal price'
+        if promo.promotion_type.value == 'fixed_amount':
+            return f"-₹{promo.fixed_discount_amount:g}"
+        return f"-{promo.discount_percentage}%"
 
     async def get_booking(self, booking_id: UUID, current_user: User) -> BookingResponse:
         booking = await self.booking_repo.get_by_id(booking_id)

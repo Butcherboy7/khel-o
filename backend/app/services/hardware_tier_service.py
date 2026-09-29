@@ -12,6 +12,7 @@ from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpd
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier, TierType
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
+from app.core.duration import allowed_minutes
 
 class HardwareTierService:
     def __init__(
@@ -167,6 +168,30 @@ class HardwareTierService:
 
         if update_data.price_per_hour is not None and update_data.price_per_hour <= 0:
             raise ValidationException(message="Price per hour must be greater than 0", error_code="INVALID_PRICE")
+
+        # Merge onto the existing row to validate the min-booking-length /
+        # per-length-price combination the tier will actually end up with —
+        # a PATCH may only touch one of these fields (same pattern as
+        # PromotionService.update_promotion's `merged` dict).
+        merged_min = update_data.min_booking_minutes if update_data.min_booking_minutes is not None else tier.min_booking_minutes
+        merged_default = update_data.default_booking_minutes if "default_booking_minutes" in update_data.model_fields_set else tier.default_booking_minutes
+        merged_price_hr = update_data.price_per_hour if update_data.price_per_hour is not None else tier.price_per_hour
+        merged_15 = update_data.price_15m if "price_15m" in update_data.model_fields_set else tier.price_15m
+        merged_30 = update_data.price_30m if "price_30m" in update_data.model_fields_set else tier.price_30m
+        if merged_min not in (15, 30, 60):
+            raise ValidationException(message="Shortest booking must be 15, 30, or 60 minutes", error_code="INVALID_DURATION")
+        allowed = allowed_minutes(merged_min)
+        if merged_default is not None and merged_default not in allowed:
+            raise ValidationException(message="Checkout's starting length must be one of this setup's allowed lengths", error_code="INVALID_DURATION")
+        if merged_min > 15 and merged_15 is not None:
+            raise ValidationException(message="A 15-minute price only applies when shortest booking is 15 minutes", error_code="INVALID_DURATION_PRICE")
+        if merged_min > 30 and merged_30 is not None:
+            raise ValidationException(message="A 30-minute price only applies when shortest booking is 15 or 30 minutes", error_code="INVALID_DURATION_PRICE")
+        if merged_15 is not None and merged_30 is not None and merged_15 > merged_30:
+            raise ValidationException(message="The 15-minute price cannot be greater than the 30-minute price", error_code="INVALID_DURATION_PRICE")
+        if merged_30 is not None and merged_30 > merged_price_hr:
+            raise ValidationException(message="The 30-minute price cannot be greater than the hourly price", error_code="INVALID_DURATION_PRICE")
+
         if total <= 0:
             raise ValidationException(message="Total seats must be greater than 0", error_code="INVALID_SEATS")
         if bookable > total:

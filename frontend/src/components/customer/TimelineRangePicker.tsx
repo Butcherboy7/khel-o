@@ -32,6 +32,26 @@ const MIN_DURATION_MIN = MIN_DURATION_HOURS * 60;
 const MAX_DURATION_HOURS = 8;
 const MAX_DURATION_MIN = MAX_DURATION_HOURS * 60;
 
+// Only 15, 30, then 30-minute steps up to 8h are bookable lengths — 45 min,
+// 1h15, etc. are never valid, even on a 15-min-minimum setup. Mirrors
+// app/core/duration.py's allowed_minutes exactly; booking_service rejects
+// anything else with a 422, so the picker must never be able to land on one.
+function allowedDurationsMin(minDurMin: number): number[] {
+  const lengths = [15, 30].filter((m) => m >= minDurMin);
+  for (let m = 60; m <= MAX_DURATION_MIN; m += 30) lengths.push(m);
+  return lengths;
+}
+
+/** Nearest allowed length to a raw (drag-computed) minute count. */
+function snapDurationMin(raw: number, minDurMin: number): number {
+  const allowed = allowedDurationsMin(minDurMin);
+  let best = allowed[0];
+  for (const a of allowed) {
+    if (Math.abs(a - raw) < Math.abs(best - raw)) best = a;
+  }
+  return best;
+}
+
 interface TimelineRangePickerProps {
   openingTime?: string;
   closingTime?: string;
@@ -282,14 +302,17 @@ export function TimelineRangePicker({
       // Dragging the start handle left grows the session; it may not grow past
       // the API's maximum duration.
       const earliestStart = Math.max(minValidStart, selEnd - MAX_DURATION_MIN);
-      const newStart = Math.max(earliestStart, Math.min(selEnd - minDurMin, dragStartMin.current + deltaMin));
-      const newDur = Math.max(minDurHours, (selEnd - newStart) / 60);
+      const rawStart = Math.max(earliestStart, Math.min(selEnd - minDurMin, dragStartMin.current + deltaMin));
+      const snappedDurMin = snapDurationMin(selEnd - rawStart, minDurMin);
+      const newStart = selEnd - snappedDurMin;
+      const newDur = snappedDurMin / 60;
       const startOffset = minutesToTimeAndDayOffset(newStart);
       onChange(startOffset.time, newDur, startOffset.dayOffset);
     } else if (dragMode === 'end') {
       const latestEnd = Math.min(closeMin, selStart + MAX_DURATION_MIN);
-      const newEnd = Math.max(selStart + minDurMin, Math.min(latestEnd, dragStartMin.current + dragDurMin.current + deltaMin));
-      const newDur = Math.max(minDurHours, (newEnd - selStart) / 60);
+      const rawEnd = Math.max(selStart + minDurMin, Math.min(latestEnd, dragStartMin.current + dragDurMin.current + deltaMin));
+      const snappedDurMin = snapDurationMin(rawEnd - selStart, minDurMin);
+      const newDur = snappedDurMin / 60;
       const startOffset = minutesToTimeAndDayOffset(selStart);
       onChange(startOffset.time, newDur, startOffset.dayOffset);
     } else if (dragMode === 'pan') {
@@ -348,16 +371,22 @@ export function TimelineRangePicker({
       .every((s) => s.state === 'AVAILABLE');
   }, [selStart, selEnd, minValidStart, closeMin, segments]);
 
-  const adjustDuration = (deltaHours: number) => {
-    const newDur = Math.max(minDurHours, Math.min(MAX_DURATION_HOURS, durationHours + deltaHours));
-    if (selStart + newDur * 60 <= closeMin) {
+  const adjustDuration = (direction: 1 | -1) => {
+    const allowed = allowedDurationsMin(minDurMin);
+    const currentIdx = allowed.indexOf(durMin);
+    // durMin should always be one of `allowed` (it's derived from
+    // durationHours, which onChange only ever sets to an allowed value) —
+    // the -1 fallback only guards a stale/external durationHours prop.
+    const idx = currentIdx === -1 ? (direction > 0 ? 0 : allowed.length - 1) : currentIdx + direction;
+    const nextMin = allowed[Math.max(0, Math.min(allowed.length - 1, idx))];
+    if (selStart + nextMin <= closeMin) {
       const { time, dayOffset } = minutesToTimeAndDayOffset(selStart);
-      onChange(time, newDur, dayOffset);
+      onChange(time, nextMin / 60, dayOffset);
     }
   };
 
   const findNextSlot = () => {
-    const want = Math.max(minDurMin, durMin);
+    const want = snapDurationMin(Math.max(minDurMin, durMin), minDurMin);
     for (let m = minValidStart; m <= closeMin - want; m += G) {
       const ok = segments.filter((s) => s.start >= m && s.start < m + want).every((s) => s.state === 'AVAILABLE');
       if (ok) {
@@ -433,7 +462,7 @@ export function TimelineRangePicker({
           <div className="flex items-center gap-2.5 bg-white rounded-2xl px-3 py-1.5 border border-border/60 shadow-sm">
             <button
               type="button"
-              onClick={() => adjustDuration(-G / 60)}
+              onClick={() => adjustDuration(-1)}
               disabled={durMin <= minDurMin}
               aria-label="Shorter session"
               className="flex h-11 w-11 -m-1 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -449,7 +478,7 @@ export function TimelineRangePicker({
             </span>
             <button
               type="button"
-              onClick={() => adjustDuration(G / 60)}
+              onClick={() => adjustDuration(1)}
               disabled={selEnd + G > closeMin || durationHours >= MAX_DURATION_HOURS}
               aria-label="Longer session"
               className="flex h-11 w-11 -m-1 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
