@@ -13,6 +13,7 @@ from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier, TierType
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 from app.core.duration import allowed_minutes
+from app.core import taxonomy
 
 class HardwareTierService:
     def __init__(
@@ -95,6 +96,12 @@ class HardwareTierService:
         explicit_name = tier_in.name.strip() if tier_in.name else ""
         final_name = explicit_name or suggested_name
 
+        try:
+            taxonomy_key = taxonomy.validate_key(tier_in.taxonomy_key)
+            taxonomy_attrs = taxonomy.validate_attributes(taxonomy_key, tier_in.attributes)
+        except ValueError as e:
+            raise ValidationException(message=str(e), error_code="INVALID_TAXONOMY")
+
         tier_dict = {
             "id": uuid4(),
             "cafe_id": cafe_id,
@@ -111,6 +118,8 @@ class HardwareTierService:
             "model": tier_in.model,
             "tier_type": tier_in.tier_type,
             "activity_kind": tier_in.activity_kind,
+            "taxonomy_key": taxonomy_key,
+            "attributes": taxonomy_attrs,
             "coop_enabled": tier_in.coop_enabled,
             "coop_max_players": tier_in.coop_max_players,
             "coop_extra_player_price": tier_in.coop_extra_player_price,
@@ -258,6 +267,20 @@ class HardwareTierService:
                     update_data.name = suggested_name if platform_or_model_changed else (tier.name or suggested_name)
 
         update_dict = update_data.model_dump(exclude_unset=True)
+
+        if "taxonomy_key" in update_dict or "attributes" in update_dict:
+            try:
+                new_key = taxonomy.validate_key(update_dict.get("taxonomy_key", tier.taxonomy_key))
+                if "attributes" in update_dict and update_dict["attributes"] is not None:
+                    new_attrs = taxonomy.validate_attributes(new_key, update_dict["attributes"])
+                elif taxonomy.activity_key_for(new_key) != taxonomy.activity_key_for(tier.taxonomy_key):
+                    new_attrs = {}  # details belong to the old activity; start clean
+                else:
+                    new_attrs = tier.attributes or {}
+            except ValueError as e:
+                raise ValidationException(message=str(e), error_code="INVALID_TAXONOMY")
+            update_dict["taxonomy_key"] = new_key
+            update_dict["attributes"] = new_attrs
         updated = await self.tier_repo.update(tier_id, update_dict)
 
         if updated.tier_type == TierType.ACTIVITY and self.unit_repo and "total_seats" in update_dict:

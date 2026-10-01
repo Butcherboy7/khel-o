@@ -156,6 +156,7 @@ class CafeRepository(BaseRepository[Cafe]):
         amenities: Optional[List[str]] = None,
         activity_kind: Optional[str] = None,
         activity: Optional[str] = None,
+        style: Optional[str] = None,
         page: int = 1,
         limit: int = 20
     ) -> Tuple[List[Dict[str, Any]], int]:
@@ -222,6 +223,17 @@ class CafeRepository(BaseRepository[Cafe]):
                 func.lower(func.trim(HardwareTier.activity_kind)) == activity_kind.strip().lower()
             )
             stmt = stmt.where(Cafe.id.in_(activity_subquery))
+
+        if style and style.strip():
+            # A style is a taxonomy key like "pool.american" — only cafés
+            # whose active tier was classified to it. Unclassified tiers are
+            # never filtered out by this (the filter is opt-in per request).
+            stmt = stmt.where(Cafe.id.in_(
+                select(HardwareTier.cafe_id).where(
+                    HardwareTier.is_active == True,
+                    HardwareTier.taxonomy_key == style.strip().lower(),
+                )
+            ))
 
         if activity and activity.strip():
             ids = await self._cafe_ids_with_activity(activity.strip().lower())
@@ -326,6 +338,7 @@ class CafeRepository(BaseRepository[Cafe]):
                 "activity_kinds": activity_kinds,
                 "has_coop": any(getattr(t, 'coop_enabled', False) and t.is_active for t in cafe_tiers),
                 "activities": sort_keys(cafe_activities(cafe_tiers)),
+                "styles": sorted({t.taxonomy_key for t in cafe_tiers if t.is_active and t.taxonomy_key and "." in t.taxonomy_key}),
                 "photos": photo_list,
                 "amenities": amenity_list,
                 "has_active_promotion": False,

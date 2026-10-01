@@ -37,6 +37,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.payment import Payment, PaymentStatus
 from app.models.platform_fee import PlatformFee
 from app.repositories.user_repository import UserRepository
+from app.core import taxonomy
 from app.core.security import get_password_hash
 from app.core.exceptions import BadRequestException, NotFoundException, ForbiddenException, ValidationException
 from app.services.platform_derivation import derive_tier_display
@@ -124,6 +125,12 @@ class OnboardingHardwareTierItem(BaseModel):
     individual_units: Optional[bool] = Field(
         None, validation_alias=AliasChoices("individualUnits", "individual_units")
     )
+    # Optional taxonomy classification (see app/core/taxonomy.json). Anything
+    # invalid is dropped rather than blocking onboarding — it is informational.
+    taxonomy_key: Optional[str] = Field(
+        None, max_length=80, validation_alias=AliasChoices("taxonomyKey", "taxonomy_key")
+    )
+    attributes: Optional[dict] = None
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -700,6 +707,8 @@ async def get_onboarding_draft(
                 "pricePerHour": float(t.price_per_hour),
                 "tierType": t.tier_type,
                 "activityKind": t.activity_kind,
+                "taxonomyKey": t.taxonomy_key,
+                "attributes": t.attributes or {},
             }
             for t in tiers
         ],
@@ -971,6 +980,12 @@ async def submit_onboarding_application(
             # activity they were (see HardwareTierService.add_hardware_tier,
             # the canonical /cafes/{id}/tiers path, for the shape this
             # mirrors).
+            try:
+                tx_key = taxonomy.validate_key(tier_item.taxonomy_key)
+                tx_attrs = taxonomy.validate_attributes(tx_key, tier_item.attributes)
+            except ValueError:
+                tx_key, tx_attrs = None, {}
+
             if tier_item.tier_type == "activity":
                 name = (tier_item.activity_kind or tier_item.name or "Activity").strip() or "Activity"
                 created = await tier_repo.create({
@@ -986,6 +1001,8 @@ async def submit_onboarding_application(
                     "model": None,
                     "tier_type": TierType.ACTIVITY,
                     "activity_kind": tier_item.activity_kind,
+                    "taxonomy_key": tx_key,
+                    "attributes": tx_attrs,
                     "is_active": True
                 })
                 if tier_item.individual_units:
@@ -1023,6 +1040,8 @@ async def submit_onboarding_application(
                 "preset_category": tier_item.preset_category,
                 "platform": platform,
                 "model": model,
+                "taxonomy_key": tx_key or taxonomy.classify_gaming_tier(name, platform.value if platform else None),
+                "attributes": tx_attrs,
                 "is_active": True
             })
 

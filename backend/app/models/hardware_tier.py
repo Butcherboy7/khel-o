@@ -50,6 +50,12 @@ class HardwareTier(Base):
     # name) — deliberately NOT a fixed enum. A new activity type must never
     # require a backend change; see docs/superpowers/plans/2026-09-07-cafe-activities.md.
     activity_kind: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Taxonomy classification (app/core/taxonomy.json): an activity key
+    # ("snooker") or a style key ("pool.american"), plus owner-supplied
+    # details. Informational only — pricing/booking never read these. NULL =
+    # unclassified (the owner is asked to pick).
+    taxonomy_key: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    attributes: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default='{}', nullable=False)
     reserved_walkin_seats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     active_seats_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     preset_category: Mapped[str | None] = mapped_column(String(50), nullable=True)

@@ -188,6 +188,7 @@ class CafeService:
         amenities: Optional[List[str]] = None,
         activity_kind: Optional[str] = None,
         activity: Optional[str] = None,
+        style: Optional[str] = None,
         page: int = 1,
         limit: int = 20
     ) -> Dict[str, Any]:
@@ -200,6 +201,7 @@ class CafeService:
             amenities=amenities,
             activity_kind=activity_kind,
             activity=activity,
+            style=style,
             page=page,
             limit=limit
         )

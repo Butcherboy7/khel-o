@@ -9,6 +9,7 @@ needs no frontend change — just a tier with that activity_kind.
 from dataclasses import dataclass
 from typing import Iterable
 
+from app.core import taxonomy
 from app.core.slug import slugify
 
 
@@ -53,7 +54,14 @@ def activity_key(kind: str) -> str:
 
 
 def activity_def(key: str, raw_label: str | None = None) -> ActivityDef:
-    return _BY_KEY.get(key) or ActivityDef(key, (raw_label or key).strip().title(), "more", 100)
+    known = _BY_KEY.get(key)
+    if known:
+        return known
+    n = taxonomy.node(key)
+    if n:  # taxonomy activities beyond the original catalog (air-hockey, darts, ...)
+        a = n["activity"]
+        return ActivityDef(key, a["label"], "more", 20 + a["rank"])
+    return ActivityDef(key, (raw_label or key).strip().title(), "more", 100)
 
 
 def _value(v) -> str | None:
@@ -62,6 +70,13 @@ def _value(v) -> str | None:
 
 def tier_activity(tier) -> tuple[str, str] | None:
     """(key, raw label) for one tier, or None if it can't be classified."""
+    # An explicit taxonomy classification wins. Taxonomy activity keys are
+    # the same strings this module has always produced (pc-gaming, console,
+    # snooker, pool, ...), so URLs and SEO pages don't move.
+    tx = getattr(tier, "taxonomy_key", None)
+    n = taxonomy.node(tx)
+    if n:
+        return n["activity"]["key"], n["activity"]["label"]
     if _value(tier.tier_type) == "activity":
         kind = (tier.activity_kind or "").strip()
         return (activity_key(kind), kind) if kind else None

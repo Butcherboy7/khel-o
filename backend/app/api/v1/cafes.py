@@ -37,6 +37,7 @@ async def list_cafes(
     amenities: Optional[List[str]] = Query(None),
     activityKind: Optional[str] = Query(None, alias="activityKind"),
     activity: Optional[str] = Query(None),
+    style: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
     db: AsyncSession = Depends(get_db)
@@ -53,6 +54,7 @@ async def list_cafes(
         amenities=amenities,
         activity_kind=activityKind,
         activity=activity,
+        style=style,
         page=page,
         limit=limit
     )
@@ -68,6 +70,13 @@ async def list_activities(
 ):
     """What can be played in a city, gaming first — drives the explore filters."""
     return {"success": True, "data": await CafeRepository(db).activity_counts(city)}
+
+
+@router.get("/taxonomy", status_code=status.HTTP_200_OK)
+async def get_taxonomy():
+    """Category -> Activity -> Style -> Attributes tree (static, cacheable)."""
+    from app.core import taxonomy
+    return {"success": True, "data": taxonomy.public_tree()}
 
 
 @router.get("/slug/{slug}", status_code=status.HTTP_200_OK)

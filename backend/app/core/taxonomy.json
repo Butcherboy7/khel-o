@@ -23,7 +23,7 @@
       "label": "PC Gaming",
       "category": "gaming",
       "rank": 0,
-      "aliases": ["pc", "gaming pc", "pc gaming", "esports", "rig", "gaming rig"],
+      "aliases": ["pc", "gaming pc", "pc gaming", "esports", "gaming rig"],
       "bookable_now": true,
       "billing_unit": "hour",
       "styles": [],
@@ -149,8 +149,8 @@
       "bookable_now": true,
       "billing_unit": "hour",
       "styles": [
-        { "key": "pool.american", "label": "American pool", "aliases": ["american", "us pool", "solids and stripes"] },
-        { "key": "pool.english", "label": "English pool", "aliases": ["english", "blackball", "uk pool", "reds and yellows"] }
+        { "key": "pool.american", "label": "American pool", "aliases": ["us pool", "american pool table", "solids and stripes"] },
+        { "key": "pool.english", "label": "English pool", "aliases": ["blackball", "uk pool", "english pool table", "reds and yellows"] }
       ],
       "attributes": [
         { "key": "table_size", "label": "Table size", "type": "enum", "level": "recommended", "options": ["7ft", "8ft", "9ft"] },

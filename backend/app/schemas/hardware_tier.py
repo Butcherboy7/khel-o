@@ -26,6 +26,8 @@ class HardwareTierBase(BaseModel):
     is_custom_model: bool = False
     tier_type: TierType = TierType.GAMING
     activity_kind: Optional[str] = Field(None, max_length=50)
+    taxonomy_key: Optional[str] = Field(None, max_length=80)
+    attributes: Dict[str, Any] = Field(default_factory=dict)
     coop_enabled: bool = False
     coop_max_players: int = Field(2, ge=2, le=4)
     coop_extra_player_price: float = Field(0.0, ge=0.0)
@@ -93,6 +95,8 @@ class HardwareTierUpdate(BaseModel):
     model: Optional[str] = Field(None, max_length=100)
     is_custom_model: Optional[bool] = None
     activity_kind: Optional[str] = Field(None, max_length=50)
+    taxonomy_key: Optional[str] = Field(None, max_length=80)
+    attributes: Optional[Dict[str, Any]] = None
     coop_enabled: Optional[bool] = None
     coop_max_players: Optional[int] = Field(None, ge=2, le=4)
     coop_extra_player_price: Optional[float] = Field(None, ge=0.0)
