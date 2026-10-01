@@ -5,6 +5,7 @@ import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { basePriceForMinutes } from '@/lib/pricing';
+import { ActivitySpecLine, AboutThisSetup } from '@/components/customer/ActivitySpecs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
@@ -851,16 +852,19 @@ function BookingWizardContent() {
             onClick={() => setShowTierSwitcher((v) => !v)}
             className="flex w-full items-center justify-between gap-2 p-3 rounded-2xl bg-surface border border-border/60 text-left"
           >
-            <span className="flex items-center gap-2 min-w-0">
-              <Monitor className="h-4 w-4 text-accent flex-shrink-0" />
-              <span className="font-heading text-body font-bold text-text-primary truncate">
-                {activeTier?.name || 'Select hardware'}
-              </span>
-              {activeTier && (
-                <span className="text-caption text-text-secondary flex-shrink-0">
-                  <span className="rupee-symbol">₹</span>{activeTier.pricePerHour}/hr
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="flex items-center gap-2 min-w-0">
+                <Monitor className="h-4 w-4 text-accent flex-shrink-0" />
+                <span className="font-heading text-body font-bold text-text-primary truncate">
+                  {activeTier?.name || 'Select hardware'}
                 </span>
-              )}
+                {activeTier && (
+                  <span className="text-caption text-text-secondary flex-shrink-0">
+                    <span className="rupee-symbol">₹</span>{activeTier.pricePerHour}/hr
+                  </span>
+                )}
+              </span>
+              {activeTier && <ActivitySpecLine tier={activeTier} className="pl-6" />}
             </span>
             <span className="text-caption font-semibold text-primary flex-shrink-0">
               {showTierSwitcher ? 'Close' : 'Change'}
@@ -883,6 +887,7 @@ function BookingWizardContent() {
                 >
                   <span className="min-w-0">
                     <span className="block font-heading text-body font-bold text-text-primary truncate">{tier.name}</span>
+                    <ActivitySpecLine tier={tier} />
                     <span className="block text-caption text-text-secondary">
                       {tier.appBookableSeats !== undefined ? tier.appBookableSeats : (tier.totalSeats || 10)} app seats ({tier.totalSeats || 10} total)
                     </span>
@@ -896,6 +901,8 @@ function BookingWizardContent() {
           )}
         </div>
       )}
+
+      {activeTier && <AboutThisSetup tier={activeTier} />}
 
       {(cafe.isEmergencyMode || cafe.bookingsPaused || cafe.bookableStations === 0 || availabilityData?.appBookableSeats === 0) && (
         <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-600 font-medium text-caption flex items-center gap-3 shadow-card">

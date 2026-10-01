@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ActivityIcon } from '@/components/icons/ActivityIcons';
 import type { HardwareTier } from '@/types/tier';
+import { ActivitySpecLine } from '@/components/customer/ActivitySpecs';
 
 interface ActivitiesSectionProps {
   cafeId: string;
@@ -10,9 +11,9 @@ interface ActivitiesSectionProps {
 }
 
 /** Café-detail "Activities" cards (spec §7) — deliberately shows only what
- *  a customer cares about: what it is, price, and how many are available.
- *  No specs/technical fields, since activity tiers never have them (see
- *  Global Constraints in the implementation plan). Tapping a card reuses
+ *  a customer cares about: what it is, price, and how many are available,
+ *  plus one quiet line of what the owner told us about it ("American pool ·
+ *  9 ft") when they did. Tapping a card reuses
  *  the exact same booking route every gaming tier already uses. */
 export function ActivitiesSection({ cafeId, activities }: ActivitiesSectionProps) {
   if (activities.length === 0) return null;
@@ -32,6 +33,7 @@ export function ActivitiesSection({ cafeId, activities }: ActivitiesSectionProps
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
+              <ActivitySpecLine tier={tier} />
               <div className="flex flex-wrap items-center gap-x-1.5 text-caption text-text-secondary">
                 <span>{tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'}</span>
                 {tier.description && (

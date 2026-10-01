@@ -69,9 +69,9 @@
       "bookable_now": true,
       "billing_unit": "session",
       "styles": [
-        { "key": "vr.station", "label": "VR station", "aliases": ["vr booth", "vr pod"] },
-        { "key": "vr.free-roam", "label": "Free-roam arena", "aliases": ["free roam", "vr arena"] },
-        { "key": "vr.motion-seat", "label": "Motion seat", "aliases": ["vr chair", "9d", "vr ride"] }
+        { "key": "vr.station", "label": "VR station", "hint": "Play in one spot, standing or seated.", "aliases": ["vr booth", "vr pod"] },
+        { "key": "vr.free-roam", "label": "Free-roam arena", "hint": "Walk around a large open space while you play.", "aliases": ["free roam", "vr arena"] },
+        { "key": "vr.motion-seat", "label": "Motion seat", "hint": "A seat that moves with the action.", "aliases": ["vr chair", "9d", "vr ride"] }
       ],
       "attributes": [
         { "key": "headset", "label": "Headset", "type": "text", "level": "recommended",
@@ -89,8 +89,8 @@
       "bookable_now": true,
       "billing_unit": "hour",
       "styles": [
-        { "key": "racing-simulator.static", "label": "Static rig", "aliases": ["static"] },
-        { "key": "racing-simulator.motion", "label": "Motion platform", "aliases": ["motion rig", "motion simulator"] }
+        { "key": "racing-simulator.static", "label": "Static rig", "hint": "A fixed seat, wheel and pedals.", "aliases": ["static"] },
+        { "key": "racing-simulator.motion", "label": "Motion platform", "hint": "A rig that tilts and moves with the car.", "aliases": ["motion rig", "motion simulator"] }
       ],
       "attributes": [
         { "key": "screens", "label": "Display", "type": "enum", "level": "recommended", "options": ["single", "triple", "vr"] },
@@ -149,8 +149,8 @@
       "bookable_now": true,
       "billing_unit": "hour",
       "styles": [
-        { "key": "pool.american", "label": "American pool", "aliases": ["us pool", "american pool table", "solids and stripes"] },
-        { "key": "pool.english", "label": "English pool", "aliases": ["blackball", "uk pool", "english pool table", "reds and yellows"] }
+        { "key": "pool.american", "label": "American pool", "hint": "Solids and stripes, with larger pockets.", "aliases": ["us pool", "american pool table", "solids and stripes"] },
+        { "key": "pool.english", "label": "English pool", "hint": "Blackball: red and yellow balls on a table with smaller pockets.", "aliases": ["blackball", "uk pool", "english pool table", "reds and yellows"] }
       ],
       "attributes": [
         { "key": "table_size", "label": "Table size", "type": "enum", "level": "recommended", "options": ["7ft", "8ft", "9ft"] },

@@ -13,6 +13,8 @@ export interface TaxonomyAttribute {
 export interface TaxonomyStyle {
   key: string; // "pool.american"
   label: string;
+  /** One plain sentence for beginners ("Solids and stripes, with larger pockets."). */
+  hint?: string;
   aliases: string[];
 }
 
