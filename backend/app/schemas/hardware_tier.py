@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, Field, ConfigDict, model_validator, AliasChoices
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
@@ -35,8 +35,8 @@ class HardwareTierBase(BaseModel):
     # every setup allows 30-minute steps regardless of this field.
     min_booking_minutes: int = Field(60, ge=15, le=60)
     default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
-    price_15m: Optional[float] = Field(None, gt=0.0)
-    price_30m: Optional[float] = Field(None, gt=0.0)
+    price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
+    price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price30m", "price30M", "price_30m"), serialization_alias="price30m")
 
     @model_validator(mode='after')
     def validate_seats(self) -> 'HardwareTierBase':
@@ -102,8 +102,8 @@ class HardwareTierUpdate(BaseModel):
     coop_extra_player_price: Optional[float] = Field(None, ge=0.0)
     min_booking_minutes: Optional[int] = Field(None, ge=15, le=60)
     default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
-    price_15m: Optional[float] = Field(None, gt=0.0)
-    price_30m: Optional[float] = Field(None, gt=0.0)
+    price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
+    price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price30m", "price30M", "price_30m"), serialization_alias="price30m")
 
     @model_validator(mode='after')
     def validate_seats_update(self) -> 'HardwareTierUpdate':

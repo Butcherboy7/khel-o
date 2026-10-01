@@ -134,6 +134,8 @@ class HardwareTierService:
             "coop_extra_player_price": tier_in.coop_extra_player_price,
             "min_booking_minutes": tier_in.min_booking_minutes,
             "default_booking_minutes": tier_in.default_booking_minutes,
+            "price_15m": tier_in.price_15m,
+            "price_30m": tier_in.price_30m,
             "is_active": True
         }
 

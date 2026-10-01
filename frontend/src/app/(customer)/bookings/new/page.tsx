@@ -4,6 +4,7 @@ import { InfoTip } from '@/components/shared/InfoTip';
 import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import { basePriceForMinutes } from '@/lib/pricing';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
@@ -540,8 +541,15 @@ function BookingWizardContent() {
   // recomputes and is authoritative. SERVICE_FEE_PERCENT comes from the
   // Super Admin-controlled platform fee rate fetched above.
   const pricePerHour = activeTier?.pricePerHour || 100;
+  // Hourly co-op rate, for the option label only (the total uses basePriceForMinutes).
   const coopRate = pricePerHour + Number(activeTier?.coopExtraPlayerPrice ?? 0) * (seatsCount - 1);
-  const baseTotal = Math.round((isCoop ? coopRate : pricePerHour * consolesCount) * durationHours);
+  // Same formula as the server (lib/pricing.ts), so a café's own 15/30-minute
+  // prices show here exactly as they will be charged.
+  const baseTotal = basePriceForMinutes(
+    activeTier ?? { pricePerHour },
+    Math.round(durationHours * 60),
+    { players: seatsCount, isCoop, seats: consolesCount },
+  );
 
   // Café-specific promotions are created by the owner (Owner → Promotional
   // Offers) and apply automatically at checkout — no code to type. Eligibility
@@ -1068,7 +1076,7 @@ function BookingWizardContent() {
             {activeTier?.name || 'Standard'} · {durationLabel} · {seatsCount} player{seatsCount > 1 ? 's' : ''}
             {isCoop && ' · co-op'}
           </span>
-          <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{baseTotal}</span>
+          <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{money(baseTotal)}</span>
         </div>
 
         {discountAmount > 0 && appliedCode && codeEligible && codeRedemption && (
