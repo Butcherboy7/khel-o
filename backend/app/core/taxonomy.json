@@ -1,0 +1,321 @@
+{
+  "version": 1,
+  "_rules": [
+    "Activity = what the customer thinks they are booking. A tier points at exactly one activity or style via taxonomy_key.",
+    "Style = a physically different configuration a customer would filter for AND one venue could offer side by side. Key form: '<activity>.<style>'.",
+    "Attribute = a detail of the thing (size, count, model). Never creates a new node.",
+    "Games played (8-ball, 9-ball, FIFA, Valorant) are information only, never a node and never a filter.",
+    "The owner's tier (name + price) is the package. The taxonomy only classifies it, so PC Gaming has no styles.",
+    "Every enum/multi attribute implicitly allows 'Don't know' (stored as null). Optional attributes never filter a listing out.",
+    "bookable_now = our hourly unit booking already fits it. false = discovery listing only.",
+    "billing_unit is display information only; pricing stays per hour per seat."
+  ],
+  "categories": [
+    { "key": "gaming", "label": "Gaming", "rank": 0 },
+    { "key": "immersive", "label": "VR & Simulators", "rank": 1 },
+    { "key": "cue-sports", "label": "Cue Sports", "rank": 2 },
+    { "key": "table-games", "label": "Table Games", "rank": 3 },
+    { "key": "entertainment", "label": "Entertainment", "rank": 4 }
+  ],
+  "activities": [
+    {
+      "key": "pc-gaming",
+      "label": "PC Gaming",
+      "category": "gaming",
+      "rank": 0,
+      "aliases": ["pc", "gaming pc", "pc gaming", "esports", "rig", "gaming rig"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [],
+      "attributes": [
+        { "key": "gpu", "label": "Graphics card", "type": "text", "level": "recommended",
+          "suggestions": ["RTX 3060", "RTX 4060", "RTX 4070", "RTX 4070 Ti", "RTX 4080", "RTX 4090", "RTX 5070", "RTX 5080", "RTX 5090"] },
+        { "key": "monitor_hz", "label": "Monitor refresh rate", "type": "enum", "level": "recommended", "unit": "Hz",
+          "options": ["60", "144", "165", "240", "360"] },
+        { "key": "ram_gb", "label": "RAM", "type": "int", "level": "optional", "unit": "GB" },
+        { "key": "private_room", "label": "Private room", "type": "bool", "level": "optional" }
+      ]
+    },
+    {
+      "key": "console",
+      "label": "Console",
+      "category": "gaming",
+      "rank": 1,
+      "aliases": ["console gaming", "tv gaming"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [
+        { "key": "console.playstation", "label": "PlayStation", "aliases": ["ps5", "ps4", "ps5 pro", "playstation 5", "sony"] },
+        { "key": "console.xbox", "label": "Xbox", "aliases": ["xbox series x", "xbox series s", "xbox one"] },
+        { "key": "console.nintendo", "label": "Nintendo Switch", "aliases": ["switch", "nintendo", "switch 2"] }
+      ],
+      "attributes": [
+        { "key": "model", "label": "Model", "type": "enum", "level": "recommended",
+          "options": ["ps5", "ps5-pro", "ps4", "xbox-series-x", "xbox-series-s", "xbox-one", "switch", "switch-2"],
+          "option_style": { "ps5": "console.playstation", "ps5-pro": "console.playstation", "ps4": "console.playstation",
+                            "xbox-series-x": "console.xbox", "xbox-series-s": "console.xbox", "xbox-one": "console.xbox",
+                            "switch": "console.nintendo", "switch-2": "console.nintendo" } },
+        { "key": "controllers", "label": "Controllers per setup", "type": "int", "level": "recommended" },
+        { "key": "screen", "label": "Screen", "type": "enum", "level": "optional", "options": ["tv", "projector", "monitor"] },
+        { "key": "screen_size_in", "label": "Screen size", "type": "int", "level": "optional", "unit": "inch" }
+      ]
+    },
+    {
+      "key": "vr",
+      "label": "VR",
+      "category": "immersive",
+      "rank": 0,
+      "aliases": ["virtual reality", "vr gaming", "meta quest", "oculus"],
+      "bookable_now": true,
+      "billing_unit": "session",
+      "styles": [
+        { "key": "vr.station", "label": "VR station", "aliases": ["vr booth", "vr pod"] },
+        { "key": "vr.free-roam", "label": "Free-roam arena", "aliases": ["free roam", "vr arena"] },
+        { "key": "vr.motion-seat", "label": "Motion seat", "aliases": ["vr chair", "9d", "vr ride"] }
+      ],
+      "attributes": [
+        { "key": "headset", "label": "Headset", "type": "text", "level": "recommended",
+          "suggestions": ["Meta Quest 3", "Meta Quest 3S", "Meta Quest 2", "PS VR2", "HTC Vive", "Valve Index"] },
+        { "key": "players_max", "label": "Players at once", "type": "int", "level": "optional" },
+        { "key": "min_age", "label": "Minimum age", "type": "int", "level": "optional", "unit": "years" }
+      ]
+    },
+    {
+      "key": "racing-simulator",
+      "label": "Racing Simulator",
+      "category": "immersive",
+      "rank": 1,
+      "aliases": ["sim racing", "racing sim", "racing rig", "f1 simulator", "driving simulator"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [
+        { "key": "racing-simulator.static", "label": "Static rig", "aliases": ["static"] },
+        { "key": "racing-simulator.motion", "label": "Motion platform", "aliases": ["motion rig", "motion simulator"] }
+      ],
+      "attributes": [
+        { "key": "screens", "label": "Display", "type": "enum", "level": "recommended", "options": ["single", "triple", "vr"] },
+        { "key": "wheel", "label": "Wheel", "type": "enum", "level": "optional", "options": ["entry", "direct-drive"] }
+      ]
+    },
+    {
+      "key": "cricket-simulator",
+      "label": "Cricket Simulator",
+      "category": "immersive",
+      "rank": 2,
+      "aliases": ["cricket sim", "box cricket simulator", "bowling machine cricket"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [],
+      "attributes": [
+        { "key": "format", "label": "Format", "type": "enum", "level": "optional", "options": ["screen", "vr"] },
+        { "key": "players_max", "label": "Players per lane", "type": "int", "level": "optional" }
+      ]
+    },
+    {
+      "key": "escape-room",
+      "label": "Escape Room",
+      "category": "immersive",
+      "rank": 3,
+      "aliases": ["escape game", "puzzle room"],
+      "bookable_now": false,
+      "billing_unit": "session",
+      "styles": [],
+      "attributes": [
+        { "key": "themes", "label": "Themes", "type": "text", "level": "optional" },
+        { "key": "difficulty", "label": "Difficulty", "type": "enum", "level": "optional", "options": ["easy", "medium", "hard"] },
+        { "key": "group_min", "label": "Min group", "type": "int", "level": "optional" },
+        { "key": "group_max", "label": "Max group", "type": "int", "level": "optional" }
+      ]
+    },
+    {
+      "key": "snooker",
+      "label": "Snooker",
+      "category": "cue-sports",
+      "rank": 0,
+      "aliases": ["snooker table", "snooker parlour", "snooker club"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [],
+      "attributes": [
+        { "key": "table_size", "label": "Table size", "type": "enum", "level": "recommended", "options": ["12ft", "10ft", "mini"] }
+      ]
+    },
+    {
+      "key": "pool",
+      "label": "Pool",
+      "category": "cue-sports",
+      "rank": 1,
+      "aliases": ["pool table", "8 ball", "8 ball pool", "eight ball pool", "9 ball", "pool parlour"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [
+        { "key": "pool.american", "label": "American pool", "aliases": ["american", "us pool", "solids and stripes"] },
+        { "key": "pool.english", "label": "English pool", "aliases": ["english", "blackball", "uk pool", "reds and yellows"] }
+      ],
+      "attributes": [
+        { "key": "table_size", "label": "Table size", "type": "enum", "level": "recommended", "options": ["7ft", "8ft", "9ft"] },
+        { "key": "games_offered", "label": "Games you can play", "type": "multi", "level": "optional",
+          "options": ["8-ball", "9-ball", "10-ball", "straight-pool", "blackball"], "filterable": false }
+      ]
+    },
+    {
+      "key": "billiards",
+      "label": "Billiards",
+      "category": "cue-sports",
+      "rank": 2,
+      "aliases": ["english billiards", "billiards table"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [],
+      "attributes": []
+    },
+    {
+      "key": "carom",
+      "label": "Carom Billiards",
+      "category": "cue-sports",
+      "rank": 3,
+      "aliases": ["carom", "three cushion", "3 cushion", "french billiards"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [],
+      "attributes": []
+    },
+    {
+      "key": "air-hockey",
+      "label": "Air Hockey",
+      "category": "table-games",
+      "rank": 0,
+      "aliases": ["air hockey table"],
+      "bookable_now": true,
+      "billing_unit": "game",
+      "styles": [],
+      "attributes": []
+    },
+    {
+      "key": "foosball",
+      "label": "Foosball",
+      "category": "table-games",
+      "rank": 1,
+      "aliases": ["table football", "table soccer", "fussball"],
+      "bookable_now": true,
+      "billing_unit": "game",
+      "styles": [],
+      "attributes": [
+        { "key": "players", "label": "Players", "type": "enum", "level": "optional", "options": ["2", "4"] }
+      ]
+    },
+    {
+      "key": "table-tennis",
+      "label": "Table Tennis",
+      "category": "table-games",
+      "rank": 2,
+      "aliases": ["ping pong", "tt"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [],
+      "attributes": []
+    },
+    {
+      "key": "carrom",
+      "label": "Carrom",
+      "category": "table-games",
+      "rank": 3,
+      "aliases": ["carrom board"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [],
+      "attributes": []
+    },
+    {
+      "key": "darts",
+      "label": "Darts",
+      "category": "table-games",
+      "rank": 4,
+      "aliases": ["dart board", "dartboard"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [],
+      "attributes": [
+        { "key": "board", "label": "Board", "type": "enum", "level": "optional", "options": ["steel-tip", "electronic"] }
+      ]
+    },
+    {
+      "key": "bowling",
+      "label": "Bowling",
+      "category": "entertainment",
+      "rank": 0,
+      "aliases": ["bowling alley", "ten pin", "10 pin bowling"],
+      "bookable_now": true,
+      "billing_unit": "game",
+      "styles": [],
+      "attributes": [
+        { "key": "players_per_lane", "label": "Players per lane", "type": "int", "level": "optional" },
+        { "key": "shoes_included", "label": "Shoes included", "type": "bool", "level": "optional" }
+      ]
+    },
+    {
+      "key": "karaoke",
+      "label": "Karaoke",
+      "category": "entertainment",
+      "rank": 1,
+      "aliases": ["karaoke room", "singing room"],
+      "bookable_now": true,
+      "billing_unit": "hour",
+      "styles": [],
+      "attributes": [
+        { "key": "room_capacity", "label": "Room capacity", "type": "int", "level": "recommended" },
+        { "key": "languages", "label": "Song languages", "type": "multi", "level": "optional",
+          "options": ["english", "hindi", "telugu", "tamil", "other"], "filterable": false }
+      ]
+    },
+    {
+      "key": "arcade",
+      "label": "Arcade",
+      "category": "entertainment",
+      "rank": 2,
+      "aliases": ["arcade games", "game zone", "token games"],
+      "bookable_now": true,
+      "billing_unit": "session",
+      "styles": [],
+      "attributes": []
+    },
+    {
+      "key": "go-karting",
+      "label": "Go-Karting",
+      "category": "entertainment",
+      "rank": 3,
+      "aliases": ["karting", "go kart", "gokart"],
+      "bookable_now": false,
+      "billing_unit": "session",
+      "styles": [
+        { "key": "go-karting.electric", "label": "Electric", "aliases": ["electric kart"] },
+        { "key": "go-karting.petrol", "label": "Petrol", "aliases": ["petrol kart", "gas kart"] }
+      ],
+      "attributes": [
+        { "key": "min_age", "label": "Minimum age", "type": "int", "level": "optional", "unit": "years" }
+      ]
+    },
+    {
+      "key": "laser-tag",
+      "label": "Laser Tag",
+      "category": "entertainment",
+      "rank": 4,
+      "aliases": ["lasertag", "laser game"],
+      "bookable_now": false,
+      "billing_unit": "session",
+      "styles": [],
+      "attributes": []
+    },
+    {
+      "key": "trampoline-park",
+      "label": "Trampoline & Play",
+      "category": "entertainment",
+      "rank": 5,
+      "aliases": ["trampoline", "play area", "soft play"],
+      "bookable_now": false,
+      "billing_unit": "session",
+      "styles": [],
+      "attributes": []
+    }
+  ]
+}
