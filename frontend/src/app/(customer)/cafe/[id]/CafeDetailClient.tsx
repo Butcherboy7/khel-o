@@ -510,6 +510,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                 const discount = tier.activePromotion?.discountPercentage ?? 0;
                 const discountedPrice = discount > 0 ? Math.round(tier.pricePerHour * (1 - discount / 100)) : tier.pricePerHour;
                 const coopRate = tier.coopEnabled ? tier.pricePerHour + Number(tier.coopExtraPlayerPrice ?? 0) : 0;
+                const modelLabel = String(tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station');
+                const modelRepeatsName = modelLabel.trim().toLowerCase() === (tier.name ?? '').trim().toLowerCase();
                 return (
                   // Stretched-button card: one full-size select button sits
                   // under the content so the co-op ⓘ can be its own button
@@ -544,12 +546,6 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                             Co-op
                           </span>
                         )}
-                        {discount > 0 && (
-                          <span className="flex items-center gap-1 rounded-full bg-accent/10 text-accent px-2 py-0.5 text-[11px] font-bold flex-shrink-0">
-                            <Tag className="h-3 w-3" />
-                            {discount}% OFF
-                          </span>
-                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-text-secondary">
                         {isPc ? (
@@ -563,21 +559,30 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                             )}
                           </>
                         ) : (
-                          <span className="font-semibold text-text-primary">
-                            {tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station'}
-                          </span>
+                          // Hidden when it just repeats the title ("PlayStation 5 Pro" twice).
+                          !modelRepeatsName && (
+                            <span className="font-semibold text-text-primary">{modelLabel}</span>
+                          )
                         )}
                         {tier.totalSeats > 0 && (
                           <>
-                            <span className="text-text-secondary/50">·</span>
+                            {(isPc || !modelRepeatsName) && <span className="text-text-secondary/50">·</span>}
                             <span>
                               {tier.totalSeats} station{tier.totalSeats === 1 ? '' : 's'}
                             </span>
                           </>
                         )}
                       </div>
-                      {discount > 0 && tier.activePromotion?.title && (
-                        <p className="text-[11px] text-accent font-medium mt-0.5 truncate">{tier.activePromotion.title}</p>
+                      {/* One quiet offer line instead of a pill on the title row
+                          plus a separate tiny title line. */}
+                      {discount > 0 && (
+                        <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] font-bold text-accent">
+                          <Tag className="h-3 w-3 flex-shrink-0" aria-hidden />
+                          <span className="flex-shrink-0">{discount}% off</span>
+                          {tier.activePromotion?.title && (
+                            <span className="truncate font-medium">· {tier.activePromotion.title}</span>
+                          )}
+                        </p>
                       )}
                       {/* Co-op price, only once this setup is picked — no extra
                           height on the list otherwise. */}
