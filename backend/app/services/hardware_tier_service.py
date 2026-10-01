@@ -98,6 +98,15 @@ class HardwareTierService:
 
         try:
             taxonomy_key = taxonomy.validate_key(tier_in.taxonomy_key)
+            if taxonomy_key is None:
+                # Not chosen by the owner: classify only when unambiguous.
+                taxonomy_key = (
+                    taxonomy.classify_name(final_name, tier_in.activity_kind)
+                    if tier_in.tier_type == TierType.ACTIVITY
+                    else taxonomy.classify_gaming_tier(
+                        final_name, getattr(tier_in.platform, "value", tier_in.platform)
+                    )
+                )
             taxonomy_attrs = taxonomy.validate_attributes(taxonomy_key, tier_in.attributes)
         except ValueError as e:
             raise ValidationException(message=str(e), error_code="INVALID_TAXONOMY")

@@ -21,6 +21,8 @@ export interface CafeListItem {
   hasCoop?: boolean;
   /** Normalized activity keys ('pc-gaming', 'console', 'snooker', ...). */
   activities?: string[];
+  /** Taxonomy style keys on offer ("pool.american") — for style filters. */
+  styles?: string[];
   /** True only when every active tier has a confirmed real platform. */
   platformsComplete?: boolean;
   photos: { url: string; category: string }[];
@@ -116,6 +118,8 @@ export interface CafeListParams {
   activityKind?: string;
   /** Activity key from /cafes/activities. */
   activity?: string;
+  /** Taxonomy style key ("pool.american"). */
+  style?: string;
   page?: number;
   limit?: number;
 }

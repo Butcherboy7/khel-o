@@ -1,6 +1,7 @@
 import type { PresetCategory, TierSpecs } from './shared';
 import type { Promotion } from './promotion';
 import type { Platform } from '@/constants/platforms';
+import type { TierAttributes } from './taxonomy';
 
 export interface HardwareTier {
   id: string;
@@ -24,6 +25,9 @@ export interface HardwareTier {
   activePromotion: Promotion | null;
   tierType: 'gaming' | 'activity';
   activityKind: string | null;
+  /** Taxonomy activity/style key ("snooker", "pool.american"); null = unclassified. */
+  taxonomyKey?: string | null;
+  attributes?: TierAttributes;
   /** Whether this tier's seats are tracked as individually-numbered units
    *  (HardwareTierUnit rows) or as one pooled count. Computed by the
    *  backend, not a stored flag. */
@@ -62,6 +66,8 @@ export interface TierCreateRequest {
   isCustomModel?: boolean;
   tierType?: 'gaming' | 'activity';
   activityKind?: string;
+  taxonomyKey?: string | null;
+  attributes?: TierAttributes;
   /** Create-only — see backend HardwareTierCreate.individual_units. Absent
    *  or false = pooled capacity, never sent/used again after creation. */
   individualUnits?: boolean;
@@ -95,6 +101,8 @@ export interface TierUpdateRequest {
   model?: string;
   isCustomModel?: boolean;
   activityKind?: string;
+  taxonomyKey?: string | null;
+  attributes?: TierAttributes;
   /** Co-op: friends share ONE unit for coopExtraPlayerPrice per extra player/hr. */
   coopEnabled?: boolean;
   coopMaxPlayers?: number;
@@ -120,6 +128,8 @@ export interface TierConfig {
   pricePerHour: number;
   tierType: 'gaming' | 'activity';
   activityKind?: string;
+  taxonomyKey?: string | null;
+  attributes?: TierAttributes;
   /** True when `model` is owner-typed free text (the "Custom" escape hatch
    *  in the model dropdown) rather than one of PLATFORM_MODELS' presets. */
   isCustomModel?: boolean;

@@ -8,6 +8,7 @@ import type {
   CafeListParams,
   ActivityFacet,
 } from '@/types';
+import type { Taxonomy } from '@/types/taxonomy';
 
 export async function listCafes(params: CafeListParams): Promise<PaginatedResponse<CafeListItem>> {
   return call(() => apiClient.get('/api/v1/cafes', { params }));
@@ -16,6 +17,11 @@ export async function listCafes(params: CafeListParams): Promise<PaginatedRespon
 /** Activities on offer in a city (all cities when omitted), gaming first. */
 export async function listActivities(city?: string): Promise<ActivityFacet[]> {
   return call(() => apiClient.get('/api/v1/cafes/activities', { params: { city } }));
+}
+
+/** Category -> Activity -> Style -> Attributes. Static, safe to cache for long. */
+export async function getTaxonomy(): Promise<Taxonomy> {
+  return call(() => apiClient.get('/api/v1/cafes/taxonomy'));
 }
 
 export interface CafeLive {

@@ -114,6 +114,8 @@ export default function HardwareTiersPage() {
               specs: {},
               tierType: 'activity',
               activityKind: config.activityKind,
+              taxonomyKey: config.taxonomyKey ?? null,
+              attributes: config.attributes ?? {},
               individualUnits: config.individualUnits,
               ...bookingOptionsPayload(config),
             }
@@ -160,6 +162,8 @@ export default function HardwareTiersPage() {
               pricePerHour: config.pricePerHour,
               specs: {},
               activityKind: config.activityKind,
+              taxonomyKey: config.taxonomyKey ?? null,
+              attributes: config.attributes ?? {},
               ...bookingOptionsPayload(config),
             }
           : {
@@ -243,6 +247,8 @@ export default function HardwareTiersPage() {
         pricePerHour: tier.pricePerHour,
         tierType: 'activity',
         activityKind: tier.activityKind ?? undefined,
+        taxonomyKey: tier.taxonomyKey ?? undefined,
+        attributes: tier.attributes ?? {},
         individualUnits: true,
         ...bookingOptionsFrom(tier),
       }]);

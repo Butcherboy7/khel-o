@@ -478,6 +478,8 @@ export default function OnboardingWizardPage() {
             // through at all.
             tierType: 'activity',
             activityKind: c.activityKind,
+            taxonomyKey: c.taxonomyKey ?? undefined,
+            attributes: c.attributes ?? {},
             individualUnits: c.individualUnits,
             hourlyRate: Number(c.pricePerHour) || 100,
             totalSeats: Number(c.totalSeats) || 4,

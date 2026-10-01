@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MapPin, Navigation, SlidersHorizontal, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { listCafes, listActivities } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
+import { useTaxonomy } from '@/lib/taxonomy';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
 import { useDebounce } from '@/hooks/useDebounce';
 import { calculateDistance, isCafeOpenNow, getCafeOpenStatus } from '@/lib/format';
@@ -93,7 +94,14 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
   const [selectedCity, setSelectedCity] = useState(persistedCity || 'All Cities');
   // Activity key from /cafes/activities ('pc-gaming', 'console', 'snooker',
   // ...). The list is data-driven, so a new activity needs no code here.
-  const [activity, setActivity] = useState<string | null>(null);
+  const [activity, setActivityRaw] = useState<string | null>(null);
+  // Taxonomy style key ("pool.american") — only offered for activities that
+  // genuinely have physically different styles (pool, console, VR, ...).
+  const [style, setStyle] = useState<string | null>(null);
+  const setActivity = (key: string | null) => {
+    setActivityRaw(key);
+    setStyle(null);
+  };
   const [openStatus, setOpenStatus] = useState<OpenStatusFilter>('any');
   const [sortBy, setSortBy] = useState<SortOption>('recommended');
   const [isLocating, setIsLocating] = useState(false);
@@ -219,6 +227,7 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
       minPrice,
       maxPrice,
       activity: activity || undefined,
+      style: style || undefined,
       limit: 30,
     }),
     queryFn: () =>
@@ -228,10 +237,11 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
         minPrice,
         maxPrice,
         activity: activity || undefined,
+        style: style || undefined,
         limit: 30,
       }),
     staleTime: 30_000,
-    initialData: matchesServerFetchedDefault && !activity ? initialCafes : undefined,
+    initialData: matchesServerFetchedDefault && !activity && !style ? initialCafes : undefined,
   });
 
   // What can be played in the selected city — only these become chips.
@@ -240,6 +250,19 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
     queryFn: () => listActivities(effectiveCity),
     staleTime: 5 * 60_000,
   });
+
+  // Style chips: only for an activity whose taxonomy has styles, and only
+  // those a café in this city actually offers (so no dead-end choices).
+  const { data: taxonomy } = useTaxonomy();
+  const styleDefs = taxonomy?.activities.find((a) => a.key === activity)?.styles ?? [];
+  const { data: styleSource } = useQuery({
+    queryKey: ['cafes', 'style-options', activity, effectiveCity ?? null],
+    queryFn: () => listCafes({ city: effectiveCity, activity: activity || undefined, limit: 50 }),
+    enabled: !!activity && styleDefs.length > 0,
+    staleTime: 5 * 60_000,
+  });
+  const offeredStyles = new Set((styleSource?.items ?? []).flatMap((c) => c.styles ?? []));
+  const styleOptions = styleDefs.filter((s) => offeredStyles.has(s.key));
 
   // Switching city can leave a selected activity that city doesn't offer.
   useEffect(() => {
@@ -468,6 +491,26 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
     </div>
   );
 
+  const styleRow = activity && styleOptions.length > 0 && (
+    <nav aria-label="Type" className="flex gap-2 overflow-x-auto scrollbar-hide px-4 md:px-0 -mt-1">
+      {[{ key: null, label: 'Any type' } as { key: string | null; label: string }, ...styleOptions].map(({ key, label }) => (
+        <button
+          key={key ?? 'any'}
+          type="button"
+          onClick={() => setStyle(key)}
+          aria-pressed={style === key}
+          className={`flex-shrink-0 whitespace-nowrap rounded-full border px-3 min-h-[36px] text-caption font-semibold transition-colors ${
+            style === key
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border bg-card text-text-secondary hover:bg-surface'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </nav>
+  );
+
   const locationLabel =
     selectedCity === 'All Cities'
       ? 'All cities'
@@ -542,6 +585,7 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
       </div>
 
       {activityRow}
+      {styleRow}
       {filterSheet}
 
       <div className="flex items-center justify-between gap-2 -mb-1">

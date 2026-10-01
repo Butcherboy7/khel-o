@@ -12,6 +12,7 @@ import type { TierConfig } from '@/types/tier';
 import { safeRandomUUID } from '@/lib/uuid';
 
 import { SetupBookingOptions } from './SetupBookingOptions';
+import { TaxonomyDetails } from './TaxonomyDetails';
 interface PlatformTierConfiguratorProps {
   configs: TierConfig[];
   onChange: (configs: TierConfig[]) => void;
@@ -284,6 +285,8 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                 onChange={(e) => updateConfig(config.id, { activityKind: e.target.value, model: e.target.value })}
               />
             </div>
+
+            <TaxonomyDetails config={config} onChange={(patch) => updateConfig(config.id, patch)} />
 
             <NumericField
               label={config.individualUnits ? 'Quantity (tables/machines)' : 'Capacity (people at once)'}
