@@ -524,20 +524,25 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <h2 className="font-heading text-caption font-bold text-text-primary">Offers here</h2>
           <ul className="flex flex-col divide-y divide-accent/15">
             {groupOffers(cafe.activePromotions).slice(0, 4).map((g) => (
-              <li key={g.key} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-2 first:pt-0 last:pb-0">
+              <li key={g.key} className="flex flex-col gap-1.5 py-2 first:pt-0 last:pb-0">
                 <span className="min-w-0 truncate text-caption font-semibold text-text-primary">
                   {g.items.length === 1 ? g.items[0].title : g.name}
                 </span>
-                <span className="flex flex-wrap items-center justify-end gap-1.5">
-                  {g.items.map((o) => (
-                    <OfferChip
-                      key={o.id}
-                      label={o.label || 'Offer'}
-                      when={o.when}
-                      live={o.isLiveNow !== false}
-                      urgency={offerUrgency({ slotsRemaining: o.slotsRemaining, validUntil: o.validUntil })}
-                    />
-                  ))}
+                <span className="flex flex-wrap items-center gap-1.5">
+                  {g.items.map((o) => {
+                    const urgency = offerUrgency({ slotsRemaining: o.slotsRemaining, validUntil: o.validUntil });
+                    const fixed = /^₹[\d.,]+ for /.test(o.label || '');
+                    if (fixed && !urgency && o.isLiveNow !== false) {
+                      return (
+                        <span key={o.id} className="inline-flex items-center rounded-full border border-primary/25 bg-primary/5 px-2.5 py-1 text-[12px] font-bold text-primary-dark">
+                          {(o.label as string).replace(' for ', ' · ')}
+                        </span>
+                      );
+                    }
+                    return (
+                      <OfferChip key={o.id} label={o.label || 'Offer'} when={o.when} live={o.isLiveNow !== false} urgency={urgency} />
+                    );
+                  })}
                 </span>
               </li>
             ))}
