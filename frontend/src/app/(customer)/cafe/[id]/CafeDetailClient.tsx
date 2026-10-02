@@ -50,7 +50,6 @@ import { createShare } from '@/lib/share';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
 import { OfferChip } from '@/components/customer/OfferChip';
-import { FoundersBanner } from '@/components/customer/FoundersBanner';
 import { useCampaign } from '@/hooks/useCampaign';
 import { offerUrgency, offerLabelWithMode } from '@/lib/offers';
 
@@ -67,18 +66,6 @@ interface CafeDetailClientProps {
       real café content instead of a loading skeleton. Undefined when the
       server-side fetch failed — the client query below still tries again. */
   initialCafe?: CafeDetail;
-}
-
-/** One row per setup: several offers on the same setup read as chips on one line. */
-function groupOffers<T extends { id: string; title: string; applicableTierName?: string | null }>(offers: T[]) {
-  const map = new Map<string, { key: string; name: string; items: T[] }>();
-  for (const o of offers) {
-    const key = o.applicableTierName || '__any';
-    const g = map.get(key) ?? { key, name: o.applicableTierName || 'Any setup', items: [] };
-    g.items.push(o);
-    map.set(key, g);
-  }
-  return Array.from(map.values());
 }
 
 export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
@@ -100,7 +87,6 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const { userLat, userLng } = useLocationStore();
   const heroRef = useRef<HTMLDivElement>(null);
 
-  const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   const campaign = useCampaign(initialCafe?.id);
   const promoSuffix = campaign.code ? `&promoCode=${encodeURIComponent(campaign.code)}` : '';
   const [showAllTierSpecs, setShowAllTierSpecs] = useState(false);
@@ -314,9 +300,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     defaultTierPool.length > 0
       ? [...defaultTierPool].sort((a, b) => a.pricePerHour - b.pricePerHour)[0]
       : null;
-  const activeTier =
-    (cafe.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
-    cheapestTier;
+  const activeTier = cheapestTier;
   // Hourly price after the selected setup's live percentage offer; null = no offer applies.
   const barPromo = activeTier?.activePromotion;
   const barPrice =
@@ -513,43 +497,6 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         )}
       </div>
 
-      {campaign.active && campaign.campaign && campaign.code && (
-        <FoundersBanner campaign={campaign.campaign} code={campaign.code} />
-      )}
-
-      {/* Offers here: the reason to book, before the setups. Rendered only
-          when the café really has an offer running. */}
-      {(cafe.activePromotions?.length ?? 0) > 0 && (
-        <section aria-label="Offers at this café" className="flex flex-col gap-2 rounded-2xl border border-accent/25 bg-accent/5 px-3 py-2.5">
-          <h2 className="font-heading text-caption font-bold text-text-primary">Offers here</h2>
-          <ul className="flex flex-col divide-y divide-accent/15">
-            {groupOffers(cafe.activePromotions).slice(0, 4).map((g) => (
-              <li key={g.key} className="flex flex-col gap-1.5 py-2 first:pt-0 last:pb-0">
-                <span className="min-w-0 truncate text-caption font-semibold text-text-primary">
-                  {g.items.length === 1 ? g.items[0].title : g.name}
-                </span>
-                <span className="flex flex-wrap items-center gap-1.5">
-                  {g.items.map((o) => {
-                    const urgency = offerUrgency({ slotsRemaining: o.slotsRemaining, validUntil: o.validUntil });
-                    const fixed = /^₹[\d.,]+ for /.test(o.label || '');
-                    if (fixed && !urgency && o.isLiveNow !== false) {
-                      return (
-                        <span key={o.id} className="inline-flex items-center rounded-full border border-primary/25 bg-primary/5 px-2.5 py-1 text-[12px] font-bold text-primary-dark">
-                          {(o.label as string).replace(' for ', ' · ')}
-                        </span>
-                      );
-                    }
-                    return (
-                      <OfferChip key={o.id} label={o.label || 'Offer'} when={o.when} live={o.isLiveNow !== false} urgency={urgency} />
-                    );
-                  })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       {/* Hardware Tiers Section — selectable here so "Book now" already
           knows which tier the user wants, instead of asking again on the
           booking page with an identical set of cards. Rows, not a grid of
@@ -557,7 +504,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           café lists, where a 3-up grid starts wrapping awkwardly past three. */}
       {gamingTiers.length > 0 && (
       <section className="flex flex-col gap-2.5">
-        <h2 className="font-heading text-h3 text-text-primary">Choose your setup</h2>
+        <div className="flex flex-col gap-0.5">
+          <h2 className="font-heading text-h3 text-text-primary">Choose your setup</h2>
+          <p className="text-caption text-text-secondary">Tap one to pick your time.</p>
+        </div>
 
         <>
             <div className="flex flex-col gap-2.5">
@@ -589,9 +539,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                   >
                     <button
                       type="button"
-                      onClick={() => setSelectedTierId(tier.id)}
-                      aria-pressed={isSelected}
-                      aria-label={`${tier.name}, ₹${tier.pricePerHour} per hour${tier.coopEnabled ? ', co-op available' : ''}`}
+                      onClick={() => router.push(`/bookings/new?cafeId=${cafe.id}&tierId=${tier.id}${promoSuffix}`)}
+                      aria-label={`Book ${tier.name}, ₹${tier.pricePerHour} per hour${tier.coopEnabled ? ', co-op available' : ''}`}
                       className="absolute inset-0 rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     />
                     <div
@@ -656,14 +605,17 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                             live={promoLive}
                             urgency={offerUrgency({ slotsRemaining: promo.slotsRemaining, validUntil: promo.validUntil })}
                           />
-                          {promo.title && <span className="min-w-0 truncate pt-0.5 text-[11px] text-text-secondary">{promo.title}</span>}
+                          {promo.title && (
+                            <span className="min-w-0 pt-0.5 text-[11px] text-text-secondary">
+                              {promo.title.replace(/\s*·\s*[^·]*$/, (m) => (tier.name && m.toLowerCase().includes(tier.name.toLowerCase()) ? '' : m))}
+                            </span>
+                          )}
                         </div>
                       )}
-                      {/* Co-op price, only once this setup is picked — no extra
-                          height on the list otherwise. */}
-                      {tier.coopEnabled && isSelected && (
-                        <p className="mt-1 flex items-center gap-1 text-caption text-text-secondary motion-safe:animate-in motion-safe:fade-in">
-                          <span className="truncate">
+                      {/* Co-op price on every co-op setup, so PS4 and PS5 read the same. */}
+                      {tier.coopEnabled && (
+                        <p className="mt-1 flex items-center gap-1 text-caption text-text-secondary">
+                          <span>
                             {(tier.coopMaxPlayers ?? 2) > 2 ? `2–${tier.coopMaxPlayers}` : '2'} on 1 console from{' '}
                             <span className="font-data font-bold text-text-primary"><span className="rupee-symbol">₹</span>{coopRate}/hr</span>
                           </span>
