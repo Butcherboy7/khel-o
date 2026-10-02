@@ -69,6 +69,18 @@ interface CafeDetailClientProps {
   initialCafe?: CafeDetail;
 }
 
+/** One row per setup: several offers on the same setup read as chips on one line. */
+function groupOffers<T extends { id: string; title: string; applicableTierName?: string | null }>(offers: T[]) {
+  const map = new Map<string, { key: string; name: string; items: T[] }>();
+  for (const o of offers) {
+    const key = o.applicableTierName || '__any';
+    const g = map.get(key) ?? { key, name: o.applicableTierName || 'Any setup', items: [] };
+    g.items.push(o);
+    map.set(key, g);
+  }
+  return Array.from(map.values());
+}
+
 export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const params = useParams();
   const router = useRouter();
@@ -508,25 +520,25 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       {/* Offers here: the reason to book, before the setups. Rendered only
           when the café really has an offer running. */}
       {(cafe.activePromotions?.length ?? 0) > 0 && (
-        <section aria-label="Offers at this café" className="flex flex-col gap-2.5 rounded-2xl border border-accent/25 bg-accent/5 p-3.5">
-          <h2 className="font-heading text-body font-bold text-text-primary">Offers here</h2>
-          <ul className="flex flex-col gap-2.5">
-            {cafe.activePromotions.slice(0, 3).map((o) => (
-              <li key={o.id} className="flex items-start justify-between gap-3">
-                <span className="min-w-0">
-                  <span className="block truncate text-caption font-semibold text-text-primary">{o.title}</span>
-                  <span className="block text-[11px] text-text-secondary">
-                    {o.applicableTierName ? `On ${o.applicableTierName}` : 'On any setup'}
-                    {o.isLiveNow !== false && o.when ? ` · ${o.when}` : ''}
-                  </span>
+        <section aria-label="Offers at this café" className="flex flex-col gap-2 rounded-2xl border border-accent/25 bg-accent/5 px-3 py-2.5">
+          <h2 className="font-heading text-caption font-bold text-text-primary">Offers here</h2>
+          <ul className="flex flex-col divide-y divide-accent/15">
+            {groupOffers(cafe.activePromotions).slice(0, 4).map((g) => (
+              <li key={g.key} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-2 first:pt-0 last:pb-0">
+                <span className="min-w-0 truncate text-caption font-semibold text-text-primary">
+                  {g.items.length === 1 ? g.items[0].title : g.name}
                 </span>
-                <OfferChip
-                  label={o.label || 'Offer'}
-                  when={o.when}
-                  live={o.isLiveNow !== false}
-                  urgency={offerUrgency({ slotsRemaining: o.slotsRemaining, validUntil: o.validUntil })}
-                  className="flex-shrink-0 items-end"
-                />
+                <span className="flex flex-wrap items-center justify-end gap-1.5">
+                  {g.items.map((o) => (
+                    <OfferChip
+                      key={o.id}
+                      label={o.label || 'Offer'}
+                      when={o.when}
+                      live={o.isLiveNow !== false}
+                      urgency={offerUrgency({ slotsRemaining: o.slotsRemaining, validUntil: o.validUntil })}
+                    />
+                  ))}
+                </span>
               </li>
             ))}
           </ul>
