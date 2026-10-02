@@ -423,10 +423,43 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         offset = (page - 1) * limit
         rows = (await self.db.execute(stmt.offset(offset).limit(limit))).scalars().all()
 
+        cafe_names = {}
+        covered: dict = {}
+        if rows:
+            cafe_names = {
+                c.id: c.name
+                for c in (await self.db.execute(
+                    select(Cafe.id, Cafe.name).where(Cafe.id.in_({p.cafe_id for p in rows}))
+                )).all()
+            }
+            for item, booking in (await self.db.execute(
+                select(CafePayoutItem, Booking)
+                .join(Booking, Booking.id == CafePayoutItem.booking_id)
+                .where(CafePayoutItem.payout_id.in_([p.id for p in rows]))
+                .order_by(Booking.session_date.desc())
+            )).all():
+                covered.setdefault(item.payout_id, []).append({
+                    "bookingReference": booking.booking_reference,
+                    "sessionDate": str(booking.session_date),
+                    "amount": float(item.amount_allocated),
+                })
+
+        def destination(p):
+            if not (p.destination_upi_vpa or p.destination_bank_account_masked or p.destination_account_holder_name):
+                return None
+            return {
+                "type": p.destination_type.value if hasattr(p.destination_type, "value") else p.destination_type,
+                "upiVpa": p.destination_upi_vpa,
+                "bankAccountNumberMasked": p.destination_bank_account_masked,
+                "bankIfsc": p.destination_bank_ifsc,
+                "accountHolderName": p.destination_account_holder_name,
+            }
+
         items = [
             {
                 "id": str(p.id),
                 "cafeId": str(p.cafe_id),
+                "cafeName": (cafe_names.get(p.cafe_id) or "").strip() or None,
                 "amount": float(p.amount),
                 "utrReference": p.utr_reference,
                 "paymentMethod": p.payment_method,
@@ -436,6 +469,8 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
                 "adminNote": p.admin_note,
                 "paidAt": p.paid_at.isoformat() if p.paid_at else None,
                 "createdAt": p.created_at.isoformat(),
+                "destination": destination(p),
+                "bookings": covered.get(p.id, []),
             }
             for p in rows
         ]

@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowUpRight, Building2 } from 'lucide-react';
+import { ArrowUpRight, Building2, Copy, ExternalLink } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
 import { getOwnerPayoutSummary, getOwnerCafePayouts } from '@/lib/api/owner';
@@ -187,49 +187,94 @@ export default function OwnerPayoutsPage() {
               description="Once KHEL-O sends a bank transfer for your outstanding balance, it'll appear here with the UTR reference."
             />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-border text-caption text-text-secondary">
-                    <th className="py-3 px-4 font-semibold">Date</th>
-                    <th className="py-3 px-4 font-semibold">Amount</th>
-                    <th className="py-3 px-4 font-semibold">Method</th>
-                    <th className="py-3 px-4 font-semibold">UTR / Reference</th>
-                    <th className="py-3 px-4 font-semibold">Status</th>
-                    <th className="py-3 px-4 font-semibold">Proof</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-caption">
-                  {payoutHistory.map((p) => (
-                    <tr key={p.id}>
-                      <td className="py-3.5 px-4 text-text-secondary">
-                        {p.paidAt ? new Date(p.paidAt).toLocaleDateString() : '—'}
-                      </td>
-                      <td className="py-3.5 px-4 font-bold text-emerald-600">₹{p.amount.toFixed(2)}</td>
-                      <td className="py-3.5 px-4 text-text-secondary uppercase">{p.paymentMethod || '—'}</td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-text-primary">
-                        {p.utrReference || '—'}
-                        {p.adminNote && (
-                          <span className="block text-[11px] font-sans text-text-tertiary" title={p.adminNote}>
-                            {p.adminNote}
-                          </span>
+            <ul className="flex flex-col gap-3">
+              {payoutHistory.map((p) => {
+                const d = p.destination;
+                const sentTo = d
+                  ? [
+                      d.accountHolderName,
+                      d.upiVpa ? `UPI ${d.upiVpa}` : d.bankAccountNumberMasked ? `Bank ${d.bankAccountNumberMasked}${d.bankIfsc ? ` · ${d.bankIfsc}` : ''}` : null,
+                    ].filter(Boolean).join(' · ')
+                  : null;
+                const when = p.paidAt ?? p.createdAt;
+                return (
+                  <li key={p.id} className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="block font-heading text-h3 font-bold text-emerald-600">₹{p.amount.toFixed(2)}</span>
+                        <span className="block text-caption text-text-secondary">
+                          {new Date(when).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {p.cafeName ? ` · ${p.cafeName}` : ''}
+                        </span>
+                      </div>
+                      {manualPayoutStatusBadge(p.status)}
+                    </div>
+
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-caption">
+                      {sentTo && (
+                        <>
+                          <dt className="text-text-secondary">Sent to</dt>
+                          <dd className="min-w-0 break-words font-semibold text-text-primary">{sentTo}</dd>
+                        </>
+                      )}
+                      <dt className="text-text-secondary">Paid via</dt>
+                      <dd className="font-semibold uppercase text-text-primary">{p.paymentMethod || '—'}</dd>
+                      <dt className="text-text-secondary">UTR</dt>
+                      <dd className="flex min-w-0 items-center gap-2">
+                        <span className="min-w-0 break-all font-mono text-xs text-text-primary">{p.utrReference || '—'}</span>
+                        {p.utrReference && (
+                          <button
+                            type="button"
+                            aria-label="Copy UTR"
+                            onClick={() => navigator.clipboard?.writeText(p.utrReference as string)}
+                            className="flex h-11 w-11 -my-3 flex-shrink-0 items-center justify-center rounded-full text-text-secondary hover:bg-surface"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
                         )}
-                      </td>
-                      <td className="py-3.5 px-4">{manualPayoutStatusBadge(p.status)}</td>
-                      <td className="py-3.5 px-4">
-                        {p.proofImageUrl ? (
-                          <a href={p.proofImageUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                            View
-                          </a>
-                        ) : (
-                          <span className="text-text-tertiary">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </dd>
+                    </dl>
+                    {p.adminNote && <p className="text-caption text-text-secondary">{p.adminNote}</p>}
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {p.proofImageUrl && (
+                        <a
+                          href={p.proofImageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-border px-3 text-caption font-semibold text-text-primary hover:bg-surface"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          View payment proof
+                        </a>
+                      )}
+                    </div>
+
+                    {p.bookings && p.bookings.length > 0 && (
+                      <details className="group rounded-xl bg-surface px-3 py-2 text-caption">
+                        <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between font-semibold text-text-primary">
+                          <span>Covers {p.bookings.length} booking{p.bookings.length > 1 ? 's' : ''}</span>
+                          <span aria-hidden className="text-text-secondary transition-transform group-open:rotate-90">›</span>
+                        </summary>
+                        <ul className="flex flex-col divide-y divide-border pb-1">
+                          {p.bookings.map((b) => (
+                            <li key={b.bookingReference} className="flex items-center justify-between gap-3 py-2">
+                              <span className="min-w-0">
+                                <span className="block font-mono text-xs text-text-primary">{b.bookingReference}</span>
+                                <span className="block text-[11px] text-text-secondary">
+                                  {new Date(b.sessionDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                                </span>
+                              </span>
+                              <span className="font-semibold text-text-primary">₹{b.amount.toFixed(2)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </CardContent>
       </Card>

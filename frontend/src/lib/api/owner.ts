@@ -243,6 +243,17 @@ export interface OwnerCafePayoutHistoryItem {
   adminNote?: string | null;
   paidAt: string | null;
   createdAt: string;
+  cafeName?: string | null;
+  /** Where the money was sent, snapshotted when the payout was recorded. */
+  destination?: {
+    type: string | null;
+    upiVpa: string | null;
+    bankAccountNumberMasked: string | null;
+    bankIfsc: string | null;
+    accountHolderName: string | null;
+  } | null;
+  /** The bookings this transfer settles. */
+  bookings?: { bookingReference: string; sessionDate: string; amount: number }[];
 }
 
 export async function getOwnerCafePayouts(): Promise<{
