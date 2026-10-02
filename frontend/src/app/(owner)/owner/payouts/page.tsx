@@ -141,24 +141,25 @@ export default function OwnerPayoutsPage() {
         <CardContent className="p-6 flex flex-col gap-4">
           <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
             <Building2 className="h-5 w-5 text-emerald-500" />
-            <span>Your bank account</span>
+            <span>Your payout details</span>
           </h2>
 
           {account ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 bg-surface-hover p-4 rounded-2xl border border-border/80">
-              <div>
-                <span className="text-caption text-text-secondary block">Account Holder</span>
-                <span className="text-caption font-bold text-text-primary">{account.accountHolderName || '—'}</span>
-              </div>
-              <div>
-                <span className="text-caption text-text-secondary block">Bank Account</span>
-                <span className="text-caption font-bold text-text-primary">{account.bankAccountNumberMasked || '—'}</span>
-              </div>
-              <div>
-                <span className="text-caption text-text-secondary block">Bank IFSC</span>
-                <span className="text-caption font-bold text-text-primary">{account.bankIfsc || '—'}</span>
-              </div>
-            </div>
+            <dl className="grid grid-cols-1 gap-4 rounded-2xl border border-border/80 bg-surface-hover p-4 sm:grid-cols-2 md:grid-cols-3">
+              {[
+                ['Account holder', account.accountHolderName],
+                ['UPI ID', account.upiVpa],
+                ['Bank account', account.bankAccountNumberMasked],
+                ['Bank IFSC', account.bankIfsc],
+              ]
+                .filter(([, v]) => Boolean(v))
+                .map(([label, value]) => (
+                  <div key={label as string}>
+                    <dt className="block text-caption text-text-secondary">{label}</dt>
+                    <dd className="break-all text-caption font-bold text-text-primary">{value}</dd>
+                  </div>
+                ))}
+            </dl>
           ) : (
             <p className="text-caption text-text-secondary bg-surface-hover p-4 rounded-2xl border border-border/80">
               No payout account on file yet — add your bank details in Settings to receive direct bank transfers for future bookings.
