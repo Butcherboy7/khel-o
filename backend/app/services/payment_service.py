@@ -14,7 +14,7 @@ from app.repositories.payment_repository import PaymentRepository
 from app.repositories.booking_repository import BookingRepository
 from app.schemas.payment import PaymentCreateResponse, PaymentVerifyRequest, PaymentResponse
 from app.models.payment import Payment, PaymentStatus
-from app.models.booking import BookingStatus
+from app.models.booking import BookingStatus, REDEEMED_STATUSES
 from app.models.user import User, UserRole
 from app.models.cafe import Cafe
 from app.models.owner_payout_account import OwnerPayoutAccount
@@ -324,6 +324,20 @@ class PaymentService:
 
         if str(booking.gamer_id) != str(gamer_id):
             raise ForbiddenException(message="You can only verify payments for your own bookings", error_code="FORBIDDEN")
+
+        # The payment.captured webhook and this browser call race to confirm
+        # the same payment; whichever lands second used to be rejected with
+        # "Cannot verify payment for booking in status 'confirmed'" even though
+        # the customer had paid. A booking already paid for, with a genuine
+        # signature for this order, is simply success — nothing is changed.
+        if booking.status in REDEEMED_STATUSES and payment.status == PaymentStatus.CAPTURED:
+            expected = hmac.new(
+                settings.RAZORPAY_KEY_SECRET.encode('utf-8'),
+                f"{payload.razorpay_order_id}|{payload.razorpay_payment_id}".encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            if hmac.compare_digest(payload.razorpay_signature or "", expected):
+                return PaymentResponse.model_validate(payment)
 
         # RELEASED_BY_OWNER falls through the same amount/signature checks
         # below as a normal PENDING_PAYMENT booking would — only once the
