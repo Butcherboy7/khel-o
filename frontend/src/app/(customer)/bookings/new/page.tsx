@@ -227,8 +227,11 @@ function BookingWizardContent() {
     // during that window.
     const tierIdToPersist = activeTier?.id || selectedTierId;
     if (tierIdToPersist) params.set('tierId', tierIdToPersist);
+    // Keep an applied offer code in the URL so it survives a reload, a login
+    // round-trip, or reopening the link in another browser.
+    if (appliedCode) params.set('promoCode', appliedCode);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [cafeId, selectedDate, selectedTime, selectedDateOffset, durationHours, seatsCount, coopChosen, activeTier?.id, selectedTierId, pathname, router]);
+  }, [cafeId, selectedDate, selectedTime, selectedDateOffset, durationHours, seatsCount, coopChosen, activeTier?.id, selectedTierId, appliedCode, pathname, router]);
 
   const { data: availabilityData } = useQuery({
     queryKey: ['cafe-availability', cafeId, activeTier?.id, selectedDate],

@@ -17,7 +17,10 @@ function isPublicPath(pathname: string): boolean {
     pathname.startsWith('/cafe/') ||
     pathname.startsWith('/cafes/') ||
     pathname === '/browse' ||
-    pathname === '/bookings/new'
+    pathname === '/bookings/new' ||
+    // Offer links (reel / QR) must open for anyone: the code is applied on the
+    // way to the café and login is only asked for at payment.
+    pathname.startsWith('/redeem/')
   );
 }
 

@@ -15,6 +15,18 @@ const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+/** "?promoCode=X&utm_source=ig" from the incoming URL, so a redirect never drops
+ *  an offer code or ad-attribution tags. */
+function queryString(sp: Record<string, string | string[] | undefined> | undefined): string {
+  const out = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp ?? {})) {
+    for (const v of Array.isArray(value) ? value : value === undefined ? [] : [value]) out.append(key, v);
+  }
+  const qs = out.toString();
+  return qs ? `?${qs}` : '';
 }
 
 // React's cache() memoizes per-request, so generateMetadata and the page body
@@ -63,13 +75,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function CafeDetailPage({ params }: PageProps) {
+export default async function CafeDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const cafe = await getCafeCached(id);
 
   // Old /cafe/<uuid> links (shared, bookmarked, already indexed) move
   // permanently to the readable URL so search engines transfer their ranking.
-  if (cafe?.slug && isCafeUuid(id)) permanentRedirect(cafePath(cafe));
+  if (cafe?.slug && isCafeUuid(id)) permanentRedirect(`${cafePath(cafe)}${queryString(await searchParams)}`);
 
   // Café → locality → game/hardware pages → nearby cafés, so every café is
   // linked into the rest of the site (no orphan pages) and vice versa.
