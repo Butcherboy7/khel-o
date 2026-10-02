@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, Share2 } from 'lucide-react';
 import { Button, ErrorState, Skeleton } from '@/components/ui';
@@ -120,6 +120,13 @@ export default function CampaignLandingPage() {
   const params = useParams();
   const code = (typeof params.code === 'string' ? params.code : Array.isArray(params.code) ? params.code[0] : '').toUpperCase();
 
+  const router = useRouter();
+  const viewPrices = useSearchParams().get('view') === 'prices';
+  // The campaign link opens the homepage (with a welcome pop-up); this page is the price detail.
+  useEffect(() => {
+    if (code && !viewPrices) router.replace(`/?campaign=${encodeURIComponent(code)}`);
+  }, [code, viewPrices, router]);
+
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [mounted, setMounted] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -146,7 +153,7 @@ export default function CampaignLandingPage() {
     if (mounted && isAuthenticated && page.data) claimBadge();
   }, [mounted, isAuthenticated, page.data, claimBadge]);
 
-  if (page.isLoading) {
+  if (!viewPrices || page.isLoading) {
     return (
       <div className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-6">
         <Skeleton className="h-56 rounded-3xl" />
@@ -194,7 +201,7 @@ export default function CampaignLandingPage() {
           {mounted && !isAuthenticated && (
             <div className="flex w-full flex-col gap-2">
               <Link
-                href={`/login?redirect=${encodeURIComponent(`/campaign/${code}`)}`}
+                href={`/login?redirect=${encodeURIComponent(`/campaign/${code}?view=prices`)}`}
                 className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-white px-4 text-body font-semibold text-secondary"
               >
                 Sign in to claim your badge
@@ -241,7 +248,7 @@ export default function CampaignLandingPage() {
         }}
         heading="Share KHELO Special Access"
         message="Special KHELO prices at partner gaming cafés for a limited time. Grab yours:"
-        path={`/campaign/${code}`}
+        path={`/?campaign=${code}`}
         context="campaign"
         campaign={code.toLowerCase()}
       />

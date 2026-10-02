@@ -371,3 +371,14 @@
 .mythic-spark { position: absolute; width: 6px; height: 6px; border-radius: 9999px; background: #FFF1B8; animation: khelo-spark 2.4s ease-in-out infinite; }
 .mythic-locked { filter: grayscale(1); opacity: 0.55; }
 .mythic-locked::before, .mythic-locked .mythic-sheen, .mythic-locked .mythic-spark { animation: none; }
+
+
+/* Celebration confetti for the campaign welcome pop-up: falls once, then is gone. */
+@keyframes khelo-confetti-fall {
+  0% { transform: translate3d(0, -20px, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translate3d(var(--dx, 0px), 340px, 0) rotate(540deg); opacity: 0; }
+}
+.khelo-confetti { position: absolute; top: 0; width: 8px; height: 12px; border-radius: 2px; opacity: 0; animation: khelo-confetti-fall 2.4s ease-out 1 forwards; pointer-events: none; }
+@keyframes khelo-pop-in { 0% { opacity: 0; transform: translateY(16px) scale(0.94); } 100% { opacity: 1; transform: none; } }
+.khelo-pop-in { animation: khelo-pop-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }

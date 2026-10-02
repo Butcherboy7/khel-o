@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { listCafes, cafePath } from '@/lib/api/cafes';
 import { ExploreClient } from '@/components/customer/ExploreClient';
+import { CampaignWelcome } from '@/components/customer/CampaignWelcome';
 import { HomeSections } from '@/components/customer/HomeSections';
 import { SkeletonCafeGrid } from '@/components/ui/Skeleton';
 
@@ -57,6 +58,9 @@ export default async function ExplorePage() {
           so on a slow load the café area is what appears first. The
           secondary sections are passed in as children and render below the
           grid inside ExploreClient, so they can never jump ahead of it. */}
+      <Suspense fallback={null}>
+        <CampaignWelcome />
+      </Suspense>
       <Suspense fallback={<ExploreFallback />}>
         <ExploreClient initialCafes={initialCafes}>
           <HomeSections />

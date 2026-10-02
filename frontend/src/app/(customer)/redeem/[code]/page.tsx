@@ -52,7 +52,7 @@ export default function RedeemCodePage() {
           // one still goes to its café with the code attached.
           router.replace(
             campaign.isPublic || !campaign.cafeId
-              ? `/campaign/${encodeURIComponent(code)}`
+              ? `/?campaign=${encodeURIComponent(code)}`
               : `/cafe/${campaign.cafeId}?promoCode=${encodeURIComponent(code)}`,
           );
           return;
