@@ -45,7 +45,7 @@ async def list_cafes(
     search_query = query if query is not None else q
     repo = CafeRepository(db)
     review_repo = ReviewRepository(db)
-    service = CafeService(repo, review_repo=review_repo)
+    service = CafeService(repo, promo_repo=PromotionRepository(db), review_repo=review_repo)
     result = await service.list_cafes(
         city=city,
         query=search_query,

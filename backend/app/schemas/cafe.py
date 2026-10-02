@@ -142,6 +142,9 @@ class CafeListItem(BaseModel):
     photos: List[Dict[str, str]] = Field(default_factory=list)
     amenities: List[str] = Field(default_factory=list)
     has_active_promotion: bool = False
+    # The one deal shown on the explore card ({label, when, slotsRemaining,
+    # isLiveNow, endsAt}); None when the café has no offer running.
+    best_offer: Optional[Dict[str, Any]] = None
     verification_status: VerificationStatus
     is_active: bool
     opening_time: Optional[time] = None

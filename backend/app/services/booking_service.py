@@ -172,6 +172,22 @@ class BookingService:
                 cafe_id=booking_in.cafe_id,
             )
 
+        # No offer chosen and no code: the best offer for this exact slot
+        # applies on its own, the same one checkout's quote already showed.
+        # Offers are automatic; a code only picks or unlocks one on purpose.
+        if not resolved_promotion_id and self.promo_service:
+            auto_promo, _auto_discount, _h, _m = await self.promo_service.get_best_quote_offer(
+                cafe_id=booking_in.cafe_id,
+                tier_id=booking_in.hardware_tier_id,
+                base_amount=base_amount,
+                session_datetime=start_datetime,
+                duration_hours=duration,
+                seats_count=seats_requested,
+                is_coop=is_coop,
+            )
+            if auto_promo is not None:
+                resolved_promotion_id = auto_promo.id
+
         if resolved_promotion_id:
             if not self.promo_service:
                 raise ValidationException(message="Promotion service missing", error_code="INTERNAL_ERROR")
@@ -281,8 +297,24 @@ class BookingService:
         discount_amount = Decimal('0.00')
         applied_offer = None
         offer_hint = None
+        offer_note = None
+        available_offers = []
 
         if self.promo_service:
+            eligible, hint_promo, hint_message, hint_minutes = await self.promo_service.list_eligible_offers(
+                cafe_id=quote_in.cafe_id,
+                tier_id=quote_in.hardware_tier_id,
+                base_amount=base_amount,
+                session_datetime=start_datetime,
+                duration_hours=duration,
+                seats_count=seats_requested,
+                is_coop=is_coop,
+            )
+
+            # A customer-chosen offer (tapped, or typed as a code) wins if it
+            # really applies to this slot. If it doesn't, say why in one plain
+            # sentence and fall back to the best automatic offer, so a stale
+            # choice never leaves the customer paying full price by surprise.
             resolved_promotion_id = quote_in.promotion_id
             if not resolved_promotion_id and quote_in.promo_code:
                 try:
@@ -290,32 +322,36 @@ class BookingService:
                         code=quote_in.promo_code, cafe_id=quote_in.cafe_id
                     )
                 except ValidationException:
-                    resolved_promotion_id = None
+                    offer_note = "That code isn't valid for this café."
 
+            chosen = None
             if resolved_promotion_id:
-                promo = await self.promo_service.promo_repo.get_by_id(resolved_promotion_id)
-                if promo and str(promo.cafe_id) == str(quote_in.cafe_id):
-                    try:
-                        discount_amount = self.promo_service._evaluate_and_price(
-                            promo, quote_in.hardware_tier_id, base_amount, start_datetime, duration, seats_requested, is_coop
-                        )
-                        applied_offer = (promo, self._offer_label(promo))
-                    except ValidationException:
-                        pass
-            else:
-                promo, discount_amount, hint_promo, hint_message = await self.promo_service.get_best_quote_offer(
-                    cafe_id=quote_in.cafe_id,
-                    tier_id=quote_in.hardware_tier_id,
-                    base_amount=base_amount,
-                    session_datetime=start_datetime,
-                    duration_hours=duration,
-                    seats_count=seats_requested,
-                    is_coop=is_coop,
-                )
-                if promo is not None:
-                    applied_offer = (promo, self._offer_label(promo))
-                elif hint_promo is not None:
-                    offer_hint = (hint_promo, hint_message)
+                chosen = next(((p, d) for p, d in eligible if str(p.id) == str(resolved_promotion_id)), None)
+                if chosen is None and offer_note is None:
+                    offer_note = await self._why_offer_unavailable(
+                        resolved_promotion_id, quote_in.cafe_id, quote_in.hardware_tier_id,
+                        base_amount, start_datetime, duration, seats_requested, is_coop,
+                    )
+            if chosen is None and eligible:
+                chosen = eligible[0]
+
+            if chosen is not None:
+                promo, discount_amount = chosen
+                applied_offer = (promo, self._offer_label(promo))
+            elif hint_promo is not None:
+                offer_hint = (hint_promo, hint_message, hint_minutes)
+
+            from app.services.promotion_service import schedule_text
+            from app.schemas.booking import OfferOption
+            for p, d in eligible:
+                available_offers.append(OfferOption(
+                    id=p.id,
+                    title=p.title,
+                    label=self._offer_label(p),
+                    discount_amount=float(d),
+                    slots_remaining=(p.max_uses - p.current_uses) if p.max_uses is not None else None,
+                    when=schedule_text(p),
+                ))
 
         subtotal = base_amount - discount_amount
         platform_settings = await PlatformSettingsRepository(self.booking_repo.db).get_or_create()
@@ -337,18 +373,38 @@ class BookingService:
             platform_fee=float(platform_fee),
             total=float(total),
             applied_offer=AppliedOffer(id=applied_offer[0].id, title=applied_offer[0].title, label=applied_offer[1]) if applied_offer else None,
-            offer_hint=OfferHint(id=offer_hint[0].id, title=offer_hint[0].title, message=offer_hint[1]) if offer_hint else None,
+            offer_hint=OfferHint(id=offer_hint[0].id, title=offer_hint[0].title, message=offer_hint[1], suggested_minutes=offer_hint[2]) if offer_hint else None,
+            available_offers=available_offers,
+            offer_note=offer_note,
             allowed_minutes=allowed,
             prices_by_minutes=prices_by_minutes,
         )
 
     @staticmethod
     def _offer_label(promo) -> str:
-        if promo.promotion_type.value == 'fixed_price':
-            return 'deal price'
-        if promo.promotion_type.value == 'fixed_amount':
-            return f"-₹{promo.fixed_discount_amount:g}"
-        return f"-{promo.discount_percentage}%"
+        from app.services.promotion_service import offer_label
+        return offer_label(promo)
+
+    async def _why_offer_unavailable(
+        self, promotion_id, cafe_id, tier_id, base_amount, start_datetime, duration, seats, is_coop,
+    ) -> str:
+        """One plain sentence for why the offer/code the customer picked can't
+        be used on this slot ("This offer just ended." beats a raw error)."""
+        promo = await self.promo_service.promo_repo.get_by_id(promotion_id)
+        if not promo or str(promo.cafe_id) != str(cafe_id):
+            return "That offer isn't available here."
+        now = datetime.now(timezone.utc)
+        if not self.promo_service._is_promotion_active(promo, now, check_window=False):
+            return "This offer just ended."
+        try:
+            self.promo_service._evaluate_and_price(promo, tier_id, base_amount, start_datetime, duration, seats, is_coop)
+        except ValidationException as e:
+            if e.error_code == "PROMOTION_INACTIVE":
+                from app.services.promotion_service import schedule_text
+                when = schedule_text(promo)
+                return f"This offer is valid {when}." if when else "This offer isn't valid for that time."
+            return e.message
+        return "This offer isn't available for this booking."
 
     async def get_booking(self, booking_id: UUID, current_user: User) -> BookingResponse:
         booking = await self.booking_repo.get_by_id(booking_id)

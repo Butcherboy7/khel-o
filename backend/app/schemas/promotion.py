@@ -152,6 +152,9 @@ class PromotionResponse(PromotionBase):
     id: UUID
     cafe_id: UUID
     current_uses: int
+    # Owner view: unpaid bookings still inside their payment window that are
+    # holding one of this offer's spots (they free up if payment is abandoned).
+    held_uses: int = 0
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -178,12 +181,21 @@ class ActivePromotionResponse(BaseModel):
     regular_price: Optional[float] = None
     savings_amount: Optional[float] = None
     applicable_tier_name: Optional[str] = None
+    applicable_tier_id: Optional[UUID] = None
     play_mode: str = 'any'
     valid_until: datetime
     start_hour: int
     end_hour: int
     days_of_week: List[int]
     slots_remaining: Optional[int] = None
+    # Server-built so every screen says the same thing: "20% off",
+    # "Rs 360 for 1 hr". `when` is the schedule in words ("Weekdays - 6 PM-9 PM")
+    # or None when the offer runs any time. `is_live_now` is false for an
+    # offer whose day/hour window just isn't open yet: it is still shown so
+    # people know it exists, but checkout never calls it applied.
+    label: str = ''
+    when: Optional[str] = None
+    is_live_now: bool = True
 
     model_config = ConfigDict(
         from_attributes=True,

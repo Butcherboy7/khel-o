@@ -38,6 +38,39 @@ def _format_hour_12h(hour: int) -> str:
     return f"{display} {suffix}"
 
 
+_DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def offer_label(promo: Promotion) -> str:
+    """The one short phrase for an offer, used on cards, the café page and
+    checkout so they can never disagree."""
+    if promo.promotion_type == PromotionType.FIXED_PRICE:
+        hrs = float(promo.min_duration_hours or 0)
+        length = f"{round(hrs * 60)} min" if hrs and hrs < 1 else f"{hrs:g} hr"
+        return f"\u20b9{float(promo.fixed_price_amount):g} for {length}"
+    if promo.promotion_type == PromotionType.FIXED_AMOUNT:
+        return f"\u20b9{float(promo.fixed_discount_amount):g} off"
+    return f"{promo.discount_percentage}% off"
+
+
+def schedule_text(promo: Promotion) -> Optional[str]:
+    """"Weekdays \u00b7 6 PM\u20139 PM", or None when it runs every day, all day."""
+    days = sorted(set(promo.days_of_week or []))
+    if len(days) == 7:
+        day_part = None
+    elif days == [0, 1, 2, 3, 4]:
+        day_part = "Weekdays"
+    elif days == [5, 6]:
+        day_part = "Weekends"
+    else:
+        day_part = ", ".join(_DAY_ABBR[d] for d in days if 0 <= d <= 6)
+    hour_part = None
+    if not (promo.start_hour == 0 and promo.end_hour == 24):
+        hour_part = f"{_format_hour_12h(promo.start_hour)}\u2013{_format_hour_12h(promo.end_hour)}"
+    parts = [x for x in (day_part, hour_part) if x]
+    return " \u00b7 ".join(parts) if parts else None
+
+
 class PromotionService:
     def __init__(
         self,
@@ -49,7 +82,7 @@ class PromotionService:
         self.cafe_repo = cafe_repo
         self.tier_repo = tier_repo
 
-    def _is_promotion_active(self, promo: Promotion, now: Optional[datetime] = None) -> bool:
+    def _is_promotion_active(self, promo: Promotion, now: Optional[datetime] = None, check_window: bool = True) -> bool:
         if not now:
             now = datetime.now(timezone.utc)
         elif now.tzinfo is None:
@@ -71,6 +104,10 @@ class PromotionService:
         # (UTC for the café-listing/"now" path, IST already for a booked
         # session's start_datetime) to IST before reading weekday()/hour.
         now_ist = now.astimezone(IST)
+
+        if not check_window:
+            # Listing path: only "is it on, in its dates, and not sold out".
+            return not (promo.max_uses is not None and promo.current_uses >= promo.max_uses)
 
         # Day of week check (0=Monday, 6=Sunday)
         if now_ist.weekday() not in promo.days_of_week:
@@ -195,7 +232,11 @@ class PromotionService:
 
         active_promos: List[ActivePromotionResponse] = []
         for p in candidate_promos:
-            if self._is_promotion_active(p, now):
+            # Shown whenever the offer is switched on, inside its dates and not
+            # sold out, even if today's day/hour window is closed, so people can
+            # see "Weeknights 6 PM-9 PM" before they pick a slot. `is_live_now`
+            # says whether the window is open this minute.
+            if self._is_promotion_active(p, now, check_window=False):
                 tier_name: Optional[str] = None
                 tier = None
                 if p.applicable_tier_id and self.tier_repo:
@@ -220,15 +261,74 @@ class PromotionService:
                     regular_price=regular_price,
                     savings_amount=savings_amount,
                     applicable_tier_name=tier_name,
+                    applicable_tier_id=p.applicable_tier_id,
                     play_mode=getattr(p, 'play_mode', None) or 'any',
                     valid_until=p.valid_until,
                     start_hour=p.start_hour,
                     end_hour=p.end_hour,
                     days_of_week=p.days_of_week,
-                    slots_remaining=slots_rem
+                    slots_remaining=slots_rem,
+                    label=offer_label(p),
+                    when=schedule_text(p),
+                    is_live_now=self._is_promotion_active(p, now),
                 ))
 
         return active_promos
+
+    async def best_offers_for_cafes(self, cafe_ids: List[UUID]) -> dict:
+        """cafe_id -> the single deal worth putting on its explore card:
+        {label, when, slotsRemaining, isLiveNow, endsAt}. Same wording as the
+        café page and checkout because it comes from offer_label()."""
+        now = datetime.now(timezone.utc)
+        promos = await self.promo_repo.get_active_for_cafes(cafe_ids, now)
+
+        def size(p: Promotion) -> float:
+            if p.promotion_type == PromotionType.PERCENTAGE:
+                return float(p.discount_percentage or 0)
+            if p.promotion_type == PromotionType.FIXED_AMOUNT:
+                return float(p.fixed_discount_amount or 0)
+            return 0.0
+
+        best: dict = {}
+        for p in promos:
+            if not self._is_promotion_active(p, now, check_window=False):
+                continue
+            live = self._is_promotion_active(p, now)
+            key = (live, size(p))
+            cur = best.get(p.cafe_id)
+            if cur is None or key > cur[0]:
+                best[p.cafe_id] = (key, p, live)
+
+        out = {}
+        for cafe_id, (_key, p, live) in best.items():
+            out[cafe_id] = {
+                "label": offer_label(p),
+                "when": schedule_text(p),
+                "slotsRemaining": (p.max_uses - p.current_uses) if p.max_uses is not None else None,
+                "isLiveNow": live,
+                "endsAt": p.valid_until.isoformat(),
+            }
+        return out
+
+    @staticmethod
+    def pick_for_tier(promos: List[ActivePromotionResponse], tier_id: UUID, tier_name: Optional[str] = None) -> Optional[dict]:
+        """The one offer to advertise on a setup: only offers that really cover
+        it (matched by id, not first-come order), preferring one that is live
+        now, then one made for this exact setup, then the bigger saving.
+        Returned as the camelCase dict the tier response carries."""
+        def covers(p: ActivePromotionResponse) -> bool:
+            if p.applicable_tier_id is not None:
+                return str(p.applicable_tier_id) == str(tier_id)
+            return p.applicable_tier_name is None or p.applicable_tier_name == tier_name
+
+        def size(p: ActivePromotionResponse) -> float:
+            return float(p.discount_percentage or p.fixed_discount_amount or p.savings_amount or 0)
+
+        matching = [p for p in promos if covers(p)]
+        if not matching:
+            return None
+        best = max(matching, key=lambda p: (p.is_live_now, p.applicable_tier_id is not None, size(p)))
+        return best.model_dump(by_alias=True)
 
     @staticmethod
     def _fixed_price_economics(promo: Promotion, tier) -> tuple[Optional[float], Optional[float]]:
@@ -253,7 +353,13 @@ class PromotionService:
                 raise ForbiddenException(message="You can only view promotions for your own café", error_code="FORBIDDEN")
 
         promos = await self.promo_repo.get_by_cafe_id(cafe_id)
-        return [PromotionResponse.model_validate(p) for p in promos]
+        out = []
+        for p in promos:
+            resp = PromotionResponse.model_validate(p)
+            if p.max_uses is not None:
+                resp.held_uses = await self.promo_repo.pending_holds(p.id)
+            out.append(resp)
+        return out
 
     async def get_promotion(self, promotion_id: UUID) -> PromotionResponse:
         promo = await self.promo_repo.get_by_id(promotion_id)
@@ -644,13 +750,34 @@ class PromotionService:
         Returns (applied: Promotion|None, discount: Decimal, hint: Promotion|None,
         hint_message: str|None) — `hint` is the best offer that almost
         applied, for an "works on bookings of 1hr+" message."""
+        eligible, best_hint, best_hint_message, _suggested = await self.list_eligible_offers(
+            cafe_id, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop
+        )
+        if eligible:
+            promo, discount = eligible[0]
+            return promo, discount, None, None
+        return None, Decimal('0.00'), best_hint, best_hint_message
+
+    async def list_eligible_offers(
+        self,
+        cafe_id: UUID,
+        tier_id: UUID,
+        base_amount: Decimal,
+        session_datetime: datetime,
+        duration_hours: Decimal,
+        seats_count: int,
+        is_coop: bool,
+    ):
+        """Every offer that applies to this exact slot, biggest saving first,
+        plus the best near-miss for a nudge. One source of truth for the
+        quote's "available offers" and the auto-pick at booking time."""
         candidates = await self.promo_repo.get_active_for_cafe(cafe_id, datetime.now(timezone.utc))
-        # Only offers for this tier (or "all tiers") are even candidates —
+        # Only offers for this tier (or "all tiers") are even candidates;
         # matches apply_promotion_to_booking's PROMOTION_TIER_MISMATCH check.
         candidates = [p for p in candidates if not p.applicable_tier_id or str(p.applicable_tier_id) == str(tier_id)]
 
-        best_applied, best_discount = None, Decimal('0.00')
-        best_hint, best_hint_message = None, None
+        eligible = []
+        best_hint, best_hint_message, suggested_minutes = None, None, None
         for promo in candidates:
             try:
                 discount = self._evaluate_and_price(
@@ -658,28 +785,28 @@ class PromotionService:
                 )
             except ValidationException as e:
                 # Only offer a "you're close" hint for the failure modes a
-                # customer can actually act on by changing the slot/length —
-                # not for ones outside their control (exhausted, wrong tier).
+                # customer can act on by changing the slot/length, not for
+                # ones outside their control (exhausted, wrong tier).
                 if e.error_code in ("PROMOTION_INACTIVE", "PROMOTION_DURATION_MISMATCH", "PROMOTION_DURATION_TOO_SHORT"):
                     if best_hint is None:
                         best_hint = promo
                         if e.error_code == "PROMOTION_DURATION_MISMATCH":
                             best_hint_message = f"Works on bookings of exactly {promo.min_duration_hours} hour(s)."
+                            suggested_minutes = round(float(promo.min_duration_hours) * 60)
                         elif e.error_code == "PROMOTION_DURATION_TOO_SHORT":
                             required = promo.min_booking_minutes or 60
+                            suggested_minutes = required
                             length_label = f"{required} min" if required < 60 else f"{required // 60} hr" + (f" {required % 60} min" if required % 60 else "")
                             best_hint_message = f"Works on bookings of {length_label} or more."
                         else:
                             start_label = _format_hour_12h(promo.start_hour)
                             end_label = _format_hour_12h(promo.end_hour)
-                            best_hint_message = f"Valid {start_label}–{end_label} on select days."
+                            best_hint_message = f"Valid {start_label}\u2013{end_label} on select days."
                 continue
-            if discount > best_discount:
-                best_applied, best_discount = promo, discount
+            eligible.append((promo, discount))
 
-        if best_applied is not None:
-            best_hint, best_hint_message = None, None
-        return best_applied, best_discount, best_hint, best_hint_message
+        eligible.sort(key=lambda pd: pd[1], reverse=True)
+        return eligible, best_hint, best_hint_message, suggested_minutes
 
     async def increment_promotion_uses(self, promotion_id: UUID) -> None:
         """Deprecated as a separate step for the booking-creation path — apply_promotion_to_booking

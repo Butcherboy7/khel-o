@@ -341,11 +341,7 @@ class HardwareTierService:
             r.performance_rating = rating
             r.warning = warning
             
-            matching_promo = None
-            for p in active_promos:
-                if p.applicable_tier_name is None or p.applicable_tier_name == t.name:
-                    matching_promo = p.model_dump(by_alias=True)
-                    break
+            matching_promo = PromotionService.pick_for_tier(active_promos, t.id, t.name)
             r.active_promotion = matching_promo
             result.append(r)
 

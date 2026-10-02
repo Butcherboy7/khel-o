@@ -44,10 +44,21 @@ export interface QuoteAppliedOffer {
   label: string;
 }
 
+export interface QuoteOfferOption {
+  id: string;
+  title: string;
+  label: string;
+  discountAmount: number;
+  slotsRemaining: number | null;
+  when: string | null;
+}
+
 export interface QuoteOfferHint {
   id: string;
   title: string;
   message: string;
+  /** Booking length (minutes) that would unlock this offer, when it's a length shortfall. */
+  suggestedMinutes: number | null;
 }
 
 /** Server-computed price + eligibility preview — the single source of truth
@@ -62,6 +73,10 @@ export interface QuoteResponse {
   total: number;
   appliedOffer: QuoteAppliedOffer | null;
   offerHint: QuoteOfferHint | null;
+  /** Every offer valid for this exact slot, biggest saving first. */
+  availableOffers: QuoteOfferOption[];
+  /** Plain sentence when the offer/code the customer chose couldn't be used. */
+  offerNote: string | null;
   allowedMinutes: number[];
   pricesByMinutes: Record<number, number>;
 }

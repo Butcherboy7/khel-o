@@ -25,6 +25,8 @@ export interface Promotion {
   endHour: number;
   maxUses: number | null;
   currentUses: number;
+  /** Unpaid bookings in their payment window currently holding a spot. */
+  heldUses?: number;
   isActive: boolean;
   kheloCode: string | null;
   createdAt: string;

@@ -168,6 +168,21 @@ class OfferHint(BaseModel):
     id: UUID
     title: str
     message: str
+    # For a length shortfall: the booking length (minutes) that would unlock
+    # the offer, so checkout can offer a one-tap "Make it 1 hr".
+    suggested_minutes: Optional[int] = None
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+class OfferOption(BaseModel):
+    """An offer that applies to exactly this slot, with what it would save,
+    so checkout can list "tap to switch" choices without doing any math."""
+    id: UUID
+    title: str
+    label: str
+    discount_amount: float
+    slots_remaining: Optional[int] = None
+    when: Optional[str] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -179,6 +194,11 @@ class QuoteResponse(BaseModel):
     total: float
     applied_offer: Optional[AppliedOffer] = None
     offer_hint: Optional[OfferHint] = None
+    # Every offer valid for this slot, biggest saving first (the applied one
+    # included), and a plain sentence when the offer/code the customer chose
+    # could not be used ("This offer just ended.").
+    available_offers: List[OfferOption] = []
+    offer_note: Optional[str] = None
     allowed_minutes: List[int]
     # duration (minutes) -> base price at that length, for this tier/players/
     # co-op combo — lets a client show a length picker's prices without a

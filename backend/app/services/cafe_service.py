@@ -83,10 +83,7 @@ class CafeService:
             # café detail page (which renders tiers from here, not from /tiers) can show
             # the same offer badge on each tier the owner's promotion applies to.
             for t in tiers_res:
-                for p in active_promos:
-                    if p.applicable_tier_name is None or p.applicable_tier_name == t.name:
-                        t.active_promotion = p.model_dump(by_alias=True)
-                        break
+                t.active_promotion = PromotionService.pick_for_tier(active_promos, t.id, t.name)
 
         avg_rating, total_revs = 0.0, 0
         recent_revs: List[ReviewResponse] = []
@@ -211,9 +208,18 @@ class CafeService:
             cafe_ids = [item["id"] for item in items_dict if item.get("id")]
             ratings_by_cafe = await self.review_repo.get_average_ratings_for_cafes(cafe_ids)
 
+        offers_by_cafe: Dict[UUID, Any] = {}
+        if self.promo_repo:
+            offers_by_cafe = await PromotionService(self.promo_repo).best_offers_for_cafes(
+                [item["id"] for item in items_dict if item.get("id")]
+            )
+
         items: List[CafeListItem] = []
         for item in items_dict:
             c_id = item.get("id")
+            if c_id in offers_by_cafe:
+                item["has_active_promotion"] = True
+                item["best_offer"] = offers_by_cafe[c_id]
             if c_id in ratings_by_cafe:
                 avg_r, tot_r = ratings_by_cafe[c_id]
                 item["average_rating"] = avg_r

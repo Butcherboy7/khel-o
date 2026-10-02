@@ -556,7 +556,10 @@ export default function OwnerOffersPage() {
                     {p.maxUses != null && (
                       <div className="flex items-center gap-1.5 sm:col-span-2">
                         <Users className="h-3.5 w-3.5 flex-shrink-0" />
-                        <span>{p.currentUses} / {p.maxUses} redeemed</span>
+                        <span>
+                          {p.currentUses} / {p.maxUses} redeemed
+                          {p.heldUses ? ` · ${p.heldUses} held while paying` : ''}
+                        </span>
                         <InfoTip text={INFO_TIPS.offersRedeemed} label="What counts as redeemed" quiet />
                       </div>
                     )}

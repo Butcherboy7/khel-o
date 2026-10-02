@@ -51,6 +51,20 @@ class PromotionRepository(BaseRepository[Promotion]):
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_active_for_cafes(self, cafe_ids: List[UUID], now: datetime) -> List[Promotion]:
+        """One query for the explore list: every switched-on, in-date offer of
+        the given cafés."""
+        if not cafe_ids:
+            return []
+        stmt = select(Promotion).where(
+            Promotion.cafe_id.in_(cafe_ids),
+            Promotion.is_active == True,
+            Promotion.valid_from <= now,
+            Promotion.valid_until >= now
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_active_for_tier(self, tier_id: UUID, cafe_id: UUID, now: datetime) -> List[Promotion]:
         stmt = select(Promotion).where(
             Promotion.cafe_id == cafe_id,

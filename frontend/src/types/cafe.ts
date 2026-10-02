@@ -27,6 +27,14 @@ export interface CafeListItem {
   platformsComplete?: boolean;
   photos: { url: string; category: string }[];
   hasActivePromotion: boolean;
+  /** The one deal worth showing on the explore card. */
+  bestOffer?: {
+    label: string;
+    when: string | null;
+    slotsRemaining: number | null;
+    isLiveNow: boolean;
+    endsAt: string;
+  } | null;
   verificationStatus: VerificationStatus;
   isActive: boolean;
   totalSeats: number | null;

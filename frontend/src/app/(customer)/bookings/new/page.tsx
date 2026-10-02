@@ -6,7 +6,7 @@ import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { basePriceForMinutes } from '@/lib/pricing';
 import { ActivitySpecLine, AboutThisSetup } from '@/components/customer/ActivitySpecs';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
   ChevronLeft,
@@ -15,20 +15,15 @@ import {
   Plus,
   Users,
   ShieldCheck,
-  Loader2,
   Monitor,
   Tag,
-  CheckCircle2,
-  X,
   PauseCircle,
-  Sparkles,
   Gamepad2,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
-import { previewKheloCode } from '@/lib/api/promotions';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
-import { listBookings, createBooking, getPlatformFeePercentage } from '@/lib/api/bookings';
+import { listBookings, createBooking, getBookingQuote, getPlatformFeePercentage } from '@/lib/api/bookings';
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useRazorpay } from '@/hooks/useRazorpay';
@@ -38,6 +33,7 @@ import { Skeleton, ErrorState } from '@/components/ui';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { saveBookingIntent } from '@/lib/bookingIntent';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
+import { OffersPanel } from '@/components/customer/OffersPanel';
 import {
   getNext14Days,
   formatDateStrip,
@@ -49,16 +45,6 @@ import {
   addDaysToDateString,
   calculateWindowRemainingSeats,
 } from '@/lib/format';
-
-function promoDiscountLabel(type: string, discountPercentage: number | null): string {
-  if (type === 'fixed_price') return 'deal price';
-  if (type === 'fixed_amount') return 'flat off';
-  return `-${discountPercentage}%`;
-}
-
-function fmtMinutesLabel(minutes: number): string {
-  return minutes < 60 ? `${minutes} min` : `${minutes / 60} hour(s)`;
-}
 
 function BookingWizardContent() {
   const router = useRouter();
@@ -143,14 +129,15 @@ function BookingWizardContent() {
 
   const [selectedGame, setSelectedGame] = useState('');
 
-  // KHELO promo code — typed in manually or prefilled by the /redeem/[code]
-  // QR deep link (?promoCode=... in the URL, same restore pattern as the
-  // other selections above). Kept separate from the auto-applied tier promo
-  // below: an explicit code, once validated, takes over the discount
-  // calculation so the two never stack.
-  const [promoCodeInput, setPromoCodeInput] = useState(() => (searchParams.get('promoCode') || '').toUpperCase());
-  const [appliedCode, setAppliedCode] = useState<string | null>(null);
-  const [codeError, setCodeError] = useState<string | null>(null);
+  // Offers apply on their own: the server picks the best one for the slot
+  // (see the quote query below). These two only record an explicit choice: a
+  // tapped offer, or a KHELO code typed in / carried by the /redeem QR link
+  // (?promoCode=...). A code is just another way to pick an offer, so
+  // choosing one clears the other.
+  const [chosenOfferId, setChosenOfferId] = useState<string | null>(null);
+  const [appliedCode, setAppliedCode] = useState<string | null>(
+    () => (searchParams.get('promoCode') || '').toUpperCase() || null,
+  );
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -192,49 +179,14 @@ function BookingWizardContent() {
   });
   const SERVICE_FEE_PERCENT = platformFeeData?.platformFeePercentage ?? 4;
 
-  // KHELO code validation — only fires once the customer taps "Apply" (or
-  // the /redeem QR deep link prefilled one), not on every keystroke. This is
-  // a preview only; the backend re-validates and applies atomically at
-  // booking creation (see handleCheckout/createBooking below), same as the
-  // auto-applied tier promo.
-  const {
-    data: codePreviewData,
-    isFetching: isCheckingCode,
-    isError: isCodeInvalid,
-    error: codePreviewError,
-  } = useQuery({
-    queryKey: ['khelo-code-preview', cafeId, appliedCode],
-    queryFn: () => previewKheloCode(appliedCode!, cafeId),
-    enabled: Boolean(cafeId && appliedCode),
-    retry: false,
-    staleTime: 10_000,
-  });
-  const codeRedemption = codePreviewData?.redemption ?? null;
-
-  // Auto-validate a code that arrived via the /redeem QR deep link so the
-  // gamer doesn't have to also press "Apply" after being dropped here.
-  useEffect(() => {
-    const urlCode = searchParams.get('promoCode');
-    if (urlCode && !appliedCode) {
-      setAppliedCode(urlCode.toUpperCase());
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleApplyCode = () => {
-    const normalized = promoCodeInput.trim().toUpperCase();
-    if (normalized.length < 4) {
-      setCodeError('Enter a valid KHELO code.');
-      return;
-    }
-    setCodeError(null);
-    setAppliedCode(normalized);
+  const handleApplyCode = (code: string) => {
+    setChosenOfferId(null);
+    setAppliedCode(code);
   };
-
-  const handleClearCode = () => {
+  const handleClearCode = () => setAppliedCode(null);
+  const handleChooseOffer = (offerId: string) => {
     setAppliedCode(null);
-    setPromoCodeInput('');
-    setCodeError(null);
+    setChosenOfferId(offerId);
   };
 
   // The calendar date actually submitted to the backend and shown to the
@@ -495,6 +447,43 @@ function BookingWizardContent() {
     }
   }, [cafe, availabilityData, mergedBookedSlots, selectedDate, activeTier?.id, consolesCount, minDurationMin]);
 
+  // The server's price for exactly this slot: base, offer, fee, total. Offers
+  // are decided here and nowhere else, so what is shown is what is charged.
+  // The previous answer stays on screen while a new one loads (no flicker),
+  // and Pay waits for it so nobody pays a stale total.
+  const quoteQuery = useQuery({
+    queryKey: [
+      'booking-quote',
+      cafe?.id,
+      activeTier?.id,
+      effectiveSessionDate,
+      selectedTime,
+      durationHours,
+      consolesCount,
+      seatsCount,
+      chosenOfferId,
+      appliedCode,
+    ],
+    queryFn: () =>
+      getBookingQuote({
+        cafeId: cafe!.id,
+        hardwareTierId: activeTier!.id,
+        sessionDate: effectiveSessionDate,
+        startTime: selectedTime,
+        durationHours,
+        seatsCount: consolesCount,
+        playersCount: seatsCount,
+        promotionId: chosenOfferId,
+        promoCode: chosenOfferId ? null : appliedCode,
+      }),
+    enabled: Boolean(cafe?.id && activeTier?.id && selectedTime),
+    placeholderData: keepPreviousData,
+    staleTime: 5_000,
+    retry: false,
+  });
+  const quote = quoteQuery.data;
+  const quoteSettling = quoteQuery.isFetching;
+
   // Fire once per (cafe, tier) selection, not on every render — this must
   // stay above the early returns below (rules of hooks: this component
   // returns early while isLoading/isError, so a hook placed after those
@@ -552,131 +541,16 @@ function BookingWizardContent() {
     { players: seatsCount, isCoop, seats: consolesCount },
   );
 
-  // Café-specific promotions are created by the owner (Owner → Promotional
-  // Offers) and apply automatically at checkout — no code to type. Eligibility
-  // is evaluated against the SELECTED slot (effectiveSessionDate +
-  // selectedTime), not "now": a promo browsed at 2pm for an 8pm slot must
-  // apply if 8pm is in its window, and vice versa. This mirrors
-  // PromotionService._is_promotion_active in
-  // backend/app/services/promotion_service.py exactly, including its Python
-  // datetime.weekday() convention (Monday=0…Sunday=6) — JS Date.getDay() uses
-  // Sunday=0…Saturday=6, hence the conversion below. The backend re-validates
-  // and is authoritative; this is a checkout-time estimate so what's shown
-  // here matches what Razorpay actually charges.
-  const activePromo = activeTier?.activePromotion || null;
-  let discountAmount = 0;
-  let promoEligible = false;
-  // A FIXED_PRICE deal ("4 hours for ₹360") only applies when the selected
-  // duration matches min_duration_hours exactly — same rule the backend
-  // enforces in apply_promotion_to_booking (PROMOTION_DURATION_MISMATCH).
-  const promoDurationMatches = !activePromo || activePromo.promotionType !== 'fixed_price'
-    ? true
-    : durationHours === activePromo.minDurationHours;
-  // A PERCENTAGE/FIXED_AMOUNT offer only applies once the booking meets its
-  // own minimum length (owner-set on the offer, defaults to 60 min) — same
-  // never-shorter-than-intended rule the backend enforces as
-  // PROMOTION_DURATION_TOO_SHORT in promotion_service.py.
-  const promoMinLengthMet =
-    !activePromo || activePromo.promotionType === 'fixed_price'
-      ? true
-      : Math.round(durationHours * 60) >= (activePromo.minBookingMinutes ?? 60);
-  if (activePromo) {
-    const slotDate = new Date(`${effectiveSessionDate}T${selectedTime}`);
-    const validFrom = new Date(activePromo.validFrom);
-    const validUntil = new Date(activePromo.validUntil);
-    const pythonWeekday = (slotDate.getDay() + 6) % 7;
-    const slotHour = parseInt(selectedTime.split(':')[0], 10);
-    promoEligible =
-      activePromo.isActive &&
-      slotDate >= validFrom &&
-      slotDate <= validUntil &&
-      activePromo.daysOfWeek.includes(pythonWeekday) &&
-      slotHour >= activePromo.startHour &&
-      slotHour < activePromo.endHour &&
-      (activePromo.maxUses == null || activePromo.currentUses < activePromo.maxUses) &&
-      promoDurationMatches &&
-      promoMinLengthMet &&
-      playModeMatches(activePromo.playMode, isCoop);
-    if (promoEligible) {
-      if (activePromo.promotionType === 'fixed_price') {
-        discountAmount = Math.max(baseTotal - Number(activePromo.fixedPriceAmount) * consolesCount, 0);
-      } else if (activePromo.promotionType === 'fixed_amount') {
-        discountAmount = Number(activePromo.fixedDiscountAmount);
-      } else {
-        discountAmount = Math.round(baseTotal * ((activePromo.discountPercentage ?? 0) / 100) * 100) / 100;
-      }
-    }
-  }
-  // "You're 1 hour away from our 4-hour deal, save ₹X — switch?" — only
-  // surfaced when the deal is otherwise eligible (schedule/date/uses) and
-  // the customer is exactly 1 hour short of the required duration.
-  const dealNudge =
-    activePromo &&
-    activePromo.promotionType === 'fixed_price' &&
-    activePromo.isActive &&
-    !promoDurationMatches &&
-    activePromo.minDurationHours != null &&
-    activePromo.minDurationHours - durationHours === 1
-      ? activePromo
-      : null;
-
-  // A validated KHELO code overrides the auto-applied tier promo above — the
-  // two are never stacked, and the code is what actually gets sent to
-  // createBooking below (as promoCode, not promotionId) when present. Same
-  // eligibility shape as the tier promo, run against the code's own
-  // schedule window (days_of_week/start_hour/end_hour), since it's still
-  // the same Promotion row underneath — see PromotionService.preview_code.
-  let codeEligible = false;
-  let codeIneligibleReason: string | null = null;
-  if (appliedCode && codeRedemption) {
-    if (!codeRedemption.valid) {
-      codeIneligibleReason = codeRedemption.reason || 'This code is not valid.';
-    } else {
-      const slotDate = new Date(`${effectiveSessionDate}T${selectedTime}`);
-      const validFrom = new Date(codeRedemption.validFrom);
-      const validUntil = new Date(codeRedemption.validUntil);
-      const pythonWeekday = (slotDate.getDay() + 6) % 7;
-      const slotHour = parseInt(selectedTime.split(':')[0], 10);
-      const codeDurationMatches = codeRedemption.promotionType !== 'fixed_price' || durationHours === codeRedemption.minDurationHours;
-      const codeMinLengthMet =
-        codeRedemption.promotionType === 'fixed_price' ||
-        Math.round(durationHours * 60) >= (codeRedemption.minBookingMinutes ?? 60);
-      codeEligible =
-        slotDate >= validFrom &&
-        slotDate <= validUntil &&
-        codeRedemption.daysOfWeek.includes(pythonWeekday) &&
-        slotHour >= codeRedemption.startHour &&
-        slotHour < codeRedemption.endHour &&
-        (codeRedemption.maxUses == null || codeRedemption.currentUses < codeRedemption.maxUses) &&
-        codeDurationMatches &&
-        codeMinLengthMet &&
-        playModeMatches(codeRedemption.playMode, isCoop);
-      if (!codeEligible) {
-        codeIneligibleReason = !playModeMatches(codeRedemption.playMode, isCoop)
-          ? (codeRedemption.playMode === 'coop' ? 'This code is for co-op only — pick Co-op above to use it.' : "This code isn't for co-op bookings.")
-          : !codeDurationMatches
-          ? `This deal applies to exactly ${codeRedemption.minDurationHours} hour(s) — adjust your duration to apply it.`
-          : !codeMinLengthMet
-          ? `This code applies to bookings of ${fmtMinutesLabel(codeRedemption.minBookingMinutes ?? 60)} or more — adjust your duration to apply it.`
-          : `Valid ${codeRedemption.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, ${codeRedemption.startHour}:00–${codeRedemption.endHour}:00 — pick a slot in that window to apply it.`;
-      }
-    }
-    if (codeEligible) {
-      if (codeRedemption.promotionType === 'fixed_price') {
-        discountAmount = Math.max(baseTotal - Number(codeRedemption.fixedPriceAmount) * consolesCount, 0);
-      } else if (codeRedemption.promotionType === 'fixed_amount') {
-        discountAmount = Number(codeRedemption.fixedDiscountAmount);
-      } else {
-        discountAmount = Math.round(baseTotal * ((codeRedemption.discountPercentage ?? 0) / 100) * 100) / 100;
-      }
-    }
-  }
+  // Offers come from the server's quote (see above): this page does no
+  // eligibility or discount maths of its own, so an offer can never show as
+  // available and then not apply (or the other way round).
+  const discountAmount = quote?.discountAmount ?? 0;
 
   // Service fee applies to the POST-discount subtotal, matching
   // booking_service.py (gateway_fee is computed off `subtotal`, i.e.
   // base_amount - discount_amount, not off base_amount).
   const subtotal = baseTotal - discountAmount;
-  const serviceFee = Math.round(subtotal * (SERVICE_FEE_PERCENT / 100) * 100) / 100;
+  const serviceFee = quote ? quote.platformFee : Math.round(subtotal * (SERVICE_FEE_PERCENT / 100) * 100) / 100;
   const finalTotal = subtotal + serviceFee;
 
   // ₹187.2 -> "187.20", ₹180 -> "180": rupees with paise only when present.
@@ -754,13 +628,9 @@ function BookingWizardContent() {
         durationHours: durationHours,
         seatsCount: consolesCount,
         playersCount: seatsCount,
-        // A validated KHELO code takes precedence over the auto-applied
-        // tier promo (see the discount calc above) — sent as promoCode so
-        // the backend resolves+re-validates it fresh rather than trusting
-        // this client's eligibility read. Falls back to promotionId for the
-        // no-code, auto-applied-at-checkout path.
-        promotionId: appliedCode && codeEligible ? undefined : activeTier.activePromotion?.id || undefined,
-        promoCode: appliedCode && codeEligible ? appliedCode : undefined,
+        // Exactly the offer the quote applied; the server still re-checks it
+        // under a lock, so a sold-out offer is refused rather than charged.
+        promotionId: quote?.appliedOffer?.id,
         game: selectedGame || undefined,
       });
 
@@ -811,7 +681,16 @@ function BookingWizardContent() {
         },
       });
     } catch (err: any) {
-      setError(err?.message || 'Failed to create booking.');
+      if (typeof err?.code === 'string' && err.code.startsWith('PROMOTION_')) {
+        // The offer ended between the quote and Pay (e.g. the last spot went).
+        // Re-price calmly instead of showing a raw error; nothing was charged.
+        setChosenOfferId(null);
+        setAppliedCode(null);
+        queryClient.invalidateQueries({ queryKey: ['booking-quote'] });
+        setError('That offer just ended, so the price has been updated. Check the new total and tap Pay again.');
+      } else {
+        setError(err?.message || 'Failed to create booking.');
+      }
       setIsProcessing(false);
     }
   };
@@ -1086,55 +965,16 @@ function BookingWizardContent() {
           <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{money(baseTotal)}</span>
         </div>
 
-        {discountAmount > 0 && appliedCode && codeEligible && codeRedemption && (
+        {discountAmount > 0 && quote?.appliedOffer && (
           <div className="flex items-center justify-between gap-3 text-success">
             <span className="min-w-0 flex items-center gap-1.5 font-semibold">
               <Tag className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{codeRedemption.title} ({promoDiscountLabel(codeRedemption.promotionType, codeRedemption.discountPercentage)})</span>
+              <span className="truncate">{quote.appliedOffer.title} ({quote.appliedOffer.label})</span>
             </span>
             <span className="flex-shrink-0 font-bold">
               -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
             </span>
           </div>
-        )}
-
-        {discountAmount > 0 && !appliedCode && activePromo && (
-          <div className="flex items-center justify-between gap-3 text-success">
-            <span className="min-w-0 flex items-center gap-1.5 font-semibold">
-              <Tag className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{activePromo.title} ({promoDiscountLabel(activePromo.promotionType, activePromo.discountPercentage)})</span>
-            </span>
-            <span className="flex-shrink-0 font-bold">
-              -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
-            </span>
-          </div>
-        )}
-
-        {!appliedCode && activePromo && !promoEligible && !dealNudge && (
-          <p className="text-xs text-text-tertiary flex items-start gap-1.5">
-            <Tag className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-            <span>
-              {!promoDurationMatches
-                ? `${activePromo.title} applies to exactly ${activePromo.minDurationHours} hour(s) — adjust your duration to apply it.`
-                : !promoMinLengthMet
-                ? `${activePromo.title} applies to bookings of ${fmtMinutesLabel(activePromo.minBookingMinutes ?? 60)} or more — adjust your duration to apply it.`
-                : `${activePromo.title} available ${activePromo.daysOfWeek.length === 7 ? 'every day' : 'on select days'}, ${activePromo.startHour}:00–${activePromo.endHour}:00 — pick a slot in that window to apply it.`}
-            </span>
-          </p>
-        )}
-
-        {!appliedCode && dealNudge && (
-          <button
-            type="button"
-            onClick={() => setDurationHours(dealNudge.minDurationHours!)}
-            className="flex items-start gap-1.5 p-2 -m-0.5 rounded-lg text-left text-xs text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
-          >
-            <Sparkles className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-            <span>
-              🔥 You&apos;re 1 hour away from {dealNudge.title} — save ₹
-              {Math.max(pricePerHour * dealNudge.minDurationHours! * consolesCount - Number(dealNudge.fixedPriceAmount) * consolesCount, 0).toFixed(0)}. Switch to {dealNudge.minDurationHours}h?
-            </span>
-          </button>
         )}
 
         <div className="flex items-center justify-between">
@@ -1154,6 +994,21 @@ function BookingWizardContent() {
           Secured by Razorpay · UPI, cards &amp; wallets · Instant confirmation
         </p>
       </div>
+
+      {/* Offers: applied automatically by the server; tap to switch, or enter a
+          code. Sits directly under the price it changes. */}
+      <OffersPanel
+        quote={quote}
+        loading={quoteQuery.isLoading}
+        appliedCode={appliedCode}
+        onChooseOffer={handleChooseOffer}
+        onMakeLength={(minutes) => {
+          userHasSelectedSlot.current = true;
+          setDurationHours(minutes / 60);
+        }}
+        onApplyCode={handleApplyCode}
+        onClearCode={handleClearCode}
+      />
 
       {/* Game — free-text combobox: types any name, datalist merely suggests
           from this café's supportedGames. */}
@@ -1176,69 +1031,6 @@ function BookingWizardContent() {
               <option key={g} value={g} />
             ))}
         </datalist>
-      </div>
-
-      {/* KHELO promo code — typed in manually or prefilled by scanning an
-          owner's offer QR (see /redeem/[code]). Independent of, and takes
-          precedence over, the auto-applied tier promo below. */}
-      <div className="p-3.5 rounded-2xl bg-card border border-border/80">
-        <label className="text-caption font-semibold text-text-secondary mb-1.5 block">
-          Have a KHELO code?
-        </label>
-        {appliedCode ? (
-          <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-surface">
-            <div className="flex items-center gap-2 min-w-0">
-              {isCheckingCode ? (
-                <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-text-secondary" />
-              ) : codeEligible ? (
-                <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-success" />
-              ) : (
-                <Tag className="h-4 w-4 flex-shrink-0 text-text-tertiary" />
-              )}
-              <span className="font-data font-bold tracking-wider text-text-primary truncate">{appliedCode}</span>
-              {codeRedemption && (
-                <span className="text-caption text-text-secondary truncate">
-                  {isCodeInvalid ? 'invalid' : codeEligible ? promoDiscountLabel(codeRedemption.promotionType, codeRedemption.discountPercentage) : 'not eligible for this slot'}
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={handleClearCode}
-              aria-label="Remove code"
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-text-secondary hover:bg-border/60 transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              placeholder="e.g. WEEKNIGHT15"
-              value={promoCodeInput}
-              onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20))}
-              className="h-10 flex-1 min-w-0 rounded-xl border border-border bg-surface px-3 font-data tracking-wider text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-            <button
-              type="button"
-              onClick={handleApplyCode}
-              disabled={!promoCodeInput.trim()}
-              className="h-10 px-4 rounded-xl bg-primary text-white text-caption font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors flex-shrink-0"
-            >
-              Apply
-            </button>
-          </div>
-        )}
-        {codeError && <p className="text-xs text-error mt-1.5">{codeError}</p>}
-        {appliedCode && isCodeInvalid && (
-          <p className="text-xs text-error mt-1.5">
-            {(codePreviewError as any)?.message || 'Invalid or unrecognized KHELO code.'}
-          </p>
-        )}
-        {appliedCode && codeRedemption && !isCodeInvalid && codeIneligibleReason && (
-          <p className="text-xs text-text-tertiary mt-1.5">{codeIneligibleReason}</p>
-        )}
       </div>
 
       {/* Security / cancellation — collapsed to one line; tap to expand the
@@ -1290,6 +1082,7 @@ function BookingWizardContent() {
             onClick={handleCheckout}
             disabled={
               isProcessing ||
+              quoteSettling ||
               Boolean(cafe.isEmergencyMode) ||
               Boolean(cafe.bookingsPaused) ||
               windowRemainingSeats < consolesCount
@@ -1332,12 +1125,6 @@ function BookingWizardContent() {
       />
     </>
   );
-}
-
-/** Whether an offer's play mode ('any' | 'solo' | 'coop') fits this booking. */
-function playModeMatches(mode: string | undefined | null, isCoop: boolean) {
-  if (!mode || mode === 'any') return true;
-  return mode === 'coop' ? isCoop : !isCoop;
 }
 
 export default function BookingWizardPage() {

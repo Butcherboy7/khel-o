@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { ActivityIcon } from '@/components/icons/ActivityIcons';
 import type { HardwareTier } from '@/types/tier';
 import { ActivitySpecLine } from '@/components/customer/ActivitySpecs';
+import { OfferChip } from '@/components/customer/OfferChip';
+import { offerUrgency } from '@/lib/offers';
 
 interface ActivitiesSectionProps {
   cafeId: string;
@@ -34,6 +36,18 @@ export function ActivitiesSection({ cafeId, activities }: ActivitiesSectionProps
             <div className="flex-1 min-w-0">
               <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
               <ActivitySpecLine tier={tier} />
+              {tier.activePromotion && (
+                <OfferChip
+                  className="my-0.5"
+                  label={tier.activePromotion.label || 'Offer'}
+                  when={tier.activePromotion.when}
+                  live={tier.activePromotion.isLiveNow !== false}
+                  urgency={offerUrgency({
+                    slotsRemaining: tier.activePromotion.slotsRemaining,
+                    validUntil: tier.activePromotion.validUntil,
+                  })}
+                />
+              )}
               <div className="flex flex-wrap items-center gap-x-1.5 text-caption text-text-secondary">
                 <span>{tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'}</span>
                 {tier.description && (

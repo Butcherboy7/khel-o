@@ -49,6 +49,8 @@ import { ShareModal } from '@/components/customer/ShareModal';
 import { createShare } from '@/lib/share';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
+import { OfferChip } from '@/components/customer/OfferChip';
+import { offerUrgency } from '@/lib/offers';
 
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
@@ -489,6 +491,34 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         )}
       </div>
 
+      {/* Offers here: the reason to book, before the setups. Rendered only
+          when the café really has an offer running. */}
+      {(cafe.activePromotions?.length ?? 0) > 0 && (
+        <section aria-label="Offers at this café" className="flex flex-col gap-2.5 rounded-2xl border border-accent/25 bg-accent/5 p-3.5">
+          <h2 className="font-heading text-body font-bold text-text-primary">Offers here</h2>
+          <ul className="flex flex-col gap-2.5">
+            {cafe.activePromotions.slice(0, 3).map((o) => (
+              <li key={o.id} className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block truncate text-caption font-semibold text-text-primary">{o.title}</span>
+                  <span className="block text-[11px] text-text-secondary">
+                    {o.applicableTierName ? `On ${o.applicableTierName}` : 'On any setup'}
+                    {o.isLiveNow !== false && o.when ? ` · ${o.when}` : ''}
+                  </span>
+                </span>
+                <OfferChip
+                  label={o.label || 'Offer'}
+                  when={o.when}
+                  live={o.isLiveNow !== false}
+                  urgency={offerUrgency({ slotsRemaining: o.slotsRemaining, validUntil: o.validUntil })}
+                  className="flex-shrink-0 items-end"
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Hardware Tiers Section — selectable here so "Book now" already
           knows which tier the user wants, instead of asking again on the
           booking page with an identical set of cards. Rows, not a grid of
@@ -507,7 +537,11 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                 // automatically at checkout — surfaced here so gamers see
                 // the discount before they even open the booking wizard,
                 // not just once they're on the price summary there.
-                const discount = tier.activePromotion?.discountPercentage ?? 0;
+                const promo = tier.activePromotion;
+                const promoLive = promo?.isLiveNow !== false;
+                // The struck-through hourly price is only honest for a percentage
+                // offer that is open right now; any other offer shows as a chip.
+                const discount = promo && promoLive && promo.promotionType === 'percentage' ? (promo.discountPercentage ?? 0) : 0;
                 const discountedPrice = discount > 0 ? Math.round(tier.pricePerHour * (1 - discount / 100)) : tier.pricePerHour;
                 const coopRate = tier.coopEnabled ? tier.pricePerHour + Number(tier.coopExtraPlayerPrice ?? 0) : 0;
                 const modelLabel = String(tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station');
@@ -573,16 +607,17 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                           </>
                         )}
                       </div>
-                      {/* One quiet offer line instead of a pill on the title row
-                          plus a separate tiny title line. */}
-                      {discount > 0 && (
-                        <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] font-bold text-accent">
-                          <Tag className="h-3 w-3 flex-shrink-0" aria-hidden />
-                          <span className="flex-shrink-0">{discount}% off</span>
-                          {tier.activePromotion?.title && (
-                            <span className="truncate font-medium">· {tier.activePromotion.title}</span>
-                          )}
-                        </p>
+                      {/* The offer, in the same words as the list and checkout. */}
+                      {promo && (
+                        <div className="mt-1 flex min-w-0 flex-wrap items-start gap-x-2 gap-y-0.5">
+                          <OfferChip
+                            label={promo.label || `${discount}% off`}
+                            when={promo.when}
+                            live={promoLive}
+                            urgency={offerUrgency({ slotsRemaining: promo.slotsRemaining, validUntil: promo.validUntil })}
+                          />
+                          {promo.title && <span className="min-w-0 truncate pt-0.5 text-[11px] text-text-secondary">{promo.title}</span>}
+                        </div>
                       )}
                       {/* Co-op price, only once this setup is picked — no extra
                           height on the list otherwise. */}

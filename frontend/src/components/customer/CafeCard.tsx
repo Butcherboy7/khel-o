@@ -10,6 +10,8 @@ import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import type { Platform } from '@/constants/platforms';
 import type { CafeListItem } from '@/types';
 import { cafePath } from '@/lib/api/cafes';
+import { OfferChip } from '@/components/customer/OfferChip';
+import { offerUrgency } from '@/lib/offers';
 
 // Short labels for the card's one-line platform summary. 'other' is
 // deliberately excluded — it isn't a specific claim worth surfacing here.
@@ -51,13 +53,9 @@ function getPlatformSummary(cafe: CafeListItem): string | null {
 interface CafeCardProps {
   cafe: CafeListItem;
   isFeatured?: boolean;
-  /** A real, pre-formatted offer string (e.g. "4 HRS ₹360") for the deal
-   *  chip. Left undefined renders no chip — this component never derives
-   *  or invents deal copy from partial data. */
-  dealLabel?: string;
 }
 
-export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps) {
+export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
   const { userLat, userLng } = useLocationStore();
   const distanceLabel =
     userLat != null && userLng != null && cafe.latitude != null && cafe.longitude != null
@@ -199,10 +197,6 @@ export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps)
                 <span className="h-1.5 w-1.5 rounded-full bg-success animate-live-dot" />
                 Live · Book Now
               </span>
-            ) : cafe.hasActivePromotion ? (
-              <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-card">
-                Offer
-              </span>
             ) : (
               <span />
             )}
@@ -310,13 +304,16 @@ export function CafeCard({ cafe, isFeatured = false, dealLabel }: CafeCardProps)
             )}
           </div>
 
-          {/* Deal chip — only ever renders text the caller supplies from a
-              real active promotion; this component computes no numbers. */}
-          {isLive && dealLabel && (
-            <div className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-primary/10 border border-primary/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
-              <Zap className="h-3 w-3 flex-shrink-0" />
-              {dealLabel}
-            </div>
+          {/* The deal itself, worded by the server so the list, the café page and
+              checkout never disagree. Renders nothing without a real offer. */}
+          {cafe.bestOffer && (
+            <OfferChip
+              className="mt-0.5"
+              label={cafe.bestOffer.label}
+              when={cafe.bestOffer.when}
+              live={cafe.bestOffer.isLiveNow}
+              urgency={offerUrgency({ slotsRemaining: cafe.bestOffer.slotsRemaining, validUntil: cafe.bestOffer.endsAt })}
+            />
           )}
 
           {/* The one card on the grid that can actually take a booking gets

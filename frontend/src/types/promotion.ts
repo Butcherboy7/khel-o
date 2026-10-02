@@ -32,6 +32,17 @@ export interface Promotion {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Owner list only: unpaid bookings in their payment window holding a spot. */
+  heldUses?: number;
+  /** Public listing only (never on the owner's own list): server-built so every
+   *  screen words an offer the same way. */
+  label?: string;
+  /** Schedule in words ("Weekdays · 6 PM–9 PM"); null when it runs any time. */
+  when?: string | null;
+  /** False when today's day/hour window isn't open yet. */
+  isLiveNow?: boolean;
+  /** Spots left on a capped offer; null/undefined when uncapped. */
+  slotsRemaining?: number | null;
 }
 
 export type PromotionDetail = Promotion;
