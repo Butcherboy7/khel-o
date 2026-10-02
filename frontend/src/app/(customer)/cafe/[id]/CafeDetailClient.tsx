@@ -561,32 +561,23 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                           </span>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-text-secondary">
-                        {isPc ? (
-                          <>
-                            <span className="font-semibold text-text-primary">{tier.specs.gpu}</span>
-                            {tier.specs?.ram && (
-                              <>
-                                <span className="text-text-secondary/50">·</span>
-                                <span>{tier.specs.ram}</span>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          // Hidden when it just repeats the title ("PlayStation 5 Pro" twice).
-                          !modelRepeatsName && (
+                      {(isPc || (!modelRepeatsName && modelLabel !== 'Gaming Station')) && (
+                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-text-secondary">
+                          {isPc ? (
+                            <>
+                              <span className="font-semibold text-text-primary">{tier.specs.gpu}</span>
+                              {tier.specs?.ram && (
+                                <>
+                                  <span className="text-text-secondary/50">·</span>
+                                  <span>{tier.specs.ram}</span>
+                                </>
+                              )}
+                            </>
+                          ) : (
                             <span className="font-semibold text-text-primary">{modelLabel}</span>
-                          )
-                        )}
-                        {tier.totalSeats > 0 && (
-                          <>
-                            {(isPc || !modelRepeatsName) && <span className="text-text-secondary/50">·</span>}
-                            <span>
-                              {tier.totalSeats} station{tier.totalSeats === 1 ? '' : 's'}
-                            </span>
-                          </>
-                        )}
-                      </div>
+                          )}
+                        </div>
+                      )}
                       {campaign.active && (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
                           {campaign.offers
@@ -624,33 +615,28 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       )}
                     </div>
 
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      {discount > 0 ? (
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-caption text-text-tertiary line-through">
-                            <span className="rupee-symbol">₹</span>{tier.pricePerHour}
-                          </span>
-                          <div className="font-data text-body-emphasis font-bold text-accent">
-                            <span className="rupee-symbol">₹</span>{discountedPrice}
-                            <span className="text-caption font-normal text-text-secondary">/hr</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="font-data text-body-emphasis font-bold text-text-primary">
+                    <div className="flex flex-shrink-0 flex-col items-end gap-0.5 text-right">
+                      {discount > 0 && (
+                        <span className="text-caption leading-none text-text-tertiary line-through">
                           <span className="rupee-symbol">₹</span>{tier.pricePerHour}
-                          <span className="text-caption font-normal text-text-secondary">/hr</span>
-                        </div>
+                        </span>
                       )}
-                      {liveData?.openNow && freeNowByTier.has(tier.id) && (
-                        <span
-                          className={`text-[11px] font-bold ${
-                            (freeNowByTier.get(tier.id) ?? 0) > 0 ? 'text-success' : 'text-warning'
-                          }`}
-                        >
+                      <div className={`whitespace-nowrap font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
+                        <span className="rupee-symbol">₹</span>{discountedPrice}
+                        <span className="text-caption font-normal text-text-secondary">/hr</span>
+                      </div>
+                      {liveData?.openNow && freeNowByTier.has(tier.id) && tier.totalSeats > 0 ? (
+                        <span className={`whitespace-nowrap text-[11px] font-bold ${(freeNowByTier.get(tier.id) ?? 0) > 0 ? 'text-success' : 'text-warning'}`}>
                           {(freeNowByTier.get(tier.id) ?? 0) > 0
-                            ? `${freeNowByTier.get(tier.id)} free now`
+                            ? `${freeNowByTier.get(tier.id)} of ${tier.totalSeats} free`
                             : 'All in use now'}
                         </span>
+                      ) : (
+                        tier.totalSeats > 0 && (
+                          <span className="whitespace-nowrap text-[11px] text-text-secondary">
+                            {tier.totalSeats} station{tier.totalSeats === 1 ? '' : 's'}
+                          </span>
+                        )
                       )}
                     </div>
                   </div>

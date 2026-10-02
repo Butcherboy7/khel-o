@@ -72,25 +72,20 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
                 </div>
               )}
               <div className="flex flex-wrap items-center gap-x-1.5 text-caption text-text-secondary">
-                <span>{tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'}</span>
-                {tier.description && (
-                  <>
-                    <span className="text-text-secondary/50">·</span>
-                    <span>{tier.description}</span>
-                  </>
-                )}
+                {tier.description && <span>{tier.description}</span>}
               </div>
             </div>
-            <div className="flex flex-shrink-0 items-baseline gap-1.5">
+            <div className="flex flex-shrink-0 flex-col items-end gap-0.5 text-right">
               {discount > 0 && (
-                <span className="text-caption text-text-tertiary line-through">
+                <span className="text-caption leading-none text-text-tertiary line-through">
                   <span className="rupee-symbol">₹</span>{tier.pricePerHour}
                 </span>
               )}
-              <div className={`font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
+              <div className={`whitespace-nowrap font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
                 <span className="rupee-symbol">₹</span>{shown}
                 <span className="text-caption font-normal text-text-secondary">/hr</span>
               </div>
+              <span className="whitespace-nowrap text-[11px] text-text-secondary">{tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'}</span>
             </div>
           </Link>
           );
