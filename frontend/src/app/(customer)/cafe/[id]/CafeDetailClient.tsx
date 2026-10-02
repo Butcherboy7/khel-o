@@ -502,10 +502,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           booking page with an identical set of cards. Rows, not a grid of
           cards: a list scans in one pass regardless of how many tiers a
           café lists, where a 3-up grid starts wrapping awkwardly past three. */}
-      {gamingTiers.length > 0 && (
+      {(gamingTiers.length > 0 || activityTiers.length > 0) && (
       <section className="flex flex-col gap-2.5">
         <div className="flex flex-col gap-0.5">
-          <h2 className="font-heading text-h3 text-text-primary">Choose your setup</h2>
+          <h2 className="font-heading text-h3 text-text-primary">{gamingTiers.length > 0 ? 'Choose your setup' : 'Choose an activity'}</h2>
           <p className="text-caption text-text-secondary">Tap one to pick your time.</p>
         </div>
 
@@ -658,6 +658,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               })}
             </div>
 
+            <ActivitiesSection embedded showHeading={gamingTiers.length > 0} cafeId={cafe.id} activities={activityTiers} promoCode={campaign.code} campaignOffers={campaign.offers} />
+
             <p className="flex items-center gap-1.5 text-caption text-text-secondary">
               <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-success" />
               Instant confirmation · Full refund if you cancel 2+ hrs before
@@ -711,8 +713,6 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           </>
       </section>
       )}
-
-      <ActivitiesSection cafeId={cafe.id} activities={activityTiers} promoCode={campaign.code} campaignOffers={campaign.offers} />
 
       {/* About */}
       {cafe.description && (

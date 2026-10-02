@@ -14,6 +14,10 @@ interface ActivitiesSectionProps {
   /** A link-only campaign code the visitor arrived with; carried into checkout. */
   promoCode?: string | null;
   campaignOffers?: Promotion[];
+  /** Render inside the "Choose your setup" list: no section heading of its own. */
+  embedded?: boolean;
+  /** With `embedded`: label the group ("Activities") when setups sit above it. */
+  showHeading?: boolean;
 }
 
 /** Café-detail "Activities" cards (spec §7) — deliberately shows only what
@@ -21,18 +25,24 @@ interface ActivitiesSectionProps {
  *  plus one quiet line of what the owner told us about it ("American pool ·
  *  9 ft") when they did. Tapping a card reuses
  *  the exact same booking route every gaming tier already uses. */
-export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffers = [] }: ActivitiesSectionProps) {
+export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffers = [], embedded = false, showHeading = true }: ActivitiesSectionProps) {
   if (activities.length === 0) return null;
 
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="font-heading text-h2 text-text-primary">Activities</h2>
+    <div className="flex flex-col gap-2.5">
+      {(!embedded || showHeading) && (
+        <h3 className="mt-1.5 font-heading text-body-emphasis font-bold text-text-primary">Activities</h3>
+      )}
       <div className="flex flex-col gap-2.5">
-        {activities.map((tier) => (
+        {activities.map((tier) => {
+          const promo = tier.activePromotion;
+          const discount = promo && promo.isLiveNow !== false && promo.promotionType === 'percentage' ? (promo.discountPercentage ?? 0) : 0;
+          const shown = discount > 0 ? Math.round(tier.pricePerHour * (1 - discount / 100)) : tier.pricePerHour;
+          return (
           <Link
             key={tier.id}
             href={`/bookings/new?cafeId=${cafeId}&tierId=${tier.id}${promoCode ? `&promoCode=${encodeURIComponent(promoCode)}` : ''}`}
-            className="flex items-center gap-4 p-4 rounded-2xl border border-border/80 bg-card hover:shadow-float hover:bg-surface transition-all"
+            className="relative flex items-center gap-3 rounded-2xl border-2 border-border bg-card p-3 text-left transition-all hover:bg-surface active:scale-[0.99]"
           >
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-surface text-text-secondary">
               <ActivityIcon activityKind={tier.activityKind} className="h-5 w-5" />
@@ -66,18 +76,26 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
                 {tier.description && (
                   <>
                     <span className="text-text-secondary/50">·</span>
-                    <span className="truncate">{tier.description}</span>
+                    <span>{tier.description}</span>
                   </>
                 )}
               </div>
             </div>
-            <div className="font-data text-body-emphasis font-bold text-text-primary flex-shrink-0">
-              <span className="rupee-symbol">₹</span>{tier.pricePerHour}
-              <span className="text-caption font-normal text-text-secondary">/hr</span>
+            <div className="flex flex-shrink-0 items-baseline gap-1.5">
+              {discount > 0 && (
+                <span className="text-caption text-text-tertiary line-through">
+                  <span className="rupee-symbol">₹</span>{tier.pricePerHour}
+                </span>
+              )}
+              <div className={`font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
+                <span className="rupee-symbol">₹</span>{shown}
+                <span className="text-caption font-normal text-text-secondary">/hr</span>
+              </div>
             </div>
           </Link>
-        ))}
+          );
+        })}
       </div>
-    </section>
+    </div>
   );
 }
