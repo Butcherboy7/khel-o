@@ -50,7 +50,9 @@ import { createShare } from '@/lib/share';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
 import { OfferChip } from '@/components/customer/OfferChip';
-import { offerUrgency } from '@/lib/offers';
+import { FoundersBanner } from '@/components/customer/FoundersBanner';
+import { useCampaign } from '@/hooks/useCampaign';
+import { offerUrgency, offerLabelWithMode } from '@/lib/offers';
 
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
@@ -87,6 +89,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const heroRef = useRef<HTMLDivElement>(null);
 
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
+  const campaign = useCampaign(initialCafe?.id);
+  const promoSuffix = campaign.code ? `&promoCode=${encodeURIComponent(campaign.code)}` : '';
   const [showAllTierSpecs, setShowAllTierSpecs] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -491,6 +495,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         )}
       </div>
 
+      {campaign.active && campaign.campaign && campaign.code && (
+        <FoundersBanner campaign={campaign.campaign} code={campaign.code} />
+      )}
+
       {/* Offers here: the reason to book, before the setups. Rendered only
           when the café really has an offer running. */}
       {(cafe.activePromotions?.length ?? 0) > 0 && (
@@ -607,6 +615,15 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                           </>
                         )}
                       </div>
+                      {campaign.active && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {campaign.offers
+                            .filter((o) => o.applicableTierId === tier.id)
+                            .map((o) => (
+                              <OfferChip key={o.id} label={offerLabelWithMode(o.label || 'Offer', o.playMode)} tone="soft" />
+                            ))}
+                        </div>
+                      )}
                       {/* The offer, in the same words as the list and checkout. */}
                       {promo && (
                         <div className="mt-1 flex min-w-0 flex-wrap items-start gap-x-2 gap-y-0.5">
@@ -720,7 +737,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       </section>
       )}
 
-      <ActivitiesSection cafeId={cafe.id} activities={activityTiers} />
+      <ActivitiesSection cafeId={cafe.id} activities={activityTiers} promoCode={campaign.code} campaignOffers={campaign.offers} />
 
       {/* About */}
       {cafe.description && (
@@ -1193,7 +1210,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               navigate, even though Chrome/Android tolerate it fine. Styling
               the Link itself as the button avoids the nesting entirely. */}
           <Link
-            href={`/bookings/new?cafeId=${cafe.id}${activeTier ? `&tierId=${activeTier.id}` : ''}`}
+            href={`/bookings/new?cafeId=${cafe.id}${activeTier ? `&tierId=${activeTier.id}` : ''}${promoSuffix}`}
             className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-primary px-6 py-3.5 font-heading text-btn font-semibold text-white shadow-float hover:bg-primary-dark transition-colors"
           >
             Pick a time

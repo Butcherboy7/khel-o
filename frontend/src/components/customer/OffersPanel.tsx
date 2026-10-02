@@ -129,7 +129,7 @@ export function OffersPanel({
           <div className="min-w-0 flex-1">
             <p className="truncate text-caption font-semibold text-text-primary">{applied.title}</p>
             <p className="text-[11px] text-text-secondary">
-              {applied.label} applied{appliedCode ? ' with your code' : ''}
+              {applied.label} applied
             </p>
           </div>
           <span className="flex-shrink-0 font-heading font-bold text-text-primary">

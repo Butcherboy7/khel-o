@@ -36,3 +36,10 @@ export function lengthLabel(minutes: number): string {
   const hrs = minutes / 60;
   return `${Number.isInteger(hrs) ? hrs : hrs.toFixed(1)} hr`;
 }
+
+/** "20% off" + who it is for, so a solo and a 2-player offer on one setup read apart. */
+export function offerLabelWithMode(label: string, playMode?: string | null): string {
+  if (playMode === 'coop') return `${label} · 2 players`;
+  if (playMode === 'solo') return `${label} · solo`;
+  return label;
+}

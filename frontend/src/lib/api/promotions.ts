@@ -131,3 +131,28 @@ export async function deactivateOwnerPromotion(promotionId: string): Promise<{ m
 export async function deleteOwnerPromotionPermanently(promotionId: string): Promise<{ message: string }> {
   return call(() => apiClient.delete(`/api/v1/promotions/${promotionId}`, { params: { permanent: true } }));
 }
+
+export interface CampaignInfo {
+  name: string;
+  code: string;
+  cafeId: string;
+  /** Real cap on paid bookings shared by every offer in the campaign; null = uncapped. */
+  maxUses: number | null;
+  /** Paid bookings so far. Never an invented number. */
+  claimed: number;
+  remaining: number | null;
+  full: boolean;
+  endsAt: string;
+}
+
+/** A link-only "Founders' price": what the link unlocks, and how many spots are really taken. */
+export async function getCampaign(
+  code: string,
+  cafeId?: string,
+): Promise<{ campaign: CampaignInfo; offers: import('@/types').Promotion[] }> {
+  return call(() =>
+    apiClient.get(`/api/v1/promotions/campaign/${encodeURIComponent(code)}`, {
+      params: cafeId ? { cafeId } : undefined,
+    }),
+  );
+}

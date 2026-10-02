@@ -17,7 +17,7 @@ from app.schemas.promotion import (
     ActivePromotionResponse,
     CodeRedemptionResponse
 )
-from app.models.promotion import Promotion, PromotionType
+from app.models.promotion import Promotion, PromotionType, OfferCampaign
 from app.models.booking import Booking
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 from app.core.time import IST
@@ -237,43 +237,98 @@ class PromotionService:
             # see "Weeknights 6 PM-9 PM" before they pick a slot. `is_live_now`
             # says whether the window is open this minute.
             if self._is_promotion_active(p, now, check_window=False):
-                tier_name: Optional[str] = None
-                tier = None
-                if p.applicable_tier_id and self.tier_repo:
-                    tier = await self.tier_repo.get_by_id(p.applicable_tier_id)
-                    if tier:
-                        tier_name = tier.name
-
-                regular_price, savings_amount = self._fixed_price_economics(p, tier)
-
-                slots_rem = (p.max_uses - p.current_uses) if p.max_uses is not None else None
-
-                active_promos.append(ActivePromotionResponse(
-                    id=p.id,
-                    title=p.title,
-                    description=p.description,
-                    promotion_type=p.promotion_type,
-                    discount_percentage=p.discount_percentage,
-                    fixed_discount_amount=p.fixed_discount_amount,
-                    fixed_price_amount=p.fixed_price_amount,
-                    min_duration_hours=p.min_duration_hours,
-                    min_booking_minutes=p.min_booking_minutes,
-                    regular_price=regular_price,
-                    savings_amount=savings_amount,
-                    applicable_tier_name=tier_name,
-                    applicable_tier_id=p.applicable_tier_id,
-                    play_mode=getattr(p, 'play_mode', None) or 'any',
-                    valid_until=p.valid_until,
-                    start_hour=p.start_hour,
-                    end_hour=p.end_hour,
-                    days_of_week=p.days_of_week,
-                    slots_remaining=slots_rem,
-                    label=offer_label(p),
-                    when=schedule_text(p),
-                    is_live_now=self._is_promotion_active(p, now),
-                ))
-
+                active_promos.append(await self._active_response(p, now))
         return active_promos
+
+    async def _active_response(self, p: Promotion, now: datetime) -> ActivePromotionResponse:
+        tier_name: Optional[str] = None
+        tier = None
+        if p.applicable_tier_id and self.tier_repo:
+            tier = await self.tier_repo.get_by_id(p.applicable_tier_id)
+            if tier:
+                tier_name = tier.name
+
+        regular_price, savings_amount = self._fixed_price_economics(p, tier)
+        slots_rem = (p.max_uses - p.current_uses) if p.max_uses is not None else None
+
+        return ActivePromotionResponse(
+            id=p.id,
+            title=p.title,
+            description=p.description,
+            promotion_type=p.promotion_type,
+            discount_percentage=p.discount_percentage,
+            fixed_discount_amount=p.fixed_discount_amount,
+            fixed_price_amount=p.fixed_price_amount,
+            min_duration_hours=p.min_duration_hours,
+            min_booking_minutes=p.min_booking_minutes,
+            regular_price=regular_price,
+            savings_amount=savings_amount,
+            applicable_tier_name=tier_name,
+            applicable_tier_id=p.applicable_tier_id,
+            play_mode=getattr(p, 'play_mode', None) or 'any',
+            valid_until=p.valid_until,
+            start_hour=p.start_hour,
+            end_hour=p.end_hour,
+            days_of_week=p.days_of_week,
+            slots_remaining=slots_rem,
+            label=offer_label(p),
+            when=schedule_text(p),
+            is_live_now=self._is_promotion_active(p, now),
+        )
+
+    # ---- link-only campaigns ("Founders' price") ----
+
+    @staticmethod
+    def _aware(dt: datetime) -> datetime:
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+    async def resolve_campaign(self, code: Optional[str], cafe_id: UUID) -> Optional[OfferCampaign]:
+        """The campaign this access code opens at this café right now, or None
+        (unknown code, other café, switched off, or outside its dates)."""
+        if not code:
+            return None
+        campaign = await self.promo_repo.get_campaign_by_code(code)
+        if not campaign or not campaign.is_active or str(campaign.cafe_id) != str(cafe_id):
+            return None
+        now = datetime.now(timezone.utc)
+        if not (self._aware(campaign.starts_at) <= now <= self._aware(campaign.ends_at)):
+            return None
+        return campaign
+
+    async def campaign_status(self, campaign: OfferCampaign) -> dict:
+        """Real numbers only: `claimed` is paid bookings, `held` is unpaid
+        bookings still inside their payment window, `remaining` is what's left."""
+        claimed = await self.promo_repo.campaign_claimed(campaign.id)
+        held = await self.promo_repo.campaign_holds(campaign.id)
+        remaining = None if campaign.max_uses is None else max(campaign.max_uses - claimed - held, 0)
+        return {"claimed": claimed, "held": held, "remaining": remaining, "full": remaining == 0}
+
+    async def get_public_campaign(self, code: str, cafe_id: Optional[UUID] = None) -> dict:
+        campaign = await self.promo_repo.get_campaign_by_code(code)
+        now = datetime.now(timezone.utc)
+        if (
+            not campaign
+            or not campaign.is_active
+            or (cafe_id is not None and str(campaign.cafe_id) != str(cafe_id))
+            or not (self._aware(campaign.starts_at) <= now <= self._aware(campaign.ends_at))
+        ):
+            raise NotFoundException(message="That code isn't valid.", error_code="CAMPAIGN_NOT_FOUND")
+        status_ = await self.campaign_status(campaign)
+        promos = await self.promo_repo.get_campaign_promotions(campaign.id, now)
+        offers = [await self._active_response(p, now) for p in promos]
+        return {
+            "campaign": {
+                "name": campaign.name,
+                "code": campaign.access_code,
+                "cafeId": campaign.cafe_id,
+                "maxUses": campaign.max_uses,
+                "claimed": status_["claimed"],
+                "remaining": status_["remaining"],
+                "full": status_["full"],
+                "endsAt": campaign.ends_at,
+            },
+            "offers": offers,
+        }
 
     async def best_offers_for_cafes(self, cafe_ids: List[UUID]) -> dict:
         """cafe_id -> the single deal worth putting on its explore card:
@@ -604,6 +659,7 @@ class PromotionService:
         duration_hours: Optional[Decimal] = None,
         seats_count: int = 1,
         is_coop: bool = False,
+        campaign_id: Optional[UUID] = None,
     ) -> Decimal:
         # Row-locked so a concurrent booking applying the same promo can't read
         # current_uses until this one commits — closes the race where N
@@ -617,6 +673,28 @@ class PromotionService:
 
         if str(promo.cafe_id) != str(cafe_id):
             raise ValidationException(message="Promotion does not belong to this café", error_code="PROMOTION_CAFE_MISMATCH")
+
+        # A link-only offer is never usable without its campaign's access code,
+        # and the campaign's spot cap is shared by every offer inside it
+        # (campaign row locked so two last-spot bookings can't both pass).
+        if promo.campaign_id is not None:
+            if campaign_id is None or str(promo.campaign_id) != str(campaign_id):
+                raise ValidationException(message="This offer needs its access code", error_code="PROMOTION_CODE_REQUIRED")
+            campaign = await self.promo_repo.get_campaign_with_lock(promo.campaign_id)
+            now_utc = datetime.now(timezone.utc)
+            if (
+                not campaign
+                or not campaign.is_active
+                or not (self._aware(campaign.starts_at) <= now_utc <= self._aware(campaign.ends_at))
+            ):
+                raise ValidationException(message="This offer has ended", error_code="PROMOTION_INACTIVE")
+            if campaign.max_uses is not None:
+                taken = await self.promo_repo.campaign_claimed(campaign.id) + await self.promo_repo.campaign_holds(campaign.id)
+                if taken >= campaign.max_uses:
+                    raise ValidationException(
+                        message="This promotion has reached its maximum uses",
+                        error_code="PROMOTION_EXHAUSTED"
+                    )
 
         # Paid redemptions plus unpaid bookings still inside their payment
         # window: the last slot can't be taken twice, and an abandoned
@@ -743,6 +821,7 @@ class PromotionService:
         duration_hours: Decimal,
         seats_count: int,
         is_coop: bool,
+        campaign_id: Optional[UUID] = None,
     ):
         """Preview-only (no row lock, no side effects) equivalent of
         apply_promotion_to_booking, used by the /bookings/quote endpoint so
@@ -751,7 +830,7 @@ class PromotionService:
         hint_message: str|None) — `hint` is the best offer that almost
         applied, for an "works on bookings of 1hr+" message."""
         eligible, best_hint, best_hint_message, _suggested = await self.list_eligible_offers(
-            cafe_id, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop
+            cafe_id, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop, campaign_id
         )
         if eligible:
             promo, discount = eligible[0]
@@ -767,11 +846,15 @@ class PromotionService:
         duration_hours: Decimal,
         seats_count: int,
         is_coop: bool,
+        campaign_id: Optional[UUID] = None,
     ):
         """Every offer that applies to this exact slot, biggest saving first,
         plus the best near-miss for a nudge. One source of truth for the
         quote's "available offers" and the auto-pick at booking time."""
-        candidates = await self.promo_repo.get_active_for_cafe(cafe_id, datetime.now(timezone.utc))
+        now_utc = datetime.now(timezone.utc)
+        candidates = await self.promo_repo.get_active_for_cafe(cafe_id, now_utc)
+        if campaign_id is not None:
+            candidates = candidates + await self.promo_repo.get_campaign_promotions(campaign_id, now_utc)
         # Only offers for this tier (or "all tiers") are even candidates;
         # matches apply_promotion_to_booking's PROMOTION_TIER_MISMATCH check.
         candidates = [p for p in candidates if not p.applicable_tier_id or str(p.applicable_tier_id) == str(tier_id)]

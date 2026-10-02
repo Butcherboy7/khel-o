@@ -5,11 +5,15 @@ import { ActivityIcon } from '@/components/icons/ActivityIcons';
 import type { HardwareTier } from '@/types/tier';
 import { ActivitySpecLine } from '@/components/customer/ActivitySpecs';
 import { OfferChip } from '@/components/customer/OfferChip';
-import { offerUrgency } from '@/lib/offers';
+import { offerUrgency, offerLabelWithMode } from '@/lib/offers';
+import type { Promotion } from '@/types/promotion';
 
 interface ActivitiesSectionProps {
   cafeId: string;
   activities: HardwareTier[];
+  /** A link-only campaign code the visitor arrived with; carried into checkout. */
+  promoCode?: string | null;
+  campaignOffers?: Promotion[];
 }
 
 /** Café-detail "Activities" cards (spec §7) — deliberately shows only what
@@ -17,7 +21,7 @@ interface ActivitiesSectionProps {
  *  plus one quiet line of what the owner told us about it ("American pool ·
  *  9 ft") when they did. Tapping a card reuses
  *  the exact same booking route every gaming tier already uses. */
-export function ActivitiesSection({ cafeId, activities }: ActivitiesSectionProps) {
+export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffers = [] }: ActivitiesSectionProps) {
   if (activities.length === 0) return null;
 
   return (
@@ -27,7 +31,7 @@ export function ActivitiesSection({ cafeId, activities }: ActivitiesSectionProps
         {activities.map((tier) => (
           <Link
             key={tier.id}
-            href={`/bookings/new?cafeId=${cafeId}&tierId=${tier.id}`}
+            href={`/bookings/new?cafeId=${cafeId}&tierId=${tier.id}${promoCode ? `&promoCode=${encodeURIComponent(promoCode)}` : ''}`}
             className="flex items-center gap-4 p-4 rounded-2xl border border-border/80 bg-card hover:shadow-float hover:bg-surface transition-all"
           >
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-surface text-text-secondary">
@@ -47,6 +51,15 @@ export function ActivitiesSection({ cafeId, activities }: ActivitiesSectionProps
                     validUntil: tier.activePromotion.validUntil,
                   })}
                 />
+              )}
+              {campaignOffers.filter((o) => o.applicableTierId === tier.id).length > 0 && (
+                <div className="my-0.5 flex flex-wrap items-center gap-1.5">
+                  {campaignOffers
+                    .filter((o) => o.applicableTierId === tier.id)
+                    .map((o) => (
+                      <OfferChip key={o.id} label={offerLabelWithMode(o.label || 'Offer', o.playMode)} />
+                    ))}
+                </div>
               )}
               <div className="flex flex-wrap items-center gap-x-1.5 text-caption text-text-secondary">
                 <span>{tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'}</span>

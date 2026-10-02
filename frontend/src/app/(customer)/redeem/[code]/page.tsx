@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2, Tag } from 'lucide-react';
-import { previewKheloCode } from '@/lib/api/promotions';
+import { previewKheloCode, getCampaign } from '@/lib/api/promotions';
 import { Button, ErrorState } from '@/components/ui';
 
 /**
@@ -41,6 +41,18 @@ export default function RedeemCodePage() {
         }
         router.replace(`/bookings/new?cafeId=${redemption.cafeId}&promoCode=${encodeURIComponent(code)}`);
       } catch (err: any) {
+        if (cancelled) return;
+        // Not a one-offer KHELO code: it may be a link-only campaign code
+        // ("Founders' price"). Those land on the café page, where the banner
+        // shows what is unlocked, then carry on to checkout.
+        try {
+          const { campaign } = await getCampaign(code);
+          if (cancelled) return;
+          router.replace(`/cafe/${campaign.cafeId}?promoCode=${encodeURIComponent(code)}`);
+          return;
+        } catch {
+          /* fall through to the error below */
+        }
         if (cancelled) return;
         setStatus('error');
         setErrorMessage(err?.message || 'Invalid or unrecognized KHELO code.');

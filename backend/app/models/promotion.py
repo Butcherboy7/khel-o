@@ -14,6 +14,25 @@ class PromotionType(str, enum.Enum):
     FIXED_PRICE = "fixed_price"
 
 
+class OfferCampaign(Base):
+    """A link-only offer bundle ("Founders' price"): several promotions that
+    share one access code and one spot cap. People reach it through a link or by
+    typing the code; the promotions in it are hidden from every public listing
+    and never apply without the code. The cap counts people (paid bookings
+    across all its promotions), never invented numbers."""
+    __tablename__ = "offer_campaigns"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    cafe_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cafes.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    access_code: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class Promotion(Base):
     __tablename__ = "promotions"
 
@@ -65,5 +84,8 @@ class Promotion(Base):
     # as the code's validity window and usage limit rather than duplicating
     # them — a code is always 1:1 with the promotion it unlocks.
     khelo_code: Mapped[str | None] = mapped_column(String(20), unique=True, index=True, nullable=True)
+    # Set when this offer belongs to a link-only campaign: hidden from public
+    # listings, applies only with the campaign's access code.
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("offer_campaigns.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

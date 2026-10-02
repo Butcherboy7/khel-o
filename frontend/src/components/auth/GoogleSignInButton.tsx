@@ -7,6 +7,7 @@ import { googleAuth } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
+import { InAppBrowserNotice } from '@/components/auth/InAppBrowserNotice';
 // google-identity.d.ts is a global ambient type augmentation, picked up
 // automatically via tsconfig.json's `include` -- it has no runtime module
 // to import, so a value import of it breaks the production webpack build.
@@ -101,6 +102,7 @@ export function GoogleSignInButton({ redirectPath, onError, onSuccess }: GoogleS
         strategy="afterInteractive"
         onLoad={initialize}
       />
+      <InAppBrowserNotice className="mb-2 w-full" />
       <div ref={containerRef} className="flex w-full justify-center" />
     </>
   );

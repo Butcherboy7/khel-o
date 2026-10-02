@@ -3,7 +3,7 @@ from uuid import UUID
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, or_, and_
-from app.models.promotion import Promotion
+from app.models.promotion import Promotion, OfferCampaign
 from app.repositories.base import BaseRepository
 
 class PromotionRepository(BaseRepository[Promotion]):
@@ -45,6 +45,7 @@ class PromotionRepository(BaseRepository[Promotion]):
         stmt = select(Promotion).where(
             Promotion.cafe_id == cafe_id,
             Promotion.is_active == True,
+            Promotion.campaign_id.is_(None),
             Promotion.valid_from <= now,
             Promotion.valid_until >= now
         )
@@ -59,6 +60,7 @@ class PromotionRepository(BaseRepository[Promotion]):
         stmt = select(Promotion).where(
             Promotion.cafe_id.in_(cafe_ids),
             Promotion.is_active == True,
+            Promotion.campaign_id.is_(None),
             Promotion.valid_from <= now,
             Promotion.valid_until >= now
         )
@@ -69,6 +71,7 @@ class PromotionRepository(BaseRepository[Promotion]):
         stmt = select(Promotion).where(
             Promotion.cafe_id == cafe_id,
             Promotion.is_active == True,
+            Promotion.campaign_id.is_(None),
             Promotion.valid_from <= now,
             Promotion.valid_until >= now,
             or_(
@@ -132,6 +135,53 @@ class PromotionRepository(BaseRepository[Promotion]):
         return (await self.db.execute(
             select(func.count(Booking.id)).where(
                 Booking.promotion_id == promotion_id,
+                Booking.status == BookingStatus.PENDING_PAYMENT,
+                Booking.created_at >= cutoff,
+            )
+        )).scalar() or 0
+
+    # ---- link-only campaigns ----
+
+    async def get_campaign_by_code(self, code: str) -> Optional[OfferCampaign]:
+        stmt = select(OfferCampaign).where(OfferCampaign.access_code == code.strip().upper())
+        return (await self.db.execute(stmt)).scalars().first()
+
+    async def get_campaign_promotions(self, campaign_id: UUID, now: datetime) -> List[Promotion]:
+        stmt = select(Promotion).where(
+            Promotion.campaign_id == campaign_id,
+            Promotion.is_active == True,
+            Promotion.valid_from <= now,
+            Promotion.valid_until >= now,
+        )
+        return list((await self.db.execute(stmt)).scalars().all())
+
+    async def get_campaign_with_lock(self, campaign_id: UUID) -> Optional[OfferCampaign]:
+        stmt = select(OfferCampaign).where(OfferCampaign.id == campaign_id).with_for_update()
+        return (await self.db.execute(stmt)).scalars().first()
+
+    async def campaign_claimed(self, campaign_id: UUID) -> int:
+        """People who really booked under the campaign: paid bookings across
+        all of its promotions. This is the only number ever shown as claimed."""
+        from sqlalchemy import func
+        from app.models.booking import Booking, REDEEMED_STATUSES
+
+        return (await self.db.execute(
+            select(func.count(Booking.id)).where(
+                Booking.promotion_id.in_(select(Promotion.id).where(Promotion.campaign_id == campaign_id)),
+                Booking.status.in_(REDEEMED_STATUSES),
+            )
+        )).scalar() or 0
+
+    async def campaign_holds(self, campaign_id: UUID) -> int:
+        """Unpaid bookings still inside their 15-minute payment window."""
+        from datetime import timedelta, timezone
+        from sqlalchemy import func
+        from app.models.booking import Booking, BookingStatus
+
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+        return (await self.db.execute(
+            select(func.count(Booking.id)).where(
+                Booking.promotion_id.in_(select(Promotion.id).where(Promotion.campaign_id == campaign_id)),
                 Booking.status == BookingStatus.PENDING_PAYMENT,
                 Booking.created_at >= cutoff,
             )

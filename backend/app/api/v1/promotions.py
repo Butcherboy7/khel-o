@@ -58,6 +58,21 @@ async def list_cafe_promotions(
         }
     }
 
+@router.get("/campaign/{code}", status_code=status.HTTP_200_OK, response_model=None)
+async def get_campaign(
+    code: str,
+    cafe_id: Optional[UUID] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Public lookup for a link-only campaign ("Founders' price") so the café
+    page can show what the link unlocks and the real number of spots claimed.
+    Reveals nothing without the access code."""
+    promo_repo = PromotionRepository(db)
+    tier_repo = HardwareTierRepository(db)
+    service = PromotionService(promo_repo, tier_repo=tier_repo)
+    result = await service.get_public_campaign(code=code, cafe_id=cafe_id)
+    return {"success": True, "data": result}
+
 @router.get("/redeem/{code}", status_code=status.HTTP_200_OK, response_model=None)
 async def preview_khelo_code(
     code: str,

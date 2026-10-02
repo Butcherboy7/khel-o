@@ -163,8 +163,16 @@ class BookingService:
         # link). Resolving the code to a promotion_id here is just a lookup —
         # apply_promotion_to_booking below still does the one authoritative,
         # row-locked re-validation regardless of which path supplied the id.
+        # A code may open a link-only campaign ("Founders' price"): then the best
+        # offer inside it for this slot is picked below, and only the campaign's
+        # own code can unlock its offers.
+        campaign = None
+        if booking_in.promo_code and self.promo_service:
+            campaign = await self.promo_service.resolve_campaign(booking_in.promo_code, booking_in.cafe_id)
+        campaign_id = campaign.id if campaign is not None else None
+
         resolved_promotion_id = booking_in.promotion_id
-        if not resolved_promotion_id and booking_in.promo_code:
+        if not resolved_promotion_id and booking_in.promo_code and campaign is None:
             if not self.promo_service:
                 raise ValidationException(message="Promotion service missing", error_code="INTERNAL_ERROR")
             resolved_promotion_id = await self.promo_service.resolve_code_to_promotion_id(
@@ -184,6 +192,7 @@ class BookingService:
                 duration_hours=duration,
                 seats_count=seats_requested,
                 is_coop=is_coop,
+                campaign_id=campaign_id,
             )
             if auto_promo is not None:
                 resolved_promotion_id = auto_promo.id
@@ -202,6 +211,7 @@ class BookingService:
                 duration_hours=duration,
                 seats_count=seats_requested,
                 is_coop=is_coop,
+                campaign_id=campaign_id,
             )
 
         subtotal = base_amount - discount_amount
@@ -301,6 +311,16 @@ class BookingService:
         available_offers = []
 
         if self.promo_service:
+            # A code that opens a link-only campaign unlocks its offers for this
+            # quote. A full campaign unlocks nothing, and we say so plainly.
+            campaign = None
+            campaign_full = False
+            if quote_in.promo_code:
+                campaign = await self.promo_service.resolve_campaign(quote_in.promo_code, quote_in.cafe_id)
+                if campaign is not None:
+                    campaign_full = (await self.promo_service.campaign_status(campaign))["full"]
+            campaign_id = campaign.id if campaign is not None and not campaign_full else None
+
             eligible, hint_promo, hint_message, hint_minutes = await self.promo_service.list_eligible_offers(
                 cafe_id=quote_in.cafe_id,
                 tier_id=quote_in.hardware_tier_id,
@@ -309,6 +329,7 @@ class BookingService:
                 duration_hours=duration,
                 seats_count=seats_requested,
                 is_coop=is_coop,
+                campaign_id=campaign_id,
             )
 
             # A customer-chosen offer (tapped, or typed as a code) wins if it
@@ -316,7 +337,9 @@ class BookingService:
             # sentence and fall back to the best automatic offer, so a stale
             # choice never leaves the customer paying full price by surprise.
             resolved_promotion_id = quote_in.promotion_id
-            if not resolved_promotion_id and quote_in.promo_code:
+            if campaign_full:
+                offer_note = f"All the {campaign.name} spots are claimed."
+            elif not resolved_promotion_id and quote_in.promo_code and campaign is None:
                 try:
                     resolved_promotion_id = await self.promo_service.resolve_code_to_promotion_id(
                         code=quote_in.promo_code, cafe_id=quote_in.cafe_id

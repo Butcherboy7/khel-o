@@ -34,6 +34,7 @@ import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { saveBookingIntent } from '@/lib/bookingIntent';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
 import { OffersPanel } from '@/components/customer/OffersPanel';
+import { useCampaign } from '@/hooks/useCampaign';
 import {
   getNext14Days,
   formatDateStrip,
@@ -180,14 +181,25 @@ function BookingWizardContent() {
   const SERVICE_FEE_PERCENT = platformFeeData?.platformFeePercentage ?? 4;
 
   const handleApplyCode = (code: string) => {
+    codeClearedByUser.current = false;
     setChosenOfferId(null);
     setAppliedCode(code);
   };
-  const handleClearCode = () => setAppliedCode(null);
-  const handleChooseOffer = (offerId: string) => {
+  const handleClearCode = () => {
+    codeClearedByUser.current = true;
     setAppliedCode(null);
-    setChosenOfferId(offerId);
   };
+  const handleChooseOffer = (offerId: string) => setChosenOfferId(offerId);
+
+  // A link-only campaign this visitor arrived with (or saved earlier) at this
+  // café applies on its own: the code is carried even if the link was lost on
+  // the way from the Instagram browser to a normal one.
+  const campaign = useCampaign(cafeId);
+  const codeClearedByUser = useRef(false);
+  useEffect(() => {
+    if (campaign.code && !appliedCode && !codeClearedByUser.current) setAppliedCode(campaign.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaign.code]);
 
   // The calendar date actually submitted to the backend and shown to the
   // user — `selectedDate` advanced by `selectedDateOffset` when the chosen
@@ -474,7 +486,7 @@ function BookingWizardContent() {
         seatsCount: consolesCount,
         playersCount: seatsCount,
         promotionId: chosenOfferId,
-        promoCode: chosenOfferId ? null : appliedCode,
+        promoCode: appliedCode,
       }),
     enabled: Boolean(cafe?.id && activeTier?.id && selectedTime),
     placeholderData: keepPreviousData,
@@ -631,6 +643,7 @@ function BookingWizardContent() {
         // Exactly the offer the quote applied; the server still re-checks it
         // under a lock, so a sold-out offer is refused rather than charged.
         promotionId: quote?.appliedOffer?.id,
+        promoCode: appliedCode ?? undefined,
         game: selectedGame || undefined,
       });
 
