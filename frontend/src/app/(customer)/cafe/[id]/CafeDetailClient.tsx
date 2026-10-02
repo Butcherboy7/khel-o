@@ -614,12 +614,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       )}
                       {/* Co-op price on every co-op setup, so PS4 and PS5 read the same. */}
                       {tier.coopEnabled && (
-                        <p className="mt-1 flex items-center gap-1 text-caption text-text-secondary">
+                        <p className="mt-1 flex flex-nowrap items-center gap-1 whitespace-nowrap text-caption text-text-secondary">
                           <span>
-                            {(tier.coopMaxPlayers ?? 2) > 2 ? `2–${tier.coopMaxPlayers}` : '2'} on 1 console from{' '}
+                            {(tier.coopMaxPlayers ?? 2) > 2 ? `2–${tier.coopMaxPlayers}` : '2'} players from{' '}
                             <span className="font-data font-bold text-text-primary"><span className="rupee-symbol">₹</span>{coopRate}/hr</span>
                           </span>
-                          <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" className="relative z-10 -my-1" />
+                          <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" className="relative z-10 -my-1 flex-shrink-0" />
                         </p>
                       )}
                     </div>
