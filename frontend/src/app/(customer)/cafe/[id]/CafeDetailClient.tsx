@@ -305,6 +305,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const activeTier =
     (cafe.tiers && selectedTierId ? cafe.tiers.find((t) => t.id === selectedTierId) : undefined) ||
     cheapestTier;
+  // Hourly price after the selected setup's live percentage offer; null = no offer applies.
+  const barPromo = activeTier?.activePromotion;
+  const barPrice =
+    activeTier && barPromo && barPromo.isLiveNow !== false && barPromo.promotionType === 'percentage' && (barPromo.discountPercentage ?? 0) > 0
+      ? Math.round(activeTier.pricePerHour * (1 - (barPromo.discountPercentage ?? 0) / 100))
+      : null;
 
   // isCafeOpenNow treats missing hours as open; with no hours on file we
   // say nothing rather than claim a real business is open.
@@ -1194,7 +1200,11 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <div>
             <span className="text-overline text-text-secondary">{activeTier ? activeTier.name : 'Starting from'}</span>
             <div className="font-data text-price-lg font-bold text-text-primary">
-              <span className="rupee-symbol">₹</span>{activeTier?.pricePerHour ?? minPrice}<span className="text-caption font-normal text-text-secondary">/hr</span>
+              {/* Same rule as the setup card above, so the bar never contradicts the card the visitor tapped. */}
+              {barPrice != null && activeTier && barPrice < activeTier.pricePerHour && (
+                <span className="mr-1.5 text-caption font-normal text-text-secondary line-through">₹{activeTier.pricePerHour}</span>
+              )}
+              <span className="rupee-symbol">₹</span>{barPrice ?? activeTier?.pricePerHour ?? minPrice}<span className="text-caption font-normal text-text-secondary">/hr</span>
             </div>
             {/* Flag the fee before checkout so the total never surprises
                 anyone, but as an amount-at-checkout, not a percentage — "4%"
