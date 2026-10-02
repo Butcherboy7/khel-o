@@ -99,13 +99,13 @@ export function CampaignWelcome() {
   const loginHref = `/login?redirect=${encodeURIComponent(`/?campaign=${code}`)}`;
 
   return (
-    <div className="fixed inset-0 z-modal flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm sm:items-center" onClick={close}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={close}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="campaign-welcome-title"
         onClick={(e) => e.stopPropagation()}
-        className="khelo-pop-in relative flex w-full max-w-sm flex-col items-center gap-4 overflow-hidden rounded-3xl bg-card p-6 text-center shadow-overlay"
+        className="khelo-pop-in relative flex w-full max-w-sm flex-col items-center gap-4 overflow-hidden rounded-3xl bg-card px-6 pb-6 pt-8 text-center shadow-overlay"
       >
         <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-0">
           {Array.from({ length: 22 }).map((_, i) => (
@@ -131,7 +131,7 @@ export function CampaignWelcome() {
           <X className="h-4 w-4" />
         </button>
 
-        <h2 id="campaign-welcome-title" className="mt-2 font-heading text-h2 font-bold text-text-primary">
+        <h2 id="campaign-welcome-title" className="px-6 font-heading text-h2 font-bold text-text-primary">
           {earned ? 'Badge claimed!' : 'You unlocked KHELO Special Access'}
         </h2>
         <p className="text-body text-text-secondary">
