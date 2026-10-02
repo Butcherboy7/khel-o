@@ -43,8 +43,10 @@ function allowedDurationsMin(minDurMin: number): number[] {
 }
 
 /** Nearest allowed length to a raw (drag-computed) minute count. */
-function snapDurationMin(raw: number, minDurMin: number): number {
-  const allowed = allowedDurationsMin(minDurMin);
+function snapDurationMin(raw: number, minDurMin: number, maxMin: number = MAX_DURATION_MIN): number {
+  const all = allowedDurationsMin(minDurMin);
+  const fit = all.filter((a) => a <= maxMin);
+  const allowed = fit.length ? fit : [all[0]];
   let best = allowed[0];
   for (const a of allowed) {
     if (Math.abs(a - raw) < Math.abs(best - raw)) best = a;
@@ -136,6 +138,14 @@ export function TimelineRangePicker({
   const activeDrag = useRef<'start' | 'end' | 'pan' | null>(null);
   const edgeRaf = useRef<number | null>(null);
   const applyDragRef = useRef<(x: number) => void>(() => {});
+  // The handle follows the finger continuously: while dragging, this holds the
+  // raw (un-snapped) minutes. Nothing is committed to the parent until release,
+  // when the nearest allowed length is picked.
+  const [live, setLive] = useState<{ start: number; end: number } | null>(null);
+  const liveRef = useRef<{ start: number; end: number } | null>(null);
+  // Brief ease on the release snap only (never while the finger is down).
+  const [settling, setSettling] = useState(false);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // First-time coachmark: shown once per browser so a new customer knows the
   // triangles drag and the track swipes, then dismisses itself. Any real
@@ -171,6 +181,7 @@ export function TimelineRangePicker({
 
   useEffect(() => () => {
     if (edgeRaf.current != null) cancelAnimationFrame(edgeRaf.current);
+    if (settleTimer.current) clearTimeout(settleTimer.current);
   }, []);
 
   // Measure container width
@@ -241,6 +252,8 @@ export function TimelineRangePicker({
   const startPx = minToPx(selStart);
   const endPx = minToPx(selEnd);
   const rangePx = endPx - startPx;
+  const shownStartPx = live ? minToPx(live.start) : startPx;
+  const shownEndPx = live ? minToPx(live.end) : endPx;
 
   // ── Auto-Centering Scroll Helper ──────────────────────────────────────────
   const centerSelectionInViewport = useCallback(() => {
@@ -330,35 +343,46 @@ export function TimelineRangePicker({
     edgeRaf.current = requestAnimationFrame(loop);
   };
 
+  const clampTo = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
   const applyDrag = (clientX: number) => {
     if (!activeDrag.current) return;
     const mode = activeDrag.current;
     const scrollNow = scrollRef.current?.scrollLeft ?? 0;
     const dx = clientX + scrollNow - (dragStartX.current + dragStartScroll.current);
-    const deltaMin = Math.round(dx / slotW) * G;
-
+    // Continuous: no rounding to a step while the finger is down.
+    const deltaMin = (dx / slotW) * G;
+    const s0 = dragStartMin.current;
+    const d0 = dragDurMin.current;
+    const e0 = s0 + d0;
+    let next: { start: number; end: number };
     if (mode === 'start') {
-      // Dragging the start handle left grows the session; it may not grow past
-      // the API's maximum duration.
-      const earliestStart = Math.max(minValidStart, selEnd - MAX_DURATION_MIN);
-      const rawStart = Math.max(earliestStart, Math.min(selEnd - minDurMin, dragStartMin.current + deltaMin));
-      const snappedDurMin = snapDurationMin(selEnd - rawStart, minDurMin);
-      const newStart = selEnd - snappedDurMin;
-      const newDur = snappedDurMin / 60;
-      const startOffset = minutesToTimeAndDayOffset(newStart);
-      onChange(startOffset.time, newDur, startOffset.dayOffset);
+      const lo = Math.max(minValidStart, e0 - MAX_DURATION_MIN);
+      next = { start: clampTo(s0 + deltaMin, lo, e0 - minDurMin), end: e0 };
     } else if (mode === 'end') {
-      const latestEnd = Math.min(closeMin, selStart + MAX_DURATION_MIN);
-      const rawEnd = Math.max(selStart + minDurMin, Math.min(latestEnd, dragStartMin.current + dragDurMin.current + deltaMin));
-      const snappedDurMin = snapDurationMin(rawEnd - selStart, minDurMin);
-      const newDur = snappedDurMin / 60;
-      const startOffset = minutesToTimeAndDayOffset(selStart);
-      onChange(startOffset.time, newDur, startOffset.dayOffset);
-    } else if (mode === 'pan') {
-      const newStart = Math.max(minValidStart, Math.min(closeMin - dragDurMin.current, dragStartMin.current + deltaMin));
-      const startOffset = minutesToTimeAndDayOffset(newStart);
-      onChange(startOffset.time, durationHours, startOffset.dayOffset);
+      const hi = Math.min(closeMin, s0 + MAX_DURATION_MIN);
+      next = { start: s0, end: clampTo(e0 + deltaMin, s0 + minDurMin, hi) };
+    } else {
+      const st = clampTo(s0 + deltaMin, minValidStart, closeMin - d0);
+      next = { start: st, end: st + d0 };
     }
+    liveRef.current = next;
+    setLive(next);
+  };
+
+  // Nearest allowed length (never an always-round-down) for a raw drag position.
+  const snapLive = (l: { start: number; end: number }, mode: 'start' | 'end' | 'pan') => {
+    if (mode === 'start') {
+      const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(MAX_DURATION_MIN, l.end - minValidStart));
+      return { start: l.end - dur, end: l.end, dur };
+    }
+    if (mode === 'end') {
+      const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(MAX_DURATION_MIN, closeMin - l.start));
+      return { start: l.start, end: l.start + dur, dur };
+    }
+    const dur = l.end - l.start;
+    const st = clampTo(Math.round(l.start / G) * G, minValidStart, closeMin - dur);
+    return { start: st, end: st + dur, dur };
   };
   applyDragRef.current = applyDrag;
 
@@ -387,6 +411,17 @@ export function TimelineRangePicker({
       activeDrag.current = null;
       if (edgeRaf.current != null) cancelAnimationFrame(edgeRaf.current);
       edgeRaf.current = null;
+      const l = liveRef.current;
+      if (l) {
+        const snapped = snapLive(l, dragMode);
+        const so = minutesToTimeAndDayOffset(snapped.start);
+        onChange(so.time, snapped.dur / 60, so.dayOffset);
+        setSettling(true);
+        if (settleTimer.current) clearTimeout(settleTimer.current);
+        settleTimer.current = setTimeout(() => setSettling(false), 180);
+      }
+      liveRef.current = null;
+      setLive(null);
       frozenSlotW.current = null;
       setDragMode(null);
       setTimeout(() => centerSelectionInViewport(), 50);
@@ -446,27 +481,48 @@ export function TimelineRangePicker({
     }
   };
 
-  // One-tap lengths, so going from 90 min to 3 hours is a tap, not five.
-  const quickLengths = allowedDurationsMin(minDurMin).filter(
-    (m) => [15, 30, 60, 90, 120, 180, 240].includes(m) && selStart + m <= closeMin,
-  );
-  const setLength = (m: number) => {
-    const { time, dayOffset } = minutesToTimeAndDayOffset(selStart);
-    onChange(time, m / 60, dayOffset);
-  };
+  const [noSlotMsg, setNoSlotMsg] = useState<string | null>(null);
+  useEffect(() => {
+    setNoSlotMsg(null);
+  }, [selectedDate, startTime, durationHours, requestedSeats]);
 
+  // Earliest open window nearest the current pick. Tries the chosen length
+  // first, then shorter allowed lengths, so it still finds something when the
+  // day has no gap as long as the current selection.
   const findNextSlot = () => {
-    const want = snapDurationMin(Math.max(minDurMin, durMin), minDurMin);
-    for (let m = minValidStart; m <= closeMin - want; m += G) {
-      const ok = segments.filter((s) => s.start >= m && s.start < m + want).every((s) => s.state === 'AVAILABLE');
-      if (ok) {
+    const wanted = snapDurationMin(Math.max(minDurMin, durMin), minDurMin);
+    const lengths = allowedDurationsMin(minDurMin).filter((m) => m <= wanted).reverse();
+    for (const len of lengths) {
+      let best: number | null = null;
+      for (let m = minValidStart; m <= closeMin - len; m += G) {
+        const ok = segments.filter((x) => x.start >= m && x.start < m + len).every((x) => x.state === 'AVAILABLE');
+        if (ok && (best === null || Math.abs(m - selStart) < Math.abs(best - selStart))) best = m;
+      }
+      if (best !== null) {
         isUserScrolling.current = false;
-        const { time, dayOffset } = minutesToTimeAndDayOffset(m);
-        onChange(time, want / 60, dayOffset);
+        setNoSlotMsg(null);
+        const { time, dayOffset } = minutesToTimeAndDayOffset(best);
+        onChange(time, len / 60, dayOffset);
         return;
       }
     }
+    setNoSlotMsg(
+      requestedSeats > 1
+        ? 'No open time on this day for that many players. Try another date or fewer players.'
+        : 'No open time left on this day. Try another date.',
+    );
   };
+
+  const preview = live && dragMode ? snapLive(live, dragMode) : null;
+  const headStart = preview ? preview.start : selStart;
+  const headEnd = preview ? preview.end : selEnd;
+  const headDur = preview ? preview.dur : durMin;
+  const previewValid = preview
+    ? preview.start >= minValidStart &&
+      preview.end <= closeMin &&
+      segments.filter((x) => x.start >= preview.start && x.start < preview.end).every((x) => x.state === 'AVAILABLE')
+    : isSelectionValid;
+  const ease = settling && !dragMode ? 'left 160ms ease-out, width 160ms ease-out' : undefined;
 
   const labelStepMinutes = slotW < 20 ? 120 : 60;
 
@@ -508,7 +564,7 @@ export function TimelineRangePicker({
         <div className="flex flex-col pl-1">
           <span className="text-[12px] font-extrabold tracking-wider text-text-primary uppercase">TIME</span>
           <span className="text-[13px] font-semibold text-text-secondary mt-0.5">
-            {formatMinutesTo12h(selStart)} - {formatMinutesTo12h(selEnd)}
+            {formatMinutesTo12h(headStart)} - {formatMinutesTo12h(headEnd)}
           </span>
         </div>
 
@@ -540,9 +596,9 @@ export function TimelineRangePicker({
               <Minus className="h-3.5 w-3.5" />
             </button>
             <span className="inline-flex min-w-[65px] items-center justify-center gap-0.5 text-center text-[13px] font-bold text-text-primary">
-              {durMin} Mins
+              {headDur} Mins
               {/* Easter egg: a long session earns a little flame. */}
-              {durMin >= 240 && (
+              {headDur >= 240 && (
                 <Flame className="h-3 w-3 text-primary animate-in zoom-in-50 duration-300" aria-label="Marathon session" />
               )}
             </span>
@@ -558,25 +614,6 @@ export function TimelineRangePicker({
           </div>
         </div>
       </div>
-
-      {/* ── Quick length chips ── */}
-      {quickLengths.length > 1 && (
-        <div role="group" aria-label="Quick session length" className="flex gap-2 overflow-x-auto bg-[#e0f2fe]/75 px-3 pb-2.5 scrollbar-hide">
-          {quickLengths.map((m) => (
-            <button
-              key={m}
-              type="button"
-              aria-pressed={durMin === m}
-              onClick={() => setLength(m)}
-              className={`min-h-[44px] flex-shrink-0 rounded-full px-4 text-[13px] font-bold transition-colors ${
-                durMin === m ? 'bg-secondary text-white' : 'bg-white text-text-primary border border-border/60 hover:bg-surface'
-              }`}
-            >
-              {m < 60 ? `${m} min` : m % 60 === 0 ? `${m / 60} hr` : `${m / 60} hr`}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* ── Pattern Legend — the track below differentiates Available/Booked/Past
           by fill pattern (solid/hatch/dotted), not color alone; spell that out
@@ -746,8 +783,8 @@ export function TimelineRangePicker({
               onPointerDown={(e) => handlePointerDown('pan', e)}
               style={{
                 position: 'absolute',
-                left: startPx,
-                width: rangePx,
+                transition: ease, left: shownStartPx,
+                width: shownEndPx - shownStartPx,
                 top: 14,
                 height: 60,
                 display: 'flex',
@@ -765,7 +802,7 @@ export function TimelineRangePicker({
                   backgroundImage:
                     'repeating-linear-gradient(135deg, #374151 0, #374151 3px, #e5e7eb 0, #e5e7eb 7px)',
                   borderRadius: 2,
-                  border: isSelectionValid ? '1px solid #374151' : '1px solid #ef4444',
+                  border: previewValid ? '1px solid #374151' : '1px solid #ef4444',
                 }}
               />
             </div>
@@ -778,7 +815,7 @@ export function TimelineRangePicker({
               onPointerDown={(e) => handlePointerDown('start', e)}
               style={{
                 position: 'absolute',
-                left: startPx,
+                transition: ease, left: shownStartPx,
                 top: 46,
                 transform: 'translate(-50%, -50%)',
                 zIndex: 20,
@@ -815,7 +852,7 @@ export function TimelineRangePicker({
               onPointerDown={(e) => handlePointerDown('end', e)}
               style={{
                 position: 'absolute',
-                left: endPx,
+                transition: ease, left: shownEndPx,
                 top: 46,
                 transform: 'translate(-50%, -50%)',
                 zIndex: 20,
@@ -851,8 +888,8 @@ export function TimelineRangePicker({
             <div
               style={{
                 position: 'absolute',
-                left: startPx,
-                width: rangePx,
+                transition: ease, left: shownStartPx,
+                width: shownEndPx - shownStartPx,
                 top: 50,
                 height: 1.5,
                 backgroundColor: '#374151',
@@ -880,6 +917,11 @@ export function TimelineRangePicker({
             Find Open Slot
           </button>
         </div>
+      )}
+      {noSlotMsg && (
+        <p role="status" className="mx-3 mb-3 mt-2 text-caption font-medium text-error">
+          {noSlotMsg}
+        </p>
       )}
     </div>
   );
