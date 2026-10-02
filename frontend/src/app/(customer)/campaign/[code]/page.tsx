@@ -34,13 +34,29 @@ function rowLabel(o: CampaignOfferRow): string {
   return [playersText(o), o.exactLength ? lengthLabel(o.minutes) : 'per hour'].filter(Boolean).join(' · ');
 }
 
+/** One block per activity. Setups with identical lines (e.g. two PlayStations at the same
+ *  price) are merged into one block, so the page lists each price once. */
 function groupByActivity(offers: CampaignOfferRow[]): [string, CampaignOfferRow[]][] {
   const sorted = [...offers].sort(
-    (a, b) => a.activity.localeCompare(b.activity) || (a.players ?? 0) - (b.players ?? 0) || a.minutes - b.minutes,
+    (a, b) =>
+      a.activity.localeCompare(b.activity) ||
+      (a.players ?? 0) - (b.players ?? 0) ||
+      a.minutes - b.minutes ||
+      Number(Boolean(a.when)) - Number(Boolean(b.when)),
   );
-  const map = new Map<string, CampaignOfferRow[]>();
-  for (const o of sorted) map.set(o.activity, [...(map.get(o.activity) ?? []), o]);
-  return Array.from(map.entries());
+  const byActivity = new Map<string, CampaignOfferRow[]>();
+  for (const o of sorted) byActivity.set(o.activity, [...(byActivity.get(o.activity) ?? []), o]);
+
+  const signature = (rows: CampaignOfferRow[]) =>
+    rows.map((r) => [r.players, r.minutes, r.exactLength, r.when, r.regularPrice, r.price].join('|')).join(';');
+  const merged = new Map<string, { names: string[]; rows: CampaignOfferRow[] }>();
+  Array.from(byActivity.entries()).forEach(([name, rows]) => {
+    const sig = signature(rows);
+    const hit = merged.get(sig);
+    if (hit) hit.names.push(name);
+    else merged.set(sig, { names: [name], rows });
+  });
+  return Array.from(merged.values()).map((m) => [m.names.join(' & '), m.rows] as [string, CampaignOfferRow[]]);
 }
 
 function OfferRow({ o }: { o: CampaignOfferRow }) {
