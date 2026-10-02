@@ -23,7 +23,11 @@ class OfferCampaign(Base):
     __tablename__ = "offer_campaigns"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    cafe_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cafes.id"), nullable=False, index=True)
+    # Null = spans several cafés (each promotion carries its own cafe_id).
+    cafe_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cafes.id"), nullable=True, index=True)
+    # Public: its promotions are ordinary offers (listed + auto-applied
+    # everywhere); the campaign is then only the landing/badge/tracking layer.
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     access_code: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
     max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -69,12 +69,27 @@ class CityGeographyItem(BaseModel):
     )
 
 
+class CampaignRevenueItem(BaseModel):
+    """Money for bookings that used an offer from one campaign.
+    list_price - discount = cafe_share; cafe_share + khelo_fee = customer_paid."""
+    campaign: str
+    bookings: int
+    list_price: float
+    discount: float
+    customer_paid: float
+    khelo_fee: float
+    cafe_share: float
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
 class RevenueBreakdownResponse(BaseModel):
     gmv: float
     khel_revenue: float
     owner_settlements: float
     revenue_by_city: Dict[str, float]
     revenue_by_platform: Dict[str, float]
+    campaigns: List[CampaignRevenueItem] = []
 
     model_config = ConfigDict(
         alias_generator=to_camel,

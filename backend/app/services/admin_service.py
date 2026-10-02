@@ -26,7 +26,7 @@ from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.hardware_tier import HardwareTier
-from app.models.promotion import Promotion
+from app.models.promotion import Promotion, OfferCampaign
 from app.models.owner_payout_account import OwnerPayoutAccount
 from app.models.platform_fee import PlatformFee
 from app.models.payment import Payment
@@ -256,7 +256,8 @@ class AdminService:
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
         page: int = 1,
-        limit: int = 20
+        limit: int = 20,
+        campaign_only: bool = False,
     ) -> Dict[str, Any]:
         limit = min(limit, 50)
         stmt = select(
@@ -264,16 +265,31 @@ class AdminService:
             User.email.label("gamer_email"),
             User.full_name.label("gamer_full_name"),
             Cafe.name.label("cafe_name"),
-            HardwareTier.name.label("tier_name")
+            HardwareTier.name.label("tier_name"),
+            # Money split per booking, straight from the rows written at
+            # booking time: what the café is owed vs. KHELO's fee.
+            PlatformFee.owner_settlement_amount.label("owner_settlement_amount"),
+            PlatformFee.convenience_fee.label("pf_convenience_fee"),
+            PlatformFee.gateway_fee.label("pf_gateway_fee"),
+            Promotion.title.label("offer_title"),
+            OfferCampaign.name.label("campaign_name"),
         ).join(
             User, Booking.gamer_id == User.id
         ).join(
             Cafe, Booking.cafe_id == Cafe.id
         ).join(
             HardwareTier, Booking.hardware_tier_id == HardwareTier.id
+        ).outerjoin(
+            PlatformFee, PlatformFee.booking_id == Booking.id
+        ).outerjoin(
+            Promotion, Booking.promotion_id == Promotion.id
+        ).outerjoin(
+            OfferCampaign, Promotion.campaign_id == OfferCampaign.id
         )
 
         filters = []
+        if campaign_only:
+            filters.append(OfferCampaign.id.is_not(None))
         if cafe_id:
             filters.append(Booking.cafe_id == cafe_id)
         if gamer_id:
@@ -302,7 +318,14 @@ class AdminService:
         item_responses: List[AdminBookingListItem] = []
         for row in rows:
             booking_obj, gamer_email, full_name, cafe_name, tier_name = row[0], row[1], row[2], row[3], row[4]
+            owner_share, pf_conv, pf_gateway, offer_title, campaign_name = row[5], row[6], row[7], row[8], row[9]
             bd = BookingResponse.model_validate(booking_obj).model_dump()
+            bd["owner_settlement_amount"] = float(owner_share) if owner_share is not None else None
+            bd["platform_fee_amount"] = (
+                float(Decimal(str(pf_conv or 0)) + Decimal(str(pf_gateway or 0))) if owner_share is not None else None
+            )
+            bd["offer_title"] = offer_title
+            bd["campaign_name"] = campaign_name
             bd["gamer_email"] = gamer_email or ""
             bd["gamer_name"] = (full_name or "Gamer").split()[0]
             bd["cafe_name"] = cafe_name or "Café"

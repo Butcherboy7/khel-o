@@ -288,7 +288,9 @@ class PromotionService:
         if not code:
             return None
         campaign = await self.promo_repo.get_campaign_by_code(code)
-        if not campaign or not campaign.is_active or str(campaign.cafe_id) != str(cafe_id):
+        if not campaign or not campaign.is_active:
+            return None
+        if campaign.cafe_id is not None and str(campaign.cafe_id) != str(cafe_id):
             return None
         now = datetime.now(timezone.utc)
         if not (self._aware(campaign.starts_at) <= now <= self._aware(campaign.ends_at)):
@@ -309,18 +311,40 @@ class PromotionService:
         if (
             not campaign
             or not campaign.is_active
-            or (cafe_id is not None and str(campaign.cafe_id) != str(cafe_id))
+            or (cafe_id is not None and campaign.cafe_id is not None and str(campaign.cafe_id) != str(cafe_id))
             or not (self._aware(campaign.starts_at) <= now <= self._aware(campaign.ends_at))
         ):
             raise NotFoundException(message="That code isn't valid.", error_code="CAMPAIGN_NOT_FOUND")
         status_ = await self.campaign_status(campaign)
         promos = await self.promo_repo.get_campaign_promotions(campaign.id, now)
+        if cafe_id is not None:
+            promos = [p for p in promos if str(p.cafe_id) == str(cafe_id)]
         offers = [await self._active_response(p, now) for p in promos]
+
+        # Landing-page view: offers grouped by café, each with the real regular
+        # price and the price after the offer, computed by the same pricing and
+        # offer maths checkout uses (so the page can never disagree with it).
+        cafes_out = []
+        for cafe in await self.promo_repo.get_campaign_cafes(campaign.id):
+            if cafe_id is not None and str(cafe.id) != str(cafe_id):
+                continue
+            rows = []
+            for p in (x for x in promos if x.cafe_id == cafe.id):
+                row = await self._campaign_offer_row(p, now)
+                if row:
+                    rows.append(row)
+            if rows:
+                photos = cafe.photos or []
+                cafes_out.append({
+                    "id": cafe.id, "name": cafe.name, "slug": cafe.slug, "city": cafe.city,
+                    "photo": photos[0] if photos else None, "offers": rows,
+                })
         return {
             "campaign": {
                 "name": campaign.name,
                 "code": campaign.access_code,
                 "cafeId": campaign.cafe_id,
+                "isPublic": campaign.is_public,
                 "maxUses": campaign.max_uses,
                 "claimed": status_["claimed"],
                 "remaining": status_["remaining"],
@@ -328,6 +352,66 @@ class PromotionService:
                 "endsAt": campaign.ends_at,
             },
             "offers": offers,
+            "cafes": cafes_out,
+        }
+
+    async def _campaign_offer_row(self, p: Promotion, now: datetime) -> Optional[dict]:
+        """One landing-page line: activity, who/how long, before -> after."""
+        tier = await self.tier_repo.get_by_id(p.applicable_tier_id) if (p.applicable_tier_id and self.tier_repo) else None
+        if tier is None:
+            return None
+        coop = (getattr(p, "play_mode", None) or "any") == "coop"
+        players = 2 if coop else 1
+        if p.promotion_type == PromotionType.FIXED_PRICE:
+            minutes = round(float(p.min_duration_hours or 0) * 60)
+        else:
+            minutes = int(p.min_booking_minutes or 60)
+        # Percentage / flat offers apply to any length above the minimum; show
+        # them at one hour (or their minimum if longer) as the headline.
+        minutes = max(minutes, 60) if p.promotion_type != PromotionType.FIXED_PRICE else minutes
+        regular = base_price_for_minutes(tier, minutes, players=players, is_coop=coop, seats=1)
+        try:
+            discount = self._evaluate_and_price(
+                p, tier.id, regular, None, Decimal(minutes) / Decimal(60), 1, coop, ignore_schedule=True
+            )
+        except ValidationException:
+            return None
+        price = regular - discount
+        return {
+            "id": p.id,
+            "title": p.title,
+            "activity": tier.name,
+            "playMode": getattr(p, "play_mode", None) or "any",
+            "players": players if coop else (1 if (getattr(p, "play_mode", None) or "any") == "solo" else None),
+            "minutes": minutes,
+            "exactLength": p.promotion_type == PromotionType.FIXED_PRICE,
+            "label": offer_label(p),
+            "when": schedule_text(p),
+            "regularPrice": float(regular),
+            "price": float(price),
+            "saved": float(discount),
+        }
+
+    # ---- campaign badge + share indication ----
+
+    BADGE_KEY = "special_access"
+
+    async def claim_campaign_badge(self, code: str, user_id: UUID) -> dict:
+        """Entering the campaign while signed in earns the collectible badge.
+        Idempotent: asking again just returns the badge already held."""
+        campaign = await self.promo_repo.get_campaign_by_code(code)
+        now = datetime.now(timezone.utc)
+        if (
+            not campaign or not campaign.is_active
+            or not (self._aware(campaign.starts_at) <= now <= self._aware(campaign.ends_at))
+        ):
+            raise NotFoundException(message="That code isn't valid.", error_code="CAMPAIGN_NOT_FOUND")
+        badge, created = await self.promo_repo.grant_badge(user_id, self.BADGE_KEY, campaign.id)
+        shares = await self.promo_repo.share_stats(user_id)
+        return {
+            "badge": {"key": badge.badge_key, "name": "KHELO Special Access", "grantedAt": badge.granted_at},
+            "newlyEarned": created,
+            "shares": shares,
         }
 
     async def best_offers_for_cafes(self, cafe_ids: List[UUID]) -> dict:
@@ -413,6 +497,15 @@ class PromotionService:
             resp = PromotionResponse.model_validate(p)
             if p.max_uses is not None:
                 resp.held_uses = await self.promo_repo.pending_holds(p.id)
+            if p.campaign_id is not None:
+                camp = await self.promo_repo.db.get(OfferCampaign, p.campaign_id)
+                resp.campaign_name = camp.name if camp else None
+            row = await self._campaign_offer_row(p, datetime.now(timezone.utc))
+            if row:
+                resp.tier_name = row["activity"]
+                resp.regular_price = row["regularPrice"]
+                resp.offer_price = row["price"]
+                resp.offer_minutes = row["minutes"]
             out.append(resp)
         return out
 
@@ -678,9 +771,11 @@ class PromotionService:
         # and the campaign's spot cap is shared by every offer inside it
         # (campaign row locked so two last-spot bookings can't both pass).
         if promo.campaign_id is not None:
-            if campaign_id is None or str(promo.campaign_id) != str(campaign_id):
-                raise ValidationException(message="This offer needs its access code", error_code="PROMOTION_CODE_REQUIRED")
             campaign = await self.promo_repo.get_campaign_with_lock(promo.campaign_id)
+            # A public campaign's offers are ordinary offers: no code needed.
+            is_public = bool(campaign and campaign.is_public)
+            if not is_public and (campaign_id is None or str(promo.campaign_id) != str(campaign_id)):
+                raise ValidationException(message="This offer needs its access code", error_code="PROMOTION_CODE_REQUIRED")
             now_utc = datetime.now(timezone.utc)
             if (
                 not campaign
@@ -726,6 +821,7 @@ class PromotionService:
         duration_hours: Optional[Decimal],
         seats_count: int,
         is_coop: bool,
+        ignore_schedule: bool = False,
     ) -> Decimal:
         """The eligibility + discount math shared by apply_promotion_to_booking
         (row-locked, authoritative) and get_best_quote_offer (unlocked,
@@ -740,7 +836,7 @@ class PromotionService:
         # is still checked against wall-clock reality (that's a real inventory
         # count), only the schedule-window check uses the session's time.
         check_time = session_datetime if session_datetime is not None else datetime.now(timezone.utc)
-        if not self._is_promotion_active(promo, check_time):
+        if not self._is_promotion_active(promo, check_time, check_window=not ignore_schedule):
             raise ValidationException(message="Promotion is not valid for the selected date/time", error_code="PROMOTION_INACTIVE")
 
         if promo.applicable_tier_id and str(promo.applicable_tier_id) != str(tier_id):
@@ -854,7 +950,11 @@ class PromotionService:
         now_utc = datetime.now(timezone.utc)
         candidates = await self.promo_repo.get_active_for_cafe(cafe_id, now_utc)
         if campaign_id is not None:
-            candidates = candidates + await self.promo_repo.get_campaign_promotions(campaign_id, now_utc)
+            have = {p.id for p in candidates}
+            candidates = candidates + [
+                p for p in await self.promo_repo.get_campaign_promotions(campaign_id, now_utc)
+                if p.id not in have and str(p.cafe_id) == str(cafe_id)
+            ]
         # Only offers for this tier (or "all tiers") are even candidates;
         # matches apply_promotion_to_booking's PROMOTION_TIER_MISMATCH check.
         candidates = [p for p in candidates if not p.applicable_tier_id or str(p.applicable_tier_id) == str(tier_id)]

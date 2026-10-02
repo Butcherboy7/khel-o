@@ -96,6 +96,14 @@ class AdminBookingListItem(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    # base_amount - discount_amount = owner_settlement_amount (what the café
+    # is owed); platform_fee_amount = what KHELO earns; together they equal
+    # total_amount (what the customer paid). None on rows with no fee record.
+    owner_settlement_amount: Optional[float] = None
+    platform_fee_amount: Optional[float] = None
+    offer_title: Optional[str] = None
+    campaign_name: Optional[str] = None
+
     gamer_email: str
     gamer_name: str
     cafe_name: str

@@ -41,11 +41,24 @@ class PromotionRepository(BaseRepository[Promotion]):
         )
         return list(result.scalars().all())
 
+    @staticmethod
+    def _listable(now: datetime):
+        """Offers shown on public surfaces: ordinary offers, plus those of a
+        public campaign that is switched on and inside its dates. Link-only
+        campaign offers stay hidden."""
+        public_campaigns = select(OfferCampaign.id).where(
+            OfferCampaign.is_public == True,
+            OfferCampaign.is_active == True,
+            OfferCampaign.starts_at <= now,
+            OfferCampaign.ends_at >= now,
+        )
+        return or_(Promotion.campaign_id.is_(None), Promotion.campaign_id.in_(public_campaigns))
+
     async def get_active_for_cafe(self, cafe_id: UUID, now: datetime) -> List[Promotion]:
         stmt = select(Promotion).where(
             Promotion.cafe_id == cafe_id,
             Promotion.is_active == True,
-            Promotion.campaign_id.is_(None),
+            self._listable(now),
             Promotion.valid_from <= now,
             Promotion.valid_until >= now
         )
@@ -60,7 +73,7 @@ class PromotionRepository(BaseRepository[Promotion]):
         stmt = select(Promotion).where(
             Promotion.cafe_id.in_(cafe_ids),
             Promotion.is_active == True,
-            Promotion.campaign_id.is_(None),
+            self._listable(now),
             Promotion.valid_from <= now,
             Promotion.valid_until >= now
         )
@@ -71,7 +84,7 @@ class PromotionRepository(BaseRepository[Promotion]):
         stmt = select(Promotion).where(
             Promotion.cafe_id == cafe_id,
             Promotion.is_active == True,
-            Promotion.campaign_id.is_(None),
+            self._listable(now),
             Promotion.valid_from <= now,
             Promotion.valid_until >= now,
             or_(
@@ -146,6 +159,12 @@ class PromotionRepository(BaseRepository[Promotion]):
         stmt = select(OfferCampaign).where(OfferCampaign.access_code == code.strip().upper())
         return (await self.db.execute(stmt)).scalars().first()
 
+    async def get_campaign_cafes(self, campaign_id: UUID) -> List[Any]:
+        """Cafés that have at least one offer in this campaign."""
+        from app.models.cafe import Cafe
+        stmt = select(Cafe).where(Cafe.id.in_(select(Promotion.cafe_id).where(Promotion.campaign_id == campaign_id)))
+        return list((await self.db.execute(stmt)).scalars().all())
+
     async def get_campaign_promotions(self, campaign_id: UUID, now: datetime) -> List[Promotion]:
         stmt = select(Promotion).where(
             Promotion.campaign_id == campaign_id,
@@ -186,6 +205,56 @@ class PromotionRepository(BaseRepository[Promotion]):
                 Booking.created_at >= cutoff,
             )
         )).scalar() or 0
+
+    async def grant_badge(self, user_id: UUID, badge_key: str, campaign_id: Optional[UUID]):
+        """(badge, created). Safe to call twice, even concurrently."""
+        from sqlalchemy.exc import IntegrityError
+        from app.models.user_badge import UserBadge
+
+        async def _existing():
+            return (await self.db.execute(
+                select(UserBadge).where(UserBadge.user_id == user_id, UserBadge.badge_key == badge_key)
+            )).scalars().first()
+
+        found = await _existing()
+        if found:
+            return found, False
+        badge = UserBadge(user_id=user_id, badge_key=badge_key, campaign_id=campaign_id)
+        self.db.add(badge)
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            return await _existing(), False
+        await self.db.refresh(badge)
+        return badge, True
+
+    async def get_badges(self, user_id: UUID) -> list:
+        from app.models.user_badge import UserBadge
+        return list((await self.db.execute(select(UserBadge).where(UserBadge.user_id == user_id))).scalars().all())
+
+    async def share_stats(self, user_id: UUID) -> dict:
+        """How many times this person shared a campaign link and how many
+        different people opened those links. Read from the existing share
+        analytics events (share_created / share_opened keyed by `sid`)."""
+        from sqlalchemy import func
+        from app.models.analytics_event import AnalyticsEvent
+
+        created = (await self.db.execute(
+            select(AnalyticsEvent.event_metadata).where(
+                AnalyticsEvent.user_id == user_id, AnalyticsEvent.event_type == "share_created"
+            ).limit(500)
+        )).scalars().all()
+        sids = [m.get("sid") for m in created if isinstance(m, dict) and m.get("context") == "campaign" and m.get("sid")]
+        if not sids:
+            return {"shared": 0, "opened": 0}
+        opened = (await self.db.execute(
+            select(func.count(func.distinct(AnalyticsEvent.session_id))).where(
+                AnalyticsEvent.event_type == "share_opened",
+                AnalyticsEvent.event_metadata["sid"].as_string().in_(sids),
+            )
+        )).scalar() or 0
+        return {"shared": len(sids), "opened": int(opened)}
 
     async def increment_uses(self, promotion_id: UUID) -> None:
         stmt = update(Promotion).where(Promotion.id == promotion_id).values(

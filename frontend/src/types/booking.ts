@@ -41,6 +41,12 @@ export interface BookingDetail extends Booking {
   cafeAddress: string | null;
   gamerName?: string | null;
   cancelPolicy?: CancelPolicy | null;
+  /** Admin list only. baseAmount - discountAmount = ownerSettlementAmount (what the café is owed);
+   *  platformFeeAmount is what KHELO earns; the two add up to totalAmount (what the customer paid). */
+  ownerSettlementAmount?: number | null;
+  platformFeeAmount?: number | null;
+  offerTitle?: string | null;
+  campaignName?: string | null;
 }
 
 export interface OwnerBookingItem extends Booking {
@@ -94,6 +100,8 @@ export interface AdminBookingListParams {
   status?: BookingStatus;
   dateFrom?: string;
   dateTo?: string;
+  /** Only bookings that used an offer from a campaign. */
+  campaignOnly?: boolean;
   page?: number;
   limit?: number;
 }

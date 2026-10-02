@@ -27,6 +27,13 @@ export interface Promotion {
   currentUses: number;
   /** Unpaid bookings in their payment window currently holding a spot. */
   heldUses?: number;
+  /** Owner view, set by the server: campaign the offer belongs to, the setup, and the
+   *  regular vs offer price at its headline length (offerMinutes). */
+  campaignName?: string | null;
+  tierName?: string | null;
+  regularPrice?: number | null;
+  offerPrice?: number | null;
+  offerMinutes?: number | null;
   isActive: boolean;
   kheloCode: string | null;
   createdAt: string;
@@ -135,7 +142,10 @@ export async function deleteOwnerPromotionPermanently(promotionId: string): Prom
 export interface CampaignInfo {
   name: string;
   code: string;
-  cafeId: string;
+  /** null when the campaign spans several cafés. */
+  cafeId: string | null;
+  /** Public campaigns: offers are ordinary offers at every café; the code is only a short link. */
+  isPublic?: boolean;
   /** Real cap on paid bookings shared by every offer in the campaign; null = uncapped. */
   maxUses: number | null;
   /** Paid bookings so far. Never an invented number. */
@@ -155,4 +165,52 @@ export async function getCampaign(
       params: cafeId ? { cafeId } : undefined,
     }),
   );
+}
+
+/** One landing-page line: the real regular price and the price after the offer. */
+export interface CampaignOfferRow {
+  id: string;
+  title: string;
+  activity: string;
+  playMode: PromotionPlayMode;
+  /** 1 or 2 for solo/co-op offers, null when the offer is for any group size. */
+  players: number | null;
+  minutes: number;
+  /** true: the price is for exactly this length; false: a rate that scales ("per hour"). */
+  exactLength: boolean;
+  label: string;
+  when: string | null;
+  regularPrice: number;
+  price: number;
+  saved: number;
+}
+
+export interface CampaignCafe {
+  id: string;
+  name: string;
+  slug: string | null;
+  city: string;
+  photo: string | null;
+  offers: CampaignOfferRow[];
+}
+
+export interface CampaignPage {
+  campaign: CampaignInfo;
+  cafes: CampaignCafe[];
+}
+
+export async function getCampaignPage(code: string): Promise<CampaignPage> {
+  return call(() => apiClient.get(`/api/v1/promotions/campaign/${encodeURIComponent(code)}`));
+}
+
+export interface CampaignClaim {
+  badge: { key: string; name: string; grantedAt: string };
+  newlyEarned: boolean;
+  /** How often this person shared a campaign link and how many different people opened those links. */
+  shares: { shared: number; opened: number };
+}
+
+/** Signed-in only. Idempotent: asking again returns the badge already held. */
+export async function claimCampaignBadge(code: string): Promise<CampaignClaim> {
+  return call(() => apiClient.post(`/api/v1/promotions/campaign/${encodeURIComponent(code)}/claim`));
 }

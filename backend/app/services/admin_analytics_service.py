@@ -7,10 +7,11 @@ from app.models.user import User
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.platform_fee import PlatformFee
+from app.models.promotion import Promotion, OfferCampaign
 from app.models.hardware_tier import HardwareTier
 from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign import Campaign
-from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, MarketplaceHealthResponse, AttributionItem, FunnelResponse, CampaignItem, CampaignStatsResponse, TrafficResponse, TrafficTotals, TrafficBucket, TopPageItem, ShareReportResponse, ShareTotals, ShareChannelItem, ShareCafeItem
+from app.schemas.admin_analytics import ExecutiveDashboardResponse, CafePerformanceItem, SetupPerformanceItem, CityGeographyItem, RevenueBreakdownResponse, CampaignRevenueItem, MarketplaceHealthResponse, AttributionItem, FunnelResponse, CampaignItem, CampaignStatsResponse, TrafficResponse, TrafficTotals, TrafficBucket, TopPageItem, ShareReportResponse, ShareTotals, ShareChannelItem, ShareCafeItem
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -273,12 +274,39 @@ class AdminAnalyticsService:
             for platform, total in by_platform_rows
         }
 
+        # Campaign bookings: same statuses, same fee rows, grouped by campaign.
+        camp_rows = (await self.db.execute(
+            select(
+                OfferCampaign.name,
+                func.count(Booking.id),
+                func.sum(Booking.base_amount),
+                func.sum(Booking.discount_amount),
+                func.sum(Booking.total_amount),
+                func.sum(PlatformFee.convenience_fee + PlatformFee.gateway_fee),
+                func.sum(PlatformFee.owner_settlement_amount),
+            )
+            .select_from(Booking)
+            .join(Promotion, Booking.promotion_id == Promotion.id)
+            .join(OfferCampaign, Promotion.campaign_id == OfferCampaign.id)
+            .join(PlatformFee, PlatformFee.booking_id == Booking.id)
+            .where(Booking.status.in_(counted))
+            .group_by(OfferCampaign.id, OfferCampaign.name)
+        )).all()
+        campaigns = [
+            CampaignRevenueItem(
+                campaign=name, bookings=int(n or 0), list_price=float(base or 0), discount=float(disc or 0),
+                customer_paid=float(paid or 0), khelo_fee=float(fee or 0), cafe_share=float(share or 0),
+            )
+            for name, n, base, disc, paid, fee, share in camp_rows
+        ]
+
         return RevenueBreakdownResponse(
             gmv=gmv,
             khel_revenue=khel_revenue,
             owner_settlements=owner_settlements,
             revenue_by_city=revenue_by_city,
             revenue_by_platform=revenue_by_platform,
+            campaigns=campaigns,
         )
 
     async def get_marketplace_health(self) -> MarketplaceHealthResponse:

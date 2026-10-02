@@ -20,7 +20,9 @@ function isPublicPath(pathname: string): boolean {
     pathname === '/bookings/new' ||
     // Offer links (reel / QR) must open for anyone: the code is applied on the
     // way to the café and login is only asked for at payment.
-    pathname.startsWith('/redeem/')
+    pathname.startsWith('/redeem/') ||
+    // The campaign landing page (shared on Instagram / WhatsApp) is public too.
+    pathname.startsWith('/campaign/')
   );
 }
 

@@ -1,4 +1,5 @@
-import { Check } from 'lucide-react';
+import Link from 'next/link';
+import { Check, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { offerUrgency } from '@/lib/offers';
 import { spotsLine } from '@/lib/campaign';
@@ -20,6 +21,21 @@ export function FoundersBanner({ campaign, code, className }: FoundersBannerProp
   const spots = spotsLine(campaign);
   const deadline = offerUrgency({ validUntil: campaign.endsAt });
   const tight = campaign.remaining != null && campaign.remaining > 0 && campaign.remaining <= 20;
+
+  if (campaign.isPublic) {
+    return (
+      <Link
+        href={`/campaign/${encodeURIComponent(code)}`}
+        className="flex min-h-[44px] items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-accent/5 px-3.5 py-2.5"
+      >
+        <span className="min-w-0">
+          <span className="block font-heading text-body font-bold text-text-primary">{campaign.name}</span>
+          <span className="block text-caption text-text-secondary">Special prices are applied automatically. See every café.</span>
+        </span>
+        <ChevronRight className="h-4 w-4 flex-shrink-0 text-primary-dark" aria-hidden />
+      </Link>
+    );
+  }
 
   return (
     <section

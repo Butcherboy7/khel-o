@@ -64,6 +64,16 @@ export interface RevenueBreakdown {
   ownerSettlements: number;
   revenueByCity: Record<string, number>;
   revenueByPlatform: Record<string, number>;
+  /** Bookings that used a campaign offer. listPrice - discount = cafeShare; cafeShare + kheloFee = customerPaid. */
+  campaigns?: {
+    campaign: string;
+    bookings: number;
+    listPrice: number;
+    discount: number;
+    customerPaid: number;
+    kheloFee: number;
+    cafeShare: number;
+  }[];
 }
 
 export async function getRevenueBreakdown(): Promise<RevenueBreakdown> {

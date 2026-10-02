@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Award, Zap, Lock, Tag, Trophy } from 'lucide-react';
 import { Card, CardContent, Button, Badge, Skeleton, EmptyState, ErrorState } from '@/components/ui';
 import { apiClient } from '@/lib/api/client';
+import { SpecialAccessBadge } from '@/components/customer/SpecialAccessBadge';
 
 interface Achievement {
   id: string;
@@ -15,6 +16,8 @@ interface Achievement {
   isUnlocked: boolean;
   progress: string;
   xpReward: number;
+  /** A collectible campaign badge: shown with the animated Special Access medallion. */
+  special?: boolean;
 }
 
 interface RewardsResponse {
@@ -151,7 +154,14 @@ export default function RewardsPage() {
               <Skeleton className="h-24 rounded-3xl" />
             </>
           )}
-          {!isLoading && achievements.map((ach) => (
+          {!isLoading && achievements.map((ach) => ach.special ? (
+            ach.isUnlocked ? (
+              <div key={ach.id} className="sm:col-span-2 flex flex-col items-start gap-1.5 rounded-3xl border border-primary/30 bg-card p-4">
+                <SpecialAccessBadge earned size="lg" />
+                <p className="text-caption text-text-secondary">{ach.description} +{ach.xpReward} XP.</p>
+              </div>
+            ) : null
+          ) : (
             <div
               key={ach.id}
               onClick={() => setActiveAchievement(ach)}

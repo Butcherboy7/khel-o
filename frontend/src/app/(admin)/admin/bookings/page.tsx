@@ -66,16 +66,18 @@ export default function AdminBookingsPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<BookingStatus | 'all'>('all');
   const [search, setSearch] = useState('');
+  const [campaignOnly, setCampaignOnly] = useState(false);
   const [actionTarget, setActionTarget] = useState<{ booking: BookingDetail; kind: 'cancel' | 'refund' } | null>(null);
   const [reason, setReason] = useState('');
 
   const params = {
     ...(statusFilter !== 'all' ? { status: statusFilter as BookingStatus } : {}),
+    ...(campaignOnly ? { campaignOnly: true } : {}),
     limit: 50,
   };
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: [...queryKeys.admin.all, 'bookings', statusFilter],
+    queryKey: [...queryKeys.admin.all, 'bookings', statusFilter, campaignOnly],
     queryFn: () => listAdminBookings(params),
     staleTime: 30_000,
   });
@@ -163,6 +165,16 @@ export default function AdminBookingsPage() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          aria-pressed={campaignOnly}
+          onClick={() => setCampaignOnly((v) => !v)}
+          className={`h-10 px-4 rounded-xl border text-xs font-semibold whitespace-nowrap transition-colors ${
+            campaignOnly ? 'bg-primary text-white border-primary' : 'border-border bg-surface text-text-secondary hover:bg-surface-hover'
+          }`}
+        >
+          Campaign bookings only
+        </button>
       </div>
 
       {/* States */}
@@ -228,6 +240,11 @@ export default function AdminBookingsPage() {
                   <p className="text-[11px] text-text-tertiary truncate">
                     {b.tierName || '—'} · {b.durationHours}h
                   </p>
+                  {b.campaignName && (
+                    <p className="mt-0.5 truncate text-[11px] font-semibold text-primary-dark">
+                      {b.campaignName}{b.offerTitle ? ` · ${b.offerTitle}` : ''}
+                    </p>
+                  )}
                 </div>
 
                 {/* Date */}
@@ -236,9 +253,17 @@ export default function AdminBookingsPage() {
                 </span>
 
                 {/* Amount */}
-                <span className="text-xs font-bold font-data text-emerald-600 whitespace-nowrap">
-                  ₹{b.totalAmount}
-                </span>
+                <div className="flex flex-col items-start md:items-end">
+                  <span className="text-xs font-bold font-data text-emerald-600 whitespace-nowrap">
+                    ₹{b.totalAmount}
+                  </span>
+                  {b.ownerSettlementAmount != null && (
+                    <span className="text-[11px] font-data text-text-secondary md:text-right">
+                      List ₹{b.baseAmount}{b.discountAmount > 0 ? ` − offer ₹${b.discountAmount}` : ''}
+                      {' · '}Café ₹{b.ownerSettlementAmount} · KHELO ₹{b.platformFeeAmount}
+                    </span>
+                  )}
+                </div>
 
                 {/* Status */}
                 <Badge variant={statusVariant(b.status)} size="sm" className="whitespace-nowrap w-fit">

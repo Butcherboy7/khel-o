@@ -48,7 +48,13 @@ export default function RedeemCodePage() {
         try {
           const { campaign } = await getCampaign(code);
           if (cancelled) return;
-          router.replace(`/cafe/${campaign.cafeId}?promoCode=${encodeURIComponent(code)}`);
+          // A public / multi-café campaign has its own landing page; a link-only
+          // one still goes to its café with the code attached.
+          router.replace(
+            campaign.isPublic || !campaign.cafeId
+              ? `/campaign/${encodeURIComponent(code)}`
+              : `/cafe/${campaign.cafeId}?promoCode=${encodeURIComponent(code)}`,
+          );
           return;
         } catch {
           /* fall through to the error below */

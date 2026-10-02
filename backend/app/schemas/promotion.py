@@ -155,6 +155,14 @@ class PromotionResponse(PromotionBase):
     # Owner view: unpaid bookings still inside their payment window that are
     # holding one of this offer's spots (they free up if payment is abandoned).
     held_uses: int = 0
+    # Owner view, filled in by the service (never stored): which campaign the
+    # offer belongs to, the setup it is on, and the regular vs offer price at
+    # its headline length, so the owner sees the same numbers customers do.
+    campaign_name: Optional[str] = None
+    tier_name: Optional[str] = None
+    regular_price: Optional[float] = None
+    offer_price: Optional[float] = None
+    offer_minutes: Optional[int] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

@@ -536,6 +536,23 @@ export default function OwnerOffersPage() {
                     <p className="text-caption text-text-secondary">Bookings of {fmtDuration(p.minBookingMinutes)} or more</p>
                   )}
 
+                  {p.campaignName && (
+                    <div className="flex flex-col gap-1 rounded-xl border border-accent/20 bg-accent/5 p-3">
+                      <p className="text-caption font-semibold text-text-primary">Part of the “{p.campaignName}” campaign</p>
+                      {p.regularPrice != null && p.offerPrice != null && p.offerMinutes != null && (
+                        <p className="text-caption text-text-secondary">
+                          Customers pay <span className="font-semibold text-text-primary">₹{p.offerPrice}</span> instead of{' '}
+                          <span className="line-through">₹{p.regularPrice}</span> for {fmtDuration(p.offerMinutes)}
+                          {p.promotionType === 'fixed_price' ? '' : ' (scales with longer bookings)'}. You are paid the
+                          offer price; KHELO&apos;s fee is added on top for the customer.
+                        </p>
+                      )}
+                      <p className="text-caption text-text-secondary">
+                        {p.currentUses} {p.currentUses === 1 ? 'booking' : 'bookings'} from this offer so far
+                      </p>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-caption text-text-secondary">
                     <div className="flex items-center gap-1.5">
                       <Calendar className="h-3.5 w-3.5 flex-shrink-0" />

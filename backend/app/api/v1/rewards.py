@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
+from app.models.user_badge import UserBadge
 from app.api.deps import get_current_active_user
 
 router = APIRouter(prefix="/rewards", tags=["Rewards"])
@@ -41,8 +42,14 @@ async def get_rewards(
         if b.session_date >= month_start and b.session_date.weekday() >= 5
     )
 
+    # Collectible badges granted by an event (a campaign entry), not derived
+    # from bookings. Held for good once earned.
+    badge_rows = (await db.execute(select(UserBadge).where(UserBadge.user_id == current_user.id))).scalars().all()
+    has_special_access = any(b.badge_key == "special_access" for b in badge_rows)
+
     xp = (
-        completed_count * 100
+        (100 if has_special_access else 0)
+        + completed_count * 100
         + (250 if night_owl_count >= 1 else 0)
         + (500 if weekend_count_this_month >= 3 else 0)
         + (150 if early_bird_count >= 1 else 0)
@@ -52,6 +59,16 @@ async def get_rewards(
     )
 
     achievements = [
+        {
+            "id": "special_access",
+            "title": "KHELO Special Access",
+            "description": "Joined the limited-time KHELO campaign with special prices at partner cafés.",
+            "icon": "⚡",
+            "isUnlocked": has_special_access,
+            "progress": f"{1 if has_special_access else 0} / 1",
+            "xpReward": 100,
+            "special": True,
+        },
         {
             "id": "first_blood",
             "title": "First Blood",

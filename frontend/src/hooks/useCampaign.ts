@@ -43,7 +43,8 @@ export function useCampaign(cafeId: string | undefined) {
   return {
     code: query.data ? code : null,
     campaign: query.data?.campaign ?? null,
-    offers: query.data?.offers ?? [],
+    // A public campaign's offers are ordinary offers the café page already lists.
+    offers: query.data?.campaign.isPublic ? [] : (query.data?.offers ?? []),
     active: Boolean(query.data),
   };
 }

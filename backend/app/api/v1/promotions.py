@@ -15,7 +15,7 @@ from app.repositories.promotion_repository import PromotionRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.hardware_tier_repository import HardwareTierRepository
 from app.services.promotion_service import PromotionService
-from app.api.deps import require_cafe_owner
+from app.api.deps import require_cafe_owner, get_current_active_user
 from app.models.user import User
 
 router = APIRouter()
@@ -62,6 +62,7 @@ async def list_cafe_promotions(
 async def get_campaign(
     code: str,
     cafe_id: Optional[UUID] = None,
+    cafe_id_camel: Optional[UUID] = Query(None, alias="cafeId"),
     db: AsyncSession = Depends(get_db)
 ):
     """Public lookup for a link-only campaign ("Founders' price") so the café
@@ -70,8 +71,18 @@ async def get_campaign(
     promo_repo = PromotionRepository(db)
     tier_repo = HardwareTierRepository(db)
     service = PromotionService(promo_repo, tier_repo=tier_repo)
-    result = await service.get_public_campaign(code=code, cafe_id=cafe_id)
+    result = await service.get_public_campaign(code=code, cafe_id=cafe_id or cafe_id_camel)
     return {"success": True, "data": result}
+
+@router.post("/campaign/{code}/claim", status_code=status.HTTP_200_OK, response_model=None)
+async def claim_campaign_badge(
+    code: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Signed-in gamer entering the campaign earns the collectible badge."""
+    service = PromotionService(PromotionRepository(db), tier_repo=HardwareTierRepository(db))
+    return {"success": True, "data": await service.claim_campaign_badge(code, current_user.id)}
 
 @router.get("/redeem/{code}", status_code=status.HTTP_200_OK, response_model=None)
 async def preview_khelo_code(
@@ -102,7 +113,7 @@ async def list_owner_promotions(
     """Full promotion list for the owner's management view (all statuses, not just currently-active)."""
     promo_repo = PromotionRepository(db)
     cafe_repo = CafeRepository(db)
-    service = PromotionService(promo_repo, cafe_repo)
+    service = PromotionService(promo_repo, cafe_repo, HardwareTierRepository(db))
     results = await service.get_promotions_for_owner(cafe_id=cafe_id, owner_id=current_owner.id)
     return {
         "success": True,

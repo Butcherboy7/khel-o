@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { updateMe, changePassword } from '@/lib/api/auth';
 import { apiClient } from '@/lib/api/client';
+import { SpecialAccessBadge } from '@/components/customer/SpecialAccessBadge';
 import {
   Avatar,
   Card,
@@ -204,7 +205,7 @@ export default function ProfilePage() {
   // The header badge used to just say "Level 4" unconditionally — same rewards
   // data that already powers the real level/XP on the Rewards page, not a
   // second/fake source of truth.
-  const { data: rewardsData } = useQuery<{ level: number }>({
+  const { data: rewardsData } = useQuery<{ level: number; achievements?: { id: string; isUnlocked: boolean }[] }>({
     queryKey: ['rewards'],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/rewards');
@@ -304,6 +305,11 @@ export default function ProfilePage() {
               </Badge>
             </div>
             <p className="text-caption text-text-secondary truncate">{user.email}</p>
+            {rewardsData?.achievements?.some((a) => a.id === 'special_access' && a.isUnlocked) && (
+              <Link href="/rewards" className="mt-1.5 inline-flex w-fit" aria-label="KHELO Special Access badge. See your rewards">
+                <SpecialAccessBadge size="sm" />
+              </Link>
+            )}
 
             <div className="flex items-center gap-2 text-caption text-text-secondary mt-1 flex-wrap">
               <span className="flex items-center gap-1 font-data">

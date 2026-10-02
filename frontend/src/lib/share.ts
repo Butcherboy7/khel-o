@@ -8,7 +8,7 @@ import { getPublicEnv } from '@/lib/runtimeEnv';
 // shares → opens → signups → bookings per channel and per café.
 
 export type ShareChannel = 'whatsapp' | 'telegram' | 'facebook' | 'x' | 'copy' | 'native';
-export type ShareContext = 'cafe' | 'booking' | 'waitlist';
+export type ShareContext = 'cafe' | 'booking' | 'waitlist' | 'campaign';
 
 export interface ShareTarget {
   /** Site path being shared, e.g. /cafe/dg-gaming-cafe-hyderabad. */

@@ -24,6 +24,7 @@ from app.models.cafe_waitlist import CafeWaitlistEntry
 from app.models.campaign import Campaign
 from app.models.location import Location
 from app.models.push_subscription import PushSubscription
+from app.models.user_badge import UserBadge
 
 __all__ = [
     "User",
@@ -59,4 +60,5 @@ __all__ = [
     "CafeWaitlistEntry",
     "Location",
     "PushSubscription",
+    "UserBadge",
 ]
