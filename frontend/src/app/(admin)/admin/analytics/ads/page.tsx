@@ -1,21 +1,26 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Check, Copy, Target } from 'lucide-react';
+import Link from 'next/link';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, Copy, Plus, QrCode, Target, X } from 'lucide-react';
+import { getAdCampaignReport, type AdCampaignReport, type NamedCount } from '@/lib/api/adminAnalytics';
 import {
-  getAdCampaignReport,
-  listAdCampaigns,
-  type AdCampaignReport,
-  type NamedCount,
-} from '@/lib/api/adminAnalytics';
+  CHANNEL_LABELS,
+  createMarketingCampaign,
+  listMarketingCampaigns,
+  updateMarketingCampaign,
+  type CampaignChannel,
+  type CampaignStatus,
+  type MarketingCampaign,
+} from '@/lib/api/marketingCampaigns';
 import { SkeletonCard } from '@/components/ui';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/cn';
-import { CampaignLinkGenerator } from '@/components/admin/CampaignLinkGenerator';
 
 const isoDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 const pct = (n: number) => `${Math.round(n * 100)}%`;
+const rupees = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const LABELS: Record<string, string> = {
   mobile: 'Mobile',
   desktop: 'Desktop',
@@ -27,23 +32,46 @@ const LABELS: Record<string, string> = {
   new: 'New visitors',
   returning: 'Seen before',
 };
-
-function readSpend(key: string): string {
-  try {
-    return window.localStorage.getItem(`khelo-ad-spend:${key}`) ?? '';
-  } catch {
-    return '';
-  }
-}
+const STATUS_TABS: { key: CampaignStatus; label: string }[] = [
+  { key: 'live', label: 'Live' },
+  { key: 'ended', label: 'Ended' },
+  { key: 'archived', label: 'Archived' },
+];
 
 function useCopy() {
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (id: string, text: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(id);
+      setTimeout(() => setCopied(null), 2000);
+    } catch {}
   };
   return { copied, copy };
+}
+
+function slugify(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+function StatusChip({ status }: { status: CampaignStatus }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-bold',
+        status === 'live' && 'bg-success/15 text-success',
+        status === 'ended' && 'bg-surface text-text-secondary',
+        status === 'archived' && 'bg-surface text-text-tertiary',
+      )}
+    >
+      {status === 'live' && <span className="h-1.5 w-1.5 rounded-full bg-success" />}
+      {status === 'live' ? 'Live' : status === 'ended' ? 'Ended' : 'Archived'}
+    </span>
+  );
 }
 
 function Bars({ title, rows }: { title: string; rows: NamedCount[] }) {
@@ -74,6 +102,23 @@ function Bars({ title, rows }: { title: string; rows: NamedCount[] }) {
   );
 }
 
+/** The whole campaign in one plain sentence. */
+function storyLine(r: AdCampaignReport, spend: number | null): string {
+  const t = r.totals;
+  if (t.visitors === 0) return 'Nobody has tapped this link yet. Numbers show up here as soon as someone does.';
+  const parts = [`This link brought ${t.visitors} ${t.visitors === 1 ? 'person' : 'people'} to KHEL-O.`];
+  parts.push(`${t.viewedCafe} looked at a café`);
+  if (t.notifyMe) parts[1] += `, ${t.notifyMe} voted for a café`;
+  parts[1] += t.booked
+    ? ` and ${t.booked} booked, paying ${rupees(t.gmv)}.`
+    : t.bookingStarted
+    ? `, ${t.bookingStarted} started a booking but nobody has paid yet.`
+    : ', nobody has booked yet.';
+  if (spend && t.booked) parts.push(`You spent ${rupees(spend)}, so each booking cost you ${rupees(spend / t.booked)}.`);
+  else if (spend) parts.push(`You spent ${rupees(spend)}, ${rupees(spend / t.visitors)} per person who tapped.`);
+  return parts.join(' ');
+}
+
 function pitchLine(r: AdCampaignReport, spend: number | null): string {
   const t = r.totals;
   const lead = spend ? `We spent ₹${spend.toLocaleString('en-IN')} promoting KHEL-O on Instagram and` : 'Our Instagram campaign';
@@ -84,7 +129,41 @@ function pitchLine(r: AdCampaignReport, spend: number | null): string {
   return `${lead} brought ${t.visitors} real visitors to the platform. ${parts.join(', ')}.`;
 }
 
-/** Checkout, in plain words: how many got to each step and where they gave up. */
+/** The funnel with the step that loses the most people called out. */
+function DropOff({ report }: { report: AdCampaignReport }) {
+  const steps = report.funnel;
+  const landed = steps[0]?.sessions ?? 0;
+  let worst: { label: string; lost: number; from: number } | null = null;
+  for (let i = 1; i < steps.length; i++) {
+    const lost = steps[i - 1].sessions - steps[i].sessions;
+    if (lost > 0 && (!worst || lost > worst.lost)) worst = { label: steps[i].label, lost, from: steps[i - 1].sessions };
+  }
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+      <h2 className="font-heading text-h3 text-text-primary">Where people dropped off</h2>
+      <ol className="flex flex-col gap-2.5">
+        {steps.map((s, i) => (
+          <li key={s.key} className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_3rem] items-center gap-3 text-caption">
+            <span className="text-text-primary">{s.label}</span>
+            <div className="h-2.5 overflow-hidden rounded-full bg-surface" aria-hidden>
+              <div
+                className={cn('h-full rounded-full', i === steps.length - 1 ? 'bg-primary' : 'bg-secondary')}
+                style={{ width: `${landed ? Math.max(1.5, (s.sessions / landed) * 100) : 0}%` }}
+              />
+            </div>
+            <span className="text-right font-data font-bold tabular-nums text-text-primary">{s.sessions}</span>
+          </li>
+        ))}
+      </ol>
+      {worst && (
+        <p className="rounded-lg bg-warning/10 px-3 py-2 text-caption text-text-primary">
+          <strong>Biggest leak:</strong> {worst.lost} of {worst.from} didn&apos;t get to “{worst.label.toLowerCase()}”.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function CheckoutLosses({ report }: { report: AdCampaignReport }) {
   const c = report.checkout;
   if (!c || c.bookingStarted === 0) return null;
@@ -96,193 +175,297 @@ function CheckoutLosses({ report }: { report: AdCampaignReport }) {
     { label: 'Closed payment without paying', n: c.paymentDismissed, note: 'Changed their mind at the last step', bad: true },
     { label: 'Paid and booked', n: c.completed, note: 'Money received', good: true },
   ];
-  const lostBeforePay = Math.max(0, c.bookingStarted - c.paymentOpened);
-  const lostAtPay = Math.max(0, c.paymentOpened - c.completed);
-  const takeaway =
-    lostBeforePay === 0 && lostAtPay === 0
-      ? 'Everyone who started checking out paid.'
-      : lostBeforePay >= lostAtPay
-      ? `Most people who gave up did so before reaching payment (${lostBeforePay} of ${c.bookingStarted}), usually at the login step.`
-      : `Most people who gave up did so on the payment screen (${lostAtPay} of ${c.paymentOpened}).`;
   return (
     <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
       <div>
-        <h2 className="font-heading text-h3 text-text-primary">Where checkout loses people</h2>
-        <p className="text-caption text-text-secondary">Counted in visitors from this campaign, after they tapped Book.</p>
+        <h2 className="font-heading text-h3 text-text-primary">Checkout, step by step</h2>
+        <p className="text-caption text-text-secondary">People from this link, after they tapped Book.</p>
       </div>
       <ul className="flex flex-col divide-y divide-border">
         {rows.map((r) => (
-          <li key={r.label} className="flex flex-col gap-1.5 py-2.5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-body text-text-primary">{r.label}</div>
-                <div className="text-caption text-text-secondary">{r.note}</div>
-              </div>
-              <span className="font-data text-h3 font-bold tabular-nums text-text-primary">{r.n}</span>
+          <li key={r.label} className="flex items-center justify-between gap-3 py-2">
+            <div className="min-w-0">
+              <div className="text-body text-text-primary">{r.label}</div>
+              <div className="text-caption text-text-secondary">{r.note}</div>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-surface" aria-hidden>
-              <div
-                className={cn('h-full rounded-full', r.bad ? 'bg-warning' : r.good ? 'bg-success' : 'bg-primary')}
-                style={{ width: `${Math.round((r.n / c.bookingStarted) * 100)}%` }}
-              />
-            </div>
+            <span
+              className={cn(
+                'font-data text-h3 font-bold tabular-nums',
+                r.bad && r.n > 0 ? 'text-warning' : r.good ? 'text-success' : 'text-text-primary',
+              )}
+            >
+              {r.n}
+            </span>
           </li>
         ))}
       </ul>
-      <p className="rounded-lg bg-surface px-3 py-2 text-caption text-text-primary">{takeaway}</p>
     </section>
   );
 }
 
-export default function AdCampaignsPage() {
-  const today = new Date();
-  const [from, setFrom] = useState(isoDay(new Date(today.getTime() - 6 * 86_400_000)));
-  const [to, setTo] = useState(isoDay(today));
-  const [selected, setSelected] = useState<string>('');
-  const [spend, setSpend] = useState('');
-  const [includeTests, setIncludeTests] = useState(false);
-  const { copied, copy } = useCopy();
-
-  const { data: options } = useQuery({
-    queryKey: ['admin', 'analytics', 'ad-campaigns'],
-    queryFn: listAdCampaigns,
-    staleTime: 60_000,
-  });
-  const campaigns = useMemo(() => options?.campaigns ?? [], [options]);
-
-  // Default to the busiest Meta campaign, else the busiest tagged one.
-  useEffect(() => {
-    if (selected || campaigns.length === 0) return;
-    const pick = campaigns.find((c) => c.source === 'meta') ?? campaigns[0];
-    setSelected(`${pick.source}|${pick.campaign ?? ''}`);
-  }, [campaigns, selected]);
-
-  const [source, campaign] = selected ? selected.split('|') : ['', ''];
-  useEffect(() => {
-    if (selected) setSpend(readSpend(selected));
-  }, [selected]);
-
-  const { data: report, isLoading } = useQuery({
-    queryKey: ['admin', 'analytics', 'ad-report', source, campaign, from, to, includeTests],
-    queryFn: () => getAdCampaignReport({ source, campaign: campaign || null, from, to, includeInternal: includeTests }),
-    enabled: Boolean(source),
-    staleTime: 30_000,
-  });
-
-  const spendNum = Number(spend) > 0 ? Number(spend) : null;
-  const per = (n: number) => (spendNum && n > 0 ? formatCurrency(Math.round((spendNum / n) * 100) / 100) : '—');
-  const onSpend = (v: string) => {
-    setSpend(v);
-    try {
-      window.localStorage.setItem(`khelo-ad-spend:${selected}`, v);
-    } catch {}
-  };
-
+function DayByDay({ report }: { report: AdCampaignReport }) {
+  const days = report.daily;
+  if (days.length === 0) return null;
+  const max = Math.max(...days.map((d) => d.sessions), 1);
+  const best = days.reduce((a, b) => (b.sessions > a.sessions ? b : a));
+  const label = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   return (
-    <div className="flex flex-col gap-6 pb-12">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <Target className="h-6 w-6 text-primary" />
-          <h1 className="font-heading text-h1 text-text-primary">Ad campaigns</h1>
-        </div>
-        <p className="text-body text-text-secondary">
-          Follow a paid campaign from the first tap to a booking, counted in unique visitors.
-        </p>
+    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+      <h2 className="font-heading text-h3 text-text-primary">Day by day</h2>
+      <div className="flex h-36 items-end gap-1.5 overflow-x-auto pb-1">
+        {days.map((d) => (
+          <div key={d.date} className="flex min-w-[2.25rem] flex-1 flex-col items-center gap-1">
+            <span className="font-data text-[11px] tabular-nums text-text-secondary">{d.sessions}</span>
+            <div
+              className={cn('w-full rounded-md', d.date === best.date ? 'bg-primary' : 'bg-border')}
+              style={{ height: `${Math.max(4, (d.sessions / max) * 96)}px` }}
+            />
+            <span className="whitespace-nowrap text-[10px] text-text-secondary">{label(d.date)}</span>
+          </div>
+        ))}
       </div>
+      <p className="text-caption text-text-secondary">
+        Best day: {label(best.date)} with {best.sessions} {best.sessions === 1 ? 'person' : 'people'}.
+      </p>
+    </section>
+  );
+}
 
-      <CampaignLinkGenerator collapsible />
+function NewCampaignForm({ onDone }: { onDone: (c: MarketingCampaign) => void }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [channel, setChannel] = useState<CampaignChannel>('instagram_reel');
+  const [paid, setPaid] = useState(true);
+  const [landingPath, setLandingPath] = useState('/');
+  const [spend, setSpend] = useState('');
+  const [startedOn, setStartedOn] = useState(isoDay(new Date()));
+  const effectiveSlug = slugTouched ? slug : slugify(name);
+  const canPay = channel === 'instagram_reel' || channel === 'instagram_story' || channel === 'other';
 
-      <div className="flex flex-wrap items-end gap-3">
+  const create = useMutation({
+    mutationFn: () =>
+      createMarketingCampaign({
+        name,
+        slug: effectiveSlug,
+        channel,
+        paid: canPay && paid,
+        landingPath,
+        spendInr: Number(spend) > 0 ? Number(spend) : null,
+        startedOn,
+      }),
+    onSuccess: ({ campaign }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'marketing-campaigns'] });
+      onDone(campaign);
+    },
+  });
+  const err = (create.error as { response?: { data?: { error?: { message?: string } } } } | null)?.response?.data?.error
+    ?.message;
+
+  const input = 'min-h-input w-full rounded-lg border border-border bg-card px-3 text-body font-normal text-text-primary';
+  return (
+    <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 md:p-5">
+      <h2 className="font-heading text-h3 text-text-primary">New campaign</h2>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
-          Campaign
-          <select
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-            className="min-h-input min-w-[240px] rounded-lg border border-border bg-card px-3 text-body font-normal"
-          >
-            {campaigns.length === 0 && <option value="">No tagged visits yet</option>}
-            {campaigns.map((c) => (
-              <option key={`${c.source}|${c.campaign ?? ''}`} value={`${c.source}|${c.campaign ?? ''}`}>
-                {c.source} · {c.campaign ?? '(no campaign name)'} — {c.sessions} visitors
+          Name
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="KHELO Special Access" maxLength={120} className={input} />
+        </label>
+        <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+          Short link
+          <div className="flex min-h-input items-center rounded-lg border border-border bg-card pl-3 text-body font-normal">
+            <span className="text-text-secondary">khel-o.com/c/</span>
+            <input
+              value={effectiveSlug}
+              onChange={(e) => {
+                setSlugTouched(true);
+                setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
+              }}
+              maxLength={40}
+              className="min-w-0 flex-1 bg-transparent py-2 pr-3 text-text-primary outline-none"
+              aria-label="Short link ending"
+            />
+          </div>
+        </label>
+        <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+          Where you&apos;ll post it
+          <select value={channel} onChange={(e) => setChannel(e.target.value as CampaignChannel)} className={input}>
+            {(Object.keys(CHANNEL_LABELS) as CampaignChannel[]).map((k) => (
+              <option key={k} value={k}>
+                {CHANNEL_LABELS[k]}
               </option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
-          From
-          <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className="min-h-input rounded-lg border border-border bg-card px-3 text-body font-normal" />
+          Opens this page
+          <input value={landingPath} onChange={(e) => setLandingPath(e.target.value)} placeholder="/" className={input} />
+          <span className="font-normal text-text-secondary">“/” is the homepage. For an offer pop-up use /?campaign=CODE.</span>
         </label>
         <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
-          To
-          <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} className="min-h-input rounded-lg border border-border bg-card px-3 text-body font-normal" />
+          Spent (₹), optional
+          <input type="number" min={0} inputMode="numeric" value={spend} onChange={(e) => setSpend(e.target.value)} placeholder="1000" className={input} />
         </label>
         <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
-          Spend (₹)
-          <input
-            type="number"
-            min={0}
-            inputMode="numeric"
-            value={spend}
-            placeholder="1000"
-            onChange={(e) => onSpend(e.target.value)}
-            className="min-h-input w-28 rounded-lg border border-border bg-card px-3 text-body font-normal"
-          />
-        </label>
-        <label className="flex min-h-input items-center gap-2 text-caption font-semibold text-text-primary">
-          <input type="checkbox" checked={includeTests} onChange={(e) => setIncludeTests(e.target.checked)} className="h-4 w-4 accent-primary" />
-          Include our own test visits
+          Starts
+          <input type="date" value={startedOn} onChange={(e) => setStartedOn(e.target.value)} className={input} />
         </label>
       </div>
+      {canPay && (
+        <label className="flex min-h-[44px] items-center gap-2 text-body text-text-primary">
+          <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} className="h-4 w-4 accent-primary" />
+          This is a paid boost
+        </label>
+      )}
+      {err && <p className="text-caption text-error">{err}</p>}
+      <button
+        type="button"
+        disabled={name.trim().length < 2 || effectiveSlug.length < 2 || create.isPending}
+        onClick={() => create.mutate()}
+        className="min-h-[44px] w-fit rounded-xl bg-primary px-5 font-semibold text-white disabled:opacity-50"
+      >
+        {create.isPending ? 'Creating…' : 'Create link'}
+      </button>
+    </section>
+  );
+}
 
-      {isLoading && <SkeletonCard />}
+function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
+  const queryClient = useQueryClient();
+  const [from, setFrom] = useState(campaign.reportFrom);
+  const [to, setTo] = useState(campaign.reportTo);
+  const [includeTests, setIncludeTests] = useState(false);
+  const [spend, setSpend] = useState(campaign.spendInr?.toString() ?? '');
+  const { copied, copy } = useCopy();
 
-      {report && (
-        <>
-          <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            {[
-              { label: 'Visitors', value: report.totals.visitors, cost: per(report.totals.visitors) },
-              { label: 'Opened a café', value: report.totals.viewedCafe, cost: per(report.totals.viewedCafe) },
-              { label: 'Notify me', value: report.totals.notifyMe, cost: per(report.totals.notifyMe) },
-              { label: 'Booked', value: report.totals.booked, cost: per(report.totals.booked) },
-              { label: 'Came back another day', value: report.totals.cameBack, cost: null },
-            ].map((k) => (
-              <div key={k.label} className="rounded-2xl border border-border bg-card p-4">
-                <div className="font-heading text-h2 font-bold tabular-nums text-text-primary">{k.value}</div>
-                <div className="text-caption text-text-secondary">{k.label}</div>
-                {k.cost && spendNum && <div className="mt-1 text-[11px] text-text-secondary">{k.cost} each</div>}
-              </div>
-            ))}
-          </section>
+  useEffect(() => {
+    setFrom(campaign.reportFrom);
+    setTo(campaign.reportTo);
+    setSpend(campaign.spendInr?.toString() ?? '');
+  }, [campaign.id, campaign.reportFrom, campaign.reportTo, campaign.spendInr]);
 
-          <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
-            <h2 className="font-heading text-h3 text-text-primary">Funnel</h2>
-            <ol className="flex flex-col gap-3">
-              {report.funnel.map((s, i) => (
-                <li key={s.key} className="flex flex-col gap-1">
-                  <div className="flex items-baseline justify-between gap-3 text-caption">
-                    <span className="font-semibold text-text-primary">{s.label}</span>
-                    <span className="tabular-nums text-text-secondary">
-                      <span className="font-bold text-text-primary">{s.sessions}</span> · {pct(s.ofLanded)} of visitors
-                      {i > 0 && s.ofPrevious !== null && (
-                        <span className={s.ofPrevious < 0.25 ? 'text-error' : ''}> · {pct(1 - s.ofPrevious)} lost here</span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-surface">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(1, s.ofLanded * 100)}%` }} />
-                  </div>
-                </li>
+  const upcoming = from > to;
+  const { data: report, isLoading } = useQuery({
+    queryKey: ['admin', 'analytics', 'ad-report', campaign.utmSource, campaign.slug, from, to, includeTests],
+    queryFn: () =>
+      getAdCampaignReport({ source: campaign.utmSource, campaign: campaign.slug, from, to, includeInternal: includeTests }),
+    enabled: !upcoming,
+    staleTime: 30_000,
+  });
+
+  const update = useMutation({
+    mutationFn: (patch: Parameters<typeof updateMarketingCampaign>[1]) => updateMarketingCampaign(campaign.id, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'marketing-campaigns'] }),
+  });
+
+  const spendNum = campaign.spendInr && campaign.spendInr > 0 ? campaign.spendInr : null;
+  const t = report?.totals;
+  const costPerBooking = spendNum && t?.booked ? rupees(spendNum / t.booked) : '—';
+
+  return (
+    <div className="flex flex-col gap-4">
+      <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 md:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusChip status={campaign.status} />
+              <span className="text-caption text-text-secondary">
+                {CHANNEL_LABELS[campaign.channel]}
+                {campaign.paid ? ' · Paid boost' : ''} · since{' '}
+                {new Date(`${campaign.startedOn}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+              </span>
+            </div>
+            <h2 className="font-heading text-h2 text-text-primary">{campaign.name}</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {campaign.status === 'live' && (
+              <button type="button" onClick={() => update.mutate({ status: 'ended' })} className="min-h-[40px] rounded-lg border border-border px-3 text-caption font-semibold text-text-primary hover:bg-surface">
+                End campaign
+              </button>
+            )}
+            {campaign.status !== 'archived' ? (
+              <button type="button" onClick={() => update.mutate({ status: 'archived' })} className="min-h-[40px] rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary hover:bg-surface">
+                Archive
+              </button>
+            ) : (
+              <button type="button" onClick={() => update.mutate({ status: 'live' })} className="min-h-[40px] rounded-lg border border-border px-3 text-caption font-semibold text-text-primary hover:bg-surface">
+                Restore
+              </button>
+            )}
+          </div>
+        </div>
+
+        <ShortLink campaign={campaign} copied={copied} copy={copy} />
+
+        {upcoming ? (
+          <p className="text-body text-text-secondary">This campaign starts on {campaign.startedOn}. Numbers appear from that day.</p>
+        ) : isLoading || !report ? (
+          <SkeletonCard />
+        ) : (
+          <>
+            <p className="max-w-3xl text-[17px] leading-relaxed text-text-primary">{storyLine(report, spendNum)}</p>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {[
+                { label: 'People who tapped', value: String(t!.visitors) },
+                { label: 'Bookings', value: String(t!.booked) },
+                { label: 'Money in', value: rupees(t!.gmv) },
+                { label: 'Cost per booking', value: costPerBooking },
+              ].map((k) => (
+                <div key={k.label} className="flex flex-col gap-0.5 rounded-xl bg-surface p-3">
+                  <span className="text-caption text-text-secondary">{k.label}</span>
+                  <span className="font-data text-h2 font-bold tabular-nums text-text-primary">{k.value}</span>
+                </div>
               ))}
-            </ol>
-            <p className="text-caption text-text-secondary">
-              {report.totals.searched} searched or filtered · {report.totals.sharedLocation} shared their location ·{' '}
-              {report.totals.newAccounts} new accounts · {report.totals.bookings} bookings worth {formatCurrency(report.totals.gmv)}
-              {report.totals.googleSigninFailed > 0 && (
-                <span className="text-error"> · {report.totals.googleSigninFailed} hit a Google sign-in error</span>
-              )}
-            </p>
-          </section>
+            </div>
+          </>
+        )}
 
+        <div className="flex flex-wrap items-end gap-3 border-t border-border pt-4">
+          <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+            Spent (₹)
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={spend}
+                placeholder="0"
+                onChange={(e) => setSpend(e.target.value)}
+                className="min-h-input w-28 rounded-lg border border-border bg-card px-3 text-body font-normal"
+              />
+              <button
+                type="button"
+                disabled={update.isPending || spend === (campaign.spendInr?.toString() ?? '')}
+                onClick={() => update.mutate(Number(spend) > 0 ? { spendInr: Number(spend) } : { clearSpend: true })}
+                className="min-h-input rounded-lg bg-secondary px-3 font-semibold text-white disabled:opacity-40"
+              >
+                Save
+              </button>
+            </div>
+          </label>
+          <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+            From
+            <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className="min-h-input rounded-lg border border-border bg-card px-3 text-body font-normal" />
+          </label>
+          <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+            To
+            <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} className="min-h-input rounded-lg border border-border bg-card px-3 text-body font-normal" />
+          </label>
+          <label className="flex min-h-input items-center gap-2 text-caption font-semibold text-text-primary">
+            <input type="checkbox" checked={includeTests} onChange={(e) => setIncludeTests(e.target.checked)} className="h-4 w-4 accent-primary" />
+            Include our own test visits
+          </label>
+        </div>
+      </section>
+
+      {report && report.totals.visitors > 0 && (
+        <>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <DropOff report={report} />
+            <DayByDay report={report} />
+          </div>
           <CheckoutLosses report={report} />
           {report.internalExcluded > 0 && (
             <p className="text-caption text-text-secondary">
@@ -292,87 +475,249 @@ export default function AdCampaignsPage() {
           )}
 
           <section className="flex flex-col gap-2 rounded-2xl bg-secondary p-4 text-white">
-            <span className="text-overline text-white/70">Owner pitch line</span>
+            <span className="text-overline text-white/70">Line for café owner pitches</span>
             <p className="text-body">{pitchLine(report, spendNum)}</p>
             <button
               type="button"
               onClick={() => copy('pitch', pitchLine(report, spendNum))}
-              className="inline-flex w-fit items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-caption font-semibold hover:bg-white/20"
+              className="inline-flex min-h-[36px] w-fit items-center gap-1.5 rounded-lg bg-white/10 px-3 text-caption font-semibold hover:bg-white/20"
             >
               {copied === 'pitch' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               {copied === 'pitch' ? 'Copied' : 'Copy'}
             </button>
           </section>
 
-          {report.byAd.length > 0 && (
-            <section className="overflow-x-auto rounded-2xl border border-border bg-card">
-              <table className="w-full text-caption">
-                <thead className="bg-surface text-text-secondary">
-                  <tr>
-                    <th className="p-3 text-left">Ad / Reel</th>
-                    <th className="p-3 text-right">Visitors</th>
-                    <th className="p-3 text-right">Opened a café</th>
-                    <th className="p-3 text-right">Book / Notify</th>
-                    <th className="p-3 text-right">Booked</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.byAd.map((a) => (
-                    <tr key={a.ad} className="border-t border-border">
-                      <td className="p-3 font-semibold text-text-primary">{a.ad}</td>
-                      <td className="p-3 text-right tabular-nums">{a.sessions}</td>
-                      <td className="p-3 text-right tabular-nums">{a.viewedCafe}</td>
-                      <td className="p-3 text-right tabular-nums">{a.acted}</td>
-                      <td className="p-3 text-right tabular-nums">{a.booked}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          )}
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <Bars title="Device" rows={report.devices} />
-            <Bars title="Opened in" rows={report.inAppBrowser} />
-            <Bars title="New vs seen before" rows={report.visitorType} />
-            <Bars title="Neighbourhood (shared location)" rows={report.areas} />
-            <Bars title="City browsed" rows={report.cities} />
-            <Bars title="Visitors by day" rows={report.daily.map((d) => ({ name: d.date, sessions: d.sessions }))} />
-          </div>
-
-          {report.cafes.length > 0 && (
-            <section className="overflow-x-auto rounded-2xl border border-border bg-card">
-              <table className="w-full text-caption">
-                <thead className="bg-surface text-text-secondary">
-                  <tr>
-                    <th className="p-3 text-left">Café</th>
-                    <th className="p-3 text-left">Area</th>
-                    <th className="p-3 text-right">Viewed by</th>
-                    <th className="p-3 text-right">Notify me</th>
-                    <th className="p-3 text-right">Booking starts</th>
-                    <th className="p-3 text-right">Bookings</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.cafes.map((c) => (
-                    <tr key={c.cafeId} className="border-t border-border">
-                      <td className="p-3 font-semibold text-text-primary">
-                        {c.name}
-                        {c.isLeadListing && <span className="ml-1.5 font-normal text-text-secondary">· booking soon</span>}
-                      </td>
-                      <td className="p-3 text-text-secondary">{c.area}</td>
-                      <td className="p-3 text-right tabular-nums">{c.views}</td>
-                      <td className="p-3 text-right tabular-nums">{c.notifyMe}</td>
-                      <td className="p-3 text-right tabular-nums">{c.bookingStarts}</td>
-                      <td className="p-3 text-right tabular-nums">{c.bookings}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          )}
+          <details className="group rounded-2xl border border-border bg-card p-4">
+            <summary className="min-h-[32px] cursor-pointer font-heading text-body-emphasis text-text-primary">
+              More detail: devices, areas, cafés
+            </summary>
+            <div className="mt-4 flex flex-col gap-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <Bars title="Device" rows={report.devices} />
+                <Bars title="Opened in" rows={report.inAppBrowser} />
+                <Bars title="New vs seen before" rows={report.visitorType} />
+                <Bars title="Neighbourhood (shared location)" rows={report.areas} />
+                <Bars title="City browsed" rows={report.cities} />
+              </div>
+              {report.cafes.length > 0 && (
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="w-full text-caption">
+                    <thead className="bg-surface text-text-secondary">
+                      <tr>
+                        <th className="p-3 text-left">Café</th>
+                        <th className="p-3 text-left">Area</th>
+                        <th className="p-3 text-right">Viewed by</th>
+                        <th className="p-3 text-right">Votes</th>
+                        <th className="p-3 text-right">Booking starts</th>
+                        <th className="p-3 text-right">Bookings</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.cafes.map((c) => (
+                        <tr key={c.cafeId} className="border-t border-border">
+                          <td className="p-3 font-semibold text-text-primary">
+                            {c.name}
+                            {c.isLeadListing && <span className="ml-1.5 font-normal text-text-secondary">· booking soon</span>}
+                          </td>
+                          <td className="p-3 text-text-secondary">{c.area}</td>
+                          <td className="p-3 text-right tabular-nums">{c.views}</td>
+                          <td className="p-3 text-right tabular-nums">{c.notifyMe}</td>
+                          <td className="p-3 text-right tabular-nums">{c.bookingStarts}</td>
+                          <td className="p-3 text-right tabular-nums">{c.bookings}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </details>
         </>
       )}
+    </div>
+  );
+}
+
+function ShortLink({
+  campaign,
+  copied,
+  copy,
+}: {
+  campaign: MarketingCampaign;
+  copied: string | null;
+  copy: (id: string, text: string) => void;
+}) {
+  const [showQr, setShowQr] = useState(false);
+  const [origin, setOrigin] = useState('https://khel-o.com');
+  useEffect(() => setOrigin(window.location.origin), []);
+  const url = `${origin}${campaign.shortPath}`;
+  const qr = (size: number) =>
+    `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=12&data=${encodeURIComponent(url)}`;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex max-w-full flex-wrap items-center gap-2 rounded-xl bg-surface p-1.5 pl-3">
+        <code className="min-w-0 flex-1 truncate font-data text-body text-text-primary">{url.replace(/^https?:\/\//, '')}</code>
+        <button
+          type="button"
+          onClick={() => copy(`link-${campaign.id}`, url)}
+          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-secondary px-3 text-caption font-semibold text-white"
+        >
+          {copied === `link-${campaign.id}` ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied === `link-${campaign.id}` ? 'Copied' : 'Copy link'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowQr((v) => !v)}
+          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-caption font-semibold text-text-primary"
+          aria-expanded={showQr}
+        >
+          <QrCode className="h-3.5 w-3.5" /> QR
+        </button>
+      </div>
+      {showQr && (
+        <div className="flex flex-wrap items-center gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qr(180)} alt="QR code for this link" width={180} height={180} className="rounded-lg bg-white" />
+          <a href={qr(1000)} target="_blank" rel="noopener noreferrer" className="text-caption font-semibold text-primary">
+            Open large QR for printing
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function CampaignsPage() {
+  const [tab, setTab] = useState<CampaignStatus>('live');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'marketing-campaigns'],
+    queryFn: listMarketingCampaigns,
+    staleTime: 30_000,
+  });
+  const all = useMemo(() => data?.campaigns ?? [], [data]);
+  const shown = all.filter((c) => c.status === tab);
+  const selected = all.find((c) => c.id === selectedId) ?? shown[0] ?? null;
+
+  return (
+    <div className="flex flex-col gap-6 pb-12">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <Target className="h-6 w-6 text-primary" />
+            <h1 className="font-heading text-h1 text-text-primary">Campaigns</h1>
+          </div>
+          <p className="max-w-xl text-body text-text-secondary">
+            Every link you post and what it brought in. Only campaigns created here show up.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCreating((v) => !v)}
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-primary px-4 font-semibold text-white"
+        >
+          {creating ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          {creating ? 'Close' : 'New campaign'}
+        </button>
+      </div>
+
+      {creating && (
+        <NewCampaignForm
+          onDone={(c) => {
+            setCreating(false);
+            setTab('live');
+            setSelectedId(c.id);
+          }}
+        />
+      )}
+
+      <div className="flex gap-1 rounded-xl bg-surface p-1 w-fit" role="tablist">
+        {STATUS_TABS.map((s) => {
+          const n = all.filter((c) => c.status === s.key).length;
+          return (
+            <button
+              key={s.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === s.key}
+              onClick={() => {
+                setTab(s.key);
+                setSelectedId(null);
+              }}
+              className={cn(
+                'min-h-[36px] rounded-lg px-3 text-caption font-semibold',
+                tab === s.key ? 'bg-card text-text-primary shadow-card' : 'text-text-secondary',
+              )}
+            >
+              {s.label} {n > 0 && <span className="tabular-nums">· {n}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {isLoading && <SkeletonCard />}
+
+      {!isLoading && shown.length === 0 && (
+        <p className="rounded-2xl border border-dashed border-border p-6 text-center text-body text-text-secondary">
+          {tab === 'live' ? 'No live campaigns. Tap “New campaign” to make a link.' : `No ${tab} campaigns.`}
+        </p>
+      )}
+
+      {shown.length > 0 && (
+        <section className="overflow-x-auto rounded-2xl border border-border bg-card">
+          <table className="w-full min-w-[620px] text-caption">
+            <thead className="bg-surface text-text-secondary">
+              <tr>
+                <th className="p-3 text-left">Campaign</th>
+                <th className="p-3 text-left">Posted on</th>
+                <th className="p-3 text-right">People</th>
+                <th className="p-3 text-right">Bookings</th>
+                <th className="p-3 text-right">Money in</th>
+                <th className="p-3 text-right">Cost / booking</th>
+              </tr>
+            </thead>
+            <tbody className="tabular-nums">
+              {shown.map((c) => (
+                <tr
+                  key={c.id}
+                  onClick={() => setSelectedId(c.id)}
+                  className={cn('cursor-pointer border-t border-border hover:bg-surface/60', selected?.id === c.id && 'bg-surface')}
+                >
+                  <td className="p-3">
+                    <button type="button" onClick={() => setSelectedId(c.id)} className="text-left font-semibold text-text-primary">
+                      {c.name}
+                    </button>
+                    <div className="font-data text-[11px] text-text-secondary">/c/{c.slug}</div>
+                  </td>
+                  <td className="p-3 text-text-secondary">
+                    {CHANNEL_LABELS[c.channel]}
+                    {c.paid ? ' · paid' : ''}
+                  </td>
+                  <td className="p-3 text-right">{c.summary?.visitors ?? '—'}</td>
+                  <td className="p-3 text-right">{c.summary?.booked ?? '—'}</td>
+                  <td className="p-3 text-right">{c.summary ? rupees(c.summary.gmv) : '—'}</td>
+                  <td className="p-3 text-right font-semibold text-text-primary">
+                    {c.summary?.costPerBooking != null ? rupees(c.summary.costPerBooking) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {selected && selected.status === tab && <CampaignDetail key={selected.id} campaign={selected} />}
+
+      <p className="text-caption text-text-secondary">
+        Visits that didn&apos;t come through a campaign link (bio taps without a link, ChatGPT, people typing the address)
+        are in{' '}
+        <Link href="/admin/analytics/traffic" className="font-semibold text-primary hover:underline">
+          Traffic
+        </Link>
+        .
+      </p>
     </div>
   );
 }

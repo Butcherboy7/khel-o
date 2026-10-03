@@ -25,10 +25,8 @@ import {
   Monitor,
   MapPin,
   Megaphone,
-  Filter,
   IndianRupee,
   Banknote,
-  QrCode,
   type LucideIcon,
   Target,
 } from 'lucide-react';
@@ -82,13 +80,10 @@ const adminNavGroups: NavGroup[] = [
     label: 'Analytics',
     items: [
       { label: 'Traffic', href: '/admin/analytics/traffic', icon: TrendingUp },
+      { label: 'Campaigns', href: '/admin/analytics/ads', icon: Target },
       { label: 'Shares', href: '/admin/analytics/shares', icon: Share2 },
       { label: 'Areas', href: '/admin/analytics/geography', icon: MapPin },
-      { label: 'Ad campaigns', href: '/admin/analytics/ads', icon: Target },
       { label: 'Revenue', href: '/admin/analytics/revenue', icon: IndianRupee },
-      { label: 'Attribution', href: '/admin/analytics/attribution', icon: Megaphone },
-      { label: 'Campaigns', href: '/admin/analytics/campaigns', icon: QrCode },
-      { label: 'Funnels', href: '/admin/analytics/funnels', icon: Filter },
     ],
   },
   {
