@@ -45,7 +45,7 @@ export function SpecialAccessBadge({ earned = true, size = 'md', tappable = fals
           </span>
           <span className="flex min-w-0 flex-col text-left leading-tight">
             <span className={cn('font-heading font-bold text-white', s.name)}>{OG_BADGE_NAME}</span>
-            <span className={cn('font-semibold text-white/70', s.sub)}>{earned ? 'OG · since day 1' : 'Join the campaign to earn it'}</span>
+            <span className={cn('font-semibold text-white/70', earned ? s.sub : 'text-[11px]')}>{earned ? 'OG · since day 1' : 'Join the campaign to earn it'}</span>
           </span>
           {tappable && <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-white/60" aria-hidden />}
           <span className="mythic-sheen" aria-hidden />
