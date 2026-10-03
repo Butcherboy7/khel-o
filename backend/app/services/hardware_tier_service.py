@@ -136,6 +136,7 @@ class HardwareTierService:
             "default_booking_minutes": tier_in.default_booking_minutes,
             "price_15m": tier_in.price_15m,
             "price_30m": tier_in.price_30m,
+            "coop_price_30m": tier_in.coop_price_30m,
             "is_active": True
         }
 
@@ -198,6 +199,7 @@ class HardwareTierService:
         merged_price_hr = update_data.price_per_hour if update_data.price_per_hour is not None else tier.price_per_hour
         merged_15 = update_data.price_15m if "price_15m" in update_data.model_fields_set else tier.price_15m
         merged_30 = update_data.price_30m if "price_30m" in update_data.model_fields_set else tier.price_30m
+        merged_coop_30 = update_data.coop_price_30m if "coop_price_30m" in update_data.model_fields_set else tier.coop_price_30m
         if merged_min not in (15, 30, 60):
             raise ValidationException(message="Shortest booking must be 15, 30, or 60 minutes", error_code="INVALID_DURATION")
         allowed = allowed_minutes(merged_min)
@@ -211,6 +213,8 @@ class HardwareTierService:
             raise ValidationException(message="The 15-minute price cannot be greater than the 30-minute price", error_code="INVALID_DURATION_PRICE")
         if merged_30 is not None and merged_30 > merged_price_hr:
             raise ValidationException(message="The 30-minute price cannot be greater than the hourly price", error_code="INVALID_DURATION_PRICE")
+        if merged_min > 30 and merged_coop_30 is not None:
+            raise ValidationException(message="A 30-minute co-op price only applies when shortest booking is 15 or 30 minutes", error_code="INVALID_DURATION_PRICE")
 
         if total <= 0:
             raise ValidationException(message="Total seats must be greater than 0", error_code="INVALID_SEATS")

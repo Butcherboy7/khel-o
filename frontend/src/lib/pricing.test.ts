@@ -38,4 +38,12 @@ describe('basePriceForMinutes mirrors the server', () => {
     expect(basePriceForMinutes({ pricePerHour: 90 }, 15)).toBe(22.5);
     expect(basePriceForMinutes({ pricePerHour: 70 }, 15)).toBe(17.5);
   });
+  it("uses the owner's 30-min co-op price (backend tests/test_coop_price_30m.py)", () => {
+    const ps5 = { pricePerHour: 140, price15m: 59, price30m: 89, coopExtraPlayerPrice: 120, coopPrice30m: 180 };
+    expect(basePriceForMinutes(ps5, 30, { players: 2, isCoop: true })).toBe(180);
+    expect(basePriceForMinutes(ps5, 30, { players: 3, isCoop: true })).toBe(240);
+    expect(basePriceForMinutes(ps5, 60, { players: 2, isCoop: true })).toBe(260);
+    expect(basePriceForMinutes(ps5, 30)).toBe(89);
+    expect(basePriceForMinutes({ ...ps5, coopPrice30m: null }, 30, { players: 2, isCoop: true })).toBe(149);
+  });
 });

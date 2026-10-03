@@ -37,6 +37,7 @@ class HardwareTierBase(BaseModel):
     default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
     price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
     price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price30m", "price30M", "price_30m"), serialization_alias="price30m")
+    coop_price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("coopPrice30m", "coopPrice30M", "coop_price_30m"), serialization_alias="coopPrice30m")
 
     @model_validator(mode='after')
     def validate_seats(self) -> 'HardwareTierBase':
@@ -61,6 +62,8 @@ class HardwareTierBase(BaseModel):
             raise ValueError("price15m cannot be greater than price30m")
         if self.price_30m is not None and self.price_30m > self.price_per_hour:
             raise ValueError("price30m cannot be greater than the hourly price")
+        if self.min_booking_minutes > 30 and self.coop_price_30m is not None:
+            raise ValueError("coopPrice30m only applies when shortest booking is 15 or 30 minutes")
         return self
 
     model_config = ConfigDict(
@@ -104,6 +107,7 @@ class HardwareTierUpdate(BaseModel):
     default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
     price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
     price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price30m", "price30M", "price_30m"), serialization_alias="price30m")
+    coop_price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("coopPrice30m", "coopPrice30M", "coop_price_30m"), serialization_alias="coopPrice30m")
 
     @model_validator(mode='after')
     def validate_seats_update(self) -> 'HardwareTierUpdate':

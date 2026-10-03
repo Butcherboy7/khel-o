@@ -501,7 +501,8 @@ class PromotionService:
         if promo.promotion_type != PromotionType.FIXED_PRICE or not tier or not promo.min_duration_hours:
             return None, None
         minutes = round(float(promo.min_duration_hours) * 60)
-        regular_price = float(base_price_for_minutes(tier, minutes))
+        coop = (getattr(promo, "play_mode", None) or "any") == "coop"
+        regular_price = float(base_price_for_minutes(tier, minutes, players=2 if coop else 1, is_coop=coop))
         savings = round(regular_price - float(promo.fixed_price_amount), 2)
         return round(regular_price, 2), max(savings, 0.0)
 

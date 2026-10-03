@@ -66,6 +66,10 @@ class HardwareTier(Base):
     # allows that length.
     price_15m: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     price_30m: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    # Owner-set price for a 30-minute co-op session for 2 players on one
+    # console; NULL = the solo 30-min price plus half the hourly extra. Each
+    # player past the second still adds half of coop_extra_player_price.
+    coop_price_30m: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     # Co-op: friends share ONE console. Price = price_per_hour +
     # coop_extra_player_price per extra player, up to coop_max_players.
     # Inventory is unchanged — a co-op booking still holds one unit.

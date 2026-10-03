@@ -26,7 +26,9 @@ def base_price_for_minutes(
       hourly/2 when the owner hasn't set one.
     - 60 min and above: hourly * minutes/60 (so 90 min = 1.5x hourly).
     - Co-op: coop_extra_player_price is charged per extra player, scaled
-      by the same minutes/60 factor as the hourly rate.
+      by the same minutes/60 factor as the hourly rate. Exception: a 30-min
+      co-op session uses the owner's coop_price_30m (2 players) when set,
+      plus the scaled extra for each player past the second.
     - Solo with multiple consoles: multiplied by `seats`.
     """
     hourly = _d(tier.price_per_hour)
@@ -43,7 +45,11 @@ def base_price_for_minutes(
     else:
         unit_price = hourly * minutes_d / Decimal('60')
 
-    if is_coop:
+    coop_30 = getattr(tier, 'coop_price_30m', None)
+    if is_coop and minutes == 30 and players >= 2 and coop_30 is not None:
+        extra = _d(getattr(tier, 'coop_extra_player_price', 0) or 0)
+        total = _d(coop_30) + extra * _d(players - 2) * minutes_d / Decimal('60')
+    elif is_coop:
         extra = _d(getattr(tier, 'coop_extra_player_price', 0) or 0)
         extra_total = extra * _d(max(players - 1, 0)) * minutes_d / Decimal('60')
         total = unit_price + extra_total

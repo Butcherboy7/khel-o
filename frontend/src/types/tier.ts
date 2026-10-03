@@ -48,6 +48,8 @@ export interface HardwareTier {
    *  minBookingMinutes allows that length. */
   price15m?: number | null;
   price30m?: number | null;
+  /** Owner-set 30-min co-op price for 2 players; null = derived. */
+  coopPrice30m?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +89,8 @@ export interface TierCreateRequest {
    *  minBookingMinutes allows that length. */
   price15m?: number | null;
   price30m?: number | null;
+  /** Owner-set 30-min co-op price for 2 players; null = derived. */
+  coopPrice30m?: number | null;
 }
 
 export interface TierUpdateRequest {
@@ -119,6 +123,8 @@ export interface TierUpdateRequest {
    *  minBookingMinutes allows that length. */
   price15m?: number | null;
   price30m?: number | null;
+  /** Owner-set 30-min co-op price for 2 players; null = derived. */
+  coopPrice30m?: number | null;
 }
 
 export interface TierConfig {
@@ -152,4 +158,6 @@ export interface TierConfig {
    *  minBookingMinutes allows that length. */
   price15m?: number | null;
   price30m?: number | null;
+  /** Owner-set 30-min co-op price for 2 players; null = derived. */
+  coopPrice30m?: number | null;
 }

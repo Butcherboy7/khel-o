@@ -39,7 +39,7 @@ export function priceForMinutes(minutes: number, hourly: number, price15?: numbe
 /** New-tier defaults and the edit-modal prefill share one shape. */
 type BookingOptionFields = Pick<
   TierConfig,
-  'coopEnabled' | 'coopMaxPlayers' | 'coopExtraPlayerPrice' | 'minBookingMinutes' | 'defaultBookingMinutes' | 'price15m' | 'price30m'
+  'coopEnabled' | 'coopMaxPlayers' | 'coopExtraPlayerPrice' | 'minBookingMinutes' | 'defaultBookingMinutes' | 'price15m' | 'price30m' | 'coopPrice30m'
 >;
 
 export function bookingOptionsFrom(src: BookingOptionFields | undefined) {
@@ -51,6 +51,7 @@ export function bookingOptionsFrom(src: BookingOptionFields | undefined) {
     defaultBookingMinutes: src?.defaultBookingMinutes ?? null,
     price15m: src?.price15m ?? null,
     price30m: src?.price30m ?? null,
+    coopPrice30m: src?.coopPrice30m ?? null,
   };
 }
 
@@ -68,7 +69,13 @@ export function bookingOptionsPayload(config: TierConfig) {
     price30m: o.minBookingMinutes <= 30 ? o.price30m : null,
   };
   if (config.tierType === 'activity' || config.platform === 'pc') return { ...minutes, coopEnabled: false };
-  return { ...minutes, coopEnabled: o.coopEnabled, coopMaxPlayers: o.coopMaxPlayers, coopExtraPlayerPrice: o.coopExtraPlayerPrice };
+  return {
+    ...minutes,
+    coopEnabled: o.coopEnabled,
+    coopMaxPlayers: o.coopMaxPlayers,
+    coopExtraPlayerPrice: o.coopExtraPlayerPrice,
+    coopPrice30m: o.coopEnabled && o.minBookingMinutes <= 30 ? o.coopPrice30m : null,
+  };
 }
 
 interface Props {
@@ -243,6 +250,23 @@ export function SetupBookingOptions({ config, onChange }: Props) {
               onChange={(n) => onChange({ price30m: n })}
             />
           </span>
+          {showCoop && o.coopEnabled && (
+            <span className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-0.5 text-overline font-semibold text-text-secondary">
+                30-min co-op price (2 players)
+                <InfoTip
+                  text="What 2 players sharing one console pay for 30 minutes. Leave it blank to use your 30-min price plus half the extra-per-friend charge."
+                  label="About the 30-minute co-op price"
+                />
+              </span>
+              <NumericField
+                label="₹"
+                min={0}
+                value={o.coopPrice30m ?? Math.round(((o.price30m ?? hourly / 2) + o.coopExtraPlayerPrice / 2) * 100) / 100}
+                onChange={(n) => onChange({ coopPrice30m: n })}
+              />
+            </span>
+          )}
         </div>
       )}
 
@@ -266,8 +290,11 @@ export function SetupBookingOptions({ config, onChange }: Props) {
                 <tr key={m} className="border-b border-border/60 last:border-0">
                   <td className="px-3 py-2 text-text-primary">{fmt(m)}</td>
                   {playerCounts.map((p) => {
-                    const extra = showCoop && o.coopEnabled ? (o.coopExtraPlayerPrice * (p - 1) * m) / 60 : 0;
-                    const total = Math.round((base + extra) * 100) / 100;
+                    const coopOn = showCoop && o.coopEnabled;
+                    const ownCoop30 = coopOn && m === 30 && p >= 2 && o.coopPrice30m != null;
+                    const total = ownCoop30
+                      ? Math.round(((o.coopPrice30m as number) + (o.coopExtraPlayerPrice * (p - 2) * m) / 60) * 100) / 100
+                      : Math.round((base + (coopOn ? (o.coopExtraPlayerPrice * (p - 1) * m) / 60 : 0)) * 100) / 100;
                     return (
                       <td
                         key={p}

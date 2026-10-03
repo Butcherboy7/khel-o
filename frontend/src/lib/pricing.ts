@@ -5,12 +5,15 @@
  * - 15 / 30 min: the setup's own price if the owner set one, else hourly/4
  *   and hourly/2.
  * - 60 min and above: hourly × minutes / 60.
- * - Co-op: extra-player price per extra player, scaled by minutes/60.
+ * - Co-op: extra-player price per extra player, scaled by minutes/60 — except
+ *   a 30-min co-op session with the owner's coopPrice30m (2 players), plus
+ *   the scaled extra for each player past the second.
  * - Solo on several consoles: multiplied by `seats`. */
 export interface PriceableTier {
   pricePerHour: number;
   price15m?: number | null;
   price30m?: number | null;
+  coopPrice30m?: number | null;
   coopExtraPlayerPrice?: number | null;
 }
 
@@ -31,8 +34,12 @@ export function basePriceForMinutes(
   else if (minutes === 30) unit = hourly / 2;
   else unit = (hourly * minutes) / 60;
 
-  const total = isCoop
-    ? unit + Number(tier.coopExtraPlayerPrice ?? 0) * Math.max(players - 1, 0) * (minutes / 60)
-    : unit * seats;
+  const extra = Number(tier.coopExtraPlayerPrice ?? 0);
+  const total =
+    isCoop && minutes === 30 && players >= 2 && tier.coopPrice30m != null
+      ? Number(tier.coopPrice30m) + extra * (players - 2) * (minutes / 60)
+      : isCoop
+        ? unit + extra * Math.max(players - 1, 0) * (minutes / 60)
+        : unit * seats;
   return round2(total);
 }

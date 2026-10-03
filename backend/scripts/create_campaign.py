@@ -102,7 +102,7 @@ async def main(spec_path: str, dry_run: bool, apply_tier_prices: bool, replace: 
                 for tp in cs.get("tierPrices", []):
                     t = _tier(tiers, tp["tier"])
                     for key, attr in (("pricePerHour", "price_per_hour"), ("price15m", "price_15m"),
-                                      ("price30m", "price_30m"), ("coopExtraPlayerPrice", "coop_extra_player_price"),
+                                      ("price30m", "price_30m"), ("coopPrice30m", "coop_price_30m"), ("coopExtraPlayerPrice", "coop_extra_player_price"),
                                       ("minBookingMinutes", "min_booking_minutes")):
                         if key in tp:
                             print(f"  tier {t.name}: {attr} {getattr(t, attr)} -> {tp[key]}")
