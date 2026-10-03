@@ -120,3 +120,22 @@ async def test_rewards_always_lists_the_three_emblems(db_session, async_client):
     data, badges = await _rewards(async_client, gamer)
     assert list(badges) == ["day_one", "matchmaker", "local_legend"]
     assert data["xp"] == 0
+
+
+async def test_admin_can_track_helper_badges(db_session, async_client):
+    from app.services.badge_service import grant_helper_badge
+
+    gamer = await create_test_user(db_session, role=UserRole.GAMER)
+    admin = await create_test_user(db_session, role=UserRole.ADMIN)
+    await db_session.commit()
+    await grant_helper_badge(db_session, gamer.id, "day_one")
+
+    r = await async_client.get("/api/v1/admin/leads/helper-badges", headers=auth_headers(admin, is_admin=True))
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    totals = {t["key"]: t["count"] for t in d["totals"]}
+    assert totals["day_one"] >= 1 and set(totals) == {"day_one", "matchmaker", "local_legend"}
+    assert any(x["key"] == "day_one" and x["player"]["email"] == gamer.email for x in d["recent"])
+
+    r = await async_client.get("/api/v1/admin/leads/helper-badges", headers=auth_headers(gamer))
+    assert r.status_code in (401, 403)

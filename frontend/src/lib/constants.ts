@@ -89,7 +89,7 @@ export const ROUTES = {
     `/bookings/new?cafeId=${cafeId}&tierId=${tierId}`,
   bookingDetail: (id: string) => `/bookings/${id}`,
   bookings: '/bookings',
-  rewards: '/rewards',
+  achievements: '/achievements',
   profile: '/profile',
   ownerOnboarding: '/owner/onboarding',
   ownerDashboard: '/owner/dashboard',

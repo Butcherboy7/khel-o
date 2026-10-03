@@ -6,6 +6,7 @@ import { Users, Copy, Check, Megaphone, ChevronDown, ChevronUp, Download, Mail, 
 import { listCafeDemand, updateCafeWaitlistGoal, downloadWaitlistCsv, type CafeDemandLead } from '@/lib/api/admin';
 import { WaitlistBroadcast } from '@/components/admin/WaitlistBroadcast';
 import { OwnerIntrosPanel } from '@/components/admin/OwnerIntrosPanel';
+import { HelperBadgesPanel } from '@/components/admin/HelperBadgesPanel';
 import { Card, CardContent, Badge, ErrorState, EmptyState, PageSpinner } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
 
@@ -95,6 +96,7 @@ export default function AdminLeadsPage() {
       </div>
 
       <OwnerIntrosPanel />
+      <HelperBadgesPanel />
 
       {leads.length === 0 ? (
         <EmptyState

@@ -9,7 +9,7 @@ import { CustomerShell } from '@/components/layout/CustomerShell';
 // landing pages, and the booking wizard up to the point of payment. Auth is
 // only required at the "Confirm & Pay" action itself (checked inline in
 // bookings/new), and on every other customer route below (bookings
-// list/detail, rewards, profile, notifications, support, partner) via
+// list/detail, achievements, profile, notifications, support, partner) via
 // AuthGuard as before.
 function isPublicPath(pathname: string): boolean {
   return (

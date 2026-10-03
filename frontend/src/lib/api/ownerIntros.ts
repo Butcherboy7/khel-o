@@ -42,3 +42,12 @@ export async function listOwnerIntros(): Promise<{ intros: AdminOwnerIntro[] }> 
 export async function setOwnerIntroStatus(id: string, status: OwnerIntroStatus): Promise<{ id: string; status: OwnerIntroStatus }> {
   return call(() => apiClient.patch(`/api/v1/admin/leads/owner-intros/${id}`, { status }));
 }
+
+export interface HelperBadgeSummary {
+  totals: { key: string; title: string; xp: number; count: number }[];
+  recent: { key: string; title: string; player: { name: string; email: string }; grantedAt: string | null }[];
+}
+
+export async function getHelperBadges(): Promise<HelperBadgeSummary> {
+  return call(() => apiClient.get('/api/v1/admin/leads/helper-badges'));
+}

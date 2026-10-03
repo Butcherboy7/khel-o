@@ -56,6 +56,10 @@ const nextConfig = {
   // shipping the whole node_modules in the runtime Docker image — see
   // frontend/Dockerfile runner stage.
   output: 'standalone',
+  async redirects() {
+    // The page was called Rewards before it became Achievements.
+    return [{ source: '/rewards', destination: '/achievements', permanent: true }];
+  },
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion', '@tanstack/react-query'],
   },

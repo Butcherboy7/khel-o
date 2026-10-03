@@ -6,7 +6,8 @@ WORKDIR /app
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json* ./
-RUN npm ci || npm install
+# npm's download cache persists across builds (BuildKit cache mount).
+RUN --mount=type=cache,target=/root/.npm npm ci || npm install
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -39,7 +40,8 @@ ARG NEXT_PUBLIC_APP_URL=
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_TELEMETRY_DISABLED 1
 
-RUN npm run build
+# Next's compiler cache persists too, so a rebuild only recompiles what changed.
+RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 # Production image — standalone output means only the traced dependency
 # subset is copied in, not the full node_modules (was ~1.9GB, this is a

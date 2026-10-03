@@ -1471,3 +1471,44 @@ async def update_owner_intro_status(
         await grant_helper_badge(db, intro.submitted_by_user_id, "matchmaker")
     await _audit(db, current_admin, "owner_intro.status", str(intro.id), intro.cafe_name, reason=payload.status)
     return {"success": True, "data": {"id": str(intro.id), "status": intro.status}}
+
+
+# --- HELPER BADGES (Day One / Matchmaker / Local Legend) ---
+@router.get("/leads/helper-badges", status_code=status.HTTP_200_OK)
+async def list_helper_badges(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Who has earned the 'helped a café join' badges: totals per badge plus
+    the latest awards with the player, so outreach can see who is helping."""
+    from app.models.user_badge import UserBadge
+    from app.services.badge_service import HELPER_BADGES
+
+    keys = list(HELPER_BADGES)
+    counts = dict((await db.execute(
+        select(UserBadge.badge_key, func.count())
+        .where(UserBadge.badge_key.in_(keys))
+        .group_by(UserBadge.badge_key)
+    )).all())
+    rows = (await db.execute(
+        select(UserBadge.badge_key, UserBadge.granted_at, User.full_name, User.email)
+        .join(User, User.id == UserBadge.user_id)
+        .where(UserBadge.badge_key.in_(keys))
+        .order_by(UserBadge.granted_at.desc())
+        .limit(100)
+    )).all()
+    return {"success": True, "data": {
+        "totals": [
+            {"key": k, "title": HELPER_BADGES[k][0], "xp": HELPER_BADGES[k][2], "count": int(counts.get(k, 0))}
+            for k in keys
+        ],
+        "recent": [
+            {
+                "key": key,
+                "title": HELPER_BADGES[key][0],
+                "player": {"name": name, "email": email},
+                "grantedAt": granted.isoformat() if granted else None,
+            }
+            for key, granted, name, email in rows
+        ],
+    }}

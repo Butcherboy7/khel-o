@@ -9,8 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libpq-dev curl \
     && rm -rf /var/lib/apt/lists/*
 
+# BuildKit keeps pip's download cache between builds, so even when
+# pyproject.toml changes only the new/updated packages are fetched.
 COPY pyproject.toml .
-RUN pip install --no-cache-dir -e .
+RUN --mount=type=cache,target=/root/.cache/pip pip install -e .
 
 COPY . .
 RUN chmod +x docker-entrypoint.sh

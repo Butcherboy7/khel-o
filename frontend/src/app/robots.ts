@@ -14,7 +14,7 @@ export default function robots(): MetadataRoute.Robots {
         '/admin',
         '/profile',
         '/notifications',
-        '/rewards',
+        '/achievements',
         '/bookings',
         '/support',
         '/login',

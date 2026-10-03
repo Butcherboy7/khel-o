@@ -226,7 +226,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       setUnlockedBadge(result.badgeUnlocked ?? null);
       fireAnalyticsEvent('notify_me', { cafeId, metadata: { method } });
       await refetchWaitlist();
-      // The new badge and XP should be on the rewards page and profile straight away.
+      // The new badge and XP should be on the achievements page and profile straight away.
       void queryClient.invalidateQueries({ queryKey: ['rewards'] });
     },
     [cafeId, refetchWaitlist, queryClient],

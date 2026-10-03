@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Search,
   CalendarDays,
-  Gift,
+  Trophy,
   UserCircle,
   Bell,
   type LucideIcon,
@@ -29,7 +29,7 @@ interface NavItem {
 const customerNavItems: NavItem[] = [
   { label: 'Find Café', href: '/', icon: Search, matchPrefix: false },
   { label: 'My Bookings', href: '/bookings', icon: CalendarDays, matchPrefix: true },
-  { label: 'Rewards', href: '/rewards', icon: Gift, matchPrefix: false },
+  { label: 'Achievements', href: '/achievements', icon: Trophy, matchPrefix: false },
   { label: 'Profile', href: '/profile', icon: UserCircle, matchPrefix: false },
 ];
 

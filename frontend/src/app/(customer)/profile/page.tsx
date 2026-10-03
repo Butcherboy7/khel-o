@@ -204,7 +204,7 @@ export default function ProfilePage() {
   };
 
   // The header badge used to just say "Level 4" unconditionally — same rewards
-  // data that already powers the real level/XP on the Rewards page, not a
+  // data that already powers the real level/XP on the Achievements page, not a
   // second/fake source of truth.
   const { data: rewardsData } = useQuery<{ level: number; achievements?: { id: string; isUnlocked: boolean; emblem?: string }[] }>({
     queryKey: ['rewards'],
@@ -307,7 +307,7 @@ export default function ProfilePage() {
             </div>
             <p className="text-caption text-text-secondary truncate">{user.email}</p>
             {rewardsData?.achievements?.some((a) => isHelperBadgeKey(a.emblem) && a.isUnlocked) && (
-              <Link href="/rewards" className="mt-2 flex w-fit items-center gap-2.5" aria-label="Your helper badges. See your rewards">
+              <Link href="/achievements" className="mt-2 flex w-fit items-center gap-2.5" aria-label="Your helper badges. See your achievements">
                 {rewardsData.achievements
                   .filter((a) => isHelperBadgeKey(a.emblem) && a.isUnlocked)
                   .map((a) => (
@@ -316,7 +316,7 @@ export default function ProfilePage() {
               </Link>
             )}
             {rewardsData?.achievements?.some((a) => a.id === 'special_access' && a.isUnlocked) && (
-              <Link href="/rewards" className="mt-1.5 inline-flex w-fit" aria-label="KHELO Special Access badge. See your rewards">
+              <Link href="/achievements" className="mt-1.5 inline-flex w-fit" aria-label="KHELO Special Access badge. See your achievements">
                 <SpecialAccessBadge size="sm" />
               </Link>
             )}
@@ -501,12 +501,12 @@ export default function ProfilePage() {
           </Link>
 
           <Link
-            href="/rewards"
+            href="/achievements"
             className="flex items-center justify-between p-3.5 hover:bg-surface rounded-xl transition-colors"
           >
             <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
               <Sparkles className="h-4 w-4 text-accent" />
-              <span>Gamified Rewards & Badges</span>
+              <span>Achievements & Badges</span>
             </div>
             <ChevronRight className="h-4 w-4 text-text-secondary" />
           </Link>

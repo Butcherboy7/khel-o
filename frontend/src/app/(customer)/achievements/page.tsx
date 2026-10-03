@@ -47,7 +47,7 @@ function progressPercent(progress: string): number {
   return Math.min(100, Math.round((Number(done) / totalNum) * 100));
 }
 
-export default function RewardsPage() {
+export default function AchievementsPage() {
   const router = useRouter();
   const [activeAchievement, setActiveAchievement] = useState<Achievement | null>(null);
 
@@ -72,7 +72,7 @@ export default function RewardsPage() {
     return (
       <div className="max-w-2xl mx-auto pb-24">
         <ErrorState
-          title="Couldn't load your rewards"
+          title="Couldn't load your achievements"
           message={(error as Error)?.message || 'Failed to fetch your XP and badges. Please check your connection.'}
           onRetry={() => refetch()}
         />
@@ -288,7 +288,7 @@ export default function RewardsPage() {
             </p>
 
             <div className="w-full rounded-2xl bg-surface p-3 flex items-center justify-between text-caption font-semibold my-1">
-              <span className="text-text-secondary">Reward XP:</span>
+              <span className="text-text-secondary">XP earned:</span>
               <span className="font-bold text-success">+{activeAchievement.xpReward} XP</span>
             </div>
 

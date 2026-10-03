@@ -28,7 +28,9 @@ esac
 cd "$DIR"
 
 echo "== docker build =="
+START=$(date +%s)
 docker compose -f "$COMPOSE_FILE" build backend frontend
+echo "build took $(( $(date +%s) - START ))s"
 
 echo "== alembic upgrade head =="
 # Runs in a one-off container from the freshly built image, ahead of the
@@ -41,7 +43,11 @@ echo "== cutover =="
 docker compose -f "$COMPOSE_FILE" up -d backend frontend
 
 echo "== cleanup build cache =="
-docker builder prune -af >/dev/null
+# Keep the layer + package caches warm: wiping them (the old `prune -af`) made
+# every deploy reinstall apt/pip/npm and rebuild from scratch (~5 min). Cap the
+# cache instead so the disk can't fill, and drop only dangling images.
+docker builder prune -f --keep-storage 8GB >/dev/null
+docker image prune -f >/dev/null
 
 echo "== health check =="
 sleep 5
