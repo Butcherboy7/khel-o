@@ -308,36 +308,47 @@ export default function ProfilePage() {
               </Badge>
             </div>
             <p className="text-caption text-text-secondary truncate">{user.email}</p>
-            {rewardsData?.achievements?.some((a) => isHelperBadgeKey(a.emblem) && a.isUnlocked) && (
-              <Link href="/achievements" className="mt-2 flex w-fit items-center gap-2.5" aria-label="Your helper badges. See your achievements">
-                {rewardsData.achievements
-                  .filter((a) => isHelperBadgeKey(a.emblem) && a.isUnlocked)
-                  .map((a) => (
-                    <HelperEmblem key={a.id} badge={a.emblem as 'day_one' | 'matchmaker' | 'local_legend'} size={34} />
-                  ))}
-              </Link>
-            )}
-            {rewardsData?.achievements?.some((a) => a.id === 'special_access' && a.isUnlocked) && (
-              <>
-              <button
-                type="button"
-                onClick={() => setOgOpen(true)}
-                className="mt-1.5 inline-flex w-fit rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                aria-label={`${OG_BADGE_NAME} OG badge. Tap for details`}
-                aria-haspopup="dialog"
-              >
-                <SpecialAccessBadge size="sm" tappable />
-              </button>
-              <OgBadgeSheet
-                isOpen={ogOpen}
-                onClose={() => setOgOpen(false)}
-                firstName={fullName.trim().split(/\s+/)[0]}
-                grantedAt={rewardsData.achievements.find((a) => a.id === 'special_access')?.grantedAt}
-                campaignCode={rewardsData.achievements.find((a) => a.id === 'special_access')?.campaignCode}
-                memberNumber={rewardsData.achievements.find((a) => a.id === 'special_access')?.memberNumber}
-              />
-              </>
-            )}
+            {(() => {
+              const list = rewardsData?.achievements ?? [];
+              const emblems = list.filter((a) => isHelperBadgeKey(a.emblem) && a.isUnlocked);
+              const og = list.find((a) => a.id === 'special_access' && a.isUnlocked);
+              if (emblems.length === 0 && !og) return null;
+              // One tidy row: small emblems, then the OG pill; wraps only on very narrow screens.
+              return (
+                <>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                    {emblems.length > 0 && (
+                      <Link href="/achievements" className="flex items-center gap-1" aria-label="Your helper badges. See your achievements">
+                        {emblems.map((a) => (
+                          <HelperEmblem key={a.id} badge={a.emblem as 'day_one' | 'matchmaker' | 'local_legend'} size={28} />
+                        ))}
+                      </Link>
+                    )}
+                    {og && (
+                      <button
+                        type="button"
+                        onClick={() => setOgOpen(true)}
+                        className="inline-flex w-fit rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        aria-label={`${OG_BADGE_NAME} OG badge. Tap for details`}
+                        aria-haspopup="dialog"
+                      >
+                        <SpecialAccessBadge size="sm" tappable />
+                      </button>
+                    )}
+                  </div>
+                  {og && (
+                    <OgBadgeSheet
+                      isOpen={ogOpen}
+                      onClose={() => setOgOpen(false)}
+                      firstName={fullName.trim().split(/\s+/)[0]}
+                      grantedAt={og.grantedAt}
+                      campaignCode={og.campaignCode}
+                      memberNumber={og.memberNumber}
+                    />
+                  )}
+                </>
+              );
+            })()}
 
             <div className="flex items-center gap-2 text-caption text-text-secondary mt-1 flex-wrap">
               <span className="flex items-center gap-1 font-data">
