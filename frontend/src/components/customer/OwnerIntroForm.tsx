@@ -139,7 +139,7 @@ export function OwnerIntroForm({ cafeId, cafeName, onDone }: OwnerIntroFormProps
         </h2>
         <p className="text-body text-text-secondary">
           Drop their number and we&apos;ll take it from here. A friendly intro gets a café listed way faster than us
-          walking in cold 🙏
+          walking in cold.
         </p>
       </div>
 

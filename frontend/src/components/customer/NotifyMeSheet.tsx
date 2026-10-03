@@ -125,7 +125,7 @@ export function NotifyMeSheet({
             <span className="text-[44px] leading-none" aria-hidden>👀</span>
             <h2 className="font-heading text-h2 text-text-primary">Your friend wants {cafeName} on KHEL-O</h2>
             <p className="text-body text-text-secondary">
-              Add your vote? It takes one tap and it genuinely helps 🥹
+              Add your vote? One tap, and it helps get it listed.
               {votes > 0 && ` ${votes} gamer${votes === 1 ? ' has' : 's have'} already voted.`}
             </p>
           </div>
@@ -147,10 +147,10 @@ export function NotifyMeSheet({
       {step === 'signin' && (
         <div className="flex flex-col gap-4 pb-2">
           <div className="flex flex-col gap-1">
-            <h2 className="font-heading text-h2 text-text-primary">Pls pls pls vote for {cafeName} 🥺</h2>
+            <h2 className="font-heading text-h2 text-text-primary">Want {cafeName} on KHEL-O?</h2>
             <p className="text-body text-text-secondary">
-              Every vote is one more reason for the owner to say yes. We&apos;ll ping you once, the day it goes live. No
-              spam, pinky promise.
+              Vote, earn the Day One badge and watch your aura go up. Every vote also tells the owner gamers want this.
+              We&apos;ll ping you once, the day it goes live.
             </p>
           </div>
           {reward}
@@ -170,7 +170,7 @@ export function NotifyMeSheet({
               {left > 0
                 ? `${left} more and we go pitch ${cafeName} in person.`
                 : `Goal smashed, we're talking to ${cafeName} now.`}{' '}
-              We&apos;ll email you the day it&apos;s live.
+              We&apos;ll email you the day it&apos;s live. Your aura just went up.
             </p>
           </div>
 

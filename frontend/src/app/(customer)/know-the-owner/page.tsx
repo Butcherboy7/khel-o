@@ -19,7 +19,7 @@ export default function KnowTheOwnerPage() {
         <h1 className="font-heading text-h1 text-text-primary">Know a gaming café owner?</h1>
         <p className="text-body text-text-secondary">
           Your favourite spot isn&apos;t on KHEL-O yet? Put us in touch and we&apos;ll do the rest. You&apos;d be doing
-          every gamer in your area a huge favour 🙏
+          every gamer in your area a huge favour.
         </p>
       </div>
 
