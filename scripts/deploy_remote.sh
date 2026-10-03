@@ -50,7 +50,10 @@ docker builder prune -f --keep-storage 8GB >/dev/null
 docker image prune -f >/dev/null
 
 echo "== health check =="
-sleep 5
-curl -fsS "$HEALTH_URL"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  sleep 5
+  curl -fsS "$HEALTH_URL" && break
+  [ "$i" = 12 ] && exit 1
+done
 echo
 echo "Deploy OK ($ENVIRONMENT): $(git rev-parse --short HEAD)"
