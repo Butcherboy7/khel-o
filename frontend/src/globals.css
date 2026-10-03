@@ -411,3 +411,16 @@ body:has([role='dialog']) [aria-label='Cookie notice'] { display: none; }
 .emblem-sweep { animation: khelo-emblem-sweep 4.8s ease-in-out infinite; }
 .emblem-locked svg { filter: grayscale(1); opacity: 0.4; }
 @media (prefers-reduced-motion: reduce) { .emblem-earned::before, .emblem-sweep { animation: none; } .emblem-sweep { opacity: 0; } }
+
+/* About page: the title bubbles pop in, float, fade and return. Visible by default; animated only when motion is allowed. */
+@media (prefers-reduced-motion: no-preference) {
+  .khelo-bubble { animation: khelo-bubble 7s ease-in-out infinite; }
+}
+@keyframes khelo-bubble {
+  0% { opacity: 0; transform: translateY(8px) scale(0.85); }
+  8% { opacity: 1; transform: translateY(0) scale(1); }
+  30% { transform: translateY(-4px) scale(1); }
+  55% { transform: translateY(0) scale(1); }
+  80% { opacity: 1; transform: translateY(-3px) scale(1); }
+  92%, 100% { opacity: 0; transform: translateY(-10px) scale(0.92); }
+}
