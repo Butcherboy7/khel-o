@@ -41,6 +41,7 @@ export function HelperEmblem({ badge, earned = true, size = 64, className }: Hel
   const uid = useId().replace(/:/g, '');
   const rim = `${uid}-rim`;
   const clip = `${uid}-clip`;
+  const sheen = `${uid}-sheen`;
   const [light, dark] = RIM[badge];
   const label = `${HELPER_BADGE_COPY[badge].title} badge${earned ? '' : ', not earned yet'}`;
 
@@ -57,6 +58,11 @@ export function HelperEmblem({ badge, earned = true, size = 64, className }: Hel
             <stop offset="0" stopColor={light} />
             {badge === 'local_legend' && <stop offset="0.5" stopColor="#F2B93B" />}
             <stop offset="1" stopColor={dark} />
+          </linearGradient>
+          <linearGradient id={sheen} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#fff" stopOpacity="0" />
+            <stop offset="0.5" stopColor="#fff" stopOpacity="0.7" />
+            <stop offset="1" stopColor="#fff" stopOpacity="0" />
           </linearGradient>
           <clipPath id={clip}>
             <path d={SHIELD} />
@@ -84,7 +90,7 @@ export function HelperEmblem({ badge, earned = true, size = 64, className }: Hel
         )}
         {earned && (
           <g clipPath={`url(#${clip})`}>
-            <rect className="emblem-sweep" x="-30" y="0" width="22" height="64" fill="#fff" opacity="0.55" />
+            <rect className="emblem-sweep" x="-24" y="0" width="14" height="64" fill={`url(#${sheen})`} />
           </g>
         )}
       </svg>

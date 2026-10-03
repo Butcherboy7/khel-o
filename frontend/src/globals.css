@@ -398,7 +398,7 @@ body:has([role='dialog']) [aria-label='Cookie notice'] { display: none; }
    that slowly breathes plus one gentle light sweep, then rest. Never flashes
    or spins. ── */
 @keyframes khelo-emblem-breathe { 0%, 100% { opacity: 0.4; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1.06); } }
-@keyframes khelo-emblem-sweep { 0%, 55% { transform: translateX(0) skewX(-18deg); } 100% { transform: translateX(110px) skewX(-18deg); } }
+@keyframes khelo-emblem-sweep { 0%, 55% { transform: translateX(0) skewX(-18deg); } 100% { transform: translateX(96px) skewX(-18deg); } }
 .emblem { position: relative; display: inline-block; flex: none; isolation: isolate; }
 .emblem svg { position: relative; z-index: 1; display: block; }
 .emblem-earned svg { filter: drop-shadow(0 2px 3px rgba(120, 80, 0, 0.35)); }
