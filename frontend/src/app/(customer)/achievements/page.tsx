@@ -6,7 +6,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Award, Zap, Lock, Tag, Trophy } from 'lucide-react';
 import { Card, CardContent, Button, Badge, Skeleton, EmptyState, ErrorState } from '@/components/ui';
 import { apiClient } from '@/lib/api/client';
-import { SpecialAccessBadge } from '@/components/customer/SpecialAccessBadge';
+import { SpecialAccessBadge, OG_BADGE_NAME } from '@/components/customer/SpecialAccessBadge';
+import { OgBadgeSheet } from '@/components/customer/OgBadgeSheet';
+import { useAuthStore } from '@/store/authStore';
 import { HelperEmblem, isHelperBadgeKey } from '@/components/customer/HelperEmblem';
 
 interface Achievement {
@@ -17,8 +19,10 @@ interface Achievement {
   isUnlocked: boolean;
   progress: string;
   xpReward: number;
-  /** A collectible campaign badge: shown with the animated Special Access medallion. */
+  /** A collectible campaign badge: shown with the animated OG medallion. */
   special?: boolean;
+  grantedAt?: string | null;
+  campaignCode?: string | null;
   /** A "helped a café join" badge: drawn as a glowing emblem, not an emoji tile. */
   emblem?: string;
 }
@@ -50,6 +54,8 @@ function progressPercent(progress: string): number {
 export default function AchievementsPage() {
   const router = useRouter();
   const [activeAchievement, setActiveAchievement] = useState<Achievement | null>(null);
+  const [ogOpen, setOgOpen] = useState(false);
+  const fullName = useAuthStore((s) => s.user?.fullName);
 
   const { data, isLoading, isError, error, refetch } = useQuery<RewardsResponse>({
     queryKey: ['rewards'],
@@ -195,8 +201,23 @@ export default function AchievementsPage() {
           {!isLoading && achievements.map((ach) => ach.special ? (
             ach.isUnlocked ? (
               <div key={ach.id} className="sm:col-span-2 flex flex-col items-start gap-1.5 rounded-3xl border border-primary/30 bg-card p-4">
-                <SpecialAccessBadge earned size="lg" />
+                <button
+                  type="button"
+                  onClick={() => setOgOpen(true)}
+                  className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  aria-label={`${OG_BADGE_NAME} OG badge. Tap for details`}
+                  aria-haspopup="dialog"
+                >
+                  <SpecialAccessBadge earned size="lg" tappable />
+                </button>
                 <p className="text-caption text-text-secondary">{ach.description} +{ach.xpReward} XP.</p>
+                <OgBadgeSheet
+                  isOpen={ogOpen}
+                  onClose={() => setOgOpen(false)}
+                  firstName={fullName?.trim().split(/\s+/)[0]}
+                  grantedAt={ach.grantedAt}
+                  campaignCode={ach.campaignCode}
+                />
               </div>
             ) : null
           ) : (

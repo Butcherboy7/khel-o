@@ -1473,7 +1473,7 @@ async def update_owner_intro_status(
     return {"success": True, "data": {"id": str(intro.id), "status": intro.status}}
 
 
-# --- HELPER BADGES (Day One / Matchmaker / Local Legend) ---
+# --- HELPER BADGES (Early Voter / Matchmaker / Local Legend) ---
 @router.get("/leads/helper-badges", status_code=status.HTTP_200_OK)
 async def list_helper_badges(
     current_admin: User = Depends(require_admin),

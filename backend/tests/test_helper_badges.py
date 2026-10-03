@@ -1,4 +1,4 @@
-"""Day One / Matchmaker / Local Legend: badges and XP for helping a café join.
+"""Early Voter / Matchmaker / Local Legend: badges and XP for helping a café join.
 
 Sign-in is required to vote, so a badge always belongs to a real account.
 """
@@ -40,7 +40,7 @@ async def test_first_vote_unlocks_day_one_once(db_session, async_client):
     h = auth_headers(gamer)
 
     first = await async_client.post(f"/api/v1/cafes/{cafe.id}/waitlist", headers=h, json={"sessionId": "s"})
-    assert first.json()["data"]["badgeUnlocked"] == {"key": "day_one", "title": "Day One", "xp": 25}
+    assert first.json()["data"]["badgeUnlocked"] == {"key": "day_one", "title": "Early Voter", "xp": 25}
 
     again = await async_client.post(f"/api/v1/cafes/{cafe.id}/waitlist", headers=h, json={"sessionId": "s"})
     second_cafe = await async_client.post(f"/api/v1/cafes/{other.id}/waitlist", headers=h, json={"sessionId": "s"})

@@ -111,7 +111,7 @@ export function NotifyMeSheet({
     <div className="flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-2.5">
       <HelperEmblem badge="day_one" size={36} />
       <span className="flex min-w-0 flex-col">
-        <span className="text-caption font-semibold text-text-primary">Vote and unlock the Day One badge</span>
+        <span className="text-caption font-semibold text-text-primary">Vote and unlock the Early Voter badge</span>
         <span className="text-[11px] text-text-secondary">Shows on your profile · +{HELPER_BADGE_COPY.day_one.xp} XP</span>
       </span>
     </div>

@@ -409,7 +409,7 @@ class PromotionService:
         badge, created = await self.promo_repo.grant_badge(user_id, self.BADGE_KEY, campaign.id)
         shares = await self.promo_repo.share_stats(user_id)
         return {
-            "badge": {"key": badge.badge_key, "name": "KHELO Special Access", "grantedAt": badge.granted_at},
+            "badge": {"key": badge.badge_key, "name": "Day One", "grantedAt": badge.granted_at},
             "newlyEarned": created,
             "shares": shares,
         }

@@ -4,7 +4,7 @@ import { cn } from '@/lib/cn';
 export type HelperBadgeKey = 'day_one' | 'matchmaker' | 'local_legend';
 
 export const HELPER_BADGE_COPY: Record<HelperBadgeKey, { title: string; earn: string; xp: number }> = {
-  day_one: { title: 'Day One', earn: 'Vote for a café that isn’t on KHEL-O yet', xp: 25 },
+  day_one: { title: 'Early Voter', earn: 'Vote for a café that isn’t on KHEL-O yet', xp: 25 },
   matchmaker: { title: 'Matchmaker', earn: 'Introduce us to a café owner', xp: 100 },
   local_legend: { title: 'Local Legend', earn: 'A café you helped goes live', xp: 500 },
 };

@@ -132,7 +132,7 @@ export function CampaignWelcome() {
         </button>
 
         <h2 id="campaign-welcome-title" className="px-6 font-heading text-h2 font-bold text-text-primary">
-          {earned ? 'Badge claimed!' : 'You unlocked KHELO Special Access'}
+          {earned ? 'Badge claimed!' : 'You unlocked the Day One OG badge'}
         </h2>
         <p className="text-body text-text-secondary">
           {earned

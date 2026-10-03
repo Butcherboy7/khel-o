@@ -187,7 +187,7 @@ async def test_badge_is_granted_once_shows_in_rewards_and_counts_shares(client):
     assert anon.status_code in (401, 403)
 
     first = (await client.post(f"/api/v1/promotions/campaign/{code}/claim", headers=auth_headers(gamer))).json()["data"]
-    assert first["newlyEarned"] is True and first["badge"]["name"] == "KHELO Special Access"
+    assert first["newlyEarned"] is True and first["badge"]["name"] == "Day One"
     assert first["shares"] == {"shared": 1, "opened": 2}
     again = (await client.post(f"/api/v1/promotions/campaign/{code}/claim", headers=auth_headers(gamer))).json()["data"]
     assert again["newlyEarned"] is False
@@ -195,6 +195,8 @@ async def test_badge_is_granted_once_shows_in_rewards_and_counts_shares(client):
     rewards = (await client.get("/api/v1/rewards", headers=auth_headers(gamer))).json()["data"]
     badge = next(a for a in rewards["achievements"] if a["id"] == "special_access")
     assert badge["isUnlocked"] is True and rewards["xp"] == 100
+    assert badge["title"] == "Day One" and badge["grantedAt"]
+    assert badge["campaignCode"] == code
 
     bogus = await client.post("/api/v1/promotions/campaign/NOSUCHCODE/claim", headers=auth_headers(gamer))
     assert bogus.status_code == 404

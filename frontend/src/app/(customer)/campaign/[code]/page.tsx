@@ -246,7 +246,7 @@ export default function CampaignLandingPage() {
           setShareOpen(false);
           if (isAuthenticated) claimBadge();
         }}
-        heading="Share KHELO Special Access"
+        heading="Share the Day One OG badge"
         message="Special KHELO prices at partner gaming cafés for a limited time. Grab yours:"
         path={`/?campaign=${code}`}
         context="campaign"

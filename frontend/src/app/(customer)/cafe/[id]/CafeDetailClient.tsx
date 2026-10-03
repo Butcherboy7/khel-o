@@ -1202,7 +1202,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             {!joined && (
               <div className="flex items-center gap-2.5 rounded-xl bg-surface px-2.5 py-1.5">
                 <HelperEmblem badge="day_one" size={26} />
-                <span className="text-caption font-semibold text-text-primary">Vote and unlock Day One</span>
+                <span className="text-caption font-semibold text-text-primary">Vote and unlock Early Voter</span>
                 <span className="ml-auto font-data text-caption font-bold text-primary">+{HELPER_BADGE_COPY.day_one.xp} XP</span>
               </div>
             )}

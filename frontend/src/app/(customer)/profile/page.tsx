@@ -8,7 +8,8 @@ import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { updateMe, changePassword } from '@/lib/api/auth';
 import { apiClient } from '@/lib/api/client';
-import { SpecialAccessBadge } from '@/components/customer/SpecialAccessBadge';
+import { SpecialAccessBadge, OG_BADGE_NAME } from '@/components/customer/SpecialAccessBadge';
+import { OgBadgeSheet } from '@/components/customer/OgBadgeSheet';
 import { HelperEmblem, isHelperBadgeKey } from '@/components/customer/HelperEmblem';
 import {
   Avatar,
@@ -98,6 +99,7 @@ export default function ProfilePage() {
   };
   const { selectedCity } = useLocationStore();
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [ogOpen, setOgOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
 
   const defaultName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'Khel-O Gamer');
@@ -206,7 +208,7 @@ export default function ProfilePage() {
   // The header badge used to just say "Level 4" unconditionally — same rewards
   // data that already powers the real level/XP on the Achievements page, not a
   // second/fake source of truth.
-  const { data: rewardsData } = useQuery<{ level: number; achievements?: { id: string; isUnlocked: boolean; emblem?: string }[] }>({
+  const { data: rewardsData } = useQuery<{ level: number; achievements?: { id: string; isUnlocked: boolean; emblem?: string; grantedAt?: string | null; campaignCode?: string | null }[] }>({
     queryKey: ['rewards'],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/rewards');
@@ -316,9 +318,24 @@ export default function ProfilePage() {
               </Link>
             )}
             {rewardsData?.achievements?.some((a) => a.id === 'special_access' && a.isUnlocked) && (
-              <Link href="/achievements" className="mt-1.5 inline-flex w-fit" aria-label="KHELO Special Access badge. See your achievements">
-                <SpecialAccessBadge size="sm" />
-              </Link>
+              <>
+              <button
+                type="button"
+                onClick={() => setOgOpen(true)}
+                className="mt-1.5 inline-flex w-fit rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                aria-label={`${OG_BADGE_NAME} OG badge. Tap for details`}
+                aria-haspopup="dialog"
+              >
+                <SpecialAccessBadge size="sm" tappable />
+              </button>
+              <OgBadgeSheet
+                isOpen={ogOpen}
+                onClose={() => setOgOpen(false)}
+                firstName={fullName.trim().split(/\s+/)[0]}
+                grantedAt={rewardsData.achievements.find((a) => a.id === 'special_access')?.grantedAt}
+                campaignCode={rewardsData.achievements.find((a) => a.id === 'special_access')?.campaignCode}
+              />
+              </>
             )}
 
             <div className="flex items-center gap-2 text-caption text-text-secondary mt-1 flex-wrap">
