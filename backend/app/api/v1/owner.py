@@ -1096,6 +1096,38 @@ async def get_owner_bookings(
         "data": result
     }
 
+@router.get("/upcoming-bookings-count", status_code=status.HTTP_200_OK)
+async def get_upcoming_bookings_count(
+    current_user: User = Depends(require_staff_or_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    """Paid bookings still waiting for their check-in time, for the owner's
+    bottom-nav and bell badges. A booking leaves the count the moment its start
+    time passes (or it is checked in or cancelled), so the number shrinks on its own."""
+    cafe_repo = CafeRepository(db)
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    cafe_ids: list = []
+    if role_val in ("cafe_owner", "owner"):
+        cafe_ids = [c.id for c in await cafe_repo.get_by_owner_id(current_user.id)]
+    else:
+        cafe = await _resolve_owner_cafe(current_user, db)
+        if cafe:
+            cafe_ids = [cafe.id]
+    if not cafe_ids:
+        return {"success": True, "data": {"count": 0}}
+
+    now_ist = datetime.now(IST)
+    today, now_t = now_ist.date(), now_ist.time().replace(tzinfo=None)
+    count = (await db.execute(
+        select(func.count()).select_from(Booking).where(
+            Booking.cafe_id.in_(cafe_ids),
+            Booking.status == BookingStatus.CONFIRMED,
+            (Booking.session_date > today) | ((Booking.session_date == today) & (Booking.start_time > now_t)),
+        )
+    )).scalar_one()
+    return {"success": True, "data": {"count": int(count)}}
+
+
 @router.patch("/bookings/{booking_id}/status", status_code=status.HTTP_200_OK)
 async def update_booking_status(
     booking_id: UUID,

@@ -105,6 +105,7 @@ export function OwnerAlertProvider({ children }: { children: React.ReactNode }) 
 
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['unread-count'] });
+      queryClient.invalidateQueries({ queryKey: ['owner-upcoming-count'] });
       // Task 8's dashboard listens for this to pull fresh bookings immediately
       // rather than waiting out the remainder of its 60s poll.
       window.dispatchEvent(new CustomEvent('khelo:booking-alert'));

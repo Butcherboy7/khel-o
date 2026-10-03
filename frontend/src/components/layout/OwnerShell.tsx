@@ -361,7 +361,39 @@ function OwnerMobileMenu({
   );
 }
 
+/** Paid bookings still waiting for their check-in time. Polled so the number
+ *  shrinks by itself as start times pass, and refreshed at once on a new booking. */
+function useUpcomingBookings(): number {
+  const { data } = useQuery<{ count: number }>({
+    queryKey: ['owner-upcoming-count'],
+    queryFn: async () => {
+      const response = await apiClient.get('/api/v1/owner/upcoming-bookings-count');
+      return response.data;
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+  return data?.count ?? 0;
+}
+
+function CountDot({ count, className }: { count: number; className?: string }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className={cn(
+        'absolute flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent px-1 text-badge font-bold text-white',
+        className,
+      )}
+      aria-hidden
+    >
+      {count > 9 ? '9+' : count}
+    </span>
+  );
+}
+
 function OwnerNotificationBell() {
+  const upcoming = useUpcomingBookings();
   const { data } = useQuery<{ unreadCount: number }>({
     queryKey: ['unread-count'],
     queryFn: async () => {
@@ -371,20 +403,18 @@ function OwnerNotificationBell() {
     staleTime: 60_000,
     refetchInterval: 30_000,
   });
-  const unreadCount = data?.unreadCount || 0;
+  // Upcoming bookings are what the owner has to act on, so they win; the bell
+  // falls back to the unread count once none are waiting.
+  const unreadCount = upcoming > 0 ? upcoming : data?.unreadCount || 0;
 
   return (
     <Link
       href="/owner/notifications"
       className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition-all hover:bg-border/60 hover:text-text-primary active:scale-95 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
-      aria-label="Notifications"
+      aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} new` : 'Notifications'}
     >
       <Bell className="h-4 w-4" />
-      {unreadCount > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-accent text-white text-badge font-bold">
-          {unreadCount > 9 ? '9+' : unreadCount}
-        </span>
-      )}
+      <CountDot count={unreadCount} className="-right-1 -top-1" />
     </Link>
   );
 }
@@ -443,6 +473,7 @@ function OwnerBottomNav({
   onOpenMobileMenu: () => void;
 }) {
   const pathname = usePathname();
+  const upcoming = useUpcomingBookings();
 
   // Same four destinations, same order, for owner and staff — the desk phone is
   // often shared, and muscle memory shouldn't depend on who is logged in.
@@ -494,11 +525,12 @@ function OwnerBottomNav({
           >
             <span
               className={cn(
-                'flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast',
+                'relative flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast',
                 isActive && 'bg-primary/12',
               )}
             >
               <item.icon className="h-5 w-5" />
+              {item.href === '/owner/bookings' && <CountDot count={upcoming} className="-right-1 -top-1.5" />}
             </span>
             <span className={cn('text-caption', isActive ? 'font-bold' : 'font-medium')}>
               {item.label}
