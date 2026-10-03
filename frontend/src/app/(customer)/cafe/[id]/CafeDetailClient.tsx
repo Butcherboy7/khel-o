@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { overGoalLine } from '@/lib/voteHype';
 import Link from 'next/link';
 import { useParams, useRouter, usePathname } from 'next/navigation';
 import {
@@ -1212,9 +1213,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                 <span className="text-caption font-semibold text-text-primary">
                   {waitingCount > 0 ? (
                     <>
-                      {waitingCount}/{waitlistGoal} votes
+                      {votesLeft > 0 ? `${waitingCount}/${waitlistGoal} votes` : `${waitingCount} votes`}
                       <span className="font-normal text-text-secondary">
-                        {votesLeft > 0 ? ` · ${votesLeft} more to go` : ' · goal smashed 🎉'}
+                        {votesLeft > 0 ? ` · ${votesLeft} more to go` : ` · goal of ${waitlistGoal} smashed 🎉`}
                       </span>
                     </>
                   ) : (
@@ -1230,6 +1231,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                   </button>
                 )}
               </div>
+              {overGoalLine(waitingCount, waitlistGoal) && (
+                <p className="text-caption font-semibold text-primary">{overGoalLine(waitingCount, waitlistGoal)}</p>
+              )}
               <div className="h-1.5 w-full rounded-full bg-surface overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all duration-500"

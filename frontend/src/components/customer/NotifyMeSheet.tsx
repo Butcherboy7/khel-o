@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import Link from 'next/link';
+import { overGoalLine } from '@/lib/voteHype';
 import { usePathname } from 'next/navigation';
 import { BottomSheet, Button } from '@/components/ui';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
@@ -169,7 +170,7 @@ export function NotifyMeSheet({
               {votes > 0 ? `Vote #${votes} locked in. ` : 'Vote locked in. '}
               {left > 0
                 ? `${left} more and we go knock on their door 🚪`
-                : `Goal smashed, we're talking to ${cafeName} now.`}{' '}
+                : `${overGoalLine(votes, goal) ?? 'Goal smashed.'} We're talking to ${cafeName} now.`}{' '}
               We&apos;ll email you the day it&apos;s live. Your aura just went up 🫶
             </p>
           </div>
