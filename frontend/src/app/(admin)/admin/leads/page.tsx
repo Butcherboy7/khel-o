@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Copy, Check, Megaphone, ChevronDown, ChevronUp, Download, Mail, Link2 } from 'lucide-react';
 import { listCafeDemand, updateCafeWaitlistGoal, downloadWaitlistCsv, type CafeDemandLead } from '@/lib/api/admin';
 import { WaitlistBroadcast } from '@/components/admin/WaitlistBroadcast';
+import { OwnerIntrosPanel } from '@/components/admin/OwnerIntrosPanel';
 import { Card, CardContent, Badge, ErrorState, EmptyState, PageSpinner } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
 
@@ -92,6 +93,8 @@ export default function AdminLeadsPage() {
           </button>
         )}
       </div>
+
+      <OwnerIntrosPanel />
 
       {leads.length === 0 ? (
         <EmptyState

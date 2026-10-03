@@ -309,3 +309,22 @@ class NotificationService:
             logger.error("send_contact_message_error", error=str(e), from_email=from_email)
             return False
 
+    async def send_owner_intro(self, to_email: str, rows: list[tuple[str, str]], admin_url: str) -> bool:
+        """Tell the outreach inbox a player introduced a café owner. `rows`
+        are (label, value) pairs already chosen by the caller."""
+        try:
+            cafe = next((v for k, v in rows if k == "Café"), "a café")
+            body = "".join(
+                f'<p style="margin: 4px 0;"><strong>{html.escape(k)}:</strong> {html.escape(v)}</p>' for k, v in rows
+            )
+            html_body = _email_wrapper(f"""
+                <h2 style="margin-top: 0; color: {_BRAND_TEXT_PRIMARY};">New owner intro 👀</h2>
+                <p style="color: {_BRAND_TEXT_SECONDARY};">A player knows the owner of {html.escape(cafe)}.</p>
+                {body}
+                <p style="margin-top: 20px;">{_email_button(admin_url, "Open Leads")}</p>
+            """)
+            return await self._send_resend_email(to_email, f"Owner intro: {cafe}", html_body, "OWNER-INTRO")
+        except Exception as e:
+            logger.error("send_owner_intro_error", error=str(e))
+            return False
+

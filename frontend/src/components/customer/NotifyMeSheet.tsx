@@ -1,19 +1,19 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { CheckCircle2, Share2 } from 'lucide-react';
 import { BottomSheet, Button } from '@/components/ui';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import { setWaitlistPlayTime, type PlayTime } from '@/lib/api/waitlist';
 
 const PLAY_TIMES: { key: PlayTime; label: string }[] = [
-  { key: 'weekday_evenings', label: 'Weekday evenings' },
-  { key: 'weekends', label: 'Weekends' },
-  { key: 'late_nights', label: 'Late nights' },
+  { key: 'weekday_evenings', label: 'Weekday evenings 🌆' },
+  { key: 'weekends', label: 'Weekends 🎉' },
+  { key: 'late_nights', label: 'Late nights 🦉' },
 ];
 
-export type NotifyStep = 'signin' | 'contact' | 'done';
+/** 'invite' is what a friend sees landing on a shared vote link. */
+export type NotifyStep = 'invite' | 'signin' | 'contact' | 'done';
 
 interface NotifyMeSheetProps {
   isOpen: boolean;
@@ -22,19 +22,28 @@ interface NotifyMeSheetProps {
   onClose: () => void;
   cafeId: string;
   cafeName: string;
-  /** Joins the list (as whoever is signed in now, or with this contact). */
+  isAuthenticated: boolean;
+  /** Live vote count and goal, refetched after a vote lands. */
+  votes: number;
+  goal: number;
+  /** Votes (as whoever is signed in now, or with this contact). */
   onJoin: (contact?: string) => Promise<void>;
   onShare: () => void;
   shareCopied: boolean;
+  onKnowOwner: () => void;
 }
 
+const quietLink =
+  'mx-auto flex min-h-[44px] items-center text-caption font-semibold text-text-secondary underline-offset-2 hover:underline';
+
 /**
- * "Notify me" for a café that isn't taking bookings yet.
+ * Voting for a café that isn't on KHEL-O yet (stored as the café's
+ * "Notify me" waitlist — the count is what we pitch the owner with).
  *
- * Signed-out visitors get one-tap Google first: it signs them in and joins
- * in the same tap, and gives us a real inbox for the launch email. Typing a
- * phone or email stays available one tap away. Signed-in visitors skip
- * straight to the confirmation.
+ * The voice is deliberately playful and grateful: a vote costs the player
+ * nothing and helps us, so we ask nicely and say thank you like we mean it.
+ * Signed-out visitors get one-tap Google first (real inbox for the launch
+ * email); phone or email stays one tap away.
  */
 export function NotifyMeSheet({
   isOpen,
@@ -43,9 +52,13 @@ export function NotifyMeSheet({
   onClose,
   cafeId,
   cafeName,
+  isAuthenticated,
+  votes,
+  goal,
   onJoin,
   onShare,
   shareCopied,
+  onKnowOwner,
 }: NotifyMeSheetProps) {
   const [contact, setContact] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +67,7 @@ export function NotifyMeSheet({
   const [gaveEmail, setGaveEmail] = useState(true);
   const googleEnabled = Boolean(getPublicEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID'));
   const current = step === 'signin' && !googleEnabled ? 'contact' : step;
+  const left = Math.max(goal - votes, 0);
 
   const join = useCallback(
     async (value?: string) => {
@@ -64,7 +78,7 @@ export function NotifyMeSheet({
         setGaveEmail(value === undefined || value.includes('@'));
         onStepChange('done');
       } catch {
-        setError("Couldn't add you just now. Please try again.");
+        setError("Oops, that vote didn't go through. Try once more? 🙏");
       } finally {
         setIsJoining(false);
       }
@@ -85,24 +99,59 @@ export function NotifyMeSheet({
   const trimmed = contact.trim();
   const looksValid = trimmed.includes('@') ? /^\S+@\S+\.\S+$/.test(trimmed) : trimmed.replace(/\D/g, '').length >= 10;
 
+  const signInOptions = (
+    <>
+      <GoogleSignInButton onSuccess={handleGoogle} onError={setError} />
+      {isJoining && <p className="text-center text-caption text-text-secondary">Locking in your vote…</p>}
+      {error && <p className="text-center text-caption text-error">{error}</p>}
+      <button type="button" onClick={() => onStepChange('contact')} className={quietLink}>
+        Use phone or email instead
+      </button>
+    </>
+  );
+
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose}>
+      {current === 'invite' && (
+        <div className="flex flex-col gap-4 pb-2">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <span className="text-[44px] leading-none" aria-hidden>👀</span>
+            <h2 className="font-heading text-h2 text-text-primary">Your friend wants {cafeName} on KHEL-O</h2>
+            <p className="text-body text-text-secondary">
+              Add your vote? It takes one tap and it genuinely helps 🥹
+              {votes > 0 && ` ${votes} gamer${votes === 1 ? ' has' : 's have'} already voted.`}
+            </p>
+          </div>
+          {isAuthenticated || !googleEnabled ? (
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              isLoading={isJoining}
+              onClick={() => (isAuthenticated ? void join() : onStepChange('contact'))}
+            >
+              Vote 🙏
+            </Button>
+          ) : (
+            signInOptions
+          )}
+          {isAuthenticated && error && <p className="text-center text-caption text-error">{error}</p>}
+          <button type="button" onClick={onClose} className={quietLink}>
+            Maybe later
+          </button>
+        </div>
+      )}
+
       {current === 'signin' && (
         <div className="flex flex-col gap-4 pb-2">
           <div className="flex flex-col gap-1">
-            <h2 className="font-heading text-h2 text-text-primary">Get notified when {cafeName} opens bookings</h2>
-            <p className="text-body text-text-secondary">One email on the day it goes live. Nothing else.</p>
+            <h2 className="font-heading text-h2 text-text-primary">Pls pls pls vote for {cafeName} 🥺</h2>
+            <p className="text-body text-text-secondary">
+              Every vote is one more reason for the owner to say yes. We&apos;ll ping you once, the day it goes live. No
+              spam, pinky promise 🤙
+            </p>
           </div>
-          <GoogleSignInButton onSuccess={handleGoogle} onError={setError} />
-          {isJoining && <p className="text-center text-caption text-text-secondary">Adding you to the list…</p>}
-          {error && <p className="text-center text-caption text-error">{error}</p>}
-          <button
-            type="button"
-            onClick={() => onStepChange('contact')}
-            className="mx-auto min-h-[44px] text-caption font-semibold text-text-secondary underline-offset-2 hover:underline"
-          >
-            Use phone or email instead
-          </button>
+          {signInOptions}
         </div>
       )}
 
@@ -115,9 +164,9 @@ export function NotifyMeSheet({
           }}
         >
           <div className="flex flex-col gap-1">
-            <h2 className="font-heading text-h2 text-text-primary">Where should we tell you?</h2>
+            <h2 className="font-heading text-h2 text-text-primary">Where do we send the good news? 📬</h2>
             <p className="text-body text-text-secondary">
-              We&apos;ll let you know when {cafeName} starts taking bookings.
+              One message the day {cafeName} starts taking bookings. That&apos;s it.
             </p>
           </div>
           <input
@@ -133,14 +182,10 @@ export function NotifyMeSheet({
           />
           {error && <p className="text-caption text-error">{error}</p>}
           <Button type="submit" variant="primary" size="lg" fullWidth disabled={!looksValid} isLoading={isJoining}>
-            Notify me
+            Lock in my vote 🗳️
           </Button>
           {googleEnabled && (
-            <button
-              type="button"
-              onClick={() => onStepChange('signin')}
-              className="mx-auto min-h-[44px] text-caption font-semibold text-text-secondary hover:underline"
-            >
+            <button type="button" onClick={() => onStepChange('signin')} className={quietLink}>
               Use Google instead
             </button>
           )}
@@ -149,16 +194,18 @@ export function NotifyMeSheet({
 
       {current === 'done' && (
         <div className="flex flex-col gap-5 pb-2">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="mt-0.5 h-6 w-6 flex-shrink-0 text-success" aria-hidden />
-            <div className="flex flex-col gap-0.5">
-              <h2 className="font-heading text-h2 text-text-primary">You&apos;re on the list</h2>
-              <p className="text-body text-text-secondary">
-                {gaveEmail
-                  ? "We'll email you the day bookings open."
-                  : "We'll reach out the day bookings open."}
-              </p>
-            </div>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <span className="khelo-heart-pop text-[48px] leading-none" aria-hidden>
+              🫶
+            </span>
+            <h2 className="font-heading text-h2 text-text-primary">You&apos;re a legend</h2>
+            <p className="max-w-sm text-body text-text-secondary">
+              {votes > 0 ? `Vote #${votes} locked in. ` : 'Vote locked in. '}
+              {left > 0
+                ? `${left} more and we go knock on ${cafeName}'s door 🚪`
+                : `Goal smashed 🎉 we're talking to ${cafeName} now.`}{' '}
+              {gaveEmail ? "We'll email you the day it's live." : "We'll message you the day it's live."}
+            </p>
           </div>
 
           <fieldset className="flex flex-col gap-2">
@@ -186,12 +233,14 @@ export function NotifyMeSheet({
 
           <div className="flex flex-col gap-2">
             <Button variant="primary" size="lg" fullWidth onClick={onShare}>
-              <Share2 className="h-4 w-4" aria-hidden />
-              {shareCopied ? 'Link copied' : 'Get friends to request it too'}
+              {shareCopied ? 'Link copied ✓' : 'Rally the squad 📣'}
             </Button>
-            <Button variant="ghost" size="lg" fullWidth onClick={onClose}>
-              Done
-            </Button>
+            <p className="-mt-0.5 text-center text-caption text-text-secondary">
+              Every friend who votes gets {cafeName} closer. Thank you, seriously 🙏
+            </p>
+            <button type="button" onClick={onKnowOwner} className={quietLink}>
+              Know the owner? Introduce us 👀
+            </button>
           </div>
         </div>
       )}

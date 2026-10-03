@@ -382,3 +382,8 @@
 .khelo-confetti { position: absolute; top: 0; width: 8px; height: 12px; border-radius: 2px; opacity: 0; animation: khelo-confetti-fall 2.4s ease-out 1 forwards; pointer-events: none; }
 @keyframes khelo-pop-in { 0% { opacity: 0; transform: translateY(16px) scale(0.94); } 100% { opacity: 1; transform: none; } }
 .khelo-pop-in { animation: khelo-pop-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Thank-you emoji after a café vote: one springy pop, then still. */
+@keyframes khelo-heart-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.18); opacity: 1; } 100% { transform: scale(1); } }
+.khelo-heart-pop { display: inline-block; animation: khelo-heart-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@media (prefers-reduced-motion: reduce) { .khelo-heart-pop { animation: none; } }

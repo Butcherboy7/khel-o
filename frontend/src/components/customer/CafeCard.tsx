@@ -241,7 +241,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
                 </span>
                 {showWaiting && (
                   <span className="text-caption font-semibold text-text-secondary flex-shrink-0">
-                    {waitingCount} waiting
+                    {waitingCount} {waitingCount === 1 ? 'vote' : 'votes'}
                   </span>
                 )}
               </div>

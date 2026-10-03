@@ -64,8 +64,8 @@ export default async function CafeDemandPage({ params }: PageProps) {
             <span className="text-primary tabular-nums">{count}</span> {people} asked to book {cafeName} on KHEL-O
           </h1>
           <p className="text-body text-text-secondary">
-            Each one tapped &ldquo;Notify me&rdquo; on {cafeName}&apos;s KHEL-O page, asking to be told the day they can
-            book a station online.
+            Each one voted for {cafeName} on its KHEL-O page and asked to be told the day they can book a station
+            online.
           </p>
         </section>
 

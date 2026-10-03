@@ -52,12 +52,20 @@ export function HomeSections() {
         <Grid items={REASONS} />
       </section>
 
-      <p className="text-center text-caption text-text-secondary">
-        Own a gaming café?{' '}
-        <Link href="/partner" className="font-semibold text-primary hover:underline">
-          List it for free
-        </Link>
-      </p>
+      <div className="flex flex-col items-center gap-1 text-center text-caption text-text-secondary">
+        <p>
+          Own a gaming café?{' '}
+          <Link href="/partner" className="font-semibold text-primary hover:underline">
+            List it for free
+          </Link>
+        </p>
+        <p>
+          Know an owner?{' '}
+          <Link href="/know-the-owner" className="font-semibold text-primary hover:underline">
+            Introduce us 👀
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

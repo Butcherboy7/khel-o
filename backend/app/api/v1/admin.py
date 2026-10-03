@@ -1404,3 +1404,65 @@ async def update_cafe_waitlist_goal(
     await db.commit()
 
     return {"success": True, "data": {"cafeId": str(cafe.id), "waitlistGoal": cafe.waitlist_goal}}
+
+
+# --- OWNER INTROS ("Know the owner?") ---
+from app.models.owner_intro import OwnerIntro
+
+OWNER_INTRO_STATUSES = ("new", "contacted", "onboarded", "dead")
+
+
+@router.get("/leads/owner-intros", status_code=status.HTTP_200_OK)
+async def list_owner_intros(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Every owner intro players have dropped, newest first, with who sent it
+    — 'new' ones are the outreach team's call list."""
+    rows = (await db.execute(
+        select(OwnerIntro, User.full_name, User.email)
+        .join(User, User.id == OwnerIntro.submitted_by_user_id)
+        .order_by(OwnerIntro.created_at.desc())
+        .limit(500)
+    )).all()
+    intros = [
+        {
+            "id": str(i.id),
+            "cafeId": str(i.cafe_id) if i.cafe_id else None,
+            "cafeName": i.cafe_name,
+            "area": i.area,
+            "ownerName": i.owner_name,
+            "ownerPhone": i.owner_phone,
+            "relation": i.relation,
+            "note": i.note,
+            "status": i.status,
+            "submittedBy": {"name": name, "email": email},
+            "createdAt": i.created_at.isoformat() if i.created_at else None,
+        }
+        for i, name, email in rows
+    ]
+    return {"success": True, "data": {"intros": intros}}
+
+
+class OwnerIntroStatusRequest(BaseModel):
+    status: str = Field(..., max_length=20)
+
+
+@router.patch("/leads/owner-intros/{intro_id}", status_code=status.HTTP_200_OK)
+async def update_owner_intro_status(
+    intro_id: UUID,
+    payload: OwnerIntroStatusRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    if payload.status not in OWNER_INTRO_STATUSES:
+        raise BadRequestException(message="Unknown status", error_code="INVALID_STATUS")
+    intro = await db.get(OwnerIntro, intro_id)
+    if intro is None:
+        raise NotFoundException(message="Intro not found", error_code="OWNER_INTRO_NOT_FOUND")
+    from datetime import datetime, timezone
+    intro.status = payload.status
+    intro.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await _audit(db, current_admin, "owner_intro.status", str(intro.id), intro.cafe_name, reason=payload.status)
+    return {"success": True, "data": {"id": str(intro.id), "status": intro.status}}

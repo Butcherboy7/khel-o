@@ -22,7 +22,9 @@ function isPublicPath(pathname: string): boolean {
     // way to the café and login is only asked for at payment.
     pathname.startsWith('/redeem/') ||
     // The campaign landing page (shared on Instagram / WhatsApp) is public too.
-    pathname.startsWith('/campaign/')
+    pathname.startsWith('/campaign/') ||
+    // "Know a café owner?" — the form asks for sign-in itself, after the pitch.
+    pathname === '/know-the-owner'
   );
 }
 

@@ -28,8 +28,9 @@ import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
 import { getWaitlistStatus, joinWaitlist, leaveWaitlist } from '@/lib/api/waitlist';
 import { NotifyMeSheet, type NotifyStep } from '@/components/customer/NotifyMeSheet';
+import { OwnerIntroForm } from '@/components/customer/OwnerIntroForm';
 import { queryKeys } from '@/hooks/queries/keys';
-import { Button, Skeleton, ErrorState } from '@/components/ui';
+import { BottomSheet, Button, Skeleton, ErrorState } from '@/components/ui';
 import { PLATFORMS } from '@/constants/platforms';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import dynamic from 'next/dynamic';
@@ -170,16 +171,37 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [notifyStep, setNotifyStep] = useState<NotifyStep>('signin');
   const [shareCopied, setShareCopied] = useState(false);
+  const [ownerIntroOpen, setOwnerIntroOpen] = useState(false);
+  const votesLeft = Math.max(waitlistGoal - waitingCount, 0);
+
+  // A friend landing on a shared vote link gets asked once, right away —
+  // that's the whole reason the link was sent. Once per café per session,
+  // and never to someone who already voted.
+  const waitlistLoaded = waitlist !== undefined;
+  useEffect(() => {
+    if (!isLead || !waitlistLoaded || joined) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('utm_source') !== 'share') return;
+    const key = `khelo-vote-invite-${cafeId}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+    } catch {
+      // No sessionStorage: may ask again on refresh, which is harmless.
+    }
+    setNotifyStep('invite');
+    setNotifyOpen(true);
+  }, [isLead, waitlistLoaded, joined, cafeId]);
 
   const handleShareWaitlist = async () => {
-    const shareText = `${data?.name ?? 'This café'} isn't bookable on KHEL-O yet — help us get it listed by requesting it too!`;
+    const shareText = `Bro help me out 🙏 vote to get ${data?.name ?? 'this café'} on KHEL-O so we can book it online. Takes 2 secs 🥺`;
     const shareUrl = createShare(
       { path: cafePath(data ?? { id: cafeId }), context: 'waitlist', cafeId, campaign: data?.slug ?? cafeId },
       'native'
     );
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
-        await navigator.share({ title: 'Request this café on KHEL-O', text: shareText, url: shareUrl });
+        await navigator.share({ title: `Vote for ${data?.name ?? 'this café'} on KHEL-O`, text: shareText, url: shareUrl });
         return;
       } catch {
         // User cancelled the native share sheet — fall through to clipboard copy.
@@ -492,6 +514,32 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           </div>
         )}
       </div>
+
+      {/* Lead café: say plainly why there's no booking, and give the two
+          ways a player can help — vote (the sticky bar) or, better, a warm
+          intro to the owner. */}
+      {isLead && (
+        <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-heading text-h3 text-text-primary">Help get {cafe.name} on KHEL-O 🥺</h2>
+            <p className="text-caption text-text-secondary">
+              Every vote shows the owner that gamers want online booking here. Hit {waitlistGoal} and we go knock on
+              their door 🚪
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOwnerIntroOpen(true)}
+            className="flex min-h-[52px] items-center justify-between gap-3 rounded-xl bg-surface px-3.5 py-2.5 text-left transition-colors hover:bg-border/60"
+          >
+            <span className="flex min-w-0 flex-col">
+              <span className="text-body font-semibold text-text-primary">Know the owner? Introduce us 👀</span>
+              <span className="text-caption text-text-secondary">A friendly intro gets it listed way faster</span>
+            </span>
+            <ChevronRight className="h-4 w-4 flex-shrink-0 text-text-secondary" aria-hidden />
+          </button>
+        </section>
+      )}
 
       {/* Hardware Tiers Section — selectable here so "Book now" already
           knows which tier the user wants, instead of asking again on the
@@ -1091,10 +1139,22 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           onClose={() => setNotifyOpen(false)}
           cafeId={cafeId}
           cafeName={cafe.name}
+          isAuthenticated={isAuthenticated}
+          votes={waitingCount}
+          goal={waitlistGoal}
           onJoin={joinFromSheet}
           onShare={handleShareWaitlist}
           shareCopied={shareCopied}
+          onKnowOwner={() => {
+            setNotifyOpen(false);
+            setOwnerIntroOpen(true);
+          }}
         />
+      )}
+      {isLead && (
+        <BottomSheet isOpen={ownerIntroOpen} onClose={() => setOwnerIntroOpen(false)}>
+          <OwnerIntroForm cafeId={cafeId} cafeName={cafe.name} onDone={() => setOwnerIntroOpen(false)} />
+        </BottomSheet>
       )}
 
       {/* Sticky Bottom Action Bar — offset must include the safe-area inset too,
@@ -1109,49 +1169,55 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <div className="max-w-content mx-auto flex flex-col gap-2">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <span className="text-overline text-text-secondary">Booking soon</span>
+                <span className="text-overline text-text-secondary">{joined ? 'You voted 🫶' : 'Not on KHEL-O yet 🥺'}</span>
                 <p className="text-caption text-text-secondary">
-                  {joined
-                    ? "We'll tell you the day bookings open."
-                    : "We're onboarding this café right now."}
+                  {joined ? 'Now get the squad to vote too' : 'Vote to help gamers get it listed'}
                 </p>
               </div>
               <button
                 onClick={handleNotifyMe}
                 disabled={isJoining}
-                className={`inline-flex flex-shrink-0 items-center justify-center rounded-2xl px-6 py-3.5 font-heading text-btn font-semibold shadow-float transition-colors disabled:opacity-60 ${
+                aria-label={joined ? 'Voted. Tap to remove your vote' : `Vote for ${cafe.name}`}
+                className={`inline-flex min-h-[48px] flex-shrink-0 items-center justify-center rounded-2xl px-6 py-3.5 font-heading text-btn font-semibold shadow-float transition-colors disabled:opacity-60 ${
                   joined
                     ? 'bg-surface text-text-primary border border-border'
                     : 'bg-primary text-white hover:bg-primary-dark'
                 }`}
               >
-                {joined ? '✓ Notifying you' : 'Notify me'}
+                {joined ? 'Voted ✓' : 'Vote 🙏'}
               </button>
             </div>
 
-            {waitingCount > 0 && (
-              <div className="flex flex-col gap-1.5 pt-0.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-caption font-semibold text-text-primary">
-                    {waitingCount} / {waitlistGoal} people requested
-                  </span>
-                  {joined && (
-                    <button
-                      onClick={handleShareWaitlist}
-                      className="text-caption font-semibold text-primary hover:underline flex-shrink-0"
-                    >
-                      {shareCopied ? 'Link copied!' : 'Get friends to request too'}
-                    </button>
+            <div className="flex flex-col gap-1.5 pt-0.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-caption font-semibold text-text-primary">
+                  {waitingCount > 0 ? (
+                    <>
+                      {waitingCount}/{waitlistGoal} votes
+                      <span className="font-normal text-text-secondary">
+                        {votesLeft > 0 ? ` · ${votesLeft} more to go` : ' · goal smashed 🎉'}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="font-normal text-text-secondary">Be the first to vote 👑</span>
                   )}
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-surface overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-500"
-                    style={{ width: `${Math.min(100, Math.round((waitingCount / waitlistGoal) * 100))}%` }}
-                  />
-                </div>
+                </span>
+                {joined && (
+                  <button
+                    onClick={handleShareWaitlist}
+                    className="min-h-[32px] flex-shrink-0 text-caption font-semibold text-primary hover:underline"
+                  >
+                    {shareCopied ? 'Link copied ✓' : 'Rally the squad 📣'}
+                  </button>
+                )}
               </div>
-            )}
+              <div className="h-1.5 w-full rounded-full bg-surface overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${Math.min(100, Math.round((waitingCount / waitlistGoal) * 100))}%` }}
+                />
+              </div>
+            </div>
           </div>
         ) : (
         <div className="max-w-content mx-auto flex items-center justify-between gap-4">
