@@ -7,6 +7,7 @@ import uuid
 
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.user import UserRole
+from tests.waitlist_helpers import seed_anon
 from tests.conftest import create_test_user
 
 
@@ -112,7 +113,7 @@ async def test_list_response_includes_lead_fields(db_session, async_client):
     """The card needs both to render: the badge comes from isLeadListing, the
     '37 waiting' line from waitlistCount."""
     cafe = await _make_cafe(db_session, "Lead Fields Cafe", is_lead_listing=True)
-    await async_client.post(f"/api/v1/cafes/{cafe.id}/waitlist", json={"sessionId": "lf-1"})
+    await seed_anon(cafe.id, "lf-1")
 
     # Booking Soon cafés now rank below live ones (see cafe search ranking),
     # so a plain page-1 fetch can miss this café once the shared test DB has
@@ -161,7 +162,7 @@ async def test_demand_summary_counts_unique_sessions(db_session, async_client):
             id=uuid.uuid4(), session_id=session, user_id=None,
             event_type="venue_viewed", cafe_id=cafe.id, event_metadata={},
         ))
-    await async_client.post(f"/api/v1/cafes/{cafe.id}/waitlist", json={"sessionId": "w1"})
+    await seed_anon(cafe.id, "w1")
     await db_session.commit()
 
     owner = await db_session.get(User, cafe.owner_id)

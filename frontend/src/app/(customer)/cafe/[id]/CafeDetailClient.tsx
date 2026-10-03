@@ -2,7 +2,7 @@
 
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter, usePathname } from 'next/navigation';
 import {
@@ -26,7 +26,8 @@ import { getCafe, cafePath, getCafeLive } from '@/lib/api/cafes';
 import { listCafeReviews, createReview, getReviewSettings, editReview } from '@/lib/api/reviews';
 import { getAmenityDisplay } from '@/lib/amenities';
 import { listBookings } from '@/lib/api/bookings';
-import { getWaitlistStatus, joinWaitlist, leaveWaitlist } from '@/lib/api/waitlist';
+import { getWaitlistStatus, joinWaitlist, leaveWaitlist, type UnlockedBadge } from '@/lib/api/waitlist';
+import { HelperEmblem, HELPER_BADGE_COPY } from '@/components/customer/HelperEmblem';
 import { NotifyMeSheet, type NotifyStep } from '@/components/customer/NotifyMeSheet';
 import { OwnerIntroForm } from '@/components/customer/OwnerIntroForm';
 import { queryKeys } from '@/hooks/queries/keys';
@@ -172,6 +173,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const [notifyStep, setNotifyStep] = useState<NotifyStep>('signin');
   const [shareCopied, setShareCopied] = useState(false);
   const [ownerIntroOpen, setOwnerIntroOpen] = useState(false);
+  const [unlockedBadge, setUnlockedBadge] = useState<UnlockedBadge | null>(null);
+  const queryClient = useQueryClient();
   const votesLeft = Math.max(waitlistGoal - waitingCount, 0);
 
   // A friend landing on a shared vote link gets asked once, right away —
@@ -214,24 +217,25 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     }
   };
 
-  const joinFromSheet = useCallback(
-    async (value?: string) => {
-      await joinWaitlist(cafeId, value);
-      fireAnalyticsEvent('notify_me', {
-        cafeId,
-        // From the sheet, no contact means the one-tap Google path.
-        metadata: { method: value ? 'contact' : 'google' },
-      });
+  // Sign-in is required to vote (a vote earns a badge and XP). Signed-out
+  // visitors get the sheet: one-tap Google votes in the same tap, or they
+  // sign in by email and come back. Signed-in visitors vote on the spot.
+  const castVote = useCallback(
+    async (method: string) => {
+      const result = await joinWaitlist(cafeId);
+      setUnlockedBadge(result.badgeUnlocked ?? null);
+      fireAnalyticsEvent('notify_me', { cafeId, metadata: { method } });
       await refetchWaitlist();
+      // The new badge and XP should be on the rewards page and profile straight away.
+      void queryClient.invalidateQueries({ queryKey: ['rewards'] });
     },
-    [cafeId, refetchWaitlist],
+    [cafeId, refetchWaitlist, queryClient],
   );
+
+  const joinFromSheet = useCallback(() => castVote('google'), [castVote]);
 
   const handleNotifyMe = async () => {
     if (isJoining) return;
-    // Signed-out visitors get the sheet: one-tap Google (which also gives
-    // us a real inbox), or phone/email one tap away. Signed-in visitors are
-    // already reachable, so they join on the spot and see the confirmation.
     if (!isAuthenticated && !joined) {
       setNotifyStep('signin');
       setNotifyOpen(true);
@@ -241,13 +245,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     try {
       if (joined) {
         await leaveWaitlist(cafeId);
+        await refetchWaitlist();
       } else {
-        await joinWaitlist(cafeId);
-        fireAnalyticsEvent('notify_me', { cafeId, metadata: { method: 'signed_in' } });
+        await castVote('signed_in');
         setNotifyStep('done');
         setNotifyOpen(true);
       }
-      await refetchWaitlist();
     } finally {
       setIsJoining(false);
     }
@@ -1147,6 +1150,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           cafeId={cafeId}
           cafeName={cafe.name}
           isAuthenticated={isAuthenticated}
+          unlocked={unlockedBadge}
           votes={waitingCount}
           goal={waitlistGoal}
           onJoin={joinFromSheet}
@@ -1191,9 +1195,17 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                     : 'bg-primary text-white hover:bg-primary-dark'
                 }`}
               >
-                {joined ? 'Voted ✓' : 'Vote 🙏'}
+                {joined ? 'Voted ✓' : 'Vote'}
               </button>
             </div>
+
+            {!joined && (
+              <div className="flex items-center gap-2.5 rounded-xl bg-surface px-2.5 py-1.5">
+                <HelperEmblem badge="day_one" size={26} />
+                <span className="text-caption font-semibold text-text-primary">Vote and unlock Day One</span>
+                <span className="ml-auto font-data text-caption font-bold text-primary">+{HELPER_BADGE_COPY.day_one.xp} XP</span>
+              </div>
+            )}
 
             <div className="flex flex-col gap-1.5 pt-0.5">
               <div className="flex items-center justify-between gap-2">
@@ -1214,7 +1226,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                     onClick={handleShareWaitlist}
                     className="min-h-[32px] flex-shrink-0 text-caption font-semibold text-primary hover:underline"
                   >
-                    {shareCopied ? 'Link copied ✓' : 'Rally the squad 📣'}
+                    {shareCopied ? 'Link copied ✓' : 'Rally the squad'}
                   </button>
                 )}
               </div>

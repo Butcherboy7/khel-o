@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import { isApiError } from '@/lib/api/errors';
 import { createOwnerIntro, type OwnerRelation } from '@/lib/api/ownerIntros';
+import { HelperEmblem } from '@/components/customer/HelperEmblem';
 
 const RELATIONS: { key: OwnerRelation; label: string }[] = [
   { key: 'regular', label: 'I play there a lot 🎮' },
@@ -142,6 +143,14 @@ export function OwnerIntroForm({ cafeId, cafeName, onDone }: OwnerIntroFormProps
         </p>
       </div>
 
+      <div className="flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-2.5">
+        <HelperEmblem badge="matchmaker" size={36} />
+        <span className="flex min-w-0 flex-col">
+          <span className="text-caption font-semibold text-text-primary">Earn the Matchmaker badge · +100 XP</span>
+          <span className="text-[11px] text-text-secondary">Once we&apos;ve reached the owner. If they join, you become a Local Legend (+500 XP).</span>
+        </span>
+      </div>
+
       {!knownCafe && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input
@@ -234,7 +243,7 @@ export function OwnerIntroForm({ cafeId, cafeName, onDone }: OwnerIntroFormProps
 
       {error && <p className="text-caption text-error">{error}</p>}
       <Button type="submit" variant="primary" size="lg" fullWidth disabled={!ready} isLoading={sending}>
-        Send intro 🤝
+        Send intro
       </Button>
     </form>
   );

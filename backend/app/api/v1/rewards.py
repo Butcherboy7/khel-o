@@ -9,6 +9,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.models.user_badge import UserBadge
 from app.api.deps import get_current_active_user
+from app.services.badge_service import HELPER_BADGES
 
 router = APIRouter(prefix="/rewards", tags=["Rewards"])
 
@@ -47,8 +48,12 @@ async def get_rewards(
     badge_rows = (await db.execute(select(UserBadge).where(UserBadge.user_id == current_user.id))).scalars().all()
     has_special_access = any(b.badge_key == "special_access" for b in badge_rows)
 
+    earned_keys = {b.badge_key for b in badge_rows}
+    helper_xp = sum(xp for key, (_, _, xp) in HELPER_BADGES.items() if key in earned_keys)
+
     xp = (
-        (100 if has_special_access else 0)
+        helper_xp
+        + (100 if has_special_access else 0)
         + completed_count * 100
         + (250 if night_owl_count >= 1 else 0)
         + (500 if weekend_count_this_month >= 3 else 0)
@@ -142,6 +147,23 @@ async def get_rewards(
             "xpReward": 400,
         },
     ]
+
+    # Emblem badges for helping a café join. Always listed (locked until
+    # earned) so players can see what's on offer.
+    helper_achievements = [
+        {
+            "id": key,
+            "title": title,
+            "description": description,
+            "icon": "",
+            "emblem": key,
+            "isUnlocked": key in earned_keys,
+            "progress": f"{1 if key in earned_keys else 0} / 1",
+            "xpReward": xp_reward,
+        }
+        for key, (title, description, xp_reward) in HELPER_BADGES.items()
+    ]
+    achievements = achievements[:1] + helper_achievements + achievements[1:]
 
     level = xp // 500 + 1
     next_level_xp = level * 500

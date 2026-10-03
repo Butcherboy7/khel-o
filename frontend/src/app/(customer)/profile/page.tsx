@@ -9,6 +9,7 @@ import { useLocationStore } from '@/store/locationStore';
 import { updateMe, changePassword } from '@/lib/api/auth';
 import { apiClient } from '@/lib/api/client';
 import { SpecialAccessBadge } from '@/components/customer/SpecialAccessBadge';
+import { HelperEmblem, isHelperBadgeKey } from '@/components/customer/HelperEmblem';
 import {
   Avatar,
   Card,
@@ -205,7 +206,7 @@ export default function ProfilePage() {
   // The header badge used to just say "Level 4" unconditionally — same rewards
   // data that already powers the real level/XP on the Rewards page, not a
   // second/fake source of truth.
-  const { data: rewardsData } = useQuery<{ level: number; achievements?: { id: string; isUnlocked: boolean }[] }>({
+  const { data: rewardsData } = useQuery<{ level: number; achievements?: { id: string; isUnlocked: boolean; emblem?: string }[] }>({
     queryKey: ['rewards'],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/rewards');
@@ -305,6 +306,15 @@ export default function ProfilePage() {
               </Badge>
             </div>
             <p className="text-caption text-text-secondary truncate">{user.email}</p>
+            {rewardsData?.achievements?.some((a) => isHelperBadgeKey(a.emblem) && a.isUnlocked) && (
+              <Link href="/rewards" className="mt-2 flex w-fit items-center gap-2.5" aria-label="Your helper badges. See your rewards">
+                {rewardsData.achievements
+                  .filter((a) => isHelperBadgeKey(a.emblem) && a.isUnlocked)
+                  .map((a) => (
+                    <HelperEmblem key={a.id} badge={a.emblem as 'day_one' | 'matchmaker' | 'local_legend'} size={34} />
+                  ))}
+              </Link>
+            )}
             {rewardsData?.achievements?.some((a) => a.id === 'special_access' && a.isUnlocked) && (
               <Link href="/rewards" className="mt-1.5 inline-flex w-fit" aria-label="KHELO Special Access badge. See your rewards">
                 <SpecialAccessBadge size="sm" />

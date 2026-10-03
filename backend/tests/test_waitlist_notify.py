@@ -10,6 +10,7 @@ from app.models.notification import Notification
 from app.models.user import UserRole
 from app.services import waitlist_mailer
 from tests.conftest import auth_headers, create_test_user
+from tests.waitlist_helpers import seed_anon
 from tests.test_lead_demand import _make_cafe
 
 
@@ -29,7 +30,11 @@ async def _join(client, cafe_id, session_id, contact=None, headers=None):
     body = {"sessionId": session_id}
     if contact:
         body["contact"] = contact
-    r = await client.post(f"/api/v1/cafes/{cafe_id}/waitlist", json=body, headers=headers or {})
+    if not headers:
+        # Signed-out votes are no longer accepted by the API; legacy rows are seeded.
+        await seed_anon(cafe_id, session_id, contact)
+        return
+    r = await client.post(f"/api/v1/cafes/{cafe_id}/waitlist", json=body, headers=headers)
     assert r.status_code == 200, r.text
 
 

@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_optional_user
+from app.api.deps import get_current_active_user, get_optional_user
+from app.services.badge_service import grant_helper_badge
 from app.core.exceptions import NotFoundException
 from app.database import get_db
 from app.models.user import User
@@ -46,22 +47,23 @@ async def _require_cafe(db: AsyncSession, cafe_id: UUID):
 async def join_waitlist(
     cafe_id: UUID,
     payload: WaitlistJoinRequest,
-    current_user: Optional[User] = Depends(get_optional_user),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Ask to be told when this café starts taking bookings.
+    """Vote for a café to be listed ("Notify me").
 
-    Returns 200 rather than 201 on a repeat tap: joining twice is a no-op, not
-    an error, and the client should not have to distinguish the two.
+    Sign-in is required: a vote earns a badge and XP, and the count is the
+    pitch we make to café owners, so every vote has to be one real account.
+    Returns 200 rather than 201 on a repeat tap: voting twice is a no-op.
     """
     cafe = await _require_cafe(db, cafe_id)
     repo = WaitlistRepository(db)
-    user_id = current_user.id if current_user else None
 
-    await repo.join(cafe_id, user_id, payload.session_id, payload.contact)
+    await repo.join(cafe_id, current_user.id, payload.session_id, payload.contact)
     count = await repo.count(cafe_id)
+    badge = await grant_helper_badge(db, current_user.id, "day_one")
 
-    return {"success": True, "data": {"count": count, "joined": True, "goal": cafe.waitlist_goal}}
+    return {"success": True, "data": {"count": count, "joined": True, "goal": cafe.waitlist_goal, "badgeUnlocked": badge}}
 
 
 @router.delete("/{cafe_id}/waitlist", status_code=status.HTTP_200_OK)

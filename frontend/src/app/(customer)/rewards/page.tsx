@@ -7,6 +7,7 @@ import { Award, Zap, Lock, Tag, Trophy } from 'lucide-react';
 import { Card, CardContent, Button, Badge, Skeleton, EmptyState, ErrorState } from '@/components/ui';
 import { apiClient } from '@/lib/api/client';
 import { SpecialAccessBadge } from '@/components/customer/SpecialAccessBadge';
+import { HelperEmblem, isHelperBadgeKey } from '@/components/customer/HelperEmblem';
 
 interface Achievement {
   id: string;
@@ -18,6 +19,8 @@ interface Achievement {
   xpReward: number;
   /** A collectible campaign badge: shown with the animated Special Access medallion. */
   special?: boolean;
+  /** A "helped a café join" badge: drawn as a glowing emblem, not an emoji tile. */
+  emblem?: string;
 }
 
 interface RewardsResponse {
@@ -60,7 +63,9 @@ export default function RewardsPage() {
   const currentXp = data?.xp ?? 0;
   const level = data?.level ?? 1;
   const nextLevelXp = data?.nextLevelXp ?? 500;
-  const achievements = data?.achievements ?? [];
+  const allAchievements = data?.achievements ?? [];
+  const emblems = allAchievements.filter((a) => isHelperBadgeKey(a.emblem));
+  const achievements = allAchievements.filter((a) => !isHelperBadgeKey(a.emblem));
   const xpPercentage = Math.min(100, Math.round((currentXp / nextLevelXp) * 100));
 
   if (isError) {
@@ -139,6 +144,39 @@ export default function RewardsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Helping KHEL-O grow: emblem badges, always listed so players can see
+          what each one takes. Earned ones glow. */}
+      {emblems.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-0.5">
+            <h2 className="font-heading text-h3 text-text-primary">Helping KHEL-O grow</h2>
+            <p className="text-caption text-text-secondary">Vote for cafés you want here, introduce us to their owners.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2.5">
+            {emblems.map((ach) => (
+              <button
+                key={ach.id}
+                type="button"
+                onClick={() => setActiveAchievement(ach)}
+                className={`flex flex-col items-center gap-2 rounded-3xl border bg-card px-2 pb-3 pt-5 text-center transition-shadow hover:shadow-card ${
+                  ach.isUnlocked ? 'border-[#F2B93B]/50' : 'border-border/70'
+                }`}
+              >
+                {isHelperBadgeKey(ach.emblem) && <HelperEmblem badge={ach.emblem} earned={ach.isUnlocked} size={72} />}
+                <span className="mt-1 flex flex-col gap-0.5">
+                  <span className={`font-heading text-body-emphasis font-bold ${ach.isUnlocked ? 'text-text-primary' : 'text-text-secondary'}`}>
+                    {ach.title}
+                  </span>
+                  <span className={`font-data text-caption font-bold ${ach.isUnlocked ? 'text-success' : 'text-text-secondary'}`}>
+                    {ach.isUnlocked ? `+${ach.xpReward} XP` : `Earn +${ach.xpReward} XP`}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Achievement Badges Grid */}
       <div className="flex flex-col gap-3">
@@ -231,9 +269,15 @@ export default function RewardsPage() {
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-sm rounded-3xl bg-card border border-border p-6 shadow-overlay flex flex-col items-center text-center gap-3"
           >
-            <div className="text-5xl p-4 rounded-full bg-primary/10 mb-1">
-              {activeAchievement.icon}
-            </div>
+            {isHelperBadgeKey(activeAchievement.emblem) ? (
+              <div className="my-3">
+                <HelperEmblem badge={activeAchievement.emblem} earned={activeAchievement.isUnlocked} size={120} />
+              </div>
+            ) : (
+              <div className="text-5xl p-4 rounded-full bg-primary/10 mb-1">
+                {activeAchievement.icon}
+              </div>
+            )}
 
             <h3 className="font-heading text-h2 font-bold text-text-primary">
               {activeAchievement.title}

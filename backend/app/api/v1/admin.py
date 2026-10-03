@@ -1464,5 +1464,10 @@ async def update_owner_intro_status(
     intro.status = payload.status
     intro.updated_at = datetime.now(timezone.utc)
     await db.commit()
+    # The introducer earns Matchmaker once we have actually reached the owner
+    # (so a made-up number earns nothing).
+    if payload.status in ("contacted", "onboarded"):
+        from app.services.badge_service import grant_helper_badge
+        await grant_helper_badge(db, intro.submitted_by_user_id, "matchmaker")
     await _audit(db, current_admin, "owner_intro.status", str(intro.id), intro.cafe_name, reason=payload.status)
     return {"success": True, "data": {"id": str(intro.id), "status": intro.status}}

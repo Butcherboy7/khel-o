@@ -393,3 +393,21 @@
    opening a shared vote link is always a first-time visitor). It comes
    back as soon as the dialog closes. */
 body:has([role='dialog']) [aria-label='Cookie notice'] { display: none; }
+
+/* ── Helper emblems (Day One / Matchmaker / Local Legend): a soft golden halo
+   that slowly breathes plus one gentle light sweep, then rest. Never flashes
+   or spins. ── */
+@keyframes khelo-emblem-breathe { 0%, 100% { opacity: 0.4; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes khelo-emblem-sweep { 0%, 55% { transform: translateX(0) skewX(-18deg); } 100% { transform: translateX(110px) skewX(-18deg); } }
+.emblem { position: relative; display: inline-block; flex: none; isolation: isolate; }
+.emblem svg { position: relative; z-index: 1; display: block; }
+.emblem-earned svg { filter: drop-shadow(0 2px 3px rgba(120, 80, 0, 0.35)); }
+.emblem-earned::before {
+  content: ''; position: absolute; inset: -24%; z-index: 0; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 200, 70, 0.65), rgba(245, 166, 35, 0.28) 55%, transparent 75%);
+  filter: blur(7px);
+  animation: khelo-emblem-breathe 3.4s ease-in-out infinite;
+}
+.emblem-sweep { animation: khelo-emblem-sweep 4.8s ease-in-out infinite; }
+.emblem-locked svg { filter: grayscale(1); opacity: 0.4; }
+@media (prefers-reduced-motion: reduce) { .emblem-earned::before, .emblem-sweep { animation: none; } .emblem-sweep { opacity: 0; } }
