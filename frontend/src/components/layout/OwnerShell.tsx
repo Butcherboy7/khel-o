@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   MoreHorizontal,
+  LifeBuoy,
   Bell,
   type LucideIcon,
 } from 'lucide-react';
@@ -104,6 +105,7 @@ const ownerNavSections: NavSection[] = [
       { label: 'Payouts', href: '/owner/payouts', icon: Wallet, hint: 'What you have been paid' },
       { label: 'Your Team', href: '/owner/staff', icon: Users, hint: 'Give staff their own login' },
       { label: 'Café Settings', href: '/owner/settings', icon: Settings, hint: 'Details, hours and pausing' },
+      { label: 'Help & Support', href: '/owner/support', icon: LifeBuoy, hint: 'Raise a question or problem with KHELO' },
     ],
   },
 ];

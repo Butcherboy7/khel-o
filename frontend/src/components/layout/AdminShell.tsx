@@ -32,6 +32,8 @@ import {
   type LucideIcon,
   Target,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 
@@ -120,6 +122,12 @@ const adminNavGroups: NavGroup[] = [
 function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
+  const { data: openTickets } = useQuery({
+    queryKey: ['admin', 'support', 'open-count'],
+    queryFn: async () => (await apiClient.get('/api/v1/admin/support/open-count')).data?.data?.count as number,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
 
   const initials = user?.fullName
     ? user.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
@@ -157,6 +165,11 @@ function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
                 >
                   <item.icon className="h-4 w-4 flex-shrink-0" />
                   <span>{item.label}</span>
+                  {item.href === '/admin/support' && (openTickets ?? 0) > 0 && (
+                    <span className="ml-auto rounded-full bg-error px-2 py-0.5 text-[11px] font-bold leading-none text-white" aria-label={`${openTickets} open tickets`}>
+                      {openTickets}
+                    </span>
+                  )}
                 </Link>
               );
             })}

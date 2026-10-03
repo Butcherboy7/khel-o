@@ -171,11 +171,13 @@ export default function AboutPage() {
       </header>
 
       <section aria-label="Our story">
-        {STORY.map((c) => (
-          <div key={c.label} className="grid grid-cols-[22px_minmax(0,1fr)] gap-x-5 last:[&_.rail-line]:hidden">
+        {STORY.map((c, i) => (
+          <div key={c.label} className="grid grid-cols-[22px_minmax(0,1fr)] gap-x-5">
             <div className="flex flex-col items-center">
               <span className="mt-2 h-3.5 w-3.5 flex-none rounded-full bg-primary ring-[5px] ring-primary/15" />
-              <span className="rail-line mt-1.5 w-0.5 flex-1 bg-border" aria-hidden />
+              {i < STORY.length - 1 && (
+                <span className="mt-1.5 min-h-8 w-[3px] flex-1 rounded-full bg-primary/35" aria-hidden />
+              )}
             </div>
             <div className="flex min-w-0 flex-col gap-2 pb-9">
               <span className={label}>{c.label}</span>

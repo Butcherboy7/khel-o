@@ -1151,6 +1151,18 @@ async def list_support_tickets_admin(
     result = await service.list_all_tickets(status=status_, category=category, page=page, limit=limit)
     return {"success": True, "data": result}
 
+@router.get("/support/open-count", status_code=status.HTTP_200_OK)
+async def support_open_count(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Tickets still waiting for the team, for the admin sidebar badge."""
+    from app.models.support_ticket import SupportTicketStatus
+    count = (await db.execute(
+        select(func.count()).select_from(SupportTicket).where(SupportTicket.status == SupportTicketStatus.OPEN)
+    )).scalar_one()
+    return {"success": True, "data": {"count": int(count)}}
+
 @router.get("/support/tickets/{ticket_id}", status_code=status.HTTP_200_OK)
 async def get_support_ticket_admin(
     ticket_id: UUID,
