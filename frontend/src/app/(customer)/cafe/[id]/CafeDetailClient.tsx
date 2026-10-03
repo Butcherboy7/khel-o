@@ -197,7 +197,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   }, [isLead, waitlistLoaded, joined, cafeId]);
 
   const handleShareWaitlist = async () => {
-    const shareText = `Vote to get ${data?.name ?? 'this café'} on KHEL-O so we can book it online. Takes 2 seconds, and it boosts your aura.`;
+    const shareText = `Bro help me out, vote to get ${data?.name ?? 'this café'} on KHEL-O so we can book it online. Takes 2 secs and it boosts your aura 🫶`;
     const shareUrl = createShare(
       { path: cafePath(data ?? { id: cafeId }), context: 'waitlist', cafeId, campaign: data?.slug ?? cafeId },
       'native'
@@ -524,10 +524,10 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       {isLead && (
         <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
           <div className="flex flex-col gap-1">
-            <h2 className="font-heading text-h3 text-text-primary">Get {cafe.name} on KHEL-O</h2>
+            <h2 className="font-heading text-h3 text-text-primary">Help get {cafe.name} on KHEL-O</h2>
             <p className="text-caption text-text-secondary">
               Every vote shows the owner that gamers want online booking here. Hit {waitlistGoal} and we go knock on
-              their door.
+              their door 🚪
             </p>
           </div>
           <button
@@ -1180,9 +1180,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <div className="max-w-content mx-auto flex flex-col gap-2">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <span className="text-overline text-text-secondary">{joined ? 'You voted' : 'Not on KHEL-O yet'}</span>
+                <span className="text-overline text-text-secondary">{joined ? 'You voted 🫶' : 'Not on KHEL-O yet'}</span>
                 <p className="text-caption text-text-secondary">
-                  {joined ? 'Now get the squad to vote too' : 'Vote to bring it here'}
+                  {joined ? 'Now get the squad to vote too' : 'Vote to help gamers get it listed'}
                 </p>
               </div>
               <button

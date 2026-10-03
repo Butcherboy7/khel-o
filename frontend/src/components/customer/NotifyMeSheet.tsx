@@ -125,7 +125,7 @@ export function NotifyMeSheet({
             <span className="text-[44px] leading-none" aria-hidden>👀</span>
             <h2 className="font-heading text-h2 text-text-primary">Your friend wants {cafeName} on KHEL-O</h2>
             <p className="text-body text-text-secondary">
-              Add your vote? One tap, and it helps get it listed.
+              Add your vote? It takes one tap and it genuinely helps.
               {votes > 0 && ` ${votes} gamer${votes === 1 ? ' has' : 's have'} already voted.`}
             </p>
           </div>
@@ -147,10 +147,10 @@ export function NotifyMeSheet({
       {step === 'signin' && (
         <div className="flex flex-col gap-4 pb-2">
           <div className="flex flex-col gap-1">
-            <h2 className="font-heading text-h2 text-text-primary">Want {cafeName} on KHEL-O?</h2>
+            <h2 className="font-heading text-h2 text-text-primary">Vote for {cafeName}</h2>
             <p className="text-body text-text-secondary">
-              Vote, earn the Day One badge and watch your aura go up. Every vote also tells the owner gamers want this.
-              We&apos;ll ping you once, the day it goes live.
+              Every vote is one more reason for the owner to say yes, and your aura goes up. We&apos;ll ping you once,
+              the day it goes live. No spam, pinky promise.
             </p>
           </div>
           {reward}
@@ -168,9 +168,9 @@ export function NotifyMeSheet({
             <p className="max-w-sm text-body text-text-secondary">
               {votes > 0 ? `Vote #${votes} locked in. ` : 'Vote locked in. '}
               {left > 0
-                ? `${left} more and we go pitch ${cafeName} in person.`
+                ? `${left} more and we go knock on their door 🚪`
                 : `Goal smashed, we're talking to ${cafeName} now.`}{' '}
-              We&apos;ll email you the day it&apos;s live. Your aura just went up.
+              We&apos;ll email you the day it&apos;s live. Your aura just went up 🫶
             </p>
           </div>
 
