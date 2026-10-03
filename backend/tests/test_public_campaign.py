@@ -197,6 +197,7 @@ async def test_badge_is_granted_once_shows_in_rewards_and_counts_shares(client):
     assert badge["isUnlocked"] is True and rewards["xp"] == 100
     assert badge["title"] == "Day One" and badge["grantedAt"]
     assert badge["campaignCode"] == code
+    assert badge["memberNumber"] == 1
 
     bogus = await client.post("/api/v1/promotions/campaign/NOSUCHCODE/claim", headers=auth_headers(gamer))
     assert bogus.status_code == 404

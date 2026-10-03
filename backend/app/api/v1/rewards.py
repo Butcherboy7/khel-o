@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -57,6 +57,14 @@ async def get_rewards(
             select(OfferCampaign.access_code).where(OfferCampaign.id == special_row.campaign_id)
         )).scalar_one_or_none()
 
+    # Order of earning: 1 for the first person to hold the badge. Real rank, not a counter we keep.
+    special_rank = None
+    if special_row is not None and special_row.granted_at is not None:
+        special_rank = (await db.execute(
+            select(func.count()).select_from(UserBadge).where(
+                UserBadge.badge_key == "special_access", UserBadge.granted_at <= special_row.granted_at)
+        )).scalar_one()
+
     earned_keys = {b.badge_key for b in badge_rows}
     helper_xp = sum(xp for key, (_, _, xp) in HELPER_BADGES.items() if key in earned_keys)
 
@@ -84,6 +92,7 @@ async def get_rewards(
             "special": True,
             "grantedAt": special_row.granted_at.isoformat() if special_row is not None and special_row.granted_at else None,
             "campaignCode": special_code,
+            "memberNumber": special_rank,
         },
         {
             "id": "first_blood",

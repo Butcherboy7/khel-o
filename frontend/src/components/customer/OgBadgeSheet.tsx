@@ -15,6 +15,8 @@ interface OgBadgeSheetProps {
   grantedAt?: string | null;
   /** The campaign link the badge came from; without it there's nothing to share. */
   campaignCode?: string | null;
+  /** Order of earning the badge (1 = first), from the server. */
+  memberNumber?: number | null;
 }
 
 function joinedLabel(iso?: string | null): string | null {
@@ -29,7 +31,7 @@ function joinedLabel(iso?: string | null): string | null {
  * achievements page. Shows only facts we have: the real join month and a
  * "Limited" rarity, never an invented member number.
  */
-export function OgBadgeSheet({ isOpen, onClose, firstName, grantedAt, campaignCode }: OgBadgeSheetProps) {
+export function OgBadgeSheet({ isOpen, onClose, firstName, grantedAt, campaignCode, memberNumber }: OgBadgeSheetProps) {
   const [shareOpen, setShareOpen] = useState(false);
   const joined = joinedLabel(grantedAt);
   const who = firstName?.trim() || 'You';
@@ -58,14 +60,20 @@ export function OgBadgeSheet({ isOpen, onClose, firstName, grantedAt, campaignCo
             </p>
           </div>
 
-          <dl className="grid grid-cols-2 gap-2.5">
+          <dl className={`grid gap-2.5 ${memberNumber ? 'grid-cols-3' : 'grid-cols-2'}`}>
             {joined && (
               <div className="rounded-xl bg-surface px-3 py-2.5 text-center">
                 <dt className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary">Joined</dt>
                 <dd className="font-data text-body font-bold text-text-primary">{joined}</dd>
               </div>
             )}
-            <div className={`rounded-xl bg-surface px-3 py-2.5 text-center ${joined ? '' : 'col-span-2'}`}>
+            {memberNumber ? (
+              <div className="rounded-xl bg-surface px-3 py-2.5 text-center">
+                <dt className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary">Member</dt>
+                <dd className="font-data text-body font-bold text-text-primary">#{String(memberNumber).padStart(4, '0')}</dd>
+              </div>
+            ) : null}
+            <div className="rounded-xl bg-surface px-3 py-2.5 text-center">
               <dt className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary">Rarity</dt>
               <dd className="font-data text-body font-bold text-text-primary">Limited</dd>
             </div>

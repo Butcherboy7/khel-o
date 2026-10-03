@@ -23,6 +23,7 @@ interface Achievement {
   special?: boolean;
   grantedAt?: string | null;
   campaignCode?: string | null;
+  memberNumber?: number | null;
   /** A "helped a café join" badge: drawn as a glowing emblem, not an emoji tile. */
   emblem?: string;
 }
@@ -217,6 +218,7 @@ export default function AchievementsPage() {
                   firstName={fullName?.trim().split(/\s+/)[0]}
                   grantedAt={ach.grantedAt}
                   campaignCode={ach.campaignCode}
+                  memberNumber={ach.memberNumber}
                 />
               </div>
             ) : null

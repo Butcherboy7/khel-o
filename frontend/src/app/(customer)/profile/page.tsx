@@ -208,7 +208,7 @@ export default function ProfilePage() {
   // The header badge used to just say "Level 4" unconditionally — same rewards
   // data that already powers the real level/XP on the Achievements page, not a
   // second/fake source of truth.
-  const { data: rewardsData } = useQuery<{ level: number; achievements?: { id: string; isUnlocked: boolean; emblem?: string; grantedAt?: string | null; campaignCode?: string | null }[] }>({
+  const { data: rewardsData } = useQuery<{ level: number; achievements?: { id: string; isUnlocked: boolean; emblem?: string; grantedAt?: string | null; campaignCode?: string | null; memberNumber?: number | null }[] }>({
     queryKey: ['rewards'],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/rewards');
@@ -334,6 +334,7 @@ export default function ProfilePage() {
                 firstName={fullName.trim().split(/\s+/)[0]}
                 grantedAt={rewardsData.achievements.find((a) => a.id === 'special_access')?.grantedAt}
                 campaignCode={rewardsData.achievements.find((a) => a.id === 'special_access')?.campaignCode}
+                memberNumber={rewardsData.achievements.find((a) => a.id === 'special_access')?.memberNumber}
               />
               </>
             )}
