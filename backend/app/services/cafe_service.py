@@ -84,6 +84,8 @@ class CafeService:
             # the same offer badge on each tier the owner's promotion applies to.
             for t in tiers_res:
                 t.active_promotion = PromotionService.pick_for_tier(active_promos, t.id, t.name)
+                if t.coop_enabled:
+                    t.coop_promotion = PromotionService.pick_coop_for_tier(active_promos, t.id)
 
         avg_rating, total_revs = 0.0, 0
         recent_revs: List[ReviewResponse] = []

@@ -1,3 +1,4 @@
+import type { Promotion } from '@/types/promotion';
 /** How many spots left before "Only N left" appears. Above this the cap is
  *  not worth mentioning; at or below it, it is the reason to book now. */
 export const LOW_SPOTS_AT = 5;
@@ -42,4 +43,28 @@ export function offerLabelWithMode(label: string, playMode?: string | null): str
   if (playMode === 'coop') return `${label} · 2 players`;
   if (playMode === 'solo') return `${label} · solo`;
   return label;
+}
+
+/**
+ * What a live offer does to a setup's hourly price, in a form a card can show
+ * as "₹140 → ₹119/hr · 15% off". Covers a percentage offer and a 1-hour
+ * fixed-price deal; anything else (a 15/30-min deal, a flat ₹ off) returns
+ * null and is left to checkout, which prices every length exactly.
+ */
+export function hourlyOffer(regular: number, promo?: Promotion | null): { price: number; pct: number } | null {
+  if (!promo || promo.isLiveNow === false || !(regular > 0)) return null;
+  if (promo.promotionType === 'percentage' && (promo.discountPercentage ?? 0) > 0) {
+    const pct = promo.discountPercentage as number;
+    return { price: Math.round(regular * (1 - pct / 100)), pct };
+  }
+  if (
+    promo.promotionType === 'fixed_price' &&
+    Math.round(Number(promo.minDurationHours ?? 0) * 60) === 60 &&
+    promo.fixedPriceAmount != null &&
+    Number(promo.fixedPriceAmount) < regular
+  ) {
+    const price = Number(promo.fixedPriceAmount);
+    return { price, pct: Math.round((1 - price / regular) * 100) };
+  }
+  return null;
 }

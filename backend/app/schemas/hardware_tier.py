@@ -152,6 +152,7 @@ class HardwareTierResponse(HardwareTierBase):
     warning: Optional[str] = None
     is_active: bool
     active_promotion: Optional[Dict[str, Any]] = None
+    coop_promotion: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
     # Not a persisted column — set explicitly by CafeService._build_cafe_response

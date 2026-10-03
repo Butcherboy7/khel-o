@@ -463,11 +463,34 @@ class PromotionService:
         def size(p: ActivePromotionResponse) -> float:
             return float(p.discount_percentage or p.fixed_discount_amount or p.savings_amount or 0)
 
-        matching = [p for p in promos if covers(p)]
+        def hourly_deal(p: ActivePromotionResponse) -> bool:
+            return p.promotion_type == PromotionType.FIXED_PRICE and round(float(p.min_duration_hours or 0) * 60) == 60
+
+        # Co-op-only offers price a shared console, not the solo rate the card
+        # shows; they are advertised on the co-op line instead (pick_coop_for_tier).
+        matching = [p for p in promos if covers(p) and (p.play_mode or 'any') != 'coop']
         if not matching:
             return None
-        best = max(matching, key=lambda p: (p.is_live_now, p.applicable_tier_id is not None, size(p)))
+        # On an equal saving, the 1-hour deal wins: the card prices per hour.
+        best = max(matching, key=lambda p: (p.is_live_now, p.applicable_tier_id is not None, size(p), hourly_deal(p)))
         return best.model_dump(by_alias=True)
+
+    @staticmethod
+    def pick_coop_for_tier(promos: List[ActivePromotionResponse], tier_id: UUID) -> Optional[dict]:
+        """The cheapest live 1-hour co-op deal on this setup, for the card's
+        co-op line ("2 players ₹220 → ₹180/hr"). None when there isn't one."""
+        deals = [
+            p for p in promos
+            if p.is_live_now
+            and str(p.applicable_tier_id) == str(tier_id)
+            and (p.play_mode or 'any') == 'coop'
+            and p.promotion_type == PromotionType.FIXED_PRICE
+            and round(float(p.min_duration_hours or 0) * 60) == 60
+            and p.fixed_price_amount
+        ]
+        if not deals:
+            return None
+        return min(deals, key=lambda p: p.fixed_price_amount).model_dump(by_alias=True)
 
     @staticmethod
     def _fixed_price_economics(promo: Promotion, tier) -> tuple[Optional[float], Optional[float]]:

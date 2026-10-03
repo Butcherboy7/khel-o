@@ -5,7 +5,7 @@ import { ActivityIcon } from '@/components/icons/ActivityIcons';
 import type { HardwareTier } from '@/types/tier';
 import { ActivitySpecLine } from '@/components/customer/ActivitySpecs';
 import { OfferChip } from '@/components/customer/OfferChip';
-import { offerUrgency, offerLabelWithMode } from '@/lib/offers';
+import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 import type { Promotion } from '@/types/promotion';
 
 interface ActivitiesSectionProps {
@@ -35,9 +35,9 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
       )}
       <div className="flex flex-col gap-2.5">
         {activities.map((tier) => {
-          const promo = tier.activePromotion;
-          const discount = promo && promo.isLiveNow !== false && promo.promotionType === 'percentage' ? (promo.discountPercentage ?? 0) : 0;
-          const shown = discount > 0 ? Math.round(tier.pricePerHour * (1 - discount / 100)) : tier.pricePerHour;
+          const hourly = hourlyOffer(tier.pricePerHour, tier.activePromotion);
+          const discount = hourly?.pct ?? 0;
+          const shown = hourly?.price ?? tier.pricePerHour;
           return (
           <Link
             key={tier.id}
@@ -53,7 +53,7 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
               {tier.activePromotion && (
                 <OfferChip
                   className="my-0.5"
-                  label={tier.activePromotion.label || 'Offer'}
+                  label={hourly ? `${hourly.pct}% off` : tier.activePromotion.label || 'Offer'}
                   when={tier.activePromotion.when}
                   live={tier.activePromotion.isLiveNow !== false}
                   urgency={offerUrgency({

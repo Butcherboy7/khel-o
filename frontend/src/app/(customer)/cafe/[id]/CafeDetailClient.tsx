@@ -51,7 +51,7 @@ import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
 import { OfferChip } from '@/components/customer/OfferChip';
 import { useCampaign } from '@/hooks/useCampaign';
-import { offerUrgency, offerLabelWithMode } from '@/lib/offers';
+import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
@@ -301,12 +301,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       ? [...defaultTierPool].sort((a, b) => a.pricePerHour - b.pricePerHour)[0]
       : null;
   const activeTier = cheapestTier;
-  // Hourly price after the selected setup's live percentage offer; null = no offer applies.
-  const barPromo = activeTier?.activePromotion;
-  const barPrice =
-    activeTier && barPromo && barPromo.isLiveNow !== false && barPromo.promotionType === 'percentage' && (barPromo.discountPercentage ?? 0) > 0
-      ? Math.round(activeTier.pricePerHour * (1 - (barPromo.discountPercentage ?? 0) / 100))
-      : null;
+  // Hourly price after the setup's live offer, by the same rule as its card; null = none.
+  const barPrice = activeTier ? hourlyOffer(activeTier.pricePerHour, activeTier.activePromotion)?.price ?? null : null;
 
   // isCafeOpenNow treats missing hours as open; with no hours on file we
   // say nothing rather than claim a real business is open.
@@ -522,9 +518,11 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                 const promoLive = promo?.isLiveNow !== false;
                 // The struck-through hourly price is only honest for a percentage
                 // offer that is open right now; any other offer shows as a chip.
-                const discount = promo && promoLive && promo.promotionType === 'percentage' ? (promo.discountPercentage ?? 0) : 0;
-                const discountedPrice = discount > 0 ? Math.round(tier.pricePerHour * (1 - discount / 100)) : tier.pricePerHour;
+                const hourly = hourlyOffer(tier.pricePerHour, promo);
+                const discount = hourly?.pct ?? 0;
+                const discountedPrice = hourly?.price ?? tier.pricePerHour;
                 const coopRate = tier.coopEnabled ? tier.pricePerHour + Number(tier.coopExtraPlayerPrice ?? 0) : 0;
+                const coopDeal = hourlyOffer(coopRate, tier.coopPromotion);
                 const modelLabel = String(tier.specs?.console || tier.specs?.other || tier.model || 'Gaming Station');
                 const modelRepeatsName = modelLabel.trim().toLowerCase() === (tier.name ?? '').trim().toLowerCase();
                 return (
@@ -591,7 +589,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       {promo && (
                         <div className="mt-1 flex min-w-0 flex-wrap items-start gap-x-2 gap-y-0.5">
                           <OfferChip
-                            label={promo.label || `${discount}% off`}
+                            label={hourly ? `${hourly.pct}% off` : promo.label || 'Offer'}
                             when={promo.when}
                             live={promoLive}
                             urgency={offerUrgency({ slotsRemaining: promo.slotsRemaining, validUntil: promo.validUntil })}
@@ -607,8 +605,13 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       {tier.coopEnabled && (
                         <p className="mt-1 flex flex-nowrap items-center gap-1 whitespace-nowrap text-caption text-text-secondary">
                           <span>
-                            {(tier.coopMaxPlayers ?? 2) > 2 ? `2–${tier.coopMaxPlayers}` : '2'} players from{' '}
-                            <span className="font-data font-bold text-text-primary"><span className="rupee-symbol">₹</span>{coopRate}/hr</span>
+                            {(tier.coopMaxPlayers ?? 2) > 2 ? `2–${tier.coopMaxPlayers}` : '2'} players{coopDeal ? ' ' : ' from '}
+                            {coopDeal && (
+                              <span className="mr-1 text-text-tertiary line-through"><span className="rupee-symbol">₹</span>{coopRate}</span>
+                            )}
+                            <span className={`font-data font-bold ${coopDeal ? 'text-accent' : 'text-text-primary'}`}>
+                              <span className="rupee-symbol">₹</span>{coopDeal?.price ?? coopRate}/hr
+                            </span>
                           </span>
                           <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" className="relative z-10 -my-1 flex-shrink-0" />
                         </p>

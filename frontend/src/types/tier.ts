@@ -23,6 +23,8 @@ export interface HardwareTier {
   isActive: boolean;
   /** Populated when listing tiers via GET /cafes/{id}/tiers */
   activePromotion: Promotion | null;
+  /** Cheapest live 1-hour co-op deal on this setup (café detail only). */
+  coopPromotion?: Promotion | null;
   tierType: 'gaming' | 'activity';
   activityKind: string | null;
   /** Taxonomy activity/style key ("snooker", "pool.american"); null = unclassified. */
