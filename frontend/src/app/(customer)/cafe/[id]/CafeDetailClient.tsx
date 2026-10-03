@@ -549,8 +549,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       {(gamingTiers.length > 0 || activityTiers.length > 0) && (
       <section className="flex flex-col gap-2.5">
         <div className="flex flex-col gap-0.5">
-          <h2 className="font-heading text-h3 text-text-primary">{gamingTiers.length > 0 ? 'Choose your setup' : 'Choose an activity'}</h2>
-          <p className="text-caption text-text-secondary">Tap one to pick your time.</p>
+          <h2 className="font-heading text-h3 text-text-primary">
+            {isLead ? 'What they’ve got' : gamingTiers.length > 0 ? 'Choose your setup' : 'Choose an activity'}
+          </h2>
+          <p className="text-caption text-text-secondary">
+            {isLead ? 'Café prices. Online booking opens once they join KHEL-O.' : 'Tap one to pick your time.'}
+          </p>
         </div>
 
         <>
@@ -579,19 +583,20 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                   // (a button can't live inside another button).
                   <div
                     key={tier.id}
-                    className={`relative flex items-center gap-3 p-3 rounded-2xl text-left border-2 bg-card transition-all active:scale-[0.99] ${
-                      isSelected ? 'border-primary shadow-card' : 'border-border hover:bg-surface'
+                    className={`relative flex items-center gap-3 p-3 rounded-2xl text-left border-2 bg-card ${
+                      isLead ? 'border-border' : isSelected ? 'border-primary shadow-card transition-all active:scale-[0.99]' : 'border-border hover:bg-surface transition-all active:scale-[0.99]'
                     }`}
                   >
-                    <button
+                    {/* A lead café takes no bookings: the card informs, it doesn't link. */}
+                    {!isLead && <button
                       type="button"
                       onClick={() => router.push(`/bookings/new?cafeId=${cafe.id}&tierId=${tier.id}${promoSuffix}`)}
                       aria-label={`Book ${tier.name}, ₹${tier.pricePerHour} per hour${tier.coopEnabled ? ', co-op available' : ''}`}
                       className="absolute inset-0 rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    />
+                    />}
                     <div
                       className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${
-                        isSelected ? 'bg-accent/15 text-accent' : 'bg-surface text-text-secondary'
+                        isSelected && !isLead ? 'bg-accent/15 text-accent' : 'bg-surface text-text-secondary'
                       }`}
                     >
                       <PlatformIcon platform={isPc ? 'pc' : tier.platform} className="h-5 w-5" />
@@ -695,12 +700,14 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               })}
             </div>
 
-            <ActivitiesSection embedded showHeading={gamingTiers.length > 0} cafeId={cafe.id} activities={activityTiers} promoCode={campaign.code} campaignOffers={campaign.offers} />
+            <ActivitiesSection embedded readOnly={isLead} showHeading={gamingTiers.length > 0} cafeId={cafe.id} activities={activityTiers} promoCode={campaign.code} campaignOffers={campaign.offers} />
 
-            <p className="flex items-center gap-1.5 text-caption text-text-secondary">
-              <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-success" />
-              Instant confirmation · Full refund if you cancel 2+ hrs before
-            </p>
+            {!isLead && (
+              <p className="flex items-center gap-1.5 text-caption text-text-secondary">
+                <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-success" />
+                Instant confirmation · Full refund if you cancel 2+ hrs before
+              </p>
+            )}
 
             {hasPcTier && gamingTiers.length > 1 && (
               <button

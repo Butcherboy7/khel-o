@@ -134,7 +134,7 @@ export function OwnerIntroForm({ cafeId, cafeName, onDone }: OwnerIntroFormProps
     >
       <div className="flex flex-col gap-1">
         <h2 className="font-heading text-h2 text-text-primary">
-          {knownCafe ? `Know ${cafeName}'s owner? 👀` : 'Know a gaming café owner? 👀'}
+          {knownCafe ? `Know the owner of ${cafeName}? 👀` : 'Know a gaming café owner? 👀'}
         </h2>
         <p className="text-body text-text-secondary">
           Drop their number and we&apos;ll take it from here. A friendly intro gets a café listed way faster than us

@@ -18,6 +18,8 @@ interface ActivitiesSectionProps {
   embedded?: boolean;
   /** With `embedded`: label the group ("Activities") when setups sit above it. */
   showHeading?: boolean;
+  /** A lead café (not on KHEL-O yet): show what they have, nothing to book. */
+  readOnly?: boolean;
 }
 
 /** Café-detail "Activities" cards (spec §7) — deliberately shows only what
@@ -25,7 +27,7 @@ interface ActivitiesSectionProps {
  *  plus one quiet line of what the owner told us about it ("American pool ·
  *  9 ft") when they did. Tapping a card reuses
  *  the exact same booking route every gaming tier already uses. */
-export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffers = [], embedded = false, showHeading = true }: ActivitiesSectionProps) {
+export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffers = [], embedded = false, showHeading = true, readOnly = false }: ActivitiesSectionProps) {
   if (activities.length === 0) return null;
 
   return (
@@ -38,12 +40,9 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
           const hourly = hourlyOffer(tier.pricePerHour, tier.activePromotion);
           const discount = hourly?.pct ?? 0;
           const shown = hourly?.price ?? tier.pricePerHour;
-          return (
-          <Link
-            key={tier.id}
-            href={`/bookings/new?cafeId=${cafeId}&tierId=${tier.id}${promoCode ? `&promoCode=${encodeURIComponent(promoCode)}` : ''}`}
-            className="relative flex items-center gap-3 rounded-2xl border-2 border-border bg-card p-3 text-left transition-all hover:bg-surface active:scale-[0.99]"
-          >
+          const cardClass = 'relative flex items-center gap-3 rounded-2xl border-2 border-border bg-card p-3 text-left';
+          const content = (
+          <>
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-surface text-text-secondary">
               <ActivityIcon activityKind={tier.activityKind} className="h-5 w-5" />
             </div>
@@ -87,7 +86,18 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
               </div>
               <span className="whitespace-nowrap text-[11px] text-text-secondary">{tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'}</span>
             </div>
-          </Link>
+          </>
+          );
+          return readOnly ? (
+            <div key={tier.id} className={cardClass}>{content}</div>
+          ) : (
+            <Link
+              key={tier.id}
+              href={`/bookings/new?cafeId=${cafeId}&tierId=${tier.id}${promoCode ? `&promoCode=${encodeURIComponent(promoCode)}` : ''}`}
+              className={`${cardClass} transition-all hover:bg-surface active:scale-[0.99]`}
+            >
+              {content}
+            </Link>
           );
         })}
       </div>

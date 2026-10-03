@@ -202,7 +202,7 @@ export function NotifyMeSheet({
             <p className="max-w-sm text-body text-text-secondary">
               {votes > 0 ? `Vote #${votes} locked in. ` : 'Vote locked in. '}
               {left > 0
-                ? `${left} more and we go knock on ${cafeName}'s door 🚪`
+                ? `${left} more and we go pitch ${cafeName} in person 🚪`
                 : `Goal smashed 🎉 we're talking to ${cafeName} now.`}{' '}
               {gaveEmail ? "We'll email you the day it's live." : "We'll message you the day it's live."}
             </p>
