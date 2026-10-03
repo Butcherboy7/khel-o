@@ -59,13 +59,13 @@ const TONE = {
     primary: 'bg-primary text-white',
     ink: 'bg-secondary text-white',
     sun: 'bg-[#F59E0B] text-[#18191E]',
-    soft: 'border border-primary bg-primary/10 text-primary',
+    soft: 'border border-primary bg-[#E54D42]/10 text-primary',
   },
   avatar: {
     primary: 'bg-primary text-white',
     ink: 'bg-secondary text-white',
     sun: 'bg-[#F59E0B] text-[#18191E]',
-    soft: 'bg-primary/10 text-primary',
+    soft: 'bg-[#E54D42]/10 text-primary',
   },
 } as const;
 
@@ -174,9 +174,9 @@ export default function AboutPage() {
         {STORY.map((c, i) => (
           <div key={c.label} className="grid grid-cols-[22px_minmax(0,1fr)] gap-x-5">
             <div className="flex flex-col items-center">
-              <span className="mt-2 h-3.5 w-3.5 flex-none rounded-full bg-primary ring-[5px] ring-primary/15" />
+              <span className="mt-2 h-3.5 w-3.5 flex-none rounded-full bg-primary ring-[5px] ring-[#E54D42]/20" />
               {i < STORY.length - 1 && (
-                <span className="mt-1.5 min-h-8 w-[3px] flex-1 rounded-full bg-primary/35" aria-hidden />
+                <span className="mt-1.5 min-h-8 w-[3px] flex-1 rounded-full bg-[#E54D42]/40" aria-hidden />
               )}
             </div>
             <div className="flex min-w-0 flex-col gap-2 pb-9">
