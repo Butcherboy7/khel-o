@@ -1,22 +1,24 @@
 import { useId } from 'react';
 import { cn } from '@/lib/cn';
 
-export type HelperBadgeKey = 'day_one' | 'matchmaker' | 'local_legend';
+export type HelperBadgeKey = 'day_one' | 'matchmaker' | 'local_legend' | 'champion';
 
 export const HELPER_BADGE_COPY: Record<HelperBadgeKey, { title: string; earn: string; xp: number }> = {
   day_one: { title: 'Early Voter', earn: 'Vote for a café that isn’t on KHEL-O yet', xp: 25 },
   matchmaker: { title: 'Matchmaker', earn: 'Introduce us to a café owner', xp: 100 },
   local_legend: { title: 'Local Legend', earn: 'A café you helped goes live', xp: 500 },
+  champion: { title: 'Champion', earn: 'Win a KHEL-O tournament', xp: 300 },
 };
 
 export function isHelperBadgeKey(v: string | undefined | null): v is HelperBadgeKey {
-  return v === 'day_one' || v === 'matchmaker' || v === 'local_legend';
+  return v === 'day_one' || v === 'matchmaker' || v === 'local_legend' || v === 'champion';
 }
 
 const RIM: Record<HelperBadgeKey, [string, string]> = {
   day_one: ['#F3B77A', '#A5642F'],
   matchmaker: ['#FAFBFD', '#9AA0AE'],
   local_legend: ['#FFEBA8', '#C98A12'],
+  champion: ['#FFD9E4', '#B4235A'],
 };
 
 const SHIELD = 'M32 3 L58 12 V32 C58 47 47 57 32 62 C17 57 6 47 6 32 V12 Z';
@@ -87,6 +89,14 @@ export function HelperEmblem({ badge, earned = true, size = 64, className }: Hel
             d="M32 18 L35.6 27.2 L45.5 27.9 L37.9 34.2 L40.3 43.8 L32 38.5 L23.7 43.8 L26.1 34.2 L18.5 27.9 L28.4 27.2 Z"
             fill={`url(#${rim})`}
           />
+        )}
+        {badge === 'champion' && (
+          <>
+            <path d="M23 20h18v7c0 6-4 10-9 10s-9-4-9-10z" fill={`url(#${rim})`} />
+            <path d="M23 23h-4c0 5 2 7 5 7.5M41 23h4c0 5-2 7-5 7.5" fill="none" stroke={`url(#${rim})`} strokeWidth="2.2" />
+            <rect x="29.5" y="37" width="5" height="5" fill={`url(#${rim})`} />
+            <rect x="24" y="42" width="16" height="4" rx="1.5" fill={`url(#${rim})`} />
+          </>
         )}
         {earned && (
           <g clipPath={`url(#${clip})`}>

@@ -24,7 +24,10 @@ function isPublicPath(pathname: string): boolean {
     // The campaign landing page (shared on Instagram / WhatsApp) is public too.
     pathname.startsWith('/campaign/') ||
     // "Know a café owner?" — the form asks for sign-in itself, after the pitch.
-    pathname === '/know-the-owner'
+    pathname === '/know-the-owner' ||
+    // Tournament listing and event pages are shareable; registering asks for sign-in.
+    pathname === '/tournaments' ||
+    (pathname.startsWith('/tournaments/') && !pathname.endsWith('/pass'))
   );
 }
 

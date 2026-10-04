@@ -146,7 +146,10 @@ class BookingRepository(BaseRepository[Booking]):
             )
         )
         result = await self.db.execute(stmt)
-        return int(result.scalar() or 0)
+        # Stations a published tournament holds for its window count as booked.
+        from app.services.tournament_service import reserved_seats
+        held = await reserved_seats(self.db, tier_id, session_date, start_time, end_time)
+        return int(result.scalar() or 0) + held
 
     async def get_overlapping_bookings_count_with_lock(
         self,

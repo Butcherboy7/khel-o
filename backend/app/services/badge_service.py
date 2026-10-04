@@ -16,6 +16,7 @@ HELPER_BADGES: dict[str, tuple[str, str, int]] = {
     "day_one": ("Early Voter", "Vote for a café that isn't on KHEL-O yet.", 25),
     "matchmaker": ("Matchmaker", "Introduce us to a café owner and we get in touch.", 100),
     "local_legend": ("Local Legend", "A café you voted for or introduced goes live on KHEL-O.", 500),
+    "champion": ("Champion", "Win a KHEL-O tournament.", 300),
 }
 
 

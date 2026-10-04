@@ -276,6 +276,24 @@ class NotificationService:
             logger.error("send_password_reset_error", error=str(e), email=email)
             return False
 
+    async def send_tournament_update(
+        self, email: str, full_name: str, subject: str, heading: str, lines: list[str], url: str, button: str,
+    ) -> bool:
+        """Registered / match called / spot opened / event cancelled. `lines` are plain sentences."""
+        try:
+            from html import escape
+            paras = "".join(f"<p>{escape(line)}</p>" for line in lines)
+            html_body = _email_wrapper(f"""
+                <h2 style="margin-top: 0; color: {_BRAND_TEXT_PRIMARY};">{escape(heading)}</h2>
+                <p>Hello <strong>{escape(full_name or 'there')}</strong>,</p>
+                {paras}
+                <div style="margin: 24px 0; text-align: center;">{_email_button(url, button)}</div>
+            """)
+            return await self._send_resend_email(email, subject, html_body, "TOURNAMENT")
+        except Exception as e:
+            logger.error("send_tournament_update_error", error=str(e), email=email)
+            return False
+
     async def send_payout_details_changed(self, email: str, full_name: str) -> bool:
         try:
             subject = "Your KHEL-O payout details were changed"

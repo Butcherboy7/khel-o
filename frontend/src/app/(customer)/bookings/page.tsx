@@ -6,6 +6,7 @@ import { Calendar, CalendarX, AlertCircle } from 'lucide-react';
 import { listBookings } from '@/lib/api/bookings';
 import { queryKeys } from '@/hooks/queries/keys';
 import { BookingCard } from '@/components/customer/BookingCard';
+import { MyTournamentPasses } from '@/components/tournaments/MyTournamentPasses';
 import { SkeletonBookingRow, ErrorState, EmptyState, Button } from '@/components/ui';
 import type { BookingStatus } from '@/types';
 
@@ -53,6 +54,8 @@ export default function BookingsListPage() {
           View your upcoming sessions, access QR check-in passes, and track history.
         </p>
       </div>
+
+      <MyTournamentPasses />
 
       {/* Filter Tabs — edge-fades on the trailing side hint that the row
           scrolls horizontally, since tabs otherwise clip mid-word at the

@@ -23,6 +23,7 @@ from app.api.v1.analytics import router as analytics_router
 from app.api.v1.contact import router as contact_router
 from app.api.v1.locations import router as locations_router
 from app.api.v1.owner_intros import router as owner_intros_router
+from app.api.v1.tournaments import public_router as tournaments_router, host_router as tournament_host_router
 from app.api.v1.marketing_campaigns import public_router as campaign_links_router, admin_router as marketing_campaigns_router
 
 api_router = APIRouter()
@@ -51,6 +52,8 @@ api_router.include_router(contact_router, tags=["Contact"])
 api_router.include_router(owner_intros_router)
 api_router.include_router(campaign_links_router)
 api_router.include_router(marketing_campaigns_router)
+api_router.include_router(tournaments_router)
+api_router.include_router(tournament_host_router)
 api_router.include_router(locations_router, prefix="/locations", tags=["Locations"])
 
 @api_router.get("/status", tags=["Status"])

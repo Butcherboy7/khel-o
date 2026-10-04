@@ -23,6 +23,7 @@ import {
   MoreHorizontal,
   LifeBuoy,
   Bell,
+  Swords,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -94,6 +95,7 @@ const ownerNavSections: NavSection[] = [
         hint: 'Set up your PCs, consoles and hourly rates',
       },
       { label: 'Discounts', href: '/owner/offers', icon: Tag, hint: 'Run a time-limited offer' },
+      { label: 'Tournaments', href: '/owner/tournaments', icon: Swords, hint: 'Host a tournament night at your café' },
       { label: 'Reviews', href: '/owner/reviews', icon: Store, hint: 'What customers said' },
       { label: 'Insights', href: '/owner/analytics', icon: BarChart3, hint: 'Busy hours and trends' },
       { label: 'Alerts', href: '/owner/notifications', icon: Bell, hint: 'Updates from KHEL-O' },
@@ -116,6 +118,7 @@ const staffNavItems: NavItem[] = [
   { label: 'Scan & Check-in', href: '/owner/scanner', icon: QrCode, hint: "Scan a customer's booking pass" },
   { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays, hint: 'Every booking, past and upcoming' },
   { label: 'Availability', href: '/owner/availability', icon: CalendarClock, hint: "What's free right now" },
+  { label: 'Tournaments', href: '/owner/tournaments', icon: Swords, hint: 'Check players in and run the bracket' },
 ];
 
 /** Resolves the current route to its nav label, for the mobile title bar. */

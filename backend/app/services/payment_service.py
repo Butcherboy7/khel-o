@@ -524,6 +524,10 @@ class PaymentService:
             payment_id = entity.get("id")
             if order_id:
                 payment = await self.payment_repo.get_by_razorpay_order_id(order_id)
+                if not payment and payment_id:
+                    # Not a booking: a paid tournament entry uses the same Razorpay account.
+                    from app.services.tournament_service import confirm_from_webhook
+                    await confirm_from_webhook(self.db, order_id, payment_id)
                 if payment:
                     # Row-locked for the same reason as verify_payment: this must
                     # not interleave with a concurrent owner "Release Slot" action.

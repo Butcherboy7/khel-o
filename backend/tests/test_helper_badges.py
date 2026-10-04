@@ -114,11 +114,11 @@ async def test_going_live_makes_voters_and_introducers_local_legends(db_session,
     assert idata["xp"] == 500
 
 
-async def test_rewards_always_lists_the_three_emblems(db_session, async_client):
+async def test_rewards_always_lists_every_emblem(db_session, async_client):
     gamer = await create_test_user(db_session, role=UserRole.GAMER)
     await db_session.commit()
     data, badges = await _rewards(async_client, gamer)
-    assert list(badges) == ["day_one", "matchmaker", "local_legend"]
+    assert list(badges) == ["day_one", "matchmaker", "local_legend", "champion"]
     assert data["xp"] == 0
 
 
@@ -134,7 +134,7 @@ async def test_admin_can_track_helper_badges(db_session, async_client):
     assert r.status_code == 200, r.text
     d = r.json()["data"]
     totals = {t["key"]: t["count"] for t in d["totals"]}
-    assert totals["day_one"] >= 1 and set(totals) == {"day_one", "matchmaker", "local_legend"}
+    assert totals["day_one"] >= 1 and set(totals) == {"day_one", "matchmaker", "local_legend", "champion"}
     assert any(x["key"] == "day_one" and x["player"]["email"] == gamer.email for x in d["recent"])
 
     r = await async_client.get("/api/v1/admin/leads/helper-badges", headers=auth_headers(gamer))

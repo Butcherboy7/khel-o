@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { TournamentStrip } from '@/components/tournaments/TournamentStrip';
 import { Search, SlidersHorizontal, CreditCard, QrCode, Radio, RotateCcw, ShieldCheck, Zap } from 'lucide-react';
 
 // Server-rendered, so the copy is in the raw HTML. Plain, verifiable claims
@@ -42,6 +43,8 @@ function Grid({ items }: { items: typeof STEPS }) {
 export function HomeSections() {
   return (
     <div className="flex flex-col gap-8 pt-4">
+      <TournamentStrip />
+
       <section aria-labelledby="how-it-works" className="flex flex-col gap-3">
         <h2 id="how-it-works" className="font-heading text-h2 text-text-primary">How KHEL-O works</h2>
         <Grid items={STEPS} />

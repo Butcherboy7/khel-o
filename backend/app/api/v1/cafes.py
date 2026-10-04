@@ -212,6 +212,12 @@ async def get_cafe_availability(
             "seatsCount": b.seats_count or 1
         })
 
+    # A tournament on this setup holds its stations for the event window.
+    from app.services.tournament_service import reservations_on
+    for r in await reservations_on(db, tier_id, parsed_date):
+        booked_slots.append({"startTime": r["start"].strftime("%H:%M:%S"), "endTime": r["end"].strftime("%H:%M:%S"),
+                             "seatsCount": r["seats"], "tournament": True})
+
     app_bookable_seats = tier.app_bookable_seats or tier.total_seats or 10
 
     # Gaming tiers never get hardware_tier_units rows (units only exist for

@@ -11,6 +11,7 @@ import {
   Trophy,
   UserCircle,
   Bell,
+  Swords,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -29,6 +30,7 @@ interface NavItem {
 
 const customerNavItems: NavItem[] = [
   { label: 'Find Café', href: '/', icon: Search, matchPrefix: false },
+  { label: 'Tournaments', href: '/tournaments', icon: Swords, matchPrefix: true },
   { label: 'My Bookings', href: '/bookings', icon: CalendarDays, matchPrefix: true },
   { label: 'Achievements', href: '/achievements', icon: Trophy, matchPrefix: false },
   { label: 'Profile', href: '/profile', icon: UserCircle, matchPrefix: false },

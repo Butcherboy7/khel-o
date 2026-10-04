@@ -29,6 +29,7 @@ import {
   Banknote,
   type LucideIcon,
   Target,
+  Swords,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
@@ -61,6 +62,7 @@ const adminNavGroups: NavGroup[] = [
     items: [
       { label: 'Bookings', href: '/admin/bookings', icon: CalendarDays },
       { label: 'Marketplace Health', href: '/admin/marketplace-health', icon: Activity },
+      { label: 'Tournaments', href: '/admin/tournaments', icon: Swords },
     ],
   },
   {
