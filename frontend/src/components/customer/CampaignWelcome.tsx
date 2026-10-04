@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Ref } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -42,23 +41,22 @@ function DealCard({
   code,
   where,
   onBook,
-  bookRef,
 }: {
   cafe: CampaignCafe;
   code: string;
   where: 'popup' | 'strip';
   onBook?: () => void;
-  bookRef?: Ref<HTMLAnchorElement>;
 }) {
   const { hour, cheapest, maxSaved } = useMemo(() => headlineDeals(cafe.offers), [cafe.offers]);
   const lead = hour ?? cheapest;
   const href = `${cafePath(cafe)}?promoCode=${encodeURIComponent(code)}`;
+  const [photoOk, setPhotoOk] = useState(Boolean(cafe.photo));
   return (
     <li className="flex gap-3 rounded-2xl border border-border bg-card p-3 text-left">
       <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-surface">
-        {cafe.photo ? (
+        {cafe.photo && photoOk ? (
           /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={cafe.photo} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+          <img src={cafe.photo} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" onError={() => setPhotoOk(false)} />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-text-secondary">
             <Gamepad2 className="h-6 w-6" aria-hidden />
@@ -91,7 +89,6 @@ function DealCard({
           <span className="text-caption font-semibold text-primary-dark">Save up to {rupees(maxSaved)}</span>
           <Link
             href={href}
-            ref={bookRef}
             onClick={() => {
               trackAction(`campaign_${where}_book_cafe`, { code, cafe: cafe.name }, cafe.id);
               onBook?.();
@@ -124,7 +121,7 @@ export function CampaignWelcome() {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [storedCode, setStoredCode] = useState<string | null>(null);
-  const firstBookRef = useRef<HTMLAnchorElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -175,7 +172,7 @@ export function CampaignWelcome() {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
     window.addEventListener('keydown', onKey);
-    firstBookRef.current?.focus();
+    dialogRef.current?.focus();
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -190,7 +187,6 @@ export function CampaignWelcome() {
     return (
       <section aria-labelledby="campaign-strip-title" className="mx-auto mb-4 flex max-w-wide flex-col gap-3 rounded-3xl bg-gradient-to-br from-secondary via-secondary to-[#2B2D42] p-4 text-white">
         <div className="flex items-center gap-3">
-          <SpecialAccessBadge earned size="sm" />
           <div className="min-w-0 flex-1">
             <h2 id="campaign-strip-title" className="font-heading text-body font-bold">
               Your special prices are on
@@ -204,6 +200,7 @@ export function CampaignWelcome() {
           >
             Every price
           </Link>
+          <SpecialAccessBadge earned size="sm" className="hidden flex-shrink-0 sm:inline-flex" />
         </div>
         <ul className="grid gap-2 sm:grid-cols-2">
           {cafes.map((c) => (
@@ -227,8 +224,10 @@ export function CampaignWelcome() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="campaign-welcome-title"
+        ref={dialogRef}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="khelo-pop-in relative flex max-h-[92vh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-3xl bg-card px-4 pb-4 pt-6 shadow-overlay sm:px-5"
+        className="khelo-pop-in outline-none relative flex max-h-[92vh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-3xl bg-card px-4 pb-4 pt-6 shadow-overlay sm:px-5"
       >
         <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-0">
           {Array.from({ length: 22 }).map((_, i) => (
@@ -254,25 +253,21 @@ export function CampaignWelcome() {
           <X className="h-4 w-4" />
         </button>
 
-        <div className="flex items-center gap-3 pr-10">
-          <SpecialAccessBadge earned size="sm" />
-          <div className="min-w-0">
-            <h2 id="campaign-welcome-title" className="font-heading text-h3 font-bold leading-tight text-text-primary">
-              Special prices unlocked
-            </h2>
-            <p className="text-caption text-text-secondary">Pick a café and book. The lower price is already applied.</p>
-          </div>
+        <div className="flex flex-col gap-1 pr-10">
+          <h2 id="campaign-welcome-title" className="font-heading text-h2 font-bold leading-tight text-text-primary">
+            Special prices unlocked
+          </h2>
+          <p className="text-body text-text-secondary">Pick a café and book. The lower price is already applied.</p>
         </div>
 
         <ul className="flex flex-col gap-2">
-          {cafes.map((c, i) => (
+          {cafes.map((c) => (
             <DealCard
               key={c.id}
               cafe={c}
               code={campaign.code}
               where="popup"
               onBook={() => close('book')}
-              bookRef={i === 0 ? firstBookRef : undefined}
             />
           ))}
         </ul>
@@ -288,12 +283,15 @@ export function CampaignWelcome() {
           >
             See every special price
           </Link>
-          <p className="text-caption text-text-secondary" aria-live="polite">
+          <p className="flex items-center justify-center gap-2 text-left text-caption text-text-secondary" aria-live="polite">
+            <SpecialAccessBadge earned size="sm" className="flex-shrink-0" />
+            <span>
             {earned
               ? 'Your Day One OG badge is on your profile.'
               : mounted && isAuthenticated
                 ? 'Adding your Day One OG badge…'
-                : 'No sign-up to look around. Your Day One OG badge comes with your first booking sign-in.'}
+                : 'Yours when you sign in to book. No sign-up to look around.'}
+            </span>
           </p>
         </div>
       </div>
