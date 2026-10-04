@@ -152,6 +152,43 @@ async def test_explore_card_carries_the_best_deal(client):
 
 
 @pytest.mark.asyncio
+async def test_explore_card_picks_the_cheapest_deal_not_the_oldest_fixed_price(client):
+    """Rockstar's card showed "₹300 for 1 hr" (VR, its oldest offer) while a
+    "₹119 for 1 hr" PS5 deal existed: fixed-price deals all scored 0."""
+    from app.models.hardware_tier import HardwareTier
+    from app.models.promotion import PromotionType
+
+    async with AsyncSessionLocal() as db:
+        _owner, _gamer, cafe, ps5 = await _make_cafe_owner_gamer(db)
+        ps5.price_per_hour = 140.0
+        vr = HardwareTier(
+            id=uuid.uuid4(), cafe_id=cafe.id, name="VR", price_per_hour=349.0, total_seats=2,
+            app_bookable_seats=2, active_seats_count=2, is_active=True,
+        )
+        db.add(vr)
+        await db.flush()
+
+        def fixed(tier, price, hours, mode="solo", title="deal"):
+            return _promo(
+                cafe, title=title, discount_percentage=None, promotion_type=PromotionType.FIXED_PRICE,
+                fixed_price_amount=price, min_duration_hours=hours, applicable_tier_id=tier.id, play_mode=mode,
+            )
+
+        db.add(fixed(vr, 300, 1, mode="any", title="1HR SPECIAL"))   # oldest, smallest saving
+        await db.commit()
+        db.add_all([
+            fixed(vr, 299, 1), fixed(ps5, 119, 1), fixed(ps5, 69, 0.5),
+            fixed(ps5, 220, 1, mode="coop"),  # shared console: not the per-person card price
+        ])
+        await db.commit()
+
+    res = await client.get("/api/v1/cafes", params={"city": "Bengaluru", "limit": 50})
+    items = res.json()["data"]["items"] if "items" in res.json().get("data", {}) else res.json()["data"]["cafes"]
+    mine = next(i for i in items if i["id"] == str(cafe.id))
+    assert mine["bestOffer"]["label"] == "₹119 for 1 hr"
+
+
+@pytest.mark.asyncio
 async def test_near_miss_hint_says_which_length_unlocks_the_offer(client):
     async with AsyncSessionLocal() as db:
         _owner, _gamer, cafe, tier = await _make_cafe_owner_gamer(db)

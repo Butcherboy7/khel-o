@@ -421,19 +421,49 @@ class PromotionService:
         now = datetime.now(timezone.utc)
         promos = await self.promo_repo.get_active_for_cafes(cafe_ids, now)
 
-        def size(p: Promotion) -> float:
+        tier_ids = {p.applicable_tier_id for p in promos if p.applicable_tier_id}
+        tiers = {}
+        if tier_ids:
+            from app.models.hardware_tier import HardwareTier
+            rows = await self.promo_repo.db.execute(select(HardwareTier).where(HardwareTier.id.in_(tier_ids)))
+            tiers = {t.id: t for t in rows.scalars().all()}
+
+        def saving_pct(p: Promotion) -> float:
+            """How much cheaper than the setup's normal price, in percent, so a
+            "20% off", a "₹50 off" and a "₹119 for 1 hr" can be compared fairly.
+            (Fixed-price deals used to count as 0 here, so the card showed
+            whichever was created first instead of the best one.)"""
             if p.promotion_type == PromotionType.PERCENTAGE:
                 return float(p.discount_percentage or 0)
+            tier = tiers.get(p.applicable_tier_id)
+            if tier is None:
+                return 0.0
+            coop = (getattr(p, "play_mode", None) or "any") == "coop"
             if p.promotion_type == PromotionType.FIXED_AMOUNT:
-                return float(p.fixed_discount_amount or 0)
-            return 0.0
+                regular = float(base_price_for_minutes(tier, 60, players=2 if coop else 1, is_coop=coop))
+                return 100 * float(p.fixed_discount_amount or 0) / regular if regular else 0.0
+            minutes = round(float(p.min_duration_hours or 0) * 60)
+            if minutes <= 0 or not p.fixed_price_amount:
+                return 0.0
+            regular = float(base_price_for_minutes(tier, minutes, players=2 if coop else 1, is_coop=coop))
+            return 100 * (regular - float(p.fixed_price_amount)) / regular if regular else 0.0
+
+        def hourly_price(p: Promotion) -> float:
+            if p.promotion_type == PromotionType.FIXED_PRICE and p.min_duration_hours:
+                return float(p.fixed_price_amount or 0) / float(p.min_duration_hours)
+            return float("inf")
 
         best: dict = {}
         for p in promos:
             if not self._is_promotion_active(p, now, check_window=False):
                 continue
             live = self._is_promotion_active(p, now)
-            key = (live, size(p))
+            solo_ok = (getattr(p, "play_mode", None) or "any") != "coop"
+            hourly = p.promotion_type == PromotionType.FIXED_PRICE and round(float(p.min_duration_hours or 0) * 60) == 60
+            # Live now first; then deals one player can use (the card's price is
+            # per person); then the biggest real saving; on a tie the 1-hour deal
+            # (the card prices per hour), then the lower hourly price.
+            key = (live, solo_ok, round(saving_pct(p), 1), hourly, -hourly_price(p))
             cur = best.get(p.cafe_id)
             if cur is None or key > cur[0]:
                 best[p.cafe_id] = (key, p, live)
