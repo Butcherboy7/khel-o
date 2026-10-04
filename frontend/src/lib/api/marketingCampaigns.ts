@@ -34,7 +34,14 @@ export interface MarketingCampaign {
   reportFrom: string;
   reportTo: string;
   shortPath: string;
+  /** Other UTM tags that count as this campaign (e.g. Meta's own ad tags). */
+  extraTags?: ExtraTag[];
   summary?: CampaignSummary;
+}
+
+export interface ExtraTag {
+  source: string;
+  campaign: string;
 }
 
 export interface CampaignCreateInput {
@@ -63,6 +70,7 @@ export async function updateMarketingCampaign(
     clearSpend?: boolean;
     status?: CampaignStatus;
     startedOn?: string;
+    extraTags?: ExtraTag[];
   },
 ): Promise<{ campaign: MarketingCampaign }> {
   return call(() => apiClient.patch(`/api/v1/admin/marketing-campaigns/${id}`, patch));

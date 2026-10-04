@@ -167,7 +167,18 @@ async def get_ad_campaign_report(
 
     if end < start or (end - start).days > 92:
         raise BadRequestException(message="Pick a range of up to 3 months", error_code="INVALID_RANGE")
-    data = await growth_report_service.campaign_report(db, source, campaign or None, start, end, include_internal)
+    from sqlalchemy import select as _select
+    from app.models.marketing_campaign import MarketingCampaign
+    from app.api.v1.marketing_campaigns import tag_pairs
+
+    also = []
+    if campaign:
+        mc = (await db.execute(
+            _select(MarketingCampaign).where(MarketingCampaign.slug == campaign, MarketingCampaign.utm_source == source)
+        )).scalar_one_or_none()
+        if mc:
+            also = tag_pairs(mc)
+    data = await growth_report_service.campaign_report(db, source, campaign or None, start, end, include_internal, also=also)
     return {"success": True, "data": data}
 
 

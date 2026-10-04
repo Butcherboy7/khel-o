@@ -665,6 +665,8 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
         {saveError && <p className="text-caption text-error">{saveError}</p>}
       </form>
 
+      <ExtraTags campaign={campaign} />
+
       {report && report.totals.visitors > 0 && (
         <>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -741,6 +743,81 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
         </>
       )}
     </div>
+  );
+}
+
+/** Visits that reached the site with someone else's tags but belong to this
+ *  campaign, e.g. a boosted reel's ad that Meta tags with its own ad number. */
+function ExtraTags({ campaign }: { campaign: MarketingCampaign }) {
+  const queryClient = useQueryClient();
+  const tags = campaign.extraTags ?? [];
+  const [source, setSource] = useState('');
+  const [tag, setTag] = useState('');
+  const save = useMutation({
+    mutationFn: (next: { source: string; campaign: string }[]) => updateMarketingCampaign(campaign.id, { extraTags: next }),
+    onSuccess: () => {
+      setSource('');
+      setTag('');
+      queryClient.invalidateQueries({ queryKey: ['admin', 'marketing-campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'analytics', 'ad-report'] });
+    },
+  });
+  const input = 'min-h-input rounded-lg border border-border bg-card px-3 text-body font-normal';
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 md:p-5">
+      <div>
+        <h2 className="font-heading text-h3 text-text-primary">Also counts visits tagged</h2>
+        <p className="text-caption text-text-secondary">
+          When Meta sends people with its own tags (source “ig”, campaign = the ad number) instead of your short
+          link, add them here and they count as this campaign.
+        </p>
+      </div>
+      {tags.length > 0 ? (
+        <ul className="flex flex-wrap gap-2">
+          {tags.map((t) => (
+            <li key={`${t.source}/${t.campaign}`} className="inline-flex items-center gap-2 rounded-full bg-surface py-1 pl-3 pr-1 text-caption">
+              <span className="font-data text-text-primary">
+                {t.source} · {t.campaign}
+              </span>
+              <button
+                type="button"
+                aria-label={`Stop counting ${t.source} ${t.campaign}`}
+                disabled={save.isPending}
+                onClick={() => save.mutate(tags.filter((x) => x !== t))}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-text-secondary hover:bg-border/60 hover:text-text-primary"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-caption text-text-tertiary">None yet. Only visits from the short link count.</p>
+      )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (source.trim() && tag.trim()) save.mutate([...tags, { source: source.trim(), campaign: tag.trim() }]);
+        }}
+        className="flex flex-wrap items-end gap-3"
+      >
+        <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+          Source
+          <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="ig" maxLength={60} className={`${input} w-28`} />
+        </label>
+        <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+          Campaign tag
+          <input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="23860597373710791" maxLength={100} className={`${input} w-56`} />
+        </label>
+        <button
+          type="submit"
+          disabled={!source.trim() || !tag.trim() || save.isPending}
+          className="min-h-input rounded-lg border border-border px-4 font-semibold text-text-primary hover:bg-surface disabled:opacity-40"
+        >
+          {save.isPending ? 'Adding…' : 'Add'}
+        </button>
+      </form>
+    </section>
   );
 }
 

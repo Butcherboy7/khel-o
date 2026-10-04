@@ -128,8 +128,9 @@ async def campaign_options(db: AsyncSession, days: int = 90) -> list[dict]:
 
 async def campaign_report(
     db: AsyncSession, source: str, campaign: Optional[str], start_day: date, end_day: date,
-    include_internal: bool = False,
+    include_internal: bool = False, also: Optional[list] = None,
 ) -> dict:
+    """`also`: extra (source, campaign) tag pairs that count as this campaign."""
     start, end = _utc(start_day), _utc(end_day + timedelta(days=1))
     rows = await _events(db, start, end)
     internal = _internal_sessions(rows)
@@ -141,9 +142,13 @@ async def campaign_report(
     for r in rows:
         by_session[r[0]].append(r)
 
+    extra = {(str(s), str(c)) for s, c in (also or [])}
+
     def matches(meta: dict) -> bool:
         u = _utm(meta)
-        return u.get("s") == source and (campaign is None or (u.get("c") or None) == campaign)
+        if u.get("s") == source and (campaign is None or (u.get("c") or None) == campaign):
+            return True
+        return (str(u.get("s")), str(u.get("c"))) in extra
 
     cohort = {sid: evs for sid, evs in by_session.items() if any(matches(e[4]) for e in evs)}
 

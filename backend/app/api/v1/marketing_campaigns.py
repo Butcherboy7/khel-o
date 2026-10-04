@@ -94,8 +94,26 @@ class CampaignCreate(BaseModel):
         return v
 
 
+class ExtraTag(BaseModel):
+    source: str = Field(..., min_length=1, max_length=60)
+    campaign: str = Field(..., min_length=1, max_length=100)
+
+    @field_validator("source", "campaign")
+    @classmethod
+    def _trim(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Can't be empty")
+        return v
+
+
+def tag_pairs(c: MarketingCampaign) -> list[tuple[str, str]]:
+    return [(t["source"], t["campaign"]) for t in (c.extra_tags or []) if t.get("source") and t.get("campaign")]
+
+
 class CampaignUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=120)
+    extra_tags: Optional[list[ExtraTag]] = Field(None, max_length=10)
     spend_inr: Optional[int] = Field(None, ge=0, le=10_000_000)
     clear_spend: bool = False
     status: Optional[Status] = None
@@ -121,6 +139,7 @@ def _out(c: MarketingCampaign, summary: Optional[dict] = None) -> dict:
         "reportFrom": start.isoformat(),
         "reportTo": end.isoformat(),
         "shortPath": f"/c/{c.slug}",
+        "extraTags": [{"source": s, "campaign": k} for s, k in tag_pairs(c)],
     }
     if summary is not None:
         data["summary"] = summary
@@ -132,7 +151,7 @@ async def _summary(db: AsyncSession, c: MarketingCampaign) -> dict:
     if start > end:
         t = {"visitors": 0, "viewedCafe": 0, "bookingStarted": 0, "booked": 0, "bookings": 0, "gmv": 0}
     else:
-        t = (await growth_report_service.campaign_report(db, c.utm_source, c.slug, start, end))["totals"]
+        t = (await growth_report_service.campaign_report(db, c.utm_source, c.slug, start, end, also=tag_pairs(c)))["totals"]
     bookings = t["bookings"]
     return {
         "visitors": t["visitors"],
@@ -220,6 +239,14 @@ async def update_campaign(
         c.status = payload.status
     if payload.started_on is not None:
         c.started_on = payload.started_on
+    if payload.extra_tags is not None:
+        seen, tags = set(), []
+        for t in payload.extra_tags:
+            key = (t.source, t.campaign)
+            if key != (c.utm_source, c.slug) and key not in seen:
+                seen.add(key)
+                tags.append({"source": t.source, "campaign": t.campaign})
+        c.extra_tags = tags
     await db.commit()
     await db.refresh(c)
     return {"success": True, "data": {"campaign": _out(c)}}

@@ -91,3 +91,47 @@ async def test_start_date_can_be_changed(db_session, async_client):
     r = await async_client.patch(f"/api/v1/admin/marketing-campaigns/{cid}", headers=h, json={"startedOn": "2026-10-04"})
     assert r.status_code == 200, r.text
     assert r.json()["data"]["campaign"]["startedOn"] == "2026-10-04"
+
+
+async def test_extra_tags_fold_meta_ad_visits_into_the_campaign(db_session, async_client):
+    """A boosted reel's ad can arrive with Meta's own tags (ig / <ad id>);
+    listing them on the campaign counts those visitors too."""
+    from datetime import date, timedelta
+
+    h = await _admin(db_session)
+    body = _body()
+    slug = body["slug"]
+    ad_id = str(uuid.uuid4().int)[:17]
+    cid = (await async_client.post("/api/v1/admin/marketing-campaigns", headers=h, json=body)).json()["data"]["campaign"]["id"]
+
+    async def visit(sid, utm):
+        r = await async_client.post(
+            "/api/v1/analytics/events",
+            json={"sessionId": sid, "eventType": "page_view", "metadata": {"path": "/", "utm": utm}},
+        )
+        assert r.status_code == 204, r.text
+
+    await visit(f"s-{uuid.uuid4().hex[:8]}", {"s": "meta", "m": "paid_social", "c": slug, "t": "instagram_reel"})
+    await visit(f"s-{uuid.uuid4().hex[:8]}", {"s": "ig", "m": "paid", "c": ad_id, "t": "123"})
+
+    today = date.today()
+    params = {"source": "meta", "campaign": slug, "from": (today - timedelta(days=1)).isoformat(), "to": (today + timedelta(days=1)).isoformat()}
+
+    async def visitors():
+        r = await async_client.get("/api/v1/admin/analytics/ad-campaigns/report", params=params, headers=h)
+        assert r.status_code == 200, r.text
+        return r.json()["data"]["totals"]["visitors"]
+
+    assert await visitors() == 1
+
+    r = await async_client.patch(
+        f"/api/v1/admin/marketing-campaigns/{cid}", headers=h,
+        json={"extraTags": [{"source": " ig ", "campaign": ad_id}, {"source": "ig", "campaign": ad_id}]},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["campaign"]["extraTags"] == [{"source": "ig", "campaign": ad_id}]
+    assert await visitors() == 2
+
+    r = await async_client.patch(f"/api/v1/admin/marketing-campaigns/{cid}", headers=h, json={"extraTags": []})
+    assert r.json()["data"]["campaign"]["extraTags"] == []
+    assert await visitors() == 1
