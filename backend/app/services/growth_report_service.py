@@ -9,6 +9,7 @@ Both read `analytics_events` (every event carries the visitor's latest UTM
 tags as metadata.utm and the device as metadata.dev/iab) and join bookings
 and the waitlist through user / café. Nothing new is stored.
 """
+import re
 import uuid
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -67,23 +68,35 @@ async def _events(db: AsyncSession, start: datetime, end: datetime, types: Optio
     return (await db.execute(stmt.order_by(AnalyticsEvent.created_at))).all()
 
 
+# Address pieces that name a building or a landmark, not a neighbourhood.
+_NOT_AN_AREA = re.compile(
+    r"\b(flat|floor|building|bldg|apartments?|apts?|plot|shop|h\.?\s?no|door|near|opp|opposite|beside|"
+    r"behind|above|arcade|complex|towers?|block|mall|plaza|road|rd|street|lane|cross|bus stop)\b",
+    re.IGNORECASE,
+)
+
+
 def _cafe_area(cafe: Cafe) -> str:
     """The café's neighbourhood: from its map pin when it has one, else from
     its address (most cafés are listed without a pin), else Other areas."""
     _, locality = locality_for(cafe.latitude, cafe.longitude)
     if locality:
         return locality
-    if cafe.address_line2 and cafe.address_line2.strip() and len(cafe.address_line2.strip()) <= 40:
-        return cafe.address_line2.strip().title()
-    text = (cafe.address_line1 or "").lower()
+    line1, line2 = cafe.address_line1 or "", cafe.address_line2 or ""
+    # A known neighbourhood named anywhere in the address wins:
+    # "Near Last Bus Stop Bowenpally" -> "Bowenpally".
+    text = f"{line1} {line2}".lower()
     for name, _, _ in LOCALITIES.get((cafe.city or "").title(), []):
-        if name.lower() in text:
+        if any(alias.strip().lower() in text for alias in name.split("/")):
             return name
-    # "DG Gaming Cafe, Bowenpally" -> "Bowenpally": first address part that
-    # isn't the café's own name or a door number.
-    skip = {(cafe.name or "").lower(), (cafe.city or "").lower(), (cafe.state or "").lower(), "india"}
-    for part in (p.strip() for p in (cafe.address_line1 or "").split(",")):
-        if part and part.lower() not in skip and not any(ch.isdigit() for ch in part) and len(part) <= 30:
+    # Otherwise the first address piece that reads like a place name, not the
+    # café's own name, a door number or a building ("DG Gaming Cafe, Alwal" -> "Alwal").
+    skip = {(cafe.name or "").lower(), (cafe.city or "").lower(), (cafe.state or "").lower(), "india", "telangana"}
+    for part in (p.strip() for p in f"{line2},{line1}".split(",")):
+        if (
+            part and part.lower() not in skip and len(part) <= 30
+            and not any(ch.isdigit() for ch in part) and not _NOT_AN_AREA.search(part)
+        ):
             return part.title()
     return OTHER_AREA
 
