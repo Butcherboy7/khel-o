@@ -204,11 +204,11 @@ function CheckoutLosses({ report }: { report: AdCampaignReport }) {
   );
 }
 
-const TONE: Record<AdviceTone, { icon: LucideIcon; label: string; chip: string; ring: string }> = {
-  fix: { icon: AlertTriangle, label: 'Fix now', chip: 'bg-error/10 text-error', ring: 'border-l-error' },
-  watch: { icon: Eye, label: 'Watch', chip: 'bg-warning/15 text-amber-800', ring: 'border-l-warning' },
-  good: { icon: CheckCircle2, label: 'Working', chip: 'bg-success/10 text-success', ring: 'border-l-success' },
-  info: { icon: Info, label: 'Good to know', chip: 'bg-surface text-text-secondary', ring: 'border-l-border' },
+const TONE: Record<AdviceTone, { icon: LucideIcon; label: string; chip: string; tint: string }> = {
+  fix: { icon: AlertTriangle, label: 'Fix now', chip: 'bg-error/10 text-error', tint: 'bg-error/5' },
+  watch: { icon: Eye, label: 'Watch', chip: 'bg-warning/15 text-amber-800', tint: 'bg-warning/10' },
+  good: { icon: CheckCircle2, label: 'Working', chip: 'bg-success/10 text-success', tint: 'bg-success/5' },
+  info: { icon: Info, label: 'Good to know', chip: 'bg-surface text-text-secondary', tint: 'bg-surface' },
 };
 
 /** "What to do next": the server reads the numbers and says where people are lost and what to change. */
@@ -226,7 +226,7 @@ function NextSteps({ report }: { report: AdCampaignReport }) {
         </h2>
       </div>
 
-      <div className={cn('flex flex-col gap-2 rounded-xl border border-l-4 border-border p-4', TONE[first.tone].ring)}>
+      <div className={cn('flex flex-col gap-2 rounded-xl p-4', TONE[first.tone].tint)}>
         <span className={cn('inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-caption font-semibold', TONE[first.tone].chip)}>
           <FirstIcon className="h-3.5 w-3.5" aria-hidden />
           {first.tone === 'fix' ? 'Fix this first' : TONE[first.tone].label}
