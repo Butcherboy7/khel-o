@@ -99,6 +99,7 @@ class CampaignUpdate(BaseModel):
     spend_inr: Optional[int] = Field(None, ge=0, le=10_000_000)
     clear_spend: bool = False
     status: Optional[Status] = None
+    started_on: Optional[date] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -217,6 +218,8 @@ async def update_campaign(
         c.spend_inr = payload.spend_inr
     if payload.status is not None:
         c.status = payload.status
+    if payload.started_on is not None:
+        c.started_on = payload.started_on
     await db.commit()
     await db.refresh(c)
     return {"success": True, "data": {"campaign": _out(c)}}

@@ -299,7 +299,15 @@ export interface AreaRow {
 export interface AreaReport {
   city: string;
   days: number;
-  totals: { visitors: number; sharedLocation: number; bookings: number; gmv: number; avgBookingValue: number | null };
+  totals: {
+    visitors: number;
+    sharedLocation: number;
+    cafeViewers?: number;
+    notifyMe?: number;
+    bookings: number;
+    gmv: number;
+    avgBookingValue: number | null;
+  };
   areas: AreaRow[];
   flows: { from: string; to: string; sessions: number }[];
   cities: { city: string; sessions: number }[];

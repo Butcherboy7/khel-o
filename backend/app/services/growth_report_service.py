@@ -17,7 +17,7 @@ from typing import Any, Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.localities import locality_for
+from app.core.localities import LOCALITIES, locality_for
 from app.models.analytics_event import AnalyticsEvent
 from app.models.booking import Booking, BookingStatus
 from app.models.cafe import Cafe
@@ -68,8 +68,24 @@ async def _events(db: AsyncSession, start: datetime, end: datetime, types: Optio
 
 
 def _cafe_area(cafe: Cafe) -> str:
+    """The café's neighbourhood: from its map pin when it has one, else from
+    its address (most cafés are listed without a pin), else Other areas."""
     _, locality = locality_for(cafe.latitude, cafe.longitude)
-    return locality or OTHER_AREA
+    if locality:
+        return locality
+    if cafe.address_line2 and cafe.address_line2.strip() and len(cafe.address_line2.strip()) <= 40:
+        return cafe.address_line2.strip().title()
+    text = (cafe.address_line1 or "").lower()
+    for name, _, _ in LOCALITIES.get((cafe.city or "").title(), []):
+        if name.lower() in text:
+            return name
+    # "DG Gaming Cafe, Bowenpally" -> "Bowenpally": first address part that
+    # isn't the café's own name or a door number.
+    skip = {(cafe.name or "").lower(), (cafe.city or "").lower(), (cafe.state or "").lower(), "india"}
+    for part in (p.strip() for p in (cafe.address_line1 or "").split(",")):
+        if part and part.lower() not in skip and not any(ch.isdigit() for ch in part) and len(part) <= 30:
+            return part.title()
+    return OTHER_AREA
 
 
 # --------------------------------------------------------------- campaigns
@@ -419,7 +435,8 @@ async def area_report(db: AsyncSession, city: str, days: int = 90) -> dict:
             "peakDay": s["weekday"].most_common(1)[0][0] if s["weekday"] else None,
             "lowData": n < LOW_DATA_BOOKINGS,
         })
-    areas.sort(key=lambda a: (a["playersNearby"] + a["cafeViewers"] + a["notifyMe"], a["gmv"]), reverse=True)
+    # Busiest first; the catch-all bucket always last so it never tops the list.
+    areas.sort(key=lambda a: (a["area"] != OTHER_AREA, a["playersNearby"] + a["cafeViewers"] + a["notifyMe"], a["gmv"]), reverse=True)
 
     total_bookings = sum(a["bookings"] for a in areas)
     total_gmv = sum(a["gmv"] for a in areas)
@@ -429,6 +446,8 @@ async def area_report(db: AsyncSession, city: str, days: int = 90) -> dict:
         "totals": {
             "visitors": len(city_sessions.get(city, set())),
             "sharedLocation": len(home_of),
+            "cafeViewers": len(set().union(*viewers.values())) if viewers else 0,
+            "notifyMe": sum(notify.values()),
             "bookings": total_bookings,
             "gmv": round(total_gmv, 2),
             "avgBookingValue": round(total_gmv / total_bookings, 2) if total_bookings else None,

@@ -157,7 +157,8 @@ function DropOff({ report }: { report: AdCampaignReport }) {
       </ol>
       {worst && (
         <p className="rounded-lg bg-warning/10 px-3 py-2 text-caption text-text-primary">
-          <strong>Biggest leak:</strong> {worst.lost} of {worst.from} didn&apos;t get to “{worst.label.toLowerCase()}”.
+          <strong>Most people stopped before “{worst.label}”:</strong> {worst.lost} of {worst.from}{' '}
+          ({pct(worst.lost / worst.from)}) never got that far. Fixing this step helps the most.
         </p>
       )}
     </section>
@@ -384,19 +385,80 @@ function NewCampaignForm({ onDone }: { onDone: (c: MarketingCampaign) => void })
   );
 }
 
+type Period = 'start' | 'today' | 'week' | 'custom';
+const PERIODS: { key: Period; label: string }[] = [
+  { key: 'start', label: 'Since it started' },
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'Last 7 days' },
+  { key: 'custom', label: 'Pick dates' },
+];
+interface SavedView {
+  period: Period;
+  from?: string;
+  to?: string;
+}
+
+/** Which dates the admin last chose to look at, per campaign, on this device. */
+function readView(id: string): SavedView {
+  try {
+    const v = JSON.parse(localStorage.getItem(`khelo.campaignView.${id}`) ?? 'null');
+    if (v && PERIODS.some((p) => p.key === v.period)) return v;
+  } catch {}
+  return { period: 'start' };
+}
+function writeView(id: string, v: SavedView) {
+  try {
+    localStorage.setItem(`khelo.campaignView.${id}`, JSON.stringify(v));
+  } catch {}
+}
+
+const shortDay = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+
 function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
   const queryClient = useQueryClient();
-  const [from, setFrom] = useState(campaign.reportFrom);
-  const [to, setTo] = useState(campaign.reportTo);
+  const today = isoDay(new Date());
+  const [view, setView] = useState<SavedView>({ period: 'start' });
   const [includeTests, setIncludeTests] = useState(false);
   const [spend, setSpend] = useState(campaign.spendInr?.toString() ?? '');
+  const [startedOn, setStartedOn] = useState(campaign.startedOn);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const { copied, copy } = useCopy();
 
   useEffect(() => {
-    setFrom(campaign.reportFrom);
-    setTo(campaign.reportTo);
+    setView(readView(campaign.id));
+  }, [campaign.id]);
+  useEffect(() => {
     setSpend(campaign.spendInr?.toString() ?? '');
-  }, [campaign.id, campaign.reportFrom, campaign.reportTo, campaign.spendInr]);
+    setStartedOn(campaign.startedOn);
+  }, [campaign.id, campaign.spendInr, campaign.startedOn]);
+  useEffect(() => {
+    if (savedAt === null) return;
+    const t = setTimeout(() => setSavedAt(null), 4000);
+    return () => clearTimeout(t);
+  }, [savedAt]);
+
+  const chooseView = (v: SavedView) => {
+    setView(v);
+    writeView(campaign.id, v);
+  };
+
+  // The dates the numbers below cover. "Since it started" follows the saved
+  // start date, so changing that date moves this too.
+  const start = campaign.reportFrom;
+  const weekAgo = isoDay(new Date(Date.now() - 6 * 86_400_000));
+  const { from, to } =
+    view.period === 'today'
+      ? { from: today, to: today }
+      : view.period === 'week'
+      ? { from: weekAgo > start ? weekAgo : start, to: today }
+      : view.period === 'custom'
+      ? { from: view.from ?? start, to: view.to ?? today }
+      : { from: start, to: campaign.reportTo };
+  const showingLine =
+    from === to
+      ? `Showing ${from === today ? 'today' : shortDay(from)} only`
+      : `Showing ${shortDay(from)} – ${to === today ? 'today' : shortDay(to)}`;
 
   const upcoming = from > to;
   const { data: report, isLoading } = useQuery({
@@ -411,6 +473,21 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
     mutationFn: (patch: Parameters<typeof updateMarketingCampaign>[1]) => updateMarketingCampaign(campaign.id, patch),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'marketing-campaigns'] }),
   });
+  const saveDetails = useMutation({
+    mutationFn: () =>
+      updateMarketingCampaign(campaign.id, {
+        ...(Number(spend) > 0 ? { spendInr: Number(spend) } : { clearSpend: true }),
+        startedOn,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'marketing-campaigns'] });
+      setSavedAt(Date.now());
+    },
+  });
+  const detailsChanged =
+    spend.trim() !== (campaign.spendInr?.toString() ?? '') || (startedOn !== campaign.startedOn && startedOn !== '');
+  const saveError = (saveDetails.error as { response?: { data?: { error?: { message?: string } } } } | null)?.response
+    ?.data?.error?.message;
 
   const spendNum = campaign.spendInr && campaign.spendInr > 0 ? campaign.spendInr : null;
   const t = report?.totals;
@@ -451,8 +528,67 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
 
         <ShortLink campaign={campaign} copied={copied} copy={copy} />
 
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="text-caption font-semibold text-text-secondary">Numbers for</span>
+            <div role="radiogroup" aria-label="Which dates to show" className="flex flex-wrap gap-1 rounded-xl bg-surface p-1">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={view.period === p.key}
+                  onClick={() =>
+                    chooseView(p.key === 'custom' ? { period: 'custom', from: view.from ?? from, to: view.to ?? to } : { period: p.key })
+                  }
+                  className={cn(
+                    'min-h-[36px] rounded-lg px-3 text-caption font-semibold transition-colors',
+                    view.period === p.key ? 'bg-card text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary',
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <label className="flex min-h-[36px] items-center gap-2 text-caption text-text-secondary">
+              <input type="checkbox" checked={includeTests} onChange={(e) => setIncludeTests(e.target.checked)} className="h-4 w-4 accent-primary" />
+              Include our own test visits
+            </label>
+          </div>
+          {view.period === 'custom' && (
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+                From
+                <input
+                  type="date"
+                  value={from}
+                  max={to}
+                  onChange={(e) => e.target.value && chooseView({ period: 'custom', from: e.target.value, to })}
+                  className="min-h-input rounded-lg border border-border bg-card px-3 text-body font-normal"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+                To
+                <input
+                  type="date"
+                  value={to}
+                  min={from}
+                  max={today}
+                  onChange={(e) => e.target.value && chooseView({ period: 'custom', from, to: e.target.value })}
+                  className="min-h-input rounded-lg border border-border bg-card px-3 text-body font-normal"
+                />
+              </label>
+            </div>
+          )}
+          <p className="text-caption text-text-secondary">
+            {showingLine}. This only changes what you&apos;re looking at; it&apos;s remembered on this device.
+          </p>
+        </div>
+
         {upcoming ? (
-          <p className="text-body text-text-secondary">This campaign starts on {campaign.startedOn}. Numbers appear from that day.</p>
+          <p className="text-body text-text-secondary">
+            This campaign starts on {shortDay(campaign.startedOn)}. Numbers appear from that day.
+          </p>
         ) : isLoading || !report ? (
           <SkeletonCard />
         ) : (
@@ -474,43 +610,60 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
           </>
         )}
 
-        <div className="flex flex-wrap items-end gap-3 border-t border-border pt-4">
-          <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
-            Spent (₹)
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min={0}
-                inputMode="numeric"
-                value={spend}
-                placeholder="0"
-                onChange={(e) => setSpend(e.target.value)}
-                className="min-h-input w-28 rounded-lg border border-border bg-card px-3 text-body font-normal"
-              />
-              <button
-                type="button"
-                disabled={update.isPending || spend === (campaign.spendInr?.toString() ?? '')}
-                onClick={() => update.mutate(Number(spend) > 0 ? { spendInr: Number(spend) } : { clearSpend: true })}
-                className="min-h-input rounded-lg bg-secondary px-3 font-semibold text-white disabled:opacity-40"
-              >
-                Save
-              </button>
-            </div>
-          </label>
-          <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
-            From
-            <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className="min-h-input rounded-lg border border-border bg-card px-3 text-body font-normal" />
-          </label>
-          <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
-            To
-            <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} className="min-h-input rounded-lg border border-border bg-card px-3 text-body font-normal" />
-          </label>
-          <label className="flex min-h-input items-center gap-2 text-caption font-semibold text-text-primary">
-            <input type="checkbox" checked={includeTests} onChange={(e) => setIncludeTests(e.target.checked)} className="h-4 w-4 accent-primary" />
-            Include our own test visits
-          </label>
-        </div>
       </section>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (detailsChanged && !saveDetails.isPending) saveDetails.mutate();
+        }}
+        className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 md:p-5"
+      >
+        <div>
+          <h2 className="font-heading text-h3 text-text-primary">Campaign details</h2>
+          <p className="text-caption text-text-secondary">Saved for good, and used in every number on this page.</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+            Money spent (₹)
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={spend}
+              placeholder="0"
+              onChange={(e) => setSpend(e.target.value)}
+              className="min-h-input w-36 rounded-lg border border-border bg-card px-3 text-body font-normal"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+            Counting visits from
+            <input
+              type="date"
+              value={startedOn}
+              max={today}
+              onChange={(e) => setStartedOn(e.target.value)}
+              className="min-h-input rounded-lg border border-border bg-card px-3 text-body font-normal"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={!detailsChanged || saveDetails.isPending}
+            className="min-h-input rounded-lg bg-primary px-5 font-semibold text-white disabled:opacity-40"
+          >
+            {saveDetails.isPending ? 'Saving…' : 'Save'}
+          </button>
+          {savedAt !== null && !detailsChanged && (
+            <span role="status" className="inline-flex min-h-input items-center gap-1.5 text-caption font-semibold text-success">
+              <Check className="h-4 w-4" /> Saved
+            </span>
+          )}
+        </div>
+        <p className="text-caption text-text-secondary">
+          Set “Counting visits from” to the day the link first went out. Taps before that day aren&apos;t counted.
+        </p>
+        {saveError && <p className="text-caption text-error">{saveError}</p>}
+      </form>
 
       {report && report.totals.visitors > 0 && (
         <>

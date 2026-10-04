@@ -82,3 +82,12 @@ async def test_admin_only(db_session, async_client):
     r = await async_client.get("/api/v1/admin/marketing-campaigns", headers=auth_headers(gamer))
     assert r.status_code in (401, 403)
     assert (await async_client.get("/api/v1/c/nope")).status_code == 404
+
+
+async def test_start_date_can_be_changed(db_session, async_client):
+    h = await _admin(db_session)
+    body = _body(startedOn="2026-10-05")
+    cid = (await async_client.post("/api/v1/admin/marketing-campaigns", headers=h, json=body)).json()["data"]["campaign"]["id"]
+    r = await async_client.patch(f"/api/v1/admin/marketing-campaigns/{cid}", headers=h, json={"startedOn": "2026-10-04"})
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["campaign"]["startedOn"] == "2026-10-04"

@@ -57,7 +57,13 @@ export async function createMarketingCampaign(input: CampaignCreateInput): Promi
 
 export async function updateMarketingCampaign(
   id: string,
-  patch: { name?: string; spendInr?: number; clearSpend?: boolean; status?: CampaignStatus },
+  patch: {
+    name?: string;
+    spendInr?: number;
+    clearSpend?: boolean;
+    status?: CampaignStatus;
+    startedOn?: string;
+  },
 ): Promise<{ campaign: MarketingCampaign }> {
   return call(() => apiClient.patch(`/api/v1/admin/marketing-campaigns/${id}`, patch));
 }
