@@ -17,6 +17,7 @@ import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 import { PhoneNumberPrompt } from '@/components/layout/PhoneNumberPrompt';
+import { CampaignBadgeClaimer } from '@/components/customer/CampaignBadgeClaimer';
 import { apiClient } from '@/lib/api/client';
 
 interface NavItem {
@@ -205,6 +206,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
 
       <CustomerBottomNav />
       <PhoneNumberPrompt />
+      <CampaignBadgeClaimer />
     </div>
   );
 }

@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, Plus, QrCode, Target, X } from 'lucide-react';
-import { getAdCampaignReport, type AdCampaignReport, type NamedCount } from '@/lib/api/adminAnalytics';
+import { AlertTriangle, Check, CheckCircle2, Copy, Eye, Info, Plus, QrCode, Target, X, type LucideIcon } from 'lucide-react';
+import { getAdCampaignReport, type AdCampaignReport, type AdviceTone, type NamedCount } from '@/lib/api/adminAnalytics';
 import {
   CHANNEL_LABELS,
   createMarketingCampaign,
@@ -204,12 +204,76 @@ function CheckoutLosses({ report }: { report: AdCampaignReport }) {
   );
 }
 
+const TONE: Record<AdviceTone, { icon: LucideIcon; label: string; chip: string; ring: string }> = {
+  fix: { icon: AlertTriangle, label: 'Fix now', chip: 'bg-error/10 text-error', ring: 'border-l-error' },
+  watch: { icon: Eye, label: 'Watch', chip: 'bg-warning/15 text-amber-800', ring: 'border-l-warning' },
+  good: { icon: CheckCircle2, label: 'Working', chip: 'bg-success/10 text-success', ring: 'border-l-success' },
+  info: { icon: Info, label: 'Good to know', chip: 'bg-surface text-text-secondary', ring: 'border-l-border' },
+};
+
+/** "What to do next": the server reads the numbers and says where people are lost and what to change. */
+function NextSteps({ report }: { report: AdCampaignReport }) {
+  const advice = report.advice;
+  if (!advice || advice.steps.length === 0) return null;
+  const [first, ...rest] = advice.steps;
+  const FirstIcon = TONE[first.tone].icon;
+  return (
+    <section aria-labelledby="next-steps-title" className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 md:p-5">
+      <div className="flex flex-col gap-1">
+        <span className="text-overline text-text-secondary">What to do next</span>
+        <h2 id="next-steps-title" className="font-heading text-h3 text-text-primary text-balance">
+          {advice.headline}
+        </h2>
+      </div>
+
+      <div className={cn('flex flex-col gap-2 rounded-xl border border-l-4 border-border p-4', TONE[first.tone].ring)}>
+        <span className={cn('inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-caption font-semibold', TONE[first.tone].chip)}>
+          <FirstIcon className="h-3.5 w-3.5" aria-hidden />
+          {first.tone === 'fix' ? 'Fix this first' : TONE[first.tone].label}
+        </span>
+        <p className="font-heading text-body-emphasis text-text-primary">{first.title}</p>
+        <p className="text-body text-text-secondary">{first.detail}</p>
+        <p className="text-body text-text-primary">
+          <strong>Do this:</strong> {first.todo}
+        </p>
+      </div>
+
+      {rest.length > 0 && (
+        <ol className="flex flex-col divide-y divide-border">
+          {rest.map((s) => {
+            const Icon = TONE[s.tone].icon;
+            return (
+              <li key={s.key} className="flex gap-3 py-3">
+                <span className={cn('mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full', TONE[s.tone].chip)} title={TONE[s.tone].label}>
+                  <Icon className="h-4 w-4" aria-hidden />
+                  <span className="sr-only">{TONE[s.tone].label}:</span>
+                </span>
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <p className="font-semibold text-body text-text-primary">{s.title}</p>
+                  <p className="text-caption text-text-secondary">{s.detail}</p>
+                  <p className="text-caption text-text-primary">
+                    <span className="font-semibold">Do this:</span> {s.todo}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <p className="text-caption text-text-secondary">Worked out from the numbers for the dates above. It changes as new visits come in.</p>
+    </section>
+  );
+}
+
 const ACTION_LABELS: [string, string][] = [
-  ['campaign_popup_shown', 'Saw the Day One pop-up'],
-  ['campaign_popup_sign_in', 'Tapped “Sign in to claim”'],
+  ['campaign_popup_shown', 'Saw the welcome pop-up'],
+  ['campaign_popup_book_cafe', 'Tapped Book on a café in the pop-up'],
+  ['campaign_strip_book_cafe', 'Tapped Book on a café at the top of the home page'],
+  ['campaign_strip_see_prices', 'Tapped “See every special price” on the home page'],
+  ['campaign_popup_sign_in', 'Tapped “Sign in to claim” (old pop-up)'],
   ['campaign_badge_claimed', 'Claimed the badge'],
-  ['campaign_popup_see_prices', 'Tapped “See all prices”'],
-  ['campaign_popup_start_booking', 'Tapped “Start booking”'],
+  ['campaign_popup_see_prices', 'Tapped “See every special price” in the pop-up'],
+  ['campaign_popup_start_booking', 'Tapped “Start booking” (old pop-up)'],
   ['campaign_popup_close', 'Closed the pop-up'],
   ['campaign_prices_sign_in', 'Signed in from the prices page'],
   ['campaign_book_now', 'Tapped “Book now” on a café'],
@@ -612,6 +676,8 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
 
       </section>
 
+      {report && !upcoming && <NextSteps report={report} />}
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -973,6 +1039,15 @@ export default function CampaignsPage() {
                       {c.name}
                     </button>
                     <div className="font-data text-[11px] text-text-secondary">/c/{c.slug}</div>
+                    {c.summary?.nextStep && (
+                      <div className={cn('mt-1 flex items-start gap-1 text-caption', c.summary.nextStep.tone === 'fix' ? 'text-error' : 'text-text-secondary')}>
+                        {(() => {
+                          const Icon = TONE[c.summary.nextStep.tone].icon;
+                          return <Icon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden />;
+                        })()}
+                        <span>{c.summary.nextStep.title}</span>
+                      </div>
+                    )}
                   </td>
                   <td className="p-3 text-text-secondary">
                     {CHANNEL_LABELS[c.channel]}

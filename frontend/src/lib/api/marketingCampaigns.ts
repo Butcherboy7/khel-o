@@ -17,6 +17,8 @@ export interface CampaignSummary {
   bookings: number;
   gmv: number;
   costPerBooking: number | null;
+  /** The most urgent piece of advice for this campaign, in plain words. */
+  nextStep?: { tone: 'fix' | 'watch' | 'good' | 'info'; title: string } | null;
 }
 
 export interface MarketingCampaign {

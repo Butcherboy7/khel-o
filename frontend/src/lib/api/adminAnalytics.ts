@@ -202,7 +202,18 @@ export interface NamedCount {
   sessions: number;
 }
 
+export type AdviceTone = 'fix' | 'watch' | 'good' | 'info';
+
+/** Plain-language next steps worked out on the server from the report's own numbers. */
+export interface CampaignAdvice {
+  verdict: 'empty' | 'early' | 'leaking' | 'working';
+  headline: string;
+  biggestLeak: { key: string; label: string; lost: number; of: number; where: string | null } | null;
+  steps: { key: string; tone: AdviceTone; title: string; detail: string; todo: string }[];
+}
+
 export interface AdCampaignReport {
+  advice?: CampaignAdvice;
   source: string;
   campaign: string | null;
   from: string;

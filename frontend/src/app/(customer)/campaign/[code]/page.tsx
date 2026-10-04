@@ -6,7 +6,6 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, Share2 } from 'lucide-react';
 import { Button, ErrorState, Skeleton } from '@/components/ui';
-import { InAppBrowserNotice } from '@/components/auth/InAppBrowserNotice';
 import { ShareModal } from '@/components/customer/ShareModal';
 import { SpecialAccessBadge } from '@/components/customer/SpecialAccessBadge';
 import {
@@ -19,6 +18,7 @@ import {
 import { cafePath } from '@/lib/api/cafes';
 import { storeCampaign, spotsLine } from '@/lib/campaign';
 import { lengthLabel, offerUrgency } from '@/lib/offers';
+import { titleCaseCity } from '@/lib/format';
 import { useAuthStore } from '@/store/authStore';
 import { trackAction } from '@/lib/api/analyticsEvents';
 
@@ -84,13 +84,22 @@ function OfferRow({ o }: { o: CampaignOfferRow }) {
 
 function CafeCard({ cafe, code }: { cafe: CampaignCafe; code: string }) {
   const groups = useMemo(() => groupByActivity(cafe.offers), [cafe.offers]);
+  const bookHref = `${cafePath(cafe)}?promoCode=${encodeURIComponent(code)}`;
   return (
     <section aria-label={cafe.name} className="rounded-3xl border border-border bg-card p-4 shadow-card">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-heading text-h3 font-bold text-text-primary">{cafe.name}</h2>
-          <p className="text-caption text-text-secondary">{cafe.city} &middot; Limited-Time Offer &ndash; Book Now!</p>
+          <p className="text-caption text-text-secondary">{titleCaseCity(cafe.city)} &middot; prices already include the offer</p>
         </div>
+        <Link
+          href={bookHref}
+          onClick={() => trackAction('campaign_book_now', { code, cafe: cafe.name, where: 'top' }, cafe.id)}
+          className="inline-flex min-h-[44px] flex-shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-body font-semibold text-white hover:bg-primary-dark"
+        >
+          Book
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </Link>
       </div>
 
       <div className="mt-2 flex flex-col divide-y divide-border">
@@ -107,7 +116,7 @@ function CafeCard({ cafe, code }: { cafe: CampaignCafe; code: string }) {
       </div>
 
       <Link
-        href={`${cafePath(cafe)}?promoCode=${encodeURIComponent(code)}`}
+        href={bookHref}
         onClick={() => trackAction('campaign_book_now', { code, cafe: cafe.name }, cafe.id)}
         className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-body font-semibold text-white transition-colors hover:bg-primary-dark"
       >
@@ -192,7 +201,7 @@ export default function CampaignLandingPage() {
       >
         <h1 className="font-heading text-h1 font-bold leading-tight">{campaign.name}</h1>
         <p className="mt-1.5 max-w-sm text-body text-white/80">
-          Limited-Time KHELO Campaign. Special prices at {cafeNames.length > 1 ? 'these partner cafés' : cafeNames[0] ?? 'our partner café'}, already shown below.
+          Special prices at {cafeNames.length > 1 ? `${cafeNames.length} partner cafés` : cafeNames[0] ?? 'our partner café'}. Pick one and book: the lower price is applied for you, no code to type.
         </p>
         {(spots || deadline) && (
           <p className="mt-2 text-caption font-semibold text-white">{[spots, deadline].filter(Boolean).join(' · ')}</p>
@@ -201,16 +210,9 @@ export default function CampaignLandingPage() {
         <div className="mt-5 flex flex-col items-start gap-3">
           <SpecialAccessBadge earned={earned} size="md" />
           {mounted && !isAuthenticated && (
-            <div className="flex w-full flex-col gap-2">
-              <Link
-                href={`/login?redirect=${encodeURIComponent(`/campaign/${code}?view=prices`)}`}
-                onClick={() => trackAction('campaign_prices_sign_in', { code })}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-white px-4 text-body font-semibold text-secondary"
-              >
-                Sign in to claim your badge
-              </Link>
-              <InAppBrowserNotice />
-            </div>
+            <p className="text-caption text-white/80">
+              No sign-up to look around. Your Day One OG badge comes with your first booking sign-in.
+            </p>
           )}
           {earned && (
             <p className="text-caption text-white/80" aria-live="polite">

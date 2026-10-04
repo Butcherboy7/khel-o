@@ -171,7 +171,10 @@ async def get_ad_campaign_report(
     from app.models.marketing_campaign import MarketingCampaign
     from app.api.v1.marketing_campaigns import tag_pairs
 
-    also = []
+    from datetime import datetime as _dt
+    from app.services.campaign_advisor import advise
+
+    also, mc = [], None
     if campaign:
         mc = (await db.execute(
             _select(MarketingCampaign).where(MarketingCampaign.slug == campaign, MarketingCampaign.utm_source == source)
@@ -179,6 +182,15 @@ async def get_ad_campaign_report(
         if mc:
             also = tag_pairs(mc)
     data = await growth_report_service.campaign_report(db, source, campaign or None, start, end, include_internal, also=also)
+    # Spend covers the whole campaign, so cost per visitor is only fair when
+    # these dates start on (or before) the campaign's first day.
+    data["advice"] = advise(
+        data,
+        spend=mc.spend_inr if mc and mc.spend_inr and start <= mc.started_on else None,
+        paid=bool(mc and mc.paid),
+        live=bool(mc is None or mc.status == "live"),
+        today=_dt.now(growth_report_service.IST).date(),
+    )
     return {"success": True, "data": data}
 
 

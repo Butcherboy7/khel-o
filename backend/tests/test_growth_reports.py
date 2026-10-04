@@ -113,6 +113,9 @@ async def test_campaign_funnel_counts_unique_visitors_per_stage(db_session, asyn
     by_cafe = {x["name"]: x for x in data["cafes"]}
     assert by_cafe["Ad Test Lead"]["notifyMe"] == 1 and by_cafe["Ad Test Arena"]["bookings"] == 1
     assert by_cafe["Ad Test Arena"]["area"] == "Madhapur"
+    # The report comes with plain-language advice worked out from these numbers.
+    assert data["advice"]["verdict"] == "working"
+    assert any(s["key"] == "bookings" for s in data["advice"]["steps"])
 
     opts = (await async_client.get("/api/v1/admin/analytics/ad-campaigns", headers=auth_headers(admin, is_admin=True))).json()
     assert any(o["campaign"] == camp and o["sessions"] == 2 for o in opts["data"]["campaigns"])

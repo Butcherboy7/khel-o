@@ -148,12 +148,24 @@ def _out(c: MarketingCampaign, summary: Optional[dict] = None) -> dict:
 
 async def _summary(db: AsyncSession, c: MarketingCampaign) -> dict:
     start, end = _window(c)
+    next_step = None
     if start > end:
         t = {"visitors": 0, "viewedCafe": 0, "bookingStarted": 0, "booked": 0, "bookings": 0, "gmv": 0}
     else:
-        t = (await growth_report_service.campaign_report(db, c.utm_source, c.slug, start, end, also=tag_pairs(c)))["totals"]
+        from datetime import datetime as _dt
+        from app.services.campaign_advisor import advise
+
+        report = await growth_report_service.campaign_report(db, c.utm_source, c.slug, start, end, also=tag_pairs(c))
+        t = report["totals"]
+        steps = advise(
+            report, spend=c.spend_inr or None, paid=c.paid, live=c.status == "live",
+            today=_dt.now(growth_report_service.IST).date(),
+        )["steps"]
+        if steps:
+            next_step = {"tone": steps[0]["tone"], "title": steps[0]["title"]}
     bookings = t["bookings"]
     return {
+        "nextStep": next_step,
         "visitors": t["visitors"],
         "viewedCafe": t["viewedCafe"],
         "bookingStarted": t["bookingStarted"],
