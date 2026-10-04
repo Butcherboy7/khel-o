@@ -37,6 +37,8 @@ import type { CafeListItem, PaginatedResponse } from '@/types';
 
 
 const KNOWN_CITIES = ['All Cities', ...SUPPORTED_CITIES];
+/** Cards a phone shows before the "Show more" button. */
+const PHONE_CARD_LIMIT = 8;
 
 // Coordinates mapping for accurate Indian city detection
 const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
@@ -107,6 +109,7 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
   const [isLocating, setIsLocating] = useState(false);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [showAllOnPhone, setShowAllOnPhone] = useState(false);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [distance, setDistance] = useState<DistanceFilter>('any');
   const [priceRange, setPriceRange] = useState<[number, number]>([PRICE_MIN, PRICE_MAX]);
@@ -659,10 +662,23 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
         {!isLoading && !isError && sortedCafes.length > 0 && <Hint id="explore" className="mb-2" />}
         {!isLoading && !isError && sortedCafes.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {sortedCafes.map((cafe) => (
-              <CafeCard key={cafe.id} cafe={cafe} />
+            {sortedCafes.map((cafe, i) => (
+              // On a phone the list is a long scroll; past the first few cards
+              // the rest wait behind one button. Wider screens show everything.
+              <div key={cafe.id} className={!showAllOnPhone && i >= PHONE_CARD_LIMIT ? 'hidden sm:block sm:h-full' : 'h-full'}>
+                <CafeCard cafe={cafe} />
+              </div>
             ))}
           </div>
+        )}
+        {!isLoading && !isError && !showAllOnPhone && sortedCafes.length > PHONE_CARD_LIMIT && (
+          <button
+            type="button"
+            onClick={() => setShowAllOnPhone(true)}
+            className="mt-3 min-h-[44px] w-full rounded-xl border border-border bg-card text-caption font-semibold text-text-primary sm:hidden"
+          >
+            Show {sortedCafes.length - PHONE_CARD_LIMIT} more
+          </button>
         )}
       </section>
 

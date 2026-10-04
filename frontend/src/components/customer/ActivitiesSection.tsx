@@ -52,7 +52,7 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
               {tier.activePromotion && (
                 <OfferChip
                   className="my-0.5"
-                  label={hourly ? `${hourly.pct}% off` : tier.activePromotion.label || 'Offer'}
+                  label={tier.activePromotion.label || 'Offer'}
                   when={tier.activePromotion.when}
                   live={tier.activePromotion.isLiveNow !== false}
                   urgency={offerUrgency({
@@ -84,7 +84,7 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
                 <span className="rupee-symbol">₹</span>{shown}
                 <span className="text-caption font-normal text-text-secondary">/hr</span>
               </div>
-              <span className="whitespace-nowrap text-[11px] text-text-secondary">{tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'}</span>
+              <span className="whitespace-nowrap text-[11px] text-text-secondary">{tier.totalSeats} {tier.totalSeats === 1 ? 'station' : 'stations'}</span>
             </div>
           </>
           );

@@ -453,6 +453,27 @@ class PromotionService:
                 return float(p.fixed_price_amount or 0) / float(p.min_duration_hours)
             return float("inf")
 
+        # Lowest per-hour price a lone player can get right now, so the card's
+        # "from" price matches what the café page and booking bar show.
+        offer_from: dict = {}
+        for p in promos:
+            tier = tiers.get(p.applicable_tier_id)
+            if tier is None or (getattr(p, "play_mode", None) or "any") == "coop":
+                continue
+            if not self._is_promotion_active(p, now):
+                continue
+            regular = float(tier.price_per_hour)
+            if p.promotion_type == PromotionType.PERCENTAGE:
+                price = regular * (1 - float(p.discount_percentage or 0) / 100)
+            elif p.promotion_type == PromotionType.FIXED_AMOUNT:
+                price = regular - float(p.fixed_discount_amount or 0)
+            elif round(float(p.min_duration_hours or 0) * 60) == 60 and p.fixed_price_amount:
+                price = float(p.fixed_price_amount)
+            else:
+                continue
+            if 0 < price < regular:
+                offer_from[p.cafe_id] = min(offer_from.get(p.cafe_id, price), round(price))
+
         best: dict = {}
         for p in promos:
             if not self._is_promotion_active(p, now, check_window=False):
@@ -476,6 +497,7 @@ class PromotionService:
                 "slotsRemaining": (p.max_uses - p.current_uses) if p.max_uses is not None else None,
                 "isLiveNow": live,
                 "endsAt": p.valid_until.isoformat(),
+                "fromPrice": offer_from.get(cafe_id),
             }
         return out
 

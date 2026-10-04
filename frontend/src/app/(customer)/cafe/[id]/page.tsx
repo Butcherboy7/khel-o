@@ -5,6 +5,7 @@ import { getCafe, cafePath, isCafeUuid } from '@/lib/api/cafes';
 import { PLATFORMS } from '@/constants/platforms';
 import Link from 'next/link';
 import { getCafeLinks } from '@/lib/api/seo';
+import { titleCaseCity } from '@/lib/format';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
 import type { CafeDetail } from '@/types';
 import { CafeDetailClient } from './CafeDetailClient';
@@ -56,8 +57,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     .filter((label): label is string => !!label && label !== 'Other');
   const platformLine = platformLabels.length > 0 ? ` ${platformLabels.join(', ')}.` : '';
 
-  const title = `${cafe.name} — Gaming Café in ${cafe.city}`;
-  const description = `Book a gaming station at ${cafe.name} in ${cafe.city}.${priceLine}${platformLine} Check real-time availability and pay online on KHEL-O.`;
+  const title = `${cafe.name} — Gaming Café in ${titleCaseCity(cafe.city)}`;
+  const description = `Book a gaming station at ${cafe.name} in ${titleCaseCity(cafe.city)}.${priceLine}${platformLine} Check real-time availability and pay online on KHEL-O.`;
   const image = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0].url : undefined;
 
   return {
@@ -92,14 +93,14 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
         '@context': 'https://schema.org',
         '@type': 'SportsActivityLocation',
         name: cafe.name,
-        description: cafe.description || `Gaming café in ${cafe.city}`,
+        description: cafe.description || `Gaming café in ${titleCaseCity(cafe.city)}`,
         url: `${SITE_URL}${cafePath(cafe)}`,
         image: cafe.photos && cafe.photos.length > 0 ? cafe.photos.map((p) => p.url) : undefined,
         telephone: cafe.phoneNumber || undefined,
         address: {
           '@type': 'PostalAddress',
           streetAddress: cafe.addressLine1,
-          addressLocality: cafe.city,
+          addressLocality: titleCaseCity(cafe.city),
           addressRegion: cafe.state,
           postalCode: cafe.pincode || undefined,
           addressCountry: 'IN',
@@ -144,7 +145,7 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
       )}
       <CafeDetailClient initialCafe={cafe ?? undefined} />
       {links && (
-        <div className="flex flex-col gap-6 pt-8 pb-28 border-t border-border mt-8">
+        <div className="mx-auto flex max-w-4xl flex-col gap-6 border-t border-border pb-28 pt-8 mt-4">
           <nav aria-label="Breadcrumb" className="text-caption text-text-secondary">
             <Link href="/browse" className="hover:text-primary">All cities</Link> /{' '}
             <Link href={links.city.path} className="hover:text-primary">{links.city.name}</Link> / {cafe?.name}

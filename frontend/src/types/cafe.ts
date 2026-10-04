@@ -34,6 +34,8 @@ export interface CafeListItem {
     slotsRemaining: number | null;
     isLiveNow: boolean;
     endsAt: string;
+    /** Lowest per-hour price a lone player pays right now, offers included. */
+    fromPrice?: number | null;
   } | null;
   verificationStatus: VerificationStatus;
   isActive: boolean;

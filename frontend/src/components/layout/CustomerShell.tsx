@@ -65,8 +65,8 @@ function CustomerHeader() {
             className="h-9 w-9 rounded-xl shadow-card"
             priority
           />
-          <span className="font-heading text-h2 font-bold tracking-tight text-text-primary lowercase">
-            khel-o
+          <span className="font-heading text-h2 font-bold tracking-tight text-text-primary">
+            KHEL-O
           </span>
         </Link>
 
@@ -125,7 +125,7 @@ function CustomerHeader() {
           ) : (
             <Link
               href={`/login?redirect=${encodeURIComponent(pathname)}`}
-              className="px-2 text-caption font-semibold text-text-secondary hover:text-primary transition-colors"
+              className="inline-flex min-h-[36px] items-center rounded-full bg-primary px-4 text-caption font-semibold text-white transition-colors hover:bg-primary-dark"
             >
               Log in
             </Link>

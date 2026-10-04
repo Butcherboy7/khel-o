@@ -166,8 +166,8 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
-        <Providers>{children}</Providers>
         <CookieConsentBanner />
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

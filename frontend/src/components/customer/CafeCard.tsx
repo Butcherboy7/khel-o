@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { MapPin, Star, Zap, ArrowRight, Users } from 'lucide-react';
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
-import { calculateDistance, formatDistance, isCafeOpenNow, formatTime } from '@/lib/format';
+import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity } from '@/lib/format';
 import { hasConsoleTier, hasPcTier } from '@/lib/platformTags';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import type { Platform } from '@/constants/platforms';
@@ -232,18 +232,18 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             <>
               <div className="flex items-center gap-1 text-caption text-text-secondary min-w-0">
                 <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
-                <span className="truncate">{`${cafe.city}, ${cafe.state}`}</span>
+                <span className="truncate">{`${titleCaseCity(cafe.city)}, ${cafe.state}`}</span>
               </div>
 
               <div className="flex items-center justify-between gap-2 mt-0.5">
-                <span className={`text-caption truncate ${platformSummary ? 'text-text-secondary' : 'text-text-secondary/70 italic'}`}>
-                  {platformSummary ?? 'Hardware coming soon'}
+                <span className="text-caption truncate text-text-secondary">
+                  {platformSummary ?? 'Booking opens soon'}
                 </span>
-                {showWaiting && (
-                  <span className="text-caption font-semibold text-text-secondary flex-shrink-0">
-                    {waitingCount} {waitingCount === 1 ? 'vote' : 'votes'}
-                  </span>
-                )}
+                {/* Same slot on every coming-soon card: the count once it is
+                    worth showing, otherwise the nudge to be one of the first. */}
+                <span className={`text-caption font-semibold flex-shrink-0 ${showWaiting ? 'text-text-secondary' : 'text-primary'}`}>
+                  {showWaiting ? `${waitingCount} votes` : 'Vote →'}
+                </span>
               </div>
             </>
           ) : (
@@ -289,7 +289,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             >
               <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
               <span className="truncate hover:underline">
-                {distanceLabel ? `${distanceLabel} away` : `${cafe.city}, ${cafe.state}`}
+                {distanceLabel ? `${distanceLabel} away` : `${titleCaseCity(cafe.city)}, ${cafe.state}`}
               </span>
             </button>
 
@@ -297,7 +297,16 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
               <div className="flex items-center gap-1 text-caption font-semibold text-text-secondary flex-shrink-0">
                 <Zap className="h-3.5 w-3.5 text-accent flex-shrink-0" />
                 <span>from</span>
-                <PriceDisplay amount={cafe.startingPrice} size="sm" />
+                {/* Same price the café page and booking bar show: a live offer
+                    lowers the "from" price instead of hiding behind the chip. */}
+                {cafe.bestOffer?.fromPrice != null && cafe.bestOffer.fromPrice < cafe.startingPrice ? (
+                  <>
+                    <span className="text-text-tertiary line-through"><span className="rupee-symbol">₹</span>{cafe.startingPrice}</span>
+                    <PriceDisplay amount={cafe.bestOffer.fromPrice} size="sm" />
+                  </>
+                ) : (
+                  <PriceDisplay amount={cafe.startingPrice} size="sm" />
+                )}
               </div>
             ) : (
               <span className="text-caption font-semibold text-text-secondary flex-shrink-0">Pricing inside</span>

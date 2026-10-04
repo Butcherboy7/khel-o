@@ -17,7 +17,7 @@ export function GoogleLocationDisplay({ addressLine1, city, googleMapsUrl }: Loc
     <div className="rounded-2xl bg-surface border border-border p-4 flex flex-col gap-3">
       <div className="flex items-start gap-2 text-body text-text-secondary">
         <MapPin className="h-5 w-5 flex-shrink-0 text-text-secondary mt-0.5" />
-        <span>{addressLine1}, {city}</span>
+        <span>{addressLine1.toLowerCase().includes(city.toLowerCase()) ? addressLine1 : `${addressLine1}, ${city}`}</span>
       </div>
 
       {googleMapsUrl && (

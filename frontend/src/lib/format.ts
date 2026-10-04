@@ -362,3 +362,18 @@ export function formatDistance(km: number): string {
   if (km < 10) return `${km.toFixed(1)} km`;
   return `${Math.round(km)} km`;
 }
+
+/** "secunderabad" → "Secunderabad", "navi mumbai" → "Navi Mumbai". City names
+ *  are typed by owners, so casing varies; show them one way. */
+export function titleCaseCity(city: string | null | undefined): string {
+  return (city ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/(^|[\s-])([a-z])/g, (_, sep: string, ch: string) => sep + ch.toUpperCase());
+}
+
+/** Swap hyphens for non-breaking ones so a chip label wraps between words,
+ *  never mid-word ("Wi-/Fi", "Spider-/Man 2"). */
+export function noBreakHyphens(text: string): string {
+  return text.replace(/-/g, '‑');
+}

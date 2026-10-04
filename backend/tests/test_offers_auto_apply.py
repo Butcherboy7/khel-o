@@ -186,6 +186,8 @@ async def test_explore_card_picks_the_cheapest_deal_not_the_oldest_fixed_price(c
     items = res.json()["data"]["items"] if "items" in res.json().get("data", {}) else res.json()["data"]["cafes"]
     mine = next(i for i in items if i["id"] == str(cafe.id))
     assert mine["bestOffer"]["label"] == "₹119 for 1 hr"
+    # The card's "from" price follows the best solo hourly deal, as the café page does.
+    assert mine["bestOffer"]["fromPrice"] == 119
 
 
 @pytest.mark.asyncio

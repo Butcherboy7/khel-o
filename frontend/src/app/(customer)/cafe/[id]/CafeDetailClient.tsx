@@ -58,7 +58,7 @@ import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
-import { calculateDistance, formatDistance, isCafeOpenNow, formatTime } from '@/lib/format';
+import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity, noBreakHyphens } from '@/lib/format';
 import { fireAnalyticsEvent, trackAction } from '@/lib/api/analyticsEvents';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
@@ -345,7 +345,15 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     (cafe.addressLine1 || '')
       .split(',')
       .map((part) => part.trim())
-      .filter((part) => part && part.toLowerCase() !== cafe.name.toLowerCase())[0] || cafe.city;
+      // Skip door numbers and building words ("House no : 7", "Plot 5, Ratna Arcade"):
+      // the subtitle is a neighbourhood, not a street address.
+      .filter(
+        (part) =>
+          part &&
+          part.toLowerCase() !== cafe.name.toLowerCase() &&
+          !/\d/.test(part) &&
+          !/\b(house|flat|floor|plot|shop|door|building|apartments?|near|opp|opposite|beside|behind)\b/i.test(part),
+      )[0] || titleCaseCity(cafe.city);
   const freeNowByTier = new Map((liveData?.tiers ?? []).map((t) => [t.tierId, t.freeNow]));
 
   const amenityBadges = (cafe.amenities ?? []).slice(0, 3).map((a) => getAmenityDisplay(a));
@@ -558,7 +566,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
             {isLead ? 'What they’ve got' : gamingTiers.length > 0 ? 'Choose your setup' : 'Choose an activity'}
           </h2>
           <p className="text-caption text-text-secondary">
-            {isLead ? 'Café prices. Online booking opens once they join KHEL-O.' : 'Tap one to pick your time.'}
+            {isLead
+              ? 'Café prices. Online booking opens once they join KHEL-O.'
+              : 'Prices are per hour for one player. A small platform fee is added at checkout. Tap one to pick your time.'}
           </p>
         </div>
 
@@ -647,12 +657,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       {promo && (
                         <div className="mt-1 flex min-w-0 flex-wrap items-start gap-x-2 gap-y-0.5">
                           <OfferChip
-                            label={hourly ? `${hourly.pct}% off` : promo.label || 'Offer'}
+                            label={promo.label || 'Offer'}
                             when={promo.when}
                             live={promoLive}
                             urgency={offerUrgency({ slotsRemaining: promo.slotsRemaining, validUntil: promo.validUntil })}
                           />
-                          {promo.title && (
+                          {promo.title && promo.promotionType !== 'fixed_price' && (
                             <span className="min-w-0 pt-0.5 text-[11px] text-text-secondary">
                               {promo.title.replace(/\s*·\s*[^·]*$/, (m) => (tier.name && m.toLowerCase().includes(tier.name.toLowerCase()) ? '' : m))}
                             </span>
@@ -795,7 +805,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                   className="p-3.5 rounded-2xl bg-card border border-border/80 text-body font-medium text-text-primary flex items-center gap-2"
                 >
                   <AmenityIcon className="h-4 w-4 text-primary flex-shrink-0" />
-                  <span>{label}</span>
+                  <span>{noBreakHyphens(label)}</span>
                 </div>
               );
             })}
@@ -824,8 +834,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                         key={game}
                         className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-2.5 font-medium text-body text-text-primary"
                       >
-                        <Gamepad2 className="h-4 w-4 text-accent" />
-                        <span>{game}</span>
+                        <Gamepad2 className="h-4 w-4 flex-shrink-0 text-accent" />
+                        <span>{noBreakHyphens(game)}</span>
                       </div>
                     ))}
                   </div>
@@ -923,6 +933,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
 
       {/* Reviews — id+scroll-mt so a QR code / direct link can jump straight
           here (#reviews), same pattern as heroRef's scroll-mt-4 above. */}
+      {/* A café that isn't bookable yet has had no sessions, so nothing to review. */}
+      {!isLead && (
       <section id="reviews" className="flex flex-col gap-4 scroll-mt-4">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-heading text-h2 text-text-primary">Reviews</h2>
@@ -1142,6 +1154,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           </div>
         )}
       </section>
+      )}
 
       {isLead && (
         <NotifyMeSheet

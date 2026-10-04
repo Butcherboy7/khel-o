@@ -124,7 +124,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
         <input
           type="text"
           aria-label="Search cafés, cities, activities or games"
-          placeholder="Try Valorant, PS5, snooker"
+          placeholder="Valorant, PS5, snooker…"
           value={value}
           onFocus={() => setIsOpen(true)}
           onChange={(e) => {

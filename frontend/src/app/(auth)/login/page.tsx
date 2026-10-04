@@ -105,6 +105,18 @@ function LoginForm() {
             </div>
           )}
 
+          {/* One tap is the fastest way in on a phone, so it leads. */}
+          <GoogleSignInButton
+            redirectPath={redirectPath}
+            onError={(message) => setError(message)}
+          />
+
+          <div className="flex items-center gap-3 py-1">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-caption text-text-tertiary">or use your email</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
           <Input
             label="Email Address"
             type="email"
@@ -151,16 +163,6 @@ function LoginForm() {
             Sign In
           </Button>
 
-          <div className="flex items-center gap-3 py-1">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-caption text-text-tertiary">or</span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
-          <GoogleSignInButton
-            redirectPath={redirectPath}
-            onError={(message) => setError(message)}
-          />
         </form>
       </CardContent>
     </Card>
@@ -182,7 +184,7 @@ export default function LoginPage() {
         />
         <h1 className="font-heading text-display text-text-primary">KHEL-O</h1>
         <p className="text-body text-text-secondary mt-1">
-          Book gaming cafés, snooker &amp; bowling near you
+          Book gaming cafés &amp; game zones near you
         </p>
       </div>
 
