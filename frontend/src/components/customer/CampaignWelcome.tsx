@@ -50,13 +50,14 @@ function DealCard({
   const { hour, cheapest, maxSaved } = useMemo(() => headlineDeals(cafe.offers), [cafe.offers]);
   const lead = hour ?? cheapest;
   const href = `${cafePath(cafe)}?promoCode=${encodeURIComponent(code)}`;
-  const [photoOk, setPhotoOk] = useState(Boolean(cafe.photo));
+  const photo = cafe.photo?.url ?? null;
+  const [photoOk, setPhotoOk] = useState(Boolean(photo));
   return (
     <li className="flex gap-3 rounded-2xl border border-border bg-card p-3 text-left">
       <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-surface">
-        {cafe.photo && photoOk ? (
+        {photo && photoOk ? (
           /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={cafe.photo} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" onError={() => setPhotoOk(false)} />
+          <img src={photo} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" onError={() => setPhotoOk(false)} />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-text-secondary">
             <Gamepad2 className="h-6 w-6" aria-hidden />
