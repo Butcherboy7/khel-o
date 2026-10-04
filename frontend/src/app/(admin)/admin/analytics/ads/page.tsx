@@ -203,6 +203,58 @@ function CheckoutLosses({ report }: { report: AdCampaignReport }) {
   );
 }
 
+const ACTION_LABELS: [string, string][] = [
+  ['campaign_popup_shown', 'Saw the Day One pop-up'],
+  ['campaign_popup_sign_in', 'Tapped “Sign in to claim”'],
+  ['campaign_badge_claimed', 'Claimed the badge'],
+  ['campaign_popup_see_prices', 'Tapped “See all prices”'],
+  ['campaign_popup_start_booking', 'Tapped “Start booking”'],
+  ['campaign_popup_close', 'Closed the pop-up'],
+  ['campaign_prices_sign_in', 'Signed in from the prices page'],
+  ['campaign_book_now', 'Tapped “Book now” on a café'],
+  ['campaign_share_open', 'Opened “Share with friends”'],
+  ['directions_click', 'Tapped Directions'],
+];
+
+const secsLabel = (s: number) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`);
+
+/** Taps and time on site, in plain words. */
+function WhatTheyDid({ report }: { report: AdCampaignReport }) {
+  const a = report.actions ?? {};
+  const e = report.engagement;
+  const known = new Set(ACTION_LABELS.map(([k]) => k));
+  const rows = [
+    ...ACTION_LABELS.filter(([k]) => a[k]).map(([k, label]) => ({ key: k, label, n: a[k] })),
+    ...Object.entries(a)
+      .filter(([k]) => !known.has(k))
+      .map(([k, n]) => ({ key: k, label: k.replace(/_/g, ' '), n })),
+  ];
+  if (rows.length === 0 && !e?.measured) return null;
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+      <h2 className="font-heading text-h3 text-text-primary">What people did</h2>
+      {e && e.measured > 0 && (
+        <p className="text-body text-text-primary">
+          Half stayed longer than <strong>{secsLabel(e.medianSecs)}</strong> and scrolled at least{' '}
+          <strong>{e.medianScroll}%</strong> down. {e.stayed10s} stayed 10 seconds or more; {e.bounced} left within 10
+          seconds without opening another page.
+        </p>
+      )}
+      {rows.length > 0 && (
+        <ul className="flex flex-col divide-y divide-border">
+          {rows.map((r) => (
+            <li key={r.key} className="flex items-center justify-between gap-3 py-2 text-body">
+              <span className="text-text-primary">{r.label}</span>
+              <span className="font-data font-bold tabular-nums text-text-primary">{r.n}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-caption text-text-secondary">Each person is counted once per tap, however many times they tapped.</p>
+    </section>
+  );
+}
+
 function DayByDay({ report }: { report: AdCampaignReport }) {
   const days = report.daily;
   if (days.length === 0) return null;
@@ -466,6 +518,7 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
             <DropOff report={report} />
             <DayByDay report={report} />
           </div>
+          <WhatTheyDid report={report} />
           <CheckoutLosses report={report} />
           {report.internalExcluded > 0 && (
             <p className="text-caption text-text-secondary">

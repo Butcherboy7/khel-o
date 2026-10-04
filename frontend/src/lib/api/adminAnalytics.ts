@@ -234,6 +234,9 @@ export interface AdCampaignReport {
   /** Test-device and staff/owner visitors left out of this report. */
   internalExcluded: number;
   byAd: { ad: string; sessions: number; viewedCafe: number; acted: number; booked: number }[];
+  /** Taps counted once per visitor, keyed by action name. */
+  actions?: Record<string, number>;
+  engagement?: { measured: number; stayed10s: number; bounced: number; medianSecs: number; medianScroll: number };
   devices: NamedCount[];
   inAppBrowser: NamedCount[];
   visitorType: NamedCount[];

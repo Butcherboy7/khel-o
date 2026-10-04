@@ -150,9 +150,9 @@ export default function HardwareTiersPage() {
     mutationFn: async () => {
       const targetId = await getActiveCafeId();
       const config = configs[0];
-      // Note: individualUnits is create-only (backend individual_units field
-      // has no effect after creation) and TierUpdateRequest deliberately has
-      // no tierType field, so neither is included here.
+      // individualUnits switches an activity between named units and one
+      // pooled count (the backend adds/removes unit rows). TierUpdateRequest
+      // deliberately has no tierType field.
       const payload: TierUpdateRequest =
         config.tierType === 'activity'
           ? {
@@ -164,6 +164,7 @@ export default function HardwareTiersPage() {
               activityKind: config.activityKind,
               taxonomyKey: config.taxonomyKey ?? null,
               attributes: config.attributes ?? {},
+              individualUnits: config.individualUnits ?? false,
               ...bookingOptionsPayload(config),
             }
           : {
@@ -230,14 +231,8 @@ export default function HardwareTiersPage() {
       // opens an empty configurator with gaming platform chips and no
       // activity data loaded (see final-review.md I3).
       //
-      // individualUnits is create-only — HardwareTier (the read-back type)
-      // doesn't carry a units count, so there's no reliable signal here for
-      // whether this tier currently uses individual units or pooled
-      // capacity. Default to `true` (the more common/manageable choice for
-      // a multi-unit activity like Snooker tables); the toggle itself
-      // remains editable in the form, so this only affects the initial
-      // pre-filled state, not correctness of the tier's real name/
-      // quantity/price, which all load from the tier as-is.
+      // The tier list carries trackingMode (individual = it has named unit
+      // rows), so the toggle opens on the mode the tier really uses.
       setConfigs([{
         id: tier.id,
         platform: 'other',
@@ -249,7 +244,7 @@ export default function HardwareTiersPage() {
         activityKind: tier.activityKind ?? undefined,
         taxonomyKey: tier.taxonomyKey ?? undefined,
         attributes: tier.attributes ?? {},
-        individualUnits: true,
+        individualUnits: tier.trackingMode !== 'pooled',
         ...bookingOptionsFrom(tier),
       }]);
       setLegacyTierDefaults(null);

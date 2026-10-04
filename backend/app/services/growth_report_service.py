@@ -150,6 +150,12 @@ async def campaign_report(
     areas, cities, daily = Counter(), Counter(), Counter()
     cafe_views, cafe_notify, cafe_starts = Counter(), Counter(), Counter()
     gmv, bookings = 0.0, 0
+    # What they tapped (ui_action, counted once per visitor) and how long they
+    # stayed (page_exit seconds summed over the visit, capped per page).
+    actions = Counter()
+    time_on_site: list[int] = []
+    stayed_10s = bounced = 0
+    scroll_depths: list[int] = []
 
     # A booking is credited once, to that person's earliest visit in the
     # campaign; the same account visiting again must not count it twice.
@@ -201,6 +207,26 @@ async def campaign_report(
                 s_cities.add(meta["city"])
         areas.update(s_areas)
         cities.update(s_cities)
+        s_actions, secs, deepest, has_exit = set(), 0, 0, False
+        for e in evs:
+            meta = e[4] if isinstance(e[4], dict) else {}
+            if e[2] == "ui_action" and isinstance(meta.get("action"), str):
+                s_actions.add(meta["action"])
+            elif e[2] == "page_exit":
+                has_exit = True
+                try:
+                    secs += min(max(int(meta.get("secs") or 0), 0), 3600)
+                    deepest = max(deepest, min(max(int(meta.get("scroll") or 0), 0), 100))
+                except (TypeError, ValueError):
+                    pass
+        actions.update(s_actions)
+        if has_exit:
+            time_on_site.append(secs)
+            scroll_depths.append(deepest)
+            if secs >= 10:
+                stayed_10s += 1
+            elif sum(1 for e in evs if e[2] == "page_view") <= 1:
+                bounced += 1
         for cid in {e[3] for e in evs if e[2] == "venue_viewed" and e[3]}:
             cafe_views[cid] += 1
         for cid in {e[3] for e in evs if e[2] == "notify_me" and e[3]}:
@@ -269,6 +295,15 @@ async def campaign_report(
         },
         # Test/staff visitors left out of this campaign's numbers.
         "internalExcluded": 0 if include_internal else len({r[0] for r in internal_rows if matches(r[4])}),
+        # Taps counted once per visitor, keyed by action name.
+        "actions": dict(actions.most_common()),
+        "engagement": {
+            "measured": len(time_on_site),
+            "stayed10s": stayed_10s,
+            "bounced": bounced,
+            "medianSecs": sorted(time_on_site)[len(time_on_site) // 2] if time_on_site else 0,
+            "medianScroll": sorted(scroll_depths)[len(scroll_depths) // 2] if scroll_depths else 0,
+        },
         "byAd": [
             {"ad": ad, "sessions": c["landed"], "viewedCafe": c["viewed"], "acted": c["acted"], "booked": c["booked"]}
             for ad, c in sorted(by_ad.items(), key=lambda kv: kv[1]["landed"], reverse=True)

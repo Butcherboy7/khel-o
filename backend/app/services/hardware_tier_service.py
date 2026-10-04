@@ -296,14 +296,20 @@ class HardwareTierService:
                 raise ValidationException(message=str(e), error_code="INVALID_TAXONOMY")
             update_dict["taxonomy_key"] = new_key
             update_dict["attributes"] = new_attrs
+        individual_units = update_dict.pop("individual_units", None)
         updated = await self.tier_repo.update(tier_id, update_dict)
 
-        if updated.tier_type == TierType.ACTIVITY and self.unit_repo and "total_seats" in update_dict:
-            existing_units = await self.unit_repo.list_by_tier(updated.id)
-            if existing_units:  # only individual-unit-mode tiers ever have rows here
-                await self.unit_repo.sync_units_to_quantity(
-                    updated.id, updated.total_seats, updated.activity_kind or updated.name or "Unit"
-                )
+        if updated.tier_type == TierType.ACTIVITY and self.unit_repo:
+            label = updated.activity_kind or updated.name or "Unit"
+            if individual_units is True:
+                await self.unit_repo.sync_units_to_quantity(updated.id, updated.total_seats, label)
+            elif individual_units is False:
+                # Pooled: one shared count, no named units.
+                await self.unit_repo.sync_units_to_quantity(updated.id, 0, label)
+            elif "total_seats" in update_dict:
+                existing_units = await self.unit_repo.list_by_tier(updated.id)
+                if existing_units:  # only individual-unit-mode tiers ever have rows here
+                    await self.unit_repo.sync_units_to_quantity(updated.id, updated.total_seats, label)
 
         warning = self._validate_preset_specs(updated.preset_category, updated.specs)
         rating = compute_rating(updated.specs) if updated.tier_type == TierType.GAMING else None
@@ -336,6 +342,8 @@ class HardwareTierService:
             promo_service = PromotionService(self.promo_repo, tier_repo=self.tier_repo)
             active_promos = await promo_service.get_active_promotions_for_cafe(cafe_id)
 
+        units_by_tier = await self.unit_repo.list_by_tier_ids([t.id for t in tiers]) if self.unit_repo and tiers else {}
+
         result: List[HardwareTierResponse] = []
         for t in tiers:
             warning = self._validate_preset_specs(t.preset_category, t.specs)
@@ -344,6 +352,7 @@ class HardwareTierService:
             r = HardwareTierResponse.model_validate(t)
             r.performance_rating = rating
             r.warning = warning
+            r.tracking_mode = "individual" if units_by_tier.get(t.id) else "pooled"
             
             matching_promo = PromotionService.pick_for_tier(active_promos, t.id, t.name)
             r.active_promotion = matching_promo

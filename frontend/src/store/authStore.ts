@@ -1,3 +1,4 @@
+import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
 import { create } from 'zustand';
 import type { User } from '@/types';
 import { apiClient } from '@/lib/api/client';
@@ -67,6 +68,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem('roles', JSON.stringify(rolesVal));
     }
     set({ user, accessToken, refreshToken, activeRole: roleVal as UserActiveRole, isAuthenticated: true, isLoading: false, isHydrated: true });
+    // Ties this browser's visit (and the campaign that brought it) to the
+    // account. The server marks a brand-new account itself.
+    fireAnalyticsEvent('signin_completed', { metadata: { role: roleVal } });
   },
 
   setUser: (user) => {

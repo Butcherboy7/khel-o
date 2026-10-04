@@ -20,6 +20,7 @@ import { cafePath } from '@/lib/api/cafes';
 import { storeCampaign, spotsLine } from '@/lib/campaign';
 import { lengthLabel, offerUrgency } from '@/lib/offers';
 import { useAuthStore } from '@/store/authStore';
+import { trackAction } from '@/lib/api/analyticsEvents';
 
 const rupees = (n: number) => `₹${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
@@ -107,6 +108,7 @@ function CafeCard({ cafe, code }: { cafe: CampaignCafe; code: string }) {
 
       <Link
         href={`${cafePath(cafe)}?promoCode=${encodeURIComponent(code)}`}
+        onClick={() => trackAction('campaign_book_now', { code, cafe: cafe.name }, cafe.id)}
         className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-body font-semibold text-white transition-colors hover:bg-primary-dark"
       >
         Book now at {cafe.name}
@@ -202,6 +204,7 @@ export default function CampaignLandingPage() {
             <div className="flex w-full flex-col gap-2">
               <Link
                 href={`/login?redirect=${encodeURIComponent(`/campaign/${code}?view=prices`)}`}
+                onClick={() => trackAction('campaign_prices_sign_in', { code })}
                 className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-white px-4 text-body font-semibold text-secondary"
               >
                 Sign in to claim your badge
@@ -228,7 +231,10 @@ export default function CampaignLandingPage() {
       <section className="flex flex-col gap-2 rounded-3xl border border-border bg-card p-4">
         <h2 className="font-heading text-h3 font-bold text-text-primary">Bring your squad</h2>
         <p className="text-caption text-text-secondary">Send this page to friends so they get the same special prices.</p>
-        <Button variant="secondary" fullWidth className="gap-2" onClick={() => setShareOpen(true)}>
+        <Button variant="secondary" fullWidth className="gap-2" onClick={() => {
+          trackAction('campaign_share_open', { code: campaign.code });
+          setShareOpen(true);
+        }}>
           <Share2 className="h-4 w-4" aria-hidden />
           Share with friends
         </Button>

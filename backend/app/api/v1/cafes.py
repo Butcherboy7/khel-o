@@ -337,7 +337,7 @@ async def add_hardware_tier(
 async def list_hardware_tiers(cafe_id: UUID, db: AsyncSession = Depends(get_db)):
     tier_repo = HardwareTierRepository(db)
     promo_repo = PromotionRepository(db)
-    service = HardwareTierService(tier_repo, promo_repo=promo_repo)
+    service = HardwareTierService(tier_repo, promo_repo=promo_repo, unit_repo=HardwareTierUnitRepository(db))
     result = await service.get_cafe_tiers(cafe_id)
     return {
         "success": True,

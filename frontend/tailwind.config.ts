@@ -1,5 +1,23 @@
 import type { Config } from 'tailwindcss';
 
+/**
+ * A theme colour from a CSS variable that still honours Tailwind's opacity
+ * modifier. A bare 'var(--x)' string can't be split into channels, so
+ * `bg-primary/80`, `ring-primary/15`, `bg-error/10`… used to render nothing.
+ * A numeric modifier now mixes the colour with transparent; plain classes
+ * keep the variable as is.
+ */
+function token(name: string): string {
+  // Tailwind accepts a function here at runtime; its types only list strings.
+  const color = ({ opacityValue }: { opacityValue?: string | number }) => {
+    const o = opacityValue === undefined ? '' : String(opacityValue);
+    return o === '' || o.startsWith('var(') || o === '1'
+      ? `var(${name})`
+      : `color-mix(in srgb, var(${name}) calc(${o} * 100%), transparent)`;
+  };
+  return color as unknown as string;
+}
+
 const config: Config = {
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
@@ -11,20 +29,20 @@ const config: Config = {
       /* ── Colors ── */
       colors: {
         primary: {
-          DEFAULT: 'var(--primary)',
-          dark: 'var(--primary-dark)',
+          DEFAULT: token('--primary'),
+          dark: token('--primary-dark'),
         },
-        secondary: 'var(--secondary)',
-        accent: 'var(--accent)',
-        surface: 'var(--surface)',
-        card: 'var(--card)',
-        'text-primary': 'var(--text-primary)',
-        'text-secondary': 'var(--text-secondary)',
-        'text-technical': 'var(--text-technical)',
-        border: 'var(--border)',
-        success: 'var(--success)',
-        warning: 'var(--warning)',
-        error: 'var(--error)',
+        secondary: token('--secondary'),
+        accent: token('--accent'),
+        surface: token('--surface'),
+        card: token('--card'),
+        'text-primary': token('--text-primary'),
+        'text-secondary': token('--text-secondary'),
+        'text-technical': token('--text-technical'),
+        border: token('--border'),
+        success: token('--success'),
+        warning: token('--warning'),
+        error: token('--error'),
       },
 
       /* ── Typography ── */

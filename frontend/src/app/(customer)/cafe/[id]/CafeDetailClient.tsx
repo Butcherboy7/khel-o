@@ -59,7 +59,7 @@ import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow, formatTime } from '@/lib/format';
-import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
+import { fireAnalyticsEvent, trackAction } from '@/lib/api/analyticsEvents';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
 import type { CafeDetail } from '@/types';
@@ -498,6 +498,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                 href={cafe.googleMapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackAction('directions_click', {}, cafe.id)}
                 className="flex items-center gap-0.5 font-semibold text-primary hover:underline"
               >
                 <MapPin className="h-3.5 w-3.5" />

@@ -8,6 +8,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { InAppBrowserNotice } from '@/components/auth/InAppBrowserNotice';
 import { SpecialAccessBadge } from '@/components/customer/SpecialAccessBadge';
+import { trackAction } from '@/lib/api/analyticsEvents';
 import { claimCampaignBadge, getCampaignPage, type CampaignClaim } from '@/lib/api/promotions';
 import { normaliseCode, storeCampaign } from '@/lib/campaign';
 import { useAuthStore } from '@/store/authStore';
@@ -57,20 +58,27 @@ export function CampaignWelcome() {
     staleTime: 30_000,
   });
 
-  const claim = useMutation<CampaignClaim>({ mutationFn: () => claimCampaignBadge(code!) });
+  const claim = useMutation<CampaignClaim>({
+    mutationFn: () => claimCampaignBadge(code!),
+    onSuccess: () => trackAction('campaign_badge_claimed', { code }),
+  });
   const { mutate: claimBadge } = claim;
 
   useEffect(() => {
     if (!code || !page.data) return;
     storeCampaign(code, null);
-    if (!wasSeen(code)) setOpen(true);
+    if (!wasSeen(code)) {
+      setOpen(true);
+      trackAction('campaign_popup_shown', { code });
+    }
   }, [code, page.data]);
 
   useEffect(() => {
     if (open && isAuthenticated && code) claimBadge();
   }, [open, isAuthenticated, code, claimBadge]);
 
-  const close = () => {
+  const close = (how: 'close' | 'start_booking' = 'close') => {
+    trackAction(how === 'close' ? 'campaign_popup_close' : 'campaign_popup_start_booking', { code });
     if (code) markSeen(code);
     setOpen(false);
   };
@@ -99,7 +107,7 @@ export function CampaignWelcome() {
   const loginHref = `/login?redirect=${encodeURIComponent(`/?campaign=${code}`)}`;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={close}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={() => close()}>
       <div
         role="dialog"
         aria-modal="true"
@@ -124,7 +132,7 @@ export function CampaignWelcome() {
 
         <button
           type="button"
-          onClick={close}
+          onClick={() => close()}
           aria-label="Close"
           className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full text-text-secondary hover:bg-surface"
         >
@@ -158,6 +166,7 @@ export function CampaignWelcome() {
             <>
               <Link
                 href={loginHref}
+                onClick={() => trackAction('campaign_popup_sign_in', { code })}
                 ref={primaryRef as Ref<HTMLAnchorElement>}
                 className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary px-4 text-body font-semibold text-white hover:bg-primary-dark"
               >
@@ -169,7 +178,7 @@ export function CampaignWelcome() {
             <button
               type="button"
               ref={primaryRef as Ref<HTMLButtonElement>}
-              onClick={close}
+              onClick={() => close('start_booking')}
               className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary px-4 text-body font-semibold text-white hover:bg-primary-dark"
             >
               Start booking
@@ -177,7 +186,10 @@ export function CampaignWelcome() {
           )}
           <Link
             href={`/campaign/${code}?view=prices`}
-            onClick={() => markSeen(code)}
+            onClick={() => {
+              trackAction('campaign_popup_see_prices', { code });
+              markSeen(code);
+            }}
             className="inline-flex min-h-[44px] items-center justify-center rounded-xl text-body font-semibold text-text-primary hover:bg-surface"
           >
             See all prices

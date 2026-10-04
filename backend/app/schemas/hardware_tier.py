@@ -108,6 +108,13 @@ class HardwareTierUpdate(BaseModel):
     price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
     price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price30m", "price30M", "price_30m"), serialization_alias="price30m")
     coop_price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("coopPrice30m", "coopPrice30M", "coop_price_30m"), serialization_alias="coopPrice30m")
+    # Activity tiers only: switch between named units ("Table 1, 2…", True)
+    # and one pooled count (False). Not a column — it adds or removes the
+    # tier's hardware_tier_units rows. Units are never tied to bookings, so
+    # switching is safe at any time.
+    individual_units: Optional[bool] = Field(
+        None, validation_alias=AliasChoices("individualUnits", "individual_units")
+    )
 
     @model_validator(mode='after')
     def validate_seats_update(self) -> 'HardwareTierUpdate':

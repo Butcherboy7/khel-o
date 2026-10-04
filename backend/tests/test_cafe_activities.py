@@ -749,3 +749,64 @@ async def test_past_session_today_does_not_block_maintenance():
             )
             assert res.status_code == 200, res.text
             assert res.json()["data"]["unit"]["status"] == "maintenance"
+
+
+@pytest.mark.asyncio
+async def test_switching_activity_between_units_and_pooled_sticks():
+    """An owner who picks Pooled on an existing table activity must see it
+    stay pooled (unit rows removed, tier list says pooled), and back again."""
+    async with AsyncSessionLocal() as db:
+        owner = User(
+            id=uuid4(), email=f"pool_switch_{uuid4().hex[:6]}@test.com",
+            password_hash=get_password_hash("testpass123"), full_name="Pool Owner",
+            role=UserRole.CAFE_OWNER, is_active=True,
+        )
+        db.add(owner)
+        await db.flush()
+        db.add(UserRoleMapping(id=uuid4(), user_id=owner.id, role=UserRole.CAFE_OWNER))
+        cafe = Cafe(
+            id=uuid4(), owner_id=owner.id, name="Pool Switch Cafe",
+            address_line1="5 Cue St", city="Hyderabad", state="Telangana",
+            pincode="500001", phone_number="+919000000097",
+            verification_status=VerificationStatus.VERIFIED, is_active=True,
+        )
+        db.add(cafe)
+        await db.commit()
+
+        headers = {"Authorization": f"Bearer {create_access_token(subject=str(owner.id), role=owner.role.value)}"}
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            res = await client.post(
+                f"/api/v1/cafes/{cafe.id}/tiers",
+                json={
+                    "name": "Pool", "specs": {}, "totalSeats": 2, "appBookableSeats": 2,
+                    "pricePerHour": 300, "tierType": "activity", "activityKind": "Pool",
+                    "individualUnits": True,
+                },
+                headers=headers,
+            )
+            assert res.status_code == 201, res.text
+            tier_id = res.json()["data"]["hardwareTier"]["id"]
+
+            async def mode():
+                r = await client.get(f"/api/v1/cafes/{cafe.id}/tiers")
+                return next(t for t in r.json()["data"]["tiers"] if t["id"] == tier_id)["trackingMode"]
+
+            async def units():
+                r = await client.get(f"/api/v1/cafes/{cafe.id}/tiers/{tier_id}/units", headers=headers)
+                return r.json()["data"]["units"]
+
+            assert await mode() == "individual" and len(await units()) == 2
+
+            r = await client.patch(
+                f"/api/v1/cafes/{cafe.id}/tiers/{tier_id}",
+                json={"totalSeats": 4, "appBookableSeats": 4, "individualUnits": False},
+                headers=headers,
+            )
+            assert r.status_code == 200, r.text
+            assert await mode() == "pooled" and await units() == []
+
+            r = await client.patch(
+                f"/api/v1/cafes/{cafe.id}/tiers/{tier_id}", json={"individualUnits": True}, headers=headers
+            )
+            assert r.status_code == 200, r.text
+            assert await mode() == "individual" and len(await units()) == 4
