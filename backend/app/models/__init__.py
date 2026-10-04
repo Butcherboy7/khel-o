@@ -27,6 +27,7 @@ from app.models.push_subscription import PushSubscription
 from app.models.user_badge import UserBadge
 from app.models.owner_intro import OwnerIntro
 from app.models.marketing_campaign import MarketingCampaign
+from app.models.auth_attempt import AuthAttempt
 
 __all__ = [
     "User",
@@ -65,4 +66,5 @@ __all__ = [
     "UserBadge",
     "OwnerIntro",
     "MarketingCampaign",
+    "AuthAttempt",
 ]

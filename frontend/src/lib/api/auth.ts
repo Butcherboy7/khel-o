@@ -35,8 +35,17 @@ export async function updateMe(body: {
   return call(() => apiClient.patch('/api/v1/auth/me', body));
 }
 
-export async function forgotPassword(email: string): Promise<{ message: string }> {
-  return call(() => apiClient.post('/api/v1/auth/forgot-password', { email }));
+export async function forgotPassword(
+  email: string,
+  guard: { formTicket?: string; website?: string } = {},
+): Promise<{ message: string }> {
+  return call(() => apiClient.post('/api/v1/auth/forgot-password', { email, ...guard }));
+}
+
+/** A signed "this form appeared at" ticket; see backend app/core/bot_guard.py. */
+export async function getFormTicket(): Promise<string> {
+  const data = await call<{ ticket: string }>(() => apiClient.get('/api/v1/auth/form-ticket'));
+  return data.ticket;
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {

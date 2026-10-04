@@ -327,3 +327,17 @@ export interface AreaReport {
 export async function getAreaReport(city: string, days: number): Promise<AreaReport> {
   return call(() => apiClient.get('/api/v1/admin/analytics/areas', { params: { city, days } }));
 }
+
+export interface BotBlocks {
+  days: number;
+  blocked: number;
+  allowed: number;
+  byKind: Record<string, number>;
+  byReason: Record<string, number>;
+  daily: { date: string; blocked: number }[];
+}
+
+/** Sign-up / login / reset attempts the invisible bot checks stopped. */
+export async function getBotBlocks(days = 14): Promise<BotBlocks> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/bot-blocks', { params: { days } }));
+}

@@ -8,6 +8,7 @@ import { Mail, Lock, User, Phone, Loader2 } from 'lucide-react';
 import { z } from 'zod';
 import { Button, Input, Card, CardContent } from '@/components/ui';
 import { register } from '@/lib/api/auth';
+import { useBotGuard } from '@/components/auth/BotGuard';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { useAnalyticsStore } from '@/store/analyticsStore';
@@ -45,6 +46,7 @@ function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ fullName?: string; email?: string; password?: string; phoneNumber?: string; agreedToTerms?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
+  const { guardFields, trap } = useBotGuard();
 
   useEffect(() => {
     captureAttributionFromUrl(new URLSearchParams(searchParams.toString()));
@@ -80,6 +82,7 @@ function RegisterForm() {
         acquisitionMedium: attribution?.medium ?? (heardAboutUs ? 'self_reported' : undefined),
         acquisitionCampaign: attribution?.campaign ?? undefined,
         sessionId,
+        ...(await guardFields()),
       });
       setAuth(res.user, res.accessToken, res.refreshToken);
 
@@ -108,7 +111,8 @@ function RegisterForm() {
   return (
     <Card elevation="raised">
       <CardContent className="p-6 md:p-8">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="relative flex flex-col gap-4">
+          {trap}
           <div>
             <h2 className="font-heading text-h2 text-text-primary">Create Account</h2>
             <p className="text-body text-text-secondary mt-0.5">

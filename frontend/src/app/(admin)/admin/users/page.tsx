@@ -27,6 +27,7 @@ import {
   EmptyState,
 } from '@/components/ui';
 import type { User, UserRole } from '@/types';
+import { BotsStoppedCard } from '@/components/admin/BotsStoppedCard';
 
 /* ─── helpers ─────────────────────────────────────────────────────── */
 
@@ -133,6 +134,8 @@ export default function AdminUsersPage() {
           Refresh
         </Button>
       </div>
+
+      <BotsStoppedCard />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">

@@ -194,6 +194,36 @@ async def get_ad_campaign_report(
     return {"success": True, "data": data}
 
 
+@router.get("/bot-blocks", status_code=status.HTTP_200_OK)
+async def get_bot_blocks(
+    days: int = Query(14, ge=1, le=30),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sign-up / login / reset attempts the bot guard stopped, in plain counts."""
+    from collections import Counter
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    from sqlalchemy import select as _select
+    from app.models.auth_attempt import AuthAttempt
+    from app.services.growth_report_service import IST
+
+    since = _dt.now(_tz.utc) - _td(days=days)
+    rows = (await db.execute(
+        _select(AuthAttempt.kind, AuthAttempt.outcome, AuthAttempt.reason, AuthAttempt.created_at)
+        .where(AuthAttempt.created_at >= since)
+    )).all()
+    blocked = [r for r in rows if r.outcome == "blocked"]
+    daily = Counter(r.created_at.astimezone(IST).date().isoformat() for r in blocked)
+    return {"success": True, "data": {
+        "days": days,
+        "blocked": len(blocked),
+        "allowed": len(rows) - len(blocked),
+        "byKind": dict(Counter(r.kind for r in blocked)),
+        "byReason": dict(Counter(r.reason for r in blocked)),
+        "daily": [{"date": d, "blocked": n} for d, n in sorted(daily.items())],
+    }}
+
+
 @router.get("/areas", status_code=status.HTTP_200_OK)
 async def get_area_report(
     city: str = Query("Hyderabad", min_length=2, max_length=100),

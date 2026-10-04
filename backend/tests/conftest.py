@@ -188,3 +188,26 @@ async def async_client():
     ) as client:
         yield client
 
+
+
+# The bot guard (app/core/bot_guard.py) would trip the rest of the suite: it
+# registers without form tickets and every test shares one IP. Relax it by
+# default; tests/test_bot_guard.py asks for the real rules with `strict_bot_guard`.
+from app.core import bot_guard as _bot_guard
+from datetime import timedelta as _td
+
+_REAL_GUARD = (dict(_bot_guard.MIN_SECONDS), dict(_bot_guard.LIMITS), set(_bot_guard.NEEDS_TICKET))
+
+
+@pytest.fixture(autouse=True)
+def _relaxed_bot_guard(monkeypatch):
+    monkeypatch.setattr(_bot_guard, "MIN_SECONDS", {k: 0 for k in _REAL_GUARD[0]})
+    monkeypatch.setattr(_bot_guard, "LIMITS", {k: (_td(hours=1), 10**6, 10**6) for k in _REAL_GUARD[1]})
+    monkeypatch.setattr(_bot_guard, "NEEDS_TICKET", set())
+
+
+@pytest.fixture
+def strict_bot_guard(monkeypatch):
+    monkeypatch.setattr(_bot_guard, "MIN_SECONDS", dict(_REAL_GUARD[0]))
+    monkeypatch.setattr(_bot_guard, "LIMITS", dict(_REAL_GUARD[1]))
+    monkeypatch.setattr(_bot_guard, "NEEDS_TICKET", set(_REAL_GUARD[2]))

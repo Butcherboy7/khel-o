@@ -10,6 +10,7 @@ import { Button, Input, Card, CardContent } from '@/components/ui';
 import { login } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { useBotGuard } from '@/components/auth/BotGuard';
 import { getBookingIntent, clearBookingIntent } from '@/lib/bookingIntent';
 
 const loginSchema = z.object({
@@ -29,6 +30,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
+  const { guardFields, trap } = useBotGuard();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -48,7 +50,7 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const res = await login({ email, password });
+      const res = await login({ email, password, ...(await guardFields()) });
       setAuth(res.user, res.accessToken, res.refreshToken);
 
       if (redirectPath) {
@@ -88,7 +90,8 @@ function LoginForm() {
   return (
     <Card elevation="raised">
       <CardContent className="p-6 md:p-8">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="relative flex flex-col gap-4">
+          {trap}
           <div>
             <h2 className="font-heading text-h2 text-text-primary">Sign in</h2>
             <p className="text-body text-text-secondary mt-0.5">
