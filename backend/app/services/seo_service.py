@@ -20,6 +20,7 @@ nothing low-value is ever advertised to crawlers.
 """
 import math
 import re
+from app.core.demo import not_demo_cafe
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import time
@@ -122,6 +123,7 @@ class SeoService:
                 Cafe.is_active == True,  # noqa: E712
                 Cafe.is_emergency_mode == False,  # noqa: E712
                 Cafe.bookings_paused == False,  # noqa: E712
+                not_demo_cafe(),
             )
         )).scalars().all()
         tiers = (await self.db.execute(

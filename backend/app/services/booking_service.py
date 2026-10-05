@@ -1,6 +1,7 @@
 import string
 import random
 import math
+from app.core.demo import DEMO_SLUG_PREFIX
 from decimal import Decimal
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
@@ -60,6 +61,8 @@ class BookingService:
             # the real reason instead of blaming a missing hardware tier.
             if cafe.is_lead_listing:
                 raise ValidationException(message="This café isn't taking bookings on KHEL-O yet.", error_code="LEAD_LISTING_NOT_BOOKABLE")
+            if (cafe.slug or "").startswith(DEMO_SLUG_PREFIX):
+                raise ValidationException(message="This is a demo café and can't be booked.", error_code="DEMO_NOT_BOOKABLE")
             effective_stations = cafe.bookable_stations if cafe.bookable_stations > 0 else (cafe.total_seats or 10)
             if effective_stations <= 0:
                 raise ValidationException(message="Café has no bookable stations available", error_code="NO_BOOKABLE_STATIONS")

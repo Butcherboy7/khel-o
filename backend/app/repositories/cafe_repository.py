@@ -1,4 +1,5 @@
 from typing import List, Optional, Tuple, Any, Dict
+from app.core.demo import not_demo_cafe
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_, case, cast, Float, String
@@ -35,7 +36,7 @@ class CafeRepository(BaseRepository[Cafe]):
         limit: int = 20
     ) -> Tuple[List[Tuple[Cafe, str]], int]:
         stmt = select(Cafe, User.email).join(User, Cafe.owner_id == User.id)
-        filters = []
+        filters = [not_demo_cafe()]
 
         if verification_status:
             filters.append(Cafe.verification_status == verification_status)
@@ -94,7 +95,7 @@ class CafeRepository(BaseRepository[Cafe]):
         return items, total
 
     async def count_by_verification_status(self) -> Dict[str, int]:
-        stmt = select(Cafe.verification_status, func.count(Cafe.id)).group_by(Cafe.verification_status)
+        stmt = select(Cafe.verification_status, func.count(Cafe.id)).where(not_demo_cafe()).group_by(Cafe.verification_status)
         res = await self.db.execute(stmt)
         rows = res.all()
         counts = {"pending": 0, "verified": 0, "rejected": 0, "suspended": 0}
@@ -109,7 +110,8 @@ class CafeRepository(BaseRepository[Cafe]):
             Cafe.verification_status == VerificationStatus.VERIFIED,
             Cafe.is_active == True,
             Cafe.is_emergency_mode == False,
-            Cafe.bookings_paused == False
+            Cafe.bookings_paused == False,
+            not_demo_cafe(),
         )
 
     async def _activities_by_cafe(self, city: Optional[str] = None) -> Dict[UUID, Dict[str, str]]:
@@ -419,7 +421,7 @@ class CafeRepository(BaseRepository[Cafe]):
         return updated
 
     async def get_pending_verification(self, page: int = 1, limit: int = 20) -> Tuple[List[Cafe], int]:
-        stmt = select(Cafe).where(Cafe.verification_status == VerificationStatus.PENDING)
+        stmt = select(Cafe).where(Cafe.verification_status == VerificationStatus.PENDING, not_demo_cafe())
         
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self.db.execute(count_stmt)

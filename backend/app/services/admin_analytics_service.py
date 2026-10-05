@@ -3,6 +3,7 @@ from collections import Counter
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.demo import not_demo_booking, not_demo_cafe, not_demo_user
 from app.models.user import User
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.booking import Booking, BookingStatus
@@ -52,22 +53,22 @@ class AdminAnalyticsService:
     async def get_executive_dashboard(self, period_days: int = 30) -> ExecutiveDashboardResponse:
         cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
 
-        total_users = (await self.db.execute(select(func.count(User.id)))).scalar() or 0
-        total_cafes = (await self.db.execute(select(func.count(Cafe.id)))).scalar() or 0
+        total_users = (await self.db.execute(select(func.count(User.id)).where(not_demo_user()))).scalar() or 0
+        total_cafes = (await self.db.execute(select(func.count(Cafe.id)).where(not_demo_cafe()))).scalar() or 0
         active_cafes = (await self.db.execute(
-            select(func.count(Cafe.id)).where(Cafe.verification_status == VerificationStatus.VERIFIED, Cafe.is_active == True)
+            select(func.count(Cafe.id)).where(not_demo_cafe(), Cafe.verification_status == VerificationStatus.VERIFIED, Cafe.is_active == True)
         )).scalar() or 0
         new_users = (await self.db.execute(
-            select(func.count(User.id)).where(User.created_at >= cutoff)
+            select(func.count(User.id)).where(not_demo_user(), User.created_at >= cutoff)
         )).scalar() or 0
         new_cafes = (await self.db.execute(
-            select(func.count(Cafe.id)).where(Cafe.created_at >= cutoff)
+            select(func.count(Cafe.id)).where(not_demo_cafe(), Cafe.created_at >= cutoff)
         )).scalar() or 0
 
         counted_statuses = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
         period_bookings_row = (await self.db.execute(
             select(func.count(Booking.id), func.sum(Booking.total_amount))
-            .where(Booking.status.in_(counted_statuses), Booking.created_at >= cutoff)
+            .where(not_demo_booking(), Booking.status.in_(counted_statuses), Booking.created_at >= cutoff)
         )).first()
         bookings_this_period = period_bookings_row[0] or 0
         gmv = float(period_bookings_row[1] or 0.0)
@@ -75,18 +76,18 @@ class AdminAnalyticsService:
         khel_revenue_row = (await self.db.execute(
             select(func.sum(PlatformFee.convenience_fee + PlatformFee.gateway_fee))
             .join(Booking, Booking.id == PlatformFee.booking_id)
-            .where(Booking.status.in_(counted_statuses), Booking.created_at >= cutoff)
+            .where(not_demo_booking(), Booking.status.in_(counted_statuses), Booking.created_at >= cutoff)
         )).scalar()
         khel_revenue = float(khel_revenue_row or 0.0)
 
         avg_booking_value = gmv / bookings_this_period if bookings_this_period else 0.0
 
         total_period_bookings = (await self.db.execute(
-            select(func.count(Booking.id)).where(Booking.created_at >= cutoff)
+            select(func.count(Booking.id)).where(not_demo_booking(), Booking.created_at >= cutoff)
         )).scalar() or 0
         cancelled_row = (await self.db.execute(
             select(func.count(Booking.id)).where(
-                Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
+                not_demo_booking(), Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                 Booking.created_at >= cutoff,
             )
         )).scalar() or 0
@@ -96,7 +97,7 @@ class AdminAnalyticsService:
             select(func.count())
             .select_from(
                 select(Booking.gamer_id)
-                .where(Booking.status.in_(counted_statuses), Booking.created_at >= cutoff)
+                .where(not_demo_booking(), Booking.status.in_(counted_statuses), Booking.created_at >= cutoff)
                 .group_by(Booking.gamer_id)
                 .having(func.count(Booking.id) > 1)
                 .subquery()
@@ -104,7 +105,7 @@ class AdminAnalyticsService:
         )).scalar() or 0
         distinct_gamers_row = (await self.db.execute(
             select(func.count(func.distinct(Booking.gamer_id))).where(
-                Booking.status.in_(counted_statuses), Booking.created_at >= cutoff
+                not_demo_booking(), Booking.status.in_(counted_statuses), Booking.created_at >= cutoff
             )
         )).scalar() or 0
         repeat_booking_rate = (repeat_gamers_row / distinct_gamers_row * 100) if distinct_gamers_row else 0.0
@@ -134,7 +135,7 @@ class AdminAnalyticsService:
                 func.sum(Booking.total_amount).label("gmv"),
             )
             .join(Booking, Booking.cafe_id == Cafe.id)
-            .where(Booking.status.in_(counted))
+            .where(not_demo_booking(), Booking.status.in_(counted))
             .group_by(Cafe.id, Cafe.name, Cafe.city)
             .order_by(func.sum(Booking.total_amount).desc())
         )).all()
@@ -144,14 +145,14 @@ class AdminAnalyticsService:
             cancellations = (await self.db.execute(
                 select(func.count(Booking.id)).where(
                     Booking.cafe_id == cafe_id,
-                    Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
+                    not_demo_booking(), Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                 )
             )).scalar() or 0
 
             repeat_customers = (await self.db.execute(
                 select(func.count()).select_from(
                     select(Booking.gamer_id)
-                    .where(Booking.cafe_id == cafe_id, Booking.status.in_(counted))
+                    .where(Booking.cafe_id == cafe_id, not_demo_booking(), Booking.status.in_(counted))
                     .group_by(Booking.gamer_id)
                     .having(func.count(Booking.id) > 1)
                     .subquery()
@@ -160,7 +161,7 @@ class AdminAnalyticsService:
 
             top_game_row = (await self.db.execute(
                 select(Booking.game, func.count(Booking.id).label("cnt"))
-                .where(Booking.cafe_id == cafe_id, Booking.status.in_(counted), Booking.game.is_not(None))
+                .where(Booking.cafe_id == cafe_id, not_demo_booking(), Booking.status.in_(counted), Booking.game.is_not(None))
                 .group_by(Booking.game)
                 .order_by(func.count(Booking.id).desc())
                 .limit(1)
@@ -191,7 +192,7 @@ class AdminAnalyticsService:
                 func.sum(Booking.duration_hours).label("hours"),
             )
             .join(Booking, Booking.hardware_tier_id == HardwareTier.id)
-            .where(Booking.status.in_(counted))
+            .where(not_demo_booking(), Booking.status.in_(counted))
             .group_by(HardwareTier.platform)
             .order_by(func.sum(Booking.total_amount).desc())
         )).all()
@@ -216,13 +217,13 @@ class AdminAnalyticsService:
         counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
 
         cafe_counts = dict((await self.db.execute(
-            select(Cafe.city, func.count(Cafe.id)).group_by(Cafe.city)
+            select(Cafe.city, func.count(Cafe.id)).where(not_demo_cafe()).group_by(Cafe.city)
         )).all())
 
         booking_rows = (await self.db.execute(
             select(Cafe.city, func.count(Booking.id), func.sum(Booking.total_amount))
             .join(Booking, Booking.cafe_id == Cafe.id)
-            .where(Booking.status.in_(counted))
+            .where(not_demo_booking(), Booking.status.in_(counted))
             .group_by(Cafe.city)
         )).all()
         booking_by_city = {city: (cnt, float(gmv or 0.0)) for city, cnt, gmv in booking_rows}
@@ -241,7 +242,7 @@ class AdminAnalyticsService:
         counted = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
 
         gmv = float((await self.db.execute(
-            select(func.sum(Booking.total_amount)).where(Booking.status.in_(counted))
+            select(func.sum(Booking.total_amount)).where(not_demo_booking(), Booking.status.in_(counted))
         )).scalar() or 0.0)
 
         totals_row = (await self.db.execute(
@@ -250,7 +251,7 @@ class AdminAnalyticsService:
                 func.sum(PlatformFee.owner_settlement_amount),
             )
             .join(Booking, Booking.id == PlatformFee.booking_id)
-            .where(Booking.status.in_(counted))
+            .where(not_demo_booking(), Booking.status.in_(counted))
         )).first()
         khel_revenue = float(totals_row[0] or 0.0)
         owner_settlements = float(totals_row[1] or 0.0)
@@ -258,7 +259,7 @@ class AdminAnalyticsService:
         by_city_rows = (await self.db.execute(
             select(Cafe.city, func.sum(Booking.total_amount))
             .join(Booking, Booking.cafe_id == Cafe.id)
-            .where(Booking.status.in_(counted))
+            .where(not_demo_booking(), Booking.status.in_(counted))
             .group_by(Cafe.city)
         )).all()
         revenue_by_city = {city: float(total or 0.0) for city, total in by_city_rows}
@@ -266,7 +267,7 @@ class AdminAnalyticsService:
         by_platform_rows = (await self.db.execute(
             select(HardwareTier.platform, func.sum(Booking.total_amount))
             .join(Booking, Booking.hardware_tier_id == HardwareTier.id)
-            .where(Booking.status.in_(counted))
+            .where(not_demo_booking(), Booking.status.in_(counted))
             .group_by(HardwareTier.platform)
         )).all()
         revenue_by_platform = {
@@ -289,7 +290,7 @@ class AdminAnalyticsService:
             .join(Promotion, Booking.promotion_id == Promotion.id)
             .join(OfferCampaign, Promotion.campaign_id == OfferCampaign.id)
             .join(PlatformFee, PlatformFee.booking_id == Booking.id)
-            .where(Booking.status.in_(counted))
+            .where(not_demo_booking(), Booking.status.in_(counted))
             .group_by(OfferCampaign.id, OfferCampaign.name)
         )).all()
         campaigns = [
@@ -311,7 +312,7 @@ class AdminAnalyticsService:
 
     async def get_marketplace_health(self) -> MarketplaceHealthResponse:
         status_rows = (await self.db.execute(
-            select(Booking.status, func.count(Booking.id)).group_by(Booking.status)
+            select(Booking.status, func.count(Booking.id)).where(not_demo_booking()).group_by(Booking.status)
         )).all()
         by_status = {status: count for status, count in status_rows}
         total_bookings = sum(by_status.values())
@@ -345,7 +346,7 @@ class AdminAnalyticsService:
         booking_rows = (await self.db.execute(
             select(User.acquisition_source, func.count(Booking.id), func.sum(Booking.total_amount))
             .join(Booking, Booking.gamer_id == User.id)
-            .where(User.acquisition_source.is_not(None), Booking.status.in_(counted))
+            .where(User.acquisition_source.is_not(None), not_demo_booking(), Booking.status.in_(counted))
             .group_by(User.acquisition_source)
         )).all()
         bookings_by_source = {source: (cnt, float(gmv or 0.0)) for source, cnt, gmv in booking_rows}
@@ -402,7 +403,7 @@ class AdminAnalyticsService:
         booking_row = (await self.db.execute(
             select(func.count(Booking.id), func.sum(Booking.total_amount))
             .join(User, Booking.gamer_id == User.id)
-            .where(User.acquisition_campaign == campaign_id, Booking.status.in_(counted))
+            .where(User.acquisition_campaign == campaign_id, not_demo_booking(), Booking.status.in_(counted))
         )).one()
         bookings, revenue = booking_row[0] or 0, float(booking_row[1] or 0.0)
 
@@ -426,7 +427,7 @@ class AdminAnalyticsService:
         )).all())
 
         bookings_confirmed = (await self.db.execute(
-            select(func.count(Booking.id)).where(Booking.status.in_(counted))
+            select(func.count(Booking.id)).where(not_demo_booking(), Booking.status.in_(counted))
         )).scalar() or 0
 
         return FunnelResponse(
@@ -465,11 +466,11 @@ class AdminAnalyticsService:
             .where(AnalyticsEvent.user_id.is_not(None), AnalyticsEvent.created_at >= window[0], AnalyticsEvent.created_at < window[1])
         )).all()
         signups = (await self.db.execute(
-            select(User.created_at).where(User.created_at >= window[0], User.created_at < window[1])
+            select(User.created_at).where(not_demo_user(), User.created_at >= window[0], User.created_at < window[1])
         )).scalars().all()
         bookings = (await self.db.execute(
             select(Booking.created_at).where(
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                not_demo_booking(), Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 Booking.created_at >= window[0], Booking.created_at < window[1],
             )
         )).scalars().all()
@@ -587,7 +588,7 @@ class AdminAnalyticsService:
             select(Booking.gamer_id, func.count(Booking.id))
             .where(
                 Booking.gamer_id.in_([u.id for u in signups] or [None]),
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                not_demo_booking(), Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 *in_window(Booking.created_at),
             )
             .group_by(Booking.gamer_id)

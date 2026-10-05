@@ -1,4 +1,5 @@
 from typing import Optional, List, Tuple, Any, Dict
+from app.core.demo import not_demo_user
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
@@ -33,7 +34,7 @@ class UserRepository(BaseRepository[User]):
         limit: int = 20
     ) -> Tuple[List[User], int]:
         stmt = select(User)
-        filters = []
+        filters = [not_demo_user()]
 
         if role:
             filters.append(User.role == role)
@@ -59,7 +60,7 @@ class UserRepository(BaseRepository[User]):
         return items, total
 
     async def count_by_role(self) -> Dict[str, int]:
-        stmt = select(User.role, func.count(User.id)).group_by(User.role)
+        stmt = select(User.role, func.count(User.id)).where(not_demo_user()).group_by(User.role)
         res = await self.db.execute(stmt)
         rows = res.all()
         counts = {"gamer": 0, "cafe_owner": 0, "admin": 0}

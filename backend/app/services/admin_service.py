@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone, date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.demo import demo_cafe_ids, not_demo_booking, not_demo_cafe
 from sqlalchemy import select, func, and_
 
 from app.repositories.user_repository import UserRepository
@@ -67,6 +68,7 @@ class AdminService:
             func.count(Booking.id),
             func.sum(Booking.total_amount)
         ).where(
+            not_demo_booking(),
             Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             Booking.created_at >= first_day_month
         )
@@ -80,6 +82,7 @@ class AdminService:
             func.count(Booking.id),
             func.sum(Booking.total_amount)
         ).where(
+            not_demo_booking(),
             Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])
         )
         res_all = await self.db.execute(stmt_all)
@@ -96,6 +99,7 @@ class AdminService:
         ).join(
             Booking, Booking.cafe_id == Cafe.id
         ).where(
+            not_demo_booking(),
             Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             Booking.created_at >= first_day_month
         ).group_by(
@@ -287,7 +291,7 @@ class AdminService:
             OfferCampaign, Promotion.campaign_id == OfferCampaign.id
         )
 
-        filters = []
+        filters = [not_demo_booking()]
         if campaign_only:
             filters.append(OfferCampaign.id.is_not(None))
         if cafe_id:
@@ -385,7 +389,7 @@ class AdminService:
     ) -> Dict[str, Any]:
         limit = min(limit, 50)
         stmt = select(Promotion)
-        filters = []
+        filters = [Promotion.cafe_id.not_in(demo_cafe_ids())]
         if cafe_id:
             filters.append(Promotion.cafe_id == cafe_id)
         if is_active is not None:
@@ -517,7 +521,7 @@ class AdminService:
             Cafe, Booking.cafe_id == Cafe.id
         )
 
-        filters = []
+        filters = [not_demo_booking()]
         if status:
             filters.append(Payment.status == status)
         if cafe_id:
@@ -740,7 +744,7 @@ class AdminService:
         Support and Bookings to find. Every count here is something a real
         admin can act on directly — not general stats (that's /analytics)."""
         pending_cafes = (await self.db.execute(
-            select(func.count()).select_from(Cafe).where(Cafe.verification_status == VerificationStatus.PENDING)
+            select(func.count()).select_from(Cafe).where(Cafe.verification_status == VerificationStatus.PENDING, not_demo_cafe())
         )).scalar() or 0
 
         failed_transfers = (await self.db.execute(
@@ -758,6 +762,7 @@ class AdminService:
         stuck_ttl = datetime.now(timezone.utc) - timedelta(minutes=20)
         stuck_pending_payments = (await self.db.execute(
             select(func.count()).select_from(Booking).where(
+                not_demo_booking(),
                 Booking.status == BookingStatus.PENDING_PAYMENT,
                 Booking.created_at < stuck_ttl
             )

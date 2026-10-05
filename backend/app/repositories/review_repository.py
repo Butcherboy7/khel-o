@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional, Tuple, Any
+from app.core.demo import not_demo_cafe
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, and_
@@ -73,6 +74,7 @@ class ReviewRepository(BaseRepository[Review]):
             .join(User, Review.gamer_id == User.id)
             .join(Cafe, Review.cafe_id == Cafe.id)
         )
+        stmt = stmt.where(not_demo_cafe())
         if cafe_id:
             stmt = stmt.where(Review.cafe_id == cafe_id)
         stmt = stmt.order_by(Review.created_at.desc())
