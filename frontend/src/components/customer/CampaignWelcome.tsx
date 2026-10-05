@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowRight, Gamepad2, X } from 'lucide-react';
+import { ArrowRight, Gamepad2, Gift, X } from 'lucide-react';
 import { SpecialAccessBadge } from '@/components/customer/SpecialAccessBadge';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { cafePath } from '@/lib/api/cafes';
@@ -15,7 +15,9 @@ import { titleCaseCity } from '@/lib/format';
 import { useAuthStore } from '@/store/authStore';
 
 const SEEN_KEY = 'khelo_welcome_seen_v1';
-const CONFETTI = ['#E54D42', '#F59E0B', '#FFF1B8', '#8B5CF6', '#10B981'];
+// Visitors who stay this long are interested enough for the offer; anyone
+// quicker is left alone and can tap the gift button instead.
+const POPUP_AFTER_MS = 8000;
 
 const rupees = (n: number) => `₹${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
@@ -153,10 +155,13 @@ export function CampaignWelcome() {
   useEffect(() => {
     if (!urlCode || !page.data) return;
     storeCampaign(urlCode, null);
-    if (!wasSeen(urlCode)) {
+    if (wasSeen(urlCode)) return;
+    const cafeCount = page.data.cafes.length;
+    const timer = window.setTimeout(() => {
       setOpen(true);
-      trackAction('campaign_popup_shown', { code: urlCode, cafes: page.data.cafes.length });
-    }
+      trackAction('campaign_popup_shown', { code: urlCode, cafes: cafeCount });
+    }, POPUP_AFTER_MS);
+    return () => window.clearTimeout(timer);
   }, [urlCode, page.data]);
 
   useEffect(() => {
@@ -183,39 +188,21 @@ export function CampaignWelcome() {
   const earned = Boolean(claim.data);
   const pricesHref = `/campaign/${code}?view=prices`;
 
-  // Pop-up closed (or already seen): the deals sit at the top of the homepage.
+  // Pop-up closed or not shown yet: just a small gift button, one tap to open.
   if (!open) {
     return (
-      <section aria-labelledby="campaign-strip-title" className="mx-auto mb-4 flex max-w-wide flex-col gap-3 rounded-3xl bg-gradient-to-br from-secondary via-secondary to-[#2B2D42] p-4 text-white">
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <h2 id="campaign-strip-title" className="font-heading text-body font-bold">
-              Your special prices are on
-            </h2>
-            <p className="text-caption text-white/80">Applied automatically when you book. No code to type.</p>
-          </div>
-          <Link
-            href={pricesHref}
-            onClick={() => trackAction('campaign_strip_see_prices', { code })}
-            className="hidden min-h-[44px] items-center rounded-xl px-3 text-caption font-semibold text-white underline-offset-4 hover:underline sm:inline-flex"
-          >
-            Every price
-          </Link>
-          <SpecialAccessBadge earned size="sm" className="hidden flex-shrink-0 sm:inline-flex" />
-        </div>
-        <ul className="grid gap-2 sm:grid-cols-2">
-          {cafes.map((c) => (
-            <DealCard key={c.id} cafe={c} code={campaign.code} where="strip" />
-          ))}
-        </ul>
-        <Link
-          href={pricesHref}
-          onClick={() => trackAction('campaign_strip_see_prices', { code })}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-xl text-caption font-semibold text-white/90 sm:hidden"
-        >
-          See every special price
-        </Link>
-      </section>
+      <button
+        type="button"
+        onClick={() => {
+          trackAction('campaign_gift_open', { code });
+          setOpen(true);
+        }}
+        aria-label="Special prices for you"
+        className="fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom)_+_16px)] right-4 z-overlay flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-float transition hover:bg-primary-dark active:scale-95 md:bottom-6"
+      >
+        <Gift className="h-6 w-6" aria-hidden />
+        <span aria-hidden className="absolute right-1 top-1 h-3 w-3 rounded-full border-2 border-white bg-amber-400" />
+      </button>
     );
   }
 
@@ -230,21 +217,6 @@ export function CampaignWelcome() {
         onClick={(e) => e.stopPropagation()}
         className="khelo-pop-in outline-none relative flex max-h-[92vh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-3xl bg-card px-4 pb-4 pt-6 shadow-overlay sm:px-5"
       >
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-0">
-          {Array.from({ length: 22 }).map((_, i) => (
-            <span
-              key={i}
-              className="khelo-confetti"
-              style={{
-                left: `${(i * 4.7 + 3) % 100}%`,
-                background: CONFETTI[i % CONFETTI.length],
-                animationDelay: `${(i % 7) * 0.12}s`,
-                ['--dx' as string]: `${(i % 2 ? 1 : -1) * (10 + (i % 5) * 8)}px`,
-              }}
-            />
-          ))}
-        </div>
-
         <button
           type="button"
           onClick={() => close()}
