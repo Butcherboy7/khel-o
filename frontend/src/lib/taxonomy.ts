@@ -121,3 +121,20 @@ export function describeTier(
     rows,
   };
 }
+
+/** Labels of required details the owner has not filled in for this setup. */
+export function missingRequiredAttrs(
+  tax: Taxonomy | undefined,
+  key: string | null | undefined,
+  attrs: Record<string, unknown> | undefined | null,
+): string[] {
+  const found = resolveKey(tax, key);
+  if (!found) return [];
+  return found.activity.attributes
+    .filter((a) => a.level === 'required')
+    .filter((a) => {
+      const v = attrs?.[a.key];
+      return v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+    })
+    .map((a) => a.label);
+}

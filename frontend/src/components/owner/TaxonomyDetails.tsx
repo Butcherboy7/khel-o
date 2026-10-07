@@ -137,7 +137,7 @@ export function TaxonomyDetails({ config, onChange }: Props) {
           return (
             <NumericField
               key={a.key}
-              label={`${label} — optional`}
+              label={a.level === 'required' ? `${label} — required` : `${label} — optional`}
               min={1}
               value={typeof value === 'number' ? value : 0}
               onChange={(n) => setAttr(a.key, n > 0 ? n : undefined)}

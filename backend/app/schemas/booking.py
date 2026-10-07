@@ -27,7 +27,7 @@ class BookingBase(BaseModel):
     duration_hours: float = Field(..., ge=0.25, le=8.0)
     seats_count: int = Field(1, ge=1, le=6, description="Number of seats (consoles/units) this booking holds (1 to 6)")
     # People playing. Greater than seats_count = co-op on one console.
-    players_count: Optional[int] = Field(None, ge=1, le=6)
+    players_count: Optional[int] = Field(None, ge=1, le=60)
     notes: Optional[str] = None
     promotion_id: Optional[UUID] = None
     # Alternative to promotion_id — the KHELO code the customer typed in or
@@ -145,7 +145,7 @@ class QuoteRequest(BaseModel):
     start_time: time
     duration_hours: float = Field(..., ge=0.25, le=8.0)
     seats_count: int = Field(1, ge=1, le=6)
-    players_count: Optional[int] = Field(None, ge=1, le=6)
+    players_count: Optional[int] = Field(None, ge=1, le=60)
     promotion_id: Optional[UUID] = None
     promo_code: Optional[str] = Field(None, max_length=20)
 

@@ -5,6 +5,7 @@ import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { basePriceForMinutes } from '@/lib/pricing';
+import { playersCapOf, unitNoun } from '@/lib/playerCap';
 import { ActivitySpecLine, AboutThisSetup } from '@/components/customer/ActivitySpecs';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
@@ -116,6 +117,9 @@ function BookingWizardContent() {
     const s = parseInt(searchParams.get('seats') || '', 10);
     return Number.isFinite(s) && s > 0 ? s : 1;
   });
+  // Tables, lanes and rooms: price is per unit, so group size is separate from
+  // the unit count (`seatsCount`) and never changes the price.
+  const [groupSize, setGroupSize] = useState(1);
   const [coopChosen, setCoopChosen] = useState(() => searchParams.get('coop') === '1');
   const [showCoopNotice, setShowCoopNotice] = useState(false);
   const initialDurationParam = useRef(searchParams.get('duration'));
@@ -296,12 +300,18 @@ function BookingWizardContent() {
   // Co-op: friends share ONE console. Offered when the owner allows it and
   // the group fits on one; forced when there aren't enough free consoles
   // for everyone to have their own.
+  const isActivity = activeTier?.tierType === 'activity';
+  const playersCap = isActivity ? playersCapOf(activeTier?.attributes) : null;
+  const unit = unitNoun(activeTier?.taxonomyKey);
+  const groupMax = playersCap ? playersCap * seatsCount : 0;
+  const groupShown = playersCap ? Math.min(groupSize, groupMax) : null;
+  const playersToSend = isActivity ? (groupShown ?? undefined) : seatsCount;
   const coopMax = activeTier?.coopEnabled ? (activeTier.coopMaxPlayers ?? 2) : 0;
   const canCoop = seatsCount >= 2 && seatsCount <= coopMax;
   const canSeparate = seatsCount <= windowRemainingSeats;
   const isCoop = canCoop && (coopChosen || !canSeparate);
   const consolesCount = isCoop ? 1 : seatsCount;
-  const maxPlayers = Math.min(6, Math.max(windowRemainingSeats, coopMax));
+  const maxPlayers = isActivity ? Math.min(6, windowRemainingSeats) : Math.min(6, Math.max(windowRemainingSeats, coopMax));
   const minDurationMin = Math.max(15, activeTier?.minBookingMinutes ?? 60);
   const durationStep = minDurationMin % 30 === 0 ? 30 : 15;
   const durationLabel = durationHours < 1 ? `${Math.round(durationHours * 60)} min` : `${durationHours} hr`;
@@ -476,6 +486,7 @@ function BookingWizardContent() {
       durationHours,
       consolesCount,
       seatsCount,
+      playersToSend,
       chosenOfferId,
       appliedCode,
     ],
@@ -487,7 +498,7 @@ function BookingWizardContent() {
         startTime: selectedTime,
         durationHours,
         seatsCount: consolesCount,
-        playersCount: seatsCount,
+        playersCount: playersToSend,
         promotionId: chosenOfferId,
         promoCode: appliedCode,
       }),
@@ -642,7 +653,7 @@ function BookingWizardContent() {
         startTime: selectedTime,
         durationHours: durationHours,
         seatsCount: consolesCount,
-        playersCount: seatsCount,
+        playersCount: playersToSend,
         // Exactly the offer the quote applied; the server still re-checks it
         // under a lock, so a sold-out offer is refused rather than charged.
         promotionId: quote?.appliedOffer?.id,
@@ -885,6 +896,58 @@ function BookingWizardContent() {
       {/* Players — compact horizontal row. Renamed from "Seats": this count
           is how many people are using the tier's gaming capacity, not a
           specific physical seat assignment. */}
+      {isActivity && (
+        <>
+          {windowRemainingSeats > 1 && (
+            <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="font-heading text-body font-bold text-text-primary flex items-center gap-1.5">
+                  <Users className="h-4 w-4 text-primary flex-shrink-0" />
+                  How many {unit.many}?
+                </span>
+                <p className="text-caption text-text-secondary">Price is per {unit.one}. {windowRemainingSeats} free at this time.</p>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button type="button" onClick={() => setSeatsCount((s) => Math.max(1, s - 1))} disabled={seatsCount <= 1} aria-label={`Fewer ${unit.many}`}
+                  className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                  <Minus className="h-4 w-4" />
+                </button>
+                <span className="w-6 text-center font-heading text-body font-bold">{seatsCount}</span>
+                <button type="button" onClick={() => setSeatsCount((s) => Math.min(maxPlayers, s + 1))} disabled={seatsCount >= maxPlayers} aria-label={`More ${unit.many}`}
+                  className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+          {playersCap && groupShown !== null && (
+            <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="font-heading text-body font-bold text-text-primary flex items-center gap-1.5">
+                  <Users className="h-4 w-4 text-primary flex-shrink-0" />
+                  Players
+                </span>
+                <p className="text-caption text-text-secondary">
+                  Fits up to {playersCap} per {unit.one}. The price stays the same.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button type="button" onClick={() => setGroupSize(() => Math.max(1, groupShown - 1))} disabled={groupShown <= 1} aria-label="Decrease players"
+                  className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                  <Minus className="h-4 w-4" />
+                </button>
+                <span className="w-6 text-center font-heading text-body font-bold">{groupShown}</span>
+                <button type="button" onClick={() => setGroupSize(() => Math.min(groupMax, groupShown + 1))} disabled={groupShown >= groupMax} aria-label="Increase players"
+                  className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {!isActivity && (
       <div className="relative p-3.5 rounded-2xl bg-card border border-border/80">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -966,6 +1029,7 @@ function BookingWizardContent() {
           </div>
         )}
       </div>
+      )}
 
       {/* Price summary — sits directly under Players so the whole decision
           (tier, date, slot, players, what it costs) resolves in the first
@@ -975,7 +1039,10 @@ function BookingWizardContent() {
       <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex flex-col gap-1.5 text-caption text-text-secondary">
         <div className="flex items-center justify-between gap-3">
           <span className="min-w-0 truncate">
-            {activeTier?.name || 'Standard'} · {durationLabel} · {seatsCount} player{seatsCount > 1 ? 's' : ''}
+            {activeTier?.name || 'Standard'} · {durationLabel} ·{' '}
+            {isActivity
+              ? `${seatsCount} ${seatsCount > 1 ? unit.many : unit.one}${groupShown ? ` · ${groupShown} player${groupShown > 1 ? 's' : ''}` : ''}`
+              : `${seatsCount} player${seatsCount > 1 ? 's' : ''}`}
             {isCoop && ' · co-op'}
           </span>
           <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{money(baseTotal)}</span>

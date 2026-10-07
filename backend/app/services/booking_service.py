@@ -1,6 +1,8 @@
 import string
 import random
 import math
+from app.core import taxonomy
+from app.models.hardware_tier import TierType
 from app.core.demo import DEMO_SLUG_PREFIX
 from decimal import Decimal
 from typing import List, Optional, Dict, Any
@@ -39,6 +41,16 @@ class BookingService:
         self.cafe_repo = cafe_repo
         self.tier_repo = tier_repo
         self.promo_service = promo_service
+
+    @staticmethod
+    def _check_group_fits(tier, players: int, units: int) -> None:
+        cap = taxonomy.players_cap(tier.attributes)
+        if cap and players > cap * units:
+            raise ValidationException(
+                message=f"This fits up to {cap} players per booked unit; "
+                        f"you booked {units}, which takes {cap * units}.",
+                error_code="TOO_MANY_PLAYERS",
+            )
 
     def _generate_reference(self) -> str:
         year = datetime.now(timezone.utc).year
@@ -116,8 +128,13 @@ class BookingService:
 
         seats_requested = getattr(booking_in, 'seats_count', 1)
         players = booking_in.players_count or seats_requested
+        # Tables, lanes and rooms are priced per unit, never per person. The
+        # group size only has to fit what the owner says one unit takes.
+        is_activity = tier.tier_type == TierType.ACTIVITY.value
+        if is_activity:
+            self._check_group_fits(tier, players, seats_requested)
         # Co-op: more people than consoles means friends share ONE console.
-        is_coop = players > seats_requested
+        is_coop = (not is_activity) and players > seats_requested
         if is_coop:
             if not getattr(tier, 'coop_enabled', False):
                 raise ValidationException(message="This setup doesn't allow sharing a console", error_code="COOP_NOT_ALLOWED")
@@ -301,7 +318,10 @@ class BookingService:
 
         seats_requested = quote_in.seats_count
         players = quote_in.players_count or seats_requested
-        is_coop = players > seats_requested
+        is_activity = tier.tier_type == TierType.ACTIVITY.value
+        if is_activity:
+            self._check_group_fits(tier, players, seats_requested)
+        is_coop = (not is_activity) and players > seats_requested
 
         start_datetime = datetime.combine(quote_in.session_date, quote_in.start_time).replace(tzinfo=IST)
         duration = Decimal(str(quote_in.duration_hours))
