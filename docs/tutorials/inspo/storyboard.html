@@ -1,0 +1,43 @@
+<!doctype html><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&family=Plus+Jakarta+Sans:wght@700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+body{background:#0b0c10;width:2160px;height:1010px;padding:40px 36px;display:flex;gap:36px;font-family:'Plus Jakarta Sans',sans-serif}
+.wrap{width:486px;height:864px;position:relative}
+.lab{position:absolute;top:-30px;left:0;color:#9aa0ac;font:600 15px 'Plus Jakarta Sans';letter-spacing:.04em}
+.f{width:1080px;height:1920px;transform:scale(.45);transform-origin:0 0;position:absolute;top:0;left:0;border-radius:40px;overflow:hidden;
+ background:radial-gradient(circle at 50% 45%,#1b1f27,#111318 70%);color:#fff}
+.top{position:absolute;top:0;left:0;right:0;height:170px;display:flex;align-items:center;gap:22px;padding:0 60px}
+.logo{width:64px;height:64px;border-radius:16px;background:#E54D42;display:grid;place-items:center;font:700 34px 'Space Grotesk'}
+.chip{font:700 30px 'Space Grotesk';background:#E54D42;padding:12px 26px;border-radius:40px}
+.title{font:700 46px 'Space Grotesk';margin-left:auto}
+.scr{position:absolute;top:170px;left:110px;width:860px;height:1520px;border-radius:24px;overflow:hidden;background:#F1EFEA;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.in{width:430px;height:760px;transform:scale(2);transform-origin:0 0;border:0;position:absolute;top:0;left:0}
+.zoom{position:absolute;inset:0;transition:none}
+.cap{position:absolute;bottom:0;left:0;right:0;height:230px;display:grid;place-items:center;text-align:center;padding:0 80px;font:700 58px/1.2 'Plus Jakarta Sans';-webkit-text-stroke:0;text-shadow:0 0 0 #000,2px 2px 0 #111318,-2px -2px 0 #111318,2px -2px 0 #111318,-2px 2px 0 #111318}
+.cap b{color:#E54D42}
+.ring{position:absolute;border:5px solid #E54D42;border-radius:22px;box-shadow:0 0 0 10px rgba(229,77,66,.25)}
+.rip{position:absolute;width:150px;height:150px;border-radius:50%;background:rgba(229,77,66,.45);border:4px solid #fff;transform:translate(-50%,-50%)}
+.end{display:grid;place-items:center;text-align:center}
+.end .big{font:700 110px 'Space Grotesk'} .end p{font:700 44px 'Plus Jakarta Sans';color:#B8BCC6;margin-top:30px}
+</style>
+<div class="wrap"><div class="lab">1 · PROMISE + START (0–5 s)</div><div class="f">
+ <div class="top"><div class="logo">K</div><div class="chip">Step 1 of 3</div><div class="title">Find a café</div></div>
+ <div class="scr"><img src="m_home.png" style="width:860px;height:1520px;display:block"></div>
+ <div class="ring" style="left:140px;top:518px;width:800px;height:110px"></div>
+ <div class="cap"><span>Find a café in <b>three</b> steps.</span></div></div></div>
+
+<div class="wrap"><div class="lab">2 · STEP + ZOOM + TAP RIPPLE</div><div class="f">
+ <div class="top"><div class="logo">K</div><div class="chip">Step 2 of 3</div><div class="title">Pick a game type</div></div>
+ <div class="scr"><div class="zoom" style="transform:translate(-57px,179px) scale(1.6);transform-origin:487px 521px"><img src="m_home.png" style="width:860px;height:1520px;display:block"><div class="ring" style="left:388px;top:483px;width:197px;height:77px"></div><div class="rip" style="left:487px;top:521px"></div></div></div>
+ 
+ <div class="cap"><span>Tap <b>Console</b> to see only PlayStation cafés.</span></div></div></div>
+
+<div class="wrap"><div class="lab">3 · RESULT (hold 2 s)</div><div class="f">
+ <div class="top"><div class="logo">K</div><div class="chip">Step 3 of 3</div><div class="title">Done</div></div>
+ <div class="scr"><img src="m_home.png" style="width:860px;height:1520px;display:block"></div>
+ <div class="ring" style="left:138px;top:905px;width:805px;height:655px"></div><div class="cap"><span>Now tap a café to see <b>prices</b> and free slots.</span></div></div></div>
+
+<div class="wrap"><div class="lab">4 · END CARD (2 s)</div><div class="f end">
+ <div><div class="logo" style="width:150px;height:150px;font-size:80px;margin:0 auto 40px;border-radius:36px">K</div>
+ <div class="big">KHEL-O</div><p>Next: Read a café listing</p><p style="font-size:36px">Need help? Message us on WhatsApp</p></div></div></div>
