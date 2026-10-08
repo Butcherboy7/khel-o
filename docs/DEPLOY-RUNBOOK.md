@@ -35,3 +35,8 @@ the newest one at the time of writing is `prod64`. Dev lives at `/opt/khelo-dev`
 - "Booking soon" cafés are real lead listings, not test data. The demo café (`khelo-demo-*`, user `khelo.demo.*`) is fake and hidden everywhere (`backend/app/core/demo.py`); rebuild it with `backend/scripts/seed_demo_owner.py`.
 - 33 bot accounts still need deactivating by hand in admin Users.
 - Do not push or deploy things the person did not ask for; production changes are announced and confirmed.
+
+## Dev (same server, `/opt/khelo-dev`, containers `khel_o_dev_*`)
+- `bash scripts/ops/deploy_dev.sh <N>` bundles `qa(N-1)..qaN` (latest qa branch was `qa61`) and runs `deploy_remote.sh dev`.
+- `scripts/ops/dev_python.sh` and `scripts/ops/dev_sql.sh` are the dev twins of the prod helpers.
+- Dev and prod share one EC2 instance, so one AWS profile (`khelo`) covers both.
