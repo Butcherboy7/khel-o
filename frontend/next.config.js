@@ -60,6 +60,10 @@ const nextConfig = {
     // The page was called Rewards before it became Achievements.
     return [{ source: '/rewards', destination: '/achievements', permanent: true }];
   },
+  async rewrites() {
+    // Thank-you pages for interns are plain HTML in public/thanks/ (built by marketing/certificates/).
+    return [{ source: '/thanks/maleeha', destination: '/thanks/maleeha.html' }];
+  },
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion', '@tanstack/react-query'],
   },
