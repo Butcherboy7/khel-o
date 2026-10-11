@@ -118,9 +118,12 @@ export function OwnerIntroForm({ cafeId, cafeName, onDone }: OwnerIntroFormProps
         note: note.trim() || undefined,
         ownerConsent: consent,
       });
-      // Counted per visit, so a campaign link (/c/<slug>) shows how many intros it brought. No owner details.
-      trackAction('owner_intro_sent', { relation, from: knownCafe ? 'cafe_page' : 'know_the_owner' }, cafeId);
       setSentTo(ownerName.trim().split(/\s+/)[0]);
+      // Counted per visit, so a campaign link (/c/<slug>) shows how many intros it brought. No owner details.
+      // After the intro is saved, and never able to turn a sent intro into an error.
+      try {
+        trackAction('owner_intro_sent', { relation, from: knownCafe ? 'cafe_page' : 'know_the_owner' }, cafeId);
+      } catch {}
     } catch (e) {
       setError(isApiError(e) && e.status !== 0 && e.status < 500 ? e.message : "Couldn't send that just now. Try again?");
     } finally {
