@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import { isApiError } from '@/lib/api/errors';
 import { createOwnerIntro, type OwnerRelation } from '@/lib/api/ownerIntros';
+import { trackAction } from '@/lib/api/analyticsEvents';
 import { HelperEmblem } from '@/components/customer/HelperEmblem';
 
 const RELATIONS: { key: OwnerRelation; label: string }[] = [
@@ -117,6 +118,8 @@ export function OwnerIntroForm({ cafeId, cafeName, onDone }: OwnerIntroFormProps
         note: note.trim() || undefined,
         ownerConsent: consent,
       });
+      // Counted per visit, so a campaign link (/c/<slug>) shows how many intros it brought. No owner details.
+      trackAction('owner_intro_sent', { relation, from: knownCafe ? 'cafe_page' : 'know_the_owner' }, cafeId);
       setSentTo(ownerName.trim().split(/\s+/)[0]);
     } catch (e) {
       setError(isApiError(e) && e.status !== 0 && e.status < 500 ? e.message : "Couldn't send that just now. Try again?");

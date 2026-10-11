@@ -279,6 +279,7 @@ const ACTION_LABELS: [string, string][] = [
   ['campaign_book_now', 'Tapped “Book now” on a café'],
   ['campaign_share_open', 'Opened “Share with friends”'],
   ['directions_click', 'Tapped Directions'],
+  ['owner_intro_sent', 'Introduced us to a café owner'],
 ];
 
 const secsLabel = (s: number) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`);
