@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/about' },
   title: 'About Us',
   description:
     'The story of KHEL-O, the gaming café booking platform for India, and the people and friends who built it.',

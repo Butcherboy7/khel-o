@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/cookie-policy' },
   title: 'Cookie Policy',
   description: 'What cookies and local storage KHEL-O uses, and why.',
 };

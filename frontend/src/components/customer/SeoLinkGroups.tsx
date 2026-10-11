@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { FACET_GROUP_LABELS, type SeoFacetType, type SeoLink } from '@/lib/api/seo';
 
-const ORDER: SeoFacetType[] = ['activity', 'game', 'gpu', 'price'];
+const ORDER: SeoFacetType[] = ['activity', 'area', 'game', 'gpu', 'price'];
 
 /**
  * Internal links to landing pages, grouped by kind. Only ever given

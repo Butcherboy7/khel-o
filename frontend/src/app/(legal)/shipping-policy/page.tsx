@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/shipping-policy' },
   title: 'Service Delivery Policy',
   description: 'How KHEL-O delivers your booked gaming session — there are no physical goods shipped.',
 };

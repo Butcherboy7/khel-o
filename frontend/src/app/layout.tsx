@@ -70,9 +70,8 @@ export const metadata: Metadata = {
     icon: '/icons/icon-192x192.png',
     apple: '/icons/icon-192x192.png',
   },
-  alternates: {
-    canonical: '/',
-  },
+  // No site-wide canonical: a child page without its own would inherit '/' and
+  // tell Google it is a copy of the homepage. Each public page sets its own.
   openGraph: {
     type: 'website',
     locale: 'en_IN',
@@ -81,9 +80,11 @@ export const metadata: Metadata = {
     title: 'KHEL-O — Book Gaming Cafés & Game Zones Near You',
     description:
       'Find and book gaming cafés, VR, snooker, pool and bowling near you. See live availability, compare prices and pay online — no calling ahead.',
+    images: [{ url: '/og/khelo-share.png', width: 1200, height: 630, alt: 'KHEL-O: book gaming cafés, snooker and bowling in Hyderabad' }],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
+    images: ['/og/khelo-share.png'],
     title: 'KHEL-O — Book Gaming Cafés & Game Zones Near You',
     description:
       'Find and book gaming cafés, VR, snooker, pool and bowling near you. See live availability, compare prices and pay online.',
@@ -94,17 +95,28 @@ const organizationJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'KHEL-O',
+  // How people actually type it; keeps KHEL-O apart from Khelo India and similar names.
+  alternateName: ['KHELO', 'Khel-O', 'khel-o.com'],
   url: SITE_URL,
+  logo: `${SITE_URL}/brand/khelo-logo-512.png`,
+  // The profiles linked in the footer (components/layout/SocialLinks.tsx).
+  sameAs: [
+    'https://www.instagram.com/khelo.journey/',
+    'https://www.youtube.com/@khel-o.journey',
+    'https://x.com/khheloo',
+    'https://www.threads.com/@khelo.support',
+    'https://www.linkedin.com/company/khel-o/',
+    'https://www.reddit.com/user/Khelo_journey/',
+  ],
   description:
-    'KHEL-O is a booking platform for gaming cafés in India. Gamers search for a café, check real-time station availability, book a time slot, and pay online.',
-  areaServed: 'IN',
+    'KHEL-O is a booking platform for gaming cafés, snooker clubs and bowling alleys in Hyderabad, India. Players find a venue, check real-time availability, book a slot and pay online.',
+  areaServed: { '@type': 'City', name: 'Hyderabad' },
   founder: {
     '@type': 'Person',
     name: 'Mohammed Abdullah',
   },
   address: {
     '@type': 'PostalAddress',
-    streetAddress: 'Prajay Apartment, Kompally',
     addressLocality: 'Hyderabad',
     addressRegion: 'Telangana',
     addressCountry: 'IN',

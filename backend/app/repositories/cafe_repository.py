@@ -323,6 +323,7 @@ class CafeRepository(BaseRepository[Cafe]):
                 "id": c.id,
                 "slug": c.slug,
                 "name": c.name,
+                "address_line2": c.address_line2,
                 "city": c.city,
                 "state": c.state,
                 "latitude": c.latitude,

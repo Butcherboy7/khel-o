@@ -4,13 +4,23 @@ import { listCafes, cafePath } from '@/lib/api/cafes';
 import { ExploreClient } from '@/components/customer/ExploreClient';
 import { CampaignWelcome } from '@/components/customer/CampaignWelcome';
 import { HomeSections } from '@/components/customer/HomeSections';
+import { PopularPages } from '@/components/customer/PopularPages';
+import { getSeoPages } from '@/lib/api/seo';
 import { SkeletonCafeGrid } from '@/components/ui/Skeleton';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
+// Rendered per request. Prerendered at build time, the page had no café data
+// (the builder can't reach the backend) and ExploreClient's useSearchParams
+// bailed out to client rendering, so crawlers got a skeleton with no heading.
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
+  title: { absolute: 'KHEL-O: Book Gaming Cafés, Snooker & Bowling in Hyderabad' },
+  description:
+    'Find gaming cafés, snooker clubs and bowling alleys in Hyderabad. Compare prices and timings, see live availability and book online on KHEL-O.',
   alternates: {
     canonical: '/',
   },
@@ -31,7 +41,10 @@ async function getInitialCafes() {
 }
 
 export default async function ExplorePage() {
-  const initialCafes = await getInitialCafes();
+  const [initialCafes, landingPages] = await Promise.all([
+    getInitialCafes(),
+    getSeoPages().catch(() => []),
+  ]);
 
   const itemListJsonLd = initialCafes && initialCafes.items.length > 0
     ? {
@@ -64,6 +77,7 @@ export default async function ExplorePage() {
       <Suspense fallback={<ExploreFallback />}>
         <ExploreClient initialCafes={initialCafes}>
           <HomeSections />
+          <PopularPages pages={landingPages} />
         </ExploreClient>
       </Suspense>
     </>

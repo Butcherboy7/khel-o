@@ -5,7 +5,8 @@ import { getCafe, cafePath, isCafeUuid } from '@/lib/api/cafes';
 import { PLATFORMS } from '@/constants/platforms';
 import Link from 'next/link';
 import { getCafeLinks } from '@/lib/api/seo';
-import { titleCaseCity } from '@/lib/format';
+import { formatTime, titleCaseCity } from '@/lib/format';
+import { cleanName, venueArea, venueKind } from '@/lib/venueKind';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
 import type { CafeDetail } from '@/types';
 import { CafeDetailClient } from './CafeDetailClient';
@@ -50,15 +51,32 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : null;
-  const priceLine = minPrice ? ` Starting from ₹${minPrice}/hr.` : '';
   // Human labels ("PlayStation, PC Gaming"), not raw enum values.
   const platformLabels = Array.from(new Set((cafe.tiers ?? []).map((t) => t.platform).filter(Boolean)))
     .map((p) => PLATFORMS.find((x) => x.value === p)?.label)
     .filter((label): label is string => !!label && label !== 'Other');
-  const platformLine = platformLabels.length > 0 ? ` ${platformLabels.join(', ')}.` : '';
 
-  const title = `${cafe.name} — Gaming Café in ${titleCaseCity(cafe.city)}`;
-  const description = `Book a gaming station at ${cafe.name} in ${titleCaseCity(cafe.city)}.${priceLine}${platformLine} Check real-time availability and pay online on KHEL-O.`;
+  // "Snooker Syndicate, Alwal — Snooker & Pool in Hyderabad": what the place
+  // is and where, in the words people search with.
+  const name = cleanName(cafe.name);
+  const city = titleCaseCity(cafe.city);
+  const area = venueArea(cafe.addressLine2);
+  const kind = venueKind({ name, tiers: cafe.tiers });
+  const where = area ? `${area}, ${city}` : city;
+  const facts = [
+    minPrice ? `From ₹${minPrice}/hr` : null,
+    cafe.openingTime && cafe.closingTime ? `open ${formatTime(cafe.openingTime)}–${formatTime(cafe.closingTime)}` : null,
+    platformLabels.length > 0 ? platformLabels.join(', ') : null,
+  ].filter(Boolean).join(', ');
+  const factLine = facts ? ` ${facts.charAt(0).toUpperCase()}${facts.slice(1)}.` : '';
+
+  const title = `${name}${area ? `, ${area}` : ''} — ${kind.label} in ${city}`;
+  // A Booking Soon listing can't be booked yet; never say it can.
+  const description = `${kind.label} at ${name}, ${where}.${factLine} ${
+    cafe.isLeadListing
+      ? 'Online booking on KHEL-O is coming soon: see the location and photos, and get notified.'
+      : 'See live availability and book online on KHEL-O.'
+  }`;
   const image = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0].url : undefined;
 
   return {
@@ -88,18 +106,21 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
   // linked into the rest of the site (no orphan pages) and vice versa.
   const links = cafe ? await getCafeLinks(cafe.id).catch(() => null) : null;
 
-  const jsonLd = cafe
+  const kind = cafe ? venueKind({ name: cafe.name, tiers: cafe.tiers }) : null;
+  const area = cafe ? venueArea(cafe.addressLine2) : null;
+  const jsonLd = cafe && kind
     ? {
         '@context': 'https://schema.org',
-        '@type': 'SportsActivityLocation',
-        name: cafe.name,
-        description: cafe.description || `Gaming café in ${titleCaseCity(cafe.city)}`,
+        '@type': kind.schemaType,
+        name: cleanName(cafe.name),
+        description: cafe.description || `${kind.label} in ${area ? `${area}, ` : ''}${titleCaseCity(cafe.city)}`,
         url: `${SITE_URL}${cafePath(cafe)}`,
+        ...(cafe.googleMapsUrl ? { hasMap: cafe.googleMapsUrl } : {}),
         image: cafe.photos && cafe.photos.length > 0 ? cafe.photos.map((p) => p.url) : undefined,
         telephone: cafe.phoneNumber || undefined,
         address: {
           '@type': 'PostalAddress',
-          streetAddress: cafe.addressLine1,
+          streetAddress: [cafe.addressLine1, cafe.addressLine2].filter(Boolean).join(', '),
           addressLocality: titleCaseCity(cafe.city),
           addressRegion: cafe.state,
           postalCode: cafe.pincode || undefined,
@@ -152,7 +173,7 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
           </nav>
           {links.nearby.length > 0 && (
             <section className="flex flex-col gap-2">
-              <h2 className="font-heading text-h2 text-text-primary">Nearby gaming cafés</h2>
+              <h2 className="font-heading text-h2 text-text-primary">Nearby places to play</h2>
               <ul className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card">
                 {links.nearby.map((n) => (
                   <li key={n.id}>
@@ -169,7 +190,7 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
           )}
           <SeoLinkGroups links={links.facets} title={`More in ${links.city.name}`} />
           <Link href={links.city.path} className="text-body font-semibold text-primary hover:underline">
-            See all gaming cafés in {links.city.name} →
+            Gaming cafés, snooker &amp; bowling in {links.city.name} →
           </Link>
         </div>
       )}
