@@ -6,7 +6,7 @@ from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
 from app.core.security import get_password_hash
-from app.services.seo_service import gpu_slug, game_slug
+from app.services.seo_service import gpu_slug, game_slug, name_activity
 
 # A made-up city per test run so rows from other tests never mix in.
 
@@ -18,6 +18,18 @@ def test_gpu_normalization():
     assert gpu_slug("rtx4060 ti") == ("rtx-4060-ti", "RTX 4060 Ti")
     assert gpu_slug("PS5 Custom RDNA2") is None
     assert gpu_slug("Custom") is None
+
+
+def test_lead_names_file_only_under_bowling_or_snooker():
+    assert name_activity("Triangle Snooker and Pool Center") == "snooker"
+    assert name_activity("Q9 Snookers Academy") == "snooker"
+    assert name_activity("Arcade Billiard Studio (ABS)") == "snooker"
+    assert name_activity("Lucky Billiards ") == "snooker"
+    assert name_activity("Bustterz Gaming & Bowling") == "bowling"
+    # A name alone never claims VR or arcade machines.
+    assert name_activity("Hi Game Zone") is None
+    assert name_activity("VR GAMING.COM") is None
+    assert name_activity("Gamers Guild") is None
 
 
 def test_game_normalization():

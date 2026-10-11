@@ -158,10 +158,21 @@ def _tier_activity(tier) -> Optional[tuple[str, str]]:
     return (None if key in _GAMING_KEYS else (key, raw))
 
 
+# A venue with no tiers yet is filed by its name with the same rule its own page
+# uses (frontend/src/lib/venueKind.ts): bowling, else cue sports, else nothing.
+# Looser words ("Game Zone", "VR Gaming") don't say what a place has, so they
+# never put a venue on the arcade or VR pages.
+_BOWLING_NAME = re.compile(r"bowling", re.I)
+_CUE_NAME = re.compile(r"snooker|billiard|pool", re.I)
+
+
 def name_activity(name: str | None) -> Optional[str]:
-    """Activity a venue's own name declares ("Lucky Billiards" -> billiards), or None."""
-    key = taxonomy.activity_key_for(taxonomy.classify_name(name))
-    return None if key in _GAMING_KEYS else key
+    """Activity a venue's own name declares ("Lucky Billiards" -> snooker), or None."""
+    if _BOWLING_NAME.search(name or ""):
+        return "bowling"
+    if _CUE_NAME.search(name or ""):
+        return "snooker"
+    return None
 
 
 def cafe_area(address_line2: str | None) -> Optional[str]:
