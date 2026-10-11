@@ -257,8 +257,12 @@ class CafeRepository(BaseRepository[Cafe]):
             .subquery()
         )
         stmt = stmt.outerjoin(review_agg, review_agg.c.cafe_id == Cafe.id)
+        # A Booking Soon card with real photos is recognisable; one with only
+        # the placeholder isn't, so photo listings lead within each group.
+        no_photos = case((func.coalesce(func.json_array_length(Cafe.photos), 0) > 0, 0), else_=1)
         stmt = stmt.order_by(
             Cafe.is_lead_listing.asc(),
+            no_photos,
             func.coalesce(review_agg.c.review_count, 0).desc(),
             func.coalesce(review_agg.c.avg_rating, 0).desc(),
             Cafe.created_at.desc(),

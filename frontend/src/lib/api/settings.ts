@@ -138,7 +138,7 @@ function extractS3ErrorDetail(err: unknown): string | null {
   return [code, message].filter(Boolean).join(': ') || null;
 }
 
-async function putToPresignedUrl(
+export async function putToPresignedUrl(
   uploadUrl: string,
   file: File,
   onProgress?: (percent: number) => void
