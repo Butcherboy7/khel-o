@@ -56,6 +56,15 @@
         ],
         "createdAt": "2026-09-15T13:11:05.824Z",
         "reason": "text-slate-950 (near-black) on bg-emerald-500 is strong contrast, not washed-out gray; hook pattern-matches 'slate' as gray-family without checking lightness. Pre-existing code, not touched this session."
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "frontend/src/app/(customer)/cafe/[id]/CafeDetailClient.tsx"
+        ],
+        "createdAt": "2026-10-15T17:22:54.016Z",
+        "reason": "Claude: img src is set via {...optimizedImg(photo, ...)} spread, which the detector cannot read; pre-existing gallery code"
       }
     ]
   }

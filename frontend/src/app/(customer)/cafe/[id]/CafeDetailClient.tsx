@@ -481,17 +481,29 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
       <div className="flex flex-col gap-1.5 -mt-2">
         <div className="flex items-baseline justify-between gap-3">
           <h1 className="font-heading text-h1 text-text-primary">{cafe.name}</h1>
-          <span className="flex flex-shrink-0 items-center gap-1 text-caption text-text-secondary">
+          {/* A café that isn't on KHEL-O can't be reviewed here, so "New" would only look like a rating. */}
+          {!isLead && <span className="flex flex-shrink-0 items-center gap-1 text-caption text-text-secondary">
             <Star className="h-3.5 w-3.5 fill-warning text-warning" />
             <span className="font-bold text-text-primary">
               {cafe.averageRating && cafe.averageRating > 0 ? cafe.averageRating.toFixed(1) : 'New'}
             </span>
             {cafe.totalReviews > 0 && <span>({cafe.totalReviews})</span>}
-          </span>
+          </span>}
         </div>
 
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption text-text-secondary">
-          {openStatusLabel && (
+          {/* Researched hours on a Booking-soon café are a guide, not a promise
+              that a business we don't work with yet is open right now. */}
+          {isLead && hoursKnown && (
+            <>
+              <span className="flex items-center gap-1 font-semibold">
+                <Clock className="h-3.5 w-3.5" aria-hidden />
+                Usually {formatTime(cafe.openingTime!)}–{formatTime(cafe.closingTime!)}
+              </span>
+              <span aria-hidden="true">·</span>
+            </>
+          )}
+          {!isLead && openStatusLabel && (
             <>
               <span className={`flex items-center gap-1.5 font-bold ${isOpenNow ? 'text-success' : 'text-text-secondary'}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${isOpenNow ? 'bg-success' : 'bg-text-tertiary'}`} />
@@ -500,7 +512,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
               <span aria-hidden="true">·</span>
             </>
           )}
-          <span>{area}</span>
+          {/* Researched cafés keep their neighbourhood in the second address line. */}
+          <span>{isLead && cafe.addressLine2 ? cafe.addressLine2 : area}</span>
           {distanceLabel && (
             <>
               <span aria-hidden="true">·</span>
@@ -544,8 +557,9 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           <div className="flex flex-col gap-1">
             <h2 className="font-heading text-h3 text-text-primary">Help get {cafe.name} on KHEL-O</h2>
             <p className="text-caption text-text-secondary">
-              Every vote shows the owner that gamers want online booking here. Hit {waitlistGoal} and we go knock on
-              their door 🚪
+              {votesLeft > 0
+                ? `Every vote shows the owner that gamers want online booking here. ${votesLeft} more ${votesLeft === 1 ? 'vote' : 'votes'} and we go knock on their door 🚪`
+                : `Goal hit 🎉 Next stop: the owner's door. Every extra vote makes the pitch stronger.`}
             </p>
           </div>
           <button
@@ -802,6 +816,9 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
       )}
 
       {/* Amenities */}
+      {/* A Booking-soon café hasn't listed anything with us yet, so an empty
+          section only repeats "nothing here"; it shows once there is data. */}
+      {!(isLead && !(cafe.amenities && cafe.amenities.length > 0)) && (
       <section className="flex flex-col gap-4">
         <h2 className="font-heading text-h2 text-text-primary">Amenities</h2>
         {cafe.amenities && cafe.amenities.length > 0 ? (
@@ -823,8 +840,10 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           <p className="text-body text-text-secondary italic">No amenities listed by this café yet.</p>
         )}
       </section>
+      )}
 
       {/* Games */}
+      {!(isLead && !(cafe.supportedGames && Object.values(cafe.supportedGames).some((g) => g.length > 0))) && (
       <section className="flex flex-col gap-4">
         <h2 className="font-heading text-h2 text-text-primary">Games available</h2>
         {cafe.supportedGames && Object.keys(cafe.supportedGames).length > 0 ? (
@@ -855,6 +874,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           <p className="text-body text-text-secondary italic">No supported games listed by this café yet.</p>
         )}
       </section>
+      )}
 
       {/* Menu */}
       {cafe.menuPhotos && cafe.menuPhotos.length > 0 && (
@@ -914,18 +934,20 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
       )}
 
       {/* Opening Hours & Interactive Google Map Row */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <section className={`grid grid-cols-1 gap-4 ${isLead && !hoursKnown ? '' : 'md:grid-cols-2'}`}>
+        {!(isLead && !hoursKnown) && (
         <div className="p-5 rounded-3xl bg-card border border-border/80 flex flex-col gap-2">
           <div className="flex items-center gap-2 font-heading text-h3 text-text-primary">
             <Clock className="h-5 w-5 text-accent" />
-            <span>Opening hours</span>
+            <span>{isLead ? 'Usual hours' : 'Opening hours'}</span>
           </div>
           <p className="text-body text-text-secondary mt-1">
             {cafe.openingTime && cafe.closingTime
-              ? `Daily: ${formatTime(cafe.openingTime)} - ${formatTime(cafe.closingTime)}`
+              ? `Daily: ${formatTime(cafe.openingTime)} - ${formatTime(cafe.closingTime)}${isLead ? ' (approx)' : ''}`
               : 'Hours not listed by this café yet.'}
           </p>
         </div>
+        )}
 
         <div className="p-5 rounded-3xl bg-card border border-border/80 flex flex-col justify-between gap-4">
           <div className="flex items-center gap-2 font-heading text-h3 text-text-primary">
