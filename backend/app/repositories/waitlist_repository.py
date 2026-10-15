@@ -106,7 +106,32 @@ class WaitlistRepository:
 
         cafe_ids = [r.id for r in rows]
         contacts_by_cafe: Dict[uuid.UUID, List[str]] = {cid: [] for cid in cafe_ids}
+        people_by_cafe: Dict[uuid.UUID, List[dict]] = {cid: [] for cid in cafe_ids}
         if cafe_ids:
+            # One structured row per voter for the outreach call list: who,
+            # how to reach them and how they'd like to be reached. Whoever
+            # left a number first, then newest.
+            people_rows = (await self.db.execute(
+                select(CafeWaitlistEntry, User.full_name, User.phone_number, User.email)
+                .outerjoin(User, User.id == CafeWaitlistEntry.user_id)
+                .where(CafeWaitlistEntry.cafe_id.in_(cafe_ids))
+                .order_by(CafeWaitlistEntry.created_at.desc())
+            )).all()
+            for entry, full_name, account_phone, account_email in people_rows:
+                typed = entry.contact or None
+                email = account_email or (typed if typed and "@" in typed else None)
+                phone = entry.phone or account_phone or (typed if typed and "@" not in typed else None)
+                people_by_cafe[entry.cafe_id].append({
+                    "name": full_name,
+                    "phone": phone,
+                    "email": email,
+                    "contactMethod": entry.contact_method,
+                    "playTime": entry.play_time,
+                    "joinedAt": entry.created_at,
+                })
+            for people in people_by_cafe.values():
+                people.sort(key=lambda p: p["phone"] is None)
+
             # Signed-out visitors: whatever free-text phone/email they typed.
             contact_rows = (await self.db.execute(
                 select(CafeWaitlistEntry.cafe_id, CafeWaitlistEntry.contact)
@@ -147,6 +172,8 @@ class WaitlistRepository:
                 "firstRequestedAt": r.first_requested_at,
                 "lastRequestedAt": r.last_requested_at,
                 "contacts": contacts_by_cafe.get(r.id, []),
+                "people": people_by_cafe.get(r.id, []),
+                "phoneCount": sum(1 for p in people_by_cafe.get(r.id, []) if p["phone"]),
                 # Truly unreachable: signed-out visitors who tapped "Notify me"
                 # without leaving a phone/email (or a signed-in account somehow
                 # missing both). Everyone else is now in `contacts` above.

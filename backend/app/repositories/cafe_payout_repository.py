@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from app.core.demo import not_demo_cafe
 from decimal import Decimal
 from typing import Optional, Union
 from uuid import UUID
@@ -369,7 +370,7 @@ class CafePayoutRepository(BaseRepository[CafePayout]):
         """Cafés with money either pending settlement or available to pay
         out — i.e. anything an admin would want visibility into, even
         before it's actually payable."""
-        cafes_result = await self.db.execute(select(Cafe.id, Cafe.name, Cafe.owner_id, Cafe.payout_on_hold, Cafe.payout_hold_reason))
+        cafes_result = await self.db.execute(select(Cafe.id, Cafe.name, Cafe.owner_id, Cafe.payout_on_hold, Cafe.payout_hold_reason).where(not_demo_cafe()))
         out = []
         for cafe_id, cafe_name, owner_id, on_hold, hold_reason in cafes_result.all():
             amount = await self.get_outstanding_amount(cafe_id)

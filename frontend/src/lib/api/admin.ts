@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { apiClient, call } from './client';
+import { putToPresignedUrl } from './settings';
 import type {
   AdminCafe,
   AdminAnalytics,
@@ -118,6 +119,14 @@ export async function goLiveCafe(cafeId: string): Promise<{ isLeadListing: boole
 
 export async function updateCafeDescriptionAdmin(cafeId: string, description: string): Promise<{ id: string; name: string; description: string }> {
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/description`, { description }));
+}
+
+/** Researched prices/hours on a "Booking soon" café (shown as approx). */
+export async function updateApproxListing(
+  cafeId: string,
+  body: { tiers: { tierId: string; pricePerHour: number }[]; openingTime?: string; closingTime?: string },
+): Promise<{ tiers: { id: string; name: string; pricePerHour: number }[]; openingTime: string | null; closingTime: string | null }> {
+  return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/approx-listing`, body));
 }
 
 export async function pauseCafeBookings(cafeId: string, paused: boolean): Promise<{ id: string; name: string; bookingsPaused: boolean }> {
@@ -420,6 +429,18 @@ export interface CafeDemandLead {
   /** Subscribed, de-duplicated inboxes a broadcast would reach. */
   emailableCount: number;
   slug: string | null;
+  /** One row per voter: those who left a number first. */
+  people: WaitlistPerson[];
+  phoneCount: number;
+}
+
+export interface WaitlistPerson {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  contactMethod: 'whatsapp' | 'call' | 'email' | null;
+  playTime: string | null;
+  joinedAt: string;
 }
 
 export async function listCafeDemand(minCount = 1): Promise<{ leads: CafeDemandLead[] }> {
@@ -452,4 +473,47 @@ export async function broadcastToWaitlist(
   body: { subject: string; message: string; test: boolean }
 ): Promise<{ sent: number; test: boolean; to?: string }> {
   return call(() => apiClient.post(`/api/v1/admin/leads/${cafeId}/broadcast`, body));
+}
+
+// ── Booking soon (lead listings) ────────────────────────────────────────────
+
+export interface BookingSoonCafe {
+  id: string;
+  name: string;
+  slug: string | null;
+  area: string | null;
+  city: string;
+  phone: string;
+  googleMapsUrl: string | null;
+  photos: { url: string; category: string }[];
+  ownerEmail: string;
+  /** The owner's own email is on the account: it's theirs, no admin login. */
+  ownerHandedOver: boolean;
+  waitlistCount: number;
+  createdAt: string | null;
+}
+
+export async function listBookingSoonCafes(q?: string): Promise<BookingSoonCafe[]> {
+  return call(() => apiClient.get('/api/v1/admin/booking-soon', { params: q ? { q } : {} }));
+}
+
+// Presign, PUT straight to storage, then attach to the café.
+export async function addBookingSoonPhoto(
+  cafeId: string,
+  file: File,
+  category: string
+): Promise<{ photos: BookingSoonCafe['photos'] }> {
+  const { uploadUrl, publicUrl } = await call<{ uploadUrl: string; publicUrl: string }>(() =>
+    apiClient.post(`/api/v1/admin/booking-soon/${cafeId}/photos/presign`, { contentType: file.type, category })
+  );
+  await putToPresignedUrl(uploadUrl, file);
+  return call(() => apiClient.post(`/api/v1/admin/booking-soon/${cafeId}/photos`, { url: publicUrl, category }));
+}
+
+export async function removeBookingSoonPhoto(cafeId: string, url: string): Promise<{ photos: BookingSoonCafe['photos'] }> {
+  return call(() => apiClient.delete(`/api/v1/admin/booking-soon/${cafeId}/photos`, { data: { url } }));
+}
+
+export async function issueOwnerLogin(cafeId: string, reason: string): Promise<{ email: string; temporaryPassword: string }> {
+  return call(() => apiClient.post(`/api/v1/admin/booking-soon/${cafeId}/owner-login`, { reason }));
 }

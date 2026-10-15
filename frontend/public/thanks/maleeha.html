@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thank you, Maleeha · KHEL-O</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="A thank-you from KHEL-O and Maleeha Mujeeb's certificate of appreciation.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Thank you, Maleeha">
+<meta property="og:description" content="A note from KHEL-O, and your certificate of appreciation.">
+<meta property="og:url" content="https://khel-o.com/thanks/maleeha">
+<meta property="og:image" content="https://khel-o.com/thanks/maleeha-certificate.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#18191E">
+<link rel="icon" href="/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Plus+Jakarta+Sans:wght@400;600;800&family=JetBrains+Mono:wght@500&family=Silkscreen&family=Caveat:wght@600&display=swap">
+<script>document.documentElement.classList.add('js')</script>
+<style>
+/* Same page as the thank-you artifact: hero, Uzair's letter, then the official certificate (PDF made by
+   marketing/certificates/build_certificate.py). Served at /thanks/maleeha through a rewrite in next.config.js. */
+:root {
+  --bg: #F1EFEA; --fg: #18191E; --muted: #5A5E6B; --line: #E3E0DA; --card: #FFFFFF; --shadow: #E54D42;
+  /* --accent is coral for text: darker in light mode so small labels pass 4.5:1 on cream. --coral stays for shapes. */
+  --accent: #C23A2F; --coral: #E54D42; --obsidian: #18191E;
+  --display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+  --body: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --pixel: 'Silkscreen', 'Courier New', monospace;
+  --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  --script: 'Caveat', 'Segoe Script', cursive;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #18191E; --fg: #F1EFEA; --muted: #A3A6B0; --accent: #F0675C; --line: #26272E; --card: #202128; color-scheme: dark }
+}
+:root[data-theme="dark"] { --bg: #18191E; --fg: #F1EFEA; --muted: #A3A6B0; --accent: #F0675C; --line: #26272E; --card: #202128; color-scheme: dark }
+
+* { box-sizing: border-box }
+html { scroll-behavior: smooth }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.6;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.wrap { max-width: 960px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 56px; display: grid; gap: 56px }
+@media (min-width: 600px) { .wrap { padding-inline: 24px } }
+
+.top { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none }
+.top img { width: 36px; height: 36px; border-radius: 8px; background: #fff; padding: 2px }
+.top b { font: 700 19px var(--display); letter-spacing: -0.02em }
+.chip { margin-left: auto; font: 400 12px var(--pixel); letter-spacing: 0.1em; background: var(--fg); color: var(--bg); padding: 6px 9px }
+
+.hero { display: grid; gap: 14px; max-width: 760px }
+.eyebrow { font: 400 12px var(--pixel); letter-spacing: 0.12em; color: var(--accent) }
+.hero h1 { margin: 0; font: 700 clamp(46px, 10vw, 96px)/0.92 var(--display); letter-spacing: -0.05em }
+.hero h1 span { display: inline-block }
+.hero h1 em { font-style: normal; color: var(--accent); position: relative; display: inline-block }
+.hero h1 em::after { content: ""; position: absolute; left: 0; right: 0.12em; bottom: -0.08em; height: 0.09em; background: var(--accent); transform-origin: left }
+.hero p { margin: 0; font-size: clamp(17px, 2.4vw, 20px); color: var(--muted); max-width: 46ch }
+.jump { justify-self: start; display: inline-flex; align-items: center; gap: 8px; font: 700 15px var(--display); color: var(--accent); text-decoration: none; padding: 6px 0 }
+.jump i { font-style: normal; display: inline-block }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px }
+
+.letter { background: var(--card); border: 2px solid var(--fg); box-shadow: 8px 8px 0 var(--shadow); padding: clamp(22px, 5vw, 44px); max-width: 720px; display: grid; gap: 16px }
+.letter .from { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; font: 400 12px var(--pixel); letter-spacing: 0.08em; color: var(--muted) }
+.letter p { margin: 0; font-size: 17px; max-width: 62ch }
+.letter .hi { font: 700 24px var(--display); letter-spacing: -0.02em }
+.letter .sign { font: 600 34px/1 var(--script); color: var(--accent); margin-top: 6px }
+.letter .role { font-size: 13px; color: var(--muted); margin-top: 4px }
+
+.cert-sec { display: grid; gap: 22px }
+.cert-head { display: grid; gap: 6px }
+.cert-head h2 { margin: 0; font: 700 clamp(28px, 5vw, 40px)/1 var(--display); letter-spacing: -0.03em }
+.cert-head p { margin: 0; color: var(--muted) }
+
+/* The certificate keeps its paper colours in both themes; tapping it opens the PDF. */
+.cert { display: block; border: 2px solid var(--obsidian); box-shadow: 10px 10px 0 var(--coral); background: #F5EDE3; line-height: 0 }
+.cert img { width: 100%; height: auto; display: block }
+.ref { font: 500 12px var(--mono); color: var(--muted); margin: 0 }
+
+.actions { display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: center }
+.btn { display: inline-flex; align-items: center; gap: 10px; font: 700 16px var(--display); text-decoration: none; padding: 13px 20px; border: 2px solid var(--fg); cursor: pointer; transition: transform .12s, box-shadow .12s }
+.btn svg { width: 18px; height: 18px; flex: none }
+.btn.primary { background: var(--fg); color: var(--bg); box-shadow: 5px 5px 0 var(--coral) }
+.btn.ghost { background: var(--card); color: var(--fg); box-shadow: 5px 5px 0 var(--fg) }
+.btn:hover { transform: translate(-1px, -1px) }
+.btn.primary:hover { box-shadow: 6px 6px 0 var(--coral) }
+.btn.ghost:hover { box-shadow: 6px 6px 0 var(--fg) }
+.btn.primary:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--coral) }
+.btn.ghost:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--fg) }
+.again { font: 600 14px var(--body); background: none; color: var(--muted); border: 0; padding: 8px 4px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px }
+@media (max-width: 520px) { .btn { flex: 1 1 100%; justify-content: center } .again { margin-inline: auto } }
+
+.foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font: 500 12px var(--mono); color: var(--muted); border-top: 1.5px solid var(--line); padding-top: 16px }
+.foot a { color: inherit }
+
+canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10 }
+
+/* Motion: the hero types itself in, cards rise as you scroll, the certificate drops in with a confetti burst. */
+@keyframes rise { from { opacity: 0; transform: translateY(22px) } to { opacity: 1; transform: none } }
+@keyframes pop { 0% { opacity: 0; transform: translateY(0.4em) scale(.92) } 70% { opacity: 1; transform: translateY(-0.04em) scale(1.02) } 100% { opacity: 1; transform: none } }
+@keyframes draw { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+@keyframes nudge { 0%, 100% { transform: none } 50% { transform: translateY(4px) } }
+@keyframes blink { 0%, 49% { opacity: 1 } 50%, 74% { opacity: 0 } 75%, 100% { opacity: 1 } }
+@keyframes drop { 0% { opacity: 0; transform: translateY(46px) rotate(-2.5deg) } 65% { opacity: 1; transform: translateY(-6px) rotate(.4deg) } 100% { opacity: 1; transform: none } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .js .top, .js .hero .eyebrow, .js .hero p, .js .jump { animation: rise .7s var(--ease) both }
+  .js .hero .eyebrow { animation-delay: .1s }
+  .js .hero h1 span { animation: pop .7s var(--ease) both; animation-delay: .25s }
+  .js .hero h1 em { animation: pop .8s var(--ease) both; animation-delay: .55s }
+  .js .hero h1 em::after { animation: draw .6s var(--ease) both; animation-delay: 1.1s }
+  .js .hero p { animation-delay: .9s }
+  .js .jump { animation-delay: 1.1s }
+  .js .jump i { animation: nudge 1.4s ease-in-out 2s infinite }
+  .js .reveal { opacity: 0 }
+  .js .reveal.in { animation: rise .8s var(--ease) both }
+  .js .cert.reveal.in { animation: drop 1s var(--ease) both }
+  .js .cert-head.in .eyebrow { animation: blink .5s steps(1) .3s 3 }
+}
+@media (prefers-reduced-motion: reduce) { canvas#confetti { display: none } html { scroll-behavior: auto } }
+</style>
+</head>
+<body>
+<canvas id="confetti" aria-hidden="true"></canvas>
+<main class="wrap">
+  <a class="top" href="/" aria-label="KHEL-O home">
+    <img src="/brand/khelo-logo-192.png" alt="" width="36" height="36">
+    <b>KHEL-O</b>
+    <span class="chip">FOR MALEEHA</span>
+  </a>
+
+  <section class="hero" aria-labelledby="hello">
+    <span class="eyebrow">INTERNSHIP COMPLETE · OCT 2026</span>
+    <h1 id="hello"><span>Thank you,</span> <em>Maleeha.</em></h1>
+    <p>A note from me, and something for you to keep.</p>
+    <a class="jump" href="#certificate">See your certificate <i>↓</i></a>
+  </section>
+
+  <article class="letter reveal" aria-label="A note from Uzair">
+    <div class="from"><span>FROM UZAIR</span><span>HYDERABAD · 11 OCT 2026</span></div>
+    <p class="hi">Hey Maleeha,</p>
+    <p>Your internship is done, and before anything else I want to say thank you. Really.</p>
+    <p>You took our social media off my plate and ran it like it was your own. You dug into the market research that helped us read our analytics properly. Because of that our reach grew, and we never ran out of content ideas or a plan for what to post next.</p>
+    <p>You did exceptionally well, and you did it with so much care. It showed in every post and every report.</p>
+    <p>We're really grateful we got to have you on the team. KHEL-O is better because you were part of it, and you'll always be part of this story.</p>
+    <p>Wherever you go next, I know you'll do great things. You always have a place here.</p>
+    <div>
+      <div class="sign">Uzair</div>
+      <div class="role">Founder, KHEL-O</div>
+    </div>
+  </article>
+
+  <section id="certificate" class="cert-sec" aria-labelledby="cert-title">
+    <div class="cert-head reveal">
+      <span class="eyebrow">ACHIEVEMENT UNLOCKED</span>
+      <h2 id="cert-title">Your certificate</h2>
+      <p>Official, signed and yours to keep.</p>
+    </div>
+
+    <a class="cert reveal" id="cert" href="/thanks/maleeha-certificate.pdf" target="_blank" rel="noopener" aria-label="Open the certificate PDF">
+      <img src="/thanks/maleeha-certificate.jpg" width="1600" height="1131" alt="KHEL-O Certificate of Appreciation presented to Maleeha Mujeeb for her work as a Social Media Management Intern, 8 September to 9 October 2026, signed by Mohammed Abdullah, Proprietor.">
+    </a>
+
+    <div class="actions">
+      <a class="btn primary" id="download" href="/thanks/maleeha-certificate.pdf" download="KHEL-O Certificate of Appreciation - Maleeha Mujeeb.pdf">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" aria-hidden="true"><path d="M12 3v12M6 10l6 6 6-6M4 21h16"/></svg>
+        Download PDF
+      </a>
+      <a class="btn ghost" href="/thanks/maleeha-certificate.pdf" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></svg>
+        Open PDF
+      </a>
+      <button class="again" id="again" type="button">Celebrate again</button>
+    </div>
+    <p class="ref">Certificate No. KHELO/CA/2026/001 · Issued 11 Oct 2026 · Signed by Mohammed Abdullah, Proprietor</p>
+  </section>
+
+  <footer class="foot"><span>KHEL-O · Hyderabad · <a href="/">khel-o.com</a></span><span>@khelo.journey</span></footer>
+</main>
+
+<script>
+(function () {
+  var canvas = document.getElementById('confetti');
+  var ctx = canvas.getContext('2d');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var colors = ['#E54D42', '#18191E', '#F1EFEA', '#10B981', '#FFB4AD'];
+  var bits = [], running = false;
+
+  function size() {
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function burst(n) {
+    if (reduce) return;
+    size();
+    var w = window.innerWidth;
+    for (var i = 0; i < (n || 140); i++) {
+      bits.push({
+        x: w * (0.15 + Math.random() * 0.7), y: -20 - Math.random() * 120,
+        vx: (Math.random() - 0.5) * 5, vy: 2 + Math.random() * 4,
+        s: 5 + Math.round(Math.random() * 5), c: colors[i % colors.length], life: 0
+      });
+    }
+    if (!running) { running = true; requestAnimationFrame(tick); }
+  }
+
+  function tick() {
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    var h = window.innerHeight;
+    bits = bits.filter(function (b) { return b.y < h + 30 && b.life < 400; });
+    bits.forEach(function (b) {
+      b.vy += 0.06; b.x += b.vx; b.y += b.vy; b.vx *= 0.99; b.life++;
+      ctx.fillStyle = b.c;
+      ctx.fillRect(Math.round(b.x), Math.round(b.y), b.s, b.s);
+    });
+    if (bits.length) requestAnimationFrame(tick); else { running = false; ctx.clearRect(0, 0, window.innerWidth, window.innerHeight); }
+  }
+
+  // Cards rise in as they scroll into view; the first time the certificate lands, confetti again.
+  var cert = document.getElementById('cert'), celebrated = false;
+  var items = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+        if (e.target === cert && !celebrated) { celebrated = true; setTimeout(function () { burst(120); }, 450); }
+      });
+    }, { threshold: 0.2 });
+    items.forEach(function (el) { io.observe(el); });
+  } else {
+    items.forEach(function (el) { el.classList.add('in'); });
+  }
+
+  window.addEventListener('resize', size);
+  document.getElementById('again').addEventListener('click', function () { burst(); });
+  document.getElementById('download').addEventListener('click', function () { burst(70); });
+  setTimeout(function () { burst(); }, 700);
+})();
+</script>
+</body>
+</html>

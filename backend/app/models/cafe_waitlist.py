@@ -30,6 +30,12 @@ class CafeWaitlistEntry(Base):
     # Optional one-tap answer after joining: 'weekday_evenings' | 'weekends'
     # | 'late_nights'. Aggregated for the owner demand page.
     play_time: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Optional, also asked after voting: a WhatsApp/call number (separate
+    # from `contact`, which the mailer reads for an email) and how they'd
+    # like to be reached ('whatsapp' | 'call' | 'email'). Owner introductions
+    # are their own flow (models/owner_intro.py).
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    contact_method: Mapped[str | None] = mapped_column(String(10), nullable=True)
     # Set from the unsubscribe link in any waitlist email; no further
     # waitlist emails go to this person (see services/waitlist_mailer.py).
     unsubscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -120,6 +120,8 @@ class CafeListItem(BaseModel):
     id: UUID
     slug: Optional[str] = None
     name: str
+    # The locality ("Kompally") when the café keeps one in its second address line.
+    address_line2: Optional[str] = None
     city: str
     state: str
     latitude: Optional[float] = None

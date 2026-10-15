@@ -159,3 +159,32 @@ def validate_key(taxonomy_key: str | None) -> str | None:
     if node(taxonomy_key) is None:
         raise ValueError(f"unknown taxonomyKey '{taxonomy_key}'")
     return taxonomy_key
+
+
+# Attribute keys that hold "how many people fit on one unit" for each kind of
+# activity (table, lane, room, rig). A unit's price never depends on the group
+# size; this cap only limits how many people may be booked onto it.
+PLAYER_CAP_KEYS = ("players_max", "players_per_lane", "room_capacity", "players")
+
+
+def players_cap(attributes: dict | None) -> int | None:
+    """Most people one unit can take, as set by the owner; None = not set."""
+    for k in PLAYER_CAP_KEYS:
+        v = (attributes or {}).get(k)
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            continue
+        if n > 0:
+            return n
+    return None
+
+
+def missing_required(taxonomy_key: str | None, attributes: dict | None) -> list[str]:
+    """Labels of required attributes the owner has not filled in."""
+    n = node(taxonomy_key)
+    if not n:
+        return []
+    attrs = attributes or {}
+    return [a["label"] for a in n["activity"].get("attributes", [])
+            if a.get("level") == "required" and attrs.get(a["key"]) in (None, "", [])]

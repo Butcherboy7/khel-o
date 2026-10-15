@@ -110,6 +110,10 @@ class HardwareTierService:
             taxonomy_attrs = taxonomy.validate_attributes(taxonomy_key, tier_in.attributes)
         except ValueError as e:
             raise ValidationException(message=str(e), error_code="INVALID_TAXONOMY")
+        if tier_in.tier_type == TierType.ACTIVITY:
+            missing = taxonomy.missing_required(taxonomy_key, taxonomy_attrs)
+            if missing:
+                raise ValidationException(message=f"Please fill in: {', '.join(missing)}", error_code="ATTRIBUTE_REQUIRED")
 
         tier_dict = {
             "id": uuid4(),

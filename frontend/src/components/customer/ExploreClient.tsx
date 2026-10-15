@@ -684,7 +684,7 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
 
       {!isAuthenticated && (
         <p className="text-center text-caption text-text-secondary -mt-2">
-          <Link href={`/login?redirect=${encodeURIComponent(pathname)}`} className="font-semibold text-primary hover:underline">
+          <Link href={`/login?redirect=${encodeURIComponent(pathname)}`} className="font-semibold text-primary-dark hover:underline">
             Log in
           </Link>{' '}
           to book a slot and track your bookings.

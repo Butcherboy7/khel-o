@@ -161,7 +161,7 @@ function CustomerBottomNav() {
             href={item.href}
             className={cn(
               'flex flex-col items-center gap-0.5 px-4 py-1.5 transition-all duration-fast',
-              isActive ? 'text-primary font-bold' : 'text-text-secondary hover:text-text-primary',
+              isActive ? 'text-primary-dark font-bold' : 'text-text-secondary hover:text-text-primary',
             )}
             aria-current={isActive ? 'page' : undefined}
           >

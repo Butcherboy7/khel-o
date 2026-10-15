@@ -58,13 +58,13 @@ export function HomeSections() {
       <div className="flex flex-col items-center gap-1 text-center text-caption text-text-secondary">
         <p>
           Own a gaming café?{' '}
-          <Link href="/partner" className="font-semibold text-primary hover:underline">
+          <Link href="/partner" className="font-semibold text-primary-dark hover:underline">
             List it for free
           </Link>
         </p>
         <p>
           Know an owner?{' '}
-          <Link href="/know-the-owner" className="font-semibold text-primary hover:underline">
+          <Link href="/know-the-owner" className="font-semibold text-primary-dark hover:underline">
             Introduce us 👀
           </Link>
         </p>

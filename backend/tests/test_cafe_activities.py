@@ -216,6 +216,7 @@ async def test_create_activity_tier_via_api_generates_units():
                     "pricePerHour": 400,
                     "tierType": "activity",
                     "activityKind": "Snooker",
+                    "attributes": {"players_max": 4},
                     # Deviation from brief's literal Step-1 test: the brief's
                     # payload omits individualUnits here yet asserts 4 named
                     # units get created — that directly contradicts Step 6's
@@ -370,7 +371,7 @@ async def test_maintenance_blocked_when_it_would_oversell_a_booking():
                 f"/api/v1/cafes/{cafe.id}/tiers",
                 json={
                     "name": "Snooker", "specs": {}, "totalSeats": 2, "appBookableSeats": 2,
-                    "pricePerHour": 400, "tierType": "activity", "activityKind": "Snooker",
+                    "pricePerHour": 400, "tierType": "activity", "activityKind": "Snooker", "attributes": {"players_max": 4},
                     "individualUnits": True,
                 },
                 headers=headers,
@@ -779,7 +780,7 @@ async def test_switching_activity_between_units_and_pooled_sticks():
                 f"/api/v1/cafes/{cafe.id}/tiers",
                 json={
                     "name": "Pool", "specs": {}, "totalSeats": 2, "appBookableSeats": 2,
-                    "pricePerHour": 300, "tierType": "activity", "activityKind": "Pool",
+                    "pricePerHour": 300, "tierType": "activity", "activityKind": "Pool", "attributes": {"players_max": 4},
                     "individualUnits": True,
                 },
                 headers=headers,

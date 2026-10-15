@@ -19,7 +19,7 @@ import {
   ChevronRight,
   Trash2,
 } from 'lucide-react';
-import { listAdminCafes, suspendCafe, reactivateCafe, updateCafeDescriptionAdmin, goLiveCafe, deleteCafe } from '@/lib/api/admin';
+import { listAdminCafes, suspendCafe, reactivateCafe, updateCafeDescriptionAdmin, goLiveCafe, deleteCafe, updateApproxListing } from '@/lib/api/admin';
 import { PerformanceTab } from './PerformanceTab';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
@@ -88,6 +88,10 @@ export default function AdminCafesPage() {
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [descriptionSaved, setDescriptionSaved] = useState(false);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [hoursDraft, setHoursDraft] = useState({ open: '', close: '' });
+  const [approxSaved, setApproxSaved] = useState(false);
+  const [approxError, setApproxError] = useState<string | null>(null);
 
   // Re-sync the draft whenever a different café is opened, so switching
   // cafés doesn't leak the previous one's unsaved edit into the new form.
@@ -97,6 +101,14 @@ export default function AdminCafesPage() {
     setDescriptionError(null);
     setDeleteConfirmName('');
     setDeleteError(null);
+    setPriceDrafts(Object.fromEntries((selectedCafe?.tiers ?? []).map((t) => [t.id, String(t.pricePerHour)])));
+    setHoursDraft({
+      open: (selectedCafe?.openingTime ?? '').slice(0, 5),
+      close: (selectedCafe?.closingTime ?? '').slice(0, 5),
+    });
+    setApproxSaved(false);
+    setApproxError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCafe?.id]);
 
   const params = {
@@ -183,6 +195,33 @@ export default function AdminCafesPage() {
     onError: (err) => {
       setDescriptionError((err as Error)?.message ?? 'Failed to update description. Please try again.');
     },
+  });
+
+  const approxMutation = useMutation({
+    mutationFn: (cafeId: string) =>
+      updateApproxListing(cafeId, {
+        tiers: Object.entries(priceDrafts)
+          .map(([tierId, v]) => ({ tierId, pricePerHour: Number(v) }))
+          .filter((t) => Number.isFinite(t.pricePerHour) && t.pricePerHour > 0),
+        ...(hoursDraft.open && hoursDraft.close ? { openingTime: hoursDraft.open, closingTime: hoursDraft.close } : {}),
+      }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      setSelectedCafe((prev) =>
+        prev
+          ? {
+              ...prev,
+              tiers: prev.tiers.map((t) => ({ ...t, pricePerHour: res.tiers.find((x) => x.id === t.id)?.pricePerHour ?? t.pricePerHour })),
+              openingTime: res.openingTime ?? prev.openingTime,
+              closingTime: res.closingTime ?? prev.closingTime,
+            }
+          : prev,
+      );
+      setApproxSaved(true);
+      setApproxError(null);
+      setTimeout(() => setApproxSaved(false), 2500);
+    },
+    onError: (err) => setApproxError((err as Error)?.message ?? 'Failed to save. Please try again.'),
   });
 
   return (
@@ -411,6 +450,77 @@ export default function AdminCafesPage() {
                 <div><span className="text-text-tertiary">Stations: </span>{selectedCafe.totalSeats ?? '—'}</div>
               </div>
             </div>
+
+            {/* Approx prices & hours — Booking-soon cafés only; a live café sets its own. */}
+            {selectedCafe.isLeadListing && (
+              <div className="p-3 rounded-xl bg-surface-hover">
+                <h4 className="font-semibold text-caption">Approx prices &amp; hours</h4>
+                <p className="mb-2 text-xs text-text-secondary">
+                  From research. Shown to players as &ldquo;(approx)&rdquo; until the café goes live and sets its own.
+                </p>
+                {approxError && (
+                  <div className="mb-2 rounded-lg bg-error/10 border border-error/20 p-2 text-xs text-error">{approxError}</div>
+                )}
+                <div className="flex flex-col gap-2">
+                  {(selectedCafe.tiers ?? []).length === 0 && (
+                    <p className="text-xs text-text-secondary">No setups on this listing yet.</p>
+                  )}
+                  {(selectedCafe.tiers ?? []).map((t) => (
+                    <label key={t.id} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="min-w-0 truncate text-text-primary">{t.name}</span>
+                      <span className="flex items-center gap-1 text-text-secondary">
+                        ₹
+                        <input
+                          type="number"
+                          min={1}
+                          inputMode="numeric"
+                          value={priceDrafts[t.id] ?? ''}
+                          onChange={(e) => setPriceDrafts((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                          aria-label={`${t.name} approx price per hour`}
+                          className="w-20 min-h-[32px] rounded-lg border border-border bg-card px-2 text-xs text-text-primary"
+                        />
+                        /hr
+                      </span>
+                    </label>
+                  ))}
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+                    Hours
+                    <input
+                      type="time"
+                      value={hoursDraft.open}
+                      onChange={(e) => setHoursDraft((h) => ({ ...h, open: e.target.value }))}
+                      aria-label="Opening time"
+                      className="min-h-[32px] rounded-lg border border-border bg-card px-2 text-xs text-text-primary"
+                    />
+                    to
+                    <input
+                      type="time"
+                      value={hoursDraft.close}
+                      onChange={(e) => setHoursDraft((h) => ({ ...h, close: e.target.value }))}
+                      aria-label="Closing time"
+                      className="min-h-[32px] rounded-lg border border-border bg-card px-2 text-xs text-text-primary"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 mt-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    isLoading={approxMutation.isPending}
+                    loadingText="Saving..."
+                    onClick={() => approxMutation.mutate(selectedCafe.id)}
+                  >
+                    Save prices &amp; hours
+                  </Button>
+                  {approxSaved && (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Description */}
             <div className="p-3 rounded-xl bg-surface-hover">

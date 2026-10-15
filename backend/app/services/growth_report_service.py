@@ -11,6 +11,7 @@ and the waitlist through user / café. Nothing new is stored.
 """
 import re
 import uuid
+from app.core.demo import not_demo_cafe
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
@@ -374,7 +375,7 @@ async def area_report(db: AsyncSession, city: str, days: int = 90) -> dict:
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=days)
 
-    city_cafes = (await db.execute(select(Cafe).where(func.lower(Cafe.city) == city.lower()))).scalars().all()
+    city_cafes = (await db.execute(select(Cafe).where(func.lower(Cafe.city) == city.lower(), not_demo_cafe()))).scalars().all()
     area_of = {c.id: _cafe_area(c) for c in city_cafes}
 
     rows = await _events(db, start, end, ["location_shared", "venue_viewed", "search_performed", "city_selected"])

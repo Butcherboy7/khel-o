@@ -15,11 +15,19 @@ pages:
                                price; lowest price cap first)
   * otherwise (>= 2, a real subset) -> indexable, in the sitemap, linked
 
+Activity pages use the shared taxonomy, so "French Snooker Table" and
+"pool in french table" both land on /snooker. A Booking Soon listing has no
+tiers; only its own name ("TAG Lounge - Snooker hub", "BOUNCE Bowling") can
+file it under an activity, and nothing else (price, platform) is ever guessed.
+Area pages (/cafes/hyderabad/kompally) come from the café's locality, which
+is kept in address_line2.
+
 Only indexable pages are linked from other pages or listed in sitemaps, so
 nothing low-value is ever advertised to crawlers.
 """
 import math
 import re
+from app.core.demo import not_demo_cafe
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import time
@@ -29,6 +37,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import taxonomy
+from app.core.activities import activity_def, tier_activity
 from app.core.slug import slugify
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
@@ -39,6 +49,21 @@ NEARBY_KM = 15
 NEARBY_LIMIT = 6
 
 _GPU_RE = re.compile(r"\b(rtx|gtx|rx)\s*-?\s*(\d{3,4})\s*(super|ti|xt|xtx)?\b", re.I)
+
+# Gaming platforms have their own pages (PLATFORM_FACETS); these are the rest.
+_GAMING_KEYS = {"pc-gaming", "console"}
+# People search "snooker" for snooker, pool and billiards halls alike, so cue
+# sports share one page.
+_CUE_SPORTS = {"snooker", "pool", "billiards"}
+ACTIVITY_PAGES = {  # activity key -> (slug, label, heading); slugs are live URLs, keep them
+    "snooker": ("snooker", "Snooker & Pool", "Snooker & Pool Clubs"),
+    "bowling": ("bowling", "Bowling", "Bowling Alleys"),
+    "vr": ("vr", "VR gaming", "VR Gaming Zones"),
+    "racing-simulator": ("racing-simulator", "Racing simulators", "Racing Simulator Venues"),
+}
+# Order used to pick the page kept when two pages list the same cafés.
+FACET_ORDER = ["activity", "area", "game", "gpu", "price"]
+AREA_MAX_LEN = 30
 
 PLATFORM_FACETS = {
     "pc": ("pc-gaming", "PC gaming", "PC Gaming Cafés"),
@@ -71,7 +96,7 @@ def _haversine_km(a: tuple[float, float], b: tuple[float, float]) -> float:
 
 @dataclass
 class Facet:
-    type: str  # activity | gpu | game | price
+    type: str  # activity | area | gpu | game | price
     slug: str
     label: str
     heading: str
@@ -110,6 +135,57 @@ def _platforms_of(tier: HardwareTier) -> set[str]:
     return set()
 
 
+def _activity_facet(key: str, raw_label: str) -> Facet:
+    key = "snooker" if key in _CUE_SPORTS else key
+    if key in ACTIVITY_PAGES:
+        slug, label, heading = ACTIVITY_PAGES[key]
+    else:
+        label = activity_def(key, raw_label).label
+        slug, heading = key, f"{label} Venues"
+    return Facet("activity", slug, label, heading)
+
+
+def _tier_activity(tier) -> Optional[tuple[str, str]]:
+    """Non-gaming activity of a tier as (taxonomy key, raw label). Free text the
+    catalog doesn't know ("French Snooker Table") goes through the taxonomy's
+    name rules; an ambiguous name keeps its own slug."""
+    a = tier_activity(tier)
+    if a is None or a[0] in _GAMING_KEYS:
+        return None
+    key, raw = a
+    if activity_def(key, raw).rank >= 100:
+        key = taxonomy.activity_key_for(taxonomy.classify_name(tier.name, tier.activity_kind)) or key
+    return (None if key in _GAMING_KEYS else (key, raw))
+
+
+# A venue with no tiers yet is filed by its name with the same rule its own page
+# uses (frontend/src/lib/venueKind.ts): bowling, else cue sports, else nothing.
+# Looser words ("Game Zone", "VR Gaming") don't say what a place has, so they
+# never put a venue on the arcade or VR pages.
+_BOWLING_NAME = re.compile(r"bowling", re.I)
+_CUE_NAME = re.compile(r"snooker|billiard|pool", re.I)
+
+
+def name_activity(name: str | None) -> Optional[str]:
+    """Activity a venue's own name declares ("Lucky Billiards" -> snooker), or None."""
+    if _BOWLING_NAME.search(name or ""):
+        return "bowling"
+    if _CUE_NAME.search(name or ""):
+        return "snooker"
+    return None
+
+
+def cafe_area(address_line2: str | None) -> Optional[str]:
+    """The locality kept in address_line2 ("Kompally"), or None for a longer address line."""
+    area = (address_line2 or "").strip()
+    return area if area and len(area) <= AREA_MAX_LEN and "," not in area else None
+
+
+def page_title(facet: Facet, city: str) -> str:
+    # Area headings already name the place: "... in Kompally, Hyderabad".
+    return f"{facet.heading}, {city}" if facet.type == "area" else f"{facet.heading} in {city}"
+
+
 class SeoService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -122,6 +198,7 @@ class SeoService:
                 Cafe.is_active == True,  # noqa: E712
                 Cafe.is_emergency_mode == False,  # noqa: E712
                 Cafe.bookings_paused == False,  # noqa: E712
+                not_demo_cafe(),
             )
         )).scalars().all()
         tiers = (await self.db.execute(
@@ -151,9 +228,16 @@ class SeoService:
                 s, label, heading = PLATFORM_FACETS[p]
                 add(Facet("activity", s, label, heading))
             for t in ts:
-                if t.tier_type == "activity" and t.activity_kind and t.activity_kind.strip():
-                    kind = t.activity_kind.strip()
-                    add(Facet("activity", slugify(kind), kind, f"{kind} Venues"))
+                a = _tier_activity(t)
+                if a:
+                    add(_activity_facet(*a))
+            if not ts:
+                key = name_activity(c.name)
+                if key:
+                    add(_activity_facet(key, key))
+            area = cafe_area(c.address_line2)
+            if area and slugify(area) != f.city_slug:
+                add(Facet("area", slugify(area), area, f"Gaming Cafés & Game Zones in {area}"))
             for t in ts:
                 g = gpu_slug((t.specs or {}).get("gpu"))
                 if g:
@@ -194,7 +278,7 @@ class SeoService:
     @staticmethod
     def _specificity(facet: Facet) -> tuple:
         cap = int(facet.slug.split("-")[1]) if facet.type == "price" else 0
-        return (["activity", "game", "gpu", "price"].index(facet.type), cap, facet.slug)
+        return (FACET_ORDER.index(facet.type), cap, facet.slug)
 
     def _indexable(self, city_cafes: list[CafeFacts]) -> dict[str, str]:
         """slug -> canonical slug for every facet page in the city that passes
@@ -223,7 +307,7 @@ class SeoService:
             canon = self._indexable(cafes)
             for facet, matched in self._facet_pages(cafes):
                 if canon.get(facet.slug) == facet.slug:
-                    pages.append({"path": f"/cafes/{city_slug}/{facet.slug}", "title": f"{facet.heading} in {city}",
+                    pages.append({"path": f"/cafes/{city_slug}/{facet.slug}", "title": page_title(facet, city),
                                   "type": facet.type, "city": city, "cafe_count": len(matched)})
         return pages
 
@@ -242,7 +326,7 @@ class SeoService:
             for facet, m in facet_pages
             if canon.get(facet.slug) == facet.slug and facet.slug != facet_slug
         ]
-        related.sort(key=lambda r: (["activity", "game", "gpu", "price"].index(r["type"]), -r["count"], r["label"]))
+        related.sort(key=lambda r: (FACET_ORDER.index(r["type"]), -r["count"], r["label"]))
 
         if facet_slug is None:
             facet, matched, index, canonical = None, city_cafes, True, city_path

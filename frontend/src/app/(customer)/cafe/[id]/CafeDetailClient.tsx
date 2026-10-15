@@ -54,6 +54,7 @@ import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
 import { OfferChip } from '@/components/customer/OfferChip';
 import { useCampaign } from '@/hooks/useCampaign';
+import { optimizedImg, fallBackToOriginal } from '@/lib/imageUrl';
 import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 
 import { useAuthStore } from '@/store/authStore';
@@ -69,9 +70,12 @@ interface CafeDetailClientProps {
       real café content instead of a loading skeleton. Undefined when the
       server-side fetch failed — the client query below still tries again. */
   initialCafe?: CafeDetail;
+  /** Server-rendered waitlist count for a "Booking soon" café, so the number
+      is in the page crawlers and link previews read. */
+  initialWaitlist?: { count: number; goal: number };
 }
 
-export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
+export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -165,6 +169,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     queryFn: () => getWaitlistStatus(cafeId),
     enabled: Boolean(cafeId) && isLead,
     staleTime: 30_000,
+    // Placeholder, not initialData: the server copy can't know whether this
+    // visitor already joined, so it must not count as fresh.
+    placeholderData: initialWaitlist ? { ...initialWaitlist, joined: false } : undefined,
   });
   const joined = waitlist?.joined ?? false;
   const waitingCount = waitlist?.count ?? 0;
@@ -198,7 +205,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   }, [isLead, waitlistLoaded, joined, cafeId]);
 
   const handleShareWaitlist = async () => {
-    const shareText = `Bro help me out, vote to get ${data?.name ?? 'this café'} on KHEL-O so we can book it online. Takes 2 secs and it boosts your aura 🫶`;
+    const shareText = `Bro help me out, vote to get ${data?.name ?? 'this café'} on KHEL-O so we can book it online. Hit the goal and everyone who voted gets an exclusive launch deal. Takes 2 secs 🫶`;
     const shareUrl = createShare(
       { path: cafePath(data ?? { id: cafeId }), context: 'waitlist', cafeId, campaign: data?.slug ?? cafeId },
       'native'
@@ -401,7 +408,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
         {currentPhoto ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={currentPhoto}
+            {...optimizedImg(currentPhoto, '(min-width: 896px) 896px, 100vw', { maxWidth: 1920 })}
+            onError={fallBackToOriginal(currentPhoto)}
             alt={`${cafe.name} photo ${photoIndex + 1}`}
             className="h-full w-full object-cover transition-all duration-300 cursor-pointer"
             loading="eager"
@@ -567,7 +575,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           </h2>
           <p className="text-caption text-text-secondary">
             {isLead
-              ? 'Café prices. Online booking opens once they join KHEL-O.'
+              ? 'Approx prices from our research. Online booking opens once they join KHEL-O.'
               : 'Prices are per hour for one player. A small platform fee is added at checkout. Tap one to pick your time.'}
           </p>
         </div>
@@ -696,6 +704,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                         <span className="rupee-symbol">₹</span>{discountedPrice}
                         <span className="text-caption font-normal text-text-secondary">/hr</span>
                       </div>
+                      {isLead && <span className="whitespace-nowrap text-[11px] text-text-secondary">(approx)</span>}
                       {liveData?.openNow && freeNowByTier.has(tier.id) && tier.totalSeats > 0 ? (
                         <span className={`whitespace-nowrap text-[11px] font-bold ${(freeNowByTier.get(tier.id) ?? 0) > 0 ? 'text-success' : 'text-warning'}`}>
                           {(freeNowByTier.get(tier.id) ?? 0) > 0
@@ -754,7 +763,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       { label: 'RAM', get: (t: (typeof gamingTiers)[number]) => t.specs?.ram || '—' },
                       { label: 'Monitor', get: (t: (typeof gamingTiers)[number]) => t.specs?.monitor || '—' },
                       { label: 'Stations', get: (t: (typeof gamingTiers)[number]) => (t.totalSeats > 0 ? String(t.totalSeats) : '—') },
-                      { label: 'Price', get: (t: (typeof gamingTiers)[number]) => `₹${t.pricePerHour}/hr` },
+                      { label: 'Price', get: (t: (typeof gamingTiers)[number]) => `₹${t.pricePerHour}/hr${isLead ? ' (approx)' : ''}` },
                     ].map((row) => (
                       <tr key={row.label} className="border-t border-border/60">
                         <td className="p-3 font-semibold text-text-secondary">{row.label}</td>
@@ -861,7 +870,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={photo}
+                  {...optimizedImg(photo, '160px', { maxWidth: 384 })}
+                  onError={fallBackToOriginal(photo)}
                   alt={`${cafe.name} menu ${idx + 1}`}
                   className="h-full w-full object-cover"
                   loading="lazy"
@@ -886,7 +896,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                 className="relative aspect-square overflow-hidden rounded-xl"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photo} alt={`${cafe.name} photo ${idx + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                <img {...optimizedImg(photo, '(min-width: 896px) 224px, 25vw', { maxWidth: 640 })} onError={fallBackToOriginal(photo)} alt={`${cafe.name} photo ${idx + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
               </button>
             ))}
             {photosList.length > 3 && (
@@ -1348,7 +1358,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           <div className="relative flex-1 flex items-center justify-center px-4 pb-4" onClick={(e) => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={lightbox.images[lightbox.index]}
+              {...optimizedImg(lightbox.images[lightbox.index], '100vw', { maxWidth: 1920, quality: 80 })}
+              onError={fallBackToOriginal(lightbox.images[lightbox.index])}
               alt={`${cafe.name} enlarged photo ${lightbox.index + 1}`}
               className="max-h-full max-w-full object-contain select-none"
             />

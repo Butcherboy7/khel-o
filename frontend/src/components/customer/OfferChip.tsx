@@ -36,7 +36,7 @@ export function OfferChip({ label, when, urgency, live = true, tone = 'soft', cl
       >
         <Tag className="h-3 w-3 flex-shrink-0" aria-hidden />
         <span className="truncate">{label}</span>
-        {showWhen && <span className="truncate font-medium opacity-80">· {when}</span>}
+        {showWhen && <span className="truncate font-medium">· {when}</span>}
       </span>
       {urgency && <span className="px-0.5 text-[11px] font-semibold text-primary-dark">{urgency}</span>}
     </span>

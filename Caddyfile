@@ -2,7 +2,13 @@ khel-o.online, www.khel-o.online {
 	redir https://{$DOMAIN}{uri} permanent
 }
 
-{$DOMAIN}, www.{$DOMAIN} {
+# One host for search engines: www answers with a permanent redirect instead
+# of a second copy of the site.
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+{$DOMAIN} {
 	encode gzip
 
 	# Next.js frontend route (injects window.__ENV__ for the browser) —
@@ -85,5 +91,8 @@ dev.khel-o.com, www.dev.khel-o.com {
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
+		# A full public copy of production: keep it out of search results so
+		# it never competes with khel-o.com for the same pages.
+		X-Robots-Tag "noindex, nofollow"
 	}
 }

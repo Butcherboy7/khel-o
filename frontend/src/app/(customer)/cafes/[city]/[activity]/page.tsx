@@ -7,6 +7,7 @@ import { getSeoPage } from '@/lib/api/seo';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
 import { formatTime } from '@/lib/format';
+import { cleanName } from '@/lib/venueKind';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
@@ -16,6 +17,10 @@ const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 interface PageProps {
   params: Promise<{ city: string; activity: string }>;
 }
+
+// Area headings already name the place ("… in Kompally"), so the city follows a comma.
+const pageHeading = (facet: { type: string; heading: string }, city: string) =>
+  facet.type === 'area' ? `${facet.heading}, ${city}` : `${facet.heading} in ${city}`;
 
 // Shared by generateMetadata and the page body — one pair of calls per request.
 const resolve = cache(async (citySlug: string, facetSlug: string) => {
@@ -35,12 +40,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const data = await resolve(city, activity);
   if (!data) return { title: 'Not found', robots: { index: false } };
 
-  const { page, facet } = data;
+  const { page, facet, cafes } = data;
   const { stats } = page;
-  const title = `${facet.heading} in ${page.city.name} — Book Online`;
-  const description = `${stats.cafeCount} place${stats.cafeCount === 1 ? '' : 's'} in ${page.city.name}${
-    stats.minPrice != null ? ` from ₹${stats.minPrice}/hr` : ''
-  }${stats.games.length > 0 ? `, with ${stats.games.slice(0, 3).join(', ')}` : ''}. Live availability, instant online booking on KHEL-O.`;
+  const bookable = cafes.filter((c) => !c.isLeadListing).length;
+  const title = `${pageHeading(facet, page.city.name)}: Prices & Timings`;
+  const description = `${stats.cafeCount} place${stats.cafeCount === 1 ? '' : 's'}: ${cafes
+    .slice(0, 3)
+    .map((c) => cleanName(c.name))
+    .join(', ')}${cafes.length > 3 ? ' and more' : ''}.${stats.minPrice != null ? ` From ₹${stats.minPrice}/hr.` : ''} ${
+    bookable > 0 ? 'Compare timings and book online on KHEL-O.' : 'Compare locations and timings on KHEL-O; online booking is coming soon.'
+  }`;
 
   return {
     title,
@@ -49,7 +58,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // Thin (1 café) or duplicate-of-city pages still serve users but stay
     // out of the index; `follow` keeps link equity flowing to the cafés.
     robots: page.index ? undefined : { index: false, follow: true },
-    openGraph: { title, description, url: `${SITE_URL}${page.canonical}` },
+    openGraph: {
+      title,
+      description,
+      url: `${SITE_URL}${page.canonical}`,
+      images: [{ url: '/og/khelo-share.png', width: 1200, height: 630 }],
+    },
   };
 }
 
@@ -61,14 +75,17 @@ export default async function FacetPage({ params }: PageProps) {
   const { page, facet, cafes } = data;
   const { stats } = page;
   const city = page.city.name;
+  const heading = pageHeading(facet, city);
+  const live = cafes.filter((c) => !c.isLeadListing).map((c) => cleanName(c.name));
 
   const faqItems = [
     {
-      question: `Where can I find ${facet.label} in ${city}?`,
+      question:
+        facet.type === 'area' ? `Where can I play in ${facet.label}?` : `Where can I find ${facet.label} in ${city}?`,
       answer: `${cafes
-        .map((c) => c.name)
+        .map((c) => cleanName(c.name))
         .slice(0, 5)
-        .join(', ')}${cafes.length > 5 ? ' and more' : ''}. All are listed on this page with live availability.`,
+        .join(', ')}${cafes.length > 5 ? ' and more' : ''}. Each one is listed on this page with its prices and hours.`,
     },
     stats.minPrice != null && {
       question: `How much does it cost per hour in ${city}?`,
@@ -83,7 +100,13 @@ export default async function FacetPage({ params }: PageProps) {
     },
     {
       question: `Can I book online?`,
-      answer: `Yes. Pick a venue, choose a time and pay online on KHEL-O. You get a QR pass to show at the desk.`,
+      // Booking Soon listings can't be booked; say which ones can.
+      answer:
+        live.length === cafes.length
+          ? `Yes. Pick a venue, choose a time and pay online on KHEL-O. You get a QR pass to show at the desk.`
+          : live.length > 0
+            ? `Yes, at ${live.join(', ')}: pick a time, pay online and show the QR pass at the desk. The others are coming to KHEL-O soon.`
+            : `Not yet. These venues are listed with their location and hours; online booking opens as each one joins KHEL-O.`,
     },
   ].filter((x): x is { question: string; answer: string } => Boolean(x));
 
@@ -91,7 +114,7 @@ export default async function FacetPage({ params }: PageProps) {
     {
       '@context': 'https://schema.org',
       '@type': 'ItemList',
-      name: `${facet.heading} in ${city}`,
+      name: heading,
       itemListElement: cafes.map((cafe, index) => ({
         '@type': 'ListItem',
         position: index + 1,
@@ -130,11 +153,16 @@ export default async function FacetPage({ params }: PageProps) {
             <Link href={page.city.path} className="hover:text-primary">{city}</Link> / {facet.label}
           </nav>
           <h1 className="font-heading text-h1 text-text-primary text-balance">
-            {facet.heading} in {city}
+            {heading}
           </h1>
           <p className="text-body text-text-secondary">
-            {stats.cafeCount} place{stats.cafeCount === 1 ? '' : 's'} to book online
-            {stats.minPrice != null ? `, from ₹${stats.minPrice}/hr` : ''}.
+            {stats.cafeCount} place{stats.cafeCount === 1 ? '' : 's'}
+            {stats.minPrice != null ? `, from ₹${stats.minPrice}/hr` : ''}
+            {live.length === cafes.length
+              ? ', all bookable online.'
+              : live.length > 0
+                ? `; ${live.length} bookable online now.`
+                : '; online booking coming soon.'}
           </p>
         </header>
 
@@ -153,7 +181,10 @@ export default async function FacetPage({ params }: PageProps) {
                     : `₹${stats.minPrice}/hr`,
             },
             { term: 'Open till 11 PM+', value: String(stats.openLate) },
-            { term: 'Graphics cards', value: stats.gpus.length > 0 ? stats.gpus.slice(0, 2).join(', ') : '—' },
+            // Graphics cards only mean something on PC pages; elsewhere, say what can be booked.
+            stats.gpus.length > 0
+              ? { term: 'Graphics cards', value: stats.gpus.slice(0, 2).join(', ') }
+              : { term: 'Bookable online', value: `${live.length} of ${stats.cafeCount}` },
           ].map((f) => (
             <div key={f.term} className="rounded-2xl border border-border bg-card p-3">
               <dt className="text-overline uppercase tracking-wider text-text-secondary">{f.term}</dt>
@@ -186,7 +217,7 @@ export default async function FacetPage({ params }: PageProps) {
                     <tr key={c.id} className="border-t border-border">
                       <td className="px-3 py-2">
                         <Link href={cafePath(c)} className="font-semibold text-text-primary hover:text-primary">
-                          {c.name}
+                          {cleanName(c.name)}
                         </Link>
                       </td>
                       <td className="px-3 py-2 text-right font-data tabular-nums">

@@ -58,3 +58,23 @@ export async function setWaitlistPlayTime(cafeId: string, playTime: PlayTime): P
     })
   );
 }
+
+export type ContactMethod = 'whatsapp' | 'call' | 'email';
+
+export interface WaitlistDetails {
+  phone?: string;
+  contactMethod?: ContactMethod;
+}
+
+/** The optional after-joining answers; only the fields sent are changed. */
+export async function setWaitlistDetails(
+  cafeId: string,
+  details: WaitlistDetails,
+): Promise<{ phone: string | null; contactMethod: ContactMethod | null }> {
+  return call(() =>
+    apiClient.patch(`/api/v1/cafes/${cafeId}/waitlist/details`, {
+      sessionId: sessionId(),
+      ...details,
+    })
+  );
+}

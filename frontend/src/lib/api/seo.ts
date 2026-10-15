@@ -1,6 +1,6 @@
 import { apiClient, call } from './client';
 
-export type SeoFacetType = 'activity' | 'gpu' | 'game' | 'price';
+export type SeoFacetType = 'activity' | 'area' | 'gpu' | 'game' | 'price';
 
 export interface SeoLink {
   path: string;
@@ -53,8 +53,15 @@ export async function getCafeLinks(cafeId: string): Promise<CafeLinks> {
   return call(() => apiClient.get(`/api/v1/seo/cafe-links/${cafeId}`));
 }
 
+/** The waitlist count alone, for server rendering (no visitor session, so
+ *  `joined` is always false here — the client refetches that part). */
+export async function getCafeWaitlistCount(cafeId: string): Promise<{ count: number; goal: number }> {
+  return call(() => apiClient.get(`/api/v1/cafes/${cafeId}/waitlist/count`));
+}
+
 export const FACET_GROUP_LABELS: Record<SeoFacetType, string> = {
   activity: 'By platform & activity',
+  area: 'By area',
   game: 'By game',
   gpu: 'By graphics card',
   price: 'By price',

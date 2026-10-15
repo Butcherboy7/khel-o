@@ -84,6 +84,8 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
                 <span className="rupee-symbol">₹</span>{shown}
                 <span className="text-caption font-normal text-text-secondary">/hr</span>
               </div>
+              {/* A lead café's prices are our research, not the venue's. */}
+              {readOnly && <span className="whitespace-nowrap text-[11px] text-text-secondary">(approx)</span>}
               <span className="whitespace-nowrap text-[11px] text-text-secondary">{tier.totalSeats} {tier.totalSeats === 1 ? 'station' : 'stations'}</span>
             </div>
           </>

@@ -9,7 +9,7 @@ import { CustomerShell } from '@/components/layout/CustomerShell';
 // landing pages, and the booking wizard up to the point of payment. Auth is
 // only required at the "Confirm & Pay" action itself (checked inline in
 // bookings/new), and on every other customer route below (bookings
-// list/detail, achievements, profile, notifications, support, partner) via
+// list/detail, achievements, profile, notifications, support) via
 // AuthGuard as before.
 function isPublicPath(pathname: string): boolean {
   return (
@@ -17,6 +17,10 @@ function isPublicPath(pathname: string): boolean {
     pathname.startsWith('/cafe/') ||
     pathname.startsWith('/cafes/') ||
     pathname === '/browse' ||
+    // The café-owner pitch is a marketing page: behind the login it was
+    // invisible to search (crawlers were bounced to /login, which robots.txt
+    // blocks). Signing up happens on /owner/onboarding, which still needs one.
+    pathname === '/partner' ||
     pathname === '/bookings/new' ||
     // Offer links (reel / QR) must open for anyone: the code is applied on the
     // way to the café and login is only asked for at payment.

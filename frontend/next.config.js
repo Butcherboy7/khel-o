@@ -45,6 +45,9 @@ try {
     // file on every build. next-pwa compiles worker/index.js separately and
     // importScripts it into the generated worker.
     customWorkerDir: 'worker',
+    // public/thanks/ holds certificate PDFs and images for one person each;
+    // precaching them would make every visitor download them in the background.
+    publicExcludes: ['!noprecache/**/*', '!thanks/**/*'],
   });
 } catch {
   withPWA = (config) => config;
@@ -56,9 +59,26 @@ const nextConfig = {
   // shipping the whole node_modules in the runtime Docker image — see
   // frontend/Dockerfile runner stage.
   output: 'standalone',
+  // Café photos go through /_next/image (see src/lib/imageUrl.ts): resized
+  // per screen, WebP/AVIF, browser-cached. Only these hosts may be fetched,
+  // so the optimizer can't be used as an open image proxy.
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    remotePatterns: [
+      { protocol: 'https', hostname: '*.s3.*.amazonaws.com' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+    ],
+    // Uploaded photos get a fresh random key, so a URL's bytes never change:
+    // cache optimized copies for 30 days.
+    minimumCacheTTL: 2592000,
+  },
   async redirects() {
     // The page was called Rewards before it became Achievements.
     return [{ source: '/rewards', destination: '/achievements', permanent: true }];
+  },
+  async rewrites() {
+    // Thank-you pages for interns are plain HTML in public/thanks/ (built by marketing/certificates/).
+    return [{ source: '/thanks/maleeha', destination: '/thanks/maleeha.html' }];
   },
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion', '@tanstack/react-query'],

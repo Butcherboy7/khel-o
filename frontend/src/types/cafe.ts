@@ -9,6 +9,8 @@ export interface CafeListItem {
   slug?: string | null;
   id: string;
   name: string;
+  /** The locality ("Kompally") when the café keeps one in its second address line. */
+  addressLine2?: string | null;
   city: string;
   state: string;
   averageRating: number;

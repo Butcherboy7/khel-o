@@ -18,6 +18,7 @@ import {
   ErrorState,
   EmptyState,
 } from '@/components/ui';
+import { useTaxonomy, missingRequiredAttrs } from '@/lib/taxonomy';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import { ActivityUnitsManager } from '@/components/owner/ActivityUnitsManager';
 import { PLATFORM_MODELS } from '@/constants/platforms';
@@ -54,6 +55,7 @@ export default function HardwareTiersPage() {
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
   const [configs, setConfigs] = useState<TierConfig[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const { data: taxonomy } = useTaxonomy();
   // Set only when editing an un-migrated (platform=NULL) tier: the real
   // seats/price to carry over onto whichever platform the owner explicitly
   // picks next, since the configurator starts empty for these (see
@@ -299,6 +301,13 @@ export default function HardwareTiersPage() {
       setFormError('App bookable units cannot exceed total units.');
       return;
     }
+    if (config.tierType === 'activity') {
+      const missing = missingRequiredAttrs(taxonomy, config.taxonomyKey, config.attributes);
+      if (missing.length) {
+        setFormError(`Please fill in: ${missing.join(', ')}.`);
+        return;
+      }
+    }
     if (editingTierId) {
       updateMutation.mutate();
     } else {
@@ -408,6 +417,20 @@ export default function HardwareTiersPage() {
                       </dd>
                     </div>
                   </dl>
+
+                  {tier.tierType === 'activity' && missingRequiredAttrs(taxonomy, tier.taxonomyKey, tier.attributes).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(tier)}
+                      className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-left text-caption text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-600" aria-hidden="true" />
+                      <span>
+                        <strong>Add: {missingRequiredAttrs(taxonomy, tier.taxonomyKey, tier.attributes).join(', ')}.</strong>{' '}
+                        Customers need it to book the right number of people.
+                      </span>
+                    </button>
+                  )}
 
                   {tier.model && (
                     <div className="flex items-center gap-1.5 rounded-xl bg-surface p-3 text-caption font-semibold text-text-primary">

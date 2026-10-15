@@ -5,10 +5,12 @@
 @layer base {
   :root {
     /* ── Brand Colors (Matching Lovable Inspo Palette) ── */
-    --primary: #E54D42;
-    --primary-dark: #C83B31;
+    /* #D0463C, not the earlier #E54D42: same hue, 9% deeper, so white
+       button text and small red links pass the 4.5:1 contrast check. */
+    --primary: #D0463C;
+    --primary-dark: #B23A31;
     --secondary: #18191E;
-    --accent: #E54D42;
+    --accent: #D0463C;
 
     /* ── Background Colors (Off-White Warm Cream & Crisp White Cards) ── */
     /* --surface is intentionally a visible step darker than --card (not just
@@ -20,7 +22,7 @@
     /* ── Text Colors (Deep Obsidian Black & Muted Charcoal) ── */
     --text-primary: #111318;
     --text-secondary: #5A5E6B;
-    --text-technical: #E54D42;
+    --text-technical: #D0463C;
 
     /* ── Border Colors (Subtle Soft Neutral) ── */
     --border: #E8E6E2;
@@ -28,7 +30,7 @@
     /* ── Status Colors ── */
     --success: #10B981;
     --warning: #F59E0B;
-    --error: #E54D42;
+    --error: #D0463C;
 
     /* ── Border Radii ── */
     --radius-sm: 4px;

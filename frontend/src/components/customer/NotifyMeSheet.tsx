@@ -8,12 +8,19 @@ import { BottomSheet, Button } from '@/components/ui';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { HelperEmblem, HELPER_BADGE_COPY, isHelperBadgeKey } from '@/components/customer/HelperEmblem';
 import { getPublicEnv } from '@/lib/runtimeEnv';
-import { setWaitlistPlayTime, type PlayTime, type UnlockedBadge } from '@/lib/api/waitlist';
+import { MessageCircle, Phone, Mail } from 'lucide-react';
+import { setWaitlistPlayTime, setWaitlistDetails, type PlayTime, type UnlockedBadge, type ContactMethod } from '@/lib/api/waitlist';
 
 const PLAY_TIMES: { key: PlayTime; label: string }[] = [
   { key: 'weekday_evenings', label: 'Weekday evenings' },
   { key: 'weekends', label: 'Weekends' },
   { key: 'late_nights', label: 'Late nights' },
+];
+
+const REACH_OPTIONS: { key: ContactMethod; label: string; icon: typeof Phone }[] = [
+  { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+  { key: 'call', label: 'Call', icon: Phone },
+  { key: 'email', label: 'Email', icon: Mail },
 ];
 
 /** 'invite' is what a friend sees landing on a shared vote link. */
@@ -75,6 +82,10 @@ export function NotifyMeSheet({
   const [playTime, setPlayTime] = useState<PlayTime | null>(null);
   const googleEnabled = Boolean(getPublicEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID'));
   const left = Math.max(goal - votes, 0);
+  const [reachOn, setReachOn] = useState<ContactMethod | null>(null);
+  const [phone, setPhone] = useState('');
+  const [phoneSaved, setPhoneSaved] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const join = useCallback(async () => {
     setIsJoining(true);
@@ -93,6 +104,23 @@ export function NotifyMeSheet({
     setPlayTime(key);
     // Optional and fire-and-forget: a failed answer never blocks anything.
     setWaitlistPlayTime(cafeId, key).catch(() => {});
+  };
+
+  // How the outreach team should reach this voter (shown on admin Leads).
+  // The choice is fire-and-forget; the number says if it didn't save.
+  const chooseReach = (key: ContactMethod) => {
+    setReachOn(key);
+    setWaitlistDetails(cafeId, { contactMethod: key }).catch(() => {});
+  };
+
+  const savePhone = async () => {
+    setPhoneError(null);
+    try {
+      await setWaitlistDetails(cafeId, { phone: phone.trim() });
+      setPhoneSaved(true);
+    } catch {
+      setPhoneError('Check the number and try again.');
+    }
   };
 
   const loginHref = `/login?redirect=${encodeURIComponent(pathname || '/')}`;
@@ -211,12 +239,66 @@ export function NotifyMeSheet({
             </div>
           </fieldset>
 
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-2 text-caption font-semibold text-text-primary">
+              How should we reach you when it&apos;s live? <span className="font-normal text-text-secondary">Optional</span>
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {REACH_OPTIONS.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={reachOn === key}
+                  onClick={() => chooseReach(key)}
+                  className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-caption font-semibold transition-colors ${
+                    reachOn === key
+                      ? 'border-secondary bg-secondary text-white'
+                      : 'border-border bg-card text-text-primary hover:bg-surface'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden />
+                  {label}
+                </button>
+              ))}
+            </div>
+            {(reachOn === 'whatsapp' || reachOn === 'call') &&
+              (phoneSaved ? (
+                <p className="text-caption text-success">Got it, we&apos;ll {reachOn === 'call' ? 'call' : 'WhatsApp'} you.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Your number"
+                      aria-label="Phone number to reach you on"
+                      className="min-h-input min-w-0 flex-1 rounded-xl border border-border bg-card px-3 text-body text-text-primary placeholder:text-text-secondary/70 focus:border-primary focus:outline-none"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="md"
+                      disabled={phone.replace(/\D/g, '').length < 10}
+                      onClick={() => void savePhone()}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                  {phoneError && <p className="text-caption text-error">{phoneError}</p>}
+                </div>
+              ))}
+          </fieldset>
+
           <div className="flex flex-col gap-2">
             <Button variant="primary" size="lg" fullWidth onClick={onShare}>
               {shareCopied ? 'Link copied ✓' : 'Rally the squad'}
             </Button>
             <p className="-mt-0.5 text-center text-caption text-text-secondary">
-              Every friend who votes gets {cafeName} closer. Thank you, seriously.
+              Every friend who votes gets {cafeName} closer, and once it hits the goal we&apos;ll push for an
+              exclusive launch deal for everyone who voted. Thank you, seriously.
             </p>
             <button type="button" onClick={onKnowOwner} className={quietLink}>
               Know the owner? Introduce us 👀

@@ -27,6 +27,7 @@ import {
   Megaphone,
   IndianRupee,
   Banknote,
+  Clock,
   type LucideIcon,
   Target,
   Swords,
@@ -69,6 +70,7 @@ const adminNavGroups: NavGroup[] = [
     label: 'Cafés',
     items: [
       { label: 'All Cafés', href: '/admin/cafes', icon: Store },
+      { label: 'Booking Soon', href: '/admin/booking-soon', icon: Clock },
       { label: 'Café Demand', href: '/admin/leads', icon: Megaphone },
     ],
   },
