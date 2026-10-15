@@ -3,6 +3,8 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone, timedelta, date, time
 
+from sqlalchemy import select
+
 from app.core.time import IST, now_ist, session_start_ist, session_end_ist
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository

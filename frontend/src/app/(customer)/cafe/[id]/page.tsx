@@ -80,6 +80,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     minPrice ? `From ₹${minPrice}/hr` : null,
     cafe.openingTime && cafe.closingTime ? `open ${formatTime(cafe.openingTime)}–${formatTime(cafe.closingTime)}` : null,
     platformLabels.length > 0 ? platformLabels.join(', ') : null,
+    // Reviews left on KHEL-O itself, so quoting them is ours to make.
+    cafe.totalReviews > 0 && cafe.averageRating > 0
+      ? `rated ${Number(cafe.averageRating).toFixed(1)}★ (${cafe.totalReviews} review${cafe.totalReviews === 1 ? '' : 's'})`
+      : null,
   ].filter(Boolean).join(', ');
   const factLine = facts ? ` ${facts.charAt(0).toUpperCase()}${facts.slice(1)}.` : '';
 

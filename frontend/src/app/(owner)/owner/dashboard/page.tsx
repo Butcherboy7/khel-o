@@ -40,6 +40,11 @@ import { PageTip } from '@/components/owner/PageTip';
 import { INFO_TIPS, PAGE_GUIDES } from '@/lib/ownerGuideCopy';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
+/** Today's date in India as YYYY-MM-DD, whatever the device's clock zone. */
+function todayIst(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+}
+
 export default function OwnerDashboardPage() {
   const { activeRole } = useAuthStore();
   const [statusState, setStatusState] = useState<{
@@ -128,7 +133,10 @@ export default function OwnerDashboardPage() {
         const isCafeOwner = statusRes.role?.toLowerCase() === 'cafe_owner';
         const [dashRes, bookingsRes, occRes, settingsRes] = await Promise.all([
           getOwnerDashboard().catch(() => null),
-          getOwnerBookings({ limit: 20 }).catch(() => ({ items: [] })),
+          // Today's sessions only (IST, the café's day). Without the date this
+          // was the 20 latest sessions of any day, so tomorrow's 10 AM booking
+          // counted as "overdue" at 3 PM today.
+          getOwnerBookings({ limit: 50, date: todayIst() }).catch(() => ({ items: [] })),
           getOwnerOccupancy().catch(() => ({ tiers: [] })),
           isCafeOwner ? getOwnerSettings().catch(() => null) : Promise.resolve(null),
         ]);

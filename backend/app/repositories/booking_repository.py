@@ -455,7 +455,9 @@ class BookingRepository(BaseRepository[Booking]):
     async def count_upcoming_today(self, cafe_ids: List[UUID]) -> int:
         if not cafe_ids:
             return 0
-        now = datetime.now(timezone.utc)
+        # IST, like session_date/start_time: in UTC, "today" was still
+        # yesterday until 05:30 and every start time was 5.5 hours off.
+        now = now_ist()
         today = now.date()
         current_time = now.time()
 
