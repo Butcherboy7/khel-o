@@ -138,3 +138,61 @@ async def set_waitlist_play_time(
     entry.play_time = payload.play_time
     await db.commit()
     return {"success": True, "data": {"playTime": entry.play_time}}
+
+
+CONTACT_METHODS = ("whatsapp", "call", "email")
+
+
+class WaitlistDetailsRequest(BaseModel):
+    session_id: str = Field(..., max_length=64)
+    phone: Optional[str] = Field(None, max_length=20)
+    contact_method: Optional[str] = Field(None, max_length=10)
+    knows_owner: Optional[bool] = None
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+@router.patch("/{cafe_id}/waitlist/details", status_code=status.HTTP_200_OK)
+async def set_waitlist_details(
+    cafe_id: UUID,
+    payload: WaitlistDetailsRequest,
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """The optional after-joining answers: a number to WhatsApp or call,
+    which of those they prefer, and whether they know the owner. Only the
+    fields sent are changed, so each one-tap answer can save on its own."""
+    import re
+    from sqlalchemy import select
+    from app.core.exceptions import BadRequestException
+    from app.models.cafe_waitlist import CafeWaitlistEntry
+
+    if payload.contact_method is not None and payload.contact_method not in CONTACT_METHODS:
+        raise BadRequestException(message="Unknown contact method", error_code="INVALID_CONTACT_METHOD")
+
+    phone = None
+    if payload.phone is not None:
+        phone = re.sub(r"[^\d+]", "", payload.phone.strip())
+        digits = re.sub(r"\D", "", phone)
+        if not 10 <= len(digits) <= 15:
+            raise BadRequestException(message="Enter a valid phone number", error_code="INVALID_PHONE")
+
+    repo = WaitlistRepository(db)
+    user_id = current_user.id if current_user else None
+    entry = (await db.execute(
+        select(CafeWaitlistEntry).where(repo._identity_clause(cafe_id, user_id, payload.session_id))
+    )).scalar_one_or_none()
+    if entry is None:
+        raise NotFoundException(message="Join the list first", error_code="NOT_ON_WAITLIST")
+
+    if phone is not None:
+        entry.phone = phone
+    if payload.contact_method is not None:
+        entry.contact_method = payload.contact_method
+    if payload.knows_owner is not None:
+        entry.knows_owner = payload.knows_owner
+    await db.commit()
+    return {
+        "success": True,
+        "data": {"phone": entry.phone, "contactMethod": entry.contact_method, "knowsOwner": entry.knows_owner},
+    }

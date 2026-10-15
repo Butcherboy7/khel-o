@@ -4,7 +4,8 @@ import { permanentRedirect } from 'next/navigation';
 import { getCafe, cafePath, isCafeUuid } from '@/lib/api/cafes';
 import { PLATFORMS } from '@/constants/platforms';
 import Link from 'next/link';
-import { getCafeLinks } from '@/lib/api/seo';
+import { getCafeLinks, getCafeWaitlistCount } from '@/lib/api/seo';
+import { buildCafeSeo } from '@/lib/cafeSeo';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
 import type { CafeDetail } from '@/types';
 import { CafeDetailClient } from './CafeDetailClient';
@@ -40,6 +41,9 @@ const getCafeCached = cache(async (id: string): Promise<CafeDetail | null> => {
   }
 });
 
+const getCafeLinksCached = cache((cafeId: string) => getCafeLinks(cafeId).catch(() => null));
+const getWaitlistCountCached = cache((cafeId: string) => getCafeWaitlistCount(cafeId).catch(() => null));
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const cafe = await getCafeCached(id);
@@ -48,16 +52,20 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: 'Café not found' };
   }
 
-  const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : null;
-  const priceLine = minPrice ? ` Starting from ₹${minPrice}/hr.` : '';
   // Human labels ("PlayStation, PC Gaming"), not raw enum values.
   const platformLabels = Array.from(new Set((cafe.tiers ?? []).map((t) => t.platform).filter(Boolean)))
     .map((p) => PLATFORMS.find((x) => x.value === p)?.label)
     .filter((label): label is string => !!label && label !== 'Other');
-  const platformLine = platformLabels.length > 0 ? ` ${platformLabels.join(', ')}.` : '';
+  const [links, waitlist] = await Promise.all([
+    getCafeLinksCached(cafe.id),
+    cafe.isLeadListing ? getWaitlistCountCached(cafe.id) : Promise.resolve(null),
+  ]);
 
-  const title = `${cafe.name} — Gaming Café in ${cafe.city}`;
-  const description = `Book a gaming station at ${cafe.name} in ${cafe.city}.${priceLine}${platformLine} Check real-time availability and pay online on KHEL-O.`;
+  const { title, description } = buildCafeSeo(cafe, {
+    locality: links?.locality,
+    waitlistCount: waitlist?.count,
+    platformLabels,
+  });
   const image = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0].url : undefined;
 
   return {
@@ -85,14 +93,16 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
 
   // Café → locality → game/hardware pages → nearby cafés, so every café is
   // linked into the rest of the site (no orphan pages) and vice versa.
-  const links = cafe ? await getCafeLinks(cafe.id).catch(() => null) : null;
+  const links = cafe ? await getCafeLinksCached(cafe.id) : null;
+  const waitlist = cafe?.isLeadListing ? await getWaitlistCountCached(cafe.id) : null;
+  const seo = cafe ? buildCafeSeo(cafe, { locality: links?.locality, waitlistCount: waitlist?.count }) : null;
 
   const jsonLd = cafe
     ? {
         '@context': 'https://schema.org',
         '@type': 'SportsActivityLocation',
         name: cafe.name,
-        description: cafe.description || `Gaming café in ${cafe.city}`,
+        description: cafe.description || seo?.description,
         url: `${SITE_URL}${cafePath(cafe)}`,
         image: cafe.photos && cafe.photos.length > 0 ? cafe.photos.map((p) => p.url) : undefined,
         telephone: cafe.phoneNumber || undefined,
@@ -142,7 +152,7 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       )}
-      <CafeDetailClient initialCafe={cafe ?? undefined} />
+      <CafeDetailClient initialCafe={cafe ?? undefined} initialWaitlist={waitlist ?? undefined} />
       {links && (
         <div className="flex flex-col gap-6 pt-8 pb-28 border-t border-border mt-8">
           <nav aria-label="Breadcrumb" className="text-caption text-text-secondary">

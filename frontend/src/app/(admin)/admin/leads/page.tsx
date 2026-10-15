@@ -2,11 +2,70 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Copy, Check, Megaphone, ChevronDown, ChevronUp, Download, Mail, Link2 } from 'lucide-react';
-import { listCafeDemand, updateCafeWaitlistGoal, downloadWaitlistCsv, type CafeDemandLead } from '@/lib/api/admin';
+import { Users, Copy, Check, Megaphone, ChevronDown, ChevronUp, Download, Mail, Link2, MessageCircle, Phone, Handshake } from 'lucide-react';
+import { listCafeDemand, updateCafeWaitlistGoal, downloadWaitlistCsv, type CafeDemandLead, type WaitlistPerson } from '@/lib/api/admin';
 import { WaitlistBroadcast } from '@/components/admin/WaitlistBroadcast';
 import { Card, CardContent, Badge, ErrorState, EmptyState, PageSpinner } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
+
+const PLAY_TIME_LABELS: Record<string, string> = {
+  weekday_evenings: 'Weekday evenings',
+  weekends: 'Weekends',
+  late_nights: 'Late nights',
+};
+
+/** wa.me wants the number with country code and no symbols; a bare 10-digit
+ *  Indian mobile gets +91. */
+function waNumber(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  return digits.length === 10 ? `91${digits}` : digits;
+}
+
+function PersonRow({ person, cafeName }: { person: WaitlistPerson; cafeName: string }) {
+  const hello = encodeURIComponent(
+    `Hi${person.name ? ` ${person.name.split(' ')[0]}` : ''}! This is KHEL-O — you asked us to bring ${cafeName} onto KHEL-O.`,
+  );
+  const linkClass =
+    'inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-caption font-semibold text-text-primary hover:bg-surface';
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-caption font-semibold text-text-primary">{person.name || 'Guest'}</span>
+          {person.knowsOwner && (
+            <Badge variant="success" size="sm">Knows the owner</Badge>
+          )}
+          {person.contactMethod && (
+            <Badge variant="default" size="sm">
+              Prefers {person.contactMethod === 'whatsapp' ? 'WhatsApp' : person.contactMethod}
+            </Badge>
+          )}
+        </div>
+        <p className="text-caption text-text-secondary font-mono break-all">
+          {[person.phone, person.email].filter(Boolean).join(' · ') || 'No contact left'}
+          {person.playTime && <span className="font-sans"> · {PLAY_TIME_LABELS[person.playTime] ?? person.playTime}</span>}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {person.phone && (
+          <>
+            <a href={`https://wa.me/${waNumber(person.phone)}?text=${hello}`} target="_blank" rel="noopener noreferrer" className={linkClass}>
+              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+            </a>
+            <a href={`tel:${person.phone}`} className={linkClass}>
+              <Phone className="h-3.5 w-3.5" /> Call
+            </a>
+          </>
+        )}
+        {person.email && (
+          <a href={`mailto:${person.email}`} className={linkClass}>
+            <Mail className="h-3.5 w-3.5" /> Email
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Outreach-facing: which unlisted/lead cafés have the most "Notify me"
 // demand, and the contact details of everyone who asked — the pitch data
@@ -146,7 +205,16 @@ export default function AdminLeadsPage() {
                     <div className="flex items-center gap-2 text-caption text-text-secondary">
                       <span>First request {formatRelativeTime(lead.firstRequestedAt)}</span>
                       <span>·</span>
-                      <span>{lead.contacts.length} contact{lead.contacts.length === 1 ? '' : 's'} collected</span>
+                      <span>{lead.phoneCount ?? 0} with a number</span>
+                      {(lead.knowsOwnerCount ?? 0) > 0 && (
+                        <>
+                          <span>·</span>
+                          <span className="inline-flex items-center gap-1 font-semibold text-success">
+                            <Handshake className="h-3.5 w-3.5" />
+                            {lead.knowsOwnerCount} know{lead.knowsOwnerCount === 1 ? 's' : ''} the owner
+                          </span>
+                        </>
+                      )}
                       <span>·</span>
                       <span>{lead.emailableCount} emailable</span>
                       {lead.noContactCount > 0 && (
@@ -223,7 +291,7 @@ export default function AdminLeadsPage() {
                         className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-caption font-semibold text-text-primary hover:bg-surface transition-colors"
                       >
                         {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                        {isExpanded ? 'Hide' : 'View'} contacts
+                        {isExpanded ? 'Hide' : 'View'} people
                       </button>
                     </div>
                   </div>
@@ -233,14 +301,12 @@ export default function AdminLeadsPage() {
                   )}
 
                   {isExpanded && (
-                    <div className="rounded-xl bg-surface p-3 flex flex-col gap-1">
-                      {lead.contacts.length === 0 ? (
-                        <p className="text-caption text-text-secondary">
-                          No phone/email left — every requester here is a signed-in account.
-                        </p>
+                    <div className="rounded-xl bg-surface px-3 py-1 flex flex-col divide-y divide-border">
+                      {(lead.people ?? []).length === 0 ? (
+                        <p className="py-2 text-caption text-text-secondary">No one has requested this café yet.</p>
                       ) : (
-                        lead.contacts.map((contact, idx) => (
-                          <span key={idx} className="text-caption text-text-primary font-mono">{contact}</span>
+                        lead.people.map((person, idx) => (
+                          <PersonRow key={`${person.joinedAt}-${idx}`} person={person} cafeName={lead.cafeName} />
                         ))
                       )}
                     </div>

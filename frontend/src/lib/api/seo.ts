@@ -37,6 +37,8 @@ export interface SeoIndexEntry {
 
 export interface CafeLinks {
   city: { name: string; path: string };
+  /** Neighbourhood ("Bowenpally"); null outside every known one. */
+  locality?: string | null;
   facets: SeoLink[];
   nearby: { id: string; name: string; path: string; km: number; minPrice: number | null }[];
 }
@@ -51,6 +53,12 @@ export async function getSeoPages(): Promise<SeoIndexEntry[]> {
 
 export async function getCafeLinks(cafeId: string): Promise<CafeLinks> {
   return call(() => apiClient.get(`/api/v1/seo/cafe-links/${cafeId}`));
+}
+
+/** The waitlist count alone, for server rendering (no visitor session, so
+ *  `joined` is always false here — the client refetches that part). */
+export async function getCafeWaitlistCount(cafeId: string): Promise<{ count: number; goal: number }> {
+  return call(() => apiClient.get(`/api/v1/cafes/${cafeId}/waitlist/count`));
 }
 
 export const FACET_GROUP_LABELS: Record<SeoFacetType, string> = {

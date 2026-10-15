@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import String, DateTime, ForeignKey
+from sqlalchemy import String, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -30,6 +30,13 @@ class CafeWaitlistEntry(Base):
     # Optional one-tap answer after joining: 'weekday_evenings' | 'weekends'
     # | 'late_nights'. Aggregated for the owner demand page.
     play_time: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Optional, also asked after joining: a WhatsApp/call number (separate
+    # from `contact`, which the mailer reads for an email), how they'd like
+    # to be reached ('whatsapp' | 'call' | 'email'), and whether they know the
+    # owner -- a requester who can introduce us is the warmest outreach lead.
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    contact_method: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    knows_owner: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     # Set from the unsubscribe link in any waitlist email; no further
     # waitlist emails go to this person (see services/waitlist_mailer.py).
     unsubscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

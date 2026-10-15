@@ -301,8 +301,13 @@ class SeoService:
                     if d <= NEARBY_KM:
                         nearby.append((d, f))
         nearby.sort(key=lambda x: x[0])
+        # Neighbourhood for the page title ("Rockstar Gaming, Bowenpally"):
+        # people search by area, and the city alone matches none of it.
+        from app.core.localities import locality_for
+        locality = locality_for(*me.coords)[1] if me.coords else None
         return {
             "city": {"name": self._city_label(city_cafes), "path": city_path},
+            "locality": locality,
             "facets": facets,
             "nearby": [
                 {"id": str(f.id), "name": f.name, "path": f"/cafe/{f.slug or f.id}", "km": round(d, 1),

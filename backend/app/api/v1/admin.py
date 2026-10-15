@@ -1268,7 +1268,7 @@ async def get_lead_demand(
     return {"success": True, "data": {"leads": summary}}
 
 
-_CSV_COLUMNS = ["Cafe", "City", "Name", "Email", "Phone / contact", "Joined at", "Usually plays", "Signed in", "Unsubscribed"]
+_CSV_COLUMNS = ["Cafe", "City", "Name", "Email", "Phone / contact", "Reach on", "Knows owner", "Joined at", "Usually plays", "Signed in", "Unsubscribed"]
 
 
 async def _waitlist_csv(db: AsyncSession, cafe_id: Optional[UUID]) -> str:
@@ -1295,9 +1295,10 @@ async def _waitlist_csv(db: AsyncSession, cafe_id: Optional[UUID]) -> str:
 
     for entry, cafe_name, city, user in (await db.execute(stmt)).all():
         email = waitlist_mailer._email_of(user, entry.contact)
-        contact = entry.contact if entry.contact and entry.contact != email else (user.phone_number if user else None)
+        contact = entry.phone or (entry.contact if entry.contact and entry.contact != email else (user.phone_number if user else None))
         writer.writerow([
             cell(cafe_name), cell(city), cell(user.full_name if user else None), cell(email), cell(contact),
+            entry.contact_method or "", "yes" if entry.knows_owner else "no",
             entry.created_at.isoformat() if entry.created_at else "",
             waitlist_mailer.PLAY_TIMES.get(entry.play_time or "", ""),
             "yes" if entry.user_id else "no",
@@ -1404,3 +1405,76 @@ async def update_cafe_waitlist_goal(
     await db.commit()
 
     return {"success": True, "data": {"cafeId": str(cafe.id), "waitlistGoal": cafe.waitlist_goal}}
+
+
+class ApproxTierPrice(BaseModel):
+    tier_id: UUID = Field(..., alias="tierId")
+    price_per_hour: float = Field(..., gt=0, le=100000, alias="pricePerHour")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ApproxListingUpdateRequest(BaseModel):
+    tiers: list[ApproxTierPrice] = Field(default_factory=list)
+    opening_time: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$", alias="openingTime")
+    closing_time: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$", alias="closingTime")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.patch("/cafes/{cafe_id}/approx-listing", status_code=status.HTTP_200_OK)
+async def update_approx_listing(
+    cafe_id: UUID,
+    payload: ApproxListingUpdateRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin sets the researched hourly prices and opening hours shown on a
+    "Booking soon" café (labelled "approx" there). Booking-soon only: on a
+    live café those numbers are the owner's real prices, so an admin edit
+    here would silently change what customers are charged."""
+    from datetime import time as dtime
+
+    cafe = await db.get(Cafe, cafe_id)
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+    if not cafe.is_lead_listing:
+        raise BadRequestException(
+            message="Only a Booking-soon café's approximate details can be edited here — a live café sets its own prices.",
+            error_code="CAFE_IS_LIVE",
+        )
+
+    tiers = {
+        t.id: t
+        for t in (await db.execute(select(HardwareTier).where(HardwareTier.cafe_id == cafe_id))).scalars().all()
+    }
+    for item in payload.tiers:
+        tier = tiers.get(item.tier_id)
+        if tier is None:
+            raise BadRequestException(message="That setup isn't part of this café", error_code="TIER_NOT_IN_CAFE")
+        tier.price_per_hour = item.price_per_hour
+
+    if (payload.opening_time is None) != (payload.closing_time is None):
+        raise BadRequestException(message="Send both opening and closing time", error_code="HOURS_INCOMPLETE")
+    if payload.opening_time and payload.closing_time:
+        try:
+            oh, om = (int(x) for x in payload.opening_time.split(":"))
+            ch, cm = (int(x) for x in payload.closing_time.split(":"))
+            cafe.opening_time = dtime(oh, om)
+            cafe.closing_time = dtime(ch, cm)
+        except ValueError:
+            raise BadRequestException(message="Invalid time", error_code="INVALID_TIME")
+
+    await db.commit()
+    await _audit(db, current_admin, "cafe.update_approx_listing", str(cafe_id), cafe.name)
+    return {
+        "success": True,
+        "data": {
+            "tiers": [
+                {"id": str(t.id), "name": t.name, "pricePerHour": float(t.price_per_hour)}
+                for t in tiers.values()
+            ],
+            "openingTime": cafe.opening_time.strftime("%H:%M") if cafe.opening_time else None,
+            "closingTime": cafe.closing_time.strftime("%H:%M") if cafe.closing_time else None,
+        },
+    }

@@ -120,6 +120,14 @@ export async function updateCafeDescriptionAdmin(cafeId: string, description: st
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/description`, { description }));
 }
 
+/** Researched prices/hours on a "Booking soon" café (shown as approx). */
+export async function updateApproxListing(
+  cafeId: string,
+  body: { tiers: { tierId: string; pricePerHour: number }[]; openingTime?: string; closingTime?: string },
+): Promise<{ tiers: { id: string; name: string; pricePerHour: number }[]; openingTime: string | null; closingTime: string | null }> {
+  return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/approx-listing`, body));
+}
+
 export async function pauseCafeBookings(cafeId: string, paused: boolean): Promise<{ id: string; name: string; bookingsPaused: boolean }> {
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/pause-bookings`, { paused }));
 }
@@ -420,6 +428,20 @@ export interface CafeDemandLead {
   /** Subscribed, de-duplicated inboxes a broadcast would reach. */
   emailableCount: number;
   slug: string | null;
+  /** One row per requester: owner introducers first, then those with a number. */
+  people: WaitlistPerson[];
+  knowsOwnerCount: number;
+  phoneCount: number;
+}
+
+export interface WaitlistPerson {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  contactMethod: 'whatsapp' | 'call' | 'email' | null;
+  knowsOwner: boolean;
+  playTime: string | null;
+  joinedAt: string;
 }
 
 export async function listCafeDemand(minCount = 1): Promise<{ leads: CafeDemandLead[] }> {

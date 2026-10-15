@@ -169,3 +169,80 @@ async def test_broadcast_test_goes_only_to_admin(db_session, async_client, outbo
 
     leads = (await async_client.get("/api/v1/admin/leads/demand", headers=auth_headers(admin, is_admin=True))).json()["data"]["leads"]
     assert {l["cafeName"]: l["emailableCount"] for l in leads}["Broadcast Cafe"] == 2
+
+
+async def test_details_save_reach_preferences_without_leaking_publicly(db_session, async_client):
+    cafe = await _make_cafe(db_session, "Reach Cafe", slug="reach-cafe")
+    await _join(async_client, cafe.id, "s-1", contact="reach@test.com")
+    url = f"/api/v1/cafes/{cafe.id}/waitlist/details"
+
+    r = await async_client.patch(url, json={"sessionId": "s-1", "phone": "+91 98765 43210", "contactMethod": "whatsapp"})
+    assert r.status_code == 200, r.text
+    assert r.json()["data"] == {"phone": "+919876543210", "contactMethod": "whatsapp", "knowsOwner": False}
+
+    # Each answer saves on its own; an omitted field is left alone.
+    r = await async_client.patch(url, json={"sessionId": "s-1", "knowsOwner": True})
+    assert r.json()["data"] == {"phone": "+919876543210", "contactMethod": "whatsapp", "knowsOwner": True}
+
+    assert (await async_client.patch(url, json={"sessionId": "s-1", "contactMethod": "pigeon"})).status_code == 400
+    assert (await async_client.patch(url, json={"sessionId": "s-1", "phone": "123"})).status_code == 400
+    assert (await async_client.patch(url, json={"sessionId": "s-nobody", "knowsOwner": True})).status_code == 404
+
+    public = await async_client.get("/api/v1/waitlist/demand/reach-cafe")
+    assert "9876543210" not in public.text and "reach@test.com" not in public.text
+
+
+async def test_admin_demand_lists_people_with_owner_introducers_first(db_session, async_client):
+    admin = await create_test_user(db_session, role=UserRole.ADMIN)
+    await db_session.commit()
+    cafe = await _make_cafe(db_session, "Call List Cafe", slug="call-list-cafe")
+    await _join(async_client, cafe.id, "s-quiet")
+    await _join(async_client, cafe.id, "s-insider", contact="insider@test.com")
+    await async_client.patch(
+        f"/api/v1/cafes/{cafe.id}/waitlist/details",
+        json={"sessionId": "s-insider", "phone": "9876543210", "contactMethod": "call", "knowsOwner": True},
+    )
+
+    r = await async_client.get("/api/v1/admin/leads/demand", headers=auth_headers(admin, is_admin=True))
+    assert r.status_code == 200, r.text
+    lead = next(l for l in r.json()["data"]["leads"] if l["cafeId"] == str(cafe.id))
+    assert lead["knowsOwnerCount"] == 1 and lead["phoneCount"] == 1
+    first = lead["people"][0]
+    assert first["knowsOwner"] is True
+    assert first["phone"] == "9876543210" and first["email"] == "insider@test.com"
+    assert first["contactMethod"] == "call"
+
+    csv_r = await async_client.get(f"/api/v1/admin/leads/{cafe.id}/export.csv", headers=auth_headers(admin, is_admin=True))
+    assert "9876543210" in csv_r.text and "call" in csv_r.text
+
+
+async def test_admin_sets_approx_prices_and_hours_only_on_booking_soon_cafes(db_session, async_client):
+    from app.models.hardware_tier import HardwareTier
+
+    admin = await create_test_user(db_session, role=UserRole.ADMIN)
+    gamer = await create_test_user(db_session)
+    await db_session.commit()
+    lead = await _make_cafe(db_session, "Approx Cafe")
+    live = await _make_cafe(db_session, "Live Cafe", is_lead_listing=False)
+    lead_tier = HardwareTier(id=uuid.uuid4(), cafe_id=lead.id, name="PS5", total_seats=4, app_bookable_seats=0, price_per_hour=100)
+    live_tier = HardwareTier(id=uuid.uuid4(), cafe_id=live.id, name="PC", total_seats=4, app_bookable_seats=4, price_per_hour=80)
+    db_session.add_all([lead_tier, live_tier])
+    await db_session.commit()
+    headers = auth_headers(admin, is_admin=True)
+    body = {"tiers": [{"tierId": str(lead_tier.id), "pricePerHour": 150}], "openingTime": "10:00", "closingTime": "23:30"}
+
+    assert (await async_client.patch(f"/api/v1/admin/cafes/{lead.id}/approx-listing", json=body, headers=auth_headers(gamer))).status_code == 403
+
+    r = await async_client.patch(f"/api/v1/admin/cafes/{lead.id}/approx-listing", json=body, headers=headers)
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    assert data["tiers"][0]["pricePerHour"] == 150
+    assert data["openingTime"] == "10:00" and data["closingTime"] == "23:30"
+
+    # Another café's setup, a non-positive price, and a live café are all refused.
+    foreign = {"tiers": [{"tierId": str(live_tier.id), "pricePerHour": 10}]}
+    assert (await async_client.patch(f"/api/v1/admin/cafes/{lead.id}/approx-listing", json=foreign, headers=headers)).status_code == 400
+    bad = {"tiers": [{"tierId": str(lead_tier.id), "pricePerHour": 0}]}
+    assert (await async_client.patch(f"/api/v1/admin/cafes/{lead.id}/approx-listing", json=bad, headers=headers)).status_code == 422
+    live_body = {"tiers": [{"tierId": str(live_tier.id), "pricePerHour": 10}]}
+    assert (await async_client.patch(f"/api/v1/admin/cafes/{live.id}/approx-listing", json=live_body, headers=headers)).status_code == 400

@@ -66,9 +66,12 @@ interface CafeDetailClientProps {
       real café content instead of a loading skeleton. Undefined when the
       server-side fetch failed — the client query below still tries again. */
   initialCafe?: CafeDetail;
+  /** Server-rendered waitlist count for a "Booking soon" café, so the number
+      is in the page crawlers and link previews read. */
+  initialWaitlist?: { count: number; goal: number };
 }
 
-export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
+export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -162,6 +165,9 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     queryFn: () => getWaitlistStatus(cafeId),
     enabled: Boolean(cafeId) && isLead,
     staleTime: 30_000,
+    // Placeholder, not initialData: the server copy can't know whether this
+    // visitor already joined, so it must not count as fresh.
+    placeholderData: initialWaitlist ? { ...initialWaitlist, joined: false } : undefined,
   });
   const joined = waitlist?.joined ?? false;
   const waitingCount = waitlist?.count ?? 0;
@@ -172,7 +178,12 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
   const [shareCopied, setShareCopied] = useState(false);
 
   const handleShareWaitlist = async () => {
-    const shareText = `${data?.name ?? 'This café'} isn't bookable on KHEL-O yet — help us get it listed by requesting it too!`;
+    const remaining = Math.max(0, waitlistGoal - waitingCount);
+    const name = data?.name ?? 'this café';
+    const shareText =
+      remaining > 0
+        ? `Help get ${name} on KHEL-O — ${remaining} more request${remaining === 1 ? '' : 's'} and they'll push for an exclusive launch deal for everyone who asked. Add yours:`
+        : `${name} hit its goal on KHEL-O — add your request to get the launch deal too:`;
     const shareUrl = createShare(
       { path: cafePath(data ?? { id: cafeId }), context: 'waitlist', cafeId, campaign: data?.slug ?? cafeId },
       'native'
@@ -229,6 +240,17 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
     } finally {
       setIsJoining(false);
     }
+  };
+
+  // Tapping a setup on a "Booking soon" café: there is nothing to book yet,
+  // so ask for the vote (or, once in, offer the share step).
+  const handleLeadTierTap = () => {
+    if (joined) {
+      setNotifyStep('done');
+      setNotifyOpen(true);
+      return;
+    }
+    void handleNotifyMe();
   };
 
   const { data: userBookingsData } = useQuery({
@@ -501,8 +523,14 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
       {(gamingTiers.length > 0 || activityTiers.length > 0) && (
       <section className="flex flex-col gap-2.5">
         <div className="flex flex-col gap-0.5">
-          <h2 className="font-heading text-h3 text-text-primary">{gamingTiers.length > 0 ? 'Choose your setup' : 'Choose an activity'}</h2>
-          <p className="text-caption text-text-secondary">Tap one to pick your time.</p>
+          <h2 className="font-heading text-h3 text-text-primary">
+            {isLead ? 'Setups & approx prices' : gamingTiers.length > 0 ? 'Choose your setup' : 'Choose an activity'}
+          </h2>
+          <p className="text-caption text-text-secondary">
+            {isLead
+              ? 'From our research — the café confirms final prices when booking opens.'
+              : 'Tap one to pick your time.'}
+          </p>
         </div>
 
         <>
@@ -537,8 +565,16 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                   >
                     <button
                       type="button"
-                      onClick={() => router.push(`/bookings/new?cafeId=${cafe.id}&tierId=${tier.id}${promoSuffix}`)}
-                      aria-label={`Book ${tier.name}, ₹${tier.pricePerHour} per hour${tier.coopEnabled ? ', co-op available' : ''}`}
+                      onClick={() =>
+                        isLead
+                          ? handleLeadTierTap()
+                          : router.push(`/bookings/new?cafeId=${cafe.id}&tierId=${tier.id}${promoSuffix}`)
+                      }
+                      aria-label={
+                        isLead
+                          ? `${tier.name}, about ₹${tier.pricePerHour} per hour. Get notified when booking opens`
+                          : `Book ${tier.name}, ₹${tier.pricePerHour} per hour${tier.coopEnabled ? ', co-op available' : ''}`
+                      }
                       className="absolute inset-0 rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     />
                     <div
@@ -628,6 +664,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                         <span className="rupee-symbol">₹</span>{discountedPrice}
                         <span className="text-caption font-normal text-text-secondary">/hr</span>
                       </div>
+                      {isLead && <span className="whitespace-nowrap text-[11px] text-text-secondary">(approx)</span>}
                       {liveData?.openNow && freeNowByTier.has(tier.id) && tier.totalSeats > 0 ? (
                         <span className={`whitespace-nowrap text-[11px] font-bold ${(freeNowByTier.get(tier.id) ?? 0) > 0 ? 'text-success' : 'text-warning'}`}>
                           {(freeNowByTier.get(tier.id) ?? 0) > 0
@@ -647,12 +684,22 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
               })}
             </div>
 
-            <ActivitiesSection embedded showHeading={gamingTiers.length > 0} cafeId={cafe.id} activities={activityTiers} promoCode={campaign.code} campaignOffers={campaign.offers} />
+            <ActivitiesSection
+              embedded
+              showHeading={gamingTiers.length > 0}
+              cafeId={cafe.id}
+              activities={activityTiers}
+              promoCode={campaign.code}
+              campaignOffers={campaign.offers}
+              onLeadSelect={isLead ? handleLeadTierTap : undefined}
+            />
 
-            <p className="flex items-center gap-1.5 text-caption text-text-secondary">
-              <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-success" />
-              Instant confirmation · Full refund if you cancel 2+ hrs before
-            </p>
+            {!isLead && (
+              <p className="flex items-center gap-1.5 text-caption text-text-secondary">
+                <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-success" />
+                Instant confirmation · Full refund if you cancel 2+ hrs before
+              </p>
+            )}
 
             {hasPcTier && gamingTiers.length > 1 && (
               <button
@@ -684,7 +731,7 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       { label: 'RAM', get: (t: (typeof gamingTiers)[number]) => t.specs?.ram || '—' },
                       { label: 'Monitor', get: (t: (typeof gamingTiers)[number]) => t.specs?.monitor || '—' },
                       { label: 'Stations', get: (t: (typeof gamingTiers)[number]) => (t.totalSeats > 0 ? String(t.totalSeats) : '—') },
-                      { label: 'Price', get: (t: (typeof gamingTiers)[number]) => `₹${t.pricePerHour}/hr` },
+                      { label: 'Price', get: (t: (typeof gamingTiers)[number]) => `₹${t.pricePerHour}/hr${isLead ? ' (approx)' : ''}` },
                     ].map((row) => (
                       <tr key={row.label} className="border-t border-border/60">
                         <td className="p-3 font-semibold text-text-secondary">{row.label}</td>
@@ -1094,6 +1141,8 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
           onJoin={joinFromSheet}
           onShare={handleShareWaitlist}
           shareCopied={shareCopied}
+          count={waitingCount}
+          goal={waitlistGoal}
         />
       )}
 
@@ -1140,7 +1189,11 @@ export function CafeDetailClient({ initialCafe }: CafeDetailClientProps) {
                       onClick={handleShareWaitlist}
                       className="text-caption font-semibold text-primary hover:underline flex-shrink-0"
                     >
-                      {shareCopied ? 'Link copied!' : 'Get friends to request too'}
+                      {shareCopied
+                        ? 'Link copied!'
+                        : waitingCount < waitlistGoal
+                          ? `${waitlistGoal - waitingCount} to go — share for a launch deal`
+                          : 'Share for the launch deal'}
                     </button>
                   )}
                 </div>
