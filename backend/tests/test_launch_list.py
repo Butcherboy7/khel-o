@@ -56,6 +56,20 @@ async def test_same_number_twice_updates_instead_of_double_counting(async_client
 
 
 @pytest.mark.asyncio
+async def test_each_player_gets_their_place_in_line_and_keeps_it(async_client):
+    first_body, second_body = _body(), _body()
+    first = (await async_client.post("/api/v1/launch-list/gta6", json=first_body)).json()["data"]
+    second = (await async_client.post("/api/v1/launch-list/gta6", json=second_body)).json()["data"]
+    assert first["position"] == first["count"]
+    assert second["position"] == first["position"] + 1
+    # Joining again (to change how we reach them) doesn't move them to the back.
+    again = (await async_client.post(
+        "/api/v1/launch-list/gta6", json={**first_body, "contactMethod": "text", "formTicket": _ticket()}
+    )).json()["data"]
+    assert again["position"] == first["position"]
+
+
+@pytest.mark.asyncio
 async def test_unknown_launch_is_404(async_client):
     assert (await async_client.get("/api/v1/launch-list/gta7")).status_code == 404
     assert (await async_client.post("/api/v1/launch-list/gta7", json=_body())).status_code == 404

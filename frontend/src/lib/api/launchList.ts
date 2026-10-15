@@ -50,7 +50,15 @@ export async function getLaunch(key: string): Promise<LaunchInfo> {
   return call(() => apiClient.get(`/api/v1/launch-list/${key}`));
 }
 
-export async function joinLaunch(key: string, body: LaunchJoin): Promise<{ joined: boolean; alreadyJoined: boolean; count: number }> {
+export interface LaunchJoinResult {
+  joined: boolean;
+  alreadyJoined: boolean;
+  count: number;
+  /** Their place in line (1 = first to join). Joining again keeps it. */
+  position: number;
+}
+
+export async function joinLaunch(key: string, body: LaunchJoin): Promise<LaunchJoinResult> {
   return call(() => apiClient.post(`/api/v1/launch-list/${key}`, body));
 }
 

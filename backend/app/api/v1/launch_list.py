@@ -110,12 +110,14 @@ async def join_launch_list(key: str, payload: LaunchJoinRequest, request: Reques
     existing = (await db.execute(
         select(LaunchSignup).where(LaunchSignup.launch == key, LaunchSignup.phone == payload.phone)
     )).scalar_one_or_none()
+    row = existing
     if existing is None:
-        db.add(LaunchSignup(
+        row = LaunchSignup(
             launch=key, name=payload.name, phone=payload.phone, contact_method=payload.contact_method,
             email=payload.email, consent=True, utm_source=payload.utm_source,
             utm_campaign=payload.utm_campaign, utm_content=payload.utm_content,
-        ))
+        )
+        db.add(row)
     else:
         # Joining again just updates how they want to hear from us.
         existing.name = payload.name
@@ -124,10 +126,17 @@ async def join_launch_list(key: str, payload: LaunchJoinRequest, request: Reques
         existing.consent = True
         existing.updated_at = datetime.now(timezone.utc)
     await db.commit()
+    # Their place in line: everyone who joined before them, plus them. Joining
+    # again keeps the original created_at, so nobody loses their spot.
+    position = (await db.execute(
+        select(func.count()).select_from(LaunchSignup)
+        .where(LaunchSignup.launch == key, LaunchSignup.created_at <= row.created_at)
+    )).scalar_one()
     return {"success": True, "data": {
         "joined": True,
         "alreadyJoined": existing is not None,
         "count": await _count(db, key),
+        "position": position,
     }}
 
 
