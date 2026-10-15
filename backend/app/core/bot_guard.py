@@ -35,16 +35,19 @@ from app.models.auth_attempt import AuthAttempt
 
 # Seconds a person needs, at the least, between the form appearing and sending it.
 # Bots took 1–3 s. Login has no floor: password managers fill and submit instantly.
-MIN_SECONDS = {"register": 5, "forgot": 3, "login": 0}
+MIN_SECONDS = {"register": 5, "forgot": 3, "login": 0, "launch": 3}
 # (window, max per IP, max per email address) — counts every attempt in the window.
+# "launch" (game-launch lists) passes the phone number in the email slot; a
+# whole friend group often joins from one café or hostel Wi-Fi, so the IP cap is higher.
 LIMITS = {
     "register": (timedelta(hours=1), 5, 3),
     "forgot": (timedelta(hours=1), 10, 3),
     "login": (timedelta(minutes=15), 30, 10),
+    "launch": (timedelta(hours=1), 20, 3),
 }
 # Forms that must carry a ticket. Login doesn't, so a tab left open across a
 # deploy can still sign in; it is covered by the limits and the trap field.
-NEEDS_TICKET = {"register", "forgot"}
+NEEDS_TICKET = {"register", "forgot", "launch"}
 KEEP_DAYS = 30
 
 

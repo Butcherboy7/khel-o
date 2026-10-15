@@ -28,6 +28,7 @@ from app.models.user_badge import UserBadge
 from app.models.owner_intro import OwnerIntro
 from app.models.marketing_campaign import MarketingCampaign
 from app.models.auth_attempt import AuthAttempt
+from app.models.launch_signup import LaunchSignup
 
 __all__ = [
     "User",
@@ -67,4 +68,5 @@ __all__ = [
     "OwnerIntro",
     "MarketingCampaign",
     "AuthAttempt",
+    "LaunchSignup",
 ]
