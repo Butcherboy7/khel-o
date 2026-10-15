@@ -396,6 +396,11 @@
    back as soon as the dialog closes. */
 body:has([role='dialog']) [aria-label='Cookie notice'] { display: none; }
 
+/* The GTA 6 launch list is an ad landing page sized so the whole sign-up fits
+   the Instagram in-app browser's first screen; the notice would push "I'm in"
+   below it. The form carries its own consent tick and privacy link. */
+body:has(.gta6) [aria-label='Cookie notice'] { display: none; }
+
 /* ── Helper emblems (Day One / Matchmaker / Local Legend): a soft golden halo
    that slowly breathes plus one gentle light sweep, then rest. Never flashes
    or spins. ── */
