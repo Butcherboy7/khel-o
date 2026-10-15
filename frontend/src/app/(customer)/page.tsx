@@ -5,6 +5,7 @@ import { ExploreClient } from '@/components/customer/ExploreClient';
 import { CampaignWelcome } from '@/components/customer/CampaignWelcome';
 import { HomeSections } from '@/components/customer/HomeSections';
 import { SkeletonCafeGrid } from '@/components/ui/Skeleton';
+import { ExploreByCityLinks } from '@/components/customer/ExploreByCityLinks';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
@@ -66,6 +67,7 @@ export default async function ExplorePage() {
           <HomeSections />
         </ExploreClient>
       </Suspense>
+      <ExploreByCityLinks />
     </>
   );
 }

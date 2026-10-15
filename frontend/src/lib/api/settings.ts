@@ -1,4 +1,5 @@
 import { apiClient, call } from './client';
+import { toWebp } from '@/lib/imageOptimize';
 import axios from 'axios';
 
 export interface CafePhoto {
@@ -165,8 +166,9 @@ export async function uploadCafePhoto(
   category: string,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  const { uploadUrl, publicUrl } = await presignCafePhotoUpload(cafeId, file.type, category);
-  await putToPresignedUrl(uploadUrl, file, onProgress);
+  const photo = await toWebp(file);
+  const { uploadUrl, publicUrl } = await presignCafePhotoUpload(cafeId, photo.type, category);
+  await putToPresignedUrl(uploadUrl, photo, onProgress);
   return publicUrl;
 }
 
@@ -193,8 +195,10 @@ export async function uploadMenuPhoto(
   file: File,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  const { uploadUrl, publicUrl } = await presignMenuPhotoUpload(cafeId, file.type);
-  await putToPresignedUrl(uploadUrl, file, onProgress);
+  // Menus are text: a larger size and higher quality keep prices readable.
+  const photo = await toWebp(file, 2200, 0.88);
+  const { uploadUrl, publicUrl } = await presignMenuPhotoUpload(cafeId, photo.type);
+  await putToPresignedUrl(uploadUrl, photo, onProgress);
   return publicUrl;
 }
 

@@ -70,9 +70,9 @@ export const metadata: Metadata = {
     icon: '/icons/icon-192x192.png',
     apple: '/icons/icon-192x192.png',
   },
-  alternates: {
-    canonical: '/',
-  },
+  // No site-wide canonical here: every page inherits this object, and a
+  // canonical of '/' told Google that /partner, /about and every legal page
+  // were copies of the homepage. Pages that need one set their own.
   openGraph: {
     type: 'website',
     locale: 'en_IN',
@@ -81,9 +81,11 @@ export const metadata: Metadata = {
     title: 'KHEL-O — Book Gaming Cafés & Game Zones Near You',
     description:
       'Find and book gaming cafés, VR, snooker, pool and bowling near you. See live availability, compare prices and pay online — no calling ahead.',
+    images: [{ url: '/og-default.png', width: 1200, height: 630, alt: 'KHEL-O — book gaming cafés, bowling & snooker without calling' }],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
+    images: ['/og-default.png'],
     title: 'KHEL-O — Book Gaming Cafés & Game Zones Near You',
     description:
       'Find and book gaming cafés, VR, snooker, pool and bowling near you. See live availability, compare prices and pay online.',
@@ -117,14 +119,6 @@ const websiteJsonLd = {
   '@type': 'WebSite',
   name: 'KHEL-O',
   url: SITE_URL,
-  potentialAction: {
-    '@type': 'SearchAction',
-    target: {
-      '@type': 'EntryPoint',
-      urlTemplate: `${SITE_URL}/?search={search_term_string}`,
-    },
-    'query-input': 'required name=search_term_string',
-  },
 };
 
 export const viewport: Viewport = {

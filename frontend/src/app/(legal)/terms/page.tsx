@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/terms' },
   title: 'Terms & Conditions for Gamers',
   description: 'Terms and conditions governing gamers who use the KHEL-O gaming café booking platform.',
 };

@@ -50,6 +50,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title,
       description,
       url: `${SITE_URL}/cafes/${slug}`,
+      images: [{ url: '/og-default.png' }],
     },
   };
 }

@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // Thin (1 café) or duplicate-of-city pages still serve users but stay
     // out of the index; `follow` keeps link equity flowing to the cafés.
     robots: page.index ? undefined : { index: false, follow: true },
-    openGraph: { title, description, url: `${SITE_URL}${page.canonical}` },
+    openGraph: { title, description, url: `${SITE_URL}${page.canonical}`, images: [{ url: '/og-default.png' }] },
   };
 }
 

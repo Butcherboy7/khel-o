@@ -1,6 +1,7 @@
 import { cache } from 'react';
 import type { Metadata } from 'next';
-import { permanentRedirect } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
+import { ApiError } from '@/lib/api/errors';
 import { getCafe, cafePath, isCafeUuid } from '@/lib/api/cafes';
 import { PLATFORMS } from '@/constants/platforms';
 import Link from 'next/link';
@@ -32,12 +33,15 @@ function queryString(sp: Record<string, string | string[] | undefined> | undefin
 
 // React's cache() memoizes per-request, so generateMetadata and the page body
 // (both of which need the same café) only hit the backend once per request.
-const getCafeCached = cache(async (id: string): Promise<CafeDetail | null> => {
+// `null` = couldn't load (backend blip: render the client fallback, which
+// retries); 'missing' = the API says there is no such café (a real 404, so
+// Google drops the URL instead of indexing an empty "not found" page).
+const getCafeCached = cache(async (id: string): Promise<CafeDetail | null | 'missing'> => {
   try {
     const res = await getCafe(id);
     return res.cafe;
-  } catch {
-    return null;
+  } catch (err) {
+    return err instanceof ApiError && err.status === 404 ? 'missing' : null;
   }
 });
 
@@ -46,7 +50,8 @@ const getWaitlistCountCached = cache((cafeId: string) => getCafeWaitlistCount(ca
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const cafe = await getCafeCached(id);
+  const loaded = await getCafeCached(id);
+  const cafe = loaded === 'missing' ? null : loaded;
 
   if (!cafe) {
     return { title: 'Café not found' };
@@ -78,14 +83,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title,
       description,
       url: `${SITE_URL}${cafePath(cafe)}`,
-      images: image ? [{ url: image }] : undefined,
+      // A page-level openGraph replaces the site default wholesale, so the
+      // fallback image has to be repeated here.
+      images: [{ url: image ?? '/og-default.png' }],
     },
   };
 }
 
 export default async function CafeDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
-  const cafe = await getCafeCached(id);
+  const loaded = await getCafeCached(id);
+  if (loaded === 'missing') notFound();
+  const cafe = loaded;
 
   // Old /cafe/<uuid> links (shared, bookmarked, already indexed) move
   // permanently to the readable URL so search engines transfer their ranking.
@@ -144,8 +153,28 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
       }
     : null;
 
+  // Shown by Google in place of the raw URL: KHEL-O › Hyderabad › Rockstar.
+  const breadcrumbJsonLd =
+    cafe && links
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'KHEL-O', item: `${SITE_URL}/` },
+            { '@type': 'ListItem', position: 2, name: links.city.name, item: `${SITE_URL}${links.city.path}` },
+            { '@type': 'ListItem', position: 3, name: cafe.name, item: `${SITE_URL}${cafePath(cafe)}` },
+          ],
+        }
+      : null;
+
   return (
     <>
+      {breadcrumbJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        />
+      )}
       {jsonLd && (
         <script
           type="application/ld+json"
