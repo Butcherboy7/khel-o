@@ -33,7 +33,7 @@ import {
   type SortOption,
 } from '@/components/customer/CafeFilterSheet';
 import { SkeletonCafeGrid, ErrorState, EmptyState } from '@/components/ui';
-import type { CafeListItem, PaginatedResponse } from '@/types';
+import type { ActivityFacet, CafeListItem, PaginatedResponse } from '@/types';
 
 
 const KNOWN_CITIES = ['All Cities', ...SUPPORTED_CITIES];
@@ -69,11 +69,14 @@ interface ExploreClientProps {
       Only wired up as react-query initialData when the visitor's actual
       filters match this exact unfiltered query — see the guard below. */
   initialCafes?: PaginatedResponse<CafeListItem>;
+  /** Activities for "all cities", fetched server-side so the chips row is in
+      the first paint instead of popping in above the grid. */
+  initialActivities?: ActivityFacet[];
   /** Secondary homepage content, rendered below the café grid. */
   children?: React.ReactNode;
 }
 
-export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
+export function ExploreClient({ initialCafes, initialActivities, children }: ExploreClientProps) {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const firstName = user?.fullName ? user.fullName.split(' ')[0] : null;
@@ -252,6 +255,10 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
     queryKey: ['cafes', 'activities', effectiveCity ?? null],
     queryFn: () => listActivities(effectiveCity),
     staleTime: 5 * 60_000,
+    initialData: effectiveCity ? undefined : initialActivities,
+    // Switching city keeps the old chips until the new ones arrive, so the
+    // row never collapses and shifts the grid.
+    placeholderData: (previous) => previous,
   });
 
   // Style chips: only for an activity whose taxonomy has styles, and only
@@ -659,6 +666,8 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
             gets ~270-300px — wider than the 279px it had at 1200px/4-col. A
             6th column would take cards down to ~245px, which starts
             truncating café names and city labels. */}
+        {/* Card names are h3s; this keeps the heading outline h1 → h2 → h3. */}
+        <h2 className="sr-only">Places to play</h2>
         {!isLoading && !isError && sortedCafes.length > 0 && <Hint id="explore" className="mb-2" />}
         {!isLoading && !isError && sortedCafes.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

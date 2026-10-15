@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { listCafes, cafePath } from '@/lib/api/cafes';
+import { listCafes, listActivities, cafePath } from '@/lib/api/cafes';
 import { ExploreClient } from '@/components/customer/ExploreClient';
 import { CampaignWelcome } from '@/components/customer/CampaignWelcome';
 import { HomeSections } from '@/components/customer/HomeSections';
@@ -40,9 +40,21 @@ async function getInitialCafes() {
   }
 }
 
+// The activity chips row ("All · PC Gaming · PlayStation…") sits above the
+// café grid. Fetched only in the browser, it popped in after load and pushed
+// every card down (most of the homepage's layout shift).
+async function getInitialActivities() {
+  try {
+    return await listActivities();
+  } catch {
+    return undefined;
+  }
+}
+
 export default async function ExplorePage() {
-  const [initialCafes, landingPages] = await Promise.all([
+  const [initialCafes, initialActivities, landingPages] = await Promise.all([
     getInitialCafes(),
+    getInitialActivities(),
     getSeoPages().catch(() => []),
   ]);
 
@@ -75,7 +87,7 @@ export default async function ExplorePage() {
         <CampaignWelcome />
       </Suspense>
       <Suspense fallback={<ExploreFallback />}>
-        <ExploreClient initialCafes={initialCafes}>
+        <ExploreClient initialCafes={initialCafes} initialActivities={initialActivities}>
           <HomeSections />
           <PopularPages pages={landingPages} />
         </ExploreClient>

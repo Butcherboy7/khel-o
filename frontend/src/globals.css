@@ -436,3 +436,11 @@ body:has(.gta6) [aria-label='Cookie notice'] { display: none; }
 html[data-cookie-ok] .cookie-notice {
   display: none;
 }
+
+/* Hints this device has already seen enough times: hidden before first paint. */
+html[data-hints-seen~='explore'] [data-hint='explore'],
+html[data-hints-seen~='cafe'] [data-hint='cafe'],
+html[data-hints-seen~='booking'] [data-hint='booking'],
+html[data-hints-seen~='pass'] [data-hint='pass'] {
+  display: none;
+}

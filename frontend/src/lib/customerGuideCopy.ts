@@ -22,3 +22,14 @@ export const CUSTOMER_INFO = {
 
 /** A hint stops appearing after this many sightings. */
 export const HINT_VIEWS = 3;
+
+/** Where the per-device sighting counts live (browser storage, not the account). */
+export const HINT_STORAGE_KEY = 'khelo-hints';
+
+/**
+ * Runs inline in <body> before the page HTML is parsed (see app/layout). Hints
+ * are rendered on the server so they never pop in and push the page down; this
+ * marks the ones this device has already seen enough times, and the
+ * html[data-hints-seen] rule in globals.css hides them before the first paint.
+ */
+export const HINTS_SEEN_SCRIPT = `try{var c=JSON.parse(localStorage.getItem('${HINT_STORAGE_KEY}')||'{}'),s=[];for(var k in c)if(c[k]>=${HINT_VIEWS})s.push(k);if(s.length)document.documentElement.setAttribute('data-hints-seen',s.join(' '))}catch(e){}`;

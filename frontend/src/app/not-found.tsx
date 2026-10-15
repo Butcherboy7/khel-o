@@ -36,7 +36,7 @@ export default function NotFound() {
           </Link>
         ))}
       </nav>
-      <Link href="/" className="text-body font-semibold text-primary hover:underline">
+      <Link href="/" className="text-body font-semibold text-primary-dark hover:underline">
         Back to KHEL-O home
       </Link>
     </main>

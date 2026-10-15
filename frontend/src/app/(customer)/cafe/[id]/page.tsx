@@ -241,7 +241,7 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
             </section>
           )}
           <SeoLinkGroups links={links.facets} title={`More in ${links.city.name}`} />
-          <Link href={links.city.path} className="text-body font-semibold text-primary hover:underline">
+          <Link href={links.city.path} className="text-body font-semibold text-primary-dark hover:underline">
             Gaming cafés, snooker &amp; bowling in {links.city.name} →
           </Link>
         </div>

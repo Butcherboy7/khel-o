@@ -4,6 +4,7 @@ import { Space_Grotesk, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/goog
 import { Providers } from './providers';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import { CookieConsentBanner, COOKIE_NOTICE_SCRIPT } from '@/components/layout/CookieConsentBanner';
+import { HINTS_SEEN_SCRIPT } from '@/lib/customerGuideCopy';
 import '../globals.css';
 
 /* ── Font Loading ────────────────────────────────────────────────── */
@@ -173,6 +174,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
         <script dangerouslySetInnerHTML={{ __html: COOKIE_NOTICE_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: HINTS_SEEN_SCRIPT }} />
         <CookieConsentBanner />
         <Providers>{children}</Providers>
       </body>

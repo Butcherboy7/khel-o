@@ -352,7 +352,7 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
           <div className="flex items-center justify-between gap-2 mt-0.5">
             <button
               onClick={handleOpenMap}
-              className="inline-flex min-w-0 items-center gap-1 text-caption text-text-secondary hover:text-primary transition-colors text-left"
+              className="-my-1 inline-flex min-w-0 items-center gap-1 py-1 text-caption text-text-secondary hover:text-primary transition-colors text-left"
               title="Get directions on Google Maps"
             >
               <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />

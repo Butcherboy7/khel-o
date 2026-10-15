@@ -475,7 +475,7 @@ export function Gta6Client() {
                   I’m in
                 </button>
 
-                <p className="text-center text-xs text-[#7A7E89]">
+                <p className="text-center text-xs text-[#5F636E]">
                   We use your number only for this.{' '}
                   <Link href="/privacy" className="underline underline-offset-2">
                     Privacy
@@ -567,7 +567,7 @@ export function Gta6Client() {
         </section>
       </main>
 
-      <footer className="relative mx-auto max-w-5xl px-4 pb-10 text-xs text-[#6E7280] md:px-8">
+      <footer className="relative mx-auto max-w-5xl px-4 pb-10 text-xs text-[#8A8E99] md:px-8">
         GTA 6 is a trademark of Take-Two Interactive. KHEL-O isn’t affiliated with Rockstar Games. Launch date as announced
         by Rockstar; it can change.
       </footer>

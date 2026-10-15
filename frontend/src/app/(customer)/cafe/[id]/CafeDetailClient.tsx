@@ -528,7 +528,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => trackAction('directions_click', {}, cafe.id)}
-                className="flex items-center gap-0.5 font-semibold text-primary hover:underline"
+                className="flex items-center gap-0.5 font-semibold text-primary-dark hover:underline"
               >
                 <MapPin className="h-3.5 w-3.5" />
                 Directions
@@ -751,7 +751,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
               <button
                 type="button"
                 onClick={() => setShowAllTierSpecs((v) => !v)}
-                className="self-start flex items-center gap-1.5 text-caption font-semibold text-primary hover:underline"
+                className="self-start flex items-center gap-1.5 text-caption font-semibold text-primary-dark hover:underline"
               >
                 {showAllTierSpecs ? 'Hide tier comparison' : 'Compare all tiers'}
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showAllTierSpecs ? 'rotate-180' : ''}`} />
@@ -807,7 +807,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
             <button
               type="button"
               onClick={() => setShowFullDescription((v) => !v)}
-              className="self-start text-caption font-semibold text-primary hover:underline"
+              className="self-start text-caption font-semibold text-primary-dark hover:underline"
             >
               {showFullDescription ? 'Read less' : 'Read more'}
             </button>
@@ -1004,7 +1004,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
             their review in the list instead). */}
         {!myReview && (
         <div id="write-review" className="p-5 rounded-2xl bg-card border border-border/80 flex flex-col gap-3 scroll-mt-4">
-          <h4 className="font-heading text-body font-bold text-text-primary">Leave a Rating & Review</h4>
+          <h3 className="font-heading text-body font-bold text-text-primary">Leave a Rating & Review</h3>
           <div className="flex items-center gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
@@ -1170,7 +1170,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                       setReviewError(null);
                       setEditingReview(true);
                     }}
-                    className="self-start min-h-[36px] text-caption font-semibold text-primary hover:underline"
+                    className="self-start min-h-[36px] text-caption font-semibold text-primary-dark hover:underline"
                   >
                     Edit your review
                   </button>
@@ -1250,7 +1250,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
               <div className="flex items-center gap-2.5 rounded-xl bg-surface px-2.5 py-1.5">
                 <HelperEmblem badge="day_one" size={26} />
                 <span className="text-caption font-semibold text-text-primary">Vote and unlock Early Voter</span>
-                <span className="ml-auto font-data text-caption font-bold text-primary">+{HELPER_BADGE_COPY.day_one.xp} XP</span>
+                <span className="ml-auto font-data text-caption font-bold text-primary-dark">+{HELPER_BADGE_COPY.day_one.xp} XP</span>
               </div>
             )}
 
@@ -1271,14 +1271,14 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                 {joined && (
                   <button
                     onClick={handleShareWaitlist}
-                    className="min-h-[32px] flex-shrink-0 text-caption font-semibold text-primary hover:underline"
+                    className="min-h-[32px] flex-shrink-0 text-caption font-semibold text-primary-dark hover:underline"
                   >
                     {shareCopied ? 'Link copied ✓' : 'Rally the squad'}
                   </button>
                 )}
               </div>
               {overGoalLine(waitingCount, waitlistGoal) && (
-                <p className="text-caption font-semibold text-primary">{overGoalLine(waitingCount, waitlistGoal)}</p>
+                <p className="text-caption font-semibold text-primary-dark">{overGoalLine(waitingCount, waitlistGoal)}</p>
               )}
               <div className="h-1.5 w-full rounded-full bg-surface overflow-hidden">
                 <div

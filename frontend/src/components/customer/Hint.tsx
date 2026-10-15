@@ -3,13 +3,11 @@
 import { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { CUSTOMER_HINTS, HINT_VIEWS, type CustomerHintId } from '@/lib/customerGuideCopy';
-
-const STORAGE_KEY = 'khelo-hints';
+import { CUSTOMER_HINTS, HINT_STORAGE_KEY, HINT_VIEWS, type CustomerHintId } from '@/lib/customerGuideCopy';
 
 function readCounts(): Record<string, number> {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    return JSON.parse(localStorage.getItem(HINT_STORAGE_KEY) || '{}');
   } catch {
     return {};
   }
@@ -20,17 +18,22 @@ function readCounts(): Record<string, number> {
  * hesitate. Shown for the first few sightings on this device, then gone —
  * no close button, nothing to manage. Stored in the browser, not the
  * account, because most first visits happen before signing up.
+ *
+ * Rendered from the start (server HTML included) so it never pops in and
+ * shifts the page; HINTS_SEEN_SCRIPT hides used-up hints before first paint.
  */
 export function Hint({ id, emphasis = false, className }: { id: CustomerHintId; emphasis?: boolean; className?: string }) {
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(true);
 
   useEffect(() => {
     const counts = readCounts();
     const seen = counts[id] ?? 0;
-    if (seen >= HINT_VIEWS) return;
-    setShow(true);
+    if (seen >= HINT_VIEWS) {
+      setShow(false);
+      return;
+    }
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...counts, [id]: seen + 1 }));
+      localStorage.setItem(HINT_STORAGE_KEY, JSON.stringify({ ...counts, [id]: seen + 1 }));
     } catch {
       // Storage blocked: the hint just keeps showing, which is harmless.
     }
@@ -40,6 +43,7 @@ export function Hint({ id, emphasis = false, className }: { id: CustomerHintId; 
 
   return (
     <p
+      data-hint={id}
       className={cn(
         'flex items-start gap-1.5 text-caption animate-fade-in-up',
         emphasis ? 'rounded-xl bg-primary/5 px-3 py-2 font-semibold text-text-primary' : 'text-text-secondary',
