@@ -160,6 +160,14 @@ export function generateTimeSlots(openingTime: string, closingTime: string, _dat
   return slots;
 }
 
+/** Minutes since midnight in India right now. Every venue is in IST, and the
+ *  server renders in UTC while phones run on IST: reading the machine clock
+ *  made "Open now" differ between the two, so React threw the server HTML
+ *  away on every Indian visit. IST is UTC+5:30 with no daylight saving. */
+export function istMinutesNow(now: Date = new Date()): number {
+  return (now.getUTCHours() * 60 + now.getUTCMinutes() + 330) % (24 * 60);
+}
+
 /** Whether a café is open right now, given its opening/closing time strings.
  *  Handles overnight hours the same way generateTimeSlots does (closing
  *  hour <= opening hour means the café closes after midnight). Falls back
@@ -171,8 +179,7 @@ export function isCafeOpenNow(openingTime?: string | null, closingTime?: string 
   const [openH, openM] = openingTime.split(':').map(Number);
   const [rawCloseH, closeM] = closingTime.split(':').map(Number);
 
-  const now = new Date();
-  let nowMin = now.getHours() * 60 + now.getMinutes();
+  let nowMin = istMinutesNow();
   const openMin = openH * 60 + (openM || 0);
   let closeMin = rawCloseH * 60 + (closeM || 0);
 
@@ -199,8 +206,7 @@ export function getCafeOpenStatus(
   if (!openingTime) return 'closed';
 
   const [openH, openM] = openingTime.split(':').map(Number);
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const nowMin = istMinutesNow();
   const openMin = openH * 60 + (openM || 0);
   const minutesUntilOpen = openMin >= nowMin ? openMin - nowMin : openMin + 24 * 60 - nowMin;
 
