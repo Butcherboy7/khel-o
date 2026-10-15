@@ -6,7 +6,7 @@ from app.models.user import User, UserRole
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
 from app.core.security import get_password_hash
-from app.services.seo_service import gpu_slug, game_slug
+from app.services.seo_service import gpu_slug, game_slug, name_activity
 
 # A made-up city per test run so rows from other tests never mix in.
 
@@ -18,6 +18,18 @@ def test_gpu_normalization():
     assert gpu_slug("rtx4060 ti") == ("rtx-4060-ti", "RTX 4060 Ti")
     assert gpu_slug("PS5 Custom RDNA2") is None
     assert gpu_slug("Custom") is None
+
+
+def test_lead_names_file_only_under_bowling_or_snooker():
+    assert name_activity("Triangle Snooker and Pool Center") == "snooker"
+    assert name_activity("Q9 Snookers Academy") == "snooker"
+    assert name_activity("Arcade Billiard Studio (ABS)") == "snooker"
+    assert name_activity("Lucky Billiards ") == "snooker"
+    assert name_activity("Bustterz Gaming & Bowling") == "bowling"
+    # A name alone never claims VR or arcade machines.
+    assert name_activity("Hi Game Zone") is None
+    assert name_activity("VR GAMING.COM") is None
+    assert name_activity("Gamers Guild") is None
 
 
 def test_game_normalization():
@@ -125,3 +137,72 @@ async def test_identical_cafe_sets_keep_only_most_specific(async_client, db_sess
     dup = (await async_client.get("/api/v1/seo/page", params={"city": slug, "facet": "under-200"})).json()["data"]
     assert dup["index"] is False
     assert dup["canonical"] == f"/cafes/{slug}/pc-gaming"
+
+
+async def _venue(db, city, name, *, kinds=(), area=None, lead=False):
+    """A café with one activity tier per free-text kind, or none at all (a Booking Soon listing)."""
+    owner = User(
+        id=uuid4(), email=f"o_{uuid4().hex[:8]}@test.com", full_name="O",
+        password_hash=get_password_hash("x"), role=UserRole.CAFE_OWNER, is_active=True,
+    )
+    db.add(owner)
+    await db.flush()
+    cafe = Cafe(
+        id=uuid4(), owner_id=owner.id, name=name, address_line1="1 St", address_line2=area, city=city,
+        state="Telangana", pincode="500001", phone_number="+919876543210",
+        verification_status=VerificationStatus.VERIFIED, is_active=True, is_lead_listing=lead,
+        opening_time=time(11, 0), closing_time=time(23, 0), bookable_stations=0 if lead else 5,
+        latitude=17.5, longitude=78.5,
+    )
+    db.add(cafe)
+    await db.flush()
+    for kind in kinds:
+        db.add(HardwareTier(
+            id=uuid4(), cafe_id=cafe.id, name=kind, specs={}, price_per_hour=160,
+            total_seats=2, app_bookable_seats=2, active_seats_count=2,
+            is_active=True, tier_type="activity", activity_kind=kind,
+        ))
+    await db.commit()
+    return cafe
+
+
+@pytest.mark.asyncio
+async def test_cue_sports_share_one_page_and_lead_names_count(async_client, db_session):
+    city = f"Cuetown{uuid4().hex[:6]}"
+    slug = city.lower()
+    hall = await _venue(db_session, city, "Snooker Syndicate", kinds=["French Snooker Table", "pool in french table"])
+    lead = await _venue(db_session, city, "Lucky Billiards ", lead=True)
+    await _venue(db_session, city, "G5 Arena", lead=True)  # a vague name files under nothing
+    await _venue(db_session, city, "Pixel Den", kinds=["Racing Simulator"])
+
+    page = (await async_client.get("/api/v1/seo/page", params={"city": slug, "facet": "snooker"})).json()["data"]
+    assert page["index"] is True
+    assert set(page["cafeIds"]) == {str(hall.id), str(lead.id)}
+    assert page["facet"]["heading"] == "Snooker & Pool Clubs"
+
+    # The raw free-text slugs no longer make pages of their own.
+    res = await async_client.get("/api/v1/seo/page", params={"city": slug, "facet": "french-snooker-table"})
+    assert res.status_code == 404
+
+    paths = {p["path"] for p in (await async_client.get("/api/v1/seo/pages")).json()["data"]}
+    assert f"/cafes/{slug}/snooker" in paths
+
+
+@pytest.mark.asyncio
+async def test_area_pages_from_locality(async_client, db_session):
+    city = f"Areatown{uuid4().hex[:6]}"
+    slug = city.lower()
+    await _venue(db_session, city, "BOUNCE Bowling ", area="Kompally", lead=True)
+    await _venue(db_session, city, "Wild Gaming", area="Kompally", lead=True)
+    await _venue(db_session, city, "Elsewhere", area="Alwal", kinds=["English Snooker Table"])
+    await _venue(db_session, city, "Long Address", area="2nd Floor, Some Building, Road No 5", kinds=["VR"])
+
+    page = (await async_client.get("/api/v1/seo/page", params={"city": slug, "facet": "kompally"})).json()["data"]
+    assert page["index"] is True and len(page["cafeIds"]) == 2
+    assert page["facet"]["type"] == "area"
+
+    pages = {p["path"]: p for p in (await async_client.get("/api/v1/seo/pages")).json()["data"]}
+    assert pages[f"/cafes/{slug}/kompally"]["title"] == f"Gaming Cafés & Game Zones in Kompally, {city}"
+    # One venue in an area is too thin to index; a full address line is not an area.
+    assert f"/cafes/{slug}/alwal" not in pages
+    assert not any("2nd-floor" in p for p in pages)

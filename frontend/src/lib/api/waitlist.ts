@@ -1,10 +1,18 @@
 import { apiClient, call } from './client';
 import { useAnalyticsStore } from '@/store/analyticsStore';
 
+export interface UnlockedBadge {
+  key: string;
+  title: string;
+  xp: number;
+}
+
 export interface WaitlistStatus {
   count: number;
   joined: boolean;
   goal: number;
+  /** Set only on the vote that earned a badge, so the page can celebrate it. */
+  badgeUnlocked?: UnlockedBadge | null;
 }
 
 /** The same session id the analytics client sends, deliberately reused rather
@@ -22,11 +30,11 @@ export async function getWaitlistStatus(cafeId: string): Promise<WaitlistStatus>
   );
 }
 
-export async function joinWaitlist(cafeId: string, contact?: string): Promise<WaitlistStatus> {
+/** Sign-in required: a vote earns a badge and XP, so it belongs to an account. */
+export async function joinWaitlist(cafeId: string): Promise<WaitlistStatus> {
   return call(() =>
     apiClient.post(`/api/v1/cafes/${cafeId}/waitlist`, {
       sessionId: sessionId(),
-      contact,
     })
   );
 }
@@ -56,14 +64,13 @@ export type ContactMethod = 'whatsapp' | 'call' | 'email';
 export interface WaitlistDetails {
   phone?: string;
   contactMethod?: ContactMethod;
-  knowsOwner?: boolean;
 }
 
 /** The optional after-joining answers; only the fields sent are changed. */
 export async function setWaitlistDetails(
   cafeId: string,
   details: WaitlistDetails,
-): Promise<{ phone: string | null; contactMethod: ContactMethod | null; knowsOwner: boolean }> {
+): Promise<{ phone: string | null; contactMethod: ContactMethod | null }> {
   return call(() =>
     apiClient.patch(`/api/v1/cafes/${cafeId}/waitlist/details`, {
       sessionId: sessionId(),

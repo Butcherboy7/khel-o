@@ -8,7 +8,9 @@ import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { updateMe, changePassword } from '@/lib/api/auth';
 import { apiClient } from '@/lib/api/client';
-import { SpecialAccessBadge } from '@/components/customer/SpecialAccessBadge';
+import { SpecialAccessBadge, OG_BADGE_NAME } from '@/components/customer/SpecialAccessBadge';
+import { OgBadgeSheet } from '@/components/customer/OgBadgeSheet';
+import { HelperEmblem, isHelperBadgeKey } from '@/components/customer/HelperEmblem';
 import {
   Avatar,
   Card,
@@ -97,6 +99,7 @@ export default function ProfilePage() {
   };
   const { selectedCity } = useLocationStore();
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [ogOpen, setOgOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
 
   const defaultName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'Khel-O Gamer');
@@ -203,9 +206,9 @@ export default function ProfilePage() {
   };
 
   // The header badge used to just say "Level 4" unconditionally — same rewards
-  // data that already powers the real level/XP on the Rewards page, not a
+  // data that already powers the real level/XP on the Achievements page, not a
   // second/fake source of truth.
-  const { data: rewardsData } = useQuery<{ level: number; achievements?: { id: string; isUnlocked: boolean }[] }>({
+  const { data: rewardsData } = useQuery<{ level: number; achievements?: { id: string; isUnlocked: boolean; emblem?: string; grantedAt?: string | null; campaignCode?: string | null; memberNumber?: number | null }[] }>({
     queryKey: ['rewards'],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/rewards');
@@ -305,11 +308,47 @@ export default function ProfilePage() {
               </Badge>
             </div>
             <p className="text-caption text-text-secondary truncate">{user.email}</p>
-            {rewardsData?.achievements?.some((a) => a.id === 'special_access' && a.isUnlocked) && (
-              <Link href="/rewards" className="mt-1.5 inline-flex w-fit" aria-label="KHELO Special Access badge. See your rewards">
-                <SpecialAccessBadge size="sm" />
-              </Link>
-            )}
+            {(() => {
+              const list = rewardsData?.achievements ?? [];
+              const emblems = list.filter((a) => isHelperBadgeKey(a.emblem) && a.isUnlocked);
+              const og = list.find((a) => a.id === 'special_access' && a.isUnlocked);
+              if (emblems.length === 0 && !og) return null;
+              // One tidy row: small emblems, then the OG pill; wraps only on very narrow screens.
+              return (
+                <>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                    {emblems.length > 0 && (
+                      <Link href="/achievements" className="flex items-center gap-1" aria-label="Your helper badges. See your achievements">
+                        {emblems.map((a) => (
+                          <HelperEmblem key={a.id} badge={a.emblem as 'day_one' | 'matchmaker' | 'local_legend'} size={28} />
+                        ))}
+                      </Link>
+                    )}
+                    {og && (
+                      <button
+                        type="button"
+                        onClick={() => setOgOpen(true)}
+                        className="inline-flex w-fit rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        aria-label={`${OG_BADGE_NAME} OG badge. Tap for details`}
+                        aria-haspopup="dialog"
+                      >
+                        <SpecialAccessBadge size="sm" tappable />
+                      </button>
+                    )}
+                  </div>
+                  {og && (
+                    <OgBadgeSheet
+                      isOpen={ogOpen}
+                      onClose={() => setOgOpen(false)}
+                      firstName={fullName.trim().split(/\s+/)[0]}
+                      grantedAt={og.grantedAt}
+                      campaignCode={og.campaignCode}
+                      memberNumber={og.memberNumber}
+                    />
+                  )}
+                </>
+              );
+            })()}
 
             <div className="flex items-center gap-2 text-caption text-text-secondary mt-1 flex-wrap">
               <span className="flex items-center gap-1 font-data">
@@ -491,12 +530,12 @@ export default function ProfilePage() {
           </Link>
 
           <Link
-            href="/rewards"
+            href="/achievements"
             className="flex items-center justify-between p-3.5 hover:bg-surface rounded-xl transition-colors"
           >
             <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
               <Sparkles className="h-4 w-4 text-accent" />
-              <span>Gamified Rewards & Badges</span>
+              <span>Achievements & Badges</span>
             </div>
             <ChevronRight className="h-4 w-4 text-text-secondary" />
           </Link>

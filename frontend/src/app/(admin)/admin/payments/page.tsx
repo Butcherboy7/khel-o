@@ -15,26 +15,53 @@ import {
 import { listAdminPayments } from '@/lib/api/admin';
 import type { AdminPayment } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
-import { Badge, SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
+import { SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
 
 /* ─── helpers ─────────────────────────────────────────────────────── */
 
 type PayStatus = AdminPayment['status'];
 
-function payStatusVariant(s: PayStatus): 'success' | 'warning' | 'error' | 'default' {
-  if (s === 'captured') return 'success';
-  if (s === 'created') return 'warning';
-  if (s === 'failed') return 'error';
-  if (s === 'refunded') return 'default';
-  return 'default';
+const PAY_LABELS: Record<PayStatus, string> = {
+  created: 'Pending',
+  captured: 'Captured',
+  failed: 'Failed',
+  refunded: 'Refunded',
+};
+
+function PayStatus({ s, reason }: { s: PayStatus; reason?: string | null }) {
+  const tone =
+    s === 'captured'
+      ? 'bg-emerald-500/10 text-emerald-700'
+      : s === 'failed'
+      ? 'bg-red-500/10 text-red-700'
+      : s === 'refunded'
+      ? 'bg-surface text-text-secondary'
+      : 'bg-amber-500/10 text-amber-700';
+  const Icon = s === 'captured' ? CheckCircle2 : s === 'failed' ? XCircle : s === 'refunded' ? RotateCcw : Clock;
+  return (
+    <span
+      title={s === 'failed' && reason ? reason : undefined}
+      className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}
+    >
+      <Icon className="h-3 w-3" />
+      {PAY_LABELS[s] ?? s}
+    </span>
+  );
 }
 
-function PayStatusIcon({ s }: { s: PayStatus }) {
-  if (s === 'captured') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
-  if (s === 'failed') return <XCircle className="h-3.5 w-3.5 text-red-500" />;
-  if (s === 'refunded') return <RotateCcw className="h-3.5 w-3.5 text-text-secondary" />;
-  return <Clock className="h-3.5 w-3.5 text-amber-500" />;
+/** ₹249.6 → "₹249.60", ₹520 → "₹520": paise only when there are any. */
+function money(n: number): string {
+  const v = Number(n ?? 0);
+  return `₹${v.toLocaleString('en-IN', {
+    minimumFractionDigits: Number.isInteger(v) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
+
+const dateLabel = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+const clockLabel = (iso: string) =>
+  new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
 
 const STATUS_FILTERS: Array<{ label: string; value: PayStatus | 'all' }> = [
   { label: 'All', value: 'all' },
@@ -105,21 +132,22 @@ export default function AdminPaymentsPage() {
 
       {/* Summary strip */}
       {!isLoading && !isError && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wide">Captured GMV</span>
-            <span className="font-heading text-h2 font-bold text-emerald-600">
-              ₹{totalCaptured.toLocaleString('en-IN')}
-            </span>
-          </div>
-          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-red-700 uppercase tracking-wide">Failed</span>
-            <span className="font-heading text-h2 font-bold text-red-600">{totalFailed}</span>
-          </div>
-          <div className="p-4 rounded-2xl bg-surface border border-border flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wide">Refunded</span>
-            <span className="font-heading text-h2 font-bold text-text-secondary">{totalRefunded}</span>
-          </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {[
+            { label: 'Money captured', value: money(totalCaptured), tone: 'text-emerald-600' },
+            { label: 'Failed payments', value: String(totalFailed), tone: totalFailed ? 'text-red-600' : 'text-text-primary' },
+            { label: 'Refunded', value: String(totalRefunded), tone: 'text-text-primary' },
+          ].map((k) => (
+            <div key={k.label} className="flex flex-col gap-0.5 rounded-xl border border-border bg-card p-4">
+              <span className="text-caption text-text-secondary">{k.label}</span>
+              <span className={`font-data text-h2 font-bold tabular-nums ${k.tone}`}>{k.value}</span>
+            </div>
+          ))}
+          {data && data.total > data.items.length && (
+            <p className="text-[12px] text-text-tertiary sm:col-span-3">
+              These add up the latest {data.items.length} of {data.total} payments shown below.
+            </p>
+          )}
         </div>
       )}
 
@@ -176,75 +204,81 @@ export default function AdminPaymentsPage() {
         />
       )}
 
-      {/* Payments table */}
+      {/* Payments: one shared set of columns on desktop, compact cards on phones */}
       {!isLoading && !isError && payments.length > 0 && (
-        <div className="rounded-2xl border border-border overflow-hidden bg-surface">
-          {/* Header row */}
-          <div className="hidden lg:grid grid-cols-[auto_1fr_1fr_auto_auto_auto] gap-4 px-5 py-2.5 bg-surface-hover text-xs font-semibold text-text-secondary border-b border-border">
-            <span>Status</span>
-            <span>Gamer · Ref</span>
-            <span>Café · Razorpay ID</span>
-            <span>Amount</span>
-            <span>Date</span>
-            <span>Refund</span>
+        <>
+          <div className="hidden md:block overflow-x-auto rounded-2xl border border-border bg-card">
+            <table className="w-full min-w-[900px] text-left">
+              <thead className="bg-surface text-[12px] font-semibold text-text-secondary">
+                <tr>
+                  <th scope="col" className="py-2.5 pl-5 pr-3 font-semibold">Status</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold">Gamer</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold">Café</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold">Razorpay ID</th>
+                  <th scope="col" className="px-3 py-2.5 text-right font-semibold">Amount</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold">Date</th>
+                  <th scope="col" className="py-2.5 pl-3 pr-5 font-semibold">Refund</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {payments.map((p) => (
+                  <tr key={p.id} className="align-middle transition-colors hover:bg-surface-hover">
+                    <td className="whitespace-nowrap py-3 pl-5 pr-3">
+                      <PayStatus s={p.status} reason={p.failureReason} />
+                    </td>
+                    <td className="max-w-[15rem] px-3 py-3">
+                      <div className="truncate text-caption font-semibold text-text-primary" title={p.gamerEmail}>
+                        {p.gamerEmail}
+                      </div>
+                      <div className="font-data text-[11px] text-text-tertiary">{p.bookingReference}</div>
+                    </td>
+                    <td className="max-w-[12rem] px-3 py-3">
+                      <div className="truncate text-caption text-text-primary">{p.cafeName}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="font-data text-[11px] text-text-secondary">{p.razorpayPaymentId ?? p.razorpayOrderId}</div>
+                      <div className="text-[11px] text-text-tertiary">{p.razorpayPaymentId ? 'Payment' : 'Order only, not paid'}</div>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-data text-body font-bold tabular-nums text-text-primary">
+                      {money(p.amount)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <div className="text-caption text-text-primary">{dateLabel(p.createdAt)}</div>
+                      <div className="text-[11px] tabular-nums text-text-tertiary">{clockLabel(p.createdAt)}</div>
+                    </td>
+                    <td className="whitespace-nowrap py-3 pl-3 pr-5 text-[11px]">
+                      {p.refundId ? (
+                        <span className="font-data text-text-secondary" title={p.refundId}>
+                          {p.refundId.slice(0, 14)}…
+                        </span>
+                      ) : (
+                        <span className="text-text-tertiary">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          <div className="divide-y divide-border">
+          <ul className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card md:hidden">
             {payments.map((p) => (
-              <div
-                key={p.id}
-                className="px-4 lg:px-5 py-3.5 flex flex-col lg:grid lg:grid-cols-[auto_1fr_1fr_auto_auto_auto] gap-2 lg:gap-4 lg:items-center hover:bg-surface-hover transition-colors"
-              >
-                {/* Status icon + badge */}
-                <div className="flex items-center gap-1.5">
-                  <PayStatusIcon s={p.status} />
-                  <Badge variant={payStatusVariant(p.status)} size="sm" className="capitalize whitespace-nowrap">
-                    {p.status}
-                  </Badge>
+              <li key={p.id} className="flex flex-col gap-1.5 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-caption font-semibold text-text-primary">{p.gamerEmail}</div>
+                    <div className="font-data text-[11px] text-text-tertiary">{p.bookingReference}</div>
+                  </div>
+                  <span className="shrink-0 font-data text-body font-bold tabular-nums text-text-primary">{money(p.amount)}</span>
                 </div>
-
-                {/* Gamer + booking ref */}
-                <div className="min-w-0">
-                  <p className="text-caption font-semibold text-text-primary truncate">{p.gamerEmail}</p>
-                  <p className="text-[11px] text-text-tertiary font-data truncate">
-                    Ref: {p.bookingReference}
-                  </p>
+                <div className="text-[12px] text-text-secondary">
+                  {p.cafeName} · {dateLabel(p.createdAt)}, {clockLabel(p.createdAt)}
                 </div>
-
-                {/* Café + Razorpay IDs */}
-                <div className="min-w-0">
-                  <p className="text-xs text-text-primary font-semibold truncate">{p.cafeName}</p>
-                  <p className="text-[11px] text-text-tertiary font-data truncate">
-                    {p.razorpayPaymentId ?? p.razorpayOrderId}
-                  </p>
-                </div>
-
-                {/* Amount */}
-                <span className="text-sm font-bold font-data text-emerald-600 whitespace-nowrap">
-                  ₹{Number(p.amount).toLocaleString('en-IN')}
-                </span>
-
-                {/* Date */}
-                <span className="text-xs text-text-tertiary whitespace-nowrap">
-                  {new Date(p.createdAt).toLocaleDateString('en-IN', {
-                    day: 'numeric', month: 'short', year: '2-digit',
-                  })}
-                </span>
-
-                {/* Refund status */}
-                <span className="text-xs">
-                  {p.refundId ? (
-                    <span className="text-text-secondary font-data">
-                      {p.refundId.slice(0, 12)}…
-                    </span>
-                  ) : (
-                    <span className="text-text-tertiary">—</span>
-                  )}
-                </span>
-              </div>
+                <PayStatus s={p.status} reason={p.failureReason} />
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </>
       )}
     </div>
   );

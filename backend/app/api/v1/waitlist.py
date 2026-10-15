@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_optional_user
+from app.api.deps import get_current_active_user, get_optional_user
+from app.services.badge_service import grant_helper_badge
 from app.core.exceptions import NotFoundException
 from app.database import get_db
 from app.models.user import User
@@ -46,22 +47,23 @@ async def _require_cafe(db: AsyncSession, cafe_id: UUID):
 async def join_waitlist(
     cafe_id: UUID,
     payload: WaitlistJoinRequest,
-    current_user: Optional[User] = Depends(get_optional_user),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Ask to be told when this café starts taking bookings.
+    """Vote for a café to be listed ("Notify me").
 
-    Returns 200 rather than 201 on a repeat tap: joining twice is a no-op, not
-    an error, and the client should not have to distinguish the two.
+    Sign-in is required: a vote earns a badge and XP, and the count is the
+    pitch we make to café owners, so every vote has to be one real account.
+    Returns 200 rather than 201 on a repeat tap: voting twice is a no-op.
     """
     cafe = await _require_cafe(db, cafe_id)
     repo = WaitlistRepository(db)
-    user_id = current_user.id if current_user else None
 
-    await repo.join(cafe_id, user_id, payload.session_id, payload.contact)
+    await repo.join(cafe_id, current_user.id, payload.session_id, payload.contact)
     count = await repo.count(cafe_id)
+    badge = await grant_helper_badge(db, current_user.id, "day_one")
 
-    return {"success": True, "data": {"count": count, "joined": True, "goal": cafe.waitlist_goal}}
+    return {"success": True, "data": {"count": count, "joined": True, "goal": cafe.waitlist_goal, "badgeUnlocked": badge}}
 
 
 @router.delete("/{cafe_id}/waitlist", status_code=status.HTTP_200_OK)
@@ -147,7 +149,6 @@ class WaitlistDetailsRequest(BaseModel):
     session_id: str = Field(..., max_length=64)
     phone: Optional[str] = Field(None, max_length=20)
     contact_method: Optional[str] = Field(None, max_length=10)
-    knows_owner: Optional[bool] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -159,9 +160,9 @@ async def set_waitlist_details(
     current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """The optional after-joining answers: a number to WhatsApp or call,
-    which of those they prefer, and whether they know the owner. Only the
-    fields sent are changed, so each one-tap answer can save on its own."""
+    """The optional after-voting answers: a number to WhatsApp or call, and
+    which they prefer. Only the fields sent are changed, so each one-tap
+    answer can save on its own."""
     import re
     from sqlalchemy import select
     from app.core.exceptions import BadRequestException
@@ -189,10 +190,8 @@ async def set_waitlist_details(
         entry.phone = phone
     if payload.contact_method is not None:
         entry.contact_method = payload.contact_method
-    if payload.knows_owner is not None:
-        entry.knows_owner = payload.knows_owner
     await db.commit()
     return {
         "success": True,
-        "data": {"phone": entry.phone, "contactMethod": entry.contact_method, "knowsOwner": entry.knows_owner},
+        "data": {"phone": entry.phone, "contactMethod": entry.contact_method},
     }

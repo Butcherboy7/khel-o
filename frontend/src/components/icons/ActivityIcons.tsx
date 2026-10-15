@@ -3,7 +3,7 @@
 // tables both exist independently), so this is its own small icon set +
 // helper, not a case added to PlatformIcon.
 import type { SVGProps } from 'react';
-import { Joystick, Zap, Rocket, CircleDot } from 'lucide-react';
+import { Joystick, Glasses, CarFront, CircleDot } from 'lucide-react';
 import { SnookerIcon } from '@/components/icons/PlatformIcons';
 
 export function AirHockeyIcon(props: SVGProps<SVGSVGElement>) {
@@ -41,8 +41,8 @@ export function FoosballIcon(props: SVGProps<SVGSVGElement>) {
 export const ACTIVITY_PRESETS: { key: string; label: string; icon: React.ComponentType<{ className?: string }>; defaultIndividualUnits: boolean }[] = [
   { key: 'Snooker / Pool', label: 'Snooker / Pool', icon: SnookerIcon, defaultIndividualUnits: true },
   { key: 'Arcade', label: 'Arcade', icon: Joystick, defaultIndividualUnits: false },
-  { key: 'Racing Simulator', label: 'Racing Simulator', icon: Rocket, defaultIndividualUnits: true },
-  { key: 'VR', label: 'VR', icon: Zap, defaultIndividualUnits: true },
+  { key: 'Racing Simulator', label: 'Racing Simulator', icon: CarFront, defaultIndividualUnits: true },
+  { key: 'VR', label: 'VR', icon: Glasses, defaultIndividualUnits: true },
   { key: 'Air Hockey', label: 'Air Hockey', icon: AirHockeyIcon, defaultIndividualUnits: true },
   { key: 'Foosball', label: 'Foosball', icon: FoosballIcon, defaultIndividualUnits: true },
   { key: 'Bowling', label: 'Bowling', icon: CircleDot, defaultIndividualUnits: true },

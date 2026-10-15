@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Copy, Check, Megaphone, ChevronDown, ChevronUp, Download, Mail, Link2, MessageCircle, Phone, Handshake } from 'lucide-react';
+import { Users, Copy, Check, Megaphone, ChevronDown, ChevronUp, Download, Mail, Link2, MessageCircle, Phone } from 'lucide-react';
 import { listCafeDemand, updateCafeWaitlistGoal, downloadWaitlistCsv, type CafeDemandLead, type WaitlistPerson } from '@/lib/api/admin';
 import { WaitlistBroadcast } from '@/components/admin/WaitlistBroadcast';
+import { OwnerIntrosPanel } from '@/components/admin/OwnerIntrosPanel';
+import { HelperBadgesPanel } from '@/components/admin/HelperBadgesPanel';
 import { Card, CardContent, Badge, ErrorState, EmptyState, PageSpinner } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
 
@@ -32,9 +34,6 @@ function PersonRow({ person, cafeName }: { person: WaitlistPerson; cafeName: str
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-caption font-semibold text-text-primary">{person.name || 'Guest'}</span>
-          {person.knowsOwner && (
-            <Badge variant="success" size="sm">Knows the owner</Badge>
-          )}
           {person.contactMethod && (
             <Badge variant="default" size="sm">
               Prefers {person.contactMethod === 'whatsapp' ? 'WhatsApp' : person.contactMethod}
@@ -152,6 +151,9 @@ export default function AdminLeadsPage() {
         )}
       </div>
 
+      <OwnerIntrosPanel />
+      <HelperBadgesPanel />
+
       {leads.length === 0 ? (
         <EmptyState
           title="No demand yet"
@@ -206,15 +208,6 @@ export default function AdminLeadsPage() {
                       <span>First request {formatRelativeTime(lead.firstRequestedAt)}</span>
                       <span>·</span>
                       <span>{lead.phoneCount ?? 0} with a number</span>
-                      {(lead.knowsOwnerCount ?? 0) > 0 && (
-                        <>
-                          <span>·</span>
-                          <span className="inline-flex items-center gap-1 font-semibold text-success">
-                            <Handshake className="h-3.5 w-3.5" />
-                            {lead.knowsOwnerCount} know{lead.knowsOwnerCount === 1 ? 's' : ''} the owner
-                          </span>
-                        </>
-                      )}
                       <span>·</span>
                       <span>{lead.emailableCount} emailable</span>
                       {lead.noContactCount > 0 && (

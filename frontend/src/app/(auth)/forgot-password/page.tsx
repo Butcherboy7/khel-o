@@ -7,6 +7,7 @@ import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { z } from 'zod';
 import { Button, Input, Card, CardContent } from '@/components/ui';
 import { forgotPassword } from '@/lib/api/auth';
+import { useBotGuard } from '@/components/auth/BotGuard';
 
 const emailSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -17,6 +18,7 @@ export default function ForgotPasswordPage() {
   const [fieldError, setFieldError] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const { guardFields, trap } = useBotGuard();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -30,7 +32,7 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      await forgotPassword(email);
+      await forgotPassword(email, await guardFields());
     } catch {
       // Backend never reveals whether the email exists — treat any response as success.
     } finally {
@@ -74,7 +76,8 @@ export default function ForgotPasswordPage() {
               </Link>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <form onSubmit={handleSubmit} className="relative flex flex-col gap-4">
+              {trap}
               <div>
                 <h2 className="font-heading text-h2 text-text-primary">Forgot your password?</h2>
                 <p className="text-body text-text-secondary mt-0.5">

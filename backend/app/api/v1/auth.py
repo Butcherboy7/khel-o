@@ -1,6 +1,7 @@
+from typing import Optional
 from datetime import datetime, timezone
 from uuid import uuid4
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, Request, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -22,6 +23,7 @@ from app.api.deps import get_current_user, get_current_active_user
 from app.models.user import User, UserRole
 from app.core.security import get_password_hash, verify_password
 from app.core.exceptions import BadRequestException, NotFoundException, AuthException
+from app.core import bot_guard
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -35,6 +37,8 @@ class AcceptInvitationRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: str = Field(..., min_length=3)
+    form_ticket: Optional[str] = Field(None, max_length=120)
+    website: Optional[str] = Field(None, max_length=200)
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -56,8 +60,18 @@ class ChangePasswordRequest(BaseModel):
 
 router = APIRouter()
 
+@router.get("/form-ticket", status_code=status.HTTP_200_OK)
+async def form_ticket():
+    """Fetched when a sign-up / login / reset form appears; see bot_guard."""
+    return {"success": True, "data": {"ticket": bot_guard.issue_form_ticket()}}
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register_user(payload: UserCreateRequest, db: AsyncSession = Depends(get_db)):
+async def register_user(payload: UserCreateRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        await bot_guard.check(db, request, "register", payload.email, payload.form_ticket, payload.website)
+    except bot_guard.Blocked:
+        raise bot_guard.try_again()
     repo = UserRepository(db)
     service = AuthService(repo)
     result = await service.register_with_email(payload)
@@ -67,7 +81,11 @@ async def register_user(payload: UserCreateRequest, db: AsyncSession = Depends(g
     }
 
 @router.post("/login", status_code=status.HTTP_200_OK)
-async def login_user(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login_user(payload: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        await bot_guard.check(db, request, "login", payload.email, payload.form_ticket, payload.website)
+    except bot_guard.Blocked:
+        raise bot_guard.try_again()
     repo = UserRepository(db)
     service = AuthService(repo)
     result = await service.login_with_email(payload.email, payload.password)
@@ -97,10 +115,14 @@ async def refresh_token(payload: RefreshTokenRequest, db: AsyncSession = Depends
     }
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
-async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
-    repo = UserRepository(db)
-    service = AuthService(repo)
-    await service.request_password_reset(payload.email)
+async def forgot_password(payload: ForgotPasswordRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        await bot_guard.check(db, request, "forgot", payload.email, payload.form_ticket, payload.website)
+        repo = UserRepository(db)
+        service = AuthService(repo)
+        await service.request_password_reset(payload.email)
+    except bot_guard.Blocked:
+        pass  # same answer as a real request, and no email goes out
     return {
         "success": True,
         "data": {"message": "If that email is registered, a reset link has been sent."}

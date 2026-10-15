@@ -1,6 +1,6 @@
 import { apiClient, call } from './client';
 
-export type SeoFacetType = 'activity' | 'gpu' | 'game' | 'price';
+export type SeoFacetType = 'activity' | 'area' | 'gpu' | 'game' | 'price';
 
 export interface SeoLink {
   path: string;
@@ -37,8 +37,6 @@ export interface SeoIndexEntry {
 
 export interface CafeLinks {
   city: { name: string; path: string };
-  /** Neighbourhood ("Bowenpally"); null outside every known one. */
-  locality?: string | null;
   facets: SeoLink[];
   nearby: { id: string; name: string; path: string; km: number; minPrice: number | null }[];
 }
@@ -63,6 +61,7 @@ export async function getCafeWaitlistCount(cafeId: string): Promise<{ count: num
 
 export const FACET_GROUP_LABELS: Record<SeoFacetType, string> = {
   activity: 'By platform & activity',
+  area: 'By area',
   game: 'By game',
   gpu: 'By graphics card',
   price: 'By price',

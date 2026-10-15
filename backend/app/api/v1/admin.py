@@ -1151,6 +1151,18 @@ async def list_support_tickets_admin(
     result = await service.list_all_tickets(status=status_, category=category, page=page, limit=limit)
     return {"success": True, "data": result}
 
+@router.get("/support/open-count", status_code=status.HTTP_200_OK)
+async def support_open_count(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Tickets still waiting for the team, for the admin sidebar badge."""
+    from app.models.support_ticket import SupportTicketStatus
+    count = (await db.execute(
+        select(func.count()).select_from(SupportTicket).where(SupportTicket.status == SupportTicketStatus.OPEN)
+    )).scalar_one()
+    return {"success": True, "data": {"count": int(count)}}
+
 @router.get("/support/tickets/{ticket_id}", status_code=status.HTTP_200_OK)
 async def get_support_ticket_admin(
     ticket_id: UUID,
@@ -1268,7 +1280,7 @@ async def get_lead_demand(
     return {"success": True, "data": {"leads": summary}}
 
 
-_CSV_COLUMNS = ["Cafe", "City", "Name", "Email", "Phone / contact", "Reach on", "Knows owner", "Joined at", "Usually plays", "Signed in", "Unsubscribed"]
+_CSV_COLUMNS = ["Cafe", "City", "Name", "Email", "Phone / contact", "Reach on", "Joined at", "Usually plays", "Signed in", "Unsubscribed"]
 
 
 async def _waitlist_csv(db: AsyncSession, cafe_id: Optional[UUID]) -> str:
@@ -1298,7 +1310,7 @@ async def _waitlist_csv(db: AsyncSession, cafe_id: Optional[UUID]) -> str:
         contact = entry.phone or (entry.contact if entry.contact and entry.contact != email else (user.phone_number if user else None))
         writer.writerow([
             cell(cafe_name), cell(city), cell(user.full_name if user else None), cell(email), cell(contact),
-            entry.contact_method or "", "yes" if entry.knows_owner else "no",
+            entry.contact_method or "",
             entry.created_at.isoformat() if entry.created_at else "",
             waitlist_mailer.PLAY_TIMES.get(entry.play_time or "", ""),
             "yes" if entry.user_id else "no",
@@ -1478,3 +1490,110 @@ async def update_approx_listing(
             "closingTime": cafe.closing_time.strftime("%H:%M") if cafe.closing_time else None,
         },
     }
+
+# --- OWNER INTROS ("Know the owner?") ---
+from app.models.owner_intro import OwnerIntro
+
+OWNER_INTRO_STATUSES = ("new", "contacted", "onboarded", "dead")
+
+
+@router.get("/leads/owner-intros", status_code=status.HTTP_200_OK)
+async def list_owner_intros(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Every owner intro players have dropped, newest first, with who sent it
+    — 'new' ones are the outreach team's call list."""
+    rows = (await db.execute(
+        select(OwnerIntro, User.full_name, User.email)
+        .join(User, User.id == OwnerIntro.submitted_by_user_id)
+        .order_by(OwnerIntro.created_at.desc())
+        .limit(500)
+    )).all()
+    intros = [
+        {
+            "id": str(i.id),
+            "cafeId": str(i.cafe_id) if i.cafe_id else None,
+            "cafeName": i.cafe_name,
+            "area": i.area,
+            "ownerName": i.owner_name,
+            "ownerPhone": i.owner_phone,
+            "relation": i.relation,
+            "note": i.note,
+            "status": i.status,
+            "submittedBy": {"name": name, "email": email},
+            "createdAt": i.created_at.isoformat() if i.created_at else None,
+        }
+        for i, name, email in rows
+    ]
+    return {"success": True, "data": {"intros": intros}}
+
+
+class OwnerIntroStatusRequest(BaseModel):
+    status: str = Field(..., max_length=20)
+
+
+@router.patch("/leads/owner-intros/{intro_id}", status_code=status.HTTP_200_OK)
+async def update_owner_intro_status(
+    intro_id: UUID,
+    payload: OwnerIntroStatusRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    if payload.status not in OWNER_INTRO_STATUSES:
+        raise BadRequestException(message="Unknown status", error_code="INVALID_STATUS")
+    intro = await db.get(OwnerIntro, intro_id)
+    if intro is None:
+        raise NotFoundException(message="Intro not found", error_code="OWNER_INTRO_NOT_FOUND")
+    from datetime import datetime, timezone
+    intro.status = payload.status
+    intro.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    # The introducer earns Matchmaker once we have actually reached the owner
+    # (so a made-up number earns nothing).
+    if payload.status in ("contacted", "onboarded"):
+        from app.services.badge_service import grant_helper_badge
+        await grant_helper_badge(db, intro.submitted_by_user_id, "matchmaker")
+    await _audit(db, current_admin, "owner_intro.status", str(intro.id), intro.cafe_name, reason=payload.status)
+    return {"success": True, "data": {"id": str(intro.id), "status": intro.status}}
+
+
+# --- HELPER BADGES (Early Voter / Matchmaker / Local Legend) ---
+@router.get("/leads/helper-badges", status_code=status.HTTP_200_OK)
+async def list_helper_badges(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Who has earned the 'helped a café join' badges: totals per badge plus
+    the latest awards with the player, so outreach can see who is helping."""
+    from app.models.user_badge import UserBadge
+    from app.services.badge_service import HELPER_BADGES
+
+    keys = list(HELPER_BADGES)
+    counts = dict((await db.execute(
+        select(UserBadge.badge_key, func.count())
+        .where(UserBadge.badge_key.in_(keys))
+        .group_by(UserBadge.badge_key)
+    )).all())
+    rows = (await db.execute(
+        select(UserBadge.badge_key, UserBadge.granted_at, User.full_name, User.email)
+        .join(User, User.id == UserBadge.user_id)
+        .where(UserBadge.badge_key.in_(keys))
+        .order_by(UserBadge.granted_at.desc())
+        .limit(100)
+    )).all()
+    return {"success": True, "data": {
+        "totals": [
+            {"key": k, "title": HELPER_BADGES[k][0], "xp": HELPER_BADGES[k][2], "count": int(counts.get(k, 0))}
+            for k in keys
+        ],
+        "recent": [
+            {
+                "key": key,
+                "title": HELPER_BADGES[key][0],
+                "player": {"name": name, "email": email},
+                "grantedAt": granted.isoformat() if granted else None,
+            }
+            for key, granted, name, email in rows
+        ],
+    }}

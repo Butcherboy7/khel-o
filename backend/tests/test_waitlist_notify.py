@@ -10,6 +10,7 @@ from app.models.notification import Notification
 from app.models.user import UserRole
 from app.services import waitlist_mailer
 from tests.conftest import auth_headers, create_test_user
+from tests.waitlist_helpers import seed_anon
 from tests.test_lead_demand import _make_cafe
 
 
@@ -29,7 +30,11 @@ async def _join(client, cafe_id, session_id, contact=None, headers=None):
     body = {"sessionId": session_id}
     if contact:
         body["contact"] = contact
-    r = await client.post(f"/api/v1/cafes/{cafe_id}/waitlist", json=body, headers=headers or {})
+    if not headers:
+        # Signed-out votes are no longer accepted by the API; legacy rows are seeded.
+        await seed_anon(cafe_id, session_id, contact)
+        return
+    r = await client.post(f"/api/v1/cafes/{cafe_id}/waitlist", json=body, headers=headers)
     assert r.status_code == 200, r.text
 
 
@@ -178,21 +183,21 @@ async def test_details_save_reach_preferences_without_leaking_publicly(db_sessio
 
     r = await async_client.patch(url, json={"sessionId": "s-1", "phone": "+91 98765 43210", "contactMethod": "whatsapp"})
     assert r.status_code == 200, r.text
-    assert r.json()["data"] == {"phone": "+919876543210", "contactMethod": "whatsapp", "knowsOwner": False}
+    assert r.json()["data"] == {"phone": "+919876543210", "contactMethod": "whatsapp"}
 
     # Each answer saves on its own; an omitted field is left alone.
-    r = await async_client.patch(url, json={"sessionId": "s-1", "knowsOwner": True})
-    assert r.json()["data"] == {"phone": "+919876543210", "contactMethod": "whatsapp", "knowsOwner": True}
+    r = await async_client.patch(url, json={"sessionId": "s-1", "contactMethod": "call"})
+    assert r.json()["data"] == {"phone": "+919876543210", "contactMethod": "call"}
 
     assert (await async_client.patch(url, json={"sessionId": "s-1", "contactMethod": "pigeon"})).status_code == 400
     assert (await async_client.patch(url, json={"sessionId": "s-1", "phone": "123"})).status_code == 400
-    assert (await async_client.patch(url, json={"sessionId": "s-nobody", "knowsOwner": True})).status_code == 404
+    assert (await async_client.patch(url, json={"sessionId": "s-nobody", "contactMethod": "call"})).status_code == 404
 
     public = await async_client.get("/api/v1/waitlist/demand/reach-cafe")
     assert "9876543210" not in public.text and "reach@test.com" not in public.text
 
 
-async def test_admin_demand_lists_people_with_owner_introducers_first(db_session, async_client):
+async def test_admin_demand_lists_people_with_numbers_first(db_session, async_client):
     admin = await create_test_user(db_session, role=UserRole.ADMIN)
     await db_session.commit()
     cafe = await _make_cafe(db_session, "Call List Cafe", slug="call-list-cafe")
@@ -200,15 +205,14 @@ async def test_admin_demand_lists_people_with_owner_introducers_first(db_session
     await _join(async_client, cafe.id, "s-insider", contact="insider@test.com")
     await async_client.patch(
         f"/api/v1/cafes/{cafe.id}/waitlist/details",
-        json={"sessionId": "s-insider", "phone": "9876543210", "contactMethod": "call", "knowsOwner": True},
+        json={"sessionId": "s-insider", "phone": "9876543210", "contactMethod": "call"},
     )
 
     r = await async_client.get("/api/v1/admin/leads/demand", headers=auth_headers(admin, is_admin=True))
     assert r.status_code == 200, r.text
     lead = next(l for l in r.json()["data"]["leads"] if l["cafeId"] == str(cafe.id))
-    assert lead["knowsOwnerCount"] == 1 and lead["phoneCount"] == 1
+    assert lead["phoneCount"] == 1
     first = lead["people"][0]
-    assert first["knowsOwner"] is True
     assert first["phone"] == "9876543210" and first["email"] == "insider@test.com"
     assert first["contactMethod"] == "call"
 

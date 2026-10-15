@@ -29,25 +29,22 @@ export function CookieConsentBanner() {
 
   if (!visible) return null;
 
+  // An in-flow strip at the very top, not a fixed bar: this notice is
+  // informational (no advertising cookies), so it must never sit on top of
+  // the booking bar or the bottom menu where first-time visitors tap.
   return (
-    <div
-      role="region"
-      aria-label="Cookie notice"
-      className="fixed inset-x-0 bottom-0 z-modal border-t border-border bg-card/95 backdrop-blur-md shadow-float"
-    >
-      <div className="mx-auto flex max-w-content flex-col items-start gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6">
-        <p className="text-caption text-text-secondary">
-          We use browser storage to keep you signed in and understand how gamers find KHEL-O. We don&apos;t use
-          advertising cookies. See our{' '}
+    <div role="region" aria-label="Cookie notice" className="border-b border-border bg-card">
+      <div className="mx-auto flex max-w-content items-center justify-between gap-3 px-4 py-2 md:px-6">
+        <p className="text-[12px] leading-snug text-text-secondary">
+          We only use storage to keep you signed in and see how gamers find KHEL-O. No ad cookies.{' '}
           <Link href="/cookie-policy" className="font-semibold text-primary hover:underline">
-            Cookie Policy
-          </Link>{' '}
-          for details.
+            Details
+          </Link>
         </p>
         <button
           type="button"
           onClick={dismiss}
-          className="shrink-0 self-end rounded-xl bg-primary px-4 py-2 text-caption font-semibold text-white transition-colors hover:bg-primary-dark sm:self-auto"
+          className="min-h-[36px] shrink-0 rounded-lg bg-primary px-3 text-[12px] font-semibold text-white transition-colors hover:bg-primary-dark"
         >
           Got it
         </button>

@@ -113,6 +113,9 @@ async def test_campaign_funnel_counts_unique_visitors_per_stage(db_session, asyn
     by_cafe = {x["name"]: x for x in data["cafes"]}
     assert by_cafe["Ad Test Lead"]["notifyMe"] == 1 and by_cafe["Ad Test Arena"]["bookings"] == 1
     assert by_cafe["Ad Test Arena"]["area"] == "Madhapur"
+    # The report comes with plain-language advice worked out from these numbers.
+    assert data["advice"]["verdict"] == "working"
+    assert any(s["key"] == "bookings" for s in data["advice"]["steps"])
 
     opts = (await async_client.get("/api/v1/admin/analytics/ad-campaigns", headers=auth_headers(admin, is_admin=True))).json()
     assert any(o["campaign"] == camp and o["sessions"] == 2 for o in opts["data"]["campaigns"])
@@ -209,3 +212,44 @@ async def test_area_report_rolls_up_bookings_and_player_flows(db_session, async_
     assert after["peakHour"] == 19
     assert any(f["from"] == "Kukatpally" and f["to"] == "Madhapur" for f in data["flows"])
     assert (await async_client.get("/api/v1/admin/analytics/areas", headers=auth_headers(gamer))).status_code == 403
+
+
+async def test_campaign_report_counts_taps_and_time_on_site(db_session, async_client):
+    """Pop-up taps and time on site from a campaign's visitors show in its report."""
+    admin = await create_test_user(db_session, role=UserRole.ADMIN)
+    gamer = await create_test_user(db_session, role=UserRole.GAMER)
+    await db_session.commit()
+    tag = f"camp{uuid4().hex[:8]}"
+    utm = {"utm": {"s": "meta", "m": "paid_social", "c": tag, "t": "instagram_reel"}}
+
+    engaged, bouncer = f"s-{uuid4().hex[:8]}", f"s-{uuid4().hex[:8]}"
+    await _event(async_client, engaged, "page_view", metadata={"path": "/", **utm}, ua=IG_UA)
+    await _event(async_client, engaged, "ui_action", metadata={"action": "campaign_popup_shown", **utm}, ua=IG_UA)
+    await _event(async_client, engaged, "ui_action", metadata={"action": "campaign_popup_sign_in", **utm}, ua=IG_UA)
+    await _event(async_client, engaged, "page_exit", metadata={"path": "/", "secs": 42, "scroll": 80, **utm}, ua=IG_UA)
+    await _event(async_client, engaged, "signin_completed", metadata={"role": "gamer", **utm}, ua=IG_UA,
+                 headers=auth_headers(gamer))
+    await _event(async_client, bouncer, "page_view", metadata={"path": "/", **utm}, ua=IG_UA)
+    await _event(async_client, bouncer, "ui_action", metadata={"action": "campaign_popup_shown", **utm}, ua=IG_UA)
+    await _event(async_client, bouncer, "page_exit", metadata={"path": "/", "secs": 3, "scroll": 0, **utm}, ua=IG_UA)
+
+    # A tap with no action name is dropped, not stored.
+    r = await async_client.post("/api/v1/analytics/events", json={"sessionId": bouncer, "eventType": "ui_action", "metadata": {}})
+    assert r.status_code == 204
+    stored = (await db_session.execute(
+        select(AnalyticsEvent).where(AnalyticsEvent.session_id == engaged, AnalyticsEvent.event_type == "signin_completed")
+    )).scalar_one()
+    assert stored.event_metadata["new"] is True
+
+    today = date.today()
+    r = await async_client.get(
+        "/api/v1/admin/analytics/ad-campaigns/report",
+        params={"source": "meta", "campaign": tag, "from": (today - timedelta(days=1)).isoformat(), "to": (today + timedelta(days=1)).isoformat()},
+        headers=auth_headers(admin, is_admin=True),
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    assert data["actions"]["campaign_popup_shown"] == 2
+    assert data["actions"]["campaign_popup_sign_in"] == 1
+    eng = data["engagement"]
+    assert eng["measured"] == 2 and eng["stayed10s"] == 1 and eng["bounced"] == 1

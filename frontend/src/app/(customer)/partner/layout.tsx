@@ -1,8 +1,8 @@
+import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 
-// The page itself is a client component, so its search title lives here.
-// Without this /partner had the site-wide default title and inherited the
-// homepage canonical, so Google treated the café-owner pitch as a duplicate.
+// /partner is public now (see (customer)/layout.tsx isPublicPath), so search
+// sees the real pitch instead of a sign-in redirect and can index it.
 export const metadata: Metadata = {
   title: 'List Your Gaming Café, Snooker or Bowling Venue on KHEL-O',
   description:
@@ -10,6 +10,6 @@ export const metadata: Metadata = {
   alternates: { canonical: '/partner' },
 };
 
-export default function PartnerLayout({ children }: { children: React.ReactNode }) {
+export default function PartnerLayout({ children }: { children: ReactNode }) {
   return children;
 }

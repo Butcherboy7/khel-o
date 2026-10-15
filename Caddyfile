@@ -2,8 +2,8 @@ khel-o.online, www.khel-o.online {
 	redir https://{$DOMAIN}{uri} permanent
 }
 
-# One address only: www used to serve the full site too, so Google saw two
-# copies of every page (it listed www.khel-o.com as an "alternate page").
+# One host for search engines: www answers with a permanent redirect instead
+# of a second copy of the site.
 www.{$DOMAIN} {
 	redir https://{$DOMAIN}{uri} permanent
 }

@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { listCafes, cafePath } from '@/lib/api/cafes';
 import { getSeoPages } from '@/lib/api/seo';
+import { citySlugToName } from '@/constants/cities';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
@@ -15,7 +16,6 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/`, changeFrequency: 'daily', priority: 1 },
   { url: `${SITE_URL}/browse`, changeFrequency: 'weekly', priority: 0.6 },
   { url: `${SITE_URL}/about`, changeFrequency: 'monthly', priority: 0.5 },
-  { url: `${SITE_URL}/partner`, changeFrequency: 'monthly', priority: 0.7 },
   { url: `${SITE_URL}/contact`, changeFrequency: 'yearly', priority: 0.3 },
   { url: `${SITE_URL}/terms`, changeFrequency: 'yearly', priority: 0.2 },
   { url: `${SITE_URL}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
@@ -49,7 +49,11 @@ async function getCafeUrls(): Promise<MetadataRoute.Sitemap> {
 
 async function getLandingUrls(): Promise<MetadataRoute.Sitemap> {
   try {
-    return (await getSeoPages()).map((p) => ({
+    // A café whose city isn't a supported city (a locality typed as the city)
+    // gets a landing page the frontend can't open; never advertise one.
+    return (await getSeoPages())
+      .filter((p) => citySlugToName(p.path.split('/')[2] ?? '') != null)
+      .map((p) => ({
       url: `${SITE_URL}${p.path}`,
       changeFrequency: 'weekly' as const,
       priority: p.type === 'city' ? 0.9 : 0.85,

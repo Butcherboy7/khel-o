@@ -30,6 +30,11 @@ class AnalyticsEventType(str, Enum):
     PAYMENT_FAILED = "payment_failed"
     PAYMENT_DISMISSED = "payment_dismissed"
     BOOKING_COMPLETED = "booking_completed"
+    # A counted tap (metadata.action names it: campaign_popup_sign_in, directions_click…).
+    UI_ACTION = "ui_action"
+    # Leaving a page: metadata.secs on it, metadata.scroll deepest %.
+    PAGE_EXIT = "page_exit"
+    SIGNIN_COMPLETED = "signin_completed"
 
 
 MAX_METADATA_BYTES = 2048

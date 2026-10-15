@@ -6,7 +6,8 @@ import { getCafe, cafePath, isCafeUuid } from '@/lib/api/cafes';
 import { PLATFORMS } from '@/constants/platforms';
 import Link from 'next/link';
 import { getCafeLinks, getCafeWaitlistCount } from '@/lib/api/seo';
-import { buildCafeSeo } from '@/lib/cafeSeo';
+import { formatTime, titleCaseCity } from '@/lib/format';
+import { cleanName, venueArea, venueKind } from '@/lib/venueKind';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
 import type { CafeDetail } from '@/types';
 import { CafeDetailClient } from './CafeDetailClient';
@@ -48,6 +49,10 @@ const getCafeCached = cache(async (id: string): Promise<CafeDetail | null | 'mis
 const getCafeLinksCached = cache((cafeId: string) => getCafeLinks(cafeId).catch(() => null));
 const getWaitlistCountCached = cache((cafeId: string) => getCafeWaitlistCount(cafeId).catch(() => null));
 
+/** Below this, "N players want it" reads as a weakness, not proof — the same
+ *  >= 5 rule the explore card applies to the vote count. */
+const WAITLIST_SHOW_MIN = 5;
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const loaded = await getCafeCached(id);
@@ -56,21 +61,37 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!cafe) {
     return { title: 'Café not found' };
   }
+  const waitlist = cafe.isLeadListing ? await getWaitlistCountCached(cafe.id) : null;
 
+  const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : null;
   // Human labels ("PlayStation, PC Gaming"), not raw enum values.
   const platformLabels = Array.from(new Set((cafe.tiers ?? []).map((t) => t.platform).filter(Boolean)))
     .map((p) => PLATFORMS.find((x) => x.value === p)?.label)
     .filter((label): label is string => !!label && label !== 'Other');
-  const [links, waitlist] = await Promise.all([
-    getCafeLinksCached(cafe.id),
-    cafe.isLeadListing ? getWaitlistCountCached(cafe.id) : Promise.resolve(null),
-  ]);
 
-  const { title, description } = buildCafeSeo(cafe, {
-    locality: links?.locality,
-    waitlistCount: waitlist?.count,
-    platformLabels,
-  });
+  // "Snooker Syndicate, Alwal — Snooker & Pool in Hyderabad": what the place
+  // is and where, in the words people search with.
+  const name = cleanName(cafe.name);
+  const city = titleCaseCity(cafe.city);
+  const area = venueArea(cafe.addressLine2);
+  const kind = venueKind({ name, tiers: cafe.tiers });
+  const where = area ? `${area}, ${city}` : city;
+  const facts = [
+    minPrice ? `From ₹${minPrice}/hr` : null,
+    cafe.openingTime && cafe.closingTime ? `open ${formatTime(cafe.openingTime)}–${formatTime(cafe.closingTime)}` : null,
+    platformLabels.length > 0 ? platformLabels.join(', ') : null,
+  ].filter(Boolean).join(', ');
+  const factLine = facts ? ` ${facts.charAt(0).toUpperCase()}${facts.slice(1)}.` : '';
+
+  const title = `${name}${area ? `, ${area}` : ''} — ${kind.label} in ${city}`;
+  // A Booking Soon listing can't be booked yet; never say it can.
+  const description = `${kind.label} at ${name}, ${where}.${factLine} ${
+    cafe.isLeadListing
+      ? (waitlist?.count ?? 0) >= WAITLIST_SHOW_MIN
+        ? `${waitlist!.count} players want to book it online — add your vote and get notified when it opens on KHEL-O.`
+        : 'Online booking on KHEL-O is coming soon: see the location and photos, and get notified.'
+      : 'See live availability and book online on KHEL-O.'
+  }`;
   const image = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0].url : undefined;
 
   return {
@@ -84,8 +105,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       url: `${SITE_URL}${cafePath(cafe)}`,
       // A page-level openGraph replaces the site default wholesale, so the
-      // fallback image has to be repeated here.
-      images: [{ url: image ?? '/og-default.png' }],
+      // fallback share image has to be repeated here.
+      images: [{ url: image ?? '/og/khelo-share.png' }],
     },
   };
 }
@@ -104,21 +125,23 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
   // linked into the rest of the site (no orphan pages) and vice versa.
   const links = cafe ? await getCafeLinksCached(cafe.id) : null;
   const waitlist = cafe?.isLeadListing ? await getWaitlistCountCached(cafe.id) : null;
-  const seo = cafe ? buildCafeSeo(cafe, { locality: links?.locality, waitlistCount: waitlist?.count }) : null;
 
-  const jsonLd = cafe
+  const kind = cafe ? venueKind({ name: cafe.name, tiers: cafe.tiers }) : null;
+  const area = cafe ? venueArea(cafe.addressLine2) : null;
+  const jsonLd = cafe && kind
     ? {
         '@context': 'https://schema.org',
-        '@type': 'SportsActivityLocation',
-        name: cafe.name,
-        description: cafe.description || seo?.description,
+        '@type': kind.schemaType,
+        name: cleanName(cafe.name),
+        description: cafe.description || `${kind.label} in ${area ? `${area}, ` : ''}${titleCaseCity(cafe.city)}`,
         url: `${SITE_URL}${cafePath(cafe)}`,
+        ...(cafe.googleMapsUrl ? { hasMap: cafe.googleMapsUrl } : {}),
         image: cafe.photos && cafe.photos.length > 0 ? cafe.photos.map((p) => p.url) : undefined,
         telephone: cafe.phoneNumber || undefined,
         address: {
           '@type': 'PostalAddress',
-          streetAddress: cafe.addressLine1,
-          addressLocality: cafe.city,
+          streetAddress: [cafe.addressLine1, cafe.addressLine2].filter(Boolean).join(', '),
+          addressLocality: titleCaseCity(cafe.city),
           addressRegion: cafe.state,
           postalCode: cafe.pincode || undefined,
           addressCountry: 'IN',
@@ -162,7 +185,7 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
           itemListElement: [
             { '@type': 'ListItem', position: 1, name: 'KHEL-O', item: `${SITE_URL}/` },
             { '@type': 'ListItem', position: 2, name: links.city.name, item: `${SITE_URL}${links.city.path}` },
-            { '@type': 'ListItem', position: 3, name: cafe.name, item: `${SITE_URL}${cafePath(cafe)}` },
+            { '@type': 'ListItem', position: 3, name: cleanName(cafe.name), item: `${SITE_URL}${cafePath(cafe)}` },
           ],
         }
       : null;
@@ -183,14 +206,14 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
       )}
       <CafeDetailClient initialCafe={cafe ?? undefined} initialWaitlist={waitlist ?? undefined} />
       {links && (
-        <div className="flex flex-col gap-6 pt-8 pb-28 border-t border-border mt-8">
+        <div className="mx-auto flex max-w-4xl flex-col gap-6 border-t border-border pb-28 pt-8 mt-4">
           <nav aria-label="Breadcrumb" className="text-caption text-text-secondary">
             <Link href="/browse" className="hover:text-primary">All cities</Link> /{' '}
             <Link href={links.city.path} className="hover:text-primary">{links.city.name}</Link> / {cafe?.name}
           </nav>
           {links.nearby.length > 0 && (
             <section className="flex flex-col gap-2">
-              <h2 className="font-heading text-h2 text-text-primary">Nearby gaming cafés</h2>
+              <h2 className="font-heading text-h2 text-text-primary">Nearby places to play</h2>
               <ul className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card">
                 {links.nearby.map((n) => (
                   <li key={n.id}>
@@ -207,7 +230,7 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
           )}
           <SeoLinkGroups links={links.facets} title={`More in ${links.city.name}`} />
           <Link href={links.city.path} className="text-body font-semibold text-primary hover:underline">
-            See all gaming cafés in {links.city.name} →
+            Gaming cafés, snooker &amp; bowling in {links.city.name} →
           </Link>
         </div>
       )}

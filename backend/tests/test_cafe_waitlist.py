@@ -9,6 +9,7 @@ See docs/superpowers/specs/2026-09-10-explore-real-cafes-design.md §6.1
 import uuid
 
 from app.models.user import UserRole
+from tests.waitlist_helpers import seed_anon
 from tests.conftest import create_test_user, auth_headers
 from tests.test_lead_listings import _make_cafe
 
@@ -34,8 +35,8 @@ async def test_join_is_idempotent_for_anonymous_session(db_session, async_client
     cafe = await _make_cafe(db_session, "Idempotent Anon", is_lead_listing=True)
     body = {"sessionId": "anon-1", "contact": "9999999999"}
 
-    await async_client.post(f"/api/v1/cafes/{cafe.id}/waitlist", json=body)
-    await async_client.post(f"/api/v1/cafes/{cafe.id}/waitlist", json=body)
+    await seed_anon(cafe.id, "anon-1", "9999999999")
+    await seed_anon(cafe.id, "anon-1", "9999999999")
 
     resp = await async_client.get(f"/api/v1/cafes/{cafe.id}/waitlist/count")
     assert resp.json()["data"]["count"] == 1
@@ -44,8 +45,7 @@ async def test_join_is_idempotent_for_anonymous_session(db_session, async_client
 async def test_distinct_sessions_count_separately(db_session, async_client):
     cafe = await _make_cafe(db_session, "Distinct Sessions", is_lead_listing=True)
     for i in range(3):
-        await async_client.post(f"/api/v1/cafes/{cafe.id}/waitlist",
-                                json={"sessionId": f"anon-{i}"})
+        await seed_anon(cafe.id, f"anon-{i}")
 
     resp = await async_client.get(f"/api/v1/cafes/{cafe.id}/waitlist/count")
     assert resp.json()["data"]["count"] == 3
@@ -90,8 +90,7 @@ async def test_count_is_not_thresholded_by_the_api(db_session, async_client):
     number so the owner-facing demand figure stays accurate."""
     cafe = await _make_cafe(db_session, "Below Threshold", is_lead_listing=True)
     for i in range(2):
-        await async_client.post(f"/api/v1/cafes/{cafe.id}/waitlist",
-                                json={"sessionId": f"low-{i}"})
+        await seed_anon(cafe.id, f"low-{i}")
 
     resp = await async_client.get(f"/api/v1/cafes/{cafe.id}/waitlist/count")
     assert resp.json()["data"]["count"] == 2

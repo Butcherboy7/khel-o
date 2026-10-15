@@ -117,11 +117,28 @@ async def _send(to: str, subject: str, body: str, ref: str) -> bool:
     return ok
 
 
+async def _grant_local_legends(db: AsyncSession, cafe_id: uuid.UUID) -> None:
+    """Everyone who voted for this café or introduced its owner becomes a
+    Local Legend. Idempotent, so a repeat go-live changes nothing."""
+    from app.models.owner_intro import OwnerIntro
+    from app.services.badge_service import grant_helper_badge
+
+    voters = (await db.execute(select(CafeWaitlistEntry.user_id).where(
+        CafeWaitlistEntry.cafe_id == cafe_id, CafeWaitlistEntry.user_id.is_not(None)
+    ))).scalars().all()
+    introducers = (await db.execute(select(OwnerIntro.submitted_by_user_id).where(
+        OwnerIntro.cafe_id == cafe_id, OwnerIntro.status != "dead"
+    ))).scalars().all()
+    for user_id in set(voters) | set(introducers):
+        await grant_helper_badge(db, user_id, "local_legend")
+
+
 async def send_launch_notifications(db: AsyncSession, cafe_id: uuid.UUID) -> int:
     """In-app + email to everyone on the list not yet told. Returns emails sent."""
     cafe = await db.get(Cafe, cafe_id)
     if cafe is None or cafe.is_lead_listing:
         return 0
+    await _grant_local_legends(db, cafe_id)
     name = html.escape(cafe.name)
     title = f"{cafe.name} is now on KHEL-O"
     message = f"You asked us to tell you — {cafe.name} is taking bookings now. Grab your slot."

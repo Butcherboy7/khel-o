@@ -24,6 +24,10 @@ class UserCreateRequest(BaseModel):
     acquisition_medium: Optional[str] = Field(None, max_length=100)
     acquisition_campaign: Optional[str] = Field(None, max_length=100)
     session_id: Optional[str] = Field(None, max_length=64)
+    # Bot checks (app/core/bot_guard.py): the ticket the form got on load, and
+    # a field people never see (bots fill it in).
+    form_ticket: Optional[str] = Field(None, max_length=120)
+    website: Optional[str] = Field(None, max_length=200)
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -35,6 +39,8 @@ UserCreate = UserCreateRequest
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    form_ticket: Optional[str] = Field(None, max_length=120)
+    website: Optional[str] = Field(None, max_length=200)
 
     model_config = ConfigDict(
         alias_generator=to_camel,

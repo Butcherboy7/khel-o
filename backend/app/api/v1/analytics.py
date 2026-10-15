@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Request, status
@@ -43,8 +44,14 @@ async def create_analytics_event(
 ):
     # Staff browsing the admin console isn't product traffic — drop it here too,
     # not just in the client, so a stale bundle can't inflate the numbers.
-    if payload.event_type == AnalyticsEventType.PAGE_VIEW and str(payload.metadata.get("path", "")).startswith("/admin"):
+    if payload.event_type in (AnalyticsEventType.PAGE_VIEW, AnalyticsEventType.PAGE_EXIT) and str(
+        payload.metadata.get("path", "")
+    ).startswith("/admin"):
         return None
+    if payload.event_type == AnalyticsEventType.UI_ACTION:
+        action = payload.metadata.get("action")
+        if not isinstance(action, str) or not action or len(action) > 60:
+            return None
 
     metadata = dict(payload.metadata)
     if payload.event_type == AnalyticsEventType.LOCATION_SHARED:
@@ -63,6 +70,12 @@ async def create_analytics_event(
     )
     if internal:
         metadata["internal"] = True
+    if payload.event_type == AnalyticsEventType.SIGNIN_COMPLETED and current_user is not None:
+        created = current_user.created_at
+        if created is not None:
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            metadata["new"] = datetime.now(timezone.utc) - created < timedelta(minutes=15)
     device, iab = _device(request.headers.get("user-agent", ""))
     metadata["dev"] = device
     if iab:

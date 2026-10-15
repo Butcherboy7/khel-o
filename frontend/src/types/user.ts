@@ -42,9 +42,13 @@ export interface RegisterRequest {
   acquisitionMedium?: string;
   acquisitionCampaign?: string;
   sessionId?: string;
+  formTicket?: string;
+  website?: string;
 }
 
 export interface LoginRequest {
   email: string;
   password: string;
+  formTicket?: string;
+  website?: string;
 }

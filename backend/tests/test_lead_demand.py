@@ -5,6 +5,7 @@ import uuid
 
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.user import UserRole
+from tests.waitlist_helpers import seed_anon
 from tests.conftest import create_test_user, auth_headers
 
 
@@ -39,10 +40,13 @@ async def _make_cafe(db_session, name: str, **overrides) -> Cafe:
 
 async def test_join_waitlist_returns_count_and_goal(db_session, async_client):
     cafe = await _make_cafe(db_session, "Lead Cafe A")
+    gamer = await create_test_user(db_session, role=UserRole.GAMER)
+    await db_session.commit()
 
     resp = await async_client.post(
         f"/api/v1/cafes/{cafe.id}/waitlist",
         json={"sessionId": "sess-1", "contact": "player1@test.com"},
+        headers=auth_headers(gamer),
     )
     assert resp.status_code == 200, resp.text
     data = resp.json()["data"]
@@ -57,17 +61,9 @@ async def test_admin_lead_demand_ranks_by_count_and_lists_contacts(db_session, a
     cafe_cold = await _make_cafe(db_session, "Quiet Lead Cafe")
 
     for i in range(3):
-        r = await async_client.post(
-            f"/api/v1/cafes/{cafe_hot.id}/waitlist",
-            json={"sessionId": f"hot-sess-{i}", "contact": f"hotfan{i}@test.com"},
-        )
-        assert r.status_code == 200
+        await seed_anon(cafe_hot.id, f"hot-sess-{i}", f"hotfan{i}@test.com")
 
-    r = await async_client.post(
-        f"/api/v1/cafes/{cafe_cold.id}/waitlist",
-        json={"sessionId": "cold-sess-1"},
-    )
-    assert r.status_code == 200
+    await seed_anon(cafe_cold.id, "cold-sess-1")
 
     headers = auth_headers(admin, is_admin=True)
     resp = await async_client.get("/api/v1/admin/leads/demand", headers=headers)
@@ -135,8 +131,11 @@ async def test_admin_can_update_waitlist_goal(db_session, async_client):
     assert resp.status_code == 200, resp.text
     assert resp.json()["data"]["waitlistGoal"] == 10
 
+    gamer = await create_test_user(db_session, role=UserRole.GAMER)
+    await db_session.commit()
     join_resp = await async_client.post(
         f"/api/v1/cafes/{cafe.id}/waitlist",
         json={"sessionId": "sess-goal"},
+        headers=auth_headers(gamer),
     )
     assert join_resp.json()["data"]["goal"] == 10

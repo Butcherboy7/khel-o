@@ -202,7 +202,18 @@ export interface NamedCount {
   sessions: number;
 }
 
+export type AdviceTone = 'fix' | 'watch' | 'good' | 'info';
+
+/** Plain-language next steps worked out on the server from the report's own numbers. */
+export interface CampaignAdvice {
+  verdict: 'empty' | 'early' | 'leaking' | 'working';
+  headline: string;
+  biggestLeak: { key: string; label: string; lost: number; of: number; where: string | null } | null;
+  steps: { key: string; tone: AdviceTone; title: string; detail: string; todo: string }[];
+}
+
 export interface AdCampaignReport {
+  advice?: CampaignAdvice;
   source: string;
   campaign: string | null;
   from: string;
@@ -234,6 +245,9 @@ export interface AdCampaignReport {
   /** Test-device and staff/owner visitors left out of this report. */
   internalExcluded: number;
   byAd: { ad: string; sessions: number; viewedCafe: number; acted: number; booked: number }[];
+  /** Taps counted once per visitor, keyed by action name. */
+  actions?: Record<string, number>;
+  engagement?: { measured: number; stayed10s: number; bounced: number; medianSecs: number; medianScroll: number };
   devices: NamedCount[];
   inAppBrowser: NamedCount[];
   visitorType: NamedCount[];
@@ -296,7 +310,15 @@ export interface AreaRow {
 export interface AreaReport {
   city: string;
   days: number;
-  totals: { visitors: number; sharedLocation: number; bookings: number; gmv: number; avgBookingValue: number | null };
+  totals: {
+    visitors: number;
+    sharedLocation: number;
+    cafeViewers?: number;
+    notifyMe?: number;
+    bookings: number;
+    gmv: number;
+    avgBookingValue: number | null;
+  };
   areas: AreaRow[];
   flows: { from: string; to: string; sessions: number }[];
   cities: { city: string; sessions: number }[];
@@ -304,4 +326,18 @@ export interface AreaReport {
 
 export async function getAreaReport(city: string, days: number): Promise<AreaReport> {
   return call(() => apiClient.get('/api/v1/admin/analytics/areas', { params: { city, days } }));
+}
+
+export interface BotBlocks {
+  days: number;
+  blocked: number;
+  allowed: number;
+  byKind: Record<string, number>;
+  byReason: Record<string, number>;
+  daily: { date: string; blocked: number }[];
+}
+
+/** Sign-up / login / reset attempts the invisible bot checks stopped. */
+export async function getBotBlocks(days = 14): Promise<BotBlocks> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/bot-blocks', { params: { days } }));
 }

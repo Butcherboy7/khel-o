@@ -118,10 +118,10 @@ async def test_taxonomy_endpoint_and_tier_roundtrip_and_style_filter():
         assert "_rules" not in tree
 
         ok = await c.post(f"/api/v1/cafes/{cafe_id}/tiers", headers=h, json=_tier(
-            taxonomyKey="pool.english", attributes={"table_size": "8ft"}))
+            taxonomyKey="pool.english", attributes={"table_size": "8ft", "players_max": 4}))
         assert ok.status_code == 201, ok.text
         t = ok.json()["data"]["hardwareTier"]
-        assert t["taxonomyKey"] == "pool.english" and t["attributes"] == {"table_size": "8ft"}
+        assert t["taxonomyKey"] == "pool.english" and t["attributes"] == {"table_size": "8ft", "players_max": 4}
 
         # bad key / bad attribute are rejected, never silently stored
         assert (await c.post(f"/api/v1/cafes/{cafe_id}/tiers", headers=h,
@@ -137,7 +137,7 @@ async def test_taxonomy_endpoint_and_tier_roundtrip_and_style_filter():
         # PATCH: change style keeps attrs only within the same activity
         upd = await c.patch(f"/api/v1/cafes/{cafe_id}/tiers/{t['id']}", headers=h, json={"taxonomyKey": "pool.american"})
         assert upd.status_code == 200, upd.text
-        assert upd.json()["data"]["hardwareTier"]["attributes"] == {"table_size": "8ft"}
+        assert upd.json()["data"]["hardwareTier"]["attributes"] == {"table_size": "8ft", "players_max": 4}
 
         # discovery: style filter finds the café; another style does not
         hit = (await c.get("/api/v1/cafes", params={"style": "pool.american", "limit": 50})).json()["data"]

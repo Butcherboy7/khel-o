@@ -25,6 +25,9 @@ from app.models.campaign import Campaign
 from app.models.location import Location
 from app.models.push_subscription import PushSubscription
 from app.models.user_badge import UserBadge
+from app.models.owner_intro import OwnerIntro
+from app.models.marketing_campaign import MarketingCampaign
+from app.models.auth_attempt import AuthAttempt
 
 __all__ = [
     "User",
@@ -61,4 +64,7 @@ __all__ = [
     "Location",
     "PushSubscription",
     "UserBadge",
+    "OwnerIntro",
+    "MarketingCampaign",
+    "AuthAttempt",
 ]

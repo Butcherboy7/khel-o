@@ -18,10 +18,8 @@ interface ActivitiesSectionProps {
   embedded?: boolean;
   /** With `embedded`: label the group ("Activities") when setups sit above it. */
   showHeading?: boolean;
-  /** "Booking soon" café: prices are our research, not the venue's, so they
-   *  read "(approx)", and a tap asks for the vote instead of opening a
-   *  booking that would be refused. */
-  onLeadSelect?: () => void;
+  /** A lead café (not on KHEL-O yet): show what they have, nothing to book. */
+  readOnly?: boolean;
 }
 
 /** Café-detail "Activities" cards (spec §7) — deliberately shows only what
@@ -29,7 +27,7 @@ interface ActivitiesSectionProps {
  *  plus one quiet line of what the owner told us about it ("American pool ·
  *  9 ft") when they did. Tapping a card reuses
  *  the exact same booking route every gaming tier already uses. */
-export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffers = [], embedded = false, showHeading = true, onLeadSelect }: ActivitiesSectionProps) {
+export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffers = [], embedded = false, showHeading = true, readOnly = false }: ActivitiesSectionProps) {
   if (activities.length === 0) return null;
 
   return (
@@ -42,8 +40,8 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
           const hourly = hourlyOffer(tier.pricePerHour, tier.activePromotion);
           const discount = hourly?.pct ?? 0;
           const shown = hourly?.price ?? tier.pricePerHour;
-          const cardClass = 'relative flex w-full items-center gap-3 rounded-2xl border-2 border-border bg-card p-3 text-left transition-all hover:bg-surface active:scale-[0.99]';
-          const body = (
+          const cardClass = 'relative flex items-center gap-3 rounded-2xl border-2 border-border bg-card p-3 text-left';
+          const content = (
           <>
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-surface text-text-secondary">
               <ActivityIcon activityKind={tier.activityKind} className="h-5 w-5" />
@@ -54,7 +52,7 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
               {tier.activePromotion && (
                 <OfferChip
                   className="my-0.5"
-                  label={hourly ? `${hourly.pct}% off` : tier.activePromotion.label || 'Offer'}
+                  label={tier.activePromotion.label || 'Offer'}
                   when={tier.activePromotion.when}
                   live={tier.activePromotion.isLiveNow !== false}
                   urgency={offerUrgency({
@@ -86,30 +84,21 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
                 <span className="rupee-symbol">₹</span>{shown}
                 <span className="text-caption font-normal text-text-secondary">/hr</span>
               </div>
-              {onLeadSelect && <span className="whitespace-nowrap text-[11px] text-text-secondary">(approx)</span>}
-              <span className="whitespace-nowrap text-[11px] text-text-secondary">{tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'}</span>
+              {/* A lead café's prices are our research, not the venue's. */}
+              {readOnly && <span className="whitespace-nowrap text-[11px] text-text-secondary">(approx)</span>}
+              <span className="whitespace-nowrap text-[11px] text-text-secondary">{tier.totalSeats} {tier.totalSeats === 1 ? 'station' : 'stations'}</span>
             </div>
           </>
           );
-          // Stretched button, as on the setup cards: a <button> can't wrap the
-          // card's heading and blocks, a full-size one underneath can.
-          return onLeadSelect ? (
-            <div key={tier.id} className={cardClass}>
-              <button
-                type="button"
-                onClick={onLeadSelect}
-                aria-label={`${tier.name}, about ₹${shown} per hour. Get notified when booking opens`}
-                className="absolute inset-0 rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              />
-              {body}
-            </div>
+          return readOnly ? (
+            <div key={tier.id} className={cardClass}>{content}</div>
           ) : (
             <Link
               key={tier.id}
               href={`/bookings/new?cafeId=${cafeId}&tierId=${tier.id}${promoCode ? `&promoCode=${encodeURIComponent(promoCode)}` : ''}`}
-              className={cardClass}
+              className={`${cardClass} transition-all hover:bg-surface active:scale-[0.99]`}
             >
-              {body}
+              {content}
             </Link>
           );
         })}

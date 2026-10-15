@@ -190,7 +190,8 @@ export interface CampaignCafe {
   name: string;
   slug: string | null;
   city: string;
-  photo: string | null;
+  /** The café's cover photo (first photo), as stored. */
+  photo: { url: string; category?: string | null } | null;
   offers: CampaignOfferRow[];
 }
 

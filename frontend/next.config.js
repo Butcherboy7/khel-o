@@ -45,6 +45,9 @@ try {
     // file on every build. next-pwa compiles worker/index.js separately and
     // importScripts it into the generated worker.
     customWorkerDir: 'worker',
+    // public/thanks/ holds certificate PDFs and images for one person each;
+    // precaching them would make every visitor download them in the background.
+    publicExcludes: ['!noprecache/**/*', '!thanks/**/*'],
   });
 } catch {
   withPWA = (config) => config;
@@ -68,6 +71,14 @@ const nextConfig = {
     // Uploaded photos get a fresh random key, so a URL's bytes never change:
     // cache optimized copies for 30 days.
     minimumCacheTTL: 2592000,
+  },
+  async redirects() {
+    // The page was called Rewards before it became Achievements.
+    return [{ source: '/rewards', destination: '/achievements', permanent: true }];
+  },
+  async rewrites() {
+    // Thank-you pages for interns are plain HTML in public/thanks/ (built by marketing/certificates/).
+    return [{ source: '/thanks/maleeha', destination: '/thanks/maleeha.html' }];
   },
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion', '@tanstack/react-query'],

@@ -108,10 +108,9 @@ class WaitlistRepository:
         contacts_by_cafe: Dict[uuid.UUID, List[str]] = {cid: [] for cid in cafe_ids}
         people_by_cafe: Dict[uuid.UUID, List[dict]] = {cid: [] for cid in cafe_ids}
         if cafe_ids:
-            # One structured row per requester for the outreach call list:
-            # who, how to reach them, how they'd like to be reached, and
-            # whether they can introduce us to the owner. Owner introducers
-            # first, then whoever left a number, then newest.
+            # One structured row per voter for the outreach call list: who,
+            # how to reach them and how they'd like to be reached. Whoever
+            # left a number first, then newest.
             people_rows = (await self.db.execute(
                 select(CafeWaitlistEntry, User.full_name, User.phone_number, User.email)
                 .outerjoin(User, User.id == CafeWaitlistEntry.user_id)
@@ -127,12 +126,11 @@ class WaitlistRepository:
                     "phone": phone,
                     "email": email,
                     "contactMethod": entry.contact_method,
-                    "knowsOwner": bool(entry.knows_owner),
                     "playTime": entry.play_time,
                     "joinedAt": entry.created_at,
                 })
             for people in people_by_cafe.values():
-                people.sort(key=lambda p: (not p["knowsOwner"], p["phone"] is None))
+                people.sort(key=lambda p: p["phone"] is None)
 
             # Signed-out visitors: whatever free-text phone/email they typed.
             contact_rows = (await self.db.execute(
@@ -175,7 +173,6 @@ class WaitlistRepository:
                 "lastRequestedAt": r.last_requested_at,
                 "contacts": contacts_by_cafe.get(r.id, []),
                 "people": people_by_cafe.get(r.id, []),
-                "knowsOwnerCount": sum(1 for p in people_by_cafe.get(r.id, []) if p["knowsOwner"]),
                 "phoneCount": sum(1 for p in people_by_cafe.get(r.id, []) if p["phone"]),
                 # Truly unreachable: signed-out visitors who tapped "Notify me"
                 # without leaving a phone/email (or a signed-in account somehow

@@ -10,6 +10,7 @@ import { Button, Input, Card, CardContent } from '@/components/ui';
 import { login } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { useBotGuard } from '@/components/auth/BotGuard';
 import { getBookingIntent, clearBookingIntent } from '@/lib/bookingIntent';
 
 const loginSchema = z.object({
@@ -29,6 +30,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
+  const { guardFields, trap } = useBotGuard();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -48,7 +50,7 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const res = await login({ email, password });
+      const res = await login({ email, password, ...(await guardFields()) });
       setAuth(res.user, res.accessToken, res.refreshToken);
 
       if (redirectPath) {
@@ -88,7 +90,8 @@ function LoginForm() {
   return (
     <Card elevation="raised">
       <CardContent className="p-6 md:p-8">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="relative flex flex-col gap-4">
+          {trap}
           <div>
             <h2 className="font-heading text-h2 text-text-primary">Sign in</h2>
             <p className="text-body text-text-secondary mt-0.5">
@@ -104,6 +107,18 @@ function LoginForm() {
               {error}
             </div>
           )}
+
+          {/* One tap is the fastest way in on a phone, so it leads. */}
+          <GoogleSignInButton
+            redirectPath={redirectPath}
+            onError={(message) => setError(message)}
+          />
+
+          <div className="flex items-center gap-3 py-1">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-caption text-text-tertiary">or use your email</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
 
           <Input
             label="Email Address"
@@ -151,16 +166,6 @@ function LoginForm() {
             Sign In
           </Button>
 
-          <div className="flex items-center gap-3 py-1">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-caption text-text-tertiary">or</span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
-          <GoogleSignInButton
-            redirectPath={redirectPath}
-            onError={(message) => setError(message)}
-          />
         </form>
       </CardContent>
     </Card>
@@ -182,7 +187,7 @@ export default function LoginPage() {
         />
         <h1 className="font-heading text-display text-text-primary">KHEL-O</h1>
         <p className="text-body text-text-secondary mt-1">
-          Book gaming cafés, snooker &amp; bowling near you
+          Book gaming cafés &amp; game zones near you
         </p>
       </div>
 

@@ -17,6 +17,8 @@ interface BottomSheetProps {
   onClose: () => void;
   title?: string;
   description?: string;
+  /** Accessible name when there's no visible title. */
+  ariaLabel?: string;
   children: ReactNode;
   footer?: ReactNode;
   preventBackdropClose?: boolean;
@@ -27,6 +29,7 @@ export function BottomSheet({
   onClose,
   title,
   description,
+  ariaLabel,
   children,
   footer,
   preventBackdropClose = false,
@@ -80,6 +83,7 @@ export function BottomSheet({
           className="fixed inset-0 z-modal flex flex-col justify-end"
           role="dialog"
           aria-modal="true"
+          aria-label={!title ? ariaLabel : undefined}
           aria-labelledby={title ? 'bottomsheet-title' : undefined}
           aria-describedby={description ? 'bottomsheet-description' : undefined}
           onKeyDown={handleKeyDown}

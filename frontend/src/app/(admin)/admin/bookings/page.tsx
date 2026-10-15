@@ -60,6 +60,101 @@ const STATUS_FILTERS: Array<{ label: string; value: BookingStatus | 'all' }> = [
   { label: 'Failed', value: 'failed' },
 ];
 
+/** ₹249.6 → "₹249.60", ₹520 → "₹520": paise only when there are any. */
+function money(n: number | null | undefined): string {
+  const v = Number(n ?? 0);
+  return `₹${v.toLocaleString('en-IN', {
+    minimumFractionDigits: Number.isInteger(v) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/** "Sat, 4 Oct" (year added only when it isn't this year). */
+function dayLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+}
+
+/** "21:00" → "9:00 PM". */
+function timeLabel(hhmm?: string | null): string {
+  if (!hhmm) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+const hoursLabel = (h: number) => `${Number(h)} ${Number(h) === 1 ? 'hr' : 'hrs'}`;
+
+/** Cancel + refund, always in the same two slots so the column lines up
+ *  even when an action doesn't apply to a booking. */
+function RowActions({
+  b,
+  onAction,
+}: {
+  b: BookingDetail;
+  onAction: (kind: 'cancel' | 'refund') => void;
+}) {
+  const canCancel = b.status !== 'cancelled' && b.status !== 'completed';
+  const canRefund = b.status !== 'cancelled';
+  const btn =
+    'h-8 w-8 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary transition-colors';
+  return (
+    <div className="flex items-center justify-end gap-1.5">
+      {canCancel ? (
+        <button
+          type="button"
+          title="Force-cancel booking"
+          aria-label={`Force-cancel ${b.bookingReference}`}
+          onClick={() => onAction('cancel')}
+          className={`${btn} hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600`}
+        >
+          <Ban className="h-3.5 w-3.5" />
+        </button>
+      ) : (
+        <span className="h-8 w-8" aria-hidden />
+      )}
+      {canRefund ? (
+        <button
+          type="button"
+          title="Issue refund"
+          aria-label={`Refund ${b.bookingReference}`}
+          onClick={() => onAction('refund')}
+          className={`${btn} hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-600`}
+        >
+          <IndianRupee className="h-3.5 w-3.5" />
+        </button>
+      ) : (
+        <span className="h-8 w-8" aria-hidden />
+      )}
+    </div>
+  );
+}
+
+/** What was paid, then who gets what, then the offer if one applied. */
+function AmountCell({ b, align = 'right' }: { b: BookingDetail; align?: 'left' | 'right' }) {
+  return (
+    <div className={align === 'right' ? 'text-right' : 'text-left'}>
+      <div className="font-data text-body font-bold tabular-nums text-text-primary">{money(b.totalAmount)}</div>
+      {b.ownerSettlementAmount != null && (
+        <div className="font-data text-[11px] tabular-nums text-text-tertiary">
+          Café {money(b.ownerSettlementAmount)} · KHELO {money(b.platformFeeAmount)}
+        </div>
+      )}
+      {b.discountAmount > 0 && (
+        <div className="text-[11px] font-semibold text-primary-dark">
+          {money(b.discountAmount)} off {money(b.baseAmount)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── page ─────────────────────────────────────────────────────────── */
 
 export default function AdminBookingsPage() {
@@ -198,118 +293,119 @@ export default function AdminBookingsPage() {
         />
       )}
 
-      {/* Bookings Table */}
+      {/* Bookings: one shared set of columns on desktop, compact cards on phones */}
       {!isLoading && !isError && bookings.length > 0 && (
-        <div className="rounded-2xl border border-border overflow-hidden bg-surface">
-          {/* Header row */}
-          <div className="hidden md:grid grid-cols-[auto_1fr_1fr_auto_auto_auto_auto_auto] gap-4 px-5 py-2.5 bg-surface-hover text-xs font-semibold text-text-secondary border-b border-border">
-            <span>#</span>
-            <span>Gamer</span>
-            <span>Café · Tier</span>
-            <span>Date</span>
-            <span>Amount</span>
-            <span>Status</span>
-            <span>QR</span>
-            <span>Actions</span>
+        <>
+          <div className="hidden md:block overflow-x-auto rounded-2xl border border-border bg-card">
+            <table className="w-full min-w-[920px] text-left">
+              <thead className="bg-surface text-[12px] font-semibold text-text-secondary">
+                <tr>
+                  <th scope="col" className="w-10 py-2.5 pl-5 pr-2 text-right font-semibold">#</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold">Gamer</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold">Café · Setup</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold">When</th>
+                  <th scope="col" className="px-3 py-2.5 text-right font-semibold">Amount</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold">Status</th>
+                  <th scope="col" className="px-3 py-2.5 text-center font-semibold">Check-in QR</th>
+                  <th scope="col" className="py-2.5 pl-3 pr-5 text-right font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {bookings.map((b, idx) => (
+                  <tr key={b.id} className="align-middle transition-colors hover:bg-surface-hover">
+                    <td className="py-3 pl-5 pr-2 text-right font-data text-[12px] tabular-nums text-text-tertiary">{idx + 1}</td>
+                    <td className="max-w-[12rem] px-3 py-3">
+                      <div className="truncate text-caption font-semibold text-text-primary">{b.gamerName || 'Unknown'}</div>
+                      <div className="font-data text-[11px] text-text-tertiary">{b.bookingReference}</div>
+                    </td>
+                    <td className="max-w-[16rem] px-3 py-3">
+                      <div className="truncate text-caption text-text-primary">{b.cafeName || '—'}</div>
+                      <div className="truncate text-[11px] text-text-tertiary">
+                        {b.tierName || '—'} · {hoursLabel(b.durationHours)}
+                      </div>
+                      {b.campaignName && (
+                        <div
+                          className="truncate text-[11px] font-semibold text-primary-dark"
+                          title={`${b.campaignName}${b.offerTitle ? ` · ${b.offerTitle}` : ''}`}
+                        >
+                          {b.campaignName}
+                          {b.offerTitle ? ` · ${b.offerTitle}` : ''}
+                        </div>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <div className="text-caption text-text-primary">{dayLabel(b.sessionDate)}</div>
+                      <div className="text-[11px] tabular-nums text-text-tertiary">{timeLabel(b.startTime)}</div>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <AmountCell b={b} />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <Badge variant={statusVariant(b.status)} size="sm" className="whitespace-nowrap">
+                        {STATUS_LABELS[b.status] ?? b.status.replace('_', ' ')}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      {b.qrCodeUrl ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                          <QrCode className="h-3.5 w-3.5" /> Issued
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-text-tertiary">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 pl-3 pr-5">
+                      <RowActions
+                        b={b}
+                        onAction={(kind) => {
+                          setActionTarget({ booking: b, kind });
+                          setReason('');
+                        }}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          <div className="divide-y divide-border">
-            {bookings.map((b, idx) => (
-              <div
-                key={b.id}
-                className="px-4 md:px-5 py-3 flex flex-col md:grid md:grid-cols-[auto_1fr_1fr_auto_auto_auto_auto_auto] gap-2 md:gap-4 md:items-center hover:bg-surface-hover transition-colors"
-              >
-                {/* Row # */}
-                <span className="hidden md:block text-xs text-text-tertiary font-data">{idx + 1}</span>
-
-                {/* Gamer */}
-                <div className="min-w-0">
-                  <p className="text-caption font-semibold text-text-primary truncate">
-                    {b.gamerName || 'Unknown'}
-                  </p>
-                  <p className="text-[11px] text-text-tertiary font-data">
-                    {b.bookingReference}
-                  </p>
+          <ul className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card md:hidden">
+            {bookings.map((b) => (
+              <li key={b.id} className="flex flex-col gap-2 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-caption font-semibold text-text-primary">{b.gamerName || 'Unknown'}</div>
+                    <div className="font-data text-[11px] text-text-tertiary">{b.bookingReference}</div>
+                  </div>
+                  <Badge variant={statusVariant(b.status)} size="sm" className="shrink-0 whitespace-nowrap">
+                    {STATUS_LABELS[b.status] ?? b.status.replace('_', ' ')}
+                  </Badge>
                 </div>
-
-                {/* Café + Tier */}
-                <div className="min-w-0">
-                  <p className="text-xs text-text-primary truncate">
-                    {b.cafeName || '—'}
-                  </p>
-                  <p className="text-[11px] text-text-tertiary truncate">
-                    {b.tierName || '—'} · {b.durationHours}h
-                  </p>
-                  {b.campaignName && (
-                    <p className="mt-0.5 truncate text-[11px] font-semibold text-primary-dark">
-                      {b.campaignName}{b.offerTitle ? ` · ${b.offerTitle}` : ''}
-                    </p>
-                  )}
+                <div className="text-[12px] text-text-secondary">
+                  {b.cafeName || '—'} · {b.tierName || '—'} · {hoursLabel(b.durationHours)}
+                  <br />
+                  {dayLabel(b.sessionDate)}, {timeLabel(b.startTime)}
                 </div>
-
-                {/* Date */}
-                <span className="text-xs text-text-secondary whitespace-nowrap">
-                  {b.sessionDate} {b.startTime?.slice(0, 5)}
-                </span>
-
-                {/* Amount */}
-                <div className="flex flex-col items-start md:items-end">
-                  <span className="text-xs font-bold font-data text-emerald-600 whitespace-nowrap">
-                    ₹{b.totalAmount}
-                  </span>
-                  {b.ownerSettlementAmount != null && (
-                    <span className="text-[11px] font-data text-text-secondary md:text-right">
-                      List ₹{b.baseAmount}{b.discountAmount > 0 ? ` − offer ₹${b.discountAmount}` : ''}
-                      {' · '}Café ₹{b.ownerSettlementAmount} · KHELO ₹{b.platformFeeAmount}
-                    </span>
-                  )}
+                {b.campaignName && (
+                  <div className="truncate text-[11px] font-semibold text-primary-dark">
+                    {b.campaignName}
+                    {b.offerTitle ? ` · ${b.offerTitle}` : ''}
+                  </div>
+                )}
+                <div className="flex items-end justify-between gap-3">
+                  <AmountCell b={b} align="left" />
+                  <RowActions
+                    b={b}
+                    onAction={(kind) => {
+                      setActionTarget({ booking: b, kind });
+                      setReason('');
+                    }}
+                  />
                 </div>
-
-                {/* Status */}
-                <Badge variant={statusVariant(b.status)} size="sm" className="whitespace-nowrap w-fit">
-                  {STATUS_LABELS[b.status] ?? b.status.replace('_', ' ')}
-                </Badge>
-
-                {/* QR check-in indicator */}
-                <div className="flex items-center gap-1">
-                  {b.qrCodeUrl ? (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600">
-                      <QrCode className="h-3 w-3" /> QR
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-text-tertiary">—</span>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-1.5">
-                  {b.status !== 'cancelled' && b.status !== 'completed' && (
-                    <button
-                      type="button"
-                      title="Force-cancel booking"
-                      aria-label="Force-cancel booking"
-                      onClick={() => { setActionTarget({ booking: b, kind: 'cancel' }); setReason(''); }}
-                      className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors"
-                    >
-                      <Ban className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {b.status !== 'cancelled' && (
-                    <button
-                      type="button"
-                      title="Issue refund"
-                      aria-label="Issue refund"
-                      onClick={() => { setActionTarget({ booking: b, kind: 'refund' }); setReason(''); }}
-                      className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-600 transition-colors"
-                    >
-                      <IndianRupee className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </>
       )}
 
       <Modal

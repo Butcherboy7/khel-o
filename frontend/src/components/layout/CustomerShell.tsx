@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Search,
   CalendarDays,
-  Gift,
+  Trophy,
   UserCircle,
   Bell,
   type LucideIcon,
@@ -17,6 +17,7 @@ import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 import { PhoneNumberPrompt } from '@/components/layout/PhoneNumberPrompt';
+import { CampaignBadgeClaimer } from '@/components/customer/CampaignBadgeClaimer';
 import { apiClient } from '@/lib/api/client';
 
 interface NavItem {
@@ -29,7 +30,7 @@ interface NavItem {
 const customerNavItems: NavItem[] = [
   { label: 'Find Café', href: '/', icon: Search, matchPrefix: false },
   { label: 'My Bookings', href: '/bookings', icon: CalendarDays, matchPrefix: true },
-  { label: 'Rewards', href: '/rewards', icon: Gift, matchPrefix: false },
+  { label: 'Achievements', href: '/achievements', icon: Trophy, matchPrefix: false },
   { label: 'Profile', href: '/profile', icon: UserCircle, matchPrefix: false },
 ];
 
@@ -65,8 +66,8 @@ function CustomerHeader() {
             className="h-9 w-9 rounded-xl shadow-card"
             priority
           />
-          <span className="font-heading text-h2 font-bold tracking-tight text-text-primary lowercase">
-            khel-o
+          <span className="font-heading text-h2 font-bold tracking-tight text-text-primary">
+            KHEL-O
           </span>
         </Link>
 
@@ -125,7 +126,7 @@ function CustomerHeader() {
           ) : (
             <Link
               href={`/login?redirect=${encodeURIComponent(pathname)}`}
-              className="px-2 text-caption font-semibold text-text-secondary hover:text-primary transition-colors"
+              className="inline-flex min-h-[36px] items-center rounded-full bg-primary px-4 text-caption font-semibold text-white transition-colors hover:bg-primary-dark"
             >
               Log in
             </Link>
@@ -158,7 +159,7 @@ function CustomerBottomNav() {
             href={item.href}
             className={cn(
               'flex flex-col items-center gap-0.5 px-4 py-1.5 transition-all duration-fast',
-              isActive ? 'text-primary font-bold' : 'text-text-secondary hover:text-text-primary',
+              isActive ? 'text-primary-dark font-bold' : 'text-text-secondary hover:text-text-primary',
             )}
             aria-current={isActive ? 'page' : undefined}
           >
@@ -205,6 +206,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
 
       <CustomerBottomNav />
       <PhoneNumberPrompt />
+      <CampaignBadgeClaimer />
     </div>
   );
 }

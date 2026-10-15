@@ -9,7 +9,9 @@ Both read `analytics_events` (every event carries the visitor's latest UTM
 tags as metadata.utm and the device as metadata.dev/iab) and join bookings
 and the waitlist through user / café. Nothing new is stored.
 """
+import re
 import uuid
+from app.core.demo import not_demo_cafe
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
@@ -17,7 +19,7 @@ from typing import Any, Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.localities import locality_for
+from app.core.localities import LOCALITIES, locality_for
 from app.models.analytics_event import AnalyticsEvent
 from app.models.booking import Booking, BookingStatus
 from app.models.cafe import Cafe
@@ -67,9 +69,37 @@ async def _events(db: AsyncSession, start: datetime, end: datetime, types: Optio
     return (await db.execute(stmt.order_by(AnalyticsEvent.created_at))).all()
 
 
+# Address pieces that name a building or a landmark, not a neighbourhood.
+_NOT_AN_AREA = re.compile(
+    r"\b(flat|floor|building|bldg|apartments?|apts?|plot|shop|h\.?\s?no|door|near|opp|opposite|beside|"
+    r"behind|above|arcade|complex|towers?|block|mall|plaza|road|rd|street|lane|cross|bus stop)\b",
+    re.IGNORECASE,
+)
+
+
 def _cafe_area(cafe: Cafe) -> str:
+    """The café's neighbourhood: from its map pin when it has one, else from
+    its address (most cafés are listed without a pin), else Other areas."""
     _, locality = locality_for(cafe.latitude, cafe.longitude)
-    return locality or OTHER_AREA
+    if locality:
+        return locality
+    line1, line2 = cafe.address_line1 or "", cafe.address_line2 or ""
+    # A known neighbourhood named anywhere in the address wins:
+    # "Near Last Bus Stop Bowenpally" -> "Bowenpally".
+    text = f"{line1} {line2}".lower()
+    for name, _, _ in LOCALITIES.get((cafe.city or "").title(), []):
+        if any(alias.strip().lower() in text for alias in name.split("/")):
+            return name
+    # Otherwise the first address piece that reads like a place name, not the
+    # café's own name, a door number or a building ("DG Gaming Cafe, Alwal" -> "Alwal").
+    skip = {(cafe.name or "").lower(), (cafe.city or "").lower(), (cafe.state or "").lower(), "india", "telangana"}
+    for part in (p.strip() for p in f"{line2},{line1}".split(",")):
+        if (
+            part and part.lower() not in skip and len(part) <= 30
+            and not any(ch.isdigit() for ch in part) and not _NOT_AN_AREA.search(part)
+        ):
+            return part.title()
+    return OTHER_AREA
 
 
 # --------------------------------------------------------------- campaigns
@@ -99,8 +129,9 @@ async def campaign_options(db: AsyncSession, days: int = 90) -> list[dict]:
 
 async def campaign_report(
     db: AsyncSession, source: str, campaign: Optional[str], start_day: date, end_day: date,
-    include_internal: bool = False,
+    include_internal: bool = False, also: Optional[list] = None,
 ) -> dict:
+    """`also`: extra (source, campaign) tag pairs that count as this campaign."""
     start, end = _utc(start_day), _utc(end_day + timedelta(days=1))
     rows = await _events(db, start, end)
     internal = _internal_sessions(rows)
@@ -112,9 +143,13 @@ async def campaign_report(
     for r in rows:
         by_session[r[0]].append(r)
 
+    extra = {(str(s), str(c)) for s, c in (also or [])}
+
     def matches(meta: dict) -> bool:
         u = _utm(meta)
-        return u.get("s") == source and (campaign is None or (u.get("c") or None) == campaign)
+        if u.get("s") == source and (campaign is None or (u.get("c") or None) == campaign):
+            return True
+        return (str(u.get("s")), str(u.get("c"))) in extra
 
     cohort = {sid: evs for sid, evs in by_session.items() if any(matches(e[4]) for e in evs)}
 
@@ -150,6 +185,12 @@ async def campaign_report(
     areas, cities, daily = Counter(), Counter(), Counter()
     cafe_views, cafe_notify, cafe_starts = Counter(), Counter(), Counter()
     gmv, bookings = 0.0, 0
+    # What they tapped (ui_action, counted once per visitor) and how long they
+    # stayed (page_exit seconds summed over the visit, capped per page).
+    actions = Counter()
+    time_on_site: list[int] = []
+    stayed_10s = bounced = 0
+    scroll_depths: list[int] = []
 
     # A booking is credited once, to that person's earliest visit in the
     # campaign; the same account visiting again must not count it twice.
@@ -201,6 +242,26 @@ async def campaign_report(
                 s_cities.add(meta["city"])
         areas.update(s_areas)
         cities.update(s_cities)
+        s_actions, secs, deepest, has_exit = set(), 0, 0, False
+        for e in evs:
+            meta = e[4] if isinstance(e[4], dict) else {}
+            if e[2] == "ui_action" and isinstance(meta.get("action"), str):
+                s_actions.add(meta["action"])
+            elif e[2] == "page_exit":
+                has_exit = True
+                try:
+                    secs += min(max(int(meta.get("secs") or 0), 0), 3600)
+                    deepest = max(deepest, min(max(int(meta.get("scroll") or 0), 0), 100))
+                except (TypeError, ValueError):
+                    pass
+        actions.update(s_actions)
+        if has_exit:
+            time_on_site.append(secs)
+            scroll_depths.append(deepest)
+            if secs >= 10:
+                stayed_10s += 1
+            elif sum(1 for e in evs if e[2] == "page_view") <= 1:
+                bounced += 1
         for cid in {e[3] for e in evs if e[2] == "venue_viewed" and e[3]}:
             cafe_views[cid] += 1
         for cid in {e[3] for e in evs if e[2] == "notify_me" and e[3]}:
@@ -269,6 +330,15 @@ async def campaign_report(
         },
         # Test/staff visitors left out of this campaign's numbers.
         "internalExcluded": 0 if include_internal else len({r[0] for r in internal_rows if matches(r[4])}),
+        # Taps counted once per visitor, keyed by action name.
+        "actions": dict(actions.most_common()),
+        "engagement": {
+            "measured": len(time_on_site),
+            "stayed10s": stayed_10s,
+            "bounced": bounced,
+            "medianSecs": sorted(time_on_site)[len(time_on_site) // 2] if time_on_site else 0,
+            "medianScroll": sorted(scroll_depths)[len(scroll_depths) // 2] if scroll_depths else 0,
+        },
         "byAd": [
             {"ad": ad, "sessions": c["landed"], "viewedCafe": c["viewed"], "acted": c["acted"], "booked": c["booked"]}
             for ad, c in sorted(by_ad.items(), key=lambda kv: kv[1]["landed"], reverse=True)
@@ -305,7 +375,7 @@ async def area_report(db: AsyncSession, city: str, days: int = 90) -> dict:
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=days)
 
-    city_cafes = (await db.execute(select(Cafe).where(func.lower(Cafe.city) == city.lower()))).scalars().all()
+    city_cafes = (await db.execute(select(Cafe).where(func.lower(Cafe.city) == city.lower(), not_demo_cafe()))).scalars().all()
     area_of = {c.id: _cafe_area(c) for c in city_cafes}
 
     rows = await _events(db, start, end, ["location_shared", "venue_viewed", "search_performed", "city_selected"])
@@ -384,7 +454,8 @@ async def area_report(db: AsyncSession, city: str, days: int = 90) -> dict:
             "peakDay": s["weekday"].most_common(1)[0][0] if s["weekday"] else None,
             "lowData": n < LOW_DATA_BOOKINGS,
         })
-    areas.sort(key=lambda a: (a["playersNearby"] + a["cafeViewers"] + a["notifyMe"], a["gmv"]), reverse=True)
+    # Busiest first; the catch-all bucket always last so it never tops the list.
+    areas.sort(key=lambda a: (a["area"] != OTHER_AREA, a["playersNearby"] + a["cafeViewers"] + a["notifyMe"], a["gmv"]), reverse=True)
 
     total_bookings = sum(a["bookings"] for a in areas)
     total_gmv = sum(a["gmv"] for a in areas)
@@ -394,6 +465,8 @@ async def area_report(db: AsyncSession, city: str, days: int = 90) -> dict:
         "totals": {
             "visitors": len(city_sessions.get(city, set())),
             "sharedLocation": len(home_of),
+            "cafeViewers": len(set().union(*viewers.values())) if viewers else 0,
+            "notifyMe": sum(notify.values()),
             "bookings": total_bookings,
             "gmv": round(total_gmv, 2),
             "avgBookingValue": round(total_gmv / total_bookings, 2) if total_bookings else None,

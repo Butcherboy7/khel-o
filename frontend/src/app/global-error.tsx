@@ -45,7 +45,7 @@ export default function GlobalError({
           </p>
           <button
             onClick={() => window.location.reload()}
-            style={{ background: '#E54D42', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px 24px', fontWeight: 700, fontSize: '1rem' }}
+            style={{ background: '#D0463C', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px 24px', fontWeight: 700, fontSize: '1rem' }}
           >
             Reload
           </button>

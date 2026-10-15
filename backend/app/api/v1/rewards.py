@@ -1,14 +1,16 @@
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.models.user_badge import UserBadge
+from app.models.promotion import OfferCampaign
 from app.api.deps import get_current_active_user
+from app.services.badge_service import HELPER_BADGES
 
 router = APIRouter(prefix="/rewards", tags=["Rewards"])
 
@@ -47,8 +49,28 @@ async def get_rewards(
     badge_rows = (await db.execute(select(UserBadge).where(UserBadge.user_id == current_user.id))).scalars().all()
     has_special_access = any(b.badge_key == "special_access" for b in badge_rows)
 
+    # The campaign link the badge came from, so the profile can share it.
+    special_row = next((b for b in badge_rows if b.badge_key == "special_access"), None)
+    special_code = None
+    if special_row is not None and special_row.campaign_id is not None:
+        special_code = (await db.execute(
+            select(OfferCampaign.access_code).where(OfferCampaign.id == special_row.campaign_id)
+        )).scalar_one_or_none()
+
+    # Order of earning: 1 for the first person to hold the badge. Real rank, not a counter we keep.
+    special_rank = None
+    if special_row is not None and special_row.granted_at is not None:
+        special_rank = (await db.execute(
+            select(func.count()).select_from(UserBadge).where(
+                UserBadge.badge_key == "special_access", UserBadge.granted_at <= special_row.granted_at)
+        )).scalar_one()
+
+    earned_keys = {b.badge_key for b in badge_rows}
+    helper_xp = sum(xp for key, (_, _, xp) in HELPER_BADGES.items() if key in earned_keys)
+
     xp = (
-        (100 if has_special_access else 0)
+        helper_xp
+        + (100 if has_special_access else 0)
         + completed_count * 100
         + (250 if night_owl_count >= 1 else 0)
         + (500 if weekend_count_this_month >= 3 else 0)
@@ -61,13 +83,16 @@ async def get_rewards(
     achievements = [
         {
             "id": "special_access",
-            "title": "KHELO Special Access",
-            "description": "Joined the limited-time KHELO campaign with special prices at partner cafés.",
+            "title": "Day One",
+            "description": "An OG member: you joined KHELO through the first campaign and backed us from day 1.",
             "icon": "⚡",
             "isUnlocked": has_special_access,
             "progress": f"{1 if has_special_access else 0} / 1",
             "xpReward": 100,
             "special": True,
+            "grantedAt": special_row.granted_at.isoformat() if special_row is not None and special_row.granted_at else None,
+            "campaignCode": special_code,
+            "memberNumber": special_rank,
         },
         {
             "id": "first_blood",
@@ -142,6 +167,23 @@ async def get_rewards(
             "xpReward": 400,
         },
     ]
+
+    # Emblem badges for helping a café join. Always listed (locked until
+    # earned) so players can see what's on offer.
+    helper_achievements = [
+        {
+            "id": key,
+            "title": title,
+            "description": description,
+            "icon": "",
+            "emblem": key,
+            "isUnlocked": key in earned_keys,
+            "progress": f"{1 if key in earned_keys else 0} / 1",
+            "xpReward": xp_reward,
+        }
+        for key, (title, description, xp_reward) in HELPER_BADGES.items()
+    ]
+    achievements = achievements[:1] + helper_achievements + achievements[1:]
 
     level = xp // 500 + 1
     next_level_xp = level * 500

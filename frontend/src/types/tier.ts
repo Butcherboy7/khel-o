@@ -94,6 +94,8 @@ export interface TierCreateRequest {
 }
 
 export interface TierUpdateRequest {
+  /** Activity tiers: true = named units (Table 1, 2…), false = one pooled count. */
+  individualUnits?: boolean;
   name?: string;
   description?: string;
   specs?: TierSpecs;

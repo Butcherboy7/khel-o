@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { AuthBackButton } from '@/components/auth/AuthBackButton';
 
 /**
  * Auth layout — no navigation chrome, just the content.
@@ -7,7 +8,8 @@ import Link from 'next/link';
  */
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-surface px-4 py-8">
+    <div className="relative flex min-h-screen flex-col items-center justify-center gap-6 bg-surface px-4 py-8">
+      <AuthBackButton />
       {children}
 
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-caption text-text-secondary">

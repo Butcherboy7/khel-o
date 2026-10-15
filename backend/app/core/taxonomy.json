@@ -137,6 +137,7 @@
       "billing_unit": "hour",
       "styles": [],
       "attributes": [
+        { "key": "players_max", "label": "Max players per table", "type": "int", "level": "required" },
         { "key": "table_size", "label": "Table size", "type": "enum", "level": "recommended", "options": ["12ft", "10ft", "mini"] }
       ]
     },
@@ -153,6 +154,7 @@
         { "key": "pool.english", "label": "English pool", "hint": "Blackball: red and yellow balls on a table with smaller pockets.", "aliases": ["blackball", "uk pool", "english pool table", "reds and yellows"] }
       ],
       "attributes": [
+        { "key": "players_max", "label": "Max players per table", "type": "int", "level": "required" },
         { "key": "table_size", "label": "Table size", "type": "enum", "level": "recommended", "options": ["7ft", "8ft", "9ft"] },
         { "key": "games_offered", "label": "Games you can play", "type": "multi", "level": "optional",
           "options": ["8-ball", "9-ball", "10-ball", "straight-pool", "blackball"], "filterable": false }
@@ -167,7 +169,9 @@
       "bookable_now": true,
       "billing_unit": "hour",
       "styles": [],
-      "attributes": []
+      "attributes": [
+        { "key": "players_max", "label": "Max players per table", "type": "int", "level": "optional" }
+      ]
     },
     {
       "key": "carom",
@@ -178,7 +182,9 @@
       "bookable_now": true,
       "billing_unit": "hour",
       "styles": [],
-      "attributes": []
+      "attributes": [
+        { "key": "players_max", "label": "Max players per table", "type": "int", "level": "optional" }
+      ]
     },
     {
       "key": "air-hockey",
@@ -189,7 +195,9 @@
       "bookable_now": true,
       "billing_unit": "game",
       "styles": [],
-      "attributes": []
+      "attributes": [
+        { "key": "players_max", "label": "Max players per table", "type": "int", "level": "optional" }
+      ]
     },
     {
       "key": "foosball",
@@ -213,7 +221,9 @@
       "bookable_now": true,
       "billing_unit": "hour",
       "styles": [],
-      "attributes": []
+      "attributes": [
+        { "key": "players_max", "label": "Max players per table", "type": "int", "level": "optional" }
+      ]
     },
     {
       "key": "carrom",
@@ -224,7 +234,9 @@
       "bookable_now": true,
       "billing_unit": "hour",
       "styles": [],
-      "attributes": []
+      "attributes": [
+        { "key": "players_max", "label": "Max players per board", "type": "int", "level": "optional" }
+      ]
     },
     {
       "key": "darts",
@@ -236,6 +248,7 @@
       "billing_unit": "hour",
       "styles": [],
       "attributes": [
+        { "key": "players_max", "label": "Max players per board", "type": "int", "level": "optional" },
         { "key": "board", "label": "Board", "type": "enum", "level": "optional", "options": ["steel-tip", "electronic"] }
       ]
     },

@@ -18,6 +18,7 @@ import {
   ErrorState,
   EmptyState,
 } from '@/components/ui';
+import { useTaxonomy, missingRequiredAttrs } from '@/lib/taxonomy';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import { ActivityUnitsManager } from '@/components/owner/ActivityUnitsManager';
 import { PLATFORM_MODELS } from '@/constants/platforms';
@@ -54,6 +55,7 @@ export default function HardwareTiersPage() {
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
   const [configs, setConfigs] = useState<TierConfig[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const { data: taxonomy } = useTaxonomy();
   // Set only when editing an un-migrated (platform=NULL) tier: the real
   // seats/price to carry over onto whichever platform the owner explicitly
   // picks next, since the configurator starts empty for these (see
@@ -150,9 +152,9 @@ export default function HardwareTiersPage() {
     mutationFn: async () => {
       const targetId = await getActiveCafeId();
       const config = configs[0];
-      // Note: individualUnits is create-only (backend individual_units field
-      // has no effect after creation) and TierUpdateRequest deliberately has
-      // no tierType field, so neither is included here.
+      // individualUnits switches an activity between named units and one
+      // pooled count (the backend adds/removes unit rows). TierUpdateRequest
+      // deliberately has no tierType field.
       const payload: TierUpdateRequest =
         config.tierType === 'activity'
           ? {
@@ -164,6 +166,7 @@ export default function HardwareTiersPage() {
               activityKind: config.activityKind,
               taxonomyKey: config.taxonomyKey ?? null,
               attributes: config.attributes ?? {},
+              individualUnits: config.individualUnits ?? false,
               ...bookingOptionsPayload(config),
             }
           : {
@@ -230,14 +233,8 @@ export default function HardwareTiersPage() {
       // opens an empty configurator with gaming platform chips and no
       // activity data loaded (see final-review.md I3).
       //
-      // individualUnits is create-only — HardwareTier (the read-back type)
-      // doesn't carry a units count, so there's no reliable signal here for
-      // whether this tier currently uses individual units or pooled
-      // capacity. Default to `true` (the more common/manageable choice for
-      // a multi-unit activity like Snooker tables); the toggle itself
-      // remains editable in the form, so this only affects the initial
-      // pre-filled state, not correctness of the tier's real name/
-      // quantity/price, which all load from the tier as-is.
+      // The tier list carries trackingMode (individual = it has named unit
+      // rows), so the toggle opens on the mode the tier really uses.
       setConfigs([{
         id: tier.id,
         platform: 'other',
@@ -249,7 +246,7 @@ export default function HardwareTiersPage() {
         activityKind: tier.activityKind ?? undefined,
         taxonomyKey: tier.taxonomyKey ?? undefined,
         attributes: tier.attributes ?? {},
-        individualUnits: true,
+        individualUnits: tier.trackingMode !== 'pooled',
         ...bookingOptionsFrom(tier),
       }]);
       setLegacyTierDefaults(null);
@@ -303,6 +300,13 @@ export default function HardwareTiersPage() {
     if (config.appBookableSeats > config.totalSeats) {
       setFormError('App bookable units cannot exceed total units.');
       return;
+    }
+    if (config.tierType === 'activity') {
+      const missing = missingRequiredAttrs(taxonomy, config.taxonomyKey, config.attributes);
+      if (missing.length) {
+        setFormError(`Please fill in: ${missing.join(', ')}.`);
+        return;
+      }
     }
     if (editingTierId) {
       updateMutation.mutate();
@@ -413,6 +417,20 @@ export default function HardwareTiersPage() {
                       </dd>
                     </div>
                   </dl>
+
+                  {tier.tierType === 'activity' && missingRequiredAttrs(taxonomy, tier.taxonomyKey, tier.attributes).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(tier)}
+                      className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-left text-caption text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-600" aria-hidden="true" />
+                      <span>
+                        <strong>Add: {missingRequiredAttrs(taxonomy, tier.taxonomyKey, tier.attributes).join(', ')}.</strong>{' '}
+                        Customers need it to book the right number of people.
+                      </span>
+                    </button>
+                  )}
 
                   {tier.model && (
                     <div className="flex items-center gap-1.5 rounded-xl bg-surface p-3 text-caption font-semibold text-text-primary">

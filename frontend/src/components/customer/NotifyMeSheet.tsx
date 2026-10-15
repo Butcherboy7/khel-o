@@ -1,17 +1,15 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { CheckCircle2, MessageCircle, Phone, Mail, Share2, Gift } from 'lucide-react';
+import Link from 'next/link';
+import { overGoalLine } from '@/lib/voteHype';
+import { usePathname } from 'next/navigation';
 import { BottomSheet, Button } from '@/components/ui';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { HelperEmblem, HELPER_BADGE_COPY, isHelperBadgeKey } from '@/components/customer/HelperEmblem';
 import { getPublicEnv } from '@/lib/runtimeEnv';
-import { setWaitlistPlayTime, setWaitlistDetails, type PlayTime, type ContactMethod } from '@/lib/api/waitlist';
-
-const REACH_OPTIONS: { key: ContactMethod; label: string; icon: typeof Phone }[] = [
-  { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
-  { key: 'call', label: 'Call', icon: Phone },
-  { key: 'email', label: 'Email', icon: Mail },
-];
+import { MessageCircle, Phone, Mail } from 'lucide-react';
+import { setWaitlistPlayTime, setWaitlistDetails, type PlayTime, type UnlockedBadge, type ContactMethod } from '@/lib/api/waitlist';
 
 const PLAY_TIMES: { key: PlayTime; label: string }[] = [
   { key: 'weekday_evenings', label: 'Weekday evenings' },
@@ -19,7 +17,14 @@ const PLAY_TIMES: { key: PlayTime; label: string }[] = [
   { key: 'late_nights', label: 'Late nights' },
 ];
 
-export type NotifyStep = 'signin' | 'contact' | 'done';
+const REACH_OPTIONS: { key: ContactMethod; label: string; icon: typeof Phone }[] = [
+  { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+  { key: 'call', label: 'Call', icon: Phone },
+  { key: 'email', label: 'Email', icon: Mail },
+];
+
+/** 'invite' is what a friend sees landing on a shared vote link. */
+export type NotifyStep = 'invite' | 'signin' | 'done';
 
 interface NotifyMeSheetProps {
   isOpen: boolean;
@@ -28,22 +33,32 @@ interface NotifyMeSheetProps {
   onClose: () => void;
   cafeId: string;
   cafeName: string;
-  /** Joins the list (as whoever is signed in now, or with this contact). */
-  onJoin: (contact?: string) => Promise<void>;
+  isAuthenticated: boolean;
+  /** Live vote count and goal, refetched after a vote lands. */
+  votes: number;
+  goal: number;
+  /** The badge this vote just earned, if it was the first. */
+  unlocked: UnlockedBadge | null;
+  /** Casts the vote for whoever is signed in now. */
+  onJoin: () => Promise<void>;
   onShare: () => void;
   shareCopied: boolean;
-  /** Requests so far and the target, for the "N more to go" nudge. */
-  count?: number;
-  goal?: number;
+  onKnowOwner: () => void;
 }
 
+const quietLink =
+  'mx-auto flex min-h-[44px] items-center text-caption font-semibold text-text-secondary underline-offset-2 hover:underline';
+
 /**
- * "Notify me" for a café that isn't taking bookings yet.
+ * Voting for a café that isn't on KHEL-O yet (stored as the café's waitlist:
+ * the count is what we pitch the owner with).
  *
- * Signed-out visitors get one-tap Google first: it signs them in and joins
- * in the same tap, and gives us a real inbox for the launch email. Typing a
- * phone or email stays available one tap away. Signed-in visitors skip
- * straight to the confirmation.
+ * Sign-in is required, because a vote earns a badge and XP and the count has
+ * to be real people. One-tap Google signs in and votes in the same tap; email
+ * sign-in sends them to the login page and back.
+ *
+ * The voice is deliberately playful and grateful: a vote costs the player
+ * nothing and helps us, so we ask nicely and say thank you like we mean it.
  */
 export function NotifyMeSheet({
   isOpen,
@@ -52,47 +67,38 @@ export function NotifyMeSheet({
   onClose,
   cafeId,
   cafeName,
+  isAuthenticated,
+  votes,
+  goal,
+  unlocked,
   onJoin,
   onShare,
   shareCopied,
-  count = 0,
-  goal = 30,
+  onKnowOwner,
 }: NotifyMeSheetProps) {
-  const [contact, setContact] = useState('');
+  const pathname = usePathname();
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [playTime, setPlayTime] = useState<PlayTime | null>(null);
-  const [gaveEmail, setGaveEmail] = useState(true);
-  const [gavePhone, setGavePhone] = useState(false);
+  const googleEnabled = Boolean(getPublicEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID'));
+  const left = Math.max(goal - votes, 0);
   const [reachOn, setReachOn] = useState<ContactMethod | null>(null);
   const [phone, setPhone] = useState('');
   const [phoneSaved, setPhoneSaved] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
-  const [knowsOwner, setKnowsOwner] = useState(false);
-  const googleEnabled = Boolean(getPublicEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID'));
-  const current = step === 'signin' && !googleEnabled ? 'contact' : step;
 
-  const join = useCallback(
-    async (value?: string) => {
-      setIsJoining(true);
-      setError(null);
-      try {
-        await onJoin(value);
-        setGaveEmail(value === undefined || value.includes('@'));
-        setGavePhone(value !== undefined && !value.includes('@'));
-        onStepChange('done');
-      } catch {
-        setError("Couldn't add you just now. Please try again.");
-      } finally {
-        setIsJoining(false);
-      }
-    },
-    [onJoin, onStepChange],
-  );
-
-  const handleGoogle = useCallback(() => {
-    void join();
-  }, [join]);
+  const join = useCallback(async () => {
+    setIsJoining(true);
+    setError(null);
+    try {
+      await onJoin();
+      onStepChange('done');
+    } catch {
+      setError("Oops, that vote didn't go through. Try once more?");
+    } finally {
+      setIsJoining(false);
+    }
+  }, [onJoin, onStepChange]);
 
   const choosePlayTime = (key: PlayTime) => {
     setPlayTime(key);
@@ -100,17 +106,11 @@ export function NotifyMeSheet({
     setWaitlistPlayTime(cafeId, key).catch(() => {});
   };
 
-  // Optional and fire-and-forget like the play-time answer, except the
-  // number: that one says if it didn't save, since it's how we'd reach them.
+  // How the outreach team should reach this voter (shown on admin Leads).
+  // The choice is fire-and-forget; the number says if it didn't save.
   const chooseReach = (key: ContactMethod) => {
     setReachOn(key);
     setWaitlistDetails(cafeId, { contactMethod: key }).catch(() => {});
-  };
-
-  const toggleKnowsOwner = () => {
-    const next = !knowsOwner;
-    setKnowsOwner(next);
-    setWaitlistDetails(cafeId, { knowsOwner: next }).catch(() => {});
   };
 
   const savePhone = async () => {
@@ -123,149 +123,98 @@ export function NotifyMeSheet({
     }
   };
 
-  const needsPhone = (reachOn === 'whatsapp' || reachOn === 'call') && !gavePhone;
-  const phoneLooksValid = phone.replace(/\D/g, '').length >= 10;
-  const remaining = Math.max(0, goal - count);
+  const loginHref = `/login?redirect=${encodeURIComponent(pathname || '/')}`;
 
-  const trimmed = contact.trim();
-  const looksValid = trimmed.includes('@') ? /^\S+@\S+\.\S+$/.test(trimmed) : trimmed.replace(/\D/g, '').length >= 10;
+  const signInOptions = (
+    <>
+      {googleEnabled && <GoogleSignInButton onSuccess={() => void join()} onError={setError} />}
+      {isJoining && <p className="text-center text-caption text-text-secondary">Locking in your vote…</p>}
+      {error && <p className="text-center text-caption text-error">{error}</p>}
+      <Link href={loginHref} className={quietLink}>
+        {googleEnabled ? 'Sign in with email instead' : 'Sign in to vote'}
+      </Link>
+    </>
+  );
+
+  const reward = (
+    <div className="flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-2.5">
+      <HelperEmblem badge="day_one" size={36} />
+      <span className="flex min-w-0 flex-col">
+        <span className="text-caption font-semibold text-text-primary">Vote and unlock the Early Voter badge</span>
+        <span className="text-[11px] text-text-secondary">Shows on your profile · +{HELPER_BADGE_COPY.day_one.xp} XP</span>
+      </span>
+    </div>
+  );
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose}>
-      {current === 'signin' && (
+      {step === 'invite' && (
         <div className="flex flex-col gap-4 pb-2">
-          <div className="flex flex-col gap-1">
-            <h2 className="font-heading text-h2 text-text-primary">Get notified when {cafeName} opens bookings</h2>
-            <p className="text-body text-text-secondary">One email on the day it goes live. Nothing else.</p>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <span className="text-[44px] leading-none" aria-hidden>👀</span>
+            <h2 className="font-heading text-h2 text-text-primary">Your friend wants {cafeName} on KHEL-O</h2>
+            <p className="text-body text-text-secondary">
+              Add your vote? It takes one tap and it genuinely helps.
+              {votes > 0 && ` ${votes} gamer${votes === 1 ? ' has' : 's have'} already voted.`}
+            </p>
           </div>
-          <GoogleSignInButton onSuccess={handleGoogle} onError={setError} />
-          {isJoining && <p className="text-center text-caption text-text-secondary">Adding you to the list…</p>}
-          {error && <p className="text-center text-caption text-error">{error}</p>}
-          <button
-            type="button"
-            onClick={() => onStepChange('contact')}
-            className="mx-auto min-h-[44px] text-caption font-semibold text-text-secondary underline-offset-2 hover:underline"
-          >
-            Use phone or email instead
+          {reward}
+          {isAuthenticated ? (
+            <Button variant="primary" size="lg" fullWidth isLoading={isJoining} onClick={() => void join()}>
+              Vote
+            </Button>
+          ) : (
+            signInOptions
+          )}
+          {isAuthenticated && error && <p className="text-center text-caption text-error">{error}</p>}
+          <button type="button" onClick={onClose} className={quietLink}>
+            Maybe later
           </button>
         </div>
       )}
 
-      {current === 'contact' && (
-        <form
-          className="flex flex-col gap-3 pb-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (looksValid) void join(trimmed);
-          }}
-        >
+      {step === 'signin' && (
+        <div className="flex flex-col gap-4 pb-2">
           <div className="flex flex-col gap-1">
-            <h2 className="font-heading text-h2 text-text-primary">Where should we tell you?</h2>
+            <h2 className="font-heading text-h2 text-text-primary">Vote for {cafeName}</h2>
             <p className="text-body text-text-secondary">
-              We&apos;ll let you know when {cafeName} starts taking bookings.
+              Every vote is one more reason for the owner to say yes, and your aura goes up. We&apos;ll ping you once,
+              the day it goes live. No spam, pinky promise.
             </p>
           </div>
-          <input
-            type="text"
-            inputMode="email"
-            autoComplete="email"
-            autoFocus
-            value={contact}
-            onChange={(e) => setContact(e.target.value)}
-            placeholder="Email or phone number"
-            aria-label="Email or phone number to notify you on"
-            className="min-h-input w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary placeholder:text-text-secondary/70 focus:border-primary focus:outline-none"
-          />
-          {error && <p className="text-caption text-error">{error}</p>}
-          <Button type="submit" variant="primary" size="lg" fullWidth disabled={!looksValid} isLoading={isJoining}>
-            Notify me
-          </Button>
-          {googleEnabled && (
-            <button
-              type="button"
-              onClick={() => onStepChange('signin')}
-              className="mx-auto min-h-[44px] text-caption font-semibold text-text-secondary hover:underline"
-            >
-              Use Google instead
-            </button>
-          )}
-        </form>
+          {reward}
+          {signInOptions}
+        </div>
       )}
 
-      {current === 'done' && (
+      {step === 'done' && (
         <div className="flex flex-col gap-5 pb-2">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="mt-0.5 h-6 w-6 flex-shrink-0 text-success" aria-hidden />
-            <div className="flex flex-col gap-0.5">
-              <h2 className="font-heading text-h2 text-text-primary">You&apos;re on the list</h2>
-              <p className="text-body text-text-secondary">
-                {gaveEmail
-                  ? "We'll email you the day bookings open."
-                  : "We'll reach out the day bookings open."}
-              </p>
-            </div>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <span className="khelo-heart-pop text-[48px] leading-none" aria-hidden>
+              🫶
+            </span>
+            <h2 className="font-heading text-h2 text-text-primary">You&apos;re a legend</h2>
+            <p className="max-w-sm text-body text-text-secondary">
+              {votes > 0 ? `Vote #${votes} locked in. ` : 'Vote locked in. '}
+              {left > 0
+                ? `${left} more and we go knock on their door 🚪`
+                : `${overGoalLine(votes, goal) ?? 'Goal smashed.'} We're talking to ${cafeName} now.`}{' '}
+              We&apos;ll email you the day it&apos;s live. Your aura just went up 🫶
+            </p>
           </div>
 
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-caption font-semibold text-text-primary">
-              How should we reach you? <span className="font-normal text-text-secondary">Optional</span>
-            </legend>
-            <div className="flex flex-wrap gap-2">
-              {REACH_OPTIONS.map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={reachOn === key}
-                  onClick={() => chooseReach(key)}
-                  className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-caption font-semibold transition-colors ${
-                    reachOn === key
-                      ? 'border-secondary bg-secondary text-white'
-                      : 'border-border bg-card text-text-primary hover:bg-surface'
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5" aria-hidden />
-                  {label}
-                </button>
-              ))}
+          {unlocked && isHelperBadgeKey(unlocked.key) && (
+            <div className="flex items-center gap-4 rounded-2xl bg-surface p-4">
+              <HelperEmblem badge={unlocked.key} size={64} />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="font-heading text-h3 font-bold text-text-primary">{unlocked.title} unlocked</span>
+                <span className="text-caption text-text-secondary">It&apos;s on your profile now. Go flex it.</span>
+              </span>
+              <span className="flex-shrink-0 rounded-full bg-secondary px-3 py-1.5 font-data text-caption font-bold text-white">
+                +{unlocked.xp} XP
+              </span>
             </div>
-            {needsPhone && (
-              phoneSaved ? (
-                <p className="text-caption text-success">Got it — we&apos;ll {reachOn === 'call' ? 'call' : 'WhatsApp'} you.</p>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  <div className="flex gap-2">
-                    <input
-                      type="tel"
-                      inputMode="tel"
-                      autoComplete="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="Your number"
-                      aria-label="Phone number to reach you on"
-                      className="min-h-input min-w-0 flex-1 rounded-xl border border-border bg-card px-3 text-body text-text-primary placeholder:text-text-secondary/70 focus:border-primary focus:outline-none"
-                    />
-                    <Button type="button" variant="secondary" size="md" disabled={!phoneLooksValid} onClick={() => void savePhone()}>
-                      Save
-                    </Button>
-                  </div>
-                  {phoneError && <p className="text-caption text-error">{phoneError}</p>}
-                </div>
-              )
-            )}
-          </fieldset>
-
-          <label className="flex min-h-[44px] cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-card p-3">
-            <input
-              type="checkbox"
-              checked={knowsOwner}
-              onChange={toggleKnowsOwner}
-              className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[var(--primary)]"
-            />
-            <span className="flex flex-col gap-0.5">
-              <span className="text-caption font-semibold text-text-primary">I know the owner or staff at {cafeName}</span>
-              <span className="text-caption text-text-secondary">Happy for KHEL-O to ask you for an intro.</span>
-            </span>
-          </label>
+          )}
 
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 text-caption font-semibold text-text-primary">
@@ -290,27 +239,70 @@ export function NotifyMeSheet({
             </div>
           </fieldset>
 
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-2 text-caption font-semibold text-text-primary">
+              How should we reach you when it&apos;s live? <span className="font-normal text-text-secondary">Optional</span>
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {REACH_OPTIONS.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={reachOn === key}
+                  onClick={() => chooseReach(key)}
+                  className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-caption font-semibold transition-colors ${
+                    reachOn === key
+                      ? 'border-secondary bg-secondary text-white'
+                      : 'border-border bg-card text-text-primary hover:bg-surface'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden />
+                  {label}
+                </button>
+              ))}
+            </div>
+            {(reachOn === 'whatsapp' || reachOn === 'call') &&
+              (phoneSaved ? (
+                <p className="text-caption text-success">Got it, we&apos;ll {reachOn === 'call' ? 'call' : 'WhatsApp'} you.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Your number"
+                      aria-label="Phone number to reach you on"
+                      className="min-h-input min-w-0 flex-1 rounded-xl border border-border bg-card px-3 text-body text-text-primary placeholder:text-text-secondary/70 focus:border-primary focus:outline-none"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="md"
+                      disabled={phone.replace(/\D/g, '').length < 10}
+                      onClick={() => void savePhone()}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                  {phoneError && <p className="text-caption text-error">{phoneError}</p>}
+                </div>
+              ))}
+          </fieldset>
+
           <div className="flex flex-col gap-2">
-            <p className="flex items-start gap-2 rounded-xl bg-primary/[0.06] p-3 text-caption text-text-primary">
-              <Gift className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" aria-hidden />
-              <span>
-                {remaining > 0 ? (
-                  <>
-                    <strong>{remaining} more request{remaining === 1 ? '' : 's'}</strong> to hit the goal. Hit it and we&apos;ll
-                    push {cafeName} for an exclusive launch deal for everyone on the list.
-                  </>
-                ) : (
-                  <>Goal reached! We&apos;re pushing {cafeName} for an exclusive launch deal for everyone on the list.</>
-                )}
-              </span>
-            </p>
             <Button variant="primary" size="lg" fullWidth onClick={onShare}>
-              <Share2 className="h-4 w-4" aria-hidden />
-              {shareCopied ? 'Link copied' : 'Get friends to request it too'}
+              {shareCopied ? 'Link copied ✓' : 'Rally the squad'}
             </Button>
-            <Button variant="ghost" size="lg" fullWidth onClick={onClose}>
-              Done
-            </Button>
+            <p className="-mt-0.5 text-center text-caption text-text-secondary">
+              Every friend who votes gets {cafeName} closer, and once it hits the goal we&apos;ll push for an
+              exclusive launch deal for everyone who voted. Thank you, seriously.
+            </p>
+            <button type="button" onClick={onKnowOwner} className={quietLink}>
+              Know the owner? Introduce us 👀
+            </button>
           </div>
         </div>
       )}

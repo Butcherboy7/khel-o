@@ -16,12 +16,15 @@ from app.api.v1.reviews import router as reviews_router
 from app.api.v1.admin import router as admin_router
 from app.api.v1.admin_analytics import router as admin_analytics_router
 from app.api.v1.admin_cafe_payouts import router as admin_cafe_payouts_router
+from app.api.v1.admin_booking_soon import router as admin_booking_soon_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.rewards import router as rewards_router
 from app.api.v1.support import router as support_router
 from app.api.v1.analytics import router as analytics_router
 from app.api.v1.contact import router as contact_router
 from app.api.v1.locations import router as locations_router
+from app.api.v1.owner_intros import router as owner_intros_router
+from app.api.v1.marketing_campaigns import public_router as campaign_links_router, admin_router as marketing_campaigns_router
 
 api_router = APIRouter()
 
@@ -41,11 +44,15 @@ api_router.include_router(reviews_router, prefix="/reviews", tags=["Reviews"])
 api_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 api_router.include_router(admin_analytics_router, prefix="/admin/analytics", tags=["Admin Analytics"])
 api_router.include_router(admin_cafe_payouts_router, prefix="/admin/cafe-payouts", tags=["Admin Café Payouts"])
+api_router.include_router(admin_booking_soon_router, prefix="/admin/booking-soon", tags=["Admin Booking Soon"])
 api_router.include_router(notifications_router, tags=["Notifications"])
 api_router.include_router(rewards_router, tags=["Rewards"])
 api_router.include_router(support_router, tags=["Support"])
 api_router.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
 api_router.include_router(contact_router, tags=["Contact"])
+api_router.include_router(owner_intros_router)
+api_router.include_router(campaign_links_router)
+api_router.include_router(marketing_campaigns_router)
 api_router.include_router(locations_router, prefix="/locations", tags=["Locations"])
 
 @api_router.get("/status", tags=["Status"])

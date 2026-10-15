@@ -167,8 +167,61 @@ async def get_ad_campaign_report(
 
     if end < start or (end - start).days > 92:
         raise BadRequestException(message="Pick a range of up to 3 months", error_code="INVALID_RANGE")
-    data = await growth_report_service.campaign_report(db, source, campaign or None, start, end, include_internal)
+    from sqlalchemy import select as _select
+    from app.models.marketing_campaign import MarketingCampaign
+    from app.api.v1.marketing_campaigns import tag_pairs
+
+    from datetime import datetime as _dt
+    from app.services.campaign_advisor import advise
+
+    also, mc = [], None
+    if campaign:
+        mc = (await db.execute(
+            _select(MarketingCampaign).where(MarketingCampaign.slug == campaign, MarketingCampaign.utm_source == source)
+        )).scalar_one_or_none()
+        if mc:
+            also = tag_pairs(mc)
+    data = await growth_report_service.campaign_report(db, source, campaign or None, start, end, include_internal, also=also)
+    # Spend covers the whole campaign, so cost per visitor is only fair when
+    # these dates start on (or before) the campaign's first day.
+    data["advice"] = advise(
+        data,
+        spend=mc.spend_inr if mc and mc.spend_inr and start <= mc.started_on else None,
+        paid=bool(mc and mc.paid),
+        live=bool(mc is None or mc.status == "live"),
+        today=_dt.now(growth_report_service.IST).date(),
+    )
     return {"success": True, "data": data}
+
+
+@router.get("/bot-blocks", status_code=status.HTTP_200_OK)
+async def get_bot_blocks(
+    days: int = Query(14, ge=1, le=30),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sign-up / login / reset attempts the bot guard stopped, in plain counts."""
+    from collections import Counter
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    from sqlalchemy import select as _select
+    from app.models.auth_attempt import AuthAttempt
+    from app.services.growth_report_service import IST
+
+    since = _dt.now(_tz.utc) - _td(days=days)
+    rows = (await db.execute(
+        _select(AuthAttempt.kind, AuthAttempt.outcome, AuthAttempt.reason, AuthAttempt.created_at)
+        .where(AuthAttempt.created_at >= since)
+    )).all()
+    blocked = [r for r in rows if r.outcome == "blocked"]
+    daily = Counter(r.created_at.astimezone(IST).date().isoformat() for r in blocked)
+    return {"success": True, "data": {
+        "days": days,
+        "blocked": len(blocked),
+        "allowed": len(rows) - len(blocked),
+        "byKind": dict(Counter(r.kind for r in blocked)),
+        "byReason": dict(Counter(r.reason for r in blocked)),
+        "daily": [{"date": d, "blocked": n} for d, n in sorted(daily.items())],
+    }}
 
 
 @router.get("/areas", status_code=status.HTTP_200_OK)
