@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { optimizedImg } from '@/lib/imageUrl';
 import { MapPin, Star, Zap, ArrowRight, Users } from 'lucide-react';
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
@@ -173,13 +174,21 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
           {coverPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={coverPhoto.url}
+              {...optimizedImg(coverPhoto.url, '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw', { maxWidth: 828 })}
               alt={cafe.name}
               className="block h-full w-full object-cover object-center transition-all duration-700 group-hover:scale-105"
               loading={isLive ? 'eager' : 'lazy'}
               decoding="async"
               onError={(e) => {
-                e.currentTarget.style.display = 'none';
+                // Optimizer unavailable: retry the original once before
+                // giving up and showing the name placeholder.
+                const img = e.currentTarget;
+                if (img.src.includes('/_next/image') && coverPhoto) {
+                  img.srcset = '';
+                  img.src = coverPhoto.url;
+                  return;
+                }
+                img.style.display = 'none';
               }}
             />
           ) : (

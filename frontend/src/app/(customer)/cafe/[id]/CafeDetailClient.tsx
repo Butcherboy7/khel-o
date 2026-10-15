@@ -51,6 +51,7 @@ import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
 import { OfferChip } from '@/components/customer/OfferChip';
 import { useCampaign } from '@/hooks/useCampaign';
+import { optimizedImg, fallBackToOriginal } from '@/lib/imageUrl';
 import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 
 import { useAuthStore } from '@/store/authStore';
@@ -389,7 +390,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
         {currentPhoto ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={currentPhoto}
+            {...optimizedImg(currentPhoto, '(min-width: 896px) 896px, 100vw', { maxWidth: 1920 })}
+            onError={fallBackToOriginal(currentPhoto)}
             alt={`${cafe.name} photo ${photoIndex + 1}`}
             className="h-full w-full object-cover transition-all duration-300 cursor-pointer"
             loading="eager"
@@ -838,7 +840,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={photo}
+                  {...optimizedImg(photo, '160px', { maxWidth: 384 })}
+                  onError={fallBackToOriginal(photo)}
                   alt={`${cafe.name} menu ${idx + 1}`}
                   className="h-full w-full object-cover"
                   loading="lazy"
@@ -863,7 +866,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                 className="relative aspect-square overflow-hidden rounded-xl"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photo} alt={`${cafe.name} photo ${idx + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                <img {...optimizedImg(photo, '(min-width: 896px) 224px, 25vw', { maxWidth: 640 })} onError={fallBackToOriginal(photo)} alt={`${cafe.name} photo ${idx + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
               </button>
             ))}
             {photosList.length > 3 && (
@@ -1298,7 +1301,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           <div className="relative flex-1 flex items-center justify-center px-4 pb-4" onClick={(e) => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={lightbox.images[lightbox.index]}
+              {...optimizedImg(lightbox.images[lightbox.index], '100vw', { maxWidth: 1920, quality: 80 })}
+              onError={fallBackToOriginal(lightbox.images[lightbox.index])}
               alt={`${cafe.name} enlarged photo ${lightbox.index + 1}`}
               className="max-h-full max-w-full object-contain select-none"
             />

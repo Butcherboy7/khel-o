@@ -56,6 +56,19 @@ const nextConfig = {
   // shipping the whole node_modules in the runtime Docker image — see
   // frontend/Dockerfile runner stage.
   output: 'standalone',
+  // Café photos go through /_next/image (see src/lib/imageUrl.ts): resized
+  // per screen, WebP/AVIF, browser-cached. Only these hosts may be fetched,
+  // so the optimizer can't be used as an open image proxy.
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    remotePatterns: [
+      { protocol: 'https', hostname: '*.s3.*.amazonaws.com' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+    ],
+    // Uploaded photos get a fresh random key, so a URL's bytes never change:
+    // cache optimized copies for 30 days.
+    minimumCacheTTL: 2592000,
+  },
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion', '@tanstack/react-query'],
   },
