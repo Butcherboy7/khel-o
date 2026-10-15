@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import { Providers } from './providers';
 import { getPublicEnv } from '@/lib/runtimeEnv';
-import { CookieConsentBanner } from '@/components/layout/CookieConsentBanner';
+import { CookieConsentBanner, COOKIE_NOTICE_SCRIPT } from '@/components/layout/CookieConsentBanner';
 import '../globals.css';
 
 /* ── Font Loading ────────────────────────────────────────────────── */
@@ -154,6 +154,8 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      // The cookie-notice script sets data-cookie-ok before React hydrates.
+      suppressHydrationWarning
       className={`${spaceGrotesk.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable}`}
     >
       <body className="font-body bg-surface text-text-primary antialiased">
@@ -170,6 +172,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
+        <script dangerouslySetInnerHTML={{ __html: COOKIE_NOTICE_SCRIPT }} />
         <CookieConsentBanner />
         <Providers>{children}</Providers>
       </body>

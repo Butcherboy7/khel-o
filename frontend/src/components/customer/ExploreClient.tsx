@@ -666,7 +666,7 @@ export function ExploreClient({ initialCafes, children }: ExploreClientProps) {
               // On a phone the list is a long scroll; past the first few cards
               // the rest wait behind one button. Wider screens show everything.
               <div key={cafe.id} className={!showAllOnPhone && i >= PHONE_CARD_LIMIT ? 'hidden sm:block sm:h-full' : 'h-full'}>
-                <CafeCard cafe={cafe} />
+                <CafeCard cafe={cafe} priority={i === 0} />
               </div>
             ))}
           </div>

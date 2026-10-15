@@ -1,27 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 
-const STORAGE_KEY = 'khelo-cookie-notice-dismissed';
+export const COOKIE_NOTICE_KEY = 'khelo-cookie-notice-dismissed';
+
+/**
+ * Runs inline in <body> before the banner's HTML is parsed (see app/layout),
+ * so a returning visitor's banner is hidden before the first paint. The
+ * banner used to appear from a useEffect after hydration, pushing the whole
+ * page down: PageSpeed's biggest layout-shift culprit (CLS 0.064 of 0.118).
+ */
+export const COOKIE_NOTICE_SCRIPT = `try{if(localStorage.getItem('${COOKIE_NOTICE_KEY}'))document.documentElement.setAttribute('data-cookie-ok','')}catch(e){}`;
 
 export function CookieConsentBanner() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    try {
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        setVisible(true);
-      }
-    } catch {
-      // localStorage unavailable — skip the banner rather than error
-    }
-  }, []);
+  // Always rendered on the server; the inline script plus the
+  // html[data-cookie-ok] rule in globals.css hide it for anyone who already
+  // dismissed it, without waiting for React.
+  const [visible, setVisible] = useState(true);
 
   const dismiss = () => {
     setVisible(false);
+    document.documentElement.setAttribute('data-cookie-ok', '');
     try {
-      localStorage.setItem(STORAGE_KEY, '1');
+      localStorage.setItem(COOKIE_NOTICE_KEY, '1');
     } catch {
       // Ignore — banner simply reappears next visit
     }
@@ -33,7 +35,7 @@ export function CookieConsentBanner() {
   // informational (no advertising cookies), so it must never sit on top of
   // the booking bar or the bottom menu where first-time visitors tap.
   return (
-    <div role="region" aria-label="Cookie notice" className="border-b border-border bg-card">
+    <div role="region" aria-label="Cookie notice" className="cookie-notice border-b border-border bg-card">
       <div className="mx-auto flex max-w-content items-center justify-between gap-3 px-4 py-2 md:px-6">
         <p className="text-[12px] leading-snug text-text-secondary">
           We only use storage to keep you signed in and see how gamers find KHEL-O. No ad cookies.{' '}
