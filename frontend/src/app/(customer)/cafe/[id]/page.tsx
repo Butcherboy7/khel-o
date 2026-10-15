@@ -83,7 +83,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   ].filter(Boolean).join(', ');
   const factLine = facts ? ` ${facts.charAt(0).toUpperCase()}${facts.slice(1)}.` : '';
 
-  const title = `${name}${area ? `, ${area}` : ''} — ${kind.label} in ${city}`;
+  // A bookable venue leads with what only KHEL-O offers in that results
+  // list (JustDial, Instagram and the café's own listing can't take a
+  // booking): "Rockstar Gaming Cafe, Bowenpally — Book Online from ₹140/hr".
+  // A Booking Soon listing can't be booked, so it keeps the descriptive
+  // "— Snooker & Pool in Hyderabad" form.
+  const place = `${name}${area ? `, ${area}` : ''}`;
+  const title = cafe.isLeadListing
+    ? `${place} — ${kind.label} in ${city}`
+    : `${place} — Book Online${minPrice ? ` from ₹${minPrice}/hr` : ''}`;
   // A Booking Soon listing can't be booked yet; never say it can.
   const description = `${kind.label} at ${name}, ${where}.${factLine} ${
     cafe.isLeadListing
