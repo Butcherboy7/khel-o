@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { optimizedImg } from '@/lib/imageUrl';
-import { MapPin, Star, Zap, ArrowRight, Users } from 'lucide-react';
+import { MapPin, Star, Zap, ArrowRight, Users, Clock, ThumbsUp } from 'lucide-react';
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity } from '@/lib/format';
@@ -78,6 +78,7 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
   // second launch city) but the default is earned by real bookability.
   const isLive = isFeatured || !isLead;
   const waitingCount = cafe.waitlistCount ?? 0;
+  const waitlistGoal = cafe.waitlistGoal && cafe.waitlistGoal > 0 ? cafe.waitlistGoal : 30;
   // "5 waiting" is worth showing; "1 waiting" does the opposite of what the
   // count is for, so it stays hidden below the threshold.
   const showWaiting = waitingCount >= 5;
@@ -211,11 +212,16 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
             )}
 
             {statusLabel && (
+              /* Booking-soon sits top-left in quiet dark glass: red on this
+                 card is kept for the Vote action, as it is for Book Now. */
               <span
-                className={`rounded-full backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white ${
-                  isLead ? 'bg-accent/90' : isOpenNow ? 'bg-secondary/85' : 'bg-text-tertiary/80'
+                className={`inline-flex items-center gap-1 rounded-full backdrop-blur-md text-white ${
+                  isLead
+                    ? 'order-first bg-secondary/80 pl-1.5 pr-2 py-0.5 text-[11px] font-bold tracking-wide'
+                    : `px-2 py-0.5 text-[10px] font-bold ${isOpenNow ? 'bg-secondary/85' : 'bg-text-tertiary/80'}`
                 }`}
               >
+                {isLead && <Clock className="h-3 w-3" aria-hidden="true" />}
                 {statusLabel}
               </span>
             )}
@@ -239,19 +245,68 @@ export function CafeCard({ cafe, isFeatured = false }: CafeCardProps) {
                of nothing. What it does have is a location and — once enough
                people ask — a real count of them. */
             <>
+              {/* The neighbourhood is what people choose by; every lead card
+                  saying "Hyderabad, Telangana" told them nothing. */}
               <div className="flex items-center gap-1 text-caption text-text-secondary min-w-0">
                 <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
-                <span className="truncate">{`${titleCaseCity(cafe.city)}, ${cafe.state}`}</span>
+                <span className="truncate">
+                  {cafe.addressLine2 ? `${cafe.addressLine2} · ${titleCaseCity(cafe.city)}` : `${titleCaseCity(cafe.city)}, ${cafe.state}`}
+                </span>
               </div>
 
-              <div className="flex items-center justify-between gap-2 mt-0.5">
-                <span className="text-caption truncate text-text-secondary">
-                  {platformSummary ?? 'Booking opens soon'}
-                </span>
-                {/* Same slot on every coming-soon card: the count once it is
-                    worth showing, otherwise the nudge to be one of the first. */}
-                <span className={`text-caption font-semibold flex-shrink-0 ${showWaiting ? 'text-text-secondary' : 'text-primary'}`}>
-                  {showWaiting ? `${waitingCount} votes` : 'Vote →'}
+              {/* Only what our research actually found; no row when we have nothing.
+                  Prices here come from research, so they always say approx. */}
+              {(platformSummary || cafe.startingPrice) && (
+                <div className="flex items-center gap-1.5 text-caption text-text-secondary min-w-0">
+                  {confirmedPlatforms.length > 0 && (
+                    <span className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
+                      {confirmedPlatforms.map((p) => (
+                        <PlatformIcon key={p} platform={p} className="h-3 w-3 text-text-secondary" />
+                      ))}
+                    </span>
+                  )}
+                  {platformSummary && <span className="truncate">{platformSummary}</span>}
+                  {platformSummary && cafe.startingPrice ? <span className="text-text-secondary/50">·</span> : null}
+                  {cafe.startingPrice ? (
+                    <span className="flex-shrink-0 whitespace-nowrap">
+                      from <span className="font-semibold text-text-primary">~<span className="rupee-symbol">₹</span>{cafe.startingPrice}</span>/hr{' '}
+                      <span className="text-[11px] text-text-tertiary">approx</span>
+                    </span>
+                  ) : null}
+                </div>
+              )}
+
+              {/* The vote is this card's one action. Below 5 votes a tiny count
+                  works against the café, so it asks for early votes instead. */}
+              <div className="mt-auto flex items-center gap-3 border-t border-border pt-2.5">
+                {showWaiting ? (
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className="h-1.5 overflow-hidden rounded-full bg-border"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={waitlistGoal}
+                      aria-valuenow={Math.min(waitingCount, waitlistGoal)}
+                      aria-label="Votes towards online booking"
+                    >
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (waitingCount / waitlistGoal) * 100)}%` }} />
+                    </div>
+                    <p className="mt-1 text-[12px] leading-tight text-text-secondary tabular-nums">
+                      {waitingCount >= waitlistGoal ? (
+                        <><span className="font-bold text-text-primary">{waitingCount}</span> votes · goal reached</>
+                      ) : (
+                        <><span className="font-bold text-text-primary">{waitingCount}</span> of {waitlistGoal} votes to bring booking here</>
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-text-secondary">
+                    Be one of the first to vote for online booking here
+                  </p>
+                )}
+                <span className="inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border-[1.5px] border-primary/35 bg-card px-3.5 text-caption font-bold text-primary transition-colors group-hover:border-primary group-hover:bg-primary group-hover:text-white">
+                  <ThumbsUp className="h-3.5 w-3.5" aria-hidden="true" />
+                  Vote
                 </span>
               </div>
             </>

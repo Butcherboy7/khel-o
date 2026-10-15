@@ -155,6 +155,8 @@ class CafeListItem(BaseModel):
     is_lead_listing: bool = False
     # True count. The '>= 5' hide-below rule is applied by the card, not here.
     waitlist_count: int = 0
+    # The café's own vote target, so the card's progress bar matches its page.
+    waitlist_goal: int = 30
 
     @field_validator("opening_time", "closing_time", mode="before")
     @classmethod

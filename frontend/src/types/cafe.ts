@@ -54,6 +54,8 @@ export interface CafeListItem {
   /** True count from the API. The ">= 5" hide-below rule is applied at
    *  render, not here — the owner-facing demand figure needs the real one. */
   waitlistCount?: number;
+  /** The café's own vote target (default 30); the card's progress bar uses it. */
+  waitlistGoal?: number;
 }
 
 export interface Cafe {

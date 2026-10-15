@@ -103,3 +103,19 @@ async def test_public_list_puts_lead_listings_with_photos_first(async_client, db
     items = (await async_client.get("/api/v1/cafes", params={"city": city, "limit": 50})).json()["data"]["items"]
     names = [i["name"] for i in items]
     assert names.index("Old With Photos") < names.index("New Without Photos")
+
+
+@pytest.mark.asyncio
+async def test_public_list_carries_each_cafes_vote_goal(async_client, db_session):
+    """The card's "7 of 30 votes" bar needs the café's own goal, not a guess."""
+    city = f"Goaltown{uuid.uuid4().hex[:6]}"
+    _, default_goal = await _lead(db_session, "Default Goal", city=city)
+    _, custom = await _lead(db_session, "Custom Goal", city=city)
+    custom.waitlist_goal = 12
+    await db_session.commit()
+
+    items = (await async_client.get("/api/v1/cafes", params={"city": city, "limit": 50})).json()["data"]["items"]
+    by_name = {i["name"]: i for i in items}
+    assert by_name["Default Goal"]["waitlistGoal"] == 30
+    assert by_name["Custom Goal"]["waitlistGoal"] == 12
+    assert by_name["Custom Goal"]["addressLine2"] == "Kompally"

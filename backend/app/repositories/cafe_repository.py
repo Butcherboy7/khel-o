@@ -354,7 +354,8 @@ class CafeRepository(BaseRepository[Cafe]):
                 "opening_time": c.opening_time,
                 "closing_time": c.closing_time,
                 "is_lead_listing": c.is_lead_listing,
-                "waitlist_count": waitlist_counts.get(c.id, 0)
+                "waitlist_count": waitlist_counts.get(c.id, 0),
+                "waitlist_goal": c.waitlist_goal,
             })
 
         return items, total
