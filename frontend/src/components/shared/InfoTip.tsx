@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useGuidePulse } from '@/hooks/useOwnerGuide';
@@ -19,6 +20,7 @@ interface InfoTipProps {
 
 const POP_WIDTH = 256;
 const EDGE = 8;
+const GAP = 8;
 
 /** The part of the screen the popover can be seen in: the viewport, cut down
  *  by every scrolling or clipping box it sits inside (a modal, a drawer). */
@@ -47,9 +49,12 @@ export function InfoTip({ text, align = 'start', label = 'What is this?', quiet 
   const pulse = useGuidePulse(!quiet) && !found;
   const wrapRef = useRef<HTMLSpanElement>(null);
   const popId = useId();
-  // Where the popover goes, worked out from the space actually available, so
-  // it never runs off a modal or the screen (no sideways scrolling to read it).
-  const [place, setPlace] = useState<{ left: number; width: number } | null>(null);
+  const popRef = useRef<HTMLSpanElement>(null);
+  // Where the popover goes, in screen coordinates. It is drawn at the top of
+  // the page (a portal), so a card that clips its contents (the checkout time
+  // card) can't cut it off; it sits under the icon, or above it when the
+  // screen has no room below, and never runs off a modal or the screen edge.
+  const [place, setPlace] = useState<{ left: number; top: number; width: number; measured: boolean } | null>(null);
 
   useLayoutEffect(() => {
     if (!open || !wrapRef.current) {
@@ -61,22 +66,41 @@ export function InfoTip({ text, align = 'start', label = 'What is this?', quiet 
     const width = Math.max(140, Math.min(POP_WIDTH, bounds.right - bounds.left - EDGE * 2));
     const wanted = align === 'end' ? wrap.right - width : wrap.left;
     const left = Math.min(Math.max(wanted, bounds.left + EDGE), bounds.right - EDGE - width);
-    setPlace({ left: left - wrap.left, width });
+    setPlace({ left, top: wrap.bottom + GAP, width, measured: false });
   }, [open, align]);
+
+  // Second pass, once the popover's height is known: flip above the icon if
+  // it would run past the bottom of the screen (or under a fixed pay bar).
+  useLayoutEffect(() => {
+    if (!place || place.measured || !popRef.current || !wrapRef.current) return;
+    const h = popRef.current.offsetHeight;
+    const wrap = wrapRef.current.getBoundingClientRect();
+    const below = wrap.bottom + GAP;
+    const fitsBelow = below + h <= window.innerHeight - EDGE;
+    const top = fitsBelow || wrap.top - GAP - h < EDGE ? below : wrap.top - GAP - h;
+    setPlace({ ...place, top, measured: true });
+  }, [place]);
 
   useEffect(() => {
     if (!open) return;
     const onPointer = (e: PointerEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!wrapRef.current?.contains(t) && !popRef.current?.contains(t)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
+    // Pinned to the screen, so it would drift off its icon on scroll: close instead.
+    const onMove = () => setOpen(false);
     document.addEventListener('pointerdown', onPointer);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
     return () => {
       document.removeEventListener('pointerdown', onPointer);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
     };
   }, [open]);
 
@@ -104,19 +128,28 @@ export function InfoTip({ text, align = 'start', label = 'What is this?', quiet 
       >
         <Info className="h-4 w-4" aria-hidden />
       </button>
-      {open && (
-        <span
-          id={popId}
-          role="tooltip"
-          className={cn(
-            'absolute top-full z-dropdown mt-2 rounded-xl bg-secondary px-3 py-2.5',
-            'text-caption font-medium normal-case tracking-normal text-white shadow-float text-left whitespace-normal'
-          )}
-          style={place ? { left: place.left, width: place.width } : { left: 0, width: POP_WIDTH, visibility: 'hidden' }}
-        >
-          {text}
-        </span>
-      )}
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <span
+            ref={popRef}
+            id={popId}
+            role="tooltip"
+            className={cn(
+              'fixed rounded-xl bg-secondary px-3 py-2.5',
+              'text-caption font-medium normal-case tracking-normal text-white shadow-float text-left whitespace-normal'
+            )}
+            // Above modals and sheets too: it is always the thing just tapped.
+            style={
+              place
+                ? { left: place.left, top: place.top, width: place.width, zIndex: 9999, visibility: place.measured ? 'visible' : 'hidden' }
+                : { left: 0, top: 0, width: POP_WIDTH, zIndex: 9999, visibility: 'hidden' }
+            }
+          >
+            {text}
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }
