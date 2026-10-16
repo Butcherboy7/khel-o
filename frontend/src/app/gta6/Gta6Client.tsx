@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Check, Loader2, MessageCircle, MessageSquareText, Phone, Plus, Share2, Star } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, Loader2, MessageCircle, MessageSquareText, Phone, Plus, Share2, Star } from 'lucide-react';
 import { useBotGuard } from '@/components/auth/BotGuard';
 import { getLaunch, joinLaunch, type ReachBy } from '@/lib/api/launchList';
 import { listCafes, cafePath } from '@/lib/api/cafes';
@@ -90,7 +90,7 @@ function usePs5Cafes(): PlayCafe[] | null {
             .filter((c) => !c.isLeadListing && c.platforms?.includes('playstation'))
             .map(toPlayCafe)
             .sort((a, b) => Number(b.preordered) - Number(a.preordered))
-            .slice(0, 3),
+            .slice(0, 6),
         ),
       )
       .catch(() => setCafes([]));
@@ -132,6 +132,7 @@ export function Gta6Client() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ again: boolean; position: number } | null>(null);
+  const [cafesOpen, setCafesOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -236,45 +237,80 @@ export function Gta6Client() {
             </p>
           </section>
 
-          {/* Real, bookable PS5 cafés with their live price. Hidden if the list can't load. */}
+          {/* The pre-ordered cafés, folded into one row so they cost a line until
+              someone asks. The arrow nudges a few times to say "open me", then
+              rests. With none confirmed yet it lists bookable PS5 cafés instead. */}
           {(cafes === null || cafes.length > 0) && (
-            <section aria-labelledby="gta6-cafes">
-              <h2 id="gta6-cafes" className="text-[14px] font-semibold text-[#F4F1EC] md:text-base">
-                PS5 cafés you can book
-              </h2>
-              <ul className="mt-3 flex flex-col divide-y divide-white/[0.07] border-y border-white/[0.07]">
-                {cafes === null
-                  ? [0, 1].map((i) => (
-                      <li key={i} className="py-3">
-                        <div className="h-10 animate-pulse rounded-xl bg-white/[0.04]" />
-                      </li>
-                    ))
-                  : cafes.slice(0, 3).map((c) => (
-                      <li key={c.id}>
-                        <Link
-                          href={c.href}
-                          onClick={() => trackAction('launch_list_cafe_click', { launch: LAUNCH_KEY, cafe: c.name, where: 'strip' })}
-                          className="group flex items-center gap-3 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF6B5F]"
-                        >
-                          <CafeThumb cafe={c} className="h-10 w-10 flex-shrink-0 rounded-[10px]" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[14.5px] font-semibold leading-tight">{c.name}</span>
-                            <span className="mt-0.5 block truncate text-[12.5px] text-[#A3A6B1]">
-                              {c.console}
-                              {c.price !== null && <> · ₹{c.price}/hr</>}
-                            </span>
+            <section>
+              <style>{`
+                @keyframes gta6-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+                .gta6-nudge { animation: gta6-nudge 0.9s cubic-bezier(0.25, 1, 0.5, 1) 1.2s 3; }
+                @media (prefers-reduced-motion: reduce) { .gta6-nudge { animation: none; } }
+              `}</style>
+              {cafes === null ? (
+                <div className="h-[68px] animate-pulse rounded-2xl bg-white/[0.04]" />
+              ) : (
+                (() => {
+                  const preordered = cafes.filter((c) => c.preordered);
+                  const shown = preordered.length > 0 ? preordered : cafes;
+                  const n = shown.length;
+                  const title =
+                    preordered.length > 0
+                      ? `${n} ${n === 1 ? 'café has' : 'cafés have'} pre-ordered GTA 6`
+                      : `${n} PS5 ${n === 1 ? 'café' : 'cafés'} you can book`;
+                  return (
+                    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+                      <button
+                        type="button"
+                        aria-expanded={cafesOpen}
+                        aria-controls="gta6-cafe-list"
+                        onClick={() => {
+                          setCafesOpen((v) => !v);
+                          if (!cafesOpen) trackAction('launch_list_cafes_open', { launch: LAUNCH_KEY, count: n });
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#FF6B5F]"
+                      >
+                        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#FF6B5F]/[0.14] text-[#FF8A80]">
+                          <Check className="h-4 w-4" aria-hidden />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[15px] font-semibold leading-tight">{title}</span>
+                          <span className="mt-0.5 block text-[12.5px] text-[#A3A6B1]">
+                            {cafesOpen ? 'Tap one to see it and book' : 'Tap to see which'}
                           </span>
-                          {c.preordered && (
-                            <span className="flex flex-shrink-0 items-center gap-1 text-[12px] font-medium text-[#FF8A80]">
-                              <Check className="h-3.5 w-3.5" aria-hidden />
-                              Pre-ordered
-                            </span>
-                          )}
-                          <ArrowRight className="h-4 w-4 flex-shrink-0 text-[#6B6F7A] transition-transform group-hover:translate-x-0.5" aria-hidden />
-                        </Link>
-                      </li>
-                    ))}
-              </ul>
+                        </span>
+                        <ChevronDown
+                          className={`h-5 w-5 flex-shrink-0 text-[#D9D6D0] transition-transform duration-300 ${cafesOpen ? 'rotate-180' : 'gta6-nudge'}`}
+                          aria-hidden
+                        />
+                      </button>
+                      {cafesOpen && (
+                        <ul id="gta6-cafe-list" className="flex flex-col divide-y divide-white/[0.07] border-t border-white/[0.07] px-4 motion-safe:animate-in motion-safe:fade-in">
+                          {shown.map((c) => (
+                            <li key={c.id}>
+                              <Link
+                                href={c.href}
+                                onClick={() => trackAction('launch_list_cafe_click', { launch: LAUNCH_KEY, cafe: c.name, where: 'strip' })}
+                                className="group flex items-center gap-3 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF6B5F]"
+                              >
+                                <CafeThumb cafe={c} className="h-10 w-10 flex-shrink-0 rounded-[10px]" />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-[14.5px] font-semibold leading-tight">{c.name}</span>
+                                  <span className="mt-0.5 block truncate text-[12.5px] text-[#A3A6B1]">
+                                    {c.area} · {c.console}
+                                    {c.price !== null && <> · ₹{c.price}/hr</>}
+                                  </span>
+                                </span>
+                                <ArrowRight className="h-4 w-4 flex-shrink-0 text-[#6B6F7A] transition-transform group-hover:translate-x-0.5" aria-hidden />
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })()
+              )}
             </section>
           )}
         </div>
@@ -435,7 +471,7 @@ export function Gta6Client() {
                     {firstBookingOfferLive() && <> No platform fee on your first booking.</>}
                   </p>
                   <ul className="mt-3 flex flex-col divide-y divide-white/[0.07] border-y border-white/[0.07]">
-                    {cafes.map((c) => (
+                    {cafes.slice(0, 3).map((c) => (
                       <li key={c.id}>
                         <Link
                           href={c.href}
