@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-09-08T17:09:36.700Z",
         "reason": "Claude: sole hit is text-slate-950 on bg-amber-500 (paused-bookings chip) — near-black on amber, ~10:1 contrast. The rule targets washed-out mid-grays; this is the darker-shade treatment it recommends."
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "**/CafeDetailClient.tsx"
+        ],
+        "createdAt": "2026-10-16T17:14:07.820Z",
+        "reason": "Claude: src comes from {...optimizedImg(photo)} spread, real café photos; detector can't see spread props"
       }
     ]
   }

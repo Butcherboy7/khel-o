@@ -1160,7 +1160,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                 </div>
                 {rev.comment && <p className="text-caption text-text-secondary">{rev.comment}</p>}
                 {rev.ownerReply && (
-                  <div className="mt-1 rounded-xl border-l-2 border-primary bg-surface px-3 py-2">
+                  <div className="mt-1 rounded-xl bg-surface px-3 py-2">
                     <span className="text-[11px] font-bold text-text-primary">Reply from {cafe.name}</span>
                     <p className="text-caption text-text-secondary">{rev.ownerReply}</p>
                   </div>
