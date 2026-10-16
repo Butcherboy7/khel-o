@@ -690,7 +690,10 @@ export function TimelineRangePicker({
       </div>
 
       {/* ── Dynamic Timeline Canvas (100% Unified Coordinates) ── */}
-      <div ref={outerRef} className="relative overflow-hidden bg-white pt-3 pb-2" style={{ height: 104 }}>
+      <div ref={outerRef} className="relative overflow-hidden pt-3 pb-2" style={{ height: 104, background: '#F8F7F4' }}>
+        {/* Soft fades at both edges: there's more day off-screen, swipe for it. */}
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-[25] w-8" style={{ background: 'linear-gradient(90deg, #F8F7F4, rgba(248,247,244,0))' }} />
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-[25] w-8" style={{ background: 'linear-gradient(270deg, #F8F7F4, rgba(248,247,244,0))' }} />
         {/* One-time coachmark, sitting right on the slider it explains —
             the only unfamiliar control on this page. Gone after 4s or on
             the first touch of the timeline. */}
@@ -700,7 +703,7 @@ export function TimelineRangePicker({
             onClick={dismissHint}
             role="status"
             aria-label="Swipe left or right to pick your time. Tap to dismiss."
-            className="absolute left-1/2 top-1 z-30 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-secondary px-3 py-1.5 text-[12px] font-semibold text-white shadow-float animate-in fade-in"
+            className="absolute left-1/2 bottom-1 z-30 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-secondary px-3 py-1.5 text-[12px] font-semibold text-white shadow-float animate-in fade-in"
           >
             <Move className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
             Swipe left or right to pick your time
@@ -826,8 +829,8 @@ export function TimelineRangePicker({
                 position: 'absolute',
                 transition: ease, left: shownStartPx,
                 width: shownEndPx - shownStartPx,
-                top: 14,
-                height: 60,
+                top: 32,
+                height: 28,
                 display: 'flex',
                 alignItems: 'center',
                 zIndex: 12,
@@ -848,10 +851,11 @@ export function TimelineRangePicker({
               />
             </div>
 
-            {/* Left handle (Renders EXACTLY at startPx = minToPx(selStart)) — a 56px
-                touch target wrapping a visible 26px thumb, well past the mobile
-                minimum, so a thumb can land comfortably near the dot instead of
-                needing to hit it precisely; the visible dot itself stays small. */}
+            {/* Left handle (Renders EXACTLY at startPx = minToPx(selStart)) — a 44px
+                touch target (the mobile minimum) around the visible 26px dot. It
+                used to be 56px tall, reaching into the bands above and below the
+                line, so a swipe that started near a handle resized the booking
+                instead of moving it. Those bands now always swipe the day. */}
             <div
               onPointerDown={(e) => handlePointerDown('start', e)}
               style={{
@@ -862,8 +866,8 @@ export function TimelineRangePicker({
                 zIndex: 20,
                 cursor: 'ew-resize',
                 touchAction: 'pan-y',
-                width: 56,
-                height: 56,
+                width: 44,
+                height: 44,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -899,8 +903,8 @@ export function TimelineRangePicker({
                 zIndex: 20,
                 cursor: 'ew-resize',
                 touchAction: 'pan-y',
-                width: 56,
-                height: 56,
+                width: 44,
+                height: 44,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
