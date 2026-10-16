@@ -851,8 +851,9 @@ export function TimelineRangePicker({
               />
             </div>
 
-            {/* Left handle (Renders EXACTLY at startPx = minToPx(selStart)) — a 44px
-                touch target (the mobile minimum) around the visible 26px dot. It
+            {/* Left handle (Renders EXACTLY at startPx = minToPx(selStart)) — a 44x36
+                touch target around the visible 26px dot (full thumb width; just
+                short enough to leave the bands above and below the line free). It
                 used to be 56px tall, reaching into the bands above and below the
                 line, so a swipe that started near a handle resized the booking
                 instead of moving it. Those bands now always swipe the day. */}
@@ -867,7 +868,7 @@ export function TimelineRangePicker({
                 cursor: 'ew-resize',
                 touchAction: 'pan-y',
                 width: 44,
-                height: 44,
+                height: 36,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -904,7 +905,7 @@ export function TimelineRangePicker({
                 cursor: 'ew-resize',
                 touchAction: 'pan-y',
                 width: 44,
-                height: 44,
+                height: 36,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
