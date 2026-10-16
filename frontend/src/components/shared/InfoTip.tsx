@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useGuidePulse } from '@/hooks/useOwnerGuide';
@@ -17,6 +17,25 @@ interface InfoTipProps {
   className?: string;
 }
 
+const POP_WIDTH = 256;
+const EDGE = 8;
+
+/** The part of the screen the popover can be seen in: the viewport, cut down
+ *  by every scrolling or clipping box it sits inside (a modal, a drawer). */
+function visibleBounds(el: HTMLElement): { left: number; right: number } {
+  let left = 0;
+  let right = document.documentElement.clientWidth;
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const ox = getComputedStyle(p).overflowX;
+    if (ox !== 'visible') {
+      const r = p.getBoundingClientRect();
+      left = Math.max(left, r.left);
+      right = Math.min(right, r.right);
+    }
+  }
+  return { left, right };
+}
+
 /**
  * Tap-to-explain ⓘ for owner screens. Tap (not hover) because most owners are
  * on a phone. Pulses during the owner's first few sessions so they discover
@@ -28,6 +47,22 @@ export function InfoTip({ text, align = 'start', label = 'What is this?', quiet 
   const pulse = useGuidePulse(!quiet) && !found;
   const wrapRef = useRef<HTMLSpanElement>(null);
   const popId = useId();
+  // Where the popover goes, worked out from the space actually available, so
+  // it never runs off a modal or the screen (no sideways scrolling to read it).
+  const [place, setPlace] = useState<{ left: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !wrapRef.current) {
+      setPlace(null);
+      return;
+    }
+    const wrap = wrapRef.current.getBoundingClientRect();
+    const bounds = visibleBounds(wrapRef.current);
+    const width = Math.max(140, Math.min(POP_WIDTH, bounds.right - bounds.left - EDGE * 2));
+    const wanted = align === 'end' ? wrap.right - width : wrap.left;
+    const left = Math.min(Math.max(wanted, bounds.left + EDGE), bounds.right - EDGE - width);
+    setPlace({ left: left - wrap.left, width });
+  }, [open, align]);
 
   useEffect(() => {
     if (!open) return;
@@ -74,10 +109,10 @@ export function InfoTip({ text, align = 'start', label = 'What is this?', quiet 
           id={popId}
           role="tooltip"
           className={cn(
-            'absolute top-full z-dropdown mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl bg-secondary px-3 py-2.5',
-            'text-caption font-medium normal-case tracking-normal text-white shadow-float text-left',
-            align === 'end' ? 'right-0' : 'left-0'
+            'absolute top-full z-dropdown mt-2 rounded-xl bg-secondary px-3 py-2.5',
+            'text-caption font-medium normal-case tracking-normal text-white shadow-float text-left whitespace-normal'
           )}
+          style={place ? { left: place.left, width: place.width } : { left: 0, width: POP_WIDTH, visibility: 'hidden' }}
         >
           {text}
         </span>

@@ -23,7 +23,7 @@ export const fmtDuration = (m: number) => (m < 60 ? `${m} min` : m % 60 === 0 ? 
 const fmt = fmtDuration;
 
 const MAX_MINUTES = 480;
-/** Choices for "Longest booking": 1 hr to 8 hr in 30-minute steps. */
+/** Choices for "Longest a customer can book": 1 hr to 8 hr in 30-minute steps. */
 const LONGEST_OPTIONS = Array.from({ length: (MAX_MINUTES - 60) / 30 + 1 }, (_, i) => 60 + i * 30);
 /** With no limit set, the price table shows up to this length until the
  *  owner asks for the rest (8 hours of rows is a lot on a phone). */
@@ -250,7 +250,7 @@ export function SetupBookingOptions({ config, onChange }: Props) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <span className="flex flex-col gap-1.5">
           <span className="flex items-center gap-0.5 text-overline font-semibold text-text-secondary">
-            Shortest booking
+            Shortest a customer can book
             <InfoTip
               text="The shortest session customers can book. Above 1 hour, bookings go up in 30-minute steps (1 hr, 1 hr 30, 2 hr, …) no matter what you pick here."
               label="About shortest booking"
@@ -276,10 +276,11 @@ export function SetupBookingOptions({ config, onChange }: Props) {
         </span>
         <label className="flex flex-col gap-1.5">
           <span className="flex items-center gap-0.5 text-overline font-semibold text-text-secondary">
-            Longest booking
+            Longest a customer can book
             <InfoTip
               text="The longest session customers can book on this setup. Checkout won't offer anything longer."
               label="About longest booking"
+              align="end"
             />
           </span>
           <select
@@ -295,10 +296,10 @@ export function SetupBookingOptions({ config, onChange }: Props) {
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="flex items-center gap-0.5 text-overline font-semibold text-text-secondary">
-            Checkout starts at
+            Already selected at checkout
             <InfoTip
-              text="The session length customers see first at checkout. It's only a starting point: they can still pick any length up to your longest booking."
-              label="About default booking length"
+              text="Not a limit. It's the length already ticked when a customer opens checkout, to save them a tap. They can change it to anything between your shortest and longest."
+              label="About the length selected at checkout"
             />
           </span>
           <select
@@ -311,8 +312,25 @@ export function SetupBookingOptions({ config, onChange }: Props) {
               <option key={m} value={m}>{fmt(m)}</option>
             ))}
           </select>
+          <span className="text-caption text-text-secondary">Customers can change it.</span>
         </label>
       </div>
+
+      {/* The three settings above in one plain sentence, so nobody has to
+          open a tooltip to know what customers will get. */}
+      {allowed.length > 0 && (
+        <p className="rounded-xl bg-surface px-3 py-2 text-caption text-text-secondary" aria-live="polite">
+          Customers can book{' '}
+          <b className="font-semibold text-text-primary">
+            {allowed.length === 1 ? fmt(allowed[0]) : `${fmt(allowed[0])} to ${fmt(allowed[allowed.length - 1])}`}
+          </b>
+          . Checkout opens on{' '}
+          <b className="font-semibold text-text-primary">
+            {fmt(Math.min(allowed[allowed.length - 1], Math.max(allowed[0], o.defaultBookingMinutes ?? 120)))}
+          </b>
+          {allowed.length > 1 ? ', and they can change it.' : '.'}
+        </p>
+      )}
 
       {o.minBookingMinutes < 60 && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
