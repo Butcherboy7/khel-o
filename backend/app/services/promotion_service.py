@@ -1102,17 +1102,16 @@ class PromotionService:
                     if best_hint is None:
                         best_hint = promo
                         if e.error_code == "PROMOTION_DURATION_MISMATCH":
-                            best_hint_message = f"Works on bookings of exactly {promo.min_duration_hours} hour(s)."
                             suggested_minutes = round(float(promo.min_duration_hours) * 60)
+                            best_hint_message = f"Book {length_text(suggested_minutes)} to get it."
                         elif e.error_code == "PROMOTION_DURATION_TOO_SHORT":
                             required = promo.min_booking_minutes or 60
                             suggested_minutes = required
-                            length_label = f"{required} min" if required < 60 else f"{required // 60} hr" + (f" {required % 60} min" if required % 60 else "")
-                            best_hint_message = f"Works on bookings of {length_label} or more."
+                            best_hint_message = f"Book {length_text(required)} or more to get it."
                         else:
                             start_label = _format_hour_12h(promo.start_hour)
                             end_label = _format_hour_12h(promo.end_hour)
-                            best_hint_message = f"Valid {start_label}\u2013{end_label} on select days."
+                            best_hint_message = f"Runs {start_label}\u2013{end_label} on set days."
                 continue
             eligible.append((promo, discount))
 

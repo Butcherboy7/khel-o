@@ -119,7 +119,8 @@ export function InfoTip({ text, align = 'start', label = 'What is this?', quiet 
           setFound(true);
         }}
         className={cn(
-          'inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors',
+          // 24px icon, ~40px invisible tap area around it (no layout change).
+          'relative inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors before:absolute before:-inset-2 before:content-[""]',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
           pulse
             ? 'text-primary motion-safe:animate-guide-ring motion-reduce:ring-2 motion-reduce:ring-primary/30'

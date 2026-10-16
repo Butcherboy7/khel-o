@@ -139,7 +139,7 @@ export default function HardwareTiersPage() {
       queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
       setIsModalOpen(false);
       resetForm();
-      setToastMessage('Resource created');
+      setToastMessage('Setup added');
       setHighlightedTierId(res.hardwareTier?.id ?? null);
     },
     onError: (err: any) => {
@@ -186,7 +186,7 @@ export default function HardwareTiersPage() {
       queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
       setIsModalOpen(false);
       resetForm();
-      setToastMessage('Resource updated');
+      setToastMessage('Setup saved');
       setHighlightedTierId(res.hardwareTier?.id ?? null);
     },
     onError: (err: any) => {
@@ -519,8 +519,8 @@ export default function HardwareTiersPage() {
           setIsModalOpen(false);
           resetForm();
         }}
-        title={editingTierId ? 'Edit Resource & Unit Quota' : 'Add Resource'}
-        description="Configure specs, total units, app-bookable vs walk-in quota, and hourly rates."
+        title={editingTierId ? 'Edit setup' : 'Add a setup'}
+        description="What it is, how many you have, how many customers can book online, and the price."
       >
         <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
           {formError && (
@@ -554,7 +554,7 @@ export default function HardwareTiersPage() {
               isLoading={createMutation.isPending || updateMutation.isPending}
               loadingText={editingTierId ? 'Saving...' : 'Creating...'}
             >
-              {editingTierId ? 'Save Changes' : 'Create Resource'}
+              {editingTierId ? 'Save changes' : 'Add setup'}
             </Button>
           </div>
         </form>

@@ -1076,13 +1076,22 @@ function BookingWizardContent() {
             className="-mx-1.5 flex min-h-[36px] items-center gap-1.5 rounded-lg px-1.5 text-left font-semibold text-primary-dark transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <Tag className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
-            {(quote?.availableOffers?.length ?? 0) > 0
-              ? `${quote!.availableOffers.length} offer${quote!.availableOffers.length > 1 ? 's' : ''} for this slot · View`
-              : quote?.offerHint
-              ? `${quote.offerHint.title}: ${quote.offerHint.message}`
-              : appliedCode
-              ? `Code ${appliedCode} · Change`
-              : 'Have a code?'}
+            {(quote?.availableOffers?.length ?? 0) > 0 ? (
+              `${quote!.availableOffers.length} offer${quote!.availableOffers.length > 1 ? 's' : ''} for this slot · View`
+            ) : quote?.offerHint ? (
+              // One line: the deal (without the setup name, already shown above)
+              // and what unlocks it, with "View" always visible at the end.
+              <>
+                <span className="min-w-0 truncate">
+                  {quote.offerHint.title.replace(/\s*\S?·\s*[^·]*$/, '')} · {quote.offerHint.message.replace(/\.$/, '')}
+                </span>
+                <span className="ml-auto flex-shrink-0 pl-2">View</span>
+              </>
+            ) : appliedCode ? (
+              `Code ${appliedCode} · Change`
+            ) : (
+              'Have a code?'
+            )}
           </button>
         )}
 
