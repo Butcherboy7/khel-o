@@ -772,7 +772,7 @@ function BookingWizardContent() {
       {/* One screen on an average phone (390x664): header, dates, the time +
           players card and the price card all sit above the pay bar, with no
           bottom nav on this page. pb clears the pay bar (~76px + safe area). */}
-      <div className="flex flex-col gap-2.5 max-w-2xl mx-auto pb-28">
+      <div className="flex flex-col gap-2 max-w-2xl mx-auto pb-28">
       {/* Header: back, the café, and the setup being booked as a chip. The
           setup is picked on the café page; the chip is for changing your
           mind here without losing the date and time already chosen. */}
