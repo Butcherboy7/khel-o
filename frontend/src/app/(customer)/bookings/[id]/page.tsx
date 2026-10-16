@@ -418,6 +418,9 @@ export default function BookingDetailPage() {
               <span className="text-text-secondary">{isConfirmed ? 'Amount Paid' : 'Total Amount'}</span>
               <PriceDisplay amount={booking.totalAmount} period="" size="md" />
             </div>
+            {booking.firstBookingOffer && (
+              <p className="px-3 text-caption font-semibold text-success">First booking on KHEL-O: no platform fee</p>
+            )}
           </div>
 
           {/* Interactive Utility CTAs */}

@@ -62,3 +62,13 @@ export function basePriceForMinutes(
         : unit * seats;
   return round2(total);
 }
+
+/** Launch offer: a customer's first booking has no platform fee, until this
+ *  moment (30 Nov 2026, 11:59 pm IST) or the first 500 such bookings. The
+ *  server decides each booking (checkout_maths.py); this only gates the copy
+ *  that advertises it, so it never shows after the end date. */
+export const FIRST_BOOKING_OFFER_ENDS = Date.parse('2026-11-30T23:59:59+05:30');
+
+export function firstBookingOfferLive(now: number = Date.now()): boolean {
+  return now <= FIRST_BOOKING_OFFER_ENDS;
+}

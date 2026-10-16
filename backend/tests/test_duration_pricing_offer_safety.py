@@ -200,11 +200,12 @@ async def test_offer_hour_window_checked_in_ist_not_utc(db_session):
     await db_session.commit()
 
     service = PromotionService(PromotionRepository(db_session), db_session)
-    # 6:30 PM IST on a fixed date, expressed as its UTC equivalent (13:00 UTC).
-    utc_moment = datetime(2026, 9, 29, 13, 0, tzinfo=timezone.utc)
+    # 6:30 PM IST tomorrow (inside the offer's dates), as its UTC equivalent (13:00 UTC).
+    day = datetime.now(timezone.utc).date() + timedelta(days=1)
+    utc_moment = datetime(day.year, day.month, day.day, 13, 0, tzinfo=timezone.utc)
     assert service._is_promotion_active(promo, utc_moment) is True
 
     # And the reverse: 6:30pm UTC is *not* inside 6-11pm IST (it's ~midnight
     # IST) — this used to pass under the old UTC-only check.
-    utc_moment_wrong = datetime(2026, 9, 29, 18, 30, tzinfo=timezone.utc)
+    utc_moment_wrong = datetime(day.year, day.month, day.day, 18, 30, tzinfo=timezone.utc)
     assert service._is_promotion_active(promo, utc_moment_wrong) is False

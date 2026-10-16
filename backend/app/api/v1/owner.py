@@ -1256,6 +1256,7 @@ async def validate_qr_code(
                 "totalAmount": float(booking.total_amount),
                 "gatewayFee": float(booking.gateway_fee),
                 "convenienceFee": float(booking.convenience_fee),
+                "kheloDiscount": float(booking.khelo_discount or 0),
                 "status": booking.status.value,
             }
         }

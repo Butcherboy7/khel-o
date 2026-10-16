@@ -54,6 +54,12 @@ class Booking(Base):
     discount_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
     gateway_fee: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
     total_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    # KHEL-O's own price drop (₹150 -> ₹149 on round prices), paid to the café
+    # by KHEL-O: total_amount already has it taken off, the café's share
+    # (PlatformFee.owner_settlement_amount) does not. See services/checkout_maths.py.
+    khelo_discount: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, server_default='0', nullable=False)
+    # Booking fee waived: the customer's first booking during the launch offer.
+    first_booking_offer: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false', nullable=False)
     status: Mapped[BookingStatus] = mapped_column(
         SQLEnum(BookingStatus, values_callable=lambda x: [e.value for e in x]),
         default=BookingStatus.PENDING_PAYMENT,

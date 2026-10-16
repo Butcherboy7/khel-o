@@ -161,7 +161,11 @@ class PaymentService:
             payload_data = json.dumps({
                 "transfers": [{
                     "account": payout.razorpay_account_id,
-                    "amount": int(round(fee_row.owner_settlement_amount * 100)),
+                    # Razorpay can't move more than this payment took. With
+                    # KHEL-O's ₹1 price drop and no booking fee (first booking),
+                    # the café's share can be ₹1 more than the payment; that
+                    # ₹1 goes into the café's next manual payout (below).
+                    "amount": int(round(min(fee_row.owner_settlement_amount, booking.total_amount) * 100)),
                     "currency": "INR",
                     "on_hold": False,
                     "notes": {
@@ -182,6 +186,15 @@ class PaymentService:
                 "transfer_status": "transferred",
                 "transfer_error": None
             })
+            shortfall = Decimal(str(fee_row.owner_settlement_amount)) - Decimal(str(booking.total_amount))
+            if shortfall > 0:
+                self.payment_repo.db.add(CafePayoutAdjustment(
+                    cafe_id=booking.cafe_id,
+                    booking_id=booking.id,
+                    amount=shortfall,
+                    reason=f"KHEL-O price drop on booking {booking.booking_reference} (paid by KHEL-O)",
+                ))
+                await self.payment_repo.db.commit()
             logger.info(f"Route transfer {transfer_id} created for booking {booking.id}: INR {fee_row.owner_settlement_amount} to {payout.razorpay_account_id}")
         except Exception as e:
             logger.error(f"Route transfer failed for booking {booking.id}: {e}")

@@ -285,6 +285,7 @@ class AdminAnalyticsService:
                 func.sum(Booking.total_amount),
                 func.sum(PlatformFee.convenience_fee + PlatformFee.gateway_fee),
                 func.sum(PlatformFee.owner_settlement_amount),
+                func.sum(Booking.khelo_discount),
             )
             .select_from(Booking)
             .join(Promotion, Booking.promotion_id == Promotion.id)
@@ -297,8 +298,9 @@ class AdminAnalyticsService:
             CampaignRevenueItem(
                 campaign=name, bookings=int(n or 0), list_price=float(base or 0), discount=float(disc or 0),
                 customer_paid=float(paid or 0), khelo_fee=float(fee or 0), cafe_share=float(share or 0),
+                khelo_paid=float(kpaid or 0),
             )
-            for name, n, base, disc, paid, fee, share in camp_rows
+            for name, n, base, disc, paid, fee, share, kpaid in camp_rows
         ]
 
         return RevenueBreakdownResponse(

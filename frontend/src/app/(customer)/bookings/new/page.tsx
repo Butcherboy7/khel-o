@@ -46,6 +46,7 @@ import {
   minutesToTimeAndDayOffset,
   addDaysToDateString,
   calculateWindowRemainingSeats,
+  customerPrice,
 } from '@/lib/format';
 
 function BookingWizardContent() {
@@ -498,6 +499,8 @@ function BookingWizardContent() {
       playersToSend,
       chosenOfferId,
       appliedCode,
+      // Signed in or not changes the first-booking offer, so re-ask on login.
+      user?.id ?? null,
     ],
     queryFn: () =>
       getBookingQuote({
@@ -584,9 +587,17 @@ function BookingWizardContent() {
   // Service fee applies to the POST-discount subtotal, matching
   // booking_service.py (gateway_fee is computed off `subtotal`, i.e.
   // base_amount - discount_amount, not off base_amount).
-  const subtotal = baseTotal - discountAmount;
+  // KHEL-O's ₹1 off a round price (₹150 -> ₹149): folded into the session
+  // line so the sum on screen adds up. KHEL-O pays the café the ₹1.
+  const cafeSubtotal = baseTotal - discountAmount;
+  const kheloDiscount = quote ? quote.kheloDiscount : cafeSubtotal - customerPrice(cafeSubtotal);
+  const sessionLine = baseTotal - kheloDiscount;
+  const subtotal = cafeSubtotal - kheloDiscount;
   const serviceFee = quote ? quote.platformFee : Math.round(subtotal * (SERVICE_FEE_PERCENT / 100) * 100) / 100;
-  const finalTotal = subtotal + serviceFee;
+  const finalTotal = quote ? quote.total : subtotal + serviceFee;
+  // First booking (launch offer): the fee is waived. Shown struck through.
+  const feeWaived = quote?.firstBookingOffer ? quote.platformFeeBeforeOffer : 0;
+  const youSave = Math.round((discountAmount + feeWaived) * 100) / 100;
 
   // ₹187.2 -> "187.20", ₹180 -> "180": rupees with paise only when present.
   const money = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
@@ -775,7 +786,7 @@ function BookingWizardContent() {
                 </span>
                 {activeTier && (
                   <span className="text-caption text-text-secondary flex-shrink-0">
-                    <span className="rupee-symbol">₹</span>{activeTier.pricePerHour}/hr
+                    <span className="rupee-symbol">₹</span>{customerPrice(activeTier.pricePerHour)}/hr
                   </span>
                 )}
               </span>
@@ -808,7 +819,7 @@ function BookingWizardContent() {
                     </span>
                   </span>
                   <span className="font-data text-body-emphasis font-bold text-text-primary flex-shrink-0">
-                    <span className="rupee-symbol">₹</span>{tier.pricePerHour}<span className="text-caption font-normal text-text-secondary">/hr</span>
+                    <span className="rupee-symbol">₹</span>{customerPrice(tier.pricePerHour)}<span className="text-caption font-normal text-text-secondary">/hr</span>
                   </span>
                 </button>
               ))}
@@ -997,8 +1008,8 @@ function BookingWizardContent() {
         {canCoop && (
           <div role="radiogroup" aria-label="How you'll play" className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3">
             {([
-              { coop: true, title: 'Co-op', sub: `1 console · ₹${Math.round(coopRate)}/hr`, off: false, why: '' },
-              { coop: false, title: 'Own consoles', sub: `${seatsCount} consoles · ₹${Math.round(pricePerHour * seatsCount)}/hr`, off: !canSeparate, why: `Only ${windowRemainingSeats} free now` },
+              { coop: true, title: 'Co-op', sub: `1 console · ₹${customerPrice(Math.round(coopRate))}/hr`, off: false, why: '' },
+              { coop: false, title: 'Own consoles', sub: `${seatsCount} consoles · ₹${customerPrice(Math.round(pricePerHour * seatsCount))}/hr`, off: !canSeparate, why: `Only ${windowRemainingSeats} free now` },
             ] as const).map((o) => {
               const on = o.coop === isCoop;
               return (
@@ -1055,7 +1066,7 @@ function BookingWizardContent() {
               : `${seatsCount} player${seatsCount > 1 ? 's' : ''}`}
             {isCoop && ' · co-op'}
           </span>
-          <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{money(baseTotal)}</span>
+          <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{money(sessionLine)}</span>
         </div>
 
         {discountAmount > 0 && quote?.appliedOffer && (
@@ -1075,13 +1086,29 @@ function BookingWizardContent() {
             Platform Fee
             <InfoTip quiet text={CUSTOMER_INFO.platformFee} label="What is the platform fee?" />
           </span>
-          <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
+          {feeWaived > 0 ? (
+            <span className="flex-shrink-0">
+              <span className="mr-1.5 line-through"><span className="rupee-symbol">₹</span>{feeWaived.toFixed(2)}</span>
+              <span className="font-bold text-success">FREE</span>
+            </span>
+          ) : (
+            <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
+          )}
         </div>
+        {feeWaived > 0 && (
+          <p className="-mt-1 text-[11px] text-success">First booking on KHEL-O: no platform fee</p>
+        )}
 
         <div className="flex items-center justify-between pt-1.5 mt-0.5 border-t border-border/60">
           <span className="font-heading font-bold text-text-primary">Total</span>
           <span className="font-heading font-bold text-body-emphasis text-text-primary"><span className="rupee-symbol">₹</span>{money(finalTotal)}</span>
         </div>
+        {youSave > 0 && (
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-success/10 px-2.5 py-1.5 font-semibold text-success">
+            <span className="flex items-center gap-1.5"><Tag className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />You save</span>
+            <span className="font-bold"><span className="rupee-symbol">₹</span>{money(youSave)}</span>
+          </div>
+        )}
         <p className="flex items-center gap-1.5 pt-1 text-[11px] text-text-secondary">
           <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0 text-success" aria-hidden />
           Secured by Razorpay · UPI, cards &amp; wallets · Instant confirmation
@@ -1166,7 +1193,9 @@ function BookingWizardContent() {
               <span className="rupee-symbol">₹</span>{money(finalTotal)}
             </div>
             <span className="block truncate text-caption text-text-secondary">
-              ₹{money(subtotal)} session + ₹{money(serviceFee)} platform fee
+              {feeWaived > 0
+                ? `₹${money(subtotal)} session · platform fee FREE`
+                : `₹${money(subtotal)} session + ₹${money(serviceFee)} platform fee`}
             </span>
           </div>
 

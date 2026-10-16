@@ -9,6 +9,8 @@ import { listCafes, cafePath } from '@/lib/api/cafes';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { optimizedImg, fallBackToOriginal } from '@/lib/imageUrl';
 import type { CafeListItem } from '@/types';
+import { customerPrice } from '@/lib/format';
+import { firstBookingOfferLive } from '@/lib/pricing';
 
 const LAUNCH_KEY = 'gta6';
 // 19 Nov 2026, midnight in Hyderabad.
@@ -91,7 +93,7 @@ function toPlayCafe(c: CafeListItem): PlayCafe {
     name: c.name,
     area: c.addressLine2 || c.city,
     console: ps5 && /pro/i.test(ps5) ? 'PS5 Pro' : 'PS5',
-    price: c.bestOffer?.fromPrice ?? c.startingPrice,
+    price: (() => { const p = c.bestOffer?.fromPrice ?? c.startingPrice; return p == null ? null : customerPrice(p); })(),
     photo: c.photos[0]?.url ?? null,
     rating: c.totalReviews > 0 ? c.averageRating : null,
   };
@@ -494,7 +496,10 @@ export function Gta6Client() {
                     <h3 className="font-heading text-[20px] font-bold leading-tight tracking-tight [text-wrap:balance]">
                       {daysLeft >= 2 ? `Can’t wait ${daysLeft} days?` : 'Can’t wait?'} Play PS5 this week.
                     </h3>
-                    <p className="mt-1 text-[13px] text-[#A3A6B1]">Same cafés. Book a slot in a minute, pay online.</p>
+                    <p className="mt-1 text-[13px] text-[#A3A6B1]">
+                      Same cafés. Book a slot in a minute, pay online.
+                      {firstBookingOfferLive() && <> <b className="font-bold text-[#F4F1EC]">First booking: no platform fee.</b></>}
+                    </p>
                   </div>
                   {cafes.map((c) => (
                     <Link

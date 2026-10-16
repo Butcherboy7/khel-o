@@ -97,10 +97,13 @@ class AdminBookingListItem(BaseModel):
     updated_at: datetime
 
     # base_amount - discount_amount = owner_settlement_amount (what the café
-    # is owed); platform_fee_amount = what KHELO earns; together they equal
-    # total_amount (what the customer paid). None on rows with no fee record.
+    # is owed); platform_fee_amount = what KHELO earns; khelo_discount = KHEL-O's
+    # own ₹1 price drop, which it pays the café. settlement + fee - khelo_discount
+    # = total_amount (what the customer paid). None on rows with no fee record.
     owner_settlement_amount: Optional[float] = None
     platform_fee_amount: Optional[float] = None
+    khelo_discount: float = 0.0
+    first_booking_offer: bool = False
     offer_title: Optional[str] = None
     campaign_name: Optional[str] = None
 

@@ -5,7 +5,7 @@ import { optimizedImg } from '@/lib/imageUrl';
 import { MapPin, Star, Zap, ArrowRight, Users, Clock, ThumbsUp } from 'lucide-react';
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
-import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity } from '@/lib/format';
+import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity, customerPrice } from '@/lib/format';
 import { hasConsoleTier, hasPcTier } from '@/lib/platformTags';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import type { Platform } from '@/constants/platforms';
@@ -369,11 +369,11 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
                     lowers the "from" price instead of hiding behind the chip. */}
                 {cafe.bestOffer?.fromPrice != null && cafe.bestOffer.fromPrice < cafe.startingPrice ? (
                   <>
-                    <span className="text-text-tertiary line-through"><span className="rupee-symbol">₹</span>{cafe.startingPrice}</span>
-                    <PriceDisplay amount={cafe.bestOffer.fromPrice} size="sm" />
+                    <span className="text-text-tertiary line-through"><span className="rupee-symbol">₹</span>{customerPrice(cafe.startingPrice)}</span>
+                    <PriceDisplay amount={customerPrice(cafe.bestOffer.fromPrice)} size="sm" />
                   </>
                 ) : (
-                  <PriceDisplay amount={cafe.startingPrice} size="sm" />
+                  <PriceDisplay amount={customerPrice(cafe.startingPrice)} size="sm" />
                 )}
               </div>
             ) : (

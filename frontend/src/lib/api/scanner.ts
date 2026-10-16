@@ -15,6 +15,7 @@ export interface QRValidationBooking {
   totalAmount: number;
   gatewayFee: number;
   convenienceFee: number;
+  kheloDiscount?: number;
   status: string;
 }
 

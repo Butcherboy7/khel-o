@@ -108,14 +108,24 @@ export function formatPricePerHour(pricePerHour: number): string {
 
 /** The owner's actual payout share of a booking — totalAmount minus the
     Razorpay gateway fee and platform convenience fee, both of which the
-    gamer pays on top but the owner never receives. Owner-facing views must
-    show this instead of totalAmount, which is what the gamer paid. */
+    gamer pays on top but the owner never receives, plus KHEL-O's ₹1 price
+    drop, which the gamer didn't pay but KHEL-O pays the café. Owner-facing
+    views must show this instead of totalAmount, which is what the gamer paid. */
 export function getOwnerPayoutAmount(booking: {
   totalAmount: number;
   gatewayFee?: number | null;
   convenienceFee?: number | null;
+  kheloDiscount?: number | null;
 }): number {
-  return booking.totalAmount - (booking.gatewayFee || 0) - (booking.convenienceFee || 0);
+  return booking.totalAmount - (booking.gatewayFee || 0) - (booking.convenienceFee || 0) + (booking.kheloDiscount || 0);
+}
+
+/** What a customer pays for a café price: KHEL-O takes ₹1 off a round price
+    (₹150 -> ₹149, ₹300 -> ₹299) and pays the café the ₹1. Others stay as they
+    are. Mirrors price_drop in backend/app/services/checkout_maths.py. Use on
+    customer screens only; owner and admin screens show the café's own price. */
+export function customerPrice(cafePrice: number): number {
+  return cafePrice > 0 && Number.isInteger(cafePrice) && cafePrice % 10 === 0 ? cafePrice - 1 : cafePrice;
 }
 
 /** Format a large currency number compactly: 116000 → "₹1.16L" */

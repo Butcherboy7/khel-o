@@ -36,6 +36,8 @@ class OwnerBookingItemResponse(BaseModel):
     discount_amount: float
     gateway_fee: float
     total_amount: float
+    # KHEL-O's ₹1 off a round price: the customer paid it less, the café is still owed it.
+    khelo_discount: float = 0.0
     status: BookingStatus
     promotion_id: Optional[UUID] = None
     qr_code_url: Optional[str] = None

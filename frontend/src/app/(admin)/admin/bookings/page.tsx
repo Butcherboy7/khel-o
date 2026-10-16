@@ -144,6 +144,8 @@ function AmountCell({ b, align = 'right' }: { b: BookingDetail; align?: 'left' |
       {b.ownerSettlementAmount != null && (
         <div className="font-data text-[11px] tabular-nums text-text-tertiary">
           Café {money(b.ownerSettlementAmount)} · KHELO {money(b.platformFeeAmount)}
+          {(b.kheloDiscount ?? 0) > 0 && <> · KHELO paid {money(b.kheloDiscount ?? 0)}</>}
+          {b.firstBookingOffer && <> · first booking, no fee</>}
         </div>
       )}
       {b.discountAmount > 0 && (

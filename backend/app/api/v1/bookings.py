@@ -12,7 +12,7 @@ from app.repositories.promotion_repository import PromotionRepository
 from app.services.booking_service import BookingService
 from app.services.promotion_service import PromotionService
 from app.repositories.platform_settings_repository import PlatformSettingsRepository
-from app.api.deps import require_gamer, get_current_active_user
+from app.api.deps import require_gamer, get_current_active_user, get_optional_user
 from app.models.user import User
 
 router = APIRouter()
@@ -41,7 +41,8 @@ async def create_booking(
 @router.post("/quote", status_code=status.HTTP_200_OK)
 async def get_quote(
     payload: QuoteRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """No auth required — checkout calls this on every slot/length/player
     change, including before the customer has logged in. Read-only: never
@@ -53,7 +54,7 @@ async def get_quote(
     promo_service = PromotionService(promo_repo, cafe_repo, tier_repo)
 
     service = BookingService(booking_repo, cafe_repo, tier_repo, promo_service=promo_service)
-    result = await service.get_quote(payload)
+    result = await service.get_quote(payload, gamer_id=current_user.id if current_user else None)
     return {
         "success": True,
         "data": result

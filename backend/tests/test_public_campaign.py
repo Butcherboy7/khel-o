@@ -146,11 +146,14 @@ async def test_money_split_uses_the_discounted_price_not_the_list_price(client):
         booking = (await db.execute(select(Booking).where(Booking.id == uuid.UUID(b["id"])))).scalars().first()
         fee = (await db.execute(select(PlatformFee).where(PlatformFee.booking_id == booking.id))).scalars().first()
         pct = float(fee.fee_percentage_applied)
-        # KHELO's fee is a % of what the customer pays for the game (80), not of the list price (100)
-        assert float(fee.gateway_fee) == round(80 * pct / 100, 2)
-        # the café is owed list - discount, and the customer pays café share + KHELO fee
+        # KHELO's fee is a % of what the customer pays for the game (₹80 is a
+        # round price, so ₹79 after KHEL-O's ₹1), not of the list price (100);
+        # this is the gamer's first booking, so the fee is waived.
+        assert float(booking.khelo_discount) == 1.0 and booking.first_booking_offer is True
+        assert float(fee.gateway_fee) == 0.0
+        # the café is owed list - discount; the customer pays that + fee - KHEL-O's ₹1
         assert float(fee.owner_settlement_amount) == 80.0
-        assert round(float(fee.owner_settlement_amount) + float(fee.gateway_fee), 2) == float(booking.total_amount)
+        assert round(float(fee.owner_settlement_amount) + float(fee.gateway_fee) - 1.0, 2) == float(booking.total_amount)
         booking.status = BookingStatus.CONFIRMED
         await db.commit()
 
@@ -159,12 +162,12 @@ async def test_money_split_uses_the_discounted_price_not_the_list_price(client):
     assert row["campaignName"] == "KHELO Special Access" and row["offerTitle"] == "Special 20"
     assert row["baseAmount"] == 100.0 and row["discountAmount"] == 20.0
     assert row["ownerSettlementAmount"] == 80.0 and row["platformFeeAmount"] == float(fee.gateway_fee)
-    assert round(row["ownerSettlementAmount"] + row["platformFeeAmount"], 2) == row["totalAmount"]
+    assert round(row["ownerSettlementAmount"] + row["platformFeeAmount"] - row["kheloDiscount"], 2) == row["totalAmount"]
 
     rev = (await client.get("/api/v1/admin/analytics/revenue", headers=auth_headers(admin))).json()["data"]
     c = next(x for x in rev["campaigns"] if x["campaign"] == "KHELO Special Access")
     assert c["bookings"] >= 1 and c["discount"] >= 20.0
-    assert round(c["cafeShare"] + c["kheloFee"], 2) == round(c["customerPaid"], 2)
+    assert round(c["cafeShare"] + c["kheloFee"] - c["kheloPaid"], 2) == round(c["customerPaid"], 2)
 
 
 @pytest.mark.asyncio

@@ -95,6 +95,8 @@ class BookingResponse(BookingBase):
     discount_amount: float
     gateway_fee: float
     total_amount: float
+    khelo_discount: float = 0.0
+    first_booking_offer: bool = False
     convenience_fee: float
     status: BookingStatus
     cafe_name: Optional[str] = None
@@ -204,6 +206,13 @@ class QuoteResponse(BaseModel):
     # co-op combo — lets a client show a length picker's prices without a
     # round trip per length.
     prices_by_minutes: dict[int, float]
+    # KHEL-O's ₹1 price drop on a round café price (₹150 -> ₹149), what the
+    # customer pays for the session after it, the booking fee before any
+    # waiver, and whether this booking gets the first-booking offer (no fee).
+    khelo_discount: float = 0.0
+    session_price: float = 0.0
+    platform_fee_before_offer: float = 0.0
+    first_booking_offer: bool = False
 
     model_config = ConfigDict(
         alias_generator=to_camel,

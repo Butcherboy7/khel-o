@@ -71,7 +71,8 @@ class CityGeographyItem(BaseModel):
 
 class CampaignRevenueItem(BaseModel):
     """Money for bookings that used an offer from one campaign.
-    list_price - discount = cafe_share; cafe_share + khelo_fee = customer_paid."""
+    list_price - discount = cafe_share; cafe_share + khelo_fee - khelo_paid
+    = customer_paid (khelo_paid: KHEL-O's own ₹1 price drops, paid to cafés)."""
     campaign: str
     bookings: int
     list_price: float
@@ -79,6 +80,7 @@ class CampaignRevenueItem(BaseModel):
     customer_paid: float
     khelo_fee: float
     cafe_share: float
+    khelo_paid: float = 0.0
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 

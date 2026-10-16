@@ -68,8 +68,17 @@ export interface QuoteOfferHint {
 export interface QuoteResponse {
   baseAmount: number;
   discountAmount: number;
+  /** The café's price after any offer (what the café is owed). */
   subtotal: number;
+  /** KHEL-O's ₹1 off a round café price (₹150 -> ₹149); KHEL-O pays it to the café. */
+  kheloDiscount: number;
+  /** What the customer pays for the session: subtotal - kheloDiscount. */
+  sessionPrice: number;
+  /** Booking fee actually charged (0 on a first booking during the launch offer). */
   platformFee: number;
+  /** Booking fee had it not been waived, for the "you save" line. */
+  platformFeeBeforeOffer: number;
+  firstBookingOffer: boolean;
   total: number;
   appliedOffer: QuoteAppliedOffer | null;
   offerHint: QuoteOfferHint | null;

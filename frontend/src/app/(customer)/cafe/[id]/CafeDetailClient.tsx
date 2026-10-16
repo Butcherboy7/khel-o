@@ -59,7 +59,8 @@ import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
-import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity, noBreakHyphens } from '@/lib/format';
+import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity, noBreakHyphens, customerPrice } from '@/lib/format';
+import { firstBookingOfferLive } from '@/lib/pricing';
 import { fireAnalyticsEvent, trackAction } from '@/lib/api/analyticsEvents';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
@@ -163,6 +164,9 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
   });
 
   const isLead = data?.isLeadListing === true;
+  // What a customer pays: KHEL-O's ₹1 off a round price (₹150 -> ₹149). A lead
+  // café isn't bookable on KHEL-O yet, so it shows its own price.
+  const shownPrice = (n: number) => (isLead ? n : customerPrice(n));
 
   const { data: waitlist, refetch: refetchWaitlist } = useQuery({
     queryKey: ['waitlist', cafeId],
@@ -590,7 +594,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           <p className="text-caption text-text-secondary">
             {isLead
               ? 'Approx prices from our research. Online booking opens once they join KHEL-O.'
-              : 'Prices are per hour for one player. A small platform fee is added at checkout. Tap one to pick your time.'}
+              : `Prices are per hour for one player. A small platform fee is added at checkout${firstBookingOfferLive() ? ' (none on your first booking)' : ''}. Tap one to pick your time.`}
           </p>
         </div>
 
@@ -628,7 +632,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                     {!isLead && <button
                       type="button"
                       onClick={() => router.push(`/bookings/new?cafeId=${cafe.id}&tierId=${tier.id}${promoSuffix}`)}
-                      aria-label={`Book ${tier.name}, ₹${tier.pricePerHour} per hour${tier.coopEnabled ? ', co-op available' : ''}`}
+                      aria-label={`Book ${tier.name}, ₹${shownPrice(discountedPrice)} per hour${tier.coopEnabled ? ', co-op available' : ''}`}
                       className="absolute inset-0 rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     />}
                     <div
@@ -697,10 +701,10 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                           <span>
                             {(tier.coopMaxPlayers ?? 2) > 2 ? `2–${tier.coopMaxPlayers}` : '2'} players{coopDeal ? ' ' : ' from '}
                             {coopDeal && (
-                              <span className="mr-1 text-text-tertiary line-through"><span className="rupee-symbol">₹</span>{coopRate}</span>
+                              <span className="mr-1 text-text-tertiary line-through"><span className="rupee-symbol">₹</span>{shownPrice(coopRate)}</span>
                             )}
                             <span className={`font-data font-bold ${coopDeal ? 'text-accent' : 'text-text-primary'}`}>
-                              <span className="rupee-symbol">₹</span>{coopDeal?.price ?? coopRate}/hr
+                              <span className="rupee-symbol">₹</span>{shownPrice(coopDeal?.price ?? coopRate)}/hr
                             </span>
                           </span>
                           <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" className="relative z-10 -my-1 flex-shrink-0" />
@@ -711,11 +715,11 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                     <div className="flex flex-shrink-0 flex-col items-end gap-0.5 text-right">
                       {discount > 0 && (
                         <span className="text-caption leading-none text-text-tertiary line-through">
-                          <span className="rupee-symbol">₹</span>{tier.pricePerHour}
+                          <span className="rupee-symbol">₹</span>{shownPrice(tier.pricePerHour)}
                         </span>
                       )}
                       <div className={`whitespace-nowrap font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
-                        <span className="rupee-symbol">₹</span>{discountedPrice}
+                        <span className="rupee-symbol">₹</span>{shownPrice(discountedPrice)}
                         <span className="text-caption font-normal text-text-secondary">/hr</span>
                       </div>
                       {isLead && <span className="whitespace-nowrap text-[11px] text-text-secondary">(approx)</span>}
@@ -777,7 +781,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                       { label: 'RAM', get: (t: (typeof gamingTiers)[number]) => t.specs?.ram || '—' },
                       { label: 'Monitor', get: (t: (typeof gamingTiers)[number]) => t.specs?.monitor || '—' },
                       { label: 'Stations', get: (t: (typeof gamingTiers)[number]) => (t.totalSeats > 0 ? String(t.totalSeats) : '—') },
-                      { label: 'Price', get: (t: (typeof gamingTiers)[number]) => `₹${t.pricePerHour}/hr${isLead ? ' (approx)' : ''}` },
+                      { label: 'Price', get: (t: (typeof gamingTiers)[number]) => `₹${shownPrice(t.pricePerHour)}/hr${isLead ? ' (approx)' : ''}` },
                     ].map((row) => (
                       <tr key={row.label} className="border-t border-border/60">
                         <td className="p-3 font-semibold text-text-secondary">{row.label}</td>
@@ -1295,15 +1299,15 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
             <div className="font-data text-price-lg font-bold text-text-primary">
               {/* Same rule as the setup card above, so the bar never contradicts the card the visitor tapped. */}
               {barPrice != null && activeTier && barPrice < activeTier.pricePerHour && (
-                <span className="mr-1.5 text-caption font-normal text-text-secondary line-through">₹{activeTier.pricePerHour}</span>
+                <span className="mr-1.5 text-caption font-normal text-text-secondary line-through">₹{shownPrice(activeTier.pricePerHour)}</span>
               )}
-              <span className="rupee-symbol">₹</span>{barPrice ?? activeTier?.pricePerHour ?? minPrice}<span className="text-caption font-normal text-text-secondary">/hr</span>
+              <span className="rupee-symbol">₹</span>{shownPrice(barPrice ?? activeTier?.pricePerHour ?? minPrice)}<span className="text-caption font-normal text-text-secondary">/hr</span>
             </div>
             {/* Flag the fee before checkout so the total never surprises
                 anyone, but as an amount-at-checkout, not a percentage — "4%"
                 reads as money lost; the exact rupee figure is on checkout. */}
             <span className="text-caption text-text-secondary">
-              + platform fee at checkout
+              {firstBookingOfferLive() && !isLead ? 'No platform fee on your first booking' : '+ platform fee at checkout'}
             </span>
           </div>
 

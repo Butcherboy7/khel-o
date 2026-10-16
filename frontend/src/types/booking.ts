@@ -24,6 +24,11 @@ export interface Booking {
   gatewayFee: number;
   convenienceFee: number;
   totalAmount: number;
+  /** KHEL-O's ₹1 off a round price (₹150 -> ₹149). The customer paid it less;
+   *  KHEL-O pays it to the café, so the café's share is unchanged. */
+  kheloDiscount?: number;
+  /** First booking during the launch offer: no booking fee. */
+  firstBookingOffer?: boolean;
   status: BookingStatus;
   promotionId: string | null;
   qrCodeUrl: string | null;

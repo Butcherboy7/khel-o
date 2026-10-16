@@ -11,6 +11,7 @@ from datetime import datetime, timezone, timedelta, date, time
 
 from app.core.time import IST, session_end_ist
 from app.core.duration import length_text, tier_allowed_minutes
+from app.services.checkout_maths import checkout_money, first_booking_offer_for
 from app.services.pricing_service import base_price
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -241,9 +242,13 @@ class BookingService:
         # is shown to have paid.
         platform_settings = await PlatformSettingsRepository(self.booking_repo.db).get_or_create()
         service_fee_percent = Decimal(str(platform_settings.platform_fee_percentage))
-        gateway_fee = (subtotal * service_fee_percent / Decimal('100')).quantize(Decimal('0.01'))
+        # KHEL-O's ₹1 price drop and the first-booking launch offer (no booking
+        # fee) — see services/checkout_maths.py. The café's share stays `subtotal`.
+        first_offer = await first_booking_offer_for(self.booking_repo.db, gamer_id)
+        money = checkout_money(subtotal, service_fee_percent, first_offer)
+        gateway_fee = money.booking_fee
         convenience_fee = Decimal('0.00')
-        total_amount = subtotal + gateway_fee + convenience_fee
+        total_amount = money.total + convenience_fee
 
         booking_ref = self._generate_reference()
 
@@ -264,6 +269,8 @@ class BookingService:
             "gateway_fee": float(gateway_fee),
             "convenience_fee": float(convenience_fee),
             "total_amount": float(total_amount),
+            "khelo_discount": float(money.khelo_discount),
+            "first_booking_offer": money.first_booking_offer,
             "status": BookingStatus.PENDING_PAYMENT,
             "promotion_id": resolved_promotion_id,
             "notes": booking_in.notes,
@@ -291,7 +298,7 @@ class BookingService:
 
         return BookingResponse.model_validate(created)
 
-    async def get_quote(self, quote_in: 'QuoteRequest') -> 'QuoteResponse':
+    async def get_quote(self, quote_in: 'QuoteRequest', gamer_id: Optional[UUID] = None) -> 'QuoteResponse':
         """Read-only price/eligibility preview for checkout — same math as
         create_booking (base_price, allowed lengths, fee, auto-picked
         offer), no booking is created and nothing is written. This is what
@@ -394,8 +401,10 @@ class BookingService:
         subtotal = base_amount - discount_amount
         platform_settings = await PlatformSettingsRepository(self.booking_repo.db).get_or_create()
         service_fee_percent = Decimal(str(platform_settings.platform_fee_percentage))
-        platform_fee = (subtotal * service_fee_percent / Decimal('100')).quantize(Decimal('0.01'))
-        total = subtotal + platform_fee
+        first_offer = await first_booking_offer_for(self.booking_repo.db, gamer_id)
+        money = checkout_money(subtotal, service_fee_percent, first_offer)
+        platform_fee = money.booking_fee
+        total = money.total
 
         from app.schemas.booking import QuoteResponse, AppliedOffer, OfferHint
 
@@ -416,6 +425,10 @@ class BookingService:
             offer_note=offer_note,
             allowed_minutes=allowed,
             prices_by_minutes=prices_by_minutes,
+            khelo_discount=float(money.khelo_discount),
+            session_price=float(money.session_price),
+            platform_fee_before_offer=float(money.fee_before_offer),
+            first_booking_offer=money.first_booking_offer,
         )
 
     @staticmethod

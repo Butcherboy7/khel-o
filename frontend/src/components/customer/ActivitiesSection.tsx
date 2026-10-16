@@ -7,6 +7,7 @@ import { ActivitySpecLine } from '@/components/customer/ActivitySpecs';
 import { OfferChip } from '@/components/customer/OfferChip';
 import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 import type { Promotion } from '@/types/promotion';
+import { customerPrice } from '@/lib/format';
 
 interface ActivitiesSectionProps {
   cafeId: string;
@@ -39,7 +40,9 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
         {activities.map((tier) => {
           const hourly = hourlyOffer(tier.pricePerHour, tier.activePromotion);
           const discount = hourly?.pct ?? 0;
-          const shown = hourly?.price ?? tier.pricePerHour;
+          // KHEL-O's ₹1 off a round price (₹150 -> ₹149); a lead café shows its own.
+          const pay = (n: number) => (readOnly ? n : customerPrice(n));
+          const shown = pay(hourly?.price ?? tier.pricePerHour);
           const cardClass = 'relative flex items-center gap-3 rounded-2xl border-2 border-border bg-card p-3 text-left';
           const content = (
           <>
@@ -77,7 +80,7 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
             <div className="flex flex-shrink-0 flex-col items-end gap-0.5 text-right">
               {discount > 0 && (
                 <span className="text-caption leading-none text-text-tertiary line-through">
-                  <span className="rupee-symbol">₹</span>{tier.pricePerHour}
+                  <span className="rupee-symbol">₹</span>{pay(tier.pricePerHour)}
                 </span>
               )}
               <div className={`whitespace-nowrap font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
