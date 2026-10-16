@@ -605,15 +605,16 @@ export function TimelineRangePicker({
 
   return (
     <div className="flex flex-col gap-0 select-none rounded-2xl border border-border/80 bg-card overflow-hidden">
-      {/* ── Header: when (the answer to "what am I booking?"), seats left, length ── */}
-      <div className="flex items-center justify-between gap-2 px-3.5 pt-3">
+      {/* ── Header band: when (the answer to "what am I booking?") and the length.
+          The sky tint is the old checkout's, so the time reads as the card's title. ── */}
+      <div className="flex items-center justify-between gap-2 border-b border-sky-200/70 bg-[#e0f2fe]/75 px-3.5 py-2">
         <div className="min-w-0">
           <p className="font-heading text-body-emphasis font-bold leading-tight text-text-primary tabular-nums">
             {formatRange(headStart, headEnd)}
           </p>
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-1 rounded-full border border-border/80 bg-surface/60 px-1">
+        <div className="flex flex-shrink-0 items-center gap-1 rounded-full border border-border/60 bg-white px-1 shadow-sm">
           <button
             type="button"
             onClick={() => adjustDuration(-1)}
@@ -692,10 +693,10 @@ export function TimelineRangePicker({
       </div>
 
       {/* ── Dynamic Timeline Canvas (100% Unified Coordinates) ── */}
-      <div ref={outerRef} className="relative overflow-hidden pt-3 pb-2" style={{ height: 104, background: '#F8F7F4' }}>
+      <div ref={outerRef} className="relative overflow-hidden bg-white pt-3 pb-2" style={{ height: 90 }}>
         {/* Soft fades at both edges: there's more day off-screen, swipe for it. */}
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-[25] w-8" style={{ background: 'linear-gradient(90deg, #F8F7F4, rgba(248,247,244,0))' }} />
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-[25] w-8" style={{ background: 'linear-gradient(270deg, #F8F7F4, rgba(248,247,244,0))' }} />
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-[25] w-8" style={{ background: 'linear-gradient(90deg, #ffffff, rgba(255,255,255,0))' }} />
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-[25] w-8" style={{ background: 'linear-gradient(270deg, #ffffff, rgba(255,255,255,0))' }} />
         {/* One-time coachmark, sitting right on the slider it explains —
             the only unfamiliar control on this page. Gone after 4s or on
             the first touch of the timeline. */}
@@ -722,12 +723,12 @@ export function TimelineRangePicker({
           // touchAction 'pan-x pan-y': the browser locks each gesture to one
           // axis — sideways scrolls the timeline, up/down scrolls the page.
           // ('pan-x' alone swallowed vertical swipes over the slider, so the
-          // page wouldn't scroll.) The content is 95px inside a 104px box
+          // page wouldn't scroll.) The content is 84px inside a 90px box
           // with overflow-y hidden, so there is nothing to rubber-band.
           style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', touchAction: 'pan-x pan-y' }}
         >
           <div
-            style={{ width: trackWidthPx + sidePadding * 2, height: 95, position: 'relative' }}
+            style={{ width: trackWidthPx + sidePadding * 2, height: 84, position: 'relative' }}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
@@ -831,8 +832,8 @@ export function TimelineRangePicker({
                 position: 'absolute',
                 transition: ease, left: shownStartPx,
                 width: shownEndPx - shownStartPx,
-                top: 32,
-                height: 28,
+                top: 14,
+                height: 60,
                 display: 'flex',
                 alignItems: 'center',
                 zIndex: 12,
@@ -844,19 +845,20 @@ export function TimelineRangePicker({
                 style={{
                   width: '100%',
                   height: 7,
-                  // Solid, so "your time" never reads as the striped Booked or Past.
-                  backgroundColor: previewValid ? '#1B1C21' : '#ef4444',
-                  borderRadius: 4,
+                  backgroundColor: '#ffffff',
+                  backgroundImage:
+                    'repeating-linear-gradient(135deg, #374151 0, #374151 3px, #e5e7eb 0, #e5e7eb 7px)',
+                  borderRadius: 2,
+                  border: previewValid ? '1px solid #374151' : '1px solid #ef4444',
                 }}
               />
             </div>
 
-            {/* Left handle (Renders EXACTLY at startPx = minToPx(selStart)) — a 44x36
-                touch target around the visible 26px dot (full thumb width; just
-                short enough to leave the bands above and below the line free). It
-                used to be 56px tall, reaching into the bands above and below the
-                line, so a swipe that started near a handle resized the booking
-                instead of moving it. Those bands now always swipe the day. */}
+            {/* Left handle (Renders EXACTLY at startPx = minToPx(selStart)) — a 56px
+                touch target wrapping a visible 26px thumb, so a thumb can land
+                near the dot and drag it freely instead of needing to hit it
+                precisely. (A 44x36 target was tried: touches that missed it
+                scrolled the day instead, which snaps in whole steps.) */}
             <div
               onPointerDown={(e) => handlePointerDown('start', e)}
               style={{
@@ -867,8 +869,8 @@ export function TimelineRangePicker({
                 zIndex: 20,
                 cursor: 'ew-resize',
                 touchAction: 'pan-y',
-                width: 44,
-                height: 36,
+                width: 56,
+                height: 56,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -904,8 +906,8 @@ export function TimelineRangePicker({
                 zIndex: 20,
                 cursor: 'ew-resize',
                 touchAction: 'pan-y',
-                width: 44,
-                height: 36,
+                width: 56,
+                height: 56,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

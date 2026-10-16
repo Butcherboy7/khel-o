@@ -153,6 +153,9 @@ function BookingWizardContent() {
   // Offers + code live in a sheet so the checkout itself fits one phone screen.
   const [offersOpen, setOffersOpen] = useState(false);
   const [gameOpen, setGameOpen] = useState(false);
+  // While the game box has the keyboard up, the pay bar steps aside: on a
+  // phone it would otherwise ride up with the keyboard and sit on the box.
+  const [typingGame, setTypingGame] = useState(false);
 
   const { data: cafe, isLoading, isError, error: fetchError } = useQuery({
     queryKey: queryKeys.cafes.detail(cafeId),
@@ -882,7 +885,7 @@ function BookingWizardContent() {
               }}
               className={`flex flex-col items-center justify-center h-12 w-12 rounded-xl flex-shrink-0 transition-all ${
                 isSelected
-                  ? 'bg-secondary text-white shadow-float font-bold'
+                  ? 'bg-primary text-white shadow-float font-bold'
                   : 'bg-card text-text-primary border border-border/80 hover:bg-surface'
               }`}
             >
@@ -1055,7 +1058,7 @@ function BookingWizardContent() {
           <button
             type="button"
             onClick={() => setOffersOpen(true)}
-            className="-mx-1.5 flex min-h-[36px] items-center justify-between gap-3 rounded-lg px-1.5 text-left text-success transition-colors hover:bg-success/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="-mx-1.5 flex min-h-[36px] items-center justify-between gap-3 rounded-lg bg-success/10 px-2 text-left text-emerald-700 transition-colors hover:bg-success/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <span className="flex min-w-0 items-center gap-1.5 font-semibold">
               <Tag className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
@@ -1103,8 +1106,9 @@ function BookingWizardContent() {
           <span className="flex min-w-0 items-center gap-2">
             <span className="font-heading text-body font-bold text-text-primary">Total</span>
             {youSave > 0 && (
-              <span className="truncate rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-bold text-success">
-                You save <span className="rupee-symbol">₹</span>{money(youSave)}
+              <span className="inline-flex min-w-0 items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                <Tag className="h-3 w-3 flex-shrink-0" aria-hidden />
+                <span className="truncate">You save <span className="rupee-symbol">₹</span>{money(youSave)}</span>
               </span>
             )}
           </span>
@@ -1119,13 +1123,16 @@ function BookingWizardContent() {
           <button
             type="button"
             onClick={() => setGameOpen(true)}
-            className="-ml-1 flex min-h-[44px] flex-shrink-0 items-center gap-1 rounded-lg px-1 text-caption font-semibold text-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="-ml-1 flex min-h-[44px] flex-shrink-0 items-center gap-1.5 rounded-lg px-1 text-caption font-semibold text-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            <Plus className="h-3.5 w-3.5" aria-hidden />
+            <Gamepad2 className="h-4 w-4 text-primary" aria-hidden />
             Add game <span className="font-normal text-text-secondary">(optional)</span>
           </button>
         ) : (
-          <span className="text-caption font-semibold text-text-secondary">Game</span>
+          <span className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary">
+            <Gamepad2 className="h-4 w-4 text-primary" aria-hidden />
+            Game
+          </span>
         )}
         <button
           type="button"
@@ -1148,8 +1155,21 @@ function BookingWizardContent() {
             aria-label="What are you playing? (optional)"
             value={selectedGame}
             onChange={(e) => setSelectedGame(e.target.value)}
+            onFocus={(e) => {
+              setTypingGame(true);
+              // Once the keyboard is up, bring the box to the middle of what's
+              // still visible, so the keyboard never hides what you type.
+              const el = e.currentTarget;
+              setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350);
+            }}
+            onBlur={() => setTypingGame(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+            enterKeyHint="done"
+            autoComplete="off"
             placeholder="What are you playing? e.g. FC 25"
-            className="-mt-1.5 h-11 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="-mt-1.5 h-11 w-full scroll-mb-40 rounded-xl border border-border bg-card px-3 text-body text-text-primary focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/25"
           />
           <datalist id="cafe-games">
             {Object.values(cafe?.supportedGames ?? {})
@@ -1197,7 +1217,14 @@ function BookingWizardContent() {
       {/* Pay bar. The customer bottom nav is hidden on this page (see
           CustomerShell), so it sits on the bottom edge, clear of the
           home-indicator safe area. */}
-      <div className="action-bar-fixed fixed bottom-0 left-0 right-0 z-overlay bg-card border-t border-border px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-overlay">
+      <div
+        className={cn(
+          'action-bar-fixed fixed bottom-0 left-0 right-0 z-overlay bg-card border-t border-border px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-overlay transition-transform duration-200 ease-out',
+          typingGame && 'pointer-events-none'
+        )}
+        // Inline, because .action-bar-fixed sets its own transform.
+        style={typingGame ? { transform: 'translate3d(0, 100%, 0)' } : undefined}
+      >
         {/* Compact on purpose: the total, what it's made of, and the pay
             button in one row, so the slider above keeps the screen. The
             Razorpay line lives in the price summary above, not here. */}
