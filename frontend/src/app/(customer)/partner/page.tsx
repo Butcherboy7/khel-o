@@ -8,7 +8,7 @@ import { Button, Card, CardContent, Badge } from '@/components/ui';
 const PARTNER_BENEFITS = [
   {
     icon: TrendingUp,
-    title: 'Zero Upfront Cost',
+    title: 'Free to list',
     // Deliberately quotes no percentage. The old copy promised owners a "3-5%
     // convenience fee" on their side, which the code does not do — the fee is
     // added on top of the customer's total and the café is settled the full
@@ -20,35 +20,35 @@ const PARTNER_BENEFITS = [
   },
   {
     icon: Users,
-    title: 'Get Discovered by Nearby Gamers',
-    description: 'Show up in search when gamers near your city look for a café with your hardware and pricing.',
+    title: 'Get found by players near you',
+    description: 'People in your city searching for a PS5, a snooker table or a bowling lane see your place, your prices and your free slots.',
   },
   {
     icon: Clock,
-    title: 'Automated Booking System',
-    description: '24/7 online booking, QR check-ins, real-time availability, and automated reminders.',
+    title: 'Bookings that run themselves',
+    description: 'Customers book and pay online any time. They show a QR pass at your desk, and you see every booking on your phone.',
   },
   {
     icon: ShieldCheck,
-    title: 'Weekly Payouts',
-    description: 'KHEL-O pays your outstanding balance weekly, straight to your UPI ID.',
+    title: 'Money straight to your UPI',
+    description: 'Once a customer’s payment clears (2–3 working days), KHEL-O sends your share to your UPI ID or bank. Every transfer is listed with its receipt number.',
   },
 ];
 
 const REQUIREMENTS = [
-  'A UPI ID for weekly payouts',
-  'At least one gaming resource (PC, console, or other station) with pricing',
-  'Business PAN, GSTIN, and trade license are optional but speed up verification',
-  'Recommended: 5+ gaming stations and GTX 1660-class or better hardware for the best listing performance',
+  'A UPI ID, so we can send you your money',
+  'At least one thing customers can book, with a price per hour: a PC, a console, a snooker or pool table, a bowling lane, a VR or racing setup',
+  'Business PAN, GSTIN and trade licence are optional, but they get you approved faster',
+  'Good photos of your place. Listings with clear photos get far more bookings',
 ];
 
 const PROCESS_STEPS = [
-  { step: 1, title: 'Venue Details', description: 'Café name, address, location, contact info' },
-  { step: 2, title: 'Business Verification', description: 'PAN, GSTIN, trade license document — all optional' },
-  { step: 3, title: 'Payout Details', description: 'UPI ID for weekly payouts (required)' },
-  { step: 4, title: 'Hours & Resources', description: 'Operating hours, gaming tiers, pricing' },
-  { step: 5, title: 'Games & Photo Gallery', description: 'Supported games list, venue photos, and menu photos' },
-  { step: 6, title: 'Review & Submit', description: 'Final review before submission' },
+  { step: 1, title: 'Your venue', description: 'Name, address, map pin and phone number' },
+  { step: 2, title: 'Business papers', description: 'PAN, GSTIN, trade licence. All optional' },
+  { step: 3, title: 'Where to send money', description: 'Your UPI ID (required)' },
+  { step: 4, title: 'Hours & setups', description: 'Opening hours, what customers can book, price per hour' },
+  { step: 5, title: 'Photos & games', description: 'Photos of your place and menu; games list if you have consoles or PCs' },
+  { step: 6, title: 'Check & submit', description: 'Look it over and send it. We review it and get you live' },
 ];
 
 export default function PartnerIntroPage() {
@@ -63,12 +63,12 @@ export default function PartnerIntroPage() {
         </Badge>
         
         <h1 className="font-heading text-display text-text-primary mb-4">
-          List Your Gaming Café
+          List your venue on KHEL-O
         </h1>
         
         <p className="text-body-lg text-text-secondary max-w-2xl mx-auto">
-          Transform your gaming café into a fully automated booking destination —
-          free to list, with online payments and QR check-in built in.
+          Gaming café, snooker or pool club, bowling alley, VR or game zone: let people find you,
+          book a slot and pay online. Free to list, with QR check-in built in.
         </p>
       </div>
 
@@ -128,7 +128,7 @@ export default function PartnerIntroPage() {
       {/* Process Overview */}
       <div className="mb-12">
         <h2 className="font-heading text-h2 text-text-primary mb-6 text-center">
-          6-Step Onboarding Process
+          Get listed in 6 steps
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -161,12 +161,12 @@ export default function PartnerIntroPage() {
           className="gap-2 min-w-[280px]"
         >
           <Store className="h-5 w-5" />
-          <span>Get Listed on KHEL-O</span>
+          <span>List my venue</span>
           <ChevronRight className="h-5 w-5" />
         </Button>
         
         <p className="text-caption text-text-secondary">
-          Takes ~15 minutes • Free to list
+          Takes about 15 minutes · Free to list
         </p>
       </div>
     </div>

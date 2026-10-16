@@ -330,8 +330,8 @@ export default function HardwareTiersPage() {
 
       <OwnerPageHeader
         guide="tiers"
-        title="Resources & Pricing"
-        description="Group your machines by what they are — gaming PCs, PS5s, a snooker table — and set an hourly rate for each group."
+        title="Setups & prices"
+        description="A setup is one kind of thing customers book: Gaming PCs, PS5, a snooker table. Set how many you have and the price per hour."
         action={
           <Button
             variant="primary"
@@ -343,7 +343,7 @@ export default function HardwareTiersPage() {
             className="w-full justify-center gap-2 whitespace-nowrap sm:w-auto"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            <span>Add a group</span>
+            <span>Add a setup</span>
           </Button>
         }
       />
@@ -360,7 +360,7 @@ export default function HardwareTiersPage() {
         {isError && (
           <ErrorState
             title="Failed to load resources"
-            message={(error as Error)?.message || 'Could not fetch resource configurations.'}
+            message={(error as Error)?.message || 'Couldn’t load your setups. Try again.'}
             onRetry={() => refetch()}
           />
         )}
@@ -368,8 +368,8 @@ export default function HardwareTiersPage() {
         {!isLoading && !isError && tiers.length === 0 && (
           <EmptyState
             title="No resources set up yet"
-            description="Add a group for each kind of resource you have — say “Gaming PCs” or “PS5”. Customers can't book until at least one group exists."
-            actionLabel="Add your first group"
+            description="Add a setup for each kind of thing you have, like “Gaming PCs” or “PS5”. Customers can’t book until you add one."
+            actionLabel="Add your first setup"
             onAction={() => {
               resetForm();
               setIsModalOpen(true);
@@ -459,7 +459,7 @@ export default function HardwareTiersPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setDeactivateTarget(tier)}
-                          title="Hides this group from customers. Nothing is deleted."
+                          title="Hides this setup from customers. Nothing is deleted."
                           className="gap-1.5"
                         >
                           <PowerOff className="h-3.5 w-3.5" aria-hidden="true" />

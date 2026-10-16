@@ -128,6 +128,26 @@ export function customerPrice(cafePrice: number): number {
   return cafePrice > 0 && Number.isInteger(cafePrice) && cafePrice % 10 === 0 ? cafePrice - 1 : cafePrice;
 }
 
+/** The hourly "from" price a listing card shows: a bookable café's live deal
+    when it's cheaper, with the ₹1 drop; a "Booking soon" lead's price as listed.
+    Page summaries use this so "from ₹X" matches the cards under it. */
+export function shownFromPrice(c: {
+  startingPrice?: number | null;
+  isLeadListing?: boolean | null;
+  bestOffer?: { fromPrice?: number | null } | null;
+}): number | null {
+  if (c.startingPrice == null) return null;
+  if (c.isLeadListing) return c.startingPrice;
+  const deal = c.bestOffer?.fromPrice;
+  return customerPrice(deal != null && deal < c.startingPrice ? deal : c.startingPrice);
+}
+
+/** Lowest and highest shownFromPrice across listings; nulls when none have a price. */
+export function shownPriceRange(cafes: Parameters<typeof shownFromPrice>[0][]): { min: number | null; max: number | null } {
+  const prices = cafes.map(shownFromPrice).filter((p): p is number => p != null);
+  return prices.length ? { min: Math.min(...prices), max: Math.max(...prices) } : { min: null, max: null };
+}
+
 /** Format a large currency number compactly: 116000 → "₹1.16L" */
 export function formatCurrencyCompact(amount: number): string {
   if (amount >= 10_000_000) return `₹${(amount / 10_000_000).toFixed(2)} Cr`;

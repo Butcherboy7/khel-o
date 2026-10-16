@@ -28,7 +28,10 @@ function isPublicPath(pathname: string): boolean {
     // The campaign landing page (shared on Instagram / WhatsApp) is public too.
     pathname.startsWith('/campaign/') ||
     // "Know a café owner?" — the form asks for sign-in itself, after the pitch.
-    pathname === '/know-the-owner'
+    pathname === '/know-the-owner' ||
+    // Help must not start with "make an account": signed-out visitors get the
+    // public contact form there, signed-in ones their tickets.
+    pathname === '/support'
   );
 }
 

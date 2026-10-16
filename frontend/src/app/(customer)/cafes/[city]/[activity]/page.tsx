@@ -6,9 +6,19 @@ import { listCafes, cafePath } from '@/lib/api/cafes';
 import { getSeoPage } from '@/lib/api/seo';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
-import { formatTime, customerPrice } from '@/lib/format';
+import { formatTime, customerPrice, shownPriceRange } from '@/lib/format';
 import { cleanName } from '@/lib/venueKind';
 import { getPublicEnv } from '@/lib/runtimeEnv';
+
+/** The server's stats, with the price range taken from the cards on this page
+ *  (deals and the ₹1 drop included) so the summary matches what's listed. */
+function withShownPrices<T extends { minPrice: number | null; maxPrice: number | null }>(
+  stats: T,
+  cafes: Parameters<typeof shownPriceRange>[0],
+): T {
+  const range = shownPriceRange(cafes);
+  return { ...stats, minPrice: range.min, maxPrice: range.max };
+}
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
@@ -41,7 +51,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!data) return { title: 'Not found', robots: { index: false } };
 
   const { page, facet, cafes } = data;
-  const { stats } = page;
+  const stats = withShownPrices(page.stats, cafes);
   const bookable = cafes.filter((c) => !c.isLeadListing).length;
   const title = `${pageHeading(facet, page.city.name)}: Prices & Timings`;
   const description = `${stats.cafeCount} place${stats.cafeCount === 1 ? '' : 's'}: ${cafes
@@ -73,7 +83,7 @@ export default async function FacetPage({ params }: PageProps) {
   if (!data) notFound();
 
   const { page, facet, cafes } = data;
-  const { stats } = page;
+  const stats = withShownPrices(page.stats, cafes);
   const city = page.city.name;
   const heading = pageHeading(facet, city);
   const live = cafes.filter((c) => !c.isLeadListing).map((c) => cleanName(c.name));

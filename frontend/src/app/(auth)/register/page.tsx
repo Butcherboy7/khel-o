@@ -116,7 +116,7 @@ function RegisterForm() {
           <div>
             <h2 className="font-heading text-h2 text-text-primary">Create Account</h2>
             <p className="text-body text-text-secondary mt-0.5">
-              Book stations, get discounts, and join events
+              Book a slot, get deals, and pay online
             </p>
           </div>
 

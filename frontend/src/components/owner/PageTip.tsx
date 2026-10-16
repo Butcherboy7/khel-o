@@ -3,6 +3,7 @@
 import { Lightbulb, X } from 'lucide-react';
 import { usePageGuide } from '@/hooks/useOwnerGuide';
 import { PAGE_GUIDES, type GuidePage } from '@/lib/ownerGuideCopy';
+import { useOwnerTourStore } from '@/store/ownerTourStore';
 
 /**
  * “How this page works” box. Shows for an owner's first few visits to a page,
@@ -11,7 +12,9 @@ import { PAGE_GUIDES, type GuidePage } from '@/lib/ownerGuideCopy';
  */
 export function PageTip({ page }: { page: GuidePage }) {
   const { showTip, hideTip, dismissTip } = usePageGuide(page);
-  if (!showTip) return null;
+  // The app tour already explains the page; one explainer at a time.
+  const tourOpen = useOwnerTourStore((s) => s.open);
+  if (!showTip || tourOpen) return null;
 
   return (
     <aside

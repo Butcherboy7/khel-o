@@ -24,6 +24,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useAuthStore } from '@/store/authStore';
+import { useOwnerTourAutoStart } from '@/hooks/useOwnerGuide';
 import type { OwnerDashboard, OwnerBookingItem } from '@/types';
 import { getOwnerStatus, getOwnerDashboard, getOwnerBookings, checkinBooking, updateOwnerBookingStatus } from '@/lib/api/owner';
 import { getOwnerOccupancy, type TierOccupancy } from '@/lib/api/scanner';
@@ -341,6 +342,9 @@ export default function OwnerDashboardPage() {
       setIsTogglingPause(false);
     }
   };
+
+  // The app tour opens for approved owners on every visit until finished or skipped.
+  useOwnerTourAutoStart(statusState.status === 'verified' && activeRole === 'cafe_owner');
 
   if (statusState.status === 'loading') {
     return (

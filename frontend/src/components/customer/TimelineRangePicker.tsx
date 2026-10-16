@@ -581,10 +581,12 @@ export function TimelineRangePicker({
   const availabilityBadge = useMemo(() => {
     const seats = activeWindowRemainingSeats;
     if (seats === 0) return { text: 'Sold Out', variant: 'sold_out' as const };
+    // A one-station setup is always "last 1 seat": that's fake urgency, not news.
+    if (totalSeats <= 1) return null;
     if (seats <= 2) return { text: `Last ${seats} seat${seats > 1 ? 's' : ''}!`, variant: 'critical' as const };
     if (seats <= 10) return { text: `Only ${seats} seats left!`, variant: 'warning' as const };
     return { text: `${seats} seats left`, variant: 'neutral' as const };
-  }, [activeWindowRemainingSeats]);
+  }, [activeWindowRemainingSeats, totalSeats]);
 
   const ticks = useMemo(() => {
     const list: { minutes: number; label: string; showLabel: boolean; isHour: boolean }[] = [];
@@ -842,11 +844,9 @@ export function TimelineRangePicker({
                 style={{
                   width: '100%',
                   height: 7,
-                  backgroundColor: '#ffffff',
-                  backgroundImage:
-                    'repeating-linear-gradient(135deg, #374151 0, #374151 3px, #e5e7eb 0, #e5e7eb 7px)',
-                  borderRadius: 2,
-                  border: previewValid ? '1px solid #374151' : '1px solid #ef4444',
+                  // Solid, so "your time" never reads as the striped Booked or Past.
+                  backgroundColor: previewValid ? '#1B1C21' : '#ef4444',
+                  borderRadius: 4,
                 }}
               />
             </div>

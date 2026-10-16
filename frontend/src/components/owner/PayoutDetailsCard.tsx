@@ -85,7 +85,7 @@ export function PayoutDetailsCard() {
               {destination && <Badge variant="default" size="sm">On file</Badge>}
             </div>
             <p className="text-caption text-text-secondary max-w-md">
-              The UPI ID or bank account KHEL-O sends your weekly payout to.
+              The UPI ID or bank account KHEL-O sends your money to.
             </p>
           </div>
         </div>

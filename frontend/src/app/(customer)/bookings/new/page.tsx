@@ -622,7 +622,8 @@ function BookingWizardContent() {
   const finalTotal = quote ? quote.total : subtotal + serviceFee;
   // First booking (launch offer): the fee is waived. Shown struck through.
   const feeWaived = quote?.firstBookingOffer ? quote.platformFeeBeforeOffer : 0;
-  const youSave = Math.round((discountAmount + feeWaived) * 100) / 100;
+  // Whole rupees, rounded down: "You save ₹69", never paise, never more than is true.
+  const youSave = Math.floor(discountAmount + feeWaived + 1e-6);
 
   // ₹187.2 -> "187.20", ₹180 -> "180": rupees with paise only when present.
   const money = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));

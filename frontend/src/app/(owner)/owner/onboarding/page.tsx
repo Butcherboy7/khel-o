@@ -407,7 +407,7 @@ export default function OnboardingWizardPage() {
     if (step === 4) {
       const hasBlankModel = (formData.hardwareTiers || []).some((t) => !t.model || !t.model.trim());
       if (hasBlankModel) {
-        setError('Please select a model for every resource before continuing.');
+        setError('Pick a model for every setup before you continue.');
         return;
       }
     }
@@ -640,7 +640,7 @@ export default function OnboardingWizardPage() {
     { title: 'Identity & Map Pin', icon: MapPin },
     { title: 'Business Verification', icon: ShieldCheck },
     { title: 'Bank & Payouts', icon: CreditCard },
-    { title: 'Hours & Resources', icon: Monitor },
+    { title: 'Hours & setups', icon: Monitor },
     { title: 'Games & Photos', icon: Gamepad2 },
     { title: 'Policies & Review', icon: FileText },
   ];
@@ -996,12 +996,12 @@ export default function OnboardingWizardPage() {
                     <CreditCard className="h-5 w-5 text-emerald-500" />
                     <span>3. Payout Details</span>
                   </h2>
-                  <p className="text-caption text-text-secondary">KHEL-O pays out your weekly earnings via UPI. Add your UPI ID below so we know where to send it.</p>
+                  <p className="text-caption text-text-secondary">Add your UPI ID so KHEL-O knows where to send the money from your bookings.</p>
                 </div>
 
                 <Card elevation="resting" className="bg-emerald-500/5 border border-emerald-500/20 text-caption p-4">
-                  <span className="font-semibold text-emerald-600 block mb-1">Manual Weekly Payouts</span>
-                  Every booking&apos;s earnings accrue in your dashboard. Our team pays out your outstanding balance weekly, straight to the UPI ID below. Before your first payout, we&apos;ll send a ₹1 test transfer to confirm the ID is correct.
+                  <span className="font-semibold text-emerald-600 block mb-1">How you get paid</span>
+                  Your earnings from every booking show on your Payouts page. Once a customer&apos;s payment clears (2–3 working days), our team sends it to the UPI ID below. Before the first payment, we&apos;ll send ₹1 to check the ID is right.
                 </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1041,7 +1041,7 @@ export default function OnboardingWizardPage() {
                 {showBankFallback && (
                   <div className="flex flex-col gap-4 p-4 rounded-2xl border border-border bg-surface">
                     <p className="text-overline text-text-tertiary">
-                      A bank fallback lets us pay you by NEFT/IMPS if a weekly balance ever exceeds what UPI can carry in a single transfer. This whole section is optional — but if you fill in any of Account Holder Name, Bank Account Number, or Bank IFSC, the other two become required together (matches the backend&apos;s bank_fields_given rule in owner.py).
+                      A bank account lets us pay you by NEFT/IMPS if an amount is ever more than UPI can send at once. This is optional. If you fill in one of name, account number or IFSC, fill in all three.
                     </p>
                     <Input
                       label="Account Holder Name"
@@ -1131,9 +1131,9 @@ export default function OnboardingWizardPage() {
                 <div>
                   <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
                     <Monitor className="h-5 w-5 text-emerald-500" />
-                    <span>4. Operating Hours & Resources</span>
+                    <span>4. Opening hours & setups</span>
                   </h2>
-                  <p className="text-caption text-text-secondary">Define your resources and pricing. PC assignment is handled on-site by staff during check-in.</p>
+                  <p className="text-caption text-text-secondary">Add what customers can book and the price per hour. Your staff pick the exact PC or table when the customer checks in.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1196,7 +1196,7 @@ export default function OnboardingWizardPage() {
                         <Gamepad2 className="h-4 w-4 flex-shrink-0 text-text-secondary mt-0.5" />
                         <p className="text-caption text-text-secondary">
                           You haven&apos;t configured any gaming platforms in the previous step — add a
-                          PC, PlayStation, Xbox, or Nintendo resource there to list the games you support.
+                          PC, PlayStation, Xbox, or Nintendo setup there to list the games you support.
                         </p>
                       </div>
                     )
@@ -1433,10 +1433,10 @@ export default function OnboardingWizardPage() {
                     )}
                   </ReviewSection>
 
-                  <ReviewSection title="Resources / Activities" onEdit={() => setStep(4)}>
+                  <ReviewSection title="Setups & prices" onEdit={() => setStep(4)}>
                     <ReviewRow label="Hours" value={`${formData.openingTime} – ${formData.closingTime}`} />
                     {formData.hardwareTiers.length === 0 ? (
-                      <ReviewRow label="Resources" value="None configured" />
+                      <ReviewRow label="Setups" value="None added yet" />
                     ) : (
                       formData.hardwareTiers.map((t) => (
                         <ReviewRow

@@ -15,7 +15,7 @@ import { useAuthStore } from '@/store/authStore';
 // CafePayoutStatus vocabulary for the manual bank-transfer history table.
 function manualPayoutStatusBadge(status: string) {
   if (status === 'paid') return <Badge variant="success" size="sm">Paid</Badge>;
-  if (status === 'pending') return <Badge variant="warning" size="sm">This week&apos;s payout — awaiting transfer</Badge>;
+  if (status === 'pending') return <Badge variant="warning" size="sm">Ready — transfer coming</Badge>;
   if (status === 'processing') return <Badge variant="default" size="sm">Processing</Badge>;
   if (status === 'failed') return <Badge variant="error" size="sm">Failed — contact support</Badge>;
   if (status === 'on_hold') return <Badge variant="warning" size="sm">On hold</Badge>;
@@ -61,14 +61,13 @@ export default function OwnerPayoutsPage() {
   const pendingSettlement = cafePayoutsQuery.data?.pendingSettlement ?? 0;
   const totalEarnings = cafePayoutsQuery.data?.totalEarnings ?? 0;
   const totalPaid = cafePayoutsQuery.data?.totalPaid ?? summaryQuery.data?.summary.alreadyPaidOut ?? 0;
-  const nextPayoutDate = cafePayoutsQuery.data?.nextPayoutDate;
 
   return (
     <div className="flex flex-col gap-8">
       <OwnerPageHeader
         guide="payouts"
         title="Payouts"
-        description="What customers paid, what KHEL-O kept, and what has reached your bank."
+        description="Where the money from your bookings is, and what has already reached you."
       />
       {payoutOnHold && (
         <Card elevation="resting" className="border border-error/30 bg-error/5">
@@ -86,34 +85,34 @@ export default function OwnerPayoutsPage() {
         <OwnerStatRow
           stats={[
             {
-              label: 'Total earnings',
+              label: 'Earned so far',
               value: `₹${totalEarnings.toFixed(0)}`,
               tone: 'neutral',
-              hint: 'All-time, net of refunds',
+              hint: 'All your app bookings, after refunds',
             },
             {
-              label: 'Pending settlement',
+              label: 'Still clearing',
               value: `₹${pendingSettlement.toFixed(0)}`,
               tone: pendingSettlement > 0 ? 'warning' : 'neutral',
-              hint: 'Payment captured — Razorpay settlement pending (~2 business days)',
+              hint: 'Customer has paid; the bank is still moving it (2–3 working days)',
             },
             {
-              label: 'Available for payout',
+              label: 'Ready to pay you',
               value: `₹${outstandingAmount.toFixed(0)}`,
               tone: outstandingAmount > 0 ? 'warning' : 'neutral',
-              hint: 'Settled, awaiting transfer',
+              hint: 'Cleared. KHEL-O sends this to you next',
             },
             {
-              label: 'Paid out',
+              label: 'Paid to you',
               value: `₹${totalPaid.toFixed(0)}`,
               tone: 'positive',
-              hint: 'Sent to your account',
+              hint: 'Already sent to your UPI or bank',
             },
           ]}
         />
         <p className="text-caption text-text-secondary px-1">
-          Customer payment → Razorpay settles to KHEL-O (2–3 business days) → becomes available for
-          payout → included in the next weekly payout{nextPayoutDate ? ` (${new Date(nextPayoutDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })})` : ''} → paid to your account.
+          How money reaches you: the customer pays → the payment clears (2–3 working days) → it moves to
+          “Ready to pay you” → KHEL-O sends it to your UPI or bank and it shows under “Paid to you”.
         </p>
       </div>
 
@@ -162,7 +161,7 @@ export default function OwnerPayoutsPage() {
             </dl>
           ) : (
             <p className="text-caption text-text-secondary bg-surface-hover p-4 rounded-2xl border border-border/80">
-              No payout account on file yet — add your bank details in Settings to receive direct bank transfers for future bookings.
+              No payout details yet. Add your UPI ID or bank account in Café Settings so KHEL-O can send you your money.
             </p>
           )}
         </CardContent>
@@ -174,18 +173,18 @@ export default function OwnerPayoutsPage() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
               <Building2 className="h-5 w-5 text-emerald-500" />
-              <span>Bank transfers from KHEL-O</span>
+              <span>Money sent to you</span>
             </h2>
             <div className="text-right">
-              <span className="block text-caption text-text-secondary">Owed to you</span>
+              <span className="block text-caption text-text-secondary">Ready to pay you</span>
               <span className="font-heading text-h3 text-amber-600">₹{outstandingAmount.toFixed(2)}</span>
             </div>
           </div>
 
           {payoutHistory.length === 0 ? (
             <EmptyState
-              title="No manual payouts yet"
-              description="Once KHEL-O sends a bank transfer for your outstanding balance, it'll appear here with the UTR reference."
+              title="Nothing sent yet"
+              description="When KHEL-O sends you money, it shows here with the UTR number (the bank's receipt number)."
             />
           ) : (
             <ul className="flex flex-col gap-3">

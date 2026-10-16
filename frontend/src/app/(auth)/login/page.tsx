@@ -95,7 +95,7 @@ function LoginForm() {
           <div>
             <h2 className="font-heading text-h2 text-text-primary">Sign in</h2>
             <p className="text-body text-text-secondary mt-0.5">
-              Access your bookings and gaming passes
+              See your bookings and QR passes
             </p>
           </div>
 

@@ -49,19 +49,19 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
     ],
   },
   availability: {
-    info: "Hour-by-hour view of which seats are taken and which are free, for each type of station.",
+    info: "Hour by hour, how many stations of each setup are booked and how many are free.",
     tips: [
-      'Each row is one type of station, like PCs or PS5s. Each block is an hour.',
+      'Each row is one setup, like PCs or PS5s. Each block is an hour.',
       'Coloured blocks are booked; empty blocks are free for customers to book.',
       'Check this before promising a walk-in a seat for later in the day.',
     ],
   },
   tiers: {
-    info: 'Groups of machines that share a price, e.g. “Gaming PCs” or “PS5”. Customers book a group, not a specific machine.',
+    info: 'A setup is one kind of thing customers book, like “Gaming PCs”, “PS5” or “Snooker table”. Customers book a setup, not a specific machine.',
     tips: [
-      'Make one group per kind of machine, and set its price per hour.',
-      'The number of seats in a group is how many customers can book it at the same time.',
-      'Hiding a group stops new bookings for it. Nothing is deleted.',
+      'Add one setup per kind of thing you have, and set its price per hour.',
+      'The number of stations in a setup is how many customers can book it at the same time.',
+      'Hiding a setup stops new bookings for it. Nothing is deleted.',
     ],
   },
   offers: {
@@ -97,18 +97,18 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
     ],
   },
   payouts: {
-    info: 'What customers paid, what KHEL-O kept, and what has reached your bank. Payouts go out weekly.',
+    info: 'Where your money is: still clearing, ready to pay you, or already paid to you.',
     tips: [
-      'Add your bank account details first. Nothing can be sent until you do.',
-      'Each payout shows what customers paid, the KHEL-O fee, and what you receive.',
-      'Payouts go out weekly. “Awaiting transfer” means it’s on its way, and “Failed” means contact support.',
+      'Add your UPI ID or bank account in Café Settings first. Nothing can be sent until you do.',
+      '“Still clearing” = the customer paid and the bank is moving it (2–3 working days). “Ready to pay you” = cleared, KHEL-O sends it next.',
+      'Every transfer is listed with its UTR number. “Failed” means contact support.',
     ],
   },
   staff: {
     info: 'Give the people who run your desk their own login, so nobody has to share yours.',
     tips: [
       'Tap “Invite someone” and enter their name and email. They’ll get a link to set up their login.',
-      'Staff only see Dashboard, Scan, Bookings and Free seats. They never see prices, payouts or settings.',
+      'Staff only see Dashboard, Scan, Bookings and Free slots. They never see prices, payouts or settings.',
       'Deactivate someone’s login the day they stop working for you.',
     ],
   },

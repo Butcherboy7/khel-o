@@ -28,6 +28,7 @@ import {
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { useGuideSession } from '@/hooks/useOwnerGuide';
+import { OwnerTour } from '@/components/owner/OwnerTour';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 import { PlatformReconfirmModal } from '@/components/owner/PlatformReconfirmModal';
 import { apiClient } from '@/lib/api/client';
@@ -50,7 +51,7 @@ interface NavItem {
 
 // Labels are the words a café owner already uses, not ours. "Pass Scanner"
 // and "Hardware Tiers" are KHEL-O vocabulary that a first-time owner has no
-// way to decode; "Scan & Check-in" and "Resources & Pricing" describe the task.
+// way to decode; "Scan & Check-in" and "Setups & prices" describe the task.
 // Section headings say what the group is FOR, in the second person.
 const ownerNavSections: NavSection[] = [
   {
@@ -77,7 +78,7 @@ const ownerNavSections: NavSection[] = [
         hint: 'Every booking, past and upcoming',
       },
       {
-        label: 'Availability',
+        label: 'Free slots',
         href: '/owner/availability',
         icon: CalendarClock,
         hint: "What's free right now",
@@ -88,12 +89,12 @@ const ownerNavSections: NavSection[] = [
     heading: 'Your café',
     items: [
       {
-        label: 'Resources & Pricing',
+        label: 'Setups & prices',
         href: '/owner/tiers',
         icon: Monitor,
-        hint: 'Set up your PCs, consoles and hourly rates',
+        hint: 'What customers can book, and the price per hour',
       },
-      { label: 'Discounts', href: '/owner/offers', icon: Tag, hint: 'Run a time-limited offer' },
+      { label: 'Offers', href: '/owner/offers', icon: Tag, hint: 'Discounts and happy hours' },
       { label: 'Reviews', href: '/owner/reviews', icon: Store, hint: 'What customers said' },
       { label: 'Insights', href: '/owner/analytics', icon: BarChart3, hint: 'Busy hours and trends' },
       { label: 'Alerts', href: '/owner/notifications', icon: Bell, hint: 'Updates from KHEL-O' },
@@ -105,7 +106,7 @@ const ownerNavSections: NavSection[] = [
       { label: 'Payouts', href: '/owner/payouts', icon: Wallet, hint: 'What you have been paid' },
       { label: 'Your Team', href: '/owner/staff', icon: Users, hint: 'Give staff their own login' },
       { label: 'Café Settings', href: '/owner/settings', icon: Settings, hint: 'Details, hours and pausing' },
-      { label: 'Help & Support', href: '/owner/support', icon: LifeBuoy, hint: 'Raise a question or problem with KHELO' },
+      { label: 'Help & Support', href: '/owner/support', icon: LifeBuoy, hint: 'Ask KHEL-O, or replay the app tour' },
     ],
   },
 ];
@@ -115,7 +116,7 @@ const staffNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard, hint: "Today's arrivals" },
   { label: 'Scan & Check-in', href: '/owner/scanner', icon: QrCode, hint: "Scan a customer's booking pass" },
   { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays, hint: 'Every booking, past and upcoming' },
-  { label: 'Availability', href: '/owner/availability', icon: CalendarClock, hint: "What's free right now" },
+  { label: 'Free slots', href: '/owner/availability', icon: CalendarClock, hint: "What's free right now" },
 ];
 
 /** Resolves the current route to its nav label, for the mobile title bar. */
@@ -481,10 +482,10 @@ function OwnerBottomNav({
   // often shared, and muscle memory shouldn't depend on who is logged in.
   // "Scan" sits centre: it is the one thing done dozens of times a shift.
   const quickItems: (NavItem & { isMenu?: boolean })[] = [
-    { label: 'Home', href: '/owner/dashboard', icon: LayoutDashboard },
+    { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
     { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
     { label: 'Scan', href: '/owner/scanner', icon: QrCode },
-    { label: 'Seats', href: '/owner/availability', icon: CalendarClock },
+    { label: 'Free slots', href: '/owner/availability', icon: CalendarClock },
     { label: 'More', href: '#menu', icon: MoreHorizontal, isMenu: true },
   ];
 
@@ -564,6 +565,7 @@ export function OwnerShell({
           cafe_owner (or admin) role and always 403s for a staff-only
           account, and platform identity isn't staff's call to make. */}
       {!isStaff && <PlatformReconfirmModal />}
+      {!isStaff && <OwnerTour />}
 
       <OwnerSidebar isStaff={isStaff} />
 

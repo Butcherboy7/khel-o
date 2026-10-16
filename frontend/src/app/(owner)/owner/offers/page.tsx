@@ -66,6 +66,16 @@ function hour12(h: number): string {
 const START_HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h);
 const END_HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h + 1);
 
+const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+/** One-tap schedules for the offers owners ask for most. Days are Mon=0..Sun=6. */
+const WHEN_PRESETS = [
+  { label: 'Happy hours', hint: '10 AM–2 PM', startHour: 10, endHour: 14, days: EVERY_DAY },
+  { label: 'Weekdays', hint: 'Mon–Fri', startHour: 0, endHour: 24, days: [0, 1, 2, 3, 4] },
+  { label: 'Weekends', hint: 'Sat–Sun', startHour: 0, endHour: 24, days: [5, 6] },
+  { label: 'Late night', hint: '9 PM–12 AM', startHour: 21, endHour: 24, days: EVERY_DAY },
+  { label: 'All the time', hint: '', startHour: 0, endHour: 24, days: EVERY_DAY },
+];
+
 /** Lengths a percentage/fixed-amount offer's 'minimum booking length' can be
  *  set to — any bookable length works here (unlike a setup's own shortest-
  *  booking control, this isn't limited to 15/30/60). */
@@ -891,6 +901,31 @@ export default function OwnerOffersPage() {
               onChange={(e) => setForm({ ...form, validUntil: e.target.value })}
               required
             />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-caption font-semibold text-text-primary">When it runs (tap one, or set it below)</span>
+            <div className="flex flex-wrap gap-1.5">
+              {WHEN_PRESETS.map((p) => {
+                const on =
+                  form.startHour === p.startHour &&
+                  form.endHour === p.endHour &&
+                  form.daysOfWeek.join() === p.days.join();
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => setForm({ ...form, startHour: p.startHour, endHour: p.endHour, daysOfWeek: p.days })}
+                    className={`h-11 rounded-xl px-3 text-caption font-semibold transition-colors ${
+                      on ? 'bg-primary text-white' : 'border border-border bg-surface text-text-secondary hover:bg-surface-hover'
+                    }`}
+                  >
+                    {p.label}
+                    <span className={`ml-1 font-medium ${on ? 'text-white/80' : 'text-text-tertiary'}`}>{p.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

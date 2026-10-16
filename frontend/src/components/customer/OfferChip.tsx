@@ -4,7 +4,8 @@ import { cn } from '@/lib/cn';
 interface OfferChipProps {
   /** "20% off", "₹360 for 1 hr": the server's wording, shown as-is. */
   label: string;
-  /** Schedule in words ("Weekdays · 6 PM–9 PM"). Shown when the offer isn't open right now. */
+  /** Schedule in words ("Weekdays · 6 PM–9 PM"). Always shown, so a weekday
+   * price seen on Friday night isn't mistaken for the Saturday price. */
   when?: string | null;
   /** "Only 4 left" / "Ends today". Rendered as a quiet second line of text, not another pill. */
   urgency?: string | null;
@@ -21,7 +22,7 @@ interface OfferChipProps {
  * Renders only text the server supplied: it computes no prices.
  */
 export function OfferChip({ label, when, urgency, live = true, tone = 'soft', className }: OfferChipProps) {
-  const showWhen = !live && when;
+  const showWhen = Boolean(when);
   return (
     <span className={cn('inline-flex min-w-0 max-w-full flex-col items-start gap-0.5', className)}>
       <span

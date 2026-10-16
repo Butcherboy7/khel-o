@@ -17,6 +17,13 @@ const LAUNCH_KEY = 'gta6';
 const LAUNCH_AT = new Date('2026-11-19T00:00:00+05:30').getTime();
 // The list count is re-read this often so a busy day visibly ticks up.
 const COUNT_REFRESH_MS = 30_000;
+// Cafés that told us they have pre-ordered GTA 6 (confirmed by KHEL-O,
+// 2026-10-17). Only these get the "Pre-ordered" stamp; a PS5 café that joins
+// later shows without it until it's confirmed and added here.
+const PREORDERED_CAFE_IDS = new Set([
+  '73484598-b6a8-4118-82b9-7df16d03ed05', // DG Gaming Cafe
+  '69a24177-fc5f-4c07-a792-dacf7c2d147b', // Rockstar Gaming Cafe
+]);
 
 const REACH: { value: ReachBy; label: string; icon: typeof Phone; said: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, said: 'WhatsApp you' },
@@ -83,6 +90,7 @@ interface PlayCafe {
   price: number | null;
   photo: string | null;
   rating: number | null;
+  preordered: boolean;
 }
 
 function toPlayCafe(c: CafeListItem): PlayCafe {
@@ -96,6 +104,7 @@ function toPlayCafe(c: CafeListItem): PlayCafe {
     price: (() => { const p = c.bestOffer?.fromPrice ?? c.startingPrice; return p == null ? null : customerPrice(p); })(),
     photo: c.photos[0]?.url ?? null,
     rating: c.totalReviews > 0 ? c.averageRating : null,
+    preordered: PREORDERED_CAFE_IDS.has(c.id),
   };
 }
 
@@ -108,8 +117,9 @@ function usePs5Cafes(): PlayCafe[] | null {
         setCafes(
           res.items
             .filter((c) => !c.isLeadListing && c.platforms?.includes('playstation'))
-            .slice(0, 3)
-            .map(toPlayCafe),
+            .map(toPlayCafe)
+            .sort((a, b) => Number(b.preordered) - Number(a.preordered))
+            .slice(0, 3),
         ),
       )
       .catch(() => setCafes([]));
@@ -238,9 +248,11 @@ export function Gta6Client() {
       <style>{`
         @keyframes gta6-tick { from { transform: translateY(-60%); opacity: 0; filter: blur(3px); } to { transform: none; opacity: 1; filter: none; } }
         @keyframes gta6-sec { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+        @keyframes gta6-stamp { 0% { transform: rotate(-8deg) scale(2.2); opacity: 0; } 60% { transform: rotate(-8deg) scale(0.92); opacity: 1; } 100% { transform: rotate(-8deg) scale(1); opacity: 1; } }
         .gta6-tick { animation: gta6-tick 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+        .gta6-stamp { transform: rotate(-8deg); animation: gta6-stamp 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both; }
         .gta6-sec { animation: gta6-sec 1s linear forwards; }
-        @media (prefers-reduced-motion: reduce) { .gta6-tick, .gta6-sec { animation: none; } }
+        @media (prefers-reduced-motion: reduce) { .gta6-tick, .gta6-sec, .gta6-stamp { animation: none; } }
       `}</style>
       <div
         aria-hidden="true"
@@ -284,16 +296,28 @@ export function Gta6Client() {
             </div>
           </div>
           <p className="mt-2 max-w-md text-[14.5px] font-medium leading-snug text-[#D9D6D0] md:mt-6 md:text-xl">
-            No PS5 at home? <b className="font-extrabold text-[#F4F1EC]">Koi tension nai.</b> Play it on a big screen at a
-            café near you.
+            No PS5 at home? <b className="font-extrabold text-[#F4F1EC]">Koi tension nai.</b>{' '}
+            {cafes?.some((c) => c.preordered)
+              ? 'These cafés already pre-ordered it. Day one, big screen.'
+              : 'Play it on a big screen at a café near you.'}
           </p>
         </section>
 
         {/* Proof: real, bookable PS5 cafés with their live price. Hidden if the list can't load. */}
         {cafes === null || cafes.length > 0 ? (
           <section className="md:col-start-1 md:row-start-2" aria-label="PS5 cafés on KHEL-O">
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#A3A6B1] md:text-xs">
-              PS5 cafés on KHEL-O · bookable today
+            <p className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#A3A6B1] md:text-xs">
+              {cafes?.some((c) => c.preordered) ? (
+                <>
+                  <span className="inline-flex items-center gap-1 text-[#FF5A4E]">
+                    <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
+                    GTA 6 pre-ordered
+                  </span>
+                  · confirmed · book now
+                </>
+              ) : (
+                'PS5 cafés on KHEL-O · bookable today'
+              )}
             </p>
             <div className="mt-1.5 grid grid-cols-2 gap-2 md:mt-2.5 md:gap-3">
               {cafes === null
@@ -303,8 +327,18 @@ export function Gta6Client() {
                       key={c.id}
                       href={c.href}
                       onClick={() => trackAction('launch_list_cafe_click', { launch: LAUNCH_KEY, cafe: c.name, where: 'strip' })}
-                      className="flex h-[52px] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] p-1.5 transition-colors hover:bg-white/[0.09] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#FF5A4E]"
+                      className={`relative flex h-[52px] items-center gap-2 rounded-2xl border p-1.5 transition-colors hover:bg-white/[0.09] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#FF5A4E] ${
+                        c.preordered ? 'border-[#FF5A4E]/45 bg-[#FF5A4E]/[0.08]' : 'border-white/10 bg-white/[0.05]'
+                      }`}
                     >
+                      {c.preordered && (
+                        <span
+                          aria-label="GTA 6 pre-ordered"
+                          className="gta6-stamp pointer-events-none absolute -right-1 -top-2 rounded-[5px] border-2 border-[#FF5A4E] bg-[#0E0F13] px-1 py-px text-[8.5px] font-black uppercase leading-none tracking-[0.08em] text-[#FF5A4E]"
+                        >
+                          Pre-ordered
+                        </span>
+                      )}
                       <CafeThumb cafe={c} className="h-10 w-10 flex-shrink-0 rounded-[10px]" />
                       <span className="min-w-0">
                         <span className="block truncate text-[13px] font-bold leading-tight">{c.name}</span>
@@ -494,10 +528,10 @@ export function Gta6Client() {
                 <>
                   <div>
                     <h3 className="font-heading text-[20px] font-bold leading-tight tracking-tight [text-wrap:balance]">
-                      {daysLeft >= 2 ? `Can’t wait ${daysLeft} days?` : 'Can’t wait?'} Play PS5 this week.
+                      They’ve pre-ordered it. {daysLeft >= 2 ? `Can’t wait ${daysLeft} days?` : 'Can’t wait?'} Warm up this week.
                     </h3>
                     <p className="mt-1 text-[13px] text-[#A3A6B1]">
-                      Same cafés. Book a slot in a minute, pay online.
+                      Book a PS5 slot in a minute and pay online. Your seat is waiting when you walk in.
                       {firstBookingOfferLive() && <> <b className="font-bold text-[#F4F1EC]">First booking: no platform fee.</b></>}
                     </p>
                   </div>
@@ -522,6 +556,12 @@ export function Gta6Client() {
                               </>
                             )}
                           </span>
+                          {c.preordered && (
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#FF5A4E]/15 px-2 py-0.5 text-[11px] font-extrabold text-[#FF5A4E]">
+                              <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
+                              GTA 6 pre-ordered
+                            </span>
+                          )}
                           <span className="mt-1 block text-[12.5px] text-[#D9D6D0]">
                             {c.console}
                             {c.price !== null && (
@@ -558,9 +598,9 @@ export function Gta6Client() {
         <section className="mt-5 md:col-start-1 md:row-start-3 md:mt-0">
           <ul className="flex flex-col gap-3 text-[14.5px] md:gap-4 md:text-base">
             {[
+              ...(cafes?.some((c) => c.preordered) ? [['Pre-ordered', 'GTA 6 is already on order at the cafés marked above']] : []),
               ['First to know', 'you hear before launch-week slots go public'],
               ['Your spot', 'slots go in sign-up order, so early is better'],
-              ['Launch deal', 'a list-only price at the cafés that sign up'],
               ['Free', 'joining costs nothing'],
             ].map(([k, v]) => (
               <li key={k} className="flex items-baseline gap-4">

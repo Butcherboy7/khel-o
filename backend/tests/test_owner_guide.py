@@ -23,7 +23,7 @@ async def test_new_owner_starts_with_empty_guide_state(async_client, db_session)
     owner = await _user(db_session, UserRole.CAFE_OWNER)
     resp = await async_client.get(URL, headers=auth_headers(owner))
     assert resp.status_code == 200
-    assert resp.json()["data"] == {"sessions": 0, "pages": {}}
+    assert resp.json()["data"] == {"sessions": 0, "pages": {}, "tour": None}
 
 
 @pytest.mark.asyncio
@@ -70,3 +70,22 @@ async def test_guide_is_per_account_and_staff_allowed(async_client, db_session):
 async def test_gamer_forbidden(async_client, db_session):
     gamer = await _user(db_session, UserRole.GAMER)
     assert (await async_client.get(URL, headers=auth_headers(gamer))).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_tour_skip_then_finish_and_done_sticks(async_client, db_session):
+    owner = await _user(db_session, UserRole.CAFE_OWNER)
+    h = auth_headers(owner)
+
+    async def tour():
+        return (await async_client.get(URL, headers=h)).json()["data"]["tour"]
+
+    assert await tour() is None
+    assert (await async_client.post(f"{URL}/events", json={"type": "tour_skipped"}, headers=h)).status_code == 200
+    assert await tour() == "skipped"
+    # Replayed from Help and finished: upgrades to done.
+    await async_client.post(f"{URL}/events", json={"type": "tour_done"}, headers=h)
+    assert await tour() == "done"
+    # Skipping a later replay never takes "done" back.
+    await async_client.post(f"{URL}/events", json={"type": "tour_skipped"}, headers=h)
+    assert await tour() == "done"

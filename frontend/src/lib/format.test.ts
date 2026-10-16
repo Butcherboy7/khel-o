@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { customerPrice, getCafeOpenStatus, getOwnerPayoutAmount, isCafeOpenNow } from './format';
+import { customerPrice, getCafeOpenStatus, getOwnerPayoutAmount, isCafeOpenNow, shownFromPrice, shownPriceRange } from './format';
 
 // The server renders in UTC, phones in India run on IST. "Open now" must come
 // out the same on both, or React throws the server HTML away (errors #425/#422).
@@ -57,5 +57,29 @@ describe('getOwnerPayoutAmount with the ₹1 KHEL-O pays', () => {
     expect(getOwnerPayoutAmount({ totalAmount: 149, gatewayFee: 0, kheloDiscount: 1 })).toBe(150);
     expect(getOwnerPayoutAmount({ totalAmount: 154.96, gatewayFee: 5.96, kheloDiscount: 1 })).toBeCloseTo(150);
     expect(getOwnerPayoutAmount({ totalAmount: 160, gatewayFee: 5 })).toBe(155);
+  });
+});
+
+describe('shownFromPrice: the "from" price a listing card shows', () => {
+  it('uses a cheaper live deal on a bookable café, with the ₹1 drop', () => {
+    expect(shownFromPrice({ startingPrice: 150, bestOffer: { fromPrice: 100 } })).toBe(99);
+    expect(shownFromPrice({ startingPrice: 140 })).toBe(139);
+  });
+  it('ignores a deal that is not cheaper', () => {
+    expect(shownFromPrice({ startingPrice: 150, bestOffer: { fromPrice: 160 } })).toBe(149);
+  });
+  it('shows a "Booking soon" lead price as listed', () => {
+    expect(shownFromPrice({ startingPrice: 140, isLeadListing: true })).toBe(140);
+  });
+  it('the page range matches the cards (₹99 card, not "from ₹140")', () => {
+    expect(
+      shownPriceRange([
+        { startingPrice: 150, bestOffer: { fromPrice: 100 } },
+        { startingPrice: 140, bestOffer: { fromPrice: 120 } },
+        { startingPrice: 160 },
+        { startingPrice: null },
+      ]),
+    ).toEqual({ min: 99, max: 159 });
+    expect(shownPriceRange([])).toEqual({ min: null, max: null });
   });
 });

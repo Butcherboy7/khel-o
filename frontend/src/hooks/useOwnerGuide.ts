@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGuideState, postGuideEvent, type GuideEvent } from '@/lib/api/ownerGuide';
 import { PULSE_SESSIONS, TIP_VISITS, type GuidePage } from '@/lib/ownerGuideCopy';
+import { useOwnerTourStore } from '@/store/ownerTourStore';
 
 const GUIDE_KEY = ['owner', 'guide'] as const;
 const SESSION_FLAG = 'khelo-owner-guide-session';
@@ -80,5 +81,40 @@ export function usePageGuide(page: GuidePage) {
       setShowTip(false);
       record({ type: 'dismiss', page });
     },
+  };
+}
+
+/** Set when the owner closes the tour with "later": it stays away until they
+ *  sign out (cleared in authStore.logout) or the browser session ends. */
+export const TOUR_LATER_FLAG = 'khelo-owner-tour-later';
+
+/**
+ * Opens the app tour on every visit until the owner finishes or skips it.
+ * Mount where an approved owner lands (the dashboard), not for staff.
+ */
+export function useOwnerTourAutoStart(enabled: boolean) {
+  const { data } = useGuideState(enabled);
+  const decided = useRef(false);
+
+  useEffect(() => {
+    if (!enabled || !data || decided.current) return;
+    decided.current = true;
+    // The tour walks back to the dashboard mid-way; don't restart it then.
+    if (data.tour || useOwnerTourStore.getState().open) return;
+    try {
+      if (sessionStorage.getItem(TOUR_LATER_FLAG)) return;
+    } catch {
+      /* no sessionStorage: still show it */
+    }
+    useOwnerTourStore.getState().start();
+  }, [enabled, data]);
+}
+
+/** Saves "finished" / "skipped" on the account, so it holds on every device. */
+export function useTourRecord() {
+  const record = useRecord();
+  return {
+    finished: () => record({ type: 'tour_done' }),
+    skipped: () => record({ type: 'tour_skipped' }),
   };
 }

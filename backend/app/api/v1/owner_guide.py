@@ -18,20 +18,29 @@ GuidePage = Literal[
 ]
 
 
+# The owner tour: shown on every visit until the owner finishes or skips it
+# ("tour_done" / "tour_skipped"); replaying it from Help doesn't reset that.
+TOUR_EVENTS = {"tour_done": "done", "tour_skipped": "skipped"}
+
+
 class GuideEventRequest(BaseModel):
-    type: Literal["session_start", "page_view", "dismiss"]
+    type: Literal["session_start", "page_view", "dismiss", "tour_done", "tour_skipped"]
     page: Optional[GuidePage] = None
 
     @model_validator(mode="after")
     def page_required_for_page_events(self) -> "GuideEventRequest":
-        if self.type != "session_start" and self.page is None:
+        if self.type in ("page_view", "dismiss") and self.page is None:
             raise ValueError("page is required for page_view and dismiss")
         return self
 
 
 def _normalized(state: dict | None) -> dict:
     state = state or {}
-    return {"sessions": int(state.get("sessions", 0)), "pages": dict(state.get("pages", {}))}
+    return {
+        "sessions": int(state.get("sessions", 0)),
+        "pages": dict(state.get("pages", {})),
+        "tour": state.get("tour"),
+    }
 
 
 @router.get("", status_code=status.HTTP_200_OK)
@@ -51,6 +60,11 @@ async def record_guide_event(
 
     if payload.type == "session_start":
         state["sessions"] += 1
+    elif payload.type in TOUR_EVENTS:
+        # Finishing after an earlier skip upgrades it; a later skip of a
+        # replay never downgrades "done".
+        if state["tour"] != "done":
+            state["tour"] = TOUR_EVENTS[payload.type]
     else:
         page = dict(state["pages"].get(payload.page, {"views": 0, "dismissed": False}))
         if payload.type == "page_view":

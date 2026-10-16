@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
 import { getSeoPage } from '@/lib/api/seo';
-import { formatTime, customerPrice } from '@/lib/format';
+import { formatTime, customerPrice, shownPriceRange } from '@/lib/format';
 import { cleanName, listVenueKind, venueArea } from '@/lib/venueKind';
 import type { CafeListItem } from '@/types';
 
@@ -38,8 +38,9 @@ function summarize(cafes: CafeListItem[]) {
   const cue = rows.filter((r) => r.kind.key === 'cue' || r.kind.key === 'gaming-cue');
   const bowling = rows.filter((r) => r.kind.key === 'bowling');
   const bookable = rows.filter((r) => !r.cafe.isLeadListing);
-  const prices = cafes.map((c) => c.startingPrice).filter((p): p is number => p != null);
-  const gamingPrices = gaming.map((r) => r.cafe.startingPrice).filter((p): p is number => p != null);
+  // The same "from" price the cards below show, so the summary never quotes ₹140 over a ₹99 card.
+  const all = shownPriceRange(cafes);
+  const gamingRange = shownPriceRange(gaming.map((r) => r.cafe));
   // Open till 11 PM or later, or past midnight.
   const lateClose = (t: string | null | undefined) => !!t && (t >= '23:00' || t < '05:00');
   const late = rows.filter((r) => lateClose(r.cafe.closingTime));
@@ -50,9 +51,9 @@ function summarize(cafes: CafeListItem[]) {
     bowling,
     bookable,
     late,
-    minPrice: prices.length > 0 ? Math.min(...prices) : null,
-    gamingMin: gamingPrices.length > 0 ? Math.min(...gamingPrices) : null,
-    gamingMax: gamingPrices.length > 0 ? Math.max(...gamingPrices) : null,
+    minPrice: all.min,
+    gamingMin: gamingRange.min,
+    gamingMax: gamingRange.max,
   };
 }
 

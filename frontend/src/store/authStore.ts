@@ -124,6 +124,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('activeRole');
       localStorage.removeItem('roles');
       localStorage.removeItem('khel_booking_draft');
+      // The owner tour shows on every login until finished or skipped; "later"
+      // only lasts until the owner signs out.
+      try {
+        sessionStorage.removeItem('khelo-owner-tour-later');
+      } catch {
+        /* storage blocked: nothing to clear */
+      }
       window.location.href = '/login';
     }
     set({

@@ -835,8 +835,8 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
 
             {settings.gamingPlatforms.length === 0 ? (
               <div className="p-4 rounded-xl bg-surface-hover border border-border text-caption text-text-secondary">
-                This café has no PC/console gaming resource yet, so there&apos;s nothing to configure here.
-                Add a PC, PlayStation, Xbox, or Nintendo resource under Resources & Pricing and this section
+                This café has no PC or console setup yet, so there&apos;s nothing to configure here.
+                Add a PC, PlayStation, Xbox, or Nintendo setup under Setups &amp; prices and this section
                 will let you pick the games it supports.
               </div>
             ) : (
