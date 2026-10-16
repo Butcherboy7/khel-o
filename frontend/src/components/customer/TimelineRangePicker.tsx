@@ -609,21 +609,6 @@ export function TimelineRangePicker({
           <p className="font-heading text-body-emphasis font-bold leading-tight text-text-primary tabular-nums">
             {formatRange(headStart, headEnd)}
           </p>
-          {availabilityBadge && (
-            <span
-              className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold leading-tight ${
-                availabilityBadge.variant === 'sold_out'
-                  ? 'bg-gray-200 text-gray-600'
-                  : availabilityBadge.variant === 'critical'
-                  ? 'bg-red-100 text-red-700'
-                  : availabilityBadge.variant === 'warning'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              {availabilityBadge.text}
-            </span>
-          )}
         </div>
 
         <div className="flex flex-shrink-0 items-center gap-1 rounded-full border border-border/80 bg-surface/60 px-1">
@@ -659,12 +644,12 @@ export function TimelineRangePicker({
           by fill pattern (solid/hatch/dotted), not color alone; spell that out
           for sighted users who'd otherwise have no way to learn what the
           patterns mean, since the patterns alone aren't self-explanatory. ── */}
-      <div className="flex items-center gap-3 px-3.5 pt-2 pb-0" aria-hidden="true">
-        <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 pt-2 pb-0">
+        <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary" aria-hidden="true">
           <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: '#22c55e' }} />
           Available
         </span>
-        <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary">
+        <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary" aria-hidden="true">
           <span
             className="h-1.5 w-4 rounded-full"
             style={{
@@ -675,7 +660,7 @@ export function TimelineRangePicker({
           />
           Booked
         </span>
-        <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary">
+        <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary" aria-hidden="true">
           <span
             className="h-1.5 w-4 rounded-full"
             style={{
@@ -686,6 +671,22 @@ export function TimelineRangePicker({
           />
           Past
         </span>
+        {/* Seats left for this exact window, beside the key it relates to. */}
+        {availabilityBadge && (
+          <span
+            className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold leading-tight ${
+              availabilityBadge.variant === 'sold_out'
+                ? 'bg-gray-200 text-gray-600'
+                : availabilityBadge.variant === 'critical'
+                ? 'bg-red-100 text-red-700'
+                : availabilityBadge.variant === 'warning'
+                ? 'bg-amber-100 text-amber-800'
+                : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {availabilityBadge.text}
+          </span>
+        )}
       </div>
 
       {/* ── Dynamic Timeline Canvas (100% Unified Coordinates) ── */}

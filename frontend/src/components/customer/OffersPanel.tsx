@@ -200,7 +200,10 @@ export function OffersPanel({
         {others.length > 0 && offerList}
         {hintBlock}
         {noteBlock}
-        <div className="border-t border-border/70 pt-3">{codeControl}</div>
+        <div className="flex flex-col gap-1.5 border-t border-border/70 pt-3">
+          {!appliedCode && <p className="text-caption font-semibold text-text-primary">Have a code?</p>}
+          {codeControl}
+        </div>
       </section>
     );
   }

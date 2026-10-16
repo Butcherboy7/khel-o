@@ -320,6 +320,17 @@ function BookingWizardContent() {
   // The owner's longest booking for this setup (8 hours when unset).
   const maxDurationMin = Math.max(minDurationMin, Math.min(480, activeTier?.maxBookingMinutes ?? 480));
   const durationStep = minDurationMin % 30 === 0 ? 30 : 15;
+  // Today, after the last possible start (same rule as the time picker):
+  // nothing can be booked, so say so instead of showing an impossible slot.
+  const noTimeLeftToday = (() => {
+    if (!cafe || selectedDate !== getTodayString()) return false;
+    const open = timeToMinutes(cafe.openingTime || '09:00:00');
+    let close = timeToMinutes(cafe.closingTime || '23:00:00');
+    if (close <= open) close += 1440;
+    const now = new Date();
+    const earliest = Math.max(open, Math.ceil((now.getHours() * 60 + now.getMinutes() + 10) / durationStep) * durationStep);
+    return close - earliest < minDurationMin;
+  })();
   const durationLabel = durationHours < 1 ? `${Math.round(durationHours * 60)} min` : `${durationHours} hr`;
 
   // Start on the setup's default length (owner-set) unless the URL already
@@ -387,6 +398,7 @@ function BookingWizardContent() {
   );
   const lastAutoSelectKey = useRef<string | null>(initialAutoSelectKey.current);
   const userHasSelectedSlot = useRef(initialAutoSelectKey.current !== null);
+  const leftTodayOnce = useRef(false);
   useEffect(() => {
     if (!cafe || !availabilityData) return;
     // Once the user has explicitly picked a slot (handleTimelineChange),
@@ -476,6 +488,16 @@ function BookingWizardContent() {
           break;
         }
       }
+    }
+
+    // Too late today for even the shortest session (e.g. 11 PM at an 11:30
+    // close): open on tomorrow instead of offering a slot that can't be booked.
+    // Only on first arrival; a customer who taps today gets told why below.
+    if (!foundFirstSlot && selectedDate === today && closeMin - minValidStart < minDurationMin && !leftTodayOnce.current) {
+      leftTodayOnce.current = true;
+      setSelectedDate(addDaysToDateString(today, 1));
+      setSelectedDateOffset(0);
+      return;
     }
 
     if (!foundFirstSlot && minValidStart < closeMin) {
@@ -870,6 +892,12 @@ function BookingWizardContent() {
         })}
       </div>
 
+      {noTimeLeftToday && (
+        <p role="status" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-caption font-semibold text-amber-700">
+          No time left to book today. Pick another day above.
+        </p>
+      )}
+
       {/* Walk-in-only notice for the selected tier specifically (the card-level
           version above covers the whole café; a single paused tier needs its
           own callout since the tier switcher no longer shows this inline). */}
@@ -1196,6 +1224,7 @@ function BookingWizardContent() {
               quoteSettling ||
               Boolean(cafe.isEmergencyMode) ||
               Boolean(cafe.bookingsPaused) ||
+              noTimeLeftToday ||
               windowRemainingSeats < consolesCount
             }
             className="flex-shrink-0 min-h-btn rounded-2xl bg-primary px-6 py-3 font-heading text-btn font-bold text-white shadow-float hover:bg-primary-dark active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
@@ -1206,6 +1235,8 @@ function BookingWizardContent() {
               ? 'Emergency Mode Active'
               : cafe.bookingsPaused
               ? 'Bookings Paused'
+              : noTimeLeftToday
+              ? 'Pick another day'
               : windowRemainingSeats === 0
               ? 'Sold Out'
               : windowRemainingSeats < consolesCount
