@@ -43,3 +43,29 @@ export function OfferChip({ label, when, urgency, live = true, tone = 'soft', cl
     </span>
   );
 }
+
+interface OfferLineProps {
+  label: string;
+  /** 'solo' | 'coop' | 'any': who the offer is for, said in players. */
+  playMode?: string | null;
+  when?: string | null;
+  urgency?: string | null;
+  live?: boolean;
+  className?: string;
+}
+
+/**
+ * The quiet form of an offer for setup cards: one line of text with a tag
+ * icon, no pill. Same words as OfferChip (label, who, when), so the deal still
+ * reads the same here as on the list and at checkout.
+ */
+export function OfferLine({ label, playMode, when, urgency, live = true, className }: OfferLineProps) {
+  const who = playMode === 'solo' ? '1 player' : playMode === 'coop' ? '2 players' : null;
+  const text = [label, who, when, urgency].filter(Boolean).join(' · ');
+  return (
+    <p className={cn('flex min-w-0 items-center gap-1 text-caption font-semibold', live ? 'text-primary-dark' : 'text-text-secondary', className)}>
+      <Tag className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+      <span className="truncate">{text}</span>
+    </p>
+  );
+}

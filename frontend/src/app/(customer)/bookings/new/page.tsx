@@ -110,7 +110,7 @@ function BookingWizardContent() {
   });
   const [durationHours, setDurationHours] = useState(() => {
     const d = parseFloat(searchParams.get('duration') || '');
-    return Number.isFinite(d) && d > 0 ? d : 2;
+    return Number.isFinite(d) && d > 0 ? d : 1;
   });
   // People playing (the Players stepper). How many consoles that holds is
   // `consolesCount` below: 1 in co-op, one each otherwise.

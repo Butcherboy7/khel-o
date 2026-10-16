@@ -52,7 +52,7 @@ import { ShareModal } from '@/components/customer/ShareModal';
 import { createShare } from '@/lib/share';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
-import { OfferChip } from '@/components/customer/OfferChip';
+import { OfferChip, OfferLine } from '@/components/customer/OfferChip';
 import { useCampaign } from '@/hooks/useCampaign';
 import { optimizedImg, fallBackToOriginal } from '@/lib/imageUrl';
 import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
@@ -594,7 +594,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           <p className="text-caption text-text-secondary">
             {isLead
               ? 'Approx prices from our research. Online booking opens once they join KHEL-O.'
-              : `Prices are per hour for one player. A small platform fee is added at checkout${firstBookingOfferLive() ? ' (none on your first booking)' : ''}. Tap one to pick your time.`}
+              : 'Price per hour. Tap one to pick your time.'}
           </p>
         </div>
 
@@ -644,15 +644,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
-                        {tier.coopEnabled && (
-                          <span className="flex items-center gap-1 rounded-full bg-primary/[0.08] px-2 py-0.5 text-[11px] font-bold text-primary-dark flex-shrink-0">
-                            <Users className="h-3 w-3" aria-hidden />
-                            Co-op
-                          </span>
-                        )}
-                      </div>
+                      <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
                       {(isPc || (!modelRepeatsName && modelLabel !== 'Gaming Station')) && (
                         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-text-secondary">
                           {isPc ? (
@@ -679,62 +671,46 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                             ))}
                         </div>
                       )}
-                      {/* The offer, in the same words as the list and checkout. */}
+                      {/* The offer as one quiet line, in the server's words: what it is,
+                          who it's for, and when it runs. No pill, no repeated title. */}
                       {promo && (
-                        <div className="mt-1 flex min-w-0 flex-wrap items-start gap-x-2 gap-y-0.5">
-                          <OfferChip
-                            label={promo.label || 'Offer'}
-                            when={promo.when}
-                            live={promoLive}
-                            urgency={offerUrgency({ slotsRemaining: promo.slotsRemaining, validUntil: promo.validUntil })}
-                          />
-                          {promo.title && promo.promotionType !== 'fixed_price' && (
-                            <span className="min-w-0 pt-0.5 text-[11px] text-text-secondary">
-                              {promo.title.replace(/\s*·\s*[^·]*$/, (m) => (tier.name && m.toLowerCase().includes(tier.name.toLowerCase()) ? '' : m))}
-                            </span>
-                          )}
-                        </div>
+                        <OfferLine
+                          className="mt-0.5"
+                          label={promo.label || 'Offer'}
+                          playMode={promo.playMode}
+                          when={promo.when}
+                          live={promoLive}
+                          urgency={offerUrgency({ slotsRemaining: promo.slotsRemaining, validUntil: promo.validUntil })}
+                        />
                       )}
-                      {/* Co-op price on every co-op setup, so PS4 and PS5 read the same. */}
+                      {/* Co-op on every co-op setup, so PS4 and PS5 read the same. */}
                       {tier.coopEnabled && (
-                        <p className="mt-1 flex flex-nowrap items-center gap-1 whitespace-nowrap text-caption text-text-secondary">
-                          <span>
-                            {(tier.coopMaxPlayers ?? 2) > 2 ? `2–${tier.coopMaxPlayers}` : '2'} players{coopDeal ? ' ' : ' from '}
-                            {coopDeal && (
-                              <span className="mr-1 text-text-tertiary line-through"><span className="rupee-symbol">₹</span>{shownPrice(coopRate)}</span>
-                            )}
-                            <span className={`font-data font-bold ${coopDeal ? 'text-accent' : 'text-text-primary'}`}>
-                              <span className="rupee-symbol">₹</span>{shownPrice(coopDeal?.price ?? coopRate)}/hr
-                            </span>
+                        <p className="mt-0.5 flex items-center gap-1 whitespace-nowrap text-caption text-text-secondary">
+                          <Users className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+                          Co-op for {(tier.coopMaxPlayers ?? 2) > 2 ? `2–${tier.coopMaxPlayers}` : '2'}
+                          <span className="font-data font-semibold text-text-primary">
+                            <span className="rupee-symbol">₹</span>{shownPrice(coopDeal?.price ?? coopRate)}/hr
                           </span>
-                          <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" className="relative z-10 -my-1 flex-shrink-0" />
                         </p>
                       )}
                     </div>
 
-                    <div className="flex flex-shrink-0 flex-col items-end gap-0.5 text-right">
+                    <div className="flex flex-shrink-0 flex-col items-end gap-0.5 self-start text-right">
+                      <div className={`whitespace-nowrap font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
+                        <span className="rupee-symbol">₹</span>{shownPrice(discountedPrice)}
+                        <span className="text-caption font-normal text-text-secondary">/hr</span>
+                      </div>
                       {discount > 0 && (
                         <span className="text-caption leading-none text-text-tertiary line-through">
                           <span className="rupee-symbol">₹</span>{shownPrice(tier.pricePerHour)}
                         </span>
                       )}
-                      <div className={`whitespace-nowrap font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
-                        <span className="rupee-symbol">₹</span>{shownPrice(discountedPrice)}
-                        <span className="text-caption font-normal text-text-secondary">/hr</span>
-                      </div>
                       {isLead && <span className="whitespace-nowrap text-[11px] text-text-secondary">(approx)</span>}
-                      {liveData?.openNow && freeNowByTier.has(tier.id) && tier.totalSeats > 0 ? (
-                        <span className={`whitespace-nowrap text-[11px] font-bold ${(freeNowByTier.get(tier.id) ?? 0) > 0 ? 'text-success' : 'text-warning'}`}>
-                          {(freeNowByTier.get(tier.id) ?? 0) > 0
-                            ? `${freeNowByTier.get(tier.id)} of ${tier.totalSeats} free`
-                            : 'All in use now'}
+                      {/* Only live news earns a line here: how many are free right now. */}
+                      {liveData?.openNow && freeNowByTier.has(tier.id) && tier.totalSeats > 0 && (
+                        <span className={`whitespace-nowrap text-[11px] font-semibold ${(freeNowByTier.get(tier.id) ?? 0) > 0 ? 'text-success' : 'text-warning'}`}>
+                          {(freeNowByTier.get(tier.id) ?? 0) > 0 ? `${freeNowByTier.get(tier.id)} free now` : 'All in use now'}
                         </span>
-                      ) : (
-                        tier.totalSeats > 0 && (
-                          <span className="whitespace-nowrap text-[11px] text-text-secondary">
-                            {tier.totalSeats} station{tier.totalSeats === 1 ? '' : 's'}
-                          </span>
-                        )
                       )}
                     </div>
                   </div>
@@ -1294,8 +1270,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           </div>
         ) : (
         <div className="max-w-content mx-auto flex items-center justify-between gap-4">
-          <div>
-            <span className="text-overline text-text-secondary">{activeTier ? activeTier.name : 'Starting from'}</span>
+          <div className="min-w-0">
+
             <div className="font-data text-price-lg font-bold text-text-primary">
               {/* Same rule as the setup card above, so the bar never contradicts the card the visitor tapped. */}
               {barPrice != null && activeTier && barPrice < activeTier.pricePerHour && (
@@ -1306,8 +1282,10 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
             {/* Flag the fee before checkout so the total never surprises
                 anyone, but as an amount-at-checkout, not a percentage — "4%"
                 reads as money lost; the exact rupee figure is on checkout. */}
-            <span className="text-caption text-text-secondary">
-              {firstBookingOfferLive() && !isLead ? 'No platform fee on your first booking' : '+ platform fee at checkout'}
+            <span className="block truncate text-caption text-text-secondary">
+              {firstBookingOfferLive() && !isLead
+                ? 'No fee on your first booking'
+                : `${activeTier ? activeTier.name : 'Starting from'} · + platform fee`}
             </span>
           </div>
 

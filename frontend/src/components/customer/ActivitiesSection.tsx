@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ActivityIcon } from '@/components/icons/ActivityIcons';
 import type { HardwareTier } from '@/types/tier';
 import { ActivitySpecLine } from '@/components/customer/ActivitySpecs';
-import { OfferChip } from '@/components/customer/OfferChip';
+import { OfferChip, OfferLine } from '@/components/customer/OfferChip';
 import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 import type { Promotion } from '@/types/promotion';
 import { customerPrice } from '@/lib/format';
@@ -53,9 +53,10 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
               <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
               <ActivitySpecLine tier={tier} />
               {tier.activePromotion && (
-                <OfferChip
-                  className="my-0.5"
+                <OfferLine
+                  className="mt-0.5"
                   label={tier.activePromotion.label || 'Offer'}
+                  playMode={tier.activePromotion.playMode}
                   when={tier.activePromotion.when}
                   live={tier.activePromotion.isLiveNow !== false}
                   urgency={offerUrgency({
@@ -77,19 +78,18 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
                 {tier.description && <span>{tier.description}</span>}
               </div>
             </div>
-            <div className="flex flex-shrink-0 flex-col items-end gap-0.5 text-right">
+            <div className="flex flex-shrink-0 flex-col items-end gap-0.5 self-start text-right">
+              <div className={`whitespace-nowrap font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
+                <span className="rupee-symbol">₹</span>{shown}
+                <span className="text-caption font-normal text-text-secondary">/hr</span>
+              </div>
               {discount > 0 && (
                 <span className="text-caption leading-none text-text-tertiary line-through">
                   <span className="rupee-symbol">₹</span>{pay(tier.pricePerHour)}
                 </span>
               )}
-              <div className={`whitespace-nowrap font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
-                <span className="rupee-symbol">₹</span>{shown}
-                <span className="text-caption font-normal text-text-secondary">/hr</span>
-              </div>
               {/* A lead café's prices are our research, not the venue's. */}
               {readOnly && <span className="whitespace-nowrap text-[11px] text-text-secondary">(approx)</span>}
-              <span className="whitespace-nowrap text-[11px] text-text-secondary">{tier.totalSeats} {tier.totalSeats === 1 ? 'station' : 'stations'}</span>
             </div>
           </>
           );

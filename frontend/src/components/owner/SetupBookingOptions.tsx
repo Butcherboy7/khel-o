@@ -307,7 +307,7 @@ export function SetupBookingOptions({ config, onChange }: Props) {
             value={o.defaultBookingMinutes ?? ''}
             onChange={(e) => onChange({ defaultBookingMinutes: e.target.value ? Number(e.target.value) : null })}
           >
-            <option value="">{allowed.includes(120) ? 'Standard (2 hr)' : 'Standard'}</option>
+            <option value="">{allowed.includes(60) ? 'Standard (1 hr)' : 'Standard'}</option>
             {DEFAULT_OPTIONS.filter((m) => allowed.includes(m)).map((m) => (
               <option key={m} value={m}>{fmt(m)}</option>
             ))}
@@ -326,7 +326,7 @@ export function SetupBookingOptions({ config, onChange }: Props) {
           </b>
           . Checkout opens on{' '}
           <b className="font-semibold text-text-primary">
-            {fmt(Math.min(allowed[allowed.length - 1], Math.max(allowed[0], o.defaultBookingMinutes ?? 120)))}
+            {fmt(Math.min(allowed[allowed.length - 1], Math.max(allowed[0], o.defaultBookingMinutes ?? 60)))}
           </b>
           {allowed.length > 1 ? ', and they can change it.' : '.'}
         </p>
