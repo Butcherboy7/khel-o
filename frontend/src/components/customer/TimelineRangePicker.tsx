@@ -64,7 +64,9 @@ interface TimelineRangePickerProps {
   // startTime actually falls on (0 = same day, 1 = the overnight tail past
   // midnight). Callers must add this to selectedDate to get the effective
   // session date — see minutesToTimeAndDayOffset in lib/format.ts.
-  onChange: (newStartTime: string, newDurationHours: number, dayOffset: number) => void;
+  // `auto` = the picker corrected the slot itself (e.g. to fit before closing),
+  // not a choice the customer made.
+  onChange: (newStartTime: string, newDurationHours: number, dayOffset: number, auto?: boolean) => void;
   bookedSlots?: BookedSlot[];
   totalSeats?: number;
   requestedSeats?: number;
@@ -77,6 +79,23 @@ interface TimelineRangePickerProps {
   stepMinutes?: number;
   /** Longest session this setup allows (owner-set; default 8 hours). */
   maxDurationMinutes?: number | null;
+  /** Rendered inside the same card under the slider (checkout puts Players here). */
+  children?: React.ReactNode;
+}
+
+/** "9:30 – 11:30 PM", or "11:30 PM – 1:30 AM" when the session crosses noon or midnight. */
+function formatRange(start: number, end: number): string {
+  const a = formatMinutesTo12h(start);
+  const b = formatMinutesTo12h(end);
+  return a.slice(-2) === b.slice(-2) ? `${a.slice(0, -3)} – ${b}` : `${a} – ${b}`;
+}
+
+/** 90 -> "1 hr 30", 120 -> "2 hr", 30 -> "30 min": the same wording as the rest of checkout. */
+function formatLength(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h} hr ${m}` : `${h} hr`;
 }
 
 function formatPlayoTime(minutes: number): string {
@@ -102,6 +121,7 @@ export function TimelineRangePicker({
   minDurationMinutes = MIN_DURATION_MIN,
   stepMinutes = 30,
   maxDurationMinutes,
+  children,
 }: TimelineRangePickerProps) {
   const G = stepMinutes;
   const minDurMin = Math.max(G, minDurationMinutes);
@@ -228,6 +248,26 @@ export function TimelineRangePicker({
 
   const durMin = Math.min(maxDurMin, Math.max(minDurMin, Math.round(durationHours * 60)));
   const selEnd = Math.min(closeMin, selStart + durMin);
+
+  // A session must fit before closing. Late in the day the chosen length can
+  // run past it (10:30 PM + 2 hr at an 11:30 PM close): the slider used to cut
+  // the time short while the page kept the 2 hr length and price, so the
+  // screen said one thing and the charge another. Start earlier when that
+  // still works, else shorten the session to what fits.
+  useEffect(() => {
+    if (dragMode || selStart + durMin <= closeMin) return;
+    const earlier = Math.floor((closeMin - durMin) / G) * G;
+    if (earlier >= minValidStart) {
+      const { time, dayOffset } = minutesToTimeAndDayOffset(earlier);
+      onChange(time, durMin / 60, dayOffset, true);
+      return;
+    }
+    const fits = Math.floor((closeMin - selStart) / G) * G;
+    if (fits >= minDurMin) {
+      const { time, dayOffset } = minutesToTimeAndDayOffset(selStart);
+      onChange(time, fits / 60, dayOffset, true);
+    }
+  }, [selStart, durMin, closeMin, minValidStart, minDurMin, G, dragMode, onChange]);
 
   // ── Dynamic Slot Width Scale (Compresses dynamically for large durations) ──
   const sidePadding = Math.max(40, containerWidth / 3);
@@ -562,24 +602,20 @@ export function TimelineRangePicker({
   }, [openMin, closeMin, labelStepMinutes]);
 
   return (
-    <div className="flex flex-col gap-0 select-none rounded-3xl border border-border/50 bg-surface overflow-hidden">
-      {/* ── Playo Header Bar (TIME + Duration Stepper) ── */}
-      <div className="flex items-center justify-between bg-[#e0f2fe]/75 p-3 border-b border-border/30">
-        <div className="flex flex-col pl-1">
-          <span className="text-[12px] font-extrabold tracking-wider text-text-primary uppercase">TIME</span>
-          <span className="text-[13px] font-semibold text-text-secondary mt-0.5">
-            {formatMinutesTo12h(headStart)} - {formatMinutesTo12h(headEnd)}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2.5">
+    <div className="flex flex-col gap-0 select-none rounded-2xl border border-border/80 bg-card overflow-hidden">
+      {/* ── Header: when (the answer to "what am I booking?"), seats left, length ── */}
+      <div className="flex items-center justify-between gap-2 px-3.5 pt-3">
+        <div className="min-w-0">
+          <p className="font-heading text-body-emphasis font-bold leading-tight text-text-primary tabular-nums">
+            {formatRange(headStart, headEnd)}
+          </p>
           {availabilityBadge && (
             <span
-              className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+              className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold leading-tight ${
                 availabilityBadge.variant === 'sold_out'
                   ? 'bg-gray-200 text-gray-600'
                   : availabilityBadge.variant === 'critical'
-                  ? 'bg-red-100 text-red-700 animate-pulse'
+                  ? 'bg-red-100 text-red-700'
                   : availabilityBadge.variant === 'warning'
                   ? 'bg-amber-100 text-amber-800'
                   : 'bg-gray-100 text-gray-600'
@@ -588,34 +624,34 @@ export function TimelineRangePicker({
               {availabilityBadge.text}
             </span>
           )}
+        </div>
 
-          <div className="flex items-center gap-2.5 bg-white rounded-2xl px-3 py-1.5 border border-border/60 shadow-sm">
-            <button
-              type="button"
-              onClick={() => adjustDuration(-1)}
-              disabled={durMin <= minDurMin}
-              aria-label="Shorter session"
-              className="flex h-11 w-11 -m-1 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-            <span className="inline-flex min-w-[65px] items-center justify-center gap-0.5 text-center text-[13px] font-bold text-text-primary">
-              {headDur} Mins
-              {/* Easter egg: a long session earns a little flame. */}
-              {headDur >= 240 && (
-                <Flame className="h-3 w-3 text-primary animate-in zoom-in-50 duration-300" aria-label="Marathon session" />
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={() => adjustDuration(1)}
-              disabled={selEnd + G > closeMin || durMin >= maxDurMin}
-              aria-label="Longer session"
-              className="flex h-11 w-11 -m-1 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
+        <div className="flex flex-shrink-0 items-center gap-1 rounded-full border border-border/80 bg-surface/60 px-1">
+          <button
+            type="button"
+            onClick={() => adjustDuration(-1)}
+            disabled={durMin <= minDurMin}
+            aria-label="Shorter session"
+            className="flex h-11 w-11 -my-1.5 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          <span className="inline-flex min-w-[52px] items-center justify-center gap-0.5 text-center font-heading text-body font-bold text-text-primary" aria-live="polite">
+            {formatLength(headDur)}
+            {/* Easter egg: a long session earns a little flame. */}
+            {headDur >= 240 && (
+              <Flame className="h-3 w-3 text-primary animate-in zoom-in-50 duration-300" aria-label="Marathon session" />
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => adjustDuration(1)}
+            disabled={selEnd + G > closeMin || durMin >= maxDurMin}
+            aria-label="Longer session"
+            className="flex h-11 w-11 -my-1.5 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -623,7 +659,7 @@ export function TimelineRangePicker({
           by fill pattern (solid/hatch/dotted), not color alone; spell that out
           for sighted users who'd otherwise have no way to learn what the
           patterns mean, since the patterns alone aren't self-explanatory. ── */}
-      <div className="flex items-center gap-3 px-3.5 pt-1.5 pb-0" aria-hidden="true">
+      <div className="flex items-center gap-3 px-3.5 pt-2 pb-0" aria-hidden="true">
         <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary">
           <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: '#22c55e' }} />
           Available
@@ -927,6 +963,7 @@ export function TimelineRangePicker({
           {noSlotMsg}
         </p>
       )}
+      {children && <div className="border-t border-border/70 px-3.5 py-2">{children}</div>}
     </div>
   );
 }

@@ -30,7 +30,7 @@ import { queryKeys } from '@/hooks/queries/keys';
 import { useRazorpay } from '@/hooks/useRazorpay';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { useAuthStore } from '@/store/authStore';
-import { Skeleton, ErrorState } from '@/components/ui';
+import { Skeleton, ErrorState, BottomSheet } from '@/components/ui';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { saveBookingIntent } from '@/lib/bookingIntent';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
@@ -150,6 +150,9 @@ function BookingWizardContent() {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [showTierSwitcher, setShowTierSwitcher] = useState(false);
   const [showTrustDetails, setShowTrustDetails] = useState(false);
+  // Offers + code live in a sheet so the checkout itself fits one phone screen.
+  const [offersOpen, setOffersOpen] = useState(false);
+  const [gameOpen, setGameOpen] = useState(false);
 
   const { data: cafe, isLoading, isError, error: fetchError } = useQuery({
     queryKey: queryKeys.cafes.detail(cafeId),
@@ -602,8 +605,8 @@ function BookingWizardContent() {
   // ₹187.2 -> "187.20", ₹180 -> "180": rupees with paise only when present.
   const money = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 
-  const handleTimelineChange = (newStartTime: string, newDurationHours: number, dayOffset: number) => {
-    userHasSelectedSlot.current = true;
+  const handleTimelineChange = (newStartTime: string, newDurationHours: number, dayOffset: number, auto = false) => {
+    if (!auto) userHasSelectedSlot.current = true;
     setSelectedTime(newStartTime);
     setDurationHours(newDurationHours);
     setSelectedDateOffset(dayOffset);
@@ -744,89 +747,70 @@ function BookingWizardContent() {
 
   return (
     <>
-      {/* pb clears the fixed bar's own height (price + CTA stack into two
-          rows on mobile, ~140px) PLUS the bottom-nav-height it sits above
-          on mobile (the bar's own `bottom` offset) — 140 + 64 + safe-area
-          margin — so page content, including the trust-details expansion,
-          never sits underneath it. sm+ reverts to the shorter single-row
-          bar with no bottom-nav beneath it. */}
-      <div className="flex flex-col gap-3.5 max-w-2xl mx-auto pb-60 sm:pb-28">
-      {/* Compact contextual header — replaces the global brand header once
-          a customer is inside the booking flow. */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => router.back()}
-          aria-label="Back"
-          className="flex h-11 w-11 -m-1 flex-shrink-0 items-center justify-center rounded-full bg-surface text-secondary hover:bg-border/60 transition-colors"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-        <div className="min-w-0 flex-1">
-          <h1 className="font-heading text-h3 font-bold text-text-primary truncate">{cafe.name}</h1>
-          <p className="text-caption text-text-secondary truncate">{cafe.city}, {cafe.state}</p>
-        </div>
-      </div>
-
-      {/* Tier switcher — the tier itself is picked on the café page (one
-          fewer full step here, no re-reading the same specs twice); this
-          chip is only for the rarer case of changing your mind, and doing
-          it in place keeps the date/time/seats already chosen below. */}
-      {cafe.tiers && cafe.tiers.length > 0 && (
-        <div className="relative">
+      {/* One screen on an average phone (390x664): header, dates, the time +
+          players card and the price card all sit above the pay bar, with no
+          bottom nav on this page. pb clears the pay bar (~76px + safe area). */}
+      <div className="flex flex-col gap-2.5 max-w-2xl mx-auto pb-28">
+      {/* Header: back, the café, and the setup being booked as a chip. The
+          setup is picked on the café page; the chip is for changing your
+          mind here without losing the date and time already chosen. */}
+      <div className="relative">
+        <div className="flex items-center gap-2">
           <button
-            type="button"
-            onClick={() => setShowTierSwitcher((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 p-3 rounded-2xl bg-surface border border-border/60 text-left"
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="flex h-11 w-11 -ml-2 flex-shrink-0 items-center justify-center rounded-full text-secondary hover:bg-surface transition-colors"
           >
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="flex items-center gap-2 min-w-0">
-                <Monitor className="h-4 w-4 text-accent flex-shrink-0" />
-                <span className="font-heading text-body font-bold text-text-primary truncate">
-                  {activeTier?.name || 'Select hardware'}
-                </span>
-                {activeTier && (
-                  <span className="text-caption text-text-secondary flex-shrink-0">
-                    <span className="rupee-symbol">₹</span>{customerPrice(activeTier.pricePerHour)}/hr
-                  </span>
-                )}
-              </span>
-              {activeTier && <ActivitySpecLine tier={activeTier} className="pl-6" />}
-            </span>
-            <span className="text-caption font-semibold text-primary flex-shrink-0">
-              {showTierSwitcher ? 'Close' : 'Change'}
-            </span>
+            <ChevronLeft className="h-5 w-5" />
           </button>
-
-          {showTierSwitcher && (
-            <div className="mt-2 flex flex-col gap-2 p-2 rounded-2xl bg-card border border-border/80 shadow-card">
-              {cafe.tiers.map((tier) => (
-                <button
-                  key={tier.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedTierId(tier.id);
-                    setShowTierSwitcher(false);
-                  }}
-                  className={`flex items-center justify-between gap-2 p-3 rounded-xl text-left transition-colors ${
-                    activeTier?.id === tier.id ? 'bg-accent/10 border border-accent/40' : 'hover:bg-surface border border-transparent'
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className="block font-heading text-body font-bold text-text-primary truncate">{tier.name}</span>
-                    <ActivitySpecLine tier={tier} />
-                    <span className="block text-caption text-text-secondary">
-                      {tier.appBookableSeats !== undefined ? tier.appBookableSeats : (tier.totalSeats || 10)} app seats ({tier.totalSeats || 10} total)
-                    </span>
-                  </span>
-                  <span className="font-data text-body-emphasis font-bold text-text-primary flex-shrink-0">
-                    <span className="rupee-symbol">₹</span>{customerPrice(tier.pricePerHour)}<span className="text-caption font-normal text-text-secondary">/hr</span>
-                  </span>
-                </button>
-              ))}
-            </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="font-heading text-body-emphasis font-bold leading-tight text-text-primary truncate">{cafe.name}</h1>
+            <p className="text-caption text-text-secondary truncate">{cafe.addressLine2 || cafe.city}</p>
+          </div>
+          {activeTier && cafe.tiers && cafe.tiers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowTierSwitcher((v) => !v)}
+              aria-expanded={showTierSwitcher}
+              aria-label={`Setup: ${activeTier.name}, ₹${customerPrice(activeTier.pricePerHour)} per hour. Change setup`}
+              className="flex min-h-[44px] max-w-[55%] flex-shrink items-center gap-1.5 rounded-full border border-border/80 bg-card pl-3 pr-2 shadow-sm transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Monitor className="h-4 w-4 flex-shrink-0 text-accent" aria-hidden />
+              <span className="min-w-0 truncate font-heading text-caption font-bold text-text-primary">{activeTier.name}</span>
+              <span className="flex-shrink-0 text-caption text-text-secondary">
+                <span className="rupee-symbol">₹</span>{customerPrice(activeTier.pricePerHour)}/hr
+              </span>
+              <ChevronDown className={cn('h-4 w-4 flex-shrink-0 text-text-secondary transition-transform', showTierSwitcher && 'rotate-180')} aria-hidden />
+            </button>
           )}
         </div>
-      )}
+
+        {showTierSwitcher && cafe.tiers && (
+          <div className="absolute inset-x-0 top-full z-dropdown mt-2 flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-card p-2 shadow-float">
+            {cafe.tiers.map((tier) => (
+              <button
+                key={tier.id}
+                type="button"
+                onClick={() => {
+                  setSelectedTierId(tier.id);
+                  setShowTierSwitcher(false);
+                }}
+                className={`flex items-center justify-between gap-2 p-3 rounded-xl text-left transition-colors ${
+                  activeTier?.id === tier.id ? 'bg-accent/10 border border-accent/40' : 'hover:bg-surface border border-transparent'
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block font-heading text-body font-bold text-text-primary truncate">{tier.name}</span>
+                  <ActivitySpecLine tier={tier} />
+                </span>
+                <span className="font-data text-body-emphasis font-bold text-text-primary flex-shrink-0">
+                  <span className="rupee-symbol">₹</span>{customerPrice(tier.pricePerHour)}<span className="text-caption font-normal text-text-secondary">/hr</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {activeTier && <AboutThisSetup tier={activeTier} />}
 
@@ -855,7 +839,7 @@ function BookingWizardContent() {
       {/* Date — compact strip, no instructional heading; the layout order
           (tier → date → time → players → price) already communicates the
           sequence. */}
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
         {availableDates.map((dateObj: any) => {
           const dateStr = typeof dateObj === 'string' ? dateObj : dateObj.dateString;
           const { day, date } = formatDateStrip(dateStr);
@@ -873,14 +857,14 @@ function BookingWizardContent() {
                 // +1-day offset for a moment during the refetch.
                 setSelectedDateOffset(0);
               }}
-              className={`flex flex-col items-center justify-center h-14 w-12 rounded-xl flex-shrink-0 transition-all ${
+              className={`flex flex-col items-center justify-center h-12 w-12 rounded-xl flex-shrink-0 transition-all ${
                 isSelected
                   ? 'bg-secondary text-white shadow-float font-bold'
                   : 'bg-card text-text-primary border border-border/80 hover:bg-surface'
               }`}
             >
               <span className="text-[10px] font-semibold leading-none">{day}</span>
-              <span className="text-body font-heading font-bold leading-none mt-1">{date}</span>
+              <span className="text-body font-heading font-bold leading-none mt-0.5">{date}</span>
             </button>
           );
         })}
@@ -912,101 +896,69 @@ function BookingWizardContent() {
         minDurationMinutes={minDurationMin}
         maxDurationMinutes={maxDurationMin}
         stepMinutes={durationStep}
-      />
-
-      {/* Players — compact horizontal row. Renamed from "Seats": this count
-          is how many people are using the tier's gaming capacity, not a
-          specific physical seat assignment. */}
-      {isActivity && (
-        <>
-          {windowRemainingSeats > 1 && (
-            <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <span className="font-heading text-body font-bold text-text-primary flex items-center gap-1.5">
-                  <Users className="h-4 w-4 text-primary flex-shrink-0" />
-                  How many {unit.many}?
-                </span>
-                <p className="text-caption text-text-secondary">Price is per {unit.one}. {windowRemainingSeats} free at this time.</p>
+      >
+        {/* Players, inside the time card: how many people, and for 2+ on a
+            shareable setup, co-op vs own consoles. */}
+        {isActivity ? (
+          <div className="flex flex-col divide-y divide-border/70">
+            {windowRemainingSeats > 1 && (
+              <div className="flex items-center justify-between gap-3 py-1.5">
+                <div className="min-w-0">
+                  <span className="font-heading text-body font-bold text-text-primary">How many {unit.many}?</span>
+                  <p className="truncate text-caption text-text-secondary">Price is per {unit.one} · {windowRemainingSeats} free</p>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-1">
+                  <button type="button" onClick={() => setSeatsCount((s) => Math.max(1, s - 1))} disabled={seatsCount <= 1} aria-label={`Fewer ${unit.many}`} className="flex h-11 w-11 -my-1.5 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="w-7 text-center font-heading text-body font-bold">{seatsCount}</span>
+                  <button type="button" onClick={() => setSeatsCount((s) => Math.min(maxPlayers, s + 1))} disabled={seatsCount >= maxPlayers} aria-label={`More ${unit.many}`} className="flex h-11 w-11 -my-1.5 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <button type="button" onClick={() => setSeatsCount((s) => Math.max(1, s - 1))} disabled={seatsCount <= 1} aria-label={`Fewer ${unit.many}`}
-                  className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            )}
+            {playersCap && groupShown !== null && (
+              <div className="flex items-center justify-between gap-3 py-1.5">
+                <div className="min-w-0">
+                  <span className="font-heading text-body font-bold text-text-primary">Players</span>
+                  <p className="truncate text-caption text-text-secondary">Up to {playersCap} per {unit.one}, same price</p>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-1">
+                  <button type="button" onClick={() => setGroupSize(() => Math.max(1, groupShown - 1))} disabled={groupShown <= 1} aria-label="Decrease players" className="flex h-11 w-11 -my-1.5 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="w-7 text-center font-heading text-body font-bold">{groupShown}</span>
+                  <button type="button" onClick={() => setGroupSize(() => Math.min(groupMax, groupShown + 1))} disabled={groupShown >= groupMax} aria-label="Increase players" className="flex h-11 w-11 -my-1.5 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="relative">
+            <div className="flex items-center justify-between gap-3 py-1">
+              <span className="flex items-center gap-1.5 font-heading text-body font-bold text-text-primary">
+                <Users className="h-4 w-4 flex-shrink-0 text-primary" aria-hidden />
+                Players
+                {coopMax > 0 && <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" />}
+              </span>
+              <div className="flex flex-shrink-0 items-center gap-1">
+                <button type="button" onClick={() => setSeatsCount((s) => Math.max(1, s - 1))} disabled={seatsCount <= 1} aria-label="Decrease players" className="flex h-11 w-11 -my-1.5 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                   <Minus className="h-4 w-4" />
                 </button>
-                <span className="w-6 text-center font-heading text-body font-bold">{seatsCount}</span>
-                <button type="button" onClick={() => setSeatsCount((s) => Math.min(maxPlayers, s + 1))} disabled={seatsCount >= maxPlayers} aria-label={`More ${unit.many}`}
-                  className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                <span className="w-7 text-center font-heading text-body font-bold">{seatsCount}</span>
+                <button type="button" onClick={() => setSeatsCount((s) => Math.min(maxPlayers, s + 1))} disabled={seatsCount >= maxPlayers} aria-label="Increase players" className="flex h-11 w-11 -my-1.5 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
             </div>
-          )}
-          {playersCap && groupShown !== null && (
-            <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <span className="font-heading text-body font-bold text-text-primary flex items-center gap-1.5">
-                  <Users className="h-4 w-4 text-primary flex-shrink-0" />
-                  Players
-                </span>
-                <p className="text-caption text-text-secondary">
-                  Fits up to {playersCap} per {unit.one}. The price stays the same.
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <button type="button" onClick={() => setGroupSize(() => Math.max(1, groupShown - 1))} disabled={groupShown <= 1} aria-label="Decrease players"
-                  className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                  <Minus className="h-4 w-4" />
-                </button>
-                <span className="w-6 text-center font-heading text-body font-bold">{groupShown}</span>
-                <button type="button" onClick={() => setGroupSize(() => Math.min(groupMax, groupShown + 1))} disabled={groupShown >= groupMax} aria-label="Increase players"
-                  className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {!isActivity && (
-      <div className="relative p-3.5 rounded-2xl bg-card border border-border/80">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <span className="font-heading text-body font-bold text-text-primary flex items-center gap-1.5">
-            <Users className="h-4 w-4 text-primary flex-shrink-0" />
-            Players
-            {coopMax > 0 && <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" />}
-          </span>
-          <p className="text-caption text-text-secondary truncate">How many people are playing?</p>
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setSeatsCount((s) => Math.max(1, s - 1))}
-            aria-label="Decrease players"
-            className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 transition-colors"
-          >
-            <Minus className="h-4 w-4" />
-          </button>
-          <span className="w-6 text-center font-heading text-body font-bold">{seatsCount}</span>
-          <button
-            type="button"
-            onClick={() => setSeatsCount((s) => Math.min(maxPlayers, s + 1))}
-            disabled={seatsCount >= maxPlayers}
-            aria-label="Increase players"
-            className="flex h-11 w-11 -m-1 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
         {/* Co-op vs own consoles — lives inside the Players card and only
             appears when there's a real choice to make (2+ players on a
             setup whose owner allows sharing). */}
         {canCoop && (
-          <div role="radiogroup" aria-label="How you'll play" className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3">
+          <div role="radiogroup" aria-label="How you'll play" className="mt-1.5 mb-1 grid grid-cols-2 gap-2">
             {([
               { coop: true, title: 'Co-op', sub: `1 console · ₹${customerPrice(Math.round(coopRate))}/hr`, off: false, why: '' },
               { coop: false, title: 'Own consoles', sub: `${seatsCount} consoles · ₹${customerPrice(Math.round(pricePerHour * seatsCount))}/hr`, off: !canSeparate, why: `Only ${windowRemainingSeats} free now` },
@@ -1049,15 +1001,14 @@ function BookingWizardContent() {
             <span className="absolute left-8 top-full border-[6px] border-transparent border-t-secondary" aria-hidden />
           </div>
         )}
-      </div>
-      )}
+          </div>
+        )}
+      </TimelineRangePicker>
 
-      {/* Price summary — sits directly under Players so the whole decision
-          (tier, date, slot, players, what it costs) resolves in the first
-          viewport. The two optional inputs below it are deliberately the
-          first thing you scroll to, not something you scroll past. Total is
-          repeated on the fixed payment bar. */}
-      <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex flex-col gap-1.5 text-caption text-text-secondary">
+      {/* Price: what it costs, the offer in use (tap to change or enter a
+          code), the fee, and the total. Every amount sits in the right-hand
+          column so the sum reads top to bottom. */}
+      <div className="flex flex-col gap-1 rounded-2xl border border-border/80 bg-card p-3.5 text-caption text-text-secondary">
         <div className="flex items-center justify-between gap-3">
           <span className="min-w-0 truncate">
             {activeTier?.name || 'Standard'} · {durationLabel} ·{' '}
@@ -1069,22 +1020,45 @@ function BookingWizardContent() {
           <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{money(sessionLine)}</span>
         </div>
 
-        {discountAmount > 0 && quote?.appliedOffer && (
-          <div className="flex items-center justify-between gap-3 text-success">
-            <span className="min-w-0 flex items-center gap-1.5 font-semibold">
-              <Tag className="h-3.5 w-3.5 flex-shrink-0" />
+        {/* The offer line: what's applied, what's on offer, or the code link.
+            One tap opens every offer for this slot and the code box. */}
+        {discountAmount > 0 && quote?.appliedOffer ? (
+          <button
+            type="button"
+            onClick={() => setOffersOpen(true)}
+            className="-mx-1.5 flex min-h-[36px] items-center justify-between gap-3 rounded-lg px-1.5 text-left text-success transition-colors hover:bg-success/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <span className="flex min-w-0 items-center gap-1.5 font-semibold">
+              <Tag className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
               <span className="truncate">{quote.appliedOffer.title} ({quote.appliedOffer.label})</span>
+              <span className="flex-shrink-0 font-semibold text-primary-dark">Change</span>
             </span>
             <span className="flex-shrink-0 font-bold">
-              -<span className="rupee-symbol">₹</span>{discountAmount.toFixed(2)}
+              −<span className="rupee-symbol">₹</span>{money(discountAmount)}
             </span>
-          </div>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOffersOpen(true)}
+            className="-mx-1.5 flex min-h-[36px] items-center gap-1.5 rounded-lg px-1.5 text-left font-semibold text-primary-dark transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <Tag className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+            {(quote?.availableOffers?.length ?? 0) > 0
+              ? `${quote!.availableOffers.length} offer${quote!.availableOffers.length > 1 ? 's' : ''} for this slot · View`
+              : quote?.offerHint
+              ? `${quote.offerHint.title}: ${quote.offerHint.message}`
+              : appliedCode
+              ? `Code ${appliedCode} · Change`
+              : 'Have a code?'}
+          </button>
         )}
 
-        <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-0.5">
-            Platform Fee
+        <div className="flex items-center justify-between gap-3">
+          <span className="inline-flex min-w-0 items-center gap-0.5">
+            Platform fee
             <InfoTip quiet text={CUSTOMER_INFO.platformFee} label="What is the platform fee?" />
+            {feeWaived > 0 && <span className="truncate font-semibold text-success">· first booking</span>}
           </span>
           {feeWaived > 0 ? (
             <span className="flex-shrink-0">
@@ -1092,98 +1066,109 @@ function BookingWizardContent() {
               <span className="font-bold text-success">FREE</span>
             </span>
           ) : (
-            <span className="font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
+            <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{serviceFee.toFixed(2)}</span>
           )}
         </div>
-        {feeWaived > 0 && (
-          <p className="-mt-1 text-[11px] text-success">First booking on KHEL-O: no platform fee</p>
-        )}
 
-        <div className="flex items-center justify-between pt-1.5 mt-0.5 border-t border-border/60">
-          <span className="font-heading font-bold text-text-primary">Total</span>
-          <span className="font-heading font-bold text-body-emphasis text-text-primary"><span className="rupee-symbol">₹</span>{money(finalTotal)}</span>
+        <div className="mt-1 flex items-center justify-between gap-3 border-t border-border/60 pt-2">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="font-heading text-body font-bold text-text-primary">Total</span>
+            {youSave > 0 && (
+              <span className="truncate rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-bold text-success">
+                You save <span className="rupee-symbol">₹</span>{money(youSave)}
+              </span>
+            )}
+          </span>
+          <span className="flex-shrink-0 font-heading text-body-emphasis font-bold text-text-primary"><span className="rupee-symbol">₹</span>{money(finalTotal)}</span>
         </div>
-        {youSave > 0 && (
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-success/10 px-2.5 py-1.5 font-semibold text-success">
-            <span className="flex items-center gap-1.5"><Tag className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />You save</span>
-            <span className="font-bold"><span className="rupee-symbol">₹</span>{money(youSave)}</span>
-          </div>
+      </div>
+
+      {/* The two optional extras, one quiet row: name your game, and the
+          payment / cancellation promise (tap for the details). */}
+      <div className="flex items-center justify-between gap-3">
+        {!gameOpen && !selectedGame ? (
+          <button
+            type="button"
+            onClick={() => setGameOpen(true)}
+            className="-ml-1 flex min-h-[44px] flex-shrink-0 items-center gap-1 rounded-lg px-1 text-caption font-semibold text-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            Add game <span className="font-normal text-text-secondary">(optional)</span>
+          </button>
+        ) : (
+          <span className="text-caption font-semibold text-text-secondary">Game</span>
         )}
-        <p className="flex items-center gap-1.5 pt-1 text-[11px] text-text-secondary">
-          <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0 text-success" aria-hidden />
-          Secured by Razorpay · UPI, cards &amp; wallets · Instant confirmation
-        </p>
-      </div>
-
-      {/* Offers: applied automatically by the server; tap to switch, or enter a
-          code. Sits directly under the price it changes. */}
-      <OffersPanel
-        quote={quote}
-        loading={quoteQuery.isLoading}
-        appliedCode={appliedCode}
-        onChooseOffer={handleChooseOffer}
-        onMakeLength={(minutes) => {
-          userHasSelectedSlot.current = true;
-          setDurationHours(minutes / 60);
-        }}
-        onApplyCode={handleApplyCode}
-        onClearCode={handleClearCode}
-      />
-
-      {/* Game — free-text combobox: types any name, datalist merely suggests
-          from this café's supportedGames. */}
-      <div className="p-3.5 rounded-2xl bg-card border border-border/80">
-        <label className="text-caption font-semibold text-text-secondary mb-1 block">
-          What are you playing? (optional)
-        </label>
-        <input
-          type="text"
-          list="cafe-games"
-          value={selectedGame}
-          onChange={(e) => setSelectedGame(e.target.value)}
-          placeholder="Type any game name"
-          className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-body text-text-primary"
-        />
-        <datalist id="cafe-games">
-          {Object.values(cafe?.supportedGames ?? {})
-            .flat()
-            .map((g) => (
-              <option key={g} value={g} />
-            ))}
-        </datalist>
-      </div>
-
-      {/* Security / cancellation — collapsed to one line; tap to expand the
-          full reassurance copy instead of always showing it. */}
-      <div className="rounded-2xl bg-surface/60 border border-border/50">
         <button
           type="button"
           onClick={() => setShowTrustDetails((v) => !v)}
-          className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left"
+          aria-expanded={showTrustDetails}
+          className="flex min-h-[44px] min-w-0 items-center gap-1 rounded-lg text-right text-caption text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
-          <ShieldCheck className="h-4 w-4 text-success flex-shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-caption font-medium text-text-secondary">
-            Secure via Razorpay · Free cancellation ≤2 hrs
-          </span>
-          <ChevronDown className={`h-4 w-4 flex-shrink-0 text-text-secondary transition-transform ${showTrustDetails ? 'rotate-180' : ''}`} />
+          <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0 text-success" aria-hidden />
+          <span className="truncate">Razorpay · free cancel ≤2 hrs</span>
+          <ChevronDown className={cn('h-3.5 w-3.5 flex-shrink-0 transition-transform', showTrustDetails && 'rotate-180')} aria-hidden />
         </button>
-        {showTrustDetails && (
-          <div className="px-3.5 pb-3 flex flex-col gap-1.5 text-xs text-text-secondary">
-            <p>Payments secured by Razorpay — your card and UPI details are never stored by KHEL-O.</p>
-            <p>Free cancellation up to 2 hours before your session — full refund to your original payment method.</p>
-            <p>
-              <a href="/refund-policy" target="_blank" className="font-semibold text-primary hover:underline">
-                Read the refund policy
-              </a>
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* Sticky Bottom Action & Total Price Bar — sits above the mobile bottom nav
-          (bottom-nav is z-nav/40, fixed bottom-0) rather than underneath it, otherwise
-          the nav bar silently eats the first tap on this button on mobile. */}
-      <div className="action-bar-fixed fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-overlay bg-card border-t border-border px-4 py-3 shadow-overlay">
+      {(gameOpen || selectedGame) && (
+        <>
+          <input
+            type="text"
+            list="cafe-games"
+            autoFocus={gameOpen && !selectedGame}
+            aria-label="What are you playing? (optional)"
+            value={selectedGame}
+            onChange={(e) => setSelectedGame(e.target.value)}
+            placeholder="What are you playing? e.g. FC 25"
+            className="-mt-1.5 h-11 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <datalist id="cafe-games">
+            {Object.values(cafe?.supportedGames ?? {})
+              .flat()
+              .map((g) => (
+                <option key={g} value={g} />
+              ))}
+          </datalist>
+        </>
+      )}
+
+      {showTrustDetails && (
+        <div className="-mt-1.5 flex flex-col gap-1.5 rounded-2xl bg-card px-3.5 py-3 text-caption text-text-secondary">
+          <p>Payments secured by Razorpay: UPI, cards and wallets. Your card and UPI details are never stored by KHEL-O.</p>
+          <p>Free cancellation up to 2 hours before your session, with a full refund to your original payment method.</p>
+          <a href="/refund-policy" target="_blank" className="font-semibold text-primary hover:underline">
+            Read the refund policy
+          </a>
+        </div>
+      )}
+
+      <BottomSheet isOpen={offersOpen} onClose={() => setOffersOpen(false)} title="Offers for this slot">
+        <OffersPanel
+          inSheet
+          quote={quote}
+          loading={quoteQuery.isLoading}
+          appliedCode={appliedCode}
+          onChooseOffer={(id) => {
+            handleChooseOffer(id);
+            setOffersOpen(false);
+          }}
+          onMakeLength={(minutes) => {
+            userHasSelectedSlot.current = true;
+            setDurationHours(minutes / 60);
+            setOffersOpen(false);
+          }}
+          onApplyCode={(code) => {
+            handleApplyCode(code);
+            setOffersOpen(false);
+          }}
+          onClearCode={handleClearCode}
+        />
+      </BottomSheet>
+
+      {/* Pay bar. The customer bottom nav is hidden on this page (see
+          CustomerShell), so it sits on the bottom edge, clear of the
+          home-indicator safe area. */}
+      <div className="action-bar-fixed fixed bottom-0 left-0 right-0 z-overlay bg-card border-t border-border px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-overlay">
         {/* Compact on purpose: the total, what it's made of, and the pay
             button in one row, so the slider above keeps the screen. The
             Razorpay line lives in the price summary above, not here. */}
@@ -1192,11 +1177,15 @@ function BookingWizardContent() {
             <div className="font-heading text-h2 font-bold leading-tight text-text-primary">
               <span className="rupee-symbol">₹</span>{money(finalTotal)}
             </div>
-            <span className="block truncate text-caption text-text-secondary">
-              {feeWaived > 0
-                ? `₹${money(subtotal)} session · platform fee FREE`
-                : `₹${money(subtotal)} session + ₹${money(serviceFee)} platform fee`}
-            </span>
+            {youSave > 0 ? (
+              <span className="block truncate text-caption font-semibold text-success">
+                You save <span className="rupee-symbol">₹</span>{money(youSave)}
+              </span>
+            ) : (
+              <span className="block truncate text-caption text-text-secondary">
+                ₹{money(subtotal)} session + ₹{money(serviceFee)} platform fee
+              </span>
+            )}
           </div>
 
           <button

@@ -17,6 +17,9 @@ interface OffersPanelProps {
   onMakeLength: (minutes: number) => void;
   onApplyCode: (code: string) => void;
   onClearCode: () => void;
+  /** Inside checkout's offers sheet: the sheet has the title and frame, and
+   *  the code box is open from the start (that's what the sheet is for). */
+  inSheet?: boolean;
   className?: string;
 }
 
@@ -36,9 +39,10 @@ export function OffersPanel({
   onMakeLength,
   onApplyCode,
   onClearCode,
+  inSheet = false,
   className,
 }: OffersPanelProps) {
-  const [codeOpen, setCodeOpen] = useState(false);
+  const [codeOpen, setCodeOpen] = useState(inSheet);
   const [input, setInput] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
 
@@ -57,7 +61,7 @@ export function OffersPanel({
     setInputError(null);
     onApplyCode(code);
     setInput('');
-    setCodeOpen(false);
+    setCodeOpen(inSheet);
   };
 
   const codeControl = appliedCode ? (
@@ -79,7 +83,7 @@ export function OffersPanel({
       <div className="flex items-center gap-2">
         <input
           type="text"
-          autoFocus
+          autoFocus={!inSheet}
           inputMode="text"
           autoCapitalize="characters"
           aria-label="KHELO code"
@@ -110,8 +114,95 @@ export function OffersPanel({
     </button>
   );
 
+  const offerList = (
+    <ul className="flex flex-col gap-1.5">
+      {others.map((o) => {
+        const urgency = offerUrgency({ slotsRemaining: o.slotsRemaining });
+        return (
+          <li key={o.id}>
+            <button
+              type="button"
+              onClick={() => onChooseOffer(o.id)}
+              className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl border border-border/80 px-3 py-2 text-left transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-caption font-semibold text-text-primary">{o.title}</span>
+                <span className="block truncate text-[11px] text-text-secondary">
+                  {o.label}
+                  {urgency ? ` · ${urgency}` : ''}
+                </span>
+              </span>
+              <span className="flex-shrink-0 text-right text-[11px] leading-tight">
+                <span className="block font-semibold text-text-primary">
+                  Save <span className="rupee-symbol">₹</span>
+                  {money(o.discountAmount)}
+                </span>
+                <span className="block font-semibold text-primary-dark">Tap to switch</span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+  const hintBlock =
+    hint &&
+    (hint.suggestedMinutes ? (
+      <button
+        type="button"
+        onClick={() => onMakeLength(hint.suggestedMinutes!)}
+        className="flex min-h-[44px] w-full items-center gap-2.5 rounded-xl bg-primary/5 px-3 py-2 text-left transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <Sparkles className="h-4 w-4 flex-shrink-0 text-primary-dark" aria-hidden />
+        <span className="min-w-0 flex-1 text-caption text-text-primary">
+          <span className="font-semibold">{hint.title}</span> · {hint.message}
+        </span>
+        <span className="flex-shrink-0 text-caption font-semibold text-primary-dark">Make it {lengthLabel(hint.suggestedMinutes)}</span>
+      </button>
+    ) : (
+      <p className="flex items-start gap-2 text-caption text-text-secondary">
+        <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+        <span>
+          <span className="font-semibold text-text-primary">{hint.title}</span> · {hint.message}
+        </span>
+      </p>
+    ));
+  const noteBlock = note && (
+    <p role="status" className="flex items-start gap-2 text-caption text-text-secondary">
+      <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+      <span>{note}</span>
+    </p>
+  );
+
   if (loading && !quote) {
     return <div className={cn('h-16 animate-pulse rounded-2xl bg-surface', className)} aria-hidden />;
+  }
+
+  if (inSheet) {
+    return (
+      <section aria-label="Offers" className={cn('flex flex-col gap-2.5', className)}>
+        {applied && (
+          <div role="status" className="flex items-center gap-2.5 rounded-xl bg-success/10 px-3 py-2.5">
+            <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-success" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-caption font-semibold text-text-primary">{applied.title}</p>
+              <p className="text-[11px] text-text-secondary">{applied.label} applied</p>
+            </div>
+            <span className="flex-shrink-0 font-heading font-bold text-success">
+              −<span className="rupee-symbol">₹</span>
+              {money(quote?.discountAmount ?? 0)}
+            </span>
+          </div>
+        )}
+        {!hasOffers && !appliedCode && (
+          <p className="text-caption text-text-secondary">No offers on this slot right now. Got a code? Enter it below.</p>
+        )}
+        {others.length > 0 && offerList}
+        {hintBlock}
+        {noteBlock}
+        <div className="border-t border-border/70 pt-3">{codeControl}</div>
+      </section>
+    );
   }
 
   // Nothing to show about offers: just the quiet code link, no empty card.
@@ -128,9 +219,7 @@ export function OffersPanel({
           <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-success" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="truncate text-caption font-semibold text-text-primary">{applied.title}</p>
-            <p className="text-[11px] text-text-secondary">
-              {applied.label} applied
-            </p>
+            <p className="text-[11px] text-text-secondary">{applied.label} applied</p>
           </div>
           <span className="flex-shrink-0 font-heading font-bold text-text-primary">
             −<span className="rupee-symbol">₹</span>
@@ -139,68 +228,9 @@ export function OffersPanel({
         </div>
       )}
 
-      {others.length > 0 && (
-        <ul className="flex flex-col gap-1.5">
-          {others.map((o) => {
-            const urgency = offerUrgency({ slotsRemaining: o.slotsRemaining });
-            return (
-              <li key={o.id}>
-                <button
-                  type="button"
-                  onClick={() => onChooseOffer(o.id)}
-                  className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl border border-border/80 px-3 py-2 text-left transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-caption font-semibold text-text-primary">{o.title}</span>
-                    <span className="block truncate text-[11px] text-text-secondary">
-                      {o.label}
-                      {urgency ? ` · ${urgency}` : ''}
-                    </span>
-                  </span>
-                  <span className="flex-shrink-0 text-right text-[11px] leading-tight">
-                    <span className="block font-semibold text-text-primary">
-                      Save <span className="rupee-symbol">₹</span>
-                      {money(o.discountAmount)}
-                    </span>
-                    <span className="block font-semibold text-primary-dark">Tap to switch</span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {hint &&
-        (hint.suggestedMinutes ? (
-          <button
-            type="button"
-            onClick={() => onMakeLength(hint.suggestedMinutes!)}
-            className="flex min-h-[44px] w-full items-center gap-2.5 rounded-xl bg-primary/5 px-3 py-2 text-left transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <Sparkles className="h-4 w-4 flex-shrink-0 text-primary-dark" aria-hidden />
-            <span className="min-w-0 flex-1 text-caption text-text-primary">
-              <span className="font-semibold">{hint.title}</span> · {hint.message}
-            </span>
-            <span className="flex-shrink-0 text-caption font-semibold text-primary-dark">
-              Make it {lengthLabel(hint.suggestedMinutes)}
-            </span>
-          </button>
-        ) : (
-          <p className="flex items-start gap-2 text-caption text-text-secondary">
-            <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden />
-            <span>
-              <span className="font-semibold text-text-primary">{hint.title}</span> · {hint.message}
-            </span>
-          </p>
-        ))}
-
-      {note && (
-        <p role="status" className="flex items-start gap-2 text-caption text-text-secondary">
-          <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden />
-          <span>{note}</span>
-        </p>
-      )}
+      {others.length > 0 && offerList}
+      {hintBlock}
+      {noteBlock}
 
       {codeControl}
     </section>
