@@ -36,10 +36,10 @@ const MAX_DURATION_MIN = MAX_DURATION_HOURS * 60;
 // 1h15, etc. are never valid, even on a 15-min-minimum setup. Mirrors
 // app/core/duration.py's allowed_minutes exactly; booking_service rejects
 // anything else with a 422, so the picker must never be able to land on one.
-function allowedDurationsMin(minDurMin: number): number[] {
+function allowedDurationsMin(minDurMin: number, maxDurMin: number = MAX_DURATION_MIN): number[] {
   const lengths = [15, 30].filter((m) => m >= minDurMin);
   for (let m = 60; m <= MAX_DURATION_MIN; m += 30) lengths.push(m);
-  return lengths;
+  return lengths.filter((m) => m <= maxDurMin);
 }
 
 /** Nearest allowed length to a raw (drag-computed) minute count. */
@@ -75,6 +75,8 @@ interface TimelineRangePickerProps {
   minDurationMinutes?: number;
   /** Snap step for start/length: 15 for short-session setups, else 30. */
   stepMinutes?: number;
+  /** Longest session this setup allows (owner-set; default 8 hours). */
+  maxDurationMinutes?: number | null;
 }
 
 function formatPlayoTime(minutes: number): string {
@@ -99,9 +101,11 @@ export function TimelineRangePicker({
   skipCoachmark = false,
   minDurationMinutes = MIN_DURATION_MIN,
   stepMinutes = 30,
+  maxDurationMinutes,
 }: TimelineRangePickerProps) {
   const G = stepMinutes;
   const minDurMin = Math.max(G, minDurationMinutes);
+  const maxDurMin = Math.max(minDurMin, Math.min(MAX_DURATION_MIN, maxDurationMinutes ?? MAX_DURATION_MIN));
   const minDurHours = minDurMin / 60;
   const outerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -222,7 +226,7 @@ export function TimelineRangePicker({
     return Math.max(minValidStart, Math.min(closeMin - minDurMin, s));
   }, [startTime, openMin, closeMin, minValidStart, minDurMin]);
 
-  const durMin = Math.max(minDurMin, Math.round(durationHours * 60));
+  const durMin = Math.min(maxDurMin, Math.max(minDurMin, Math.round(durationHours * 60)));
   const selEnd = Math.min(closeMin, selStart + durMin);
 
   // ── Dynamic Slot Width Scale (Compresses dynamically for large durations) ──
@@ -357,10 +361,10 @@ export function TimelineRangePicker({
     const e0 = s0 + d0;
     let next: { start: number; end: number };
     if (mode === 'start') {
-      const lo = Math.max(minValidStart, e0 - MAX_DURATION_MIN);
+      const lo = Math.max(minValidStart, e0 - maxDurMin);
       next = { start: clampTo(s0 + deltaMin, lo, e0 - minDurMin), end: e0 };
     } else if (mode === 'end') {
-      const hi = Math.min(closeMin, s0 + MAX_DURATION_MIN);
+      const hi = Math.min(closeMin, s0 + maxDurMin);
       next = { start: s0, end: clampTo(e0 + deltaMin, s0 + minDurMin, hi) };
     } else {
       const st = clampTo(s0 + deltaMin, minValidStart, closeMin - d0);
@@ -373,11 +377,11 @@ export function TimelineRangePicker({
   // Nearest allowed length (never an always-round-down) for a raw drag position.
   const snapLive = (l: { start: number; end: number }, mode: 'start' | 'end' | 'pan') => {
     if (mode === 'start') {
-      const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(MAX_DURATION_MIN, l.end - minValidStart));
+      const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(maxDurMin, l.end - minValidStart));
       return { start: l.end - dur, end: l.end, dur };
     }
     if (mode === 'end') {
-      const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(MAX_DURATION_MIN, closeMin - l.start));
+      const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(maxDurMin, closeMin - l.start));
       return { start: l.start, end: l.start + dur, dur };
     }
     const dur = l.end - l.start;
@@ -468,7 +472,7 @@ export function TimelineRangePicker({
   }, [selStart, selEnd, minValidStart, closeMin, segments]);
 
   const adjustDuration = (direction: 1 | -1) => {
-    const allowed = allowedDurationsMin(minDurMin);
+    const allowed = allowedDurationsMin(minDurMin, maxDurMin);
     const currentIdx = allowed.indexOf(durMin);
     // durMin should always be one of `allowed` (it's derived from
     // durationHours, which onChange only ever sets to an allowed value) —
@@ -490,8 +494,8 @@ export function TimelineRangePicker({
   // first, then shorter allowed lengths, so it still finds something when the
   // day has no gap as long as the current selection.
   const findNextSlot = () => {
-    const wanted = snapDurationMin(Math.max(minDurMin, durMin), minDurMin);
-    const lengths = allowedDurationsMin(minDurMin).filter((m) => m <= wanted).reverse();
+    const wanted = snapDurationMin(Math.max(minDurMin, durMin), minDurMin, maxDurMin);
+    const lengths = allowedDurationsMin(minDurMin, maxDurMin).filter((m) => m <= wanted).reverse();
     for (const len of lengths) {
       let best: number | null = null;
       for (let m = minValidStart; m <= closeMin - len; m += G) {
@@ -605,7 +609,7 @@ export function TimelineRangePicker({
             <button
               type="button"
               onClick={() => adjustDuration(1)}
-              disabled={selEnd + G > closeMin || durationHours >= MAX_DURATION_HOURS}
+              disabled={selEnd + G > closeMin || durMin >= maxDurMin}
               aria-label="Longer session"
               className="flex h-11 w-11 -m-1 items-center justify-center rounded-full text-text-primary hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >

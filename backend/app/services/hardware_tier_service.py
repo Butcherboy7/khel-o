@@ -8,7 +8,7 @@ from app.repositories.booking_repository import BookingRepository
 from app.services.promotion_service import PromotionService
 from app.services.performance_rating import compute_rating, _score_gpu, _score_ram, _score_hz
 from app.services.platform_derivation import derive_tier_display
-from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpdateRequest, HardwareTierResponse
+from app.schemas.hardware_tier import HardwareTierCreateRequest, HardwareTierUpdateRequest, HardwareTierResponse, check_length_rules
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier, TierType
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
@@ -141,6 +141,8 @@ class HardwareTierService:
             "price_15m": tier_in.price_15m,
             "price_30m": tier_in.price_30m,
             "coop_price_30m": tier_in.coop_price_30m,
+            "length_prices": {str(m): p for m, p in sorted(tier_in.length_prices.items())},
+            "max_booking_minutes": tier_in.max_booking_minutes,
             "is_active": True
         }
 
@@ -219,6 +221,15 @@ class HardwareTierService:
             raise ValidationException(message="The 30-minute price cannot be greater than the hourly price", error_code="INVALID_DURATION_PRICE")
         if merged_min > 30 and merged_coop_30 is not None:
             raise ValidationException(message="A 30-minute co-op price only applies when shortest booking is 15 or 30 minutes", error_code="INVALID_DURATION_PRICE")
+        merged_max = update_data.max_booking_minutes if "max_booking_minutes" in update_data.model_fields_set else tier.max_booking_minutes
+        merged_packages = (
+            update_data.length_prices
+            if update_data.length_prices is not None
+            else {int(k): float(v) for k, v in (tier.length_prices or {}).items()}
+        )
+        problem = check_length_rules(merged_min, merged_max, merged_default, merged_packages)
+        if problem:
+            raise ValidationException(message=problem, error_code="INVALID_DURATION_PRICE")
 
         if total <= 0:
             raise ValidationException(message="Total seats must be greater than 0", error_code="INVALID_SEATS")
@@ -300,6 +311,16 @@ class HardwareTierService:
                 raise ValidationException(message=str(e), error_code="INVALID_TAXONOMY")
             update_dict["taxonomy_key"] = new_key
             update_dict["attributes"] = new_attrs
+        if "length_prices" in update_dict:
+            # JSON keys are strings; null clears them like {} does.
+            update_dict["length_prices"] = {str(m): p for m, p in sorted((update_dict["length_prices"] or {}).items())}
+        # The repository skips None values, so an owner clearing one of these
+        # (back to "worked out from the hourly rate" / "8 hours" / "standard
+        # start") never stuck. Clear them on the locked row directly; the
+        # repository's commit below saves it.
+        for field in ("default_booking_minutes", "price_15m", "price_30m", "coop_price_30m", "max_booking_minutes"):
+            if field in update_dict and update_dict[field] is None:
+                setattr(tier, field, None)
         individual_units = update_dict.pop("individual_units", None)
         updated = await self.tier_repo.update(tier_id, update_dict)
 

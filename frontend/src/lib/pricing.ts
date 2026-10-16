@@ -4,7 +4,10 @@
  *
  * - 15 / 30 min: the setup's own price if the owner set one, else hourly/4
  *   and hourly/2.
- * - 60 min and above: hourly × minutes / 60.
+ * - 60 min and above: the owner's package price for that length when set
+ *   (lengthPrices, e.g. 3 hr = 400). Otherwise the nearest shorter package
+ *   plus the hourly rate for the extra time, or hourly × minutes / 60 when
+ *   there's no shorter package.
  * - Co-op: extra-player price per extra player, scaled by minutes/60 — except
  *   a 30-min co-op session with the owner's coopPrice30m (2 players), plus
  *   the scaled extra for each player past the second.
@@ -15,6 +18,15 @@ export interface PriceableTier {
   price30m?: number | null;
   coopPrice30m?: number | null;
   coopExtraPlayerPrice?: number | null;
+  lengthPrices?: Record<string, number> | null;
+}
+
+/** The tier's package prices as [minutes, price] pairs, shortest first. */
+export function packagePrices(tier: Pick<PriceableTier, 'lengthPrices'>): [number, number][] {
+  return Object.entries(tier.lengthPrices ?? {})
+    .map(([k, v]) => [Number(k), Number(v)] as [number, number])
+    .filter(([m, p]) => Number.isFinite(m) && m >= 60 && Number.isFinite(p) && p > 0)
+    .sort((a, b) => a[0] - b[0]);
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -32,7 +44,14 @@ export function basePriceForMinutes(
   else if (minutes === 30 && tier.price30m != null) unit = Number(tier.price30m);
   else if (minutes === 15) unit = hourly / 4;
   else if (minutes === 30) unit = hourly / 2;
-  else unit = (hourly * minutes) / 60;
+  else {
+    const packages = packagePrices(tier);
+    const exact = packages.find(([m]) => m === minutes);
+    const shorter = packages.filter(([m]) => m < minutes).pop();
+    if (exact) unit = exact[1];
+    else if (shorter) unit = shorter[1] + (hourly * (minutes - shorter[0])) / 60;
+    else unit = (hourly * minutes) / 60;
+  }
 
   const extra = Number(tier.coopExtraPlayerPrice ?? 0);
   const total =

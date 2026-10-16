@@ -13,6 +13,20 @@ def _d(value) -> Decimal:
     return Decimal(str(value))
 
 
+def length_prices_of(tier) -> dict[int, Decimal]:
+    """The tier's package prices as {minutes: price}. Stored as JSON, so the
+    keys come back as strings; anything malformed is ignored, not fatal."""
+    out: dict[int, Decimal] = {}
+    for key, value in (getattr(tier, 'length_prices', None) or {}).items():
+        try:
+            minutes, price = int(key), _d(value)
+        except (TypeError, ValueError, ArithmeticError):
+            continue
+        if minutes >= 60 and price > 0:
+            out[minutes] = price
+    return out
+
+
 def base_price_for_minutes(
     tier,
     minutes: int,
@@ -24,7 +38,10 @@ def base_price_for_minutes(
 
     - Under 60 min: the setup's own 15/30-min price, or hourly/4 and
       hourly/2 when the owner hasn't set one.
-    - 60 min and above: hourly * minutes/60 (so 90 min = 1.5x hourly).
+    - 60 min and above: the owner's package price for that length when set
+      (tier.length_prices, e.g. 3 hr = 400). Otherwise the nearest shorter
+      package plus the hourly rate for the extra time (3 hr 30 = 400 + half
+      an hour), or hourly * minutes/60 when there's no shorter package.
     - Co-op: coop_extra_player_price is charged per extra player, scaled
       by the same minutes/60 factor as the hourly rate. Exception: a 30-min
       co-op session uses the owner's coop_price_30m (2 players) when set,
@@ -43,7 +60,15 @@ def base_price_for_minutes(
     elif minutes == 30:
         unit_price = (hourly / Decimal('2'))
     else:
-        unit_price = hourly * minutes_d / Decimal('60')
+        packages = length_prices_of(tier)
+        shorter = [m for m in packages if m < minutes]
+        if minutes in packages:
+            unit_price = packages[minutes]
+        elif shorter:
+            base_len = max(shorter)
+            unit_price = packages[base_len] + hourly * _d(minutes - base_len) / Decimal('60')
+        else:
+            unit_price = hourly * minutes_d / Decimal('60')
 
     coop_30 = getattr(tier, 'coop_price_30m', None)
     if is_coop and minutes == 30 and players >= 2 and coop_30 is not None:

@@ -14,7 +14,8 @@ import {
   type PromotionPlayMode,
 } from '@/lib/api/promotions';
 import { listCafeTiers } from '@/lib/api/tiers';
-import { allowedMinutes, priceForMinutes, fmtDuration } from '@/components/owner/SetupBookingOptions';
+import { allowedMinutes, fmtDuration } from '@/components/owner/SetupBookingOptions';
+import { basePriceForMinutes } from '@/lib/pricing';
 import { getOwnerCafeId } from '@/lib/api/owner';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import {
@@ -357,7 +358,7 @@ export default function OwnerOffersPage() {
   const coopOfferable = selectedTier ? !!selectedTier.coopEnabled : tiers.some((t) => t.coopEnabled);
   const regularPricePreview =
     form.promotionType === 'fixed_price' && selectedTier
-      ? priceForMinutes(Math.round(form.minDurationHours * 60), selectedTier.pricePerHour, selectedTier.price15m, selectedTier.price30m)
+      ? basePriceForMinutes(selectedTier, Math.round(form.minDurationHours * 60))
       : null;
   const savingsPreview =
     regularPricePreview != null && form.fixedPriceAmount
@@ -368,10 +369,15 @@ export default function OwnerOffersPage() {
   // against is the chosen tier, or (for an all-tiers % / ₹ off offer) the
   // first tier, just to show something concrete.
   const previewTier = selectedTier ?? tiers[0] ?? null;
-  const previewLengths = previewTier ? allowedMinutes((previewTier.minBookingMinutes as 15 | 30 | 60) ?? 60).filter((m) => m <= 120) : [];
+  // Up to 4 hours (or the fixed-price deal's own length, if longer), within
+  // the setup's longest booking.
+  const previewUpTo = Math.max(240, form.promotionType === 'fixed_price' ? Math.round(form.minDurationHours * 60) : 0);
+  const previewLengths = previewTier
+    ? allowedMinutes((previewTier.minBookingMinutes as 15 | 30 | 60) ?? 60, previewTier.maxBookingMinutes).filter((m) => m <= previewUpTo)
+    : [];
   const previewRows = previewTier
     ? previewLengths.map((m) => {
-        const base = priceForMinutes(m, previewTier.pricePerHour, previewTier.price15m, previewTier.price30m);
+        const base = basePriceForMinutes(previewTier, m);
         let eligible = false;
         let finalPrice: number | null = null;
         if (form.promotionType === 'fixed_price') {
@@ -500,7 +506,7 @@ export default function OwnerOffersPage() {
             const tierName = cardTier?.name ?? null;
             const cardRegularPrice =
               p.promotionType === 'fixed_price' && cardTier && p.minDurationHours != null
-                ? cardTier.pricePerHour * p.minDurationHours
+                ? basePriceForMinutes(cardTier, Math.round(p.minDurationHours * 60))
                 : null;
             return (
               <Card key={p.id} elevation="resting" className="overflow-hidden">

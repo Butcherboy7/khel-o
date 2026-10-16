@@ -3,7 +3,31 @@ from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
 from app.models.hardware_tier import PlatformType, TierType
-from app.core.duration import allowed_minutes as _allowed_minutes
+from app.core.duration import allowed_minutes as _allowed_minutes, MAX_BOOKING_CHOICES, PACKAGE_LENGTHS
+
+
+def check_length_rules(
+    min_booking_minutes: int,
+    max_booking_minutes: Optional[int],
+    default_booking_minutes: Optional[int],
+    length_prices: Optional[Dict[int, float]],
+) -> Optional[str]:
+    """The longest-booking / package-price rules, shared by create (schema)
+    and update (re-checked on the merged row in HardwareTierService).
+    Returns the problem in plain words, or None when it all fits."""
+    if max_booking_minutes is not None and max_booking_minutes not in MAX_BOOKING_CHOICES:
+        return "Longest booking must be between 1 and 8 hours, in 30-minute steps"
+    longest = max_booking_minutes or MAX_BOOKING_CHOICES[-1]
+    if default_booking_minutes is not None and default_booking_minutes > longest:
+        return "Checkout can't start on a length longer than the longest booking"
+    for minutes, price in (length_prices or {}).items():
+        if minutes not in PACKAGE_LENGTHS:
+            return "Package prices can be set for 1 hr 30 up to 8 hours, in 30-minute steps"
+        if minutes > longest:
+            return "A package price is set for a length longer than the longest booking"
+        if price is None or price <= 0 or price > 1_000_000:
+            return "Package prices must be more than ₹0"
+    return None
 
 def to_camel(string: str) -> str:
     components = string.split('_')
@@ -38,6 +62,11 @@ class HardwareTierBase(BaseModel):
     price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
     price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price30m", "price30M", "price_30m"), serialization_alias="price30m")
     coop_price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("coopPrice30m", "coopPrice30M", "coop_price_30m"), serialization_alias="coopPrice30m")
+    # Owner-set package prices, minutes -> ₹ (e.g. {120: 280, 180: 400}).
+    # Empty = every length is the hourly rate x length.
+    length_prices: Dict[int, float] = Field(default_factory=dict)
+    # Longest session customers can book; None = 8 hours.
+    max_booking_minutes: Optional[int] = Field(None, ge=60, le=480)
 
     @model_validator(mode='after')
     def validate_seats(self) -> 'HardwareTierBase':
@@ -64,6 +93,11 @@ class HardwareTierBase(BaseModel):
             raise ValueError("price30m cannot be greater than the hourly price")
         if self.min_booking_minutes > 30 and self.coop_price_30m is not None:
             raise ValueError("coopPrice30m only applies when shortest booking is 15 or 30 minutes")
+        problem = check_length_rules(
+            self.min_booking_minutes, self.max_booking_minutes, self.default_booking_minutes, self.length_prices
+        )
+        if problem:
+            raise ValueError(problem)
         return self
 
     model_config = ConfigDict(
@@ -108,6 +142,10 @@ class HardwareTierUpdate(BaseModel):
     price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
     price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price30m", "price30M", "price_30m"), serialization_alias="price30m")
     coop_price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("coopPrice30m", "coopPrice30M", "coop_price_30m"), serialization_alias="coopPrice30m")
+    # Send {} to clear every package price; leave out to keep them.
+    length_prices: Optional[Dict[int, float]] = None
+    # Send null to go back to 8 hours; leave out to keep it.
+    max_booking_minutes: Optional[int] = Field(None, ge=60, le=480)
     # Activity tiers only: switch between named units ("Table 1, 2…", True)
     # and one pooled count (False). Not a column — it adds or removes the
     # tier's hardware_tier_units rows. Units are never tied to bookings, so

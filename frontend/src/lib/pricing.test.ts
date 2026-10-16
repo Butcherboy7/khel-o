@@ -47,3 +47,25 @@ describe('basePriceForMinutes mirrors the server', () => {
     expect(basePriceForMinutes({ ...ps5, coopPrice30m: null }, 30, { players: 2, isCoop: true })).toBe(149);
   });
 });
+
+describe('package prices per length (owner-set)', () => {
+  const t = { pricePerHour: 150, lengthPrices: { '120': 280, '180': 400 } };
+
+  it('uses the package for its own length', () => {
+    expect(basePriceForMinutes(t, 60)).toBe(150);
+    expect(basePriceForMinutes(t, 120)).toBe(280);
+    expect(basePriceForMinutes(t, 180)).toBe(400);
+  });
+
+  it('builds a length without a package on the nearest shorter one', () => {
+    expect(basePriceForMinutes(t, 90)).toBe(225);
+    expect(basePriceForMinutes(t, 150)).toBe(355);
+    expect(basePriceForMinutes(t, 210)).toBe(475);
+  });
+
+  it('adds co-op extras and multiplies consoles on top', () => {
+    const c = { ...t, coopExtraPlayerPrice: 50 };
+    expect(basePriceForMinutes(c, 180, { players: 2, isCoop: true })).toBe(550);
+    expect(basePriceForMinutes(t, 180, { seats: 2 })).toBe(800);
+  });
+});

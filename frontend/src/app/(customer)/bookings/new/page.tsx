@@ -313,6 +313,8 @@ function BookingWizardContent() {
   const consolesCount = isCoop ? 1 : seatsCount;
   const maxPlayers = isActivity ? Math.min(6, windowRemainingSeats) : Math.min(6, Math.max(windowRemainingSeats, coopMax));
   const minDurationMin = Math.max(15, activeTier?.minBookingMinutes ?? 60);
+  // The owner's longest booking for this setup (8 hours when unset).
+  const maxDurationMin = Math.max(minDurationMin, Math.min(480, activeTier?.maxBookingMinutes ?? 480));
   const durationStep = minDurationMin % 30 === 0 ? 30 : 15;
   const durationLabel = durationHours < 1 ? `${Math.round(durationHours * 60)} min` : `${durationHours} hr`;
 
@@ -323,12 +325,19 @@ function BookingWizardContent() {
     const firstTier = durationDefaultedFor.current === null;
     durationDefaultedFor.current = activeTier.id;
     const minH = minDurationMin / 60;
+    const maxH = maxDurationMin / 60;
     if (!(firstTier && initialDurationParam.current) && activeTier.defaultBookingMinutes) {
-      setDurationHours(Math.max(minH, activeTier.defaultBookingMinutes / 60));
+      setDurationHours(Math.min(maxH, Math.max(minH, activeTier.defaultBookingMinutes / 60)));
     } else {
-      setDurationHours((d) => Math.max(minH, d));
+      setDurationHours((d) => Math.min(maxH, Math.max(minH, d)));
     }
-  }, [activeTier, minDurationMin]);
+  }, [activeTier, minDurationMin, maxDurationMin]);
+
+  // Never sit on a length past the setup's longest booking (a shared link,
+  // an offer's suggested length, or switching to a setup with a lower limit).
+  useEffect(() => {
+    if (activeTier && durationHours * 60 > maxDurationMin) setDurationHours(maxDurationMin / 60);
+  }, [activeTier, durationHours, maxDurationMin]);
 
   const chooseCoop = (next: boolean) => {
     if (next && !isCoop) setShowCoopNotice(true);
@@ -890,6 +899,7 @@ function BookingWizardContent() {
         remainingSeats={windowRemainingSeats}
         skipCoachmark={hasBookedBefore}
         minDurationMinutes={minDurationMin}
+        maxDurationMinutes={maxDurationMin}
         stepMinutes={durationStep}
       />
 

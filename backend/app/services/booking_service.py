@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 from datetime import datetime, timezone, timedelta, date, time
 
 from app.core.time import IST, session_end_ist
-from app.core.duration import allowed_minutes
+from app.core.duration import length_text, tier_allowed_minutes
 from app.services.pricing_service import base_price
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -97,16 +97,12 @@ class BookingService:
                 error_code="INVALID_START_TIME"
             )
 
-        min_minutes = int(getattr(tier, 'min_booking_minutes', None) or 60)
         duration_minutes = round(booking_in.duration_hours * 60)
-        # Only 15, 30, 60, then 30-minute steps up to 8 hours are bookable —
-        # e.g. 45 min and 1h15 are never valid, even on a 15-min-minimum
-        # setup. See app/core/duration.py.
-        if duration_minutes not in allowed_minutes(min_minutes):
-            raise ValidationException(
-                message=f"This setup can be booked for {min_minutes}, then in 30-minute steps after 1 hour, up to 8 hours",
-                error_code="INVALID_DURATION"
-            )
+        # Only 15, 30, 60, then 30-minute steps up to the setup's longest
+        # booking (8 hours unless the owner set less) — e.g. 45 min and 1h15
+        # are never valid. See app/core/duration.py.
+        if duration_minutes not in tier_allowed_minutes(tier):
+            raise ValidationException(message=self._length_rule_text(tier), error_code="INVALID_DURATION")
 
         end_datetime = start_datetime + timedelta(hours=booking_in.duration_hours)
         end_time = end_datetime.time()
@@ -307,14 +303,10 @@ class BookingService:
         if not tier or str(tier.cafe_id) != str(quote_in.cafe_id) or not tier.is_active:
             raise ValidationException(message="Selected hardware tier is not available", error_code="TIER_NOT_AVAILABLE")
 
-        min_minutes = int(getattr(tier, 'min_booking_minutes', None) or 60)
-        allowed = allowed_minutes(min_minutes)
+        allowed = tier_allowed_minutes(tier)
         duration_minutes = round(quote_in.duration_hours * 60)
         if duration_minutes not in allowed:
-            raise ValidationException(
-                message=f"This setup can be booked for {min_minutes}, then in 30-minute steps after 1 hour, up to 8 hours",
-                error_code="INVALID_DURATION"
-            )
+            raise ValidationException(message=self._length_rule_text(tier), error_code="INVALID_DURATION")
 
         seats_requested = quote_in.seats_count
         players = quote_in.players_count or seats_requested
@@ -424,6 +416,14 @@ class BookingService:
             offer_note=offer_note,
             allowed_minutes=allowed,
             prices_by_minutes=prices_by_minutes,
+        )
+
+    @staticmethod
+    def _length_rule_text(tier) -> str:
+        allowed = tier_allowed_minutes(tier)
+        return (
+            f"This setup can be booked from {length_text(allowed[0])} to {length_text(allowed[-1])}, "
+            "in 30-minute steps after 1 hour"
         )
 
     @staticmethod

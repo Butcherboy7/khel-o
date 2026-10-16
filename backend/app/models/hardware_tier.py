@@ -80,6 +80,13 @@ class HardwareTier(Base):
     # and the length checkout starts on; null = checkout's own default.
     min_booking_minutes: Mapped[int] = mapped_column(Integer, default=60, server_default='60', nullable=False)
     default_booking_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Owner-set package prices for 1 hr 30 and longer: {"120": 280, "180": 400}.
+    # A length without one costs the nearest shorter package plus the hourly
+    # rate for the extra time (or hourly x length when there's none) — see
+    # pricing_service.base_price_for_minutes. Empty = all hourly, as before.
+    length_prices: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default='{}', nullable=False)
+    # Longest session customers can book; null = 8 hours (MAX_MINUTES).
+    max_booking_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

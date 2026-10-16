@@ -21,7 +21,7 @@ from app.models.promotion import Promotion, PromotionType, OfferCampaign
 from app.models.booking import Booking
 from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
 from app.core.time import IST
-from app.core.duration import allowed_minutes
+from app.core.duration import allowed_minutes, tier_allowed_minutes
 from app.services.pricing_service import base_price_for_minutes
 
 logger = logging.getLogger(__name__)
@@ -1035,6 +1035,11 @@ class PromotionService:
         # matches apply_promotion_to_booking's PROMOTION_TIER_MISMATCH check.
         candidates = [p for p in candidates if not p.applicable_tier_id or str(p.applicable_tier_id) == str(tier_id)]
 
+        # A nudge toward a length this setup can't be booked for (past the
+        # owner's longest booking) would only send the customer to an error.
+        tier = await self.tier_repo.get_by_id(tier_id) if self.tier_repo else None
+        bookable = set(tier_allowed_minutes(tier)) if tier is not None else None
+
         eligible = []
         best_hint, best_hint_message, suggested_minutes = None, None, None
         for promo in candidates:
@@ -1047,6 +1052,13 @@ class PromotionService:
                 # customer can act on by changing the slot/length, not for
                 # ones outside their control (exhausted, wrong tier).
                 if e.error_code in ("PROMOTION_INACTIVE", "PROMOTION_DURATION_MISMATCH", "PROMOTION_DURATION_TOO_SHORT"):
+                    needs = (
+                        round(float(promo.min_duration_hours) * 60) if e.error_code == "PROMOTION_DURATION_MISMATCH"
+                        else (promo.min_booking_minutes or 60) if e.error_code == "PROMOTION_DURATION_TOO_SHORT"
+                        else None
+                    )
+                    if needs is not None and bookable is not None and needs not in bookable:
+                        continue
                     if best_hint is None:
                         best_hint = promo
                         if e.error_code == "PROMOTION_DURATION_MISMATCH":
