@@ -180,3 +180,48 @@ async def test_owner_can_clear_short_prices_and_checkout_start_back_to_default()
         assert upd.status_code == 200, upd.text
         t = upd.json()["data"]["hardwareTier"]
         assert t["price30m"] is None and t["defaultBookingMinutes"] is None
+
+
+def _deal(cafe_id, tier_id, hours, **extra):
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    return {
+        "cafeId": str(cafe_id), "title": f"{hours} Hours Deal", "promotionType": "fixed_price",
+        "fixedPriceAmount": 300, "minDurationHours": hours, "applicableTierId": str(tier_id),
+        "validFrom": (now - timedelta(days=1)).isoformat(), "validUntil": (now + timedelta(days=30)).isoformat(),
+        "daysOfWeek": [0, 1, 2, 3, 4, 5, 6], "startHour": 0, "endHour": 24, **extra,
+    }
+
+
+@pytest.mark.asyncio
+async def test_offers_must_fit_the_setups_longest_booking_both_ways():
+    cafe_id, h = await _owner_and_cafe()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as c:
+        res = await c.post(f"/api/v1/cafes/{cafe_id}/tiers", headers=h, json={**PS5, "maxBookingMinutes": 180})
+        tier_id = res.json()["data"]["hardwareTier"]["id"]
+
+        # A 4-hour deal on a setup booked for 3 hours at most could never be used.
+        bad = await c.post("/api/v1/promotions", headers=h, json=_deal(cafe_id, tier_id, 4))
+        assert bad.status_code == 422, bad.text
+        assert bad.json()["error"]["code"] == "OFFER_LENGTH_NOT_BOOKABLE"
+        assert "3 hr at most" in bad.json()["error"]["message"]
+
+        # A % offer for 4 hr+ bookings, same.
+        pct = _deal(cafe_id, tier_id, None, promotionType="percentage", discountPercentage=10, minBookingMinutes=240)
+        pct.pop("fixedPriceAmount"); pct.pop("minDurationHours")
+        assert (await c.post("/api/v1/promotions", headers=h, json=pct)).status_code == 422
+
+        # A 3-hour deal fits; editing it to 4 hours is refused.
+        ok = await c.post("/api/v1/promotions", headers=h, json=_deal(cafe_id, tier_id, 3))
+        assert ok.status_code == 201, ok.text
+        promo_id = ok.json()["data"]["promotion"]["id"]
+        edit = await c.patch(f"/api/v1/promotions/{promo_id}", headers=h, json={"minDurationHours": 4})
+        assert edit.status_code == 422
+
+        # The other way round: the setup's limit can't drop below a running deal.
+        lower = await c.patch(f"/api/v1/cafes/{cafe_id}/tiers/{tier_id}", headers=h, json={"maxBookingMinutes": 120})
+        assert lower.status_code == 422
+        assert lower.json()["error"]["code"] == "OFFER_NEEDS_LONGER_BOOKING"
+        assert "3 Hours Deal" in lower.json()["error"]["message"]
+        # Raising it is always fine.
+        assert (await c.patch(f"/api/v1/cafes/{cafe_id}/tiers/{tier_id}", headers=h, json={"maxBookingMinutes": 240})).status_code == 200

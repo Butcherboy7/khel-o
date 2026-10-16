@@ -154,6 +154,22 @@ export function SetupBookingOptions({ config, onChange }: Props) {
   };
   const isOwnPrice = (m: number) =>
     (m === 15 && o.price15m != null) || (m === 30 && o.price30m != null) || m === 60 || (m >= 90 && o.lengthPrices[String(m)] != null);
+  // Plain-words "where does this price come from" for a row the owner left blank.
+  const explain = (m: number): string | null => {
+    if (m < 90 || o.lengthPrices[String(m)] != null) return null;
+    const shorter = Object.keys(o.lengthPrices)
+      .map(Number)
+      .filter((k) => k >= 90 && k < m && allowed.includes(k))
+      .sort((a, b) => a - b)
+      .pop();
+    if (shorter) {
+      const extra = m - shorter;
+      return `You haven't set a ${fmt(m)} price, so it's your ${fmt(shorter)} price (₹${priceAt(shorter)}) plus ₹${
+        Math.round(((hourly * extra) / 60) * 100) / 100
+      } for the extra ${fmt(extra)} at your hourly rate. Type a price to change it.`;
+    }
+    return `You haven't set a ${fmt(m)} price, so it's your hourly rate (₹${hourly}) × ${m / 60} = ₹${priceAt(m)}. Type a price to change it.`;
+  };
   const warnings = cheaperLongerLengths(allowed.map((m) => ({ minutes: m, price: priceAt(m), own: isOwnPrice(m) })));
   const selectCls =
     'h-11 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30';
@@ -372,8 +388,11 @@ export function SetupBookingOptions({ config, onChange }: Props) {
               return (
                 <tr key={m} className="border-b border-border/60 last:border-0">
                   <td className="px-3 py-2 text-text-primary">
-                    {fmt(m)}
-                    {m === 60 && <span className="ml-1 text-text-secondary">(hourly rate)</span>}
+                    <span className="inline-flex items-center gap-0.5">
+                      {fmt(m)}
+                      {m === 60 && <span className="ml-1 text-text-secondary">(hourly rate)</span>}
+                      {explain(m) && <InfoTip text={explain(m) as string} label={`How the ${fmt(m)} price is worked out`} quiet />}
+                    </span>
                   </td>
                   {playerCounts.map((p) =>
                     p === 1 && m >= 90 ? (

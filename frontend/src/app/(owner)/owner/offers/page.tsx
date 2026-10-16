@@ -354,6 +354,12 @@ export default function OwnerOffersPage() {
   };
 
   const selectedTier = tiers.find((t) => t.id === form.applicableTierId);
+  // Lengths the chosen setup can actually be booked for (its shortest to its
+  // longest booking); a deal for any other length could never be used.
+  const dealLengths = selectedTier
+    ? allowedMinutes((selectedTier.minBookingMinutes as 15 | 30 | 60) ?? 60, selectedTier.maxBookingMinutes)
+    : allowedMinutes(15);
+  const tierLongest = dealLengths[dealLengths.length - 1];
   // Play mode only matters where friends can actually share a console.
   const coopOfferable = selectedTier ? !!selectedTier.coopEnabled : tiers.some((t) => t.coopEnabled);
   const regularPricePreview =
@@ -421,8 +427,12 @@ export default function OwnerOffersPage() {
         setFormError('Enter the deal price, in rupees.');
         return;
       }
-      if (!allowedMinutes(15).includes(Math.round(form.minDurationHours * 60))) {
-        setFormError('Choose a bookable deal length.');
+      if (!dealLengths.includes(Math.round(form.minDurationHours * 60))) {
+        setFormError(
+          selectedTier
+            ? `${selectedTier.name || 'This setup'} can be booked for ${fmtDuration(tierLongest)} at most. Pick a deal length it can be booked for.`
+            : 'Choose a bookable deal length.'
+        );
         return;
       }
     }
@@ -781,10 +791,15 @@ export default function OwnerOffersPage() {
                     onChange={(e) => setForm({ ...form, minDurationHours: Number(e.target.value) / 60 })}
                     className="h-10 w-full rounded-xl border border-border bg-card px-3 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
                   >
-                    {allowedMinutes(15).filter((m) => m <= 480).map((m) => (
+                    {dealLengths.map((m) => (
                       <option key={m} value={m}>{fmtDuration(m)}</option>
                     ))}
                   </select>
+                  {selectedTier?.maxBookingMinutes != null && (
+                    <p className="text-caption text-text-secondary">
+                      Up to {fmtDuration(tierLongest)}, this setup&apos;s longest booking.
+                    </p>
+                  )}
                 </div>
                 <Input
                   label="Deal Price (₹) *"

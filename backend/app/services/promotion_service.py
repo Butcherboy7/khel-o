@@ -23,6 +23,34 @@ from app.core.exceptions import NotFoundException, ForbiddenException, Validatio
 from app.core.time import IST
 from app.core.duration import allowed_minutes, tier_allowed_minutes
 from app.services.pricing_service import base_price_for_minutes
+from app.core.duration import length_text
+
+
+def offer_length_problem(promotion_type, min_duration_hours, min_booking_minutes, tier) -> Optional[str]:
+    """Why an offer for this setup could never be used because of the setup's
+    booking lengths (e.g. a 4-hour deal on a setup booked for 3 hours at
+    most), in plain words; None when it fits."""
+    if tier is None:
+        return None
+    lengths = tier_allowed_minutes(tier)
+    longest = lengths[-1]
+    if promotion_type == PromotionType.FIXED_PRICE and min_duration_hours:
+        minutes = round(float(min_duration_hours) * 60)
+        if minutes > longest:
+            return (
+                f"{tier.name or 'This setup'} can be booked for {length_text(longest)} at most, so a "
+                f"{length_text(minutes)} deal could never be used. Pick {length_text(longest)} or less, "
+                "or raise the setup's longest booking first."
+            )
+        if minutes not in lengths:
+            return f"{tier.name or 'This setup'} can't be booked for exactly {length_text(minutes)}, so this deal could never be used."
+    elif promotion_type in (PromotionType.PERCENTAGE, PromotionType.FIXED_AMOUNT) and min_booking_minutes:
+        if min_booking_minutes > longest:
+            return (
+                f"{tier.name or 'This setup'} can be booked for {length_text(longest)} at most, so an offer for "
+                f"bookings of {length_text(min_booking_minutes)} or more could never be used."
+            )
+    return None
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +199,11 @@ class PromotionService:
             tier = await self.tier_repo.get_by_id(promo_in.applicable_tier_id)
             if not tier or str(tier.cafe_id) != str(cafe_id):
                 raise ValidationException(message="Selected tier does not belong to this café", error_code="INVALID_TIER")
+            problem = offer_length_problem(
+                promo_in.promotion_type, promo_in.min_duration_hours, promo_in.min_booking_minutes, tier
+            )
+            if problem:
+                raise ValidationException(message=problem, error_code="OFFER_LENGTH_NOT_BOOKABLE")
 
         # A fixed-price deal's "regular price" is derived from a tier's
         # hourly rate, not stored — so it needs exactly one tier to derive
@@ -676,6 +709,13 @@ class PromotionService:
             tier = await self.tier_repo.get_by_id(update_dict["applicable_tier_id"])
             if not tier or str(tier.cafe_id) != str(promo.cafe_id):
                 raise ValidationException(message="Selected tier does not belong to this café", error_code="INVALID_TIER")
+        if merged["applicable_tier_id"] and self.tier_repo:
+            tier = await self.tier_repo.get_by_id(merged["applicable_tier_id"])
+            problem = offer_length_problem(
+                merged["promotion_type"], merged["min_duration_hours"], merged["min_booking_minutes"], tier
+            )
+            if problem:
+                raise ValidationException(message=problem, error_code="OFFER_LENGTH_NOT_BOOKABLE")
 
         if update_in.khelo_code is not None and update_in.khelo_code != promo.khelo_code:
             existing = await self.promo_repo.get_by_code(update_in.khelo_code)

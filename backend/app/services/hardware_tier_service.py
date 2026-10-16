@@ -164,6 +164,31 @@ class HardwareTierService:
 
     create_tier = add_hardware_tier
 
+    async def _check_offers_still_fit(self, tier, new_min: int, new_max) -> None:
+        """Don't let a new length limit strand an offer that's still running
+        for this setup (a 4-hour deal on a setup now capped at 3 hours would
+        just silently never apply). Say which offer, so the owner can end it."""
+        from datetime import datetime, timezone
+        from types import SimpleNamespace
+        from sqlalchemy import select
+        from app.models.promotion import Promotion
+        from app.services.promotion_service import offer_length_problem
+
+        shadow = SimpleNamespace(name=tier.name, min_booking_minutes=new_min, max_booking_minutes=new_max)
+        rows = (await self.tier_repo.db.execute(
+            select(Promotion).where(
+                Promotion.applicable_tier_id == tier.id,
+                Promotion.is_active == True,  # noqa: E712
+                Promotion.valid_until >= datetime.now(timezone.utc),
+            )
+        )).scalars().all()
+        for promo in rows:
+            if offer_length_problem(promo.promotion_type, promo.min_duration_hours, promo.min_booking_minutes, shadow):
+                raise ValidationException(
+                    message=f"Your offer \"{promo.title}\" needs longer bookings than this. End or change that offer first, or keep a longer limit.",
+                    error_code="OFFER_NEEDS_LONGER_BOOKING",
+                )
+
     async def update_hardware_tier(self, tier_id: UUID, owner_id: UUID, update_data: HardwareTierUpdateRequest) -> HardwareTierResponse:
         # Row-locked (not a plain get_by_id): a capacity-reducing update runs
         # a capacity-safety check below and then writes the shrunk value —
@@ -230,6 +255,8 @@ class HardwareTierService:
         problem = check_length_rules(merged_min, merged_max, merged_default, merged_packages)
         if problem:
             raise ValidationException(message=problem, error_code="INVALID_DURATION_PRICE")
+        if merged_max != tier.max_booking_minutes or merged_min != tier.min_booking_minutes:
+            await self._check_offers_still_fit(tier, merged_min, merged_max)
 
         if total <= 0:
             raise ValidationException(message="Total seats must be greater than 0", error_code="INVALID_SEATS")
