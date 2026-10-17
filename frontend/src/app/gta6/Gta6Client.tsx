@@ -18,6 +18,8 @@ const LAUNCH_KEY = 'gta6';
 const LAUNCH_AT = new Date('2026-11-19T00:00:00+05:30').getTime();
 // The list count is re-read this often so a busy day visibly ticks up.
 const COUNT_REFRESH_MS = 30_000;
+// Long enough for the title card and the first countdown ticks to be seen.
+const AUTOSCROLL_AFTER_MS = 2200;
 // Cafés that told us they have pre-ordered GTA 6 (confirmed by KHEL-O,
 // 2026-10-17). Only these get the "Pre-ordered" stamp; a PS5 café that joins
 // later shows without it until it's confirmed and added here.
@@ -115,7 +117,7 @@ function CountdownTiles({ countdown }: { countdown: Countdown }) {
   }
   const days = countdown?.days ?? 0;
   return (
-    <div role="timer" className="mt-3.5 md:mt-6">
+    <div role="timer" data-gta6-stop className="mt-3.5 md:mt-6">
       <span className="sr-only">
         {countdown ? `${days} ${days === 1 ? 'day' : 'days'} and ${countdown.hours} hours to go` : 'Counting down to 19 November'}
       </span>
@@ -185,6 +187,37 @@ export function Gta6Client() {
   const [done, setDone] = useState<{ again: boolean; position: number } | null>(null);
   const [cafesOpen, setCafesOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const joinRef = useRef<HTMLButtonElement>(null);
+
+  // On a phone the Join button sits below the fold. Once the title and the
+  // countdown have played, glide down until it's in view: one time only, and
+  // never after the visitor has touched, scrolled or typed (they're reading).
+  useEffect(() => {
+    if (window.location.hash) return;
+    let touched = false;
+    const stop = () => {
+      touched = true;
+    };
+    const events = ['touchstart', 'wheel', 'keydown', 'pointerdown'] as const;
+    events.forEach((e) => window.addEventListener(e, stop, { passive: true, once: true }));
+    const t = setTimeout(() => {
+      const btn = joinRef.current;
+      const card = cardRef.current;
+      if (touched || window.scrollY > 4 || !btn || !card) return;
+      const need = btn.getBoundingClientRect().bottom + 16 - window.innerHeight;
+      if (need <= 0) return;
+      // Stop at a clean edge (a block's top), never halfway through the countdown.
+      const stops = Array.from(document.querySelectorAll<HTMLElement>('[data-gta6-stop]')).map((el) => el.getBoundingClientRect().top - 14);
+      const by = Math.min(...stops.filter((y) => y >= need), card.getBoundingClientRect().top - 12);
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollBy({ top: by, behavior: reduce ? 'auto' : 'smooth' });
+      trackAction('launch_list_autoscroll', { launch: LAUNCH_KEY });
+    }, AUTOSCROLL_AFTER_MS);
+    return () => {
+      clearTimeout(t);
+      events.forEach((e) => window.removeEventListener(e, stop));
+    };
+  }, []);
 
   useEffect(() => {
     const load = () => {
@@ -252,7 +285,7 @@ export function Gta6Client() {
   const daysLeft = countdown?.days ?? 0;
 
   return (
-    <div className="gta6 relative min-h-screen overflow-x-hidden bg-[#0E0F13] text-[#F4F1EC] caret-[#D0463C] selection:bg-[#D0463C] selection:text-white">
+    <div className="gta6 relative min-h-screen overflow-x-clip bg-[#0E0F13] text-[#F4F1EC] caret-[#D0463C] selection:bg-[#D0463C] selection:text-white">
       {/* A soft warm light in the far corner, under the sunset. */}
       <div
         aria-hidden="true"
@@ -289,7 +322,7 @@ export function Gta6Client() {
               </span>
             </h1>
             <CountdownTiles countdown={countdown} />
-            <p className="mt-3.5 max-w-md text-[16px] leading-relaxed text-[#D9D6D0] md:mt-6 md:text-xl">
+            <p data-gta6-stop className="mt-3.5 max-w-md text-[16px] leading-relaxed text-[#D9D6D0] md:mt-6 md:text-xl">
               No PS5 at home? Play it on a big screen at a café near you.
             </p>
           </section>
@@ -298,7 +331,7 @@ export function Gta6Client() {
               someone asks. The arrow nudges a few times to say "open me", then
               rests. With none confirmed yet it lists bookable PS5 cafés instead. */}
           {(cafes === null || cafes.length > 0) && (
-            <section>
+            <section data-gta6-stop>
               {cafes === null ? (
                 <div className="h-[68px] animate-pulse rounded-2xl bg-white/[0.04]" />
               ) : (
@@ -505,6 +538,7 @@ export function Gta6Client() {
                 )}
 
                 <button
+                  ref={joinRef}
                   type="submit"
                   disabled={busy}
                   className="flex h-[52px] items-center justify-center gap-2 rounded-2xl bg-[#D0463C] text-base font-bold text-white transition-colors hover:bg-[#B23A31] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111318] disabled:opacity-70"
