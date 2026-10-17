@@ -424,8 +424,8 @@ export function Gta6Client() {
                   {done.again ? 'You’re still on the list.' : `You’re on the list, ${name.trim().split(' ')[0]}.`}
                 </h2>
                 <p className="text-[15px] leading-relaxed text-[#5A5E6B]">
-                  You’re <b className="font-semibold tabular-nums text-[#111318]">#{done.position}</b>. We’ll {said} once, when
-                  launch-week slots open.
+                  You’re <b className="font-semibold tabular-nums text-[#111318]">#{done.position}</b>. When launch-week slots open, we’ll {said}. If
+                  you’re free, we’ll try to save you a seat.
                 </p>
               </div>
             ) : (
@@ -436,7 +436,8 @@ export function Gta6Client() {
                     Get on the GTA 6 list
                   </h2>
                   <p className="mt-1.5 text-[14px] leading-relaxed text-[#5A5E6B]">
-                    Hear first when launch-week slots open. Free, and slots go in sign-up order
+                    Leave your number. When launch-week slots open, we’ll {said}. If you’re free, we’ll try to save you a
+                    seat. Free to join, first come first served
                     {count !== null && count > 0 ? <> ({count.toLocaleString('en-IN')} in so far).</> : '.'}
                   </p>
                 </div>
