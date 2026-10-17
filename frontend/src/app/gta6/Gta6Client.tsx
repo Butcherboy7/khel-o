@@ -11,6 +11,7 @@ import { optimizedImg, fallBackToOriginal } from '@/lib/imageUrl';
 import type { CafeListItem } from '@/types';
 import { customerPrice } from '@/lib/format';
 import { firstBookingOfferLive } from '@/lib/pricing';
+import { Gta6Scene } from './Gta6Scene';
 
 const LAUNCH_KEY = 'gta6';
 // 19 Nov 2026, midnight in Hyderabad.
@@ -31,8 +32,10 @@ const REACH: { value: ReachBy; label: string; icon: typeof Phone; said: string }
   { value: 'call', label: 'Call', icon: Phone, said: 'call you' },
 ];
 
-/* Calm on purpose: one headline, the days left, the real cafés, then the form.
-   Nothing ticks, pings or stamps; it should read like a note, not an ad. */
+/* A sunset scene and a live countdown up top, then the real cafés and the
+   form. The form must still start inside the first phone screen (ad traffic). */
+
+type Countdown = ReturnType<typeof useCountdown>;
 
 function useCountdown(target: number) {
   const [now, setNow] = useState<number | null>(null);
@@ -96,6 +99,54 @@ function usePs5Cafes(): PlayCafe[] | null {
       .catch(() => setCafes([]));
   }, []);
   return cafes;
+}
+
+const UNITS = [
+  { key: 'days', label: 'Days' },
+  { key: 'hours', label: 'Hrs' },
+  { key: 'mins', label: 'Min' },
+  { key: 'secs', label: 'Sec' },
+] as const;
+
+/** Four neon tiles. Each digit re-mounts when it changes, so only that digit rolls in. */
+function CountdownTiles({ countdown }: { countdown: Countdown }) {
+  if (countdown?.done) {
+    return <p className="mt-4 text-[17px] font-semibold text-[#FFB4A8] md:text-xl">It’s out. Book a slot below.</p>;
+  }
+  const days = countdown?.days ?? 0;
+  return (
+    <div role="timer" className="mt-3.5 md:mt-6">
+      <span className="sr-only">
+        {countdown ? `${days} ${days === 1 ? 'day' : 'days'} and ${countdown.hours} hours to go` : 'Counting down to 19 November'}
+      </span>
+      <div aria-hidden="true" className="grid max-w-[340px] grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-start gap-x-1.5 md:max-w-[440px] md:gap-x-2.5">
+        {UNITS.map(({ key, label }, i) => {
+          const text = countdown ? String(countdown[key]).padStart(2, '0') : '--';
+          return (
+            <div key={key} className="contents">
+              {i > 0 && (
+                <span className="gta6-colon pt-2 font-heading text-[22px] font-bold leading-none text-[#FF6B5F] md:pt-4 md:text-[30px]">:</span>
+              )}
+              <div className="flex flex-col items-center">
+                <div
+                  className={`gta6-tile gta6-digits flex h-[52px] w-full items-center justify-center rounded-xl border border-white/[0.12] bg-[#1B0F24]/75 font-heading text-[30px] font-bold leading-none tabular-nums backdrop-blur-sm md:h-[76px] md:rounded-2xl md:text-[42px] ${
+                    key === 'secs' ? 'text-[#FF8A80]' : 'text-[#FFF4EE]'
+                  }`}
+                >
+                  {text.split('').map((ch, d) => (
+                    <span key={`${d}-${ch}`} className="gta6-digit">
+                      {ch}
+                    </span>
+                  ))}
+                </div>
+                <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#A3A6B1] md:text-[11px]">{label}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function errorText(err: unknown): string {
@@ -201,12 +252,13 @@ export function Gta6Client() {
   const daysLeft = countdown?.days ?? 0;
 
   return (
-    <div className="gta6 min-h-screen bg-[#0E0F13] text-[#F4F1EC] caret-[#D0463C] selection:bg-[#D0463C] selection:text-white">
-      {/* One soft warm light in the corner; nothing else moves or glows. */}
+    <div className="gta6 relative min-h-screen overflow-x-hidden bg-[#0E0F13] text-[#F4F1EC] caret-[#D0463C] selection:bg-[#D0463C] selection:text-white">
+      {/* A soft warm light in the far corner, under the sunset. */}
       <div
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 bg-[radial-gradient(640px_480px_at_100%_110%,rgba(208,70,60,0.16),transparent_65%)]"
       />
+      <Gta6Scene />
 
       <header className="relative mx-auto flex max-w-5xl items-center justify-between px-5 pt-4 md:px-8 md:pt-6">
         <Link href="/" className="flex items-center gap-2 font-heading text-base font-bold tracking-wide md:text-lg">
@@ -217,22 +269,27 @@ export function Gta6Client() {
         <span className="text-[13px] font-medium text-[#A3A6B1]">Hyderabad</span>
       </header>
 
-      <main className="relative mx-auto grid max-w-5xl items-start gap-10 px-5 pb-16 pt-10 md:grid-cols-[1.1fr_1fr] md:gap-x-16 md:px-8 md:pt-16">
-        <div className="flex flex-col gap-10">
+      <main className="relative mx-auto grid max-w-5xl items-start gap-5 px-5 pb-16 grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-x-16 md:px-8 md:pt-6">
+        <div className="flex flex-col gap-5 pt-[106px] md:gap-8 md:pt-[208px]">
           <section>
-            <h1 className="font-heading text-[40px] font-bold leading-[1.02] tracking-[-0.03em] [text-wrap:balance] md:text-[72px]">
-              GTA 6 drops <span className="text-[#FF6B5F]">19&nbsp;Nov.</span>
+            {/* Title card: each word rises out of its own slot. */}
+            <h1 className="font-heading text-[40px] font-bold leading-[1.04] tracking-[-0.03em] md:text-[72px]">
+              {['GTA', '6', 'drops'].map((w, i) => (
+                <span key={w} className="inline-block overflow-hidden pb-[0.06em] align-bottom">
+                  <span className="gta6-word" style={{ animationDelay: `${0.08 + i * 0.08}s` }}>
+                    {w}
+                  </span>
+                  &nbsp;
+                </span>
+              ))}
+              <span className="inline-block overflow-hidden pb-[0.06em] align-bottom">
+                <span className="gta6-word text-[#FF6B5F]" style={{ animationDelay: '0.34s' }}>
+                  19&nbsp;Nov.
+                </span>
+              </span>
             </h1>
-            <p className="mt-3 text-[14px] font-medium tabular-nums text-[#A3A6B1] md:text-base" role="timer">
-              {countdown === null
-                ? ' '
-                : countdown.done
-                ? 'It’s out. Book a slot below.'
-                : daysLeft >= 1
-                ? `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} to go`
-                : 'Out tomorrow'}
-            </p>
-            <p className="mt-5 max-w-md text-[16px] leading-relaxed text-[#D9D6D0] md:text-xl">
+            <CountdownTiles countdown={countdown} />
+            <p className="mt-3.5 max-w-md text-[16px] leading-relaxed text-[#D9D6D0] md:mt-6 md:text-xl">
               No PS5 at home? Play it on a big screen at a café near you.
             </p>
           </section>
@@ -242,11 +299,6 @@ export function Gta6Client() {
               rests. With none confirmed yet it lists bookable PS5 cafés instead. */}
           {(cafes === null || cafes.length > 0) && (
             <section>
-              <style>{`
-                @keyframes gta6-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
-                .gta6-nudge { animation: gta6-nudge 0.9s cubic-bezier(0.25, 1, 0.5, 1) 1.2s 3; }
-                @media (prefers-reduced-motion: reduce) { .gta6-nudge { animation: none; } }
-              `}</style>
               {cafes === null ? (
                 <div className="h-[68px] animate-pulse rounded-2xl bg-white/[0.04]" />
               ) : (
@@ -256,7 +308,7 @@ export function Gta6Client() {
                   const n = shown.length;
                   const title =
                     preordered.length > 0
-                      ? `${n} ${n === 1 ? 'café has' : 'cafés have'} pre-ordered GTA 6`
+                      ? `${n} ${n === 1 ? 'café has' : 'cafés have'} pre-ordered GTA 6`
                       : `${n} PS5 ${n === 1 ? 'café' : 'cafés'} you can book`;
                   return (
                     <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
@@ -319,9 +371,22 @@ export function Gta6Client() {
           <div className="rounded-[24px] bg-[#F4F1EC] p-5 text-[#111318] md:rounded-[28px] md:p-8">
             {done ? (
               <div className="flex flex-col items-start gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#111318] text-white">
-                  <Check className="h-5 w-5" aria-hidden />
-                </span>
+                {/* Wanted level: five stars light up one after another. */}
+                <div className="flex items-center gap-3">
+                  <span className="flex gap-1" aria-hidden="true">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <span key={i} className="relative h-6 w-6">
+                        <Star className="absolute inset-0 h-6 w-6 text-[#DEDBD5]" strokeWidth={2} />
+                        <Star
+                          className="gta6-star absolute inset-0 h-6 w-6 fill-[#D0463C] text-[#D0463C]"
+                          strokeWidth={2}
+                          style={{ animationDelay: `${0.15 + i * 0.12}s` }}
+                        />
+                      </span>
+                    ))}
+                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#5A5E6B]">Wanted level: max</span>
+                </div>
                 <h2 className="font-heading text-[24px] font-bold leading-tight tracking-tight">
                   {done.again ? 'You’re still on the list.' : `You’re on the list, ${name.trim().split(' ')[0]}.`}
                 </h2>

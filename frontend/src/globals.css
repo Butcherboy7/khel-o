@@ -477,6 +477,94 @@ body:has(.gta6) [aria-label='Cookie notice'] { display: none; }
   .khelo-tour-ring, .khelo-tour-hand, .khelo-tour-nudge { animation: none; }
 }
 
+/* ── /gta6: a sunset over the water, drawn in CSS (no images, no game art).
+   Static by default; it only moves when the device allows motion. The sun
+   sits on the horizon with scrolling stripes, palms sway, the water shimmers,
+   the headline comes in like a title card and the countdown digits roll. ── */
+.gta6-scene { --h: 150px; --sun: 116px; }
+@media (min-width: 768px) { .gta6-scene { --h: 286px; --sun: 196px; } }
+.gta6-sky {
+  position: absolute; inset: 0 0 auto 0; height: var(--h);
+  background: linear-gradient(180deg, #150B22 0%, #2E1340 26%, #6E2563 52%, #C93C6A 76%, #FF7A4F 100%);
+}
+.gta6-twinkle {
+  position: absolute; top: 14px; left: 8%; width: 2px; height: 2px; border-radius: 50%; background: #fff; opacity: 0.7;
+  box-shadow: 46px 24px #fff, 118px 6px rgb(255 255 255 / 0.6), 172px 38px rgb(255 255 255 / 0.5), 236px 14px #fff,
+    300px 30px rgb(255 255 255 / 0.6), 420px 18px rgb(255 255 255 / 0.5), 560px 40px #fff, 700px 10px rgb(255 255 255 / 0.6),
+    860px 30px rgb(255 255 255 / 0.5), 1010px 16px #fff, 1180px 34px rgb(255 255 255 / 0.6);
+}
+.gta6-sun-wrap {
+  position: absolute; left: 50%; width: var(--sun); height: var(--sun); margin-left: calc(var(--sun) / -2);
+  top: calc(var(--h) - var(--sun) * 0.74);
+}
+@media (min-width: 768px) { .gta6-sun-wrap { left: 27%; } }
+.gta6-sun-glow {
+  position: absolute; inset: -70%; border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 140 90 / 0.5) 0%, rgb(232 71 106 / 0.18) 38%, transparent 66%);
+}
+.gta6-sun {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: linear-gradient(180deg, #FFE38F 0%, #FFB45E 38%, #FF6B5F 68%, #E8476A 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0 48%, transparent 48%), repeating-linear-gradient(180deg, #000 0 7px, transparent 7px 11px);
+  mask-image: linear-gradient(180deg, #000 0 48%, transparent 48%), repeating-linear-gradient(180deg, #000 0 7px, transparent 7px 11px);
+}
+.gta6-cloud {
+  position: absolute; height: 5px; border-radius: 9999px; background: #4A1A55;
+}
+.gta6-water {
+  position: absolute; inset: var(--h) 0 0 0;
+  background: linear-gradient(180deg, #2B1035 0%, #170C20 40%, #0E0F13 100%);
+}
+.gta6-water::before {
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(255 176 140 / 0.7) 20%, rgb(255 176 140 / 0.7) 80%, transparent);
+}
+.gta6-reflect { position: absolute; top: var(--h); left: 50%; }
+@media (min-width: 768px) { .gta6-reflect { left: 27%; } }
+.gta6-ripple {
+  position: absolute; left: 0; height: 3px; border-radius: 9999px; transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgb(255 138 96 / 0.6), transparent);
+}
+.gta6-fade { position: absolute; inset: auto 0 0 0; height: 45%; background: linear-gradient(180deg, transparent, #0E0F13); }
+.gta6-palm { position: absolute; bottom: 0; color: #0A0610; transform-origin: 50% 100%; }
+.gta6-palm .gta6-fronds { transform-box: fill-box; transform-origin: 50% 70%; }
+.gta6-word { display: inline-block; }
+.gta6-tile { position: relative; overflow: hidden; }
+.gta6-digit { display: inline-block; }
+.gta6-digits { text-shadow: 0 0 14px rgb(255 107 95 / 0.55), 0 0 2px rgb(255 107 95 / 0.4); }
+
+@keyframes gta6-sun-rise { from { transform: translateY(38%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes gta6-stripes { to { -webkit-mask-position: 0 0, 0 11px; mask-position: 0 0, 0 11px; } }
+@keyframes gta6-glow { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+@keyframes gta6-drift { from { transform: translateX(-10px); } to { transform: translateX(12px); } }
+@keyframes gta6-ripple { from { transform: translateX(-50%) scaleX(0.7); opacity: 0.45; } to { transform: translateX(-50%) scaleX(1.12); opacity: 1; } }
+@keyframes gta6-sway { from { transform: rotate(-1.4deg); } to { transform: rotate(1.6deg); } }
+@keyframes gta6-rustle { from { transform: rotate(-2.6deg); } to { transform: rotate(2.2deg); } }
+@keyframes gta6-twinkle { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.85; } }
+@keyframes gta6-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gta6-word { from { transform: translateY(108%); } to { transform: none; } }
+@keyframes gta6-digit { from { transform: translateY(-60%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes gta6-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes gta6-star { 0% { transform: scale(0) rotate(-40deg); opacity: 0; } 70% { transform: scale(1.25) rotate(6deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes gta6-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .gta6-scene { animation: gta6-fade-in 0.8s var(--ease-out) both; }
+  .gta6-sun-wrap { animation: gta6-sun-rise 1.6s var(--ease-out) 0.1s both; }
+  .gta6-sun { animation: gta6-stripes 2.6s linear infinite; }
+  .gta6-sun-glow { animation: gta6-glow 6s ease-in-out infinite; }
+  .gta6-cloud { animation: gta6-drift 13s ease-in-out infinite alternate; }
+  .gta6-ripple { animation: gta6-ripple 2.8s ease-in-out infinite alternate; }
+  .gta6-palm { animation: gta6-sway 7s ease-in-out infinite alternate; }
+  .gta6-palm .gta6-fronds { animation: gta6-rustle 4.2s ease-in-out infinite alternate; }
+  .gta6-twinkle { animation: gta6-twinkle 4s ease-in-out infinite; }
+  .gta6-word { animation: gta6-word 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .gta6-digit { animation: gta6-digit 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .gta6-colon { animation: gta6-blink 1s ease-in-out infinite; }
+  .gta6-star { animation: gta6-star 0.5s var(--ease-out) both; }
+  .gta6-nudge { animation: gta6-nudge 0.9s var(--ease-out) 1.2s 3; }
+}
+
 /* Cookie notice already dismissed: hidden before first paint (no layout shift). */
 html[data-cookie-ok] .cookie-notice {
   display: none;
