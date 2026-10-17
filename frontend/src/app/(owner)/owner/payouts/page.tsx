@@ -81,7 +81,7 @@ export default function OwnerPayoutsPage() {
           Razorpay settles to KHEL-O, it becomes available, then it's paid
           out — so an owner can tell at a glance which stage their money is
           in instead of seeing one opaque "owed" total. */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2" data-tour="payout-stages">
         <OwnerStatRow
           stats={[
             {
@@ -116,7 +116,7 @@ export default function OwnerPayoutsPage() {
         </p>
       </div>
 
-      <Card elevation="resting" className="border border-border bg-surface-hover">
+      <Card data-tour="payout-where" elevation="resting" className="border border-border bg-surface-hover">
         <CardContent className="flex flex-col gap-3 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-caption">
             <span className="text-text-secondary">Where it&apos;s sent: </span>

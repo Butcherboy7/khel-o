@@ -31,7 +31,7 @@ import { useRazorpay } from '@/hooks/useRazorpay';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { useAuthStore } from '@/store/authStore';
 import { Skeleton, ErrorState, BottomSheet } from '@/components/ui';
-import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
+import { CheckoutSignInSheet } from '@/components/auth/CheckoutSignInSheet';
 import { saveBookingIntent } from '@/lib/bookingIntent';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
 import { OffersPanel } from '@/components/customer/OffersPanel';
@@ -48,6 +48,32 @@ import {
   calculateWindowRemainingSeats,
   customerPrice,
 } from '@/lib/format';
+import { hourlyOffer } from '@/lib/offers';
+import type { HardwareTier } from '@/types';
+
+// The hourly price a setup is shown at: the same number its card on the café
+// page shows (the live offer for one player, if any), so the price never
+// jumps between the card that was tapped and this page.
+const shownHourly = (t: Pick<HardwareTier, 'pricePerHour' | 'activePromotion'>) =>
+  customerPrice(hourlyOffer(t.pricePerHour, t.activePromotion)?.price ?? t.pricePerHour);
+
+// "Free cancel till 8:00 AM" (or "till Sun 8:00 AM" on another day): the last
+// moment a full refund is possible, 2 hours before the start (the server's
+// rule in booking_service). Null once that moment has passed.
+function cancelByLabel(sessionDate: string, startTime: string): string | null {
+  const [h, m] = startTime.split(':').map(Number);
+  if (!Number.isFinite(h)) return null;
+  const by = new Date(`${sessionDate}T00:00:00`);
+  if (Number.isNaN(by.getTime())) return null;
+  by.setHours(h, Number.isFinite(m) ? m : 0, 0, 0);
+  by.setTime(by.getTime() - 2 * 60 * 60 * 1000);
+  if (by.getTime() <= Date.now()) return null;
+  const hour12 = ((by.getHours() + 11) % 12) + 1;
+  const time = `${hour12}:${String(by.getMinutes()).padStart(2, '0')} ${by.getHours() < 12 ? 'AM' : 'PM'}`;
+  const sameDay = by.toDateString() === new Date().toDateString();
+  const day = sameDay ? '' : `${by.toLocaleDateString('en-IN', { weekday: 'short' })} `;
+  return `Free cancel till ${day}${time}`;
+}
 
 function BookingWizardContent() {
   const router = useRouter();
@@ -563,6 +589,27 @@ function BookingWizardContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cafeId, activeTier?.id]);
 
+  // Signed in from the sheet at Pay: carry on to payment once the price for
+  // the signed-in customer is in. If signing in changed the total (the
+  // first-booking offer), stop and show it instead of charging a number
+  // they haven't seen. Refs, because the total and handleCheckout are only
+  // worked out below the early returns.
+  const payAfterSignIn = useRef<number | null>(null);
+  const totalRef = useRef<number>(0);
+  const checkoutRef = useRef<() => void>(() => {});
+  const [signedInNote, setSignedInNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (payAfterSignIn.current == null || !isAuthenticated || quoteSettling || !quote) return;
+    const before = payAfterSignIn.current;
+    payAfterSignIn.current = null;
+    if (Math.abs(totalRef.current - before) < 0.01) {
+      checkoutRef.current();
+    } else {
+      const now = totalRef.current;
+      setSignedInNote(`You're signed in. Your total is now ₹${Number.isInteger(now) ? now : now.toFixed(2)}. Tap Pay to finish.`);
+    }
+  }, [isAuthenticated, quoteSettling, quote]);
+
   if (!cafeId) {
     return (
       <ErrorState
@@ -628,6 +675,9 @@ function BookingWizardContent() {
   // Whole rupees, rounded down: "You save ₹69", never paise, never more than is true.
   const youSave = Math.floor(discountAmount + feeWaived + 1e-6);
 
+  const cancelBy = cancelByLabel(effectiveSessionDate, selectedTime);
+  totalRef.current = finalTotal;
+
   // ₹187.2 -> "187.20", ₹180 -> "180": rupees with paise only when present.
   const money = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 
@@ -691,6 +741,7 @@ function BookingWizardContent() {
     }
 
     setError(null);
+    setSignedInNote(null);
     setIsProcessing(true);
 
     try {
@@ -748,7 +799,8 @@ function BookingWizardContent() {
             fireAnalyticsEvent('booking_completed', { cafeId, metadata: payMeta });
             queryClient.invalidateQueries({ queryKey: ['cafe-availability'] });
             queryClient.invalidateQueries({ queryKey: queryKeys.cafes.detail(cafeId) });
-            router.push(`/bookings/${booking.id}`);
+            // ?welcome=1 plays the one-time "you're in" moment on the pass.
+            router.push(`/bookings/${booking.id}?welcome=1`);
           } catch (verifyErr: any) {
             fireAnalyticsEvent('payment_failed', { cafeId, metadata: { ...payMeta, reason: 'verification' } });
             setError(verifyErr?.message || 'Payment verification failed.');
@@ -770,6 +822,7 @@ function BookingWizardContent() {
       setIsProcessing(false);
     }
   };
+  checkoutRef.current = handleCheckout;
 
   return (
     <>
@@ -798,13 +851,13 @@ function BookingWizardContent() {
               type="button"
               onClick={() => setShowTierSwitcher((v) => !v)}
               aria-expanded={showTierSwitcher}
-              aria-label={`Setup: ${activeTier.name}, ₹${customerPrice(activeTier.pricePerHour)} per hour. Change setup`}
+              aria-label={`Setup: ${activeTier.name}, ₹${shownHourly(activeTier)} per hour. Change setup`}
               className="flex min-h-[44px] max-w-[55%] flex-shrink items-center gap-1.5 rounded-full border border-border/80 bg-card pl-3 pr-2 shadow-sm transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <Monitor className="h-4 w-4 flex-shrink-0 text-accent" aria-hidden />
               <span className="min-w-0 truncate font-heading text-caption font-bold text-text-primary">{activeTier.name}</span>
               <span className="flex-shrink-0 text-caption text-text-secondary">
-                <span className="rupee-symbol">₹</span>{customerPrice(activeTier.pricePerHour)}/hr
+                <span className="rupee-symbol">₹</span>{shownHourly(activeTier)}/hr
               </span>
               <ChevronDown className={cn('h-4 w-4 flex-shrink-0 text-text-secondary transition-transform', showTierSwitcher && 'rotate-180')} aria-hidden />
             </button>
@@ -830,7 +883,7 @@ function BookingWizardContent() {
                   <ActivitySpecLine tier={tier} />
                 </span>
                 <span className="font-data text-body-emphasis font-bold text-text-primary flex-shrink-0">
-                  <span className="rupee-symbol">₹</span>{customerPrice(tier.pricePerHour)}<span className="text-caption font-normal text-text-secondary">/hr</span>
+                  <span className="rupee-symbol">₹</span>{shownHourly(tier)}<span className="text-caption font-normal text-text-secondary">/hr</span>
                 </span>
               </button>
             ))}
@@ -859,6 +912,12 @@ function BookingWizardContent() {
       {error && (
         <div className="p-4 rounded-2xl bg-error/10 border border-error/20 text-caption text-error">
           {error}
+        </div>
+      )}
+
+      {signedInNote && (
+        <div role="status" className="rounded-2xl border border-success/25 bg-success/10 px-4 py-3 text-caption font-semibold text-emerald-700">
+          {signedInNote}
         </div>
       )}
 
@@ -1062,7 +1121,15 @@ function BookingWizardContent() {
           >
             <span className="flex min-w-0 items-center gap-1.5 font-semibold">
               <Tag className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
-              <span className="truncate">{quote.appliedOffer.title} ({quote.appliedOffer.label})</span>
+              {/* Same words as the café page's offer line: "20% off · 1 player". */}
+              <span className="truncate">
+                {[
+                  quote.appliedOffer.label,
+                  quote.appliedOffer.playMode === 'solo' ? '1 player' : quote.appliedOffer.playMode === 'coop' ? '2 players' : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
               <span className="flex-shrink-0 font-semibold text-primary-dark">Change</span>
             </span>
             <span className="flex-shrink-0 font-bold">
@@ -1150,7 +1217,7 @@ function BookingWizardContent() {
           className="flex min-h-[44px] min-w-0 items-center gap-1 rounded-lg text-right text-caption text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0 text-success" aria-hidden />
-          <span className="truncate">Razorpay · free cancel ≤2 hrs</span>
+          <span className="truncate">Secure · Razorpay</span>
           <ChevronDown className={cn('h-3.5 w-3.5 flex-shrink-0 transition-transform', showTrustDetails && 'rotate-180')} aria-hidden />
         </button>
       </div>
@@ -1242,9 +1309,18 @@ function BookingWizardContent() {
             <div className="font-heading text-h2 font-bold leading-tight text-text-primary">
               <span className="rupee-symbol">₹</span>{money(finalTotal)}
             </div>
-            {youSave > 0 ? (
-              <span className="block truncate text-caption font-semibold text-success">
-                You save <span className="rupee-symbol">₹</span>{money(youSave)}
+            {/* The refund promise, as a real time, right where people decide to
+                pay. "You save" already sits on the Total row above. */}
+            {cancelBy ? (
+              <span className="flex min-w-0 items-center gap-1 text-caption font-semibold text-emerald-700">
+                <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+                <span className="truncate">{cancelBy}</span>
+              </span>
+            ) : selectedTime ? (
+              // Under 2 hours to go the server won't take a cancellation, so
+              // say so here rather than promise it (the saving is on Total).
+              <span className="block truncate text-caption text-text-secondary">
+                Starts within 2 hrs: can&apos;t be cancelled
               </span>
             ) : (
               <span className="block truncate text-caption text-text-secondary">
@@ -1284,13 +1360,19 @@ function BookingWizardContent() {
       </div>
     </div>
 
-      {/* Login required prompt — shown instead of a silent redirect when an
-          unauthenticated visitor taps "Continue to Payment". */}
-      <LoginRequiredDialog
+      {/* Signed-out visitor tapped Pay: sign in right here (Google in one
+          tap), then payment carries on with every pick kept. */}
+      <CheckoutSignInSheet
         isOpen={showLoginPrompt}
-        onCancel={() => setShowLoginPrompt(false)}
-        onLogin={handleLoginFromPrompt}
-        onRegister={handleRegisterFromPrompt}
+        onClose={() => setShowLoginPrompt(false)}
+        amountLabel={`₹${money(finalTotal)}`}
+        summary={`${activeTier?.name || 'Setup'} · ${durationLabel} · ${seatsCount} player${seatsCount > 1 ? 's' : ''}`}
+        onSignedIn={() => {
+          payAfterSignIn.current = finalTotal;
+          setShowLoginPrompt(false);
+        }}
+        onUseEmail={handleLoginFromPrompt}
+        onCreateAccount={handleRegisterFromPrompt}
       />
 
       {/* Mock Payment Modal for Sandbox Mode */}

@@ -489,6 +489,9 @@ class PromotionService:
         # Lowest per-hour price a lone player can get right now, so the card's
         # "from" price matches what the café page and booking bar show.
         offer_from: dict = {}
+        # The offer that gives that "from" price, so the chip beside it names
+        # the same deal ("20% off" next to the 20%-off price, never "25% off").
+        from_promo: dict = {}
         for p in promos:
             tier = tiers.get(p.applicable_tier_id)
             if tier is None or (getattr(p, "play_mode", None) or "any") == "coop":
@@ -504,8 +507,9 @@ class PromotionService:
                 price = float(p.fixed_price_amount)
             else:
                 continue
-            if 0 < price < regular:
-                offer_from[p.cafe_id] = min(offer_from.get(p.cafe_id, price), round(price))
+            if 0 < price < regular and (p.cafe_id not in offer_from or round(price) < offer_from[p.cafe_id]):
+                offer_from[p.cafe_id] = round(price)
+                from_promo[p.cafe_id] = p
 
         best: dict = {}
         for p in promos:
@@ -521,6 +525,8 @@ class PromotionService:
             cur = best.get(p.cafe_id)
             if cur is None or key > cur[0]:
                 best[p.cafe_id] = (key, p, live)
+        for cafe_id, p in from_promo.items():
+            best[cafe_id] = (None, p, True)
 
         out = {}
         for cafe_id, (_key, p, live) in best.items():

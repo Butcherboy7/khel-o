@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { AlertTriangle, PauseCircle, CheckCircle2 } from 'lucide-react';
 
@@ -7,9 +8,11 @@ interface SettingsHeaderProps {
   isEmergencyMode: boolean;
   bookingsPaused: boolean;
   cafeName: string;
+  /** Sits beside the status badge (the page's Tutorial button). */
+  action?: ReactNode;
 }
 
-export function SettingsHeader({ isEmergencyMode, bookingsPaused, cafeName }: SettingsHeaderProps) {
+export function SettingsHeader({ isEmergencyMode, bookingsPaused, cafeName, action }: SettingsHeaderProps) {
   // The badge already carries a colour and a drawn icon; the emoji that used to
   // prefix each label was a third copy of the same signal, in a glyph set that
   // renders differently on every device.
@@ -72,10 +75,11 @@ export function SettingsHeader({ isEmergencyMode, bookingsPaused, cafeName }: Se
             </div>
           </div>
 
-          <div className="self-start sm:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <Badge variant={status.variant} size="md" className="whitespace-nowrap">
               {status.label}
             </Badge>
+            {action}
           </div>
         </div>
 

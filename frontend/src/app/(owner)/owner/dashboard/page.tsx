@@ -37,7 +37,7 @@ import { RejectedView } from '@/components/owner/RejectedView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
 import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
 import { InfoTip } from '@/components/shared/InfoTip';
-import { PageTip } from '@/components/owner/PageTip';
+import { TutorialButton } from '@/components/owner/TutorialButton';
 import { INFO_TIPS, PAGE_GUIDES } from '@/lib/ownerGuideCopy';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
@@ -59,8 +59,10 @@ export default function OwnerDashboardPage() {
   const [selectedBooking, setSelectedBooking] = useState<OwnerBookingItem | null>(null);
   const [isLoadingOps, setIsLoadingOps] = useState(false);
   const [isTogglingPause, setIsTogglingPause] = useState(false);
-  const [appSeatCap, setAppSeatCap] = useState<number>(14);
-  const [totalSeatsCount, setTotalSeatsCount] = useState<number>(20);
+  // Real counts arrive with the café status; 0 until then, never a made-up
+  // 14 of 20 that could read as more free seats than the café has.
+  const [appSeatCap, setAppSeatCap] = useState<number>(0);
+  const [totalSeatsCount, setTotalSeatsCount] = useState<number>(0);
   const [isUpdatingCap, setIsUpdatingCap] = useState<boolean>(false);
   const [isTierBreakdownOpen, setIsTierBreakdownOpen] = useState<boolean>(false);
   const [cafeSettings, setCafeSettings] = useState<{
@@ -386,12 +388,15 @@ export default function OwnerDashboardPage() {
   }
 
   const upcomingCount = todayBookings.filter((b) => b.status === 'confirmed' || b.status === 'pending_payment').length;
-  const occupiedNowCount = todayBookings.filter((b) => b.status === 'checked_in' || b.status === 'active').length;
+  // Stations in use, not bookings: a 2-console booking holds two.
+  const occupiedNowCount = todayBookings
+    .filter((b) => b.status === 'checked_in' || b.status === 'active')
+    .reduce((sum, b) => sum + ((b as { seatsCount?: number }).seatsCount || 1), 0);
   // Sourced from the backend's revenueToday (only CONFIRMED/CHECKED_IN/ACTIVE/COMPLETED
   // bookings with a CAPTURED payment) rather than summing todayBookings client-side,
   // which has no status filter and would double-count pending/failed payments.
   const totalEarningsToday = dashboardData?.revenueToday ?? 0;
-  const seatsFreeNow = Math.max(0, appSeatCap - occupiedNowCount);
+  const seatsFreeNow = Math.max(0, Math.min(appSeatCap, totalSeatsCount) - occupiedNowCount);
 
   // "Needs Your Attention" = bookings whose session start time has already
   // passed but nobody checked them in yet — the thing an owner actually
@@ -457,20 +462,21 @@ export default function OwnerDashboardPage() {
 
         {/* A bare circular-arrow glyph asked the owner to know what it did.
             Naming the action costs one word and removes the guess. */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={loadStatusAndOps}
-          isLoading={isLoadingOps}
-          loadingText="Refreshing"
-          className="shrink-0 gap-2 self-start"
-        >
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          <span>Refresh</span>
-        </Button>
+        <div className="flex shrink-0 items-center gap-2 self-start">
+          <TutorialButton page="dashboard" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={loadStatusAndOps}
+            isLoading={isLoadingOps}
+            loadingText="Refreshing"
+            className="gap-2"
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            <span>Refresh</span>
+          </Button>
+        </div>
       </div>
-
-      <PageTip page="dashboard" />
 
       {/* Staff open this portal to do exactly one thing, so it gets the first
           screen and a full-width target rather than a decorated banner. */}
@@ -527,6 +533,7 @@ export default function OwnerDashboardPage() {
       {/* The three numbers an owner glances at, side by side. Stacked as
           full-width cards these ate the entire opening screen and pushed the
           arrivals list — the only actionable thing here — below the fold. */}
+      <div data-tour="dash-stats">
       <OwnerStatRow
         stats={[
           {
@@ -547,10 +554,11 @@ export default function OwnerDashboardPage() {
           },
         ]}
       />
+      </div>
 
       {/* TODAY'S ARRIVALS — the actionable list, right under the hero, no scrolling needed */}
       {(
-        <Card elevation="raised" className="bg-surface border border-border overflow-hidden">
+        <Card data-tour="dash-arrivals" elevation="raised" className="bg-surface border border-border overflow-hidden">
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 pb-3 pt-4">
             <div className="min-w-0">
               <h2 className="flex items-center gap-2 font-heading text-h3 text-text-primary">
@@ -671,7 +679,7 @@ export default function OwnerDashboardPage() {
           real but secondary, so they live behind one "Advanced" disclosure
           instead of two more full-width cards. */}
       {!isStaff && (
-      <Card elevation="raised" className="flex flex-col gap-4 border border-border bg-card p-4 shadow-card">
+      <Card data-tour="dash-seats" elevation="raised" className="flex flex-col gap-4 border border-border bg-card p-4 shadow-card">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">

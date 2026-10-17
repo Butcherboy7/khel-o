@@ -29,6 +29,8 @@ export interface CafeListItem {
   platformsComplete?: boolean;
   photos: { url: string; category: string }[];
   hasActivePromotion: boolean;
+  /** Stations bookable on KHEL-O right now; null when closed or paused. */
+  freeNow?: number | null;
   /** The one deal worth showing on the explore card. */
   bestOffer?: {
     label: string;

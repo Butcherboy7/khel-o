@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -29,7 +29,8 @@ import {
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
-import { formatSessionDate, formatTime, getOwnerPayoutAmount } from '@/lib/format';
+import { cn } from '@/lib/cn';
+import { addDaysToDateString, formatSessionDate, formatSessionDateShort, formatTime, getOwnerPayoutAmount, getTodayString } from '@/lib/format';
 
 export default function OwnerBookingsPage() {
   const queryClient = useQueryClient();
@@ -39,7 +40,13 @@ export default function OwnerBookingsPage() {
   // that booking instead of an unfiltered list indistinguishable from the
   // link having done nothing.
   const [searchRef, setSearchRef] = useState(() => searchParams.get('ref') || '');
-  const [selectedDate, setSelectedDate] = useState('');
+  // Opens on today's desk, which is what the owner needs most; a booking
+  // code from a notification searches every day instead.
+  const today = getTodayString();
+  const tomorrow = addDaysToDateString(today, 1);
+  const [selectedDate, setSelectedDate] = useState(() => (searchParams.get('ref') ? '' : today));
+  const datePickerRef = useRef<HTMLInputElement>(null);
+  const pickedOther = selectedDate !== '' && selectedDate !== today && selectedDate !== tomorrow;
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -118,15 +125,51 @@ export default function OwnerBookingsPage() {
         />
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Input
-            type="date"
-            label="Date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
+          <div className="flex flex-col gap-1.5">
+            <span id="bookings-day-label" className="text-h4 text-text-primary">Day</span>
+            <div role="group" aria-labelledby="bookings-day-label" data-tour="bookings-days" className="flex flex-wrap gap-2">
+              {[
+                { key: today, label: 'Today' },
+                { key: tomorrow, label: 'Tomorrow' },
+              ].map((d) => (
+                <button
+                  key={d.label}
+                  type="button"
+                  aria-pressed={selectedDate === d.key}
+                  onClick={() => setSelectedDate(d.key)}
+                  className={dayChip(selectedDate === d.key)}
+                >
+                  {d.label}
+                </button>
+              ))}
+              {/* The real date field sits under the chip, so the phone's own
+                  calendar opens and the day reads "Sat, 24 Oct", not 10/24/2026. */}
+              <label className={cn(dayChip(pickedOther), 'relative cursor-pointer')}>
+                <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+                {pickedOther ? formatSessionDateShort(selectedDate) : 'Pick a date'}
+                <input
+                  ref={datePickerRef}
+                  type="date"
+                  aria-label="Pick a date"
+                  value={pickedOther ? selectedDate : ''}
+                  onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                  onClick={() => datePickerRef.current?.showPicker?.()}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+              <button
+                type="button"
+                aria-pressed={selectedDate === ''}
+                onClick={() => setSelectedDate('')}
+                className={dayChip(selectedDate === '')}
+              >
+                All days
+              </button>
+            </div>
+          </div>
 
           <div className="flex items-end gap-1">
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1" data-tour="bookings-show">
               <Select
                 label="Show"
                 value={selectedStatus}
@@ -273,5 +316,13 @@ export default function OwnerBookingsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function dayChip(active: boolean): string {
+  return cn(
+    'inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-4 text-caption font-semibold transition-colors',
+    'focus-within:outline-none focus-within:ring-2 focus-within:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+    active ? 'border-secondary bg-secondary text-white' : 'border-border bg-card text-text-primary hover:border-text-secondary',
   );
 }

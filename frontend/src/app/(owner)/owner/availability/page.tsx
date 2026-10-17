@@ -243,7 +243,7 @@ export default function OwnerAvailabilityPage() {
 
       {/* Hero capacity strip */}
       {heroStats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div data-tour="slots-now" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {/* Labels at 12px, not the 10px overline these carried: they are the
               only thing telling the owner which number is which. */}
           <div className="flex flex-col gap-1 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
@@ -282,7 +282,7 @@ export default function OwnerAvailabilityPage() {
       )}
 
       {/* Station type selector */}
-      <div className="flex flex-col gap-2">
+      <div data-tour="slots-tiers" className="flex flex-col gap-2">
         <span className="text-caption font-bold text-text-primary">Which stations?</span>
         <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
           {data.tiers.map((t) => {

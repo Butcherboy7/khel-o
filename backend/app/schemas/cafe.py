@@ -147,6 +147,9 @@ class CafeListItem(BaseModel):
     # The one deal shown on the explore card ({label, when, slotsRemaining,
     # isLiveNow, endsAt}); None when the café has no offer running.
     best_offer: Optional[Dict[str, Any]] = None
+    # App-bookable stations free right now; None when closed, paused or a lead
+    # listing (the card then shows no live count).
+    free_now: Optional[int] = None
     verification_status: VerificationStatus
     is_active: bool
     opening_time: Optional[time] = None

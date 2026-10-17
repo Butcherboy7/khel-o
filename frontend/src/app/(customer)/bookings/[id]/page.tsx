@@ -4,10 +4,11 @@ import { ShareModal } from '@/components/customer/ShareModal';
 
 import { Hint } from '@/components/customer/Hint';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { BookingWelcome } from '@/components/customer/BookingWelcome';
 import {
   ChevronLeft,
   Calendar,
@@ -42,7 +43,7 @@ import {
   Modal,
   buttonVariants,
 } from '@/components/ui';
-import { formatSessionDate, formatTime } from '@/lib/format';
+import { formatSessionDate, formatSessionDateShort, formatTime } from '@/lib/format';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import { cn } from '@/lib/cn';
@@ -62,6 +63,16 @@ export default function BookingDetailPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const bookingId = params.id as string;
+  const searchParams = useSearchParams();
+  // Straight from a successful payment (checkout adds ?welcome=1): play the
+  // welcome once, then drop the flag so a refresh or a shared link never
+  // replays it. `printPass` runs the QR pass's print-in right after.
+  const [welcome, setWelcome] = useState(() => searchParams.get('welcome') === '1');
+  const [printPass, setPrintPass] = useState(false);
+  useEffect(() => {
+    if (searchParams.get('welcome') === '1') router.replace(`/bookings/${bookingId}`, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const user = useAuthStore((s) => s.user);
   const { displayRazorpay, mockModalState } = useRazorpay();
@@ -131,6 +142,7 @@ export default function BookingDetailPage() {
               razorpaySignature: paymentResponse.razorpay_signature,
             });
             setIsRetryingPayment(false);
+            setWelcome(true);
             refetch();
             queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
             if (data?.cafeId) {
@@ -354,7 +366,12 @@ export default function BookingDetailPage() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-surface border border-border shadow-card w-full">
+            <div
+              className={cn(
+                'flex flex-col items-center gap-3 p-4 rounded-2xl bg-surface border border-border shadow-card w-full',
+                printPass && 'khelo-pass-print',
+              )}
+            >
               <Hint id="pass" emphasis className="w-full" />
               <div className="bg-white p-3 rounded-xl shadow-card">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -519,6 +536,20 @@ export default function BookingDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {welcome && isConfirmed && (
+        <BookingWelcome
+          firstName={user?.fullName?.trim().split(/\s+/)[0] || null}
+          cafeName={booking.cafeName || 'your café'}
+          whenLabel={`${formatSessionDateShort(booking.sessionDate)} · ${formatTime(booking.startTime)}`}
+          sendOff={sendOffLine(booking.bookingReference)}
+          onDone={() => {
+            setWelcome(false);
+            setPrintPass(true);
+            window.scrollTo({ top: 0 });
+          }}
+        />
+      )}
 
       {/* Cancel Confirmation Modal */}
       <Modal

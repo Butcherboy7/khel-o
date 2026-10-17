@@ -42,6 +42,8 @@ export interface QuoteAppliedOffer {
   id: string;
   title: string;
   label: string;
+  /** 'solo' | 'coop' | 'any': who the offer is for. Older servers omit it. */
+  playMode?: string;
 }
 
 export interface QuoteOfferOption {

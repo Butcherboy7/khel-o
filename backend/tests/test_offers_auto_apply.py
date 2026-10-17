@@ -191,6 +191,33 @@ async def test_explore_card_picks_the_cheapest_deal_not_the_oldest_fixed_price(c
 
 
 @pytest.mark.asyncio
+async def test_explore_card_chip_names_the_deal_behind_its_price(client):
+    """The card showed "25% off" (the VR deal) beside the PS5 20%-off price."""
+    from app.models.hardware_tier import HardwareTier
+
+    async with AsyncSessionLocal() as db:
+        _owner, _gamer, cafe, ps5 = await _make_cafe_owner_gamer(db)
+        ps5.price_per_hour = 150.0
+        vr = HardwareTier(
+            id=uuid.uuid4(), cafe_id=cafe.id, name="VR", price_per_hour=400.0, total_seats=2,
+            app_bookable_seats=2, active_seats_count=2, is_active=True,
+        )
+        db.add(vr)
+        await db.flush()
+        db.add_all([
+            _promo(cafe, title="VR 25", discount_percentage=25, applicable_tier_id=vr.id),
+            _promo(cafe, title="PS5 20", discount_percentage=20, applicable_tier_id=ps5.id),
+        ])
+        await db.commit()
+
+    res = await client.get("/api/v1/cafes", params={"city": "Bengaluru", "limit": 50})
+    items = res.json()["data"]["items"] if "items" in res.json().get("data", {}) else res.json()["data"]["cafes"]
+    mine = next(i for i in items if i["id"] == str(cafe.id))
+    assert mine["bestOffer"]["fromPrice"] == 120
+    assert mine["bestOffer"]["label"] == "20% off"
+
+
+@pytest.mark.asyncio
 async def test_near_miss_hint_says_which_length_unlocks_the_offer(client):
     async with AsyncSessionLocal() as db:
         _owner, _gamer, cafe, tier = await _make_cafe_owner_gamer(db)

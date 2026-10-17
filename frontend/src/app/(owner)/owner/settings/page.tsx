@@ -8,7 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { getOwnerSettings, toggleEmergencyMode, toggleBookingsPaused, type OwnerSettings } from '@/lib/api/settings';
 import { SettingsHeader } from '@/components/owner/SettingsHeader';
 import { InfoTip } from '@/components/shared/InfoTip';
-import { PageTip } from '@/components/owner/PageTip';
+import { TutorialButton } from '@/components/owner/TutorialButton';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { EmergencyModeCard } from '@/components/owner/EmergencyModeCard';
 import { BookingsPauseCard } from '@/components/owner/BookingsPauseCard';
@@ -133,9 +133,8 @@ export default function OwnerSettingsPage() {
         isEmergencyMode={settings.isEmergencyMode}
         bookingsPaused={settings.bookingsPaused}
         cafeName={settings.cafeName}
+        action={<TutorialButton page="settings" />}
       />
-
-      <PageTip page="settings" />
 
       {error && (
         <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 text-caption flex items-center gap-2">
@@ -146,7 +145,7 @@ export default function OwnerSettingsPage() {
 
       {/* Section 1: Operational Controls */}
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1 border-b border-border pb-2.5">
+        <div className="flex flex-col gap-1 border-b border-border pb-2.5" data-tour="settings-stop">
           <h2 className="flex items-center gap-1 font-heading text-h2 text-text-primary">
             Stop taking bookings
             <InfoTip text={INFO_TIPS.settingsStopBookings} label="About pausing and emergency mode" />

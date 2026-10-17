@@ -55,3 +55,19 @@ async def test_live_reports_zero_free_for_lead_listing(async_client, db_session)
     cafe, _, _ = await _setup(db_session, is_lead_listing=True)
     data = (await async_client.get(f"/api/v1/cafes/{cafe.id}/live")).json()["data"]
     assert data["openNow"] is False and data["tiers"][0]["freeNow"] == 0
+
+
+@pytest.mark.asyncio
+async def test_explore_list_carries_the_same_free_now(async_client, db_session):
+    cafe, _, booked = await _setup(db_session)
+    items = (await async_client.get("/api/v1/cafes", params={"city": "Hyderabad", "limit": 50})).json()["data"]["items"]
+    mine = next(i for i in items if i["id"] == str(cafe.id))
+    assert mine["freeNow"] == (3 if booked else 4)
+
+
+@pytest.mark.asyncio
+async def test_explore_list_has_no_free_count_when_paused(async_client, db_session):
+    cafe, _, _ = await _setup(db_session, bookings_paused=True)
+    items = (await async_client.get("/api/v1/cafes", params={"city": "Hyderabad", "limit": 50})).json()["data"]["items"]
+    mine = next((i for i in items if i["id"] == str(cafe.id)), None)
+    assert mine is None or mine["freeNow"] is None

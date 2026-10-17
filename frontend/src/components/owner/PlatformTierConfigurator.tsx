@@ -370,6 +370,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                     return next;
                   })
                 }
+                data-tour="tier-open"
                 className="flex items-center gap-2 font-heading text-body-emphasis font-bold text-text-primary"
               >
                 <PlatformIcon platform={p.value} className="h-4 w-4 text-primary" />

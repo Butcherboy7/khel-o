@@ -106,7 +106,7 @@ const ownerNavSections: NavSection[] = [
       { label: 'Payouts', href: '/owner/payouts', icon: Wallet, hint: 'What you have been paid' },
       { label: 'Your Team', href: '/owner/staff', icon: Users, hint: 'Give staff their own login' },
       { label: 'Café Settings', href: '/owner/settings', icon: Settings, hint: 'Details, hours and pausing' },
-      { label: 'Help & Support', href: '/owner/support', icon: LifeBuoy, hint: 'Ask KHEL-O, or replay the app tour' },
+      { label: 'Help & Support', href: '/owner/support', icon: LifeBuoy, hint: 'Ask KHEL-O, or replay the tutorial' },
     ],
   },
 ];
@@ -202,6 +202,7 @@ function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  data-tour={`nav:${item.href}`}
                   className={cn(
                     'flex min-h-[40px] items-center gap-3 rounded-xl px-3 py-2.5 text-body-emphasis transition-colors duration-fast',
                     isActive
@@ -310,6 +311,7 @@ function OwnerMobileMenu({
                     <Link
                       key={item.href}
                       href={item.href}
+                      data-tour={`nav:${item.href}`}
                       onClick={onClose}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
@@ -503,6 +505,7 @@ function OwnerBottomNav({
               key="mobile-more-menu"
               onClick={onOpenMobileMenu}
               aria-label="Open navigation menu"
+              data-tour="nav-more"
               className="flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-text-secondary transition-colors hover:text-primary"
             >
               <span className="flex items-center justify-center rounded-full px-3.5 py-1">
@@ -518,6 +521,7 @@ function OwnerBottomNav({
           <Link
             key={item.href}
             href={item.href}
+            data-tour={`nav:${item.href}`}
             className={cn(
               // flex-1 + a 48px floor: every tab owns an equal, thumb-sized slab
               // of the bar instead of only the width its own label happens to need.

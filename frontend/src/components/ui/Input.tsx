@@ -48,7 +48,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           onClick={() => setIsRevealed((v) => !v)}
           tabIndex={-1}
           aria-label={isRevealed ? 'Hide password' : 'Show password'}
-          className="flex items-center text-text-secondary transition-colors hover:text-text-primary"
+          // 44px hit area around the same 16px eye, centred where it was.
+          className="-mr-3.5 flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary transition-colors hover:text-text-primary"
         >
           {isRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>

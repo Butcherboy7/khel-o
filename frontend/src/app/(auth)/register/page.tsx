@@ -198,7 +198,9 @@ function RegisterForm() {
           )}
 
           <div className="flex flex-col gap-1">
-            <label className="flex items-start gap-2.5 text-caption text-text-secondary">
+            <label className="flex cursor-pointer items-start gap-1 text-caption text-text-secondary">
+              {/* 44px hit area around the same 16px box. */}
+              <span className="-my-3 -ml-3.5 flex h-11 w-11 shrink-0 items-center justify-center">
               <input
                 type="checkbox"
                 checked={agreedToTerms}
@@ -206,8 +208,9 @@ function RegisterForm() {
                 required
                 aria-invalid={validationErrors.agreedToTerms ? 'true' : undefined}
                 aria-describedby={validationErrors.agreedToTerms ? 'agreed-to-terms-error' : undefined}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                className="h-4 w-4 shrink-0 cursor-pointer rounded border-border text-primary focus:outline-none focus:ring-2 focus:ring-primary"
               />
+              </span>
               <span>
                 I agree to KHEL-O&apos;s{' '}
                 <Link href="/terms" target="_blank" className="font-semibold text-primary hover:underline">

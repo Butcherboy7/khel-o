@@ -107,6 +107,10 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
         : cafe.openingTime
           ? `Opens ${formatTime(cafe.openingTime)}`
           : 'Closed';
+  const showFreeNow = isLive && !isLead && cafe.freeNow != null && cafe.freeNow > 0;
+  // The neighbourhood people choose by ("Bowenpally, Hyderabad"); the state
+  // only when no locality is on file.
+  const area = cafe.addressLine2 ? `${cafe.addressLine2}, ${titleCaseCity(cafe.city)}` : `${titleCaseCity(cafe.city)}, ${cafe.state}`;
   const platformSummary = getPlatformSummary(cafe);
   const confirmedPlatforms = getConfirmedPlatforms(cafe);
 
@@ -206,16 +210,18 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
           {/* Overlay Badges — small status pills, not a full-width bar: the
               image identifies the café, it shouldn't carry a headline. */}
           <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between pointer-events-none z-10">
-            {isLive ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-secondary/95 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-card">
+            {/* A real count from the same source as the café page's "3 free
+                now", not a generic LIVE badge. Nothing when closed or full. */}
+            {showFreeNow ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-secondary/95 backdrop-blur-md px-2 py-0.5 text-[11px] font-bold text-white shadow-card tabular-nums">
                 <span className="h-1.5 w-1.5 rounded-full bg-success animate-live-dot" />
-                Live · Book Now
+                {cafe.freeNow} free now
               </span>
             ) : (
               <span />
             )}
 
-            {statusLabel && (
+            {statusLabel && !(showFreeNow && isOpenNow) && (
               /* Booking-soon sits top-left in quiet dark glass: red on this
                  card is kept for the Vote action, as it is for Book Now. */
               <span
@@ -254,7 +260,7 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
               <div className="flex items-center gap-1 text-caption text-text-secondary min-w-0">
                 <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
                 <span className="truncate">
-                  {cafe.addressLine2 ? `${cafe.addressLine2} · ${titleCaseCity(cafe.city)}` : `${titleCaseCity(cafe.city)}, ${cafe.state}`}
+                  {area}
                 </span>
               </div>
 
@@ -357,7 +363,7 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
             >
               <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
               <span className="truncate hover:underline">
-                {distanceLabel ? `${distanceLabel} away` : `${titleCaseCity(cafe.city)}, ${cafe.state}`}
+                {distanceLabel ? `${distanceLabel}${cafe.addressLine2 ? ` · ${cafe.addressLine2}` : ' away'}` : area}
               </span>
             </button>
 

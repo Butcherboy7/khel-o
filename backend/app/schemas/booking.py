@@ -160,6 +160,9 @@ class AppliedOffer(BaseModel):
     id: UUID
     title: str
     label: str  # e.g. "20% off", "deal price", "-₹60"
+    # Who the offer is for ('solo' | 'coop' | 'any'), so checkout can say
+    # "20% off · 1 player" in the same words as the café page.
+    play_mode: str = 'any'
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 

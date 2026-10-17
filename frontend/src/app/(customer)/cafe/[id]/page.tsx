@@ -6,7 +6,8 @@ import { getCafe, cafePath, isCafeUuid } from '@/lib/api/cafes';
 import { PLATFORMS } from '@/constants/platforms';
 import Link from 'next/link';
 import { getCafeLinks, getCafeWaitlistCount } from '@/lib/api/seo';
-import { formatTime, titleCaseCity } from '@/lib/format';
+import { customerPrice, formatTime, titleCaseCity } from '@/lib/format';
+import { hourlyOffer } from '@/lib/offers';
 import { cleanName, venueArea, venueKind } from '@/lib/venueKind';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
 import type { CafeDetail } from '@/types';
@@ -63,7 +64,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
   const waitlist = cafe.isLeadListing ? await getWaitlistCountCached(cafe.id) : null;
 
-  const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : null;
+  // The price the café page and checkout show (live offer, KHEL-O's ₹1 off),
+  // so Google never says "from ₹150" for a ₹119 setup. Booking Soon prices
+  // come from research and stay as found.
+  const minPrice = cafe.tiers && cafe.tiers.length > 0
+    ? Math.min(...cafe.tiers.map((t) => (cafe.isLeadListing
+      ? t.pricePerHour
+      : customerPrice(hourlyOffer(t.pricePerHour, t.activePromotion)?.price ?? t.pricePerHour))))
+    : null;
   // Human labels ("PlayStation, PC Gaming"), not raw enum values.
   const platformLabels = Array.from(new Set((cafe.tiers ?? []).map((t) => t.platform).filter(Boolean)))
     .map((p) => PLATFORMS.find((x) => x.value === p)?.label)

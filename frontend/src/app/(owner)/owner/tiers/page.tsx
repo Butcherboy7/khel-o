@@ -379,7 +379,7 @@ export default function HardwareTiersPage() {
 
         {!isLoading && !isError && tiers.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {tiers.map((tier) => (
+            {tiers.map((tier, i) => (
               <Card
                 key={tier.id}
                 elevation="resting"
@@ -448,6 +448,7 @@ export default function HardwareTiersPage() {
                       <Button
                         variant="secondary"
                         size="sm"
+                        data-tour={i === 0 ? 'tier-edit' : undefined}
                         onClick={() => handleOpenEdit(tier)}
                         className="gap-1.5"
                       >
@@ -545,7 +546,7 @@ export default function HardwareTiersPage() {
           />
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
-            <Button type="button" variant="ghost" onClick={() => { setIsModalOpen(false); resetForm(); }}>
+            <Button type="button" variant="ghost" data-tour="tier-cancel" onClick={() => { setIsModalOpen(false); resetForm(); }}>
               Cancel
             </Button>
             <Button

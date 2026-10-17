@@ -620,6 +620,7 @@ export default function ScannerPage() {
       <div
         role="tablist"
         aria-label="How to check someone in"
+        data-tour="scan-tabs"
         className="grid grid-cols-3 gap-1 rounded-2xl border border-border bg-surface p-1"
       >
         <button

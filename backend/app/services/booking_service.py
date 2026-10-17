@@ -419,7 +419,12 @@ class BookingService:
             subtotal=float(subtotal),
             platform_fee=float(platform_fee),
             total=float(total),
-            applied_offer=AppliedOffer(id=applied_offer[0].id, title=applied_offer[0].title, label=applied_offer[1]) if applied_offer else None,
+            applied_offer=AppliedOffer(
+                id=applied_offer[0].id,
+                title=applied_offer[0].title,
+                label=applied_offer[1],
+                play_mode=getattr(applied_offer[0], 'play_mode', None) or 'any',
+            ) if applied_offer else None,
             offer_hint=OfferHint(id=offer_hint[0].id, title=offer_hint[0].title, message=offer_hint[1], suggested_minutes=offer_hint[2]) if offer_hint else None,
             available_offers=available_offers,
             offer_note=offer_note,

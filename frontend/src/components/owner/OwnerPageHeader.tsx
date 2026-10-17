@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { PAGE_GUIDES, type GuidePage } from '@/lib/ownerGuideCopy';
 import { InfoTip } from '@/components/shared/InfoTip';
-import { PageTip } from './PageTip';
+import { TutorialButton } from './TutorialButton';
 
 interface OwnerPageHeaderProps {
   /** Plain-language name of the screen. Kept short so it never wraps on a phone. */
@@ -11,7 +11,7 @@ interface OwnerPageHeaderProps {
   description?: string;
   /** The single most likely action on this screen. Goes full-width on mobile. */
   action?: ReactNode;
-  /** Adds the ⓘ beside the title and the first-visits “How this page works” tip. */
+  /** Adds the ⓘ beside the title and the page's Tutorial button. */
   guide?: GuidePage;
   className?: string;
 }
@@ -42,6 +42,7 @@ export function OwnerPageHeader({
         <div className="flex items-center gap-1.5">
           <h1 className="font-heading text-h1 text-text-primary text-balance">{title}</h1>
           {guide && <InfoTip text={PAGE_GUIDES[guide].info} label={`About ${title}`} />}
+          {guide && <TutorialButton page={guide} className="ml-auto" />}
         </div>
         {description && (
           <p className="max-w-prose text-body text-text-secondary">{description}</p>
@@ -53,8 +54,6 @@ export function OwnerPageHeader({
       {action && (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">{action}</div>
       )}
-
-      {guide && <PageTip page={guide} />}
     </header>
   );
 }

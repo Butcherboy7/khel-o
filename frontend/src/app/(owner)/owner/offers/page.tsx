@@ -485,6 +485,7 @@ export default function OwnerOffersPage() {
             variant="primary"
             size="md"
             onClick={openCreate}
+            data-tour="offer-new"
             className="w-full justify-center gap-2 sm:w-auto"
             disabled={!cafeId}
           >
@@ -715,7 +716,7 @@ export default function OwnerOffersPage() {
             </div>
           )}
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5" data-tour="offer-type">
             <label className="text-caption font-semibold text-text-primary">What kind of offer are you running? *</label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {TYPE_OPTIONS.map((opt) => {
@@ -903,7 +904,7 @@ export default function OwnerOffersPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5" data-tour="offer-when">
             <span className="text-caption font-semibold text-text-primary">When it runs (tap one, or set it below)</span>
             <div className="flex flex-wrap gap-1.5">
               {WHEN_PRESETS.map((p) => {
@@ -1044,7 +1045,7 @@ export default function OwnerOffersPage() {
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
-            <Button type="button" variant="ghost" onClick={() => { setIsModalOpen(false); resetForm(); }}>
+            <Button type="button" variant="ghost" data-tour="offer-cancel" onClick={() => { setIsModalOpen(false); resetForm(); }}>
               Cancel
             </Button>
             <Button
