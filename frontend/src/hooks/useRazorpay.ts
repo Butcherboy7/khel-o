@@ -121,7 +121,9 @@ export function useRazorpay() {
     const rzp = new window.Razorpay({
       ...options,
       key: razorpayKey,
-      theme: { color: '#10B981', ...options.theme },
+      // Brand red (--primary in globals.css). Razorpay draws its header and
+      // Pay button in this; it was still the old emerald green.
+      theme: { color: '#D0463C', ...options.theme },
       modal: {
         ondismiss: () => {
           if (options.onDismiss) {
