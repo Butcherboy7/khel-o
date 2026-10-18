@@ -227,14 +227,16 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
             {statusLabel && !(showFreeNow && isOpenNow) && (
               /* Booking-soon sits top-left in a quiet dark pill: red on this
                  card is kept for the Vote action, as it is for Book Now.
-                 Solid-ish, not blurred glass: a blur on every card in a
+                 Tinted, not blurred glass: a blur on every card in a
                  scrolling list costs budget phones frames for a difference
-                 nobody sees at this size. */
+                 nobody sees at this size. (The closed pill used to be the
+                 blur alone: its old bg-text-tertiary class is not a theme
+                 colour, so it drew nothing.) */
               <span
                 className={`inline-flex items-center gap-1 rounded-full text-white ${
                   isLead
                     ? 'order-first bg-secondary/90 pl-1.5 pr-2 py-0.5 text-[11px] font-bold tracking-wide'
-                    : `px-2 py-0.5 text-[10px] font-bold ${isOpenNow ? 'bg-secondary/90' : 'bg-text-tertiary/90'}`
+                    : `px-2 py-0.5 text-[10px] font-bold ${isOpenNow ? 'bg-secondary/90' : 'bg-black/55'}`
                 }`}
               >
                 {isLead && <Clock className="h-3 w-3" aria-hidden="true" />}
