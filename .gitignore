@@ -46,3 +46,16 @@ backend/ticket7_*.py
 # Generated café-owner credentials (seed_real_cafes.py writes plaintext
 # passwords here to hand to venues). Never committable.
 backend/scripts/out/
+
+# Android app (android/): signing keys never go in git — the repo is public.
+*.keystore
+*.jks
+android/**/build/
+android/.gradle/
+android/local.properties
+android/app-release-*.apk
+android/app-release-*.aab
+android/*.idsig
+
+# Play Store listing images: regenerated locally, not deployed (keeps deploy bundles small).
+marketing/play-store/

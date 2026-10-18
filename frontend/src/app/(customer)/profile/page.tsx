@@ -38,6 +38,7 @@ import {
   Cpu,
   Users,
   LifeBuoy,
+  Trash2,
   KeyRound,
   Lock,
 } from 'lucide-react';
@@ -581,6 +582,18 @@ export default function ProfilePage() {
               <ChevronRight className="h-4 w-4 text-text-secondary" />
             </button>
           )}
+
+          {/* Google Play requires deletion to be reachable inside the app. */}
+          <Link
+            href="/delete-account"
+            className="flex items-center justify-between p-3.5 hover:bg-surface rounded-xl transition-colors"
+          >
+            <div className="flex items-center gap-3 text-error font-semibold text-body">
+              <Trash2 className="h-4 w-4" />
+              <span>Delete Account</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-text-secondary" />
+          </Link>
         </CardContent>
       </Card>
 

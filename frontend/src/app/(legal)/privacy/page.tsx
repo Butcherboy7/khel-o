@@ -10,7 +10,7 @@ export default function PrivacyPage() {
   return (
     <>
       <h1>Privacy Policy</h1>
-      <p className="prose-legal-updated">Last updated: 19 August 2026</p>
+      <p className="prose-legal-updated">Last updated: 18 October 2026</p>
 
       <p>
         KHEL-O (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) respects your privacy. This policy explains what
@@ -24,7 +24,7 @@ export default function PrivacyPage() {
         <li><strong>Booking information:</strong> the café, hardware tier, date/time, and seat count you book, plus your booking history.</li>
         <li><strong>Payment information:</strong> we do not collect or store card, UPI, or bank details ourselves. Payments are processed by Razorpay, and we only retain the payment status, amount, and Razorpay&apos;s transaction reference for our records.</li>
         <li><strong>Location:</strong> if you grant permission, we use your device&apos;s approximate location to show nearby cafés. For aggregate area statistics we record only the neighbourhood that location falls in (e.g. &ldquo;Madhapur&rdquo;), never your coordinates. You can decline this and search by city/area instead.</li>
-        <li><strong>Usage data:</strong> basic technical logs (device type, IP address, pages visited) collected automatically to keep the Platform secure and to fix bugs, via our error-monitoring tool (Sentry).</li>
+        <li><strong>Usage data:</strong> basic technical logs (device type, IP address, pages visited) collected automatically to keep the Platform secure and to fix bugs, via our error-monitoring tool (Sentry). For a small sample of visits, and whenever an error happens, Sentry also records what appeared on screen and where you tapped, so we can see what went wrong. Anything you type into a form, and your payment details, are left out of these recordings.</li>
         <li><strong>Referral/attribution data:</strong> an anonymous session identifier and, if present, the campaign and ad in the link you arrived from (e.g. <code>utm_source</code>, <code>utm_content</code>), stored in your browser&apos;s local storage. Used only to see in aggregate which channel or ad brought visitors, signups and bookings — never to build a cross-site advertising profile.</li>
       </ul>
       <p>See our <a href="/cookie-policy">Cookie Policy</a> for the full list of what we store in your browser and why.</p>
@@ -33,7 +33,7 @@ export default function PrivacyPage() {
       <ul>
         <li>To create and manage your account and process your bookings.</li>
         <li>To send booking confirmations, reminders, and check-in QR passes.</li>
-        <li>To share the minimum necessary booking details (your name, booking reference, seat count) with the Café Partner you&apos;ve booked, so their staff can check you in.</li>
+        <li>To share the booking details the Café Partner you&apos;ve booked needs to check you in and reach you about your session: your name, booking reference, seat count, and your email address and phone number (if you&apos;ve added one).</li>
         <li>To respond to support requests you submit.</li>
         <li>To detect and prevent fraud or abuse of the Platform.</li>
       </ul>
@@ -41,16 +41,17 @@ export default function PrivacyPage() {
       <h2>3. Who We Share Data With</h2>
       <ul>
         <li><strong>Razorpay</strong> — to process your payment. Governed by Razorpay&apos;s own privacy policy.</li>
-        <li><strong>The Café Partner you book with</strong> — your name, booking reference, and session time, so they can honor your reservation.</li>
-        <li><strong>Sentry</strong> — limited technical error logs, used only to diagnose and fix bugs. Not used for advertising or profiling.</li>
+        <li><strong>The Café Partner you book with</strong> — your name, email address, phone number (if added), booking reference, and session time, so they can honor your reservation.</li>
+        <li><strong>Sentry</strong> — technical error logs and, for a sample of visits, a recording of what appeared on screen (which can include your name and booking details, but never what you type into forms or your payment details), used only to diagnose and fix bugs. Not used for advertising or profiling.</li>
       </ul>
       <p>We do not sell your personal data to third parties.</p>
 
       <h2>4. Data Retention</h2>
       <p>
         We retain account and booking data for as long as your account is active, and for a reasonable period
-        afterward as required for accounting, dispute resolution, and legal compliance. You can request deletion
-        of your account at any time via <a href="/contact">Contact Us</a>.
+        afterward as required for accounting, dispute resolution, and legal compliance. You can delete your
+        account yourself at any time from <a href="/delete-account">Delete Account</a> (also under Profile in
+        the app); that page lists exactly what is deleted and what is kept.
       </p>
 
       <h2>5. Your Rights</h2>

@@ -11,6 +11,7 @@ const LEGAL_LINKS = [
   { href: '/refund-policy', label: 'Cancellation & Refunds' },
   { href: '/shipping-policy', label: 'Service Delivery' },
   { href: '/contact', label: 'Contact Us' },
+  { href: '/delete-account', label: 'Delete Account' },
 ];
 
 export default function LegalLayout({ children }: { children: ReactNode }) {
