@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status, Query, HTTPException
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional
 from uuid import UUID
 from datetime import date
@@ -40,6 +40,7 @@ from app.models.staff_invitation import StaffInvitation
 from app.models.support_ticket import SupportTicket
 from app.models.analytics_event import AnalyticsEvent
 from app.core.exceptions import BadRequestException, NotFoundException, ConflictException
+from app.constants import validate_city, validate_state
 from app.services import waitlist_mailer
 
 router = APIRouter()
@@ -113,6 +114,27 @@ async def get_admin_dashboard(
     return await get_admin_analytics(current_admin, db)
 
 # --- CAFÉ MANAGEMENT ---
+async def _with_city_live_cafes(db: AsyncSession, items: list) -> list:
+    """Adds cityLiveCafes: how many OTHER approved, active cafés share this
+    café's city. 0 means customers browsing a real city won't see it there,
+    usually because the owner typed their area ("Kukatpally") as the city."""
+    rows = await db.execute(
+        select(func.lower(func.trim(Cafe.city)), func.count())
+        .where(Cafe.verification_status == VerificationStatus.VERIFIED, Cafe.is_active.is_(True))
+        .group_by(func.lower(func.trim(Cafe.city)))
+    )
+    counts = {city: n for city, n in rows.all()}
+    out = []
+    for item in items:
+        d = item.model_dump(by_alias=True) if hasattr(item, "model_dump") else dict(item)
+        n = counts.get((d.get("city") or "").strip().lower(), 0)
+        if d.get("verificationStatus") == VerificationStatus.VERIFIED.value and d.get("isActive"):
+            n -= 1
+        d["cityLiveCafes"] = max(n, 0)
+        out.append(d)
+    return out
+
+
 @router.get("/cafes", status_code=status.HTTP_200_OK)
 async def list_all_cafes_admin(
     verificationStatus: Optional[str] = Query(None, alias="verificationStatus"),
@@ -137,6 +159,7 @@ async def list_all_cafes_admin(
         page=page,
         limit=limit
     )
+    result["items"] = await _with_city_live_cafes(db, result["items"])
     return {
         "success": True,
         "data": result
@@ -155,6 +178,7 @@ async def list_pending_cafes(
     unit_repo = HardwareTierUnitRepository(db)
     service = CafeService(repo, tier_repo=tier_repo, user_repo=user_repo, unit_repo=unit_repo)
     result = await service.get_pending_cafes(page=page, limit=limit)
+    result["items"] = await _with_city_live_cafes(db, result["items"])
     return {
         "success": True,
         "data": result
@@ -989,6 +1013,68 @@ async def update_cafe_description_admin(
         entity_id=str(cafe_id),
     )
     return {"success": True, "data": result}
+
+
+class CafeLocationUpdateRequest(BaseModel):
+    city: str = Field(..., max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    # Lands in address_line2, where the café page shows the area.
+    area: Optional[str] = Field(None, max_length=255)
+
+    @field_validator("city")
+    @classmethod
+    def _city(cls, v: str) -> str:
+        return validate_city(v)
+
+    @field_validator("state")
+    @classmethod
+    def _state(cls, v: Optional[str]) -> Optional[str]:
+        return validate_state(v) if v else None
+
+@router.patch("/cafes/{cafe_id}/location", status_code=status.HTTP_200_OK)
+async def update_cafe_location_admin(
+    cafe_id: UUID,
+    payload: CafeLocationUpdateRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Fix a café's city, e.g. an owner who typed their area ("Kukatpally")
+    as the city, which hides the café from its real city's list. The slug
+    (web address) is set once at creation and does not change."""
+    cafe = await CafeRepository(db).get_by_id(cafe_id)
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+
+    before = f"{cafe.city}, {cafe.state} / {cafe.address_line2 or '-'}"
+    cafe.city = payload.city
+    if payload.state:
+        cafe.state = payload.state
+    if payload.area is not None:
+        cafe.address_line2 = " ".join(payload.area.split())
+    await db.commit()
+    await db.refresh(cafe)
+    after = f"{cafe.city}, {cafe.state} / {cafe.address_line2 or '-'}"
+
+    service = AdminService(
+        db=db,
+        user_repo=UserRepository(db),
+        cafe_repo=CafeRepository(db),
+        booking_repo=BookingRepository(db),
+        promo_repo=PromotionRepository(db),
+    )
+    await service.write_audit_log(
+        admin_id=current_admin.id,
+        admin_email=current_admin.email,
+        action="cafe.update_location",
+        entity_type="cafe",
+        entity_id=str(cafe_id),
+        entity_name=cafe.name,
+        reason=f"{before} -> {after}",
+    )
+    return {
+        "success": True,
+        "data": {"city": cafe.city, "state": cafe.state, "addressLine2": cafe.address_line2},
+    }
 
 
 class CafePauseBookingsRequest(BaseModel):

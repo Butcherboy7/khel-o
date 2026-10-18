@@ -48,12 +48,12 @@ export function RejectedView({ cafeName = 'Your Café', note, suspended = false 
             </Button>
           </Link>
         )}
-        <a href="https://wa.me/919876543210" target="_blank" rel="noreferrer">
+        <Link href="/owner/support">
           <Button variant="secondary" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             <span>Contact Support</span>
           </Button>
-        </a>
+        </Link>
       </div>
     </div>
   );

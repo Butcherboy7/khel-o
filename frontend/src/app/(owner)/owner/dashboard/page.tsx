@@ -32,6 +32,7 @@ import { getOwnerSettings, toggleBookingsPaused, updateBookingControls } from '@
 import { formatCurrency, getOwnerPayoutAmount } from '@/lib/format';
 import { Card, CardContent, Button, Badge, BookingStatusBadge, Modal, PageSpinner } from '@/components/ui';
 import { PendingApprovalView } from '@/components/owner/PendingApprovalView';
+import { DraftApplicationView } from '@/components/owner/DraftApplicationView';
 import { ChangesRequestedView } from '@/components/owner/ChangesRequestedView';
 import { RejectedView } from '@/components/owner/RejectedView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
@@ -358,7 +359,16 @@ export default function OwnerDashboardPage() {
     return <ProspectiveOwnerView />;
   }
 
-  if (statusState.status === 'pending' || statusState.status === 'draft') {
+  if (statusState.status === 'draft') {
+    return (
+      <DraftApplicationView
+        cafeName={(statusState.cafe?.name as string) || undefined}
+        step={statusState.cafe?.draftData?.step as number | undefined}
+      />
+    );
+  }
+
+  if (statusState.status === 'pending') {
     return (
       <PendingApprovalView
         cafeName={(statusState.cafe?.name as string) || 'Your Gaming Café'}

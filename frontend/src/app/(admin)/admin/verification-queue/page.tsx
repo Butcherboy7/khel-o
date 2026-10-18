@@ -227,6 +227,12 @@ export default function AdminPage() {
                         <MapPin className="h-3.5 w-3.5 text-primary" />
                         <span>{cafe.city}, {cafe.state}</span>
                       </div>
+                      {cafe.cityLiveCafes === 0 && (
+                        <p className="mt-1 text-caption font-semibold text-amber-600">
+                          No live café in &ldquo;{cafe.city}&rdquo; yet. If that&apos;s an area, fix the city in All Cafés
+                          first or players won&apos;t find it.
+                        </p>
+                      )}
                     </div>
                     <Badge variant="warning">Pending Review</Badge>
                   </div>

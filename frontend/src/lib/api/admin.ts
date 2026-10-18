@@ -117,6 +117,13 @@ export async function goLiveCafe(cafeId: string): Promise<{ isLeadListing: boole
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/go-live`));
 }
 
+export async function updateCafeLocationAdmin(
+  cafeId: string,
+  body: { city: string; area?: string },
+): Promise<{ city: string; state: string; addressLine2: string | null }> {
+  return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/location`, body));
+}
+
 export async function updateCafeDescriptionAdmin(cafeId: string, description: string): Promise<{ id: string; name: string; description: string }> {
   return call(() => apiClient.patch(`/api/v1/admin/cafes/${cafeId}/description`, { description }));
 }

@@ -19,7 +19,7 @@ import {
   ChevronRight,
   Trash2,
 } from 'lucide-react';
-import { listAdminCafes, suspendCafe, reactivateCafe, updateCafeDescriptionAdmin, goLiveCafe, deleteCafe, updateApproxListing } from '@/lib/api/admin';
+import { listAdminCafes, suspendCafe, reactivateCafe, updateCafeDescriptionAdmin, updateCafeLocationAdmin, goLiveCafe, deleteCafe, updateApproxListing } from '@/lib/api/admin';
 import { PerformanceTab } from './PerformanceTab';
 import { queryKeys } from '@/hooks/queries/keys';
 import {
@@ -28,6 +28,7 @@ import {
   Card,
   CardContent,
   Modal,
+  Input,
   Textarea,
   SkeletonCard,
   ErrorState,
@@ -47,6 +48,12 @@ function statusVariant(
   if (s === 'rejected') return 'error';
   if (s === 'suspended') return 'error';
   return 'default';
+}
+
+/** Live or about-to-be-live café whose city has no other live café — usually
+ *  an area ("Kukatpally") typed as the city, which hides it from city lists. */
+function isLoneCity(c: AdminCafe): boolean {
+  return c.cityLiveCafes === 0 && c.verificationStatus !== 'rejected' && c.verificationStatus !== 'suspended';
 }
 
 function statusLabel(s: VerificationStatus, isLeadListing?: boolean): string {
@@ -88,6 +95,9 @@ export default function AdminCafesPage() {
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [descriptionSaved, setDescriptionSaved] = useState(false);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
+  const [locationDraft, setLocationDraft] = useState({ city: '', area: '' });
+  const [locationSaved, setLocationSaved] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [hoursDraft, setHoursDraft] = useState({ open: '', close: '' });
   const [approxSaved, setApproxSaved] = useState(false);
@@ -99,6 +109,9 @@ export default function AdminCafesPage() {
     setDescriptionDraft(selectedCafe?.description ?? '');
     setDescriptionSaved(false);
     setDescriptionError(null);
+    setLocationDraft({ city: selectedCafe?.city ?? '', area: selectedCafe?.addressLine2 ?? '' });
+    setLocationSaved(false);
+    setLocationError(null);
     setDeleteConfirmName('');
     setDeleteError(null);
     setPriceDrafts(Object.fromEntries((selectedCafe?.tiers ?? []).map((t) => [t.id, String(t.pricePerHour)])));
@@ -194,6 +207,22 @@ export default function AdminCafesPage() {
     },
     onError: (err) => {
       setDescriptionError((err as Error)?.message ?? 'Failed to update description. Please try again.');
+    },
+  });
+
+  const locationMutation = useMutation({
+    mutationFn: ({ cafeId, city, area }: { cafeId: string; city: string; area: string }) =>
+      updateCafeLocationAdmin(cafeId, { city, area }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      // cityLiveCafes is recounted on the refetch; until then don't keep the warning up.
+      setSelectedCafe((prev) => (prev ? { ...prev, city: res.city, state: res.state, addressLine2: res.addressLine2, cityLiveCafes: undefined } : prev));
+      setLocationSaved(true);
+      setLocationError(null);
+      setTimeout(() => setLocationSaved(false), 2500);
+    },
+    onError: (err) => {
+      setLocationError((err as Error)?.message ?? 'Failed to update the city. Please try again.');
     },
   });
 
@@ -344,6 +373,11 @@ export default function AdminCafesPage() {
                       <MapPin className="h-3 w-3 flex-shrink-0" />
                       <span className="truncate">{cafe.city}, {cafe.state}</span>
                     </div>
+                    {isLoneCity(cafe) && (
+                      <p className="mt-1 text-xs font-semibold text-amber-600">
+                        No other live café in &ldquo;{cafe.city}&rdquo;. Area typed as the city?
+                      </p>
+                    )}
                   </div>
                   <Badge variant={statusVariant(cafe.verificationStatus, cafe.isLeadListing)} size="sm" className="flex-shrink-0">
                     {statusLabel(cafe.verificationStatus, cafe.isLeadListing)}
@@ -443,7 +477,7 @@ export default function AdminCafesPage() {
             <div className="p-3 rounded-xl bg-surface-hover">
               <h4 className="font-semibold text-caption mb-2">Business Identity</h4>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="col-span-2"><span className="text-text-tertiary">Address: </span>{selectedCafe.addressLine1}, {selectedCafe.city} {selectedCafe.pincode}</div>
+                <div className="col-span-2"><span className="text-text-tertiary">Address: </span>{[selectedCafe.addressLine1, selectedCafe.addressLine2, selectedCafe.city].filter(Boolean).join(', ')} {selectedCafe.pincode}</div>
                 <div><span className="text-text-tertiary">Phone: </span>{selectedCafe.phoneNumber ?? '—'}</div>
                 <div><span className="text-text-tertiary">Email: </span>{selectedCafe.email ?? '—'}</div>
                 <div><span className="text-text-tertiary">Hours: </span>{selectedCafe.openingTime ?? '—'} – {selectedCafe.closingTime ?? '—'}</div>
@@ -521,6 +555,54 @@ export default function AdminCafesPage() {
                 </div>
               </div>
             )}
+
+            {/* City — customers browse by city, so it must be the city, not the area. */}
+            <div className="p-3 rounded-xl bg-surface-hover">
+              <h4 className="font-semibold text-caption">City</h4>
+              <p className="mb-2 text-xs text-text-secondary">
+                {isLoneCity(selectedCafe)
+                  ? `No other live café is in "${selectedCafe.city}", so players browsing a city list won't see this one. If it's an area, put the city here and the area below.`
+                  : 'The city players browse by. The area shows on the café page. The web address does not change.'}
+              </p>
+              {locationError && (
+                <div className="mb-2 rounded-lg bg-error/10 border border-error/20 p-2 text-xs text-error">{locationError}</div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Input
+                  label="City"
+                  value={locationDraft.city}
+                  onChange={(e) => setLocationDraft((d) => ({ ...d, city: e.target.value }))}
+                  placeholder="Hyderabad"
+                />
+                <Input
+                  label="Area (Address Line 2)"
+                  value={locationDraft.area}
+                  onChange={(e) => setLocationDraft((d) => ({ ...d, area: e.target.value }))}
+                  placeholder="Kukatpally"
+                />
+              </div>
+              <div className="flex items-center gap-3 mt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  isLoading={locationMutation.isPending}
+                  loadingText="Saving..."
+                  disabled={
+                    locationDraft.city.trim().length < 2 ||
+                    (locationDraft.city.trim() === selectedCafe.city && locationDraft.area.trim() === (selectedCafe.addressLine2 ?? '').trim())
+                  }
+                  onClick={() => locationMutation.mutate({ cafeId: selectedCafe.id, city: locationDraft.city.trim(), area: locationDraft.area.trim() })}
+                >
+                  Save city
+                </Button>
+                {locationSaved && (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+                  </span>
+                )}
+              </div>
+            </div>
 
             {/* Description */}
             <div className="p-3 rounded-xl bg-surface-hover">

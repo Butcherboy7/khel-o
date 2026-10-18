@@ -18,6 +18,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { getOnboardingDraft, saveOnboardingDraft, submitOnboardingApplication } from '@/lib/api/owner';
+import { ONBOARDING_STEP_TITLES } from '@/lib/onboardingSteps';
 import { uploadCafePhoto, uploadMenuPhoto, deleteCafePhoto, deleteMenuPhoto } from '@/lib/api/settings';
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, NumericField, Textarea, Card, CardContent, Badge } from '@/components/ui';
@@ -637,13 +638,8 @@ export default function OnboardingWizardPage() {
   }
 
   const stepsList = [
-    { title: 'Identity & Map Pin', icon: MapPin },
-    { title: 'Business Verification', icon: ShieldCheck },
-    { title: 'Bank & Payouts', icon: CreditCard },
-    { title: 'Hours & setups', icon: Monitor },
-    { title: 'Games & Photos', icon: Gamepad2 },
-    { title: 'Policies & Review', icon: FileText },
-  ];
+    MapPin, ShieldCheck, CreditCard, Monitor, Gamepad2, FileText,
+  ].map((icon, i) => ({ title: ONBOARDING_STEP_TITLES[i], icon }));
 
   const relevantGamingPlatforms = Array.from(
     new Set(
@@ -769,7 +765,7 @@ export default function OnboardingWizardPage() {
 
                 <Input
                   label="Address Line 2 (Optional)"
-                  placeholder="Landmark, floor number"
+                  placeholder="Area, landmark, floor (e.g. Kukatpally, 2nd floor)"
                   value={formData.addressLine2}
                   onChange={(e) => updateField('addressLine2', e.target.value)}
                 />
@@ -808,8 +804,9 @@ export default function OnboardingWizardPage() {
                 </div>
 
                 {formData.state && (
+                  <div className="flex flex-col gap-1.5">
                   <LocationSearchInput
-                    label="City / Town / Locality *"
+                    label="City or town *"
                     state={formData.state}
                     value={
                       formData.city
@@ -829,6 +826,12 @@ export default function OnboardingWizardPage() {
                     onClear={() => setFormData((prev) => ({ ...prev, locationId: null, city: '' }))}
                     error={step1Errors.city}
                   />
+                  {/* Customers browse by city, so an area typed here hides the café
+                      from its city's list (AdamsDen, Oct 2026). */}
+                  <p className="text-caption text-text-secondary">
+                    The city customers search for, like Hyderabad. Your area (like Kukatpally) goes in Address Line 2.
+                  </p>
+                  </div>
                 )}
 
                 <Input
@@ -1405,7 +1408,7 @@ export default function OnboardingWizardPage() {
                       label="Address"
                       value={`${formData.addressLine1}${formData.addressLine2 ? ', ' + formData.addressLine2 : ''}` || 'Not provided'}
                     />
-                    <ReviewRow label="City / Town / Locality" value={formData.city || 'Not provided'} />
+                    <ReviewRow label="City or town" value={formData.city || 'Not provided'} />
                     <ReviewRow label="State" value={formData.state || 'Not provided'} />
                     <ReviewRow label="Pincode" value={formData.pincode || 'Not provided'} />
                     <ReviewRow label="Maps Link" value={formData.googleMapsUrl || 'Not provided'} />

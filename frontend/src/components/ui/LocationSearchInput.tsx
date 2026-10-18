@@ -184,14 +184,19 @@ export function LocationSearchInput({ value, onChange, onClear, state, error, la
               onClick={() => setIsAdding(true)}
               className="flex w-full items-center px-4 py-2.5 text-left text-caption font-semibold text-primary hover:bg-surface transition-colors border-t border-border"
             >
-              Other — city not listed
+              My city isn&apos;t listed
             </button>
           )}
 
           {isAdding && (
             <div className="flex flex-col gap-2 border-t border-border p-4">
               <p className="text-caption font-semibold text-text-primary">
-                Add &quot;{query.trim()}&quot; in {state}?
+                Add &quot;{query.trim()}&quot; as a city in {state}?
+              </p>
+              <p className="text-caption text-text-secondary">
+                Only if it&apos;s its own city or town. If it&apos;s an area inside a bigger city, search for that city
+                instead and put &quot;{query.trim()}&quot; in Address Line 2. Otherwise customers searching your city
+                won&apos;t find your café.
               </p>
               {addError && <p className="text-caption text-error" role="alert">{addError}</p>}
               <button
@@ -199,7 +204,7 @@ export function LocationSearchInput({ value, onChange, onClear, state, error, la
                 onClick={handleCreate}
                 className="mt-1 rounded-xl bg-primary px-4 py-2 text-caption font-semibold text-white"
               >
-                Use &quot;{query.trim()}&quot;
+                Yes, it&apos;s a city
               </button>
             </div>
           )}

@@ -115,6 +115,9 @@ export interface CafeDetail extends Cafe {
 
 export interface AdminCafe extends CafeDetail {
   owner: User;
+  /** Other approved, active cafés in the same city. 0 = nobody browsing a real
+   *  city will find this café there (often an area typed as the city). */
+  cityLiveCafes?: number;
 }
 
 /** One thing you can play, as offered in a city (GET /cafes/activities). */

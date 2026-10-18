@@ -58,15 +58,13 @@ export function PendingApprovalView({ cafeName = 'Your Café', onRefreshStatus }
           <div className="border-t border-border pt-4 mt-2 flex flex-col sm:flex-row items-center justify-between gap-3 bg-surface-hover p-4 rounded-xl">
             <span className="text-caption text-text-secondary">Need urgent assistance or doc updates?</span>
             <div className="flex items-center gap-2">
-              <a
-                href="https://wa.me/919876543210"
-                target="_blank"
-                rel="noreferrer"
+              <Link
+                href="/owner/support"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 text-caption font-semibold hover:bg-emerald-500/20 transition-all"
               >
                 <MessageSquare className="h-4 w-4" />
-                <span>WhatsApp Support</span>
-              </a>
+                <span>Message support</span>
+              </Link>
             </div>
           </div>
         </CardContent>
