@@ -24,6 +24,8 @@ const CATEGORY_LABEL: Record<string, string> = {
   payment: 'Payment',
   cafe: 'Café',
   account: 'Account',
+  // Raised by a café owner's "Delete my account" (services/account_deletion_service.py).
+  account_deletion: 'Delete account',
   general: 'General',
 };
 

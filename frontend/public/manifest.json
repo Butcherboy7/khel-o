@@ -1,22 +1,54 @@
 {
-  "name": "KHEL-O Gaming Marketplace",
+  "id": "/",
+  "name": "KHEL-O: Book Gaming Cafés",
   "short_name": "KHEL-O",
-  "description": "Book high-performance gaming sessions at top esports lounges near you.",
+  "description": "Book PC, PS5, Xbox and snooker sessions at gaming cafés near you.",
+  "lang": "en-IN",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#F8F9FB",
-  "theme_color": "#10B981",
+  "background_color": "#F6F2EE",
+  "theme_color": "#FFFFFF",
   "orientation": "portrait",
+  "categories": ["entertainment", "games", "lifestyle"],
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Bookings",
+      "short_name": "Bookings",
+      "url": "/bookings",
+      "icons": [{ "src": "/icons/icon-maskable-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Find a Café",
+      "short_name": "Find Café",
+      "url": "/",
+      "icons": [{ "src": "/icons/icon-maskable-192x192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

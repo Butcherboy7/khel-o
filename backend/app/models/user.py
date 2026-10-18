@@ -49,5 +49,8 @@ class User(Base):
     # Owner/staff in-app guidance progress ({sessions, pages: {key: {views, dismissed}}}).
     # Kept apart from `preferences`, which the profile page replaces wholesale.
     guide_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    # Set when the person deleted their own account (anonymised in place, see
+    # services/account_deletion_service.py). NULL for every live account.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

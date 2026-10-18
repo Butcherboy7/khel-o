@@ -136,7 +136,9 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  themeColor: '#10B981',
+  // Matches the white app header. Android's status bar takes this colour, in
+  // Chrome and in the Play Store app (a TWA of this site, see android/).
+  themeColor: '#FFFFFF',
   // Without this, iOS Safari letterboxes the page above the home indicator and
   // every env(safe-area-inset-*) in the app resolves to 0px — which silently
   // no-ops the offsets the sticky payment/booking bars are positioned with, so

@@ -52,6 +52,17 @@ export async function resetPassword(token: string, newPassword: string): Promise
   return call(() => apiClient.post('/api/v1/auth/reset-password', { token, newPassword }));
 }
 
+/**
+ * Google Play requires in-app account deletion. Proof of identity is the same
+ * as an email change. 'deleted' = anonymised now; 'requested' = a café owner,
+ * whose account an admin closes by hand once payouts are settled.
+ */
+export async function deleteAccount(
+  proof: { currentPassword: string } | { googleIdToken: string },
+): Promise<{ status: 'deleted' | 'requested' }> {
+  return call(() => apiClient.post('/api/v1/auth/delete-account', proof));
+}
+
 export async function changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
   return call(() => apiClient.post('/api/v1/auth/change-password', { currentPassword, newPassword }));
 }

@@ -23,6 +23,10 @@ const runtimeCaching = defaultRuntimeCaching.map((entry) => {
     urlPattern: entry.urlPattern,
     handler: 'NetworkOnly',
     method: 'GET',
+    // next-pwa's `fallbacks` reads every rule's options and crashes the build
+    // without one. For an API request its fallback only ever answers
+    // Response.error() (the offline page is for documents), same as no rule.
+    options: {},
   };
 });
 
@@ -48,6 +52,9 @@ try {
     // public/thanks/ holds certificate PDFs and images for one person each;
     // precaching them would make every visitor download them in the background.
     publicExcludes: ['!noprecache/**/*', '!thanks/**/*'],
+    // No signal: show our own page (src/app/offline) instead of the browser's
+    // error page — in the Android app that would look like the app is broken.
+    fallbacks: { document: '/offline' },
   });
 } catch {
   withPWA = (config) => config;

@@ -19,6 +19,7 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/contact`, changeFrequency: 'yearly', priority: 0.3 },
   { url: `${SITE_URL}/terms`, changeFrequency: 'yearly', priority: 0.2 },
   { url: `${SITE_URL}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
+  { url: `${SITE_URL}/delete-account`, changeFrequency: 'yearly', priority: 0.1 },
   { url: `${SITE_URL}/refund-policy`, changeFrequency: 'yearly', priority: 0.2 },
   { url: `${SITE_URL}/shipping-policy`, changeFrequency: 'yearly', priority: 0.2 },
 ];

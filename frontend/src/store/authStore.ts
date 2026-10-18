@@ -44,6 +44,8 @@ interface AuthState {
   switchActiveRole: (targetRole: UserActiveRole) => Promise<void>;
   setBookingDraft: (draft: BookingDraft | null) => void;
   logout: () => void;
+  /** Same as logout, but lands on `path` (e.g. the account-deleted screen). */
+  logoutTo: (path: string) => void;
   initializeFromStorage: () => Promise<void>;
 }
 
@@ -116,7 +118,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ bookingDraft: draft });
   },
 
-  logout: () => {
+  logout: () => get().logoutTo('/login'),
+
+  logoutTo: (path) => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
@@ -131,7 +135,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } catch {
         /* storage blocked: nothing to clear */
       }
-      window.location.href = '/login';
+      window.location.href = path;
     }
     set({
       user: null,

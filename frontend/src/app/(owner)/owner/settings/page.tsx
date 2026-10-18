@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Settings as SettingsIcon, Clock, MapPin, Phone, AlertCircle, RefreshCw } from 'lucide-react';
@@ -288,6 +290,16 @@ export default function OwnerSettingsPage() {
           </a>
           . We&apos;ll confirm with you before anything is removed. If you just need a break, pause
           bookings above instead — that&apos;s reversible.
+        </p>
+        <p className="max-w-prose text-caption text-text-secondary">
+          To close your KHEL-O account as well, use{' '}
+          <Link
+            href="/delete-account"
+            className="font-semibold text-primary underline underline-offset-2"
+          >
+            Delete account
+          </Link>
+          . We settle any payout you&apos;re owed first.
         </p>
       </div>
 

@@ -19,6 +19,7 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.cafe_repository import CafeRepository
 from app.repositories.staff_invitation_repository import StaffInvitationRepository
 from app.services.auth_service import AuthService
+from app.services.account_deletion_service import delete_account as run_deletion
 from app.api.deps import get_current_user, get_current_active_user
 from app.models.user import User, UserRole
 from app.core.security import get_password_hash, verify_password
@@ -58,7 +59,50 @@ class ChangePasswordRequest(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
+class DeleteAccountRequest(BaseModel):
+    # Same proof of identity as an email change (see _reauthenticate).
+    current_password: Optional[str] = Field(None, max_length=128)
+    google_id_token: Optional[str] = Field(None, max_length=4096)
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
 router = APIRouter()
+
+
+async def _reauthenticate(
+    user: User,
+    current_password: Optional[str],
+    google_id_token: Optional[str],
+    repo: UserRepository,
+    action: str,
+) -> None:
+    """Re-prove identity before an account-changing action, via the account's
+    own sign-in method: a password for password accounts, a fresh Google
+    sign-in for accounts that only ever authenticated with Google
+    (password_hash is None, so there is no KHEL-O password to ask for)."""
+    if user.password_hash:
+        if not current_password:
+            raise BadRequestException(
+                message=f"Enter your current password to {action}",
+                error_code="CURRENT_PASSWORD_REQUIRED",
+            )
+        if not verify_password(current_password, user.password_hash):
+            raise BadRequestException(
+                message="That password is incorrect",
+                error_code="INVALID_CURRENT_PASSWORD",
+            )
+        return
+    if not google_id_token:
+        raise BadRequestException(
+            message=f"Verify with Google to {action}",
+            error_code="GOOGLE_REAUTH_REQUIRED",
+        )
+    token_info = await AuthService(repo).verify_google_id_token(google_id_token)
+    if token_info.get("sub") != user.google_id:
+        raise BadRequestException(
+            message="Google verification failed. Please try again.",
+            error_code="INVALID_GOOGLE_REAUTH",
+        )
 
 @router.get("/form-ticket", status_code=status.HTTP_200_OK)
 async def form_ticket():
@@ -242,30 +286,10 @@ async def update_me(
             # for password accounts, a fresh Google sign-in for accounts that
             # only ever authenticated with Google (password_hash is None, so
             # there is no KHEL-O password to ask for).
-            if current_user.password_hash:
-                if not current_password:
-                    raise BadRequestException(
-                        message="Enter your current password to change your email address",
-                        error_code="CURRENT_PASSWORD_REQUIRED",
-                    )
-                if not verify_password(current_password, current_user.password_hash):
-                    raise BadRequestException(
-                        message="That password is incorrect",
-                        error_code="INVALID_CURRENT_PASSWORD",
-                    )
-            else:
-                if not google_id_token:
-                    raise BadRequestException(
-                        message="Verify with Google to change your email address",
-                        error_code="GOOGLE_REAUTH_REQUIRED",
-                    )
-                service = AuthService(repo)
-                token_info = await service.verify_google_id_token(google_id_token)
-                if token_info.get("sub") != current_user.google_id:
-                    raise BadRequestException(
-                        message="Google verification failed. Please try again.",
-                        error_code="INVALID_GOOGLE_REAUTH",
-                    )
+            await _reauthenticate(
+                current_user, current_password, google_id_token, repo,
+                action="change your email address",
+            )
             existing = await repo.get_by_email(new_email)
             if existing and existing.id != current_user.id:
                 raise BadRequestException(
@@ -282,6 +306,22 @@ async def update_me(
             "user": user_dict
         }
     }
+
+@router.post("/delete-account", status_code=status.HTTP_200_OK)
+async def delete_account(
+    payload: DeleteAccountRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Google Play requires apps with sign-up to let people delete their
+    account from inside the app. Players are anonymised at once; café owners
+    get a support ticket instead (see services/account_deletion_service.py)."""
+    await _reauthenticate(
+        current_user, payload.current_password, payload.google_id_token,
+        UserRepository(db), action="delete your account",
+    )
+    result = await run_deletion(db, current_user)
+    return {"success": True, "data": result}
 
 @router.post("/switch-role", status_code=status.HTTP_200_OK)
 async def switch_role(

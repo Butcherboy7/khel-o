@@ -1,0 +1,58 @@
+{
+  "packageId": "com.khelo.app",
+  "host": "khel-o.com",
+  "name": "KHEL-O: Book Gaming Cafés",
+  "launcherName": "KHEL-O",
+  "display": "standalone",
+  "themeColor": "#FFFFFF",
+  "themeColorDark": "#000000",
+  "navigationColor": "#FFFFFF",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#E7E2DB",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#F6F2EE",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://khel-o.com/icons/icon-512x512.png",
+  "maskableIconUrl": "https://khel-o.com/icons/icon-maskable-512x512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "C:/Users/ADMIN/.khelo-android/khelo-upload.keystore",
+    "alias": "khelo-upload"
+  },
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "My Bookings",
+      "shortName": "Bookings",
+      "url": "https://khel-o.com/bookings",
+      "chosenIconUrl": "https://khel-o.com/icons/icon-maskable-192x192.png"
+    },
+    {
+      "name": "Find a Café",
+      "shortName": "Find Café",
+      "url": "https://khel-o.com/",
+      "chosenIconUrl": "https://khel-o.com/icons/icon-maskable-192x192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://khel-o.com/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://khel-o.com/",
+  "minSdkVersion": 24,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "displayOverride": []
+}
