@@ -54,18 +54,8 @@ export function useRazorpay() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    if (window.Razorpay) {
-      setIsLoaded(true);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    script.onload = () => setIsLoaded(true);
-    script.onerror = () => setIsLoaded(false);
-    document.body.appendChild(script);
+    // Fetched as the page opens so Pay usually finds it ready.
+    loadCheckout().then(() => setIsLoaded(true), () => setIsLoaded(false));
   }, []);
 
   const displayRazorpay = (
@@ -84,7 +74,7 @@ export function useRazorpay() {
       razorpayKey.startsWith('rzp_test_mock') ||
       razorpayKey.startsWith('rzp_test_placeholder');
 
-    if (!isLoaded || typeof window.Razorpay === 'undefined' || isMockKey) {
+    if (isMockKey) {
       // SANDBOX MODE: Show in-app modal with explicit Success/Failure buttons
       setMockModalState({
         isOpen: true,
@@ -118,24 +108,75 @@ export function useRazorpay() {
       return;
     }
 
-    const rzp = new window.Razorpay({
-      ...options,
-      key: razorpayKey,
-      // Brand red (--primary in globals.css). Razorpay draws its header and
-      // Pay button in this; it was still the old emerald green.
-      theme: { color: '#D0463C', ...options.theme },
-      modal: {
-        ondismiss: () => {
-          if (options.onDismiss) {
-            options.onDismiss();
-          }
+    // A real key never falls back to the sandbox modal. It used to whenever
+    // checkout.js had not arrived yet (slow mobile data, or blocked by an ad
+    // blocker): a paying customer got the test "Success / Failure" buttons.
+    // Now Pay waits for the script; if it cannot load, the payment is treated
+    // like a closed window (the booking stays, Pay can be tapped again).
+    if (typeof window.Razorpay === 'undefined') {
+      loadCheckout().then(
+        () => openCheckout(options, razorpayKey),
+        () => {
+          options.onFailed?.(CHECKOUT_UNAVAILABLE);
+          options.onDismiss?.();
         },
-      },
-    });
-
-    rzp.on('payment.failed', (res) => options.onFailed?.(res.error?.reason || res.error?.code || 'unknown'));
-    rzp.open();
+      );
+      return;
+    }
+    openCheckout(options, razorpayKey);
   };
 
   return { isLoaded, displayRazorpay, mockModalState };
+}
+
+/** onFailed reason when Razorpay's checkout script could not be loaded. */
+export const CHECKOUT_UNAVAILABLE = 'checkout_unavailable';
+
+let checkoutPromise: Promise<void> | null = null;
+
+/** Loads Razorpay's checkout.js once. A failed or timed-out attempt is
+ *  forgotten, so the next Pay tries again. */
+function loadCheckout(): Promise<void> {
+  if (window.Razorpay) return Promise.resolve();
+  if (checkoutPromise) return checkoutPromise;
+  checkoutPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    const fail = () => {
+      clearTimeout(timer);
+      script.remove();
+      checkoutPromise = null;
+      reject(new Error(CHECKOUT_UNAVAILABLE));
+    };
+    const timer = setTimeout(fail, 15000);
+    script.onload = () => {
+      clearTimeout(timer);
+      if (window.Razorpay) resolve();
+      else fail();
+    };
+    script.onerror = fail;
+    document.body.appendChild(script);
+  });
+  return checkoutPromise;
+}
+
+function openCheckout(options: Omit<RazorpayOptions, 'key'> & { key?: string }, razorpayKey: string) {
+  const rzp = new window.Razorpay({
+    ...options,
+    key: razorpayKey,
+    // Brand red (--primary in globals.css). Razorpay draws its header and
+    // Pay button in this; it was still the old emerald green.
+    theme: { color: '#D0463C', ...options.theme },
+    modal: {
+      ondismiss: () => {
+        if (options.onDismiss) {
+          options.onDismiss();
+        }
+      },
+    },
+  });
+
+  rzp.on('payment.failed', (res) => options.onFailed?.(res.error?.reason || res.error?.code || 'unknown'));
+  rzp.open();
 }

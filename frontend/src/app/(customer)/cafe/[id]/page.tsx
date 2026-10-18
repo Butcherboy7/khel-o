@@ -143,8 +143,10 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
 
   // Café → locality → game/hardware pages → nearby cafés, so every café is
   // linked into the rest of the site (no orphan pages) and vice versa.
-  const links = cafe ? await getCafeLinksCached(cafe.id) : null;
-  const waitlist = cafe?.isLeadListing ? await getWaitlistCountCached(cafe.id) : null;
+  const [links, waitlist] = await Promise.all([
+    cafe ? getCafeLinksCached(cafe.id) : null,
+    cafe?.isLeadListing ? getWaitlistCountCached(cafe.id) : null,
+  ]);
 
   const kind = cafe ? venueKind({ name: cafe.name, tiers: cafe.tiers }) : null;
   const area = cafe ? venueArea(cafe.addressLine2) : null;

@@ -30,7 +30,7 @@ import { getBooking, cancelBooking } from '@/lib/api/bookings';
 import { getCafe } from '@/lib/api/cafes';
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
-import { useRazorpay } from '@/hooks/useRazorpay';
+import { useRazorpay, CHECKOUT_UNAVAILABLE } from '@/hooks/useRazorpay';
 import { useAuthStore } from '@/store/authStore';
 import {
   Button,
@@ -133,6 +133,11 @@ export default function BookingDetailPage() {
         },
         onDismiss: () => {
           setIsRetryingPayment(false);
+        },
+        onFailed: (reason) => {
+          if (reason === CHECKOUT_UNAVAILABLE) {
+            setRetryError("Couldn't open the payment window. Check your connection (or pause an ad blocker) and tap Pay again.");
+          }
         },
         handler: async (paymentResponse) => {
           try {

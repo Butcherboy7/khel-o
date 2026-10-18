@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { listCafes, cafePath } from '@/lib/api/cafes';
@@ -18,13 +19,15 @@ interface PageProps {
   params: Promise<{ city: string }>;
 }
 
-async function getCityCafes(city: string) {
+// cache(): generateMetadata and the page share one call per request (it
+// was fetched twice).
+const getCityCafes = cache(async (city: string) => {
   try {
     return await listCafes({ city, limit: 50 });
   } catch {
     return null;
   }
-}
+});
 
 /** Every number and name on this page comes from these listings — nothing typed in by hand. */
 function summarize(cafes: CafeListItem[]) {
@@ -176,7 +179,8 @@ export default async function CityCafesPage({ params }: PageProps) {
   const city = citySlugToName(slug);
   if (!city) notFound();
 
-  const result = await getCityCafes(city);
+  // Fetched side by side rather than one after the other.
+  const [result, seo] = await Promise.all([getCityCafes(city), getSeoPage(slug).catch(() => null)]);
   const cafes = result?.items ?? [];
 
   // No indexable value in a page listing zero cafés — 404 instead of
@@ -185,8 +189,7 @@ export default async function CityCafesPage({ params }: PageProps) {
 
   const s = summarize(cafes);
   const faqItems = buildFaqItems(city, s);
-  // Links to this city's indexable landing pages (activities, areas, games…).
-  const seo = await getSeoPage(slug).catch(() => null);
+  // `seo`: links to this city's indexable landing pages (activities, areas, games…).
   const asOf = new Intl.DateTimeFormat('en-IN', {
     day: 'numeric',
     month: 'short',
