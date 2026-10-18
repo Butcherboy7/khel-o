@@ -315,6 +315,11 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
   // below, never a stock photo of an unrelated venue standing in as "its" photo.
   const photosList = cafe.photos && cafe.photos.length > 0 ? cafe.photos.map((p) => p.url) : [];
   const currentPhoto = photosList[photoIndex % photosList.length];
+  // Each photo's main colour, painted behind it while it loads.
+  const photoBg = (i: number) => {
+    const color = cafe.photos?.[i % Math.max(photosList.length, 1)]?.color;
+    return color ? { backgroundColor: color } : undefined;
+  };
   const minPrice = cafe.tiers && cafe.tiers.length > 0 ? Math.min(...cafe.tiers.map((t) => t.pricePerHour)) : 100;
   const gamingTiers = (cafe.tiers ?? []).filter((t) => t.tierType !== 'activity');
   const activityTiers = (cafe.tiers ?? []).filter((t) => t.tierType === 'activity');
@@ -408,14 +413,14 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
     // on ordinary bookable cafés too, not just the lead-listing variant).
     <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-40 md:pb-20">
       {/* Hero Header Image with Gallery Arrows */}
-      <div ref={heroRef} className="relative h-48 sm:h-64 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4">
+      <div ref={heroRef} className="relative h-48 sm:h-64 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4" style={photoBg(photoIndex)}>
         {currentPhoto ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
             {...optimizedImg(currentPhoto, '(min-width: 896px) 896px, 100vw', { maxWidth: 1920 })}
             onError={fallBackToOriginal(currentPhoto)}
             alt={`${cafe.name} photo ${photoIndex + 1}`}
-            className="h-full w-full object-cover transition-all duration-300 cursor-pointer"
+            className="h-full w-full object-cover cursor-pointer"
             loading="eager"
             fetchPriority="high"
             decoding="async"
@@ -893,7 +898,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                 key={photo + idx}
                 type="button"
                 onClick={() => openLightbox(photosList, idx)}
-                className="relative aspect-square overflow-hidden rounded-xl"
+                className="relative aspect-square overflow-hidden rounded-xl bg-surface"
+                style={photoBg(idx)}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img {...optimizedImg(photo, '(min-width: 896px) 224px, 25vw', { maxWidth: 640 })} onError={fallBackToOriginal(photo)} alt={`${cafe.name} photo ${idx + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />

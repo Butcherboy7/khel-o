@@ -99,7 +99,7 @@ export function ActivitiesSection({ cafeId, activities, promoCode, campaignOffer
             <Link
               key={tier.id}
               href={`/bookings/new?cafeId=${cafeId}&tierId=${tier.id}${promoCode ? `&promoCode=${encodeURIComponent(promoCode)}` : ''}`}
-              className={`${cardClass} transition-all hover:bg-surface active:scale-[0.99]`}
+              className={`${cardClass} transition hover:bg-surface active:scale-[0.99]`}
             >
               {content}
             </Link>

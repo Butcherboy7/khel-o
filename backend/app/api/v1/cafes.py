@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, status, Query, Request
 from pydantic import BaseModel
 from typing import Optional, List
 from uuid import UUID
@@ -29,6 +29,7 @@ router = APIRouter()
 
 @router.get("", status_code=status.HTTP_200_OK)
 async def list_cafes(
+    background: BackgroundTasks,
     city: Optional[str] = Query(None),
     query: Optional[str] = Query(None),
     q: Optional[str] = Query(None),
@@ -73,10 +74,24 @@ async def list_cafes(
             free = sum(t["freeNow"] for t in info["tiers"])
             cap = by_id[item.id].bookable_stations
             item.free_now = min(free, cap) if cap is not None and cap >= 0 else free
+    await _with_photo_colors(db, background, [item.photos for item in result["items"]])
     return {
         "success": True,
         "data": result
     }
+
+
+async def _with_photo_colors(db: AsyncSession, background: Optional[BackgroundTasks], photo_lists) -> None:
+    """Each photo gets its main colour (the app paints it while the photo
+    loads); photos without one yet are worked out after the response."""
+    from app.services.photo_colors import attach_colors, fill_in_background
+    try:
+        missing = await attach_colors(db, photo_lists)
+    except Exception:  # a colour is a nicety: never fail the page for it
+        return
+    if missing and background is not None:
+        background.add_task(fill_in_background, missing)
+
 
 @router.get("/activities", status_code=status.HTTP_200_OK)
 async def list_activities(
@@ -97,6 +112,7 @@ async def get_taxonomy():
 @router.get("/slug/{slug}", status_code=status.HTTP_200_OK)
 async def get_cafe_by_slug(
     slug: str,
+    background: BackgroundTasks,
     current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -105,12 +121,13 @@ async def get_cafe_by_slug(
     if not cafe:
         raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
     # Same visibility rules and payload as lookup by id.
-    return await get_cafe(cafe.id, current_user=current_user, db=db)
+    return await get_cafe(cafe.id, background=background, current_user=current_user, db=db)
 
 
 @router.get("/{cafe_id}", status_code=status.HTTP_200_OK)
 async def get_cafe(
     cafe_id: UUID,
+    background: BackgroundTasks,
     current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -120,6 +137,7 @@ async def get_cafe(
     review_repo = ReviewRepository(db)
     service = CafeService(cafe_repo, tier_repo, promo_repo, review_repo)
     result = await service.get_cafe(cafe_id, current_user=current_user)
+    await _with_photo_colors(db, background, [getattr(result, "photos", None)])
     return {
         "success": True,
         "data": {

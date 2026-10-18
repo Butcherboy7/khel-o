@@ -83,7 +83,7 @@ function CustomerHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'relative rounded-full px-4 py-2 text-body font-medium transition-all duration-fast',
+                  'relative rounded-full px-4 py-2 text-body font-medium transition duration-fast',
                   isActive
                     ? 'bg-primary/10 font-bold text-primary shadow-sm'
                     : 'text-text-secondary hover:bg-surface hover:text-text-primary',
@@ -106,7 +106,7 @@ function CustomerHeader() {
               <RoleSwitcher />
               <Link
                 href="/notifications"
-                className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition-all hover:bg-border/60 hover:text-text-primary active:scale-95"
+                className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition hover:bg-border/60 hover:text-text-primary active:scale-95"
                 aria-label="Notifications"
               >
                 <Bell className="h-4 w-4" />
@@ -158,14 +158,14 @@ function CustomerBottomNav() {
             key={item.href}
             href={item.href}
             className={cn(
-              'flex flex-col items-center gap-0.5 px-4 py-1.5 transition-all duration-fast',
+              'flex flex-col items-center gap-0.5 px-4 py-1.5 transition duration-fast',
               isActive ? 'text-primary-dark font-bold' : 'text-text-secondary hover:text-text-primary',
             )}
             aria-current={isActive ? 'page' : undefined}
           >
             <span
               className={cn(
-                'flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast',
+                'flex items-center justify-center rounded-full px-3.5 py-1 transition duration-fast',
                 isActive && 'bg-primary/12',
               )}
             >

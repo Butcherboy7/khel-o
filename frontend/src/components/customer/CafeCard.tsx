@@ -151,7 +151,7 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
       <Card
         interactive
         elevation="resting"
-        className={`h-full flex flex-col overflow-hidden border transition-all duration-normal hover:shadow-float ${
+        className={`h-full flex flex-col overflow-hidden border ${
           isLive
             ? 'border-primary/40 ring-2 ring-primary/30 shadow-card bg-gradient-to-b from-card via-card to-primary/5'
             : 'border-border/80 bg-card'
@@ -178,13 +178,16 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
         <CardImage
           aspectClass="aspect-[2/1] sm:aspect-[16/9]"
           className="relative w-full flex-shrink-0"
+          // The photo's own main colour while it loads (from the API), so
+          // the card is coloured from the first frame instead of grey.
+          style={coverPhoto?.color ? { backgroundColor: coverPhoto.color } : undefined}
         >
           {coverPhoto ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               {...optimizedImg(coverPhoto.url, '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw', { maxWidth: 828 })}
               alt={cafe.name}
-              className="block h-full w-full object-cover object-center transition-all duration-700 group-hover:scale-105"
+              className="block h-full w-full object-cover object-center transition-transform duration-700 [@media(hover:hover)]:group-hover:scale-105"
               loading={isLive || priority ? 'eager' : 'lazy'}
               fetchPriority={priority ? 'high' : undefined}
               decoding="async"
@@ -213,7 +216,7 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
             {/* A real count from the same source as the café page's "3 free
                 now", not a generic LIVE badge. Nothing when closed or full. */}
             {showFreeNow ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-secondary/95 backdrop-blur-md px-2 py-0.5 text-[11px] font-bold text-white shadow-card tabular-nums">
+              <span className="inline-flex items-center gap-1 rounded-full bg-secondary/95 px-2 py-0.5 text-[11px] font-bold text-white shadow-card tabular-nums">
                 <span className="h-1.5 w-1.5 rounded-full bg-success animate-live-dot" />
                 {cafe.freeNow} free now
               </span>
@@ -222,13 +225,16 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
             )}
 
             {statusLabel && !(showFreeNow && isOpenNow) && (
-              /* Booking-soon sits top-left in quiet dark glass: red on this
-                 card is kept for the Vote action, as it is for Book Now. */
+              /* Booking-soon sits top-left in a quiet dark pill: red on this
+                 card is kept for the Vote action, as it is for Book Now.
+                 Solid-ish, not blurred glass: a blur on every card in a
+                 scrolling list costs budget phones frames for a difference
+                 nobody sees at this size. */
               <span
-                className={`inline-flex items-center gap-1 rounded-full backdrop-blur-md text-white ${
+                className={`inline-flex items-center gap-1 rounded-full text-white ${
                   isLead
-                    ? 'order-first bg-secondary/80 pl-1.5 pr-2 py-0.5 text-[11px] font-bold tracking-wide'
-                    : `px-2 py-0.5 text-[10px] font-bold ${isOpenNow ? 'bg-secondary/85' : 'bg-text-tertiary/80'}`
+                    ? 'order-first bg-secondary/90 pl-1.5 pr-2 py-0.5 text-[11px] font-bold tracking-wide'
+                    : `px-2 py-0.5 text-[10px] font-bold ${isOpenNow ? 'bg-secondary/90' : 'bg-text-tertiary/90'}`
                 }`}
               >
                 {isLead && <Clock className="h-3 w-3" aria-hidden="true" />}

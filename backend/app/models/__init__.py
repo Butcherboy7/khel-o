@@ -29,6 +29,7 @@ from app.models.owner_intro import OwnerIntro
 from app.models.marketing_campaign import MarketingCampaign
 from app.models.auth_attempt import AuthAttempt
 from app.models.launch_signup import LaunchSignup
+from app.models.photo_color import PhotoColor
 
 __all__ = [
     "User",
@@ -69,4 +70,5 @@ __all__ = [
     "MarketingCampaign",
     "AuthAttempt",
     "LaunchSignup",
+    "PhotoColor",
 ]

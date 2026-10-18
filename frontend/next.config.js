@@ -15,6 +15,21 @@ const { withSentryConfig } = require('@sentry/nextjs');
 // which are not user-specific.
 const defaultRuntimeCaching = require('next-pwa/cache');
 const runtimeCaching = defaultRuntimeCaching.map((entry) => {
+  // Café photos: a photo URL never changes its bytes (uploads get a fresh
+  // random key), so once a size is on the phone it is served from there
+  // with no network at all. The default (StaleWhileRevalidate, 64 photos,
+  // one day) re-downloaded every photo on every view and forgot them by the
+  // next day. ~300 resized WebPs is roughly 15 MB.
+  if (entry.options?.cacheName === 'next-image') {
+    return {
+      ...entry,
+      handler: 'CacheFirst',
+      options: {
+        ...entry.options,
+        expiration: { maxEntries: 300, maxAgeSeconds: 30 * 24 * 60 * 60, purgeOnQuotaError: true },
+      },
+    };
+  }
   const isApiRule =
     typeof entry.urlPattern === 'function' &&
     entry.options?.cacheName === 'apis';

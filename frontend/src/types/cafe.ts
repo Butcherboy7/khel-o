@@ -27,7 +27,9 @@ export interface CafeListItem {
   styles?: string[];
   /** True only when every active tier has a confirmed real platform. */
   platformsComplete?: boolean;
-  photos: { url: string; category: string }[];
+  /** color: the photo's main colour ('#rrggbb'), painted behind it while it
+   *  loads. Missing for photos not worked out yet. */
+  photos: { url: string; category: string; color?: string }[];
   hasActivePromotion: boolean;
   /** Stations bookable on KHEL-O right now; null when closed or paused. */
   freeNow?: number | null;
@@ -83,7 +85,9 @@ export interface Cafe {
   appBookableSeats?: number;
   amenities: string[];
   supportedGames?: Record<string, string[]>;
-  photos: { url: string; category: string }[];
+  /** color: the photo's main colour ('#rrggbb'), painted behind it while it
+   *  loads. Missing for photos not worked out yet. */
+  photos: { url: string; category: string; color?: string }[];
   menuPhotos: string[];
   rejectionReason: string | null;
   businessPan?: string;

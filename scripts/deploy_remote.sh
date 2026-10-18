@@ -14,12 +14,14 @@ case "$ENVIRONMENT" in
     COMPOSE_FILE=docker-compose.prod.yml
     HEALTH_URL=https://khel-o.com/health
     FRONTEND_CONTAINER=khel_o_frontend
+    BACKEND_CONTAINER=khel_o_backend
     ;;
   dev)
     DIR=/opt/khelo-dev
     COMPOSE_FILE=docker-compose.dev.yml
     HEALTH_URL=https://dev.khel-o.com/health
     FRONTEND_CONTAINER=khel_o_dev_frontend
+    BACKEND_CONTAINER=khel_o_dev_backend
     ;;
   *)
     echo "Unknown environment: $ENVIRONMENT (expected prod or dev)" >&2
@@ -58,6 +60,11 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   [ "$i" = 12 ] && exit 1
 done
 echo
+
+echo "== photo colours =="
+# Main colour of each new café photo, painted behind it while it loads. The
+# café endpoints also fill these lazily, so a failure never fails the deploy.
+timeout 300 docker exec -e PYTHONPATH=/app "$BACKEND_CONTAINER" python scripts/fill_photo_colors.py   || echo "photo colours did not finish (filled in as photos are viewed)"
 
 echo "== warm photo cache =="
 # The site is already live; this only saves the first visitors from waiting

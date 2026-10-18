@@ -68,6 +68,8 @@ interface PlayCafe {
   console: string;
   price: number | null;
   photo: string | null;
+  /** Main colour of the photo, shown while it loads. */
+  photoColor?: string;
   rating: number | null;
   preordered: boolean;
 }
@@ -82,6 +84,7 @@ function toPlayCafe(c: CafeListItem): PlayCafe {
     console: ps5 && /pro/i.test(ps5) ? 'PS5 Pro' : 'PS5',
     price: (() => { const p = c.bestOffer?.fromPrice ?? c.startingPrice; return p == null ? null : customerPrice(p); })(),
     photo: c.photos[0]?.url ?? null,
+    photoColor: c.photos[0]?.color,
     rating: c.totalReviews > 0 ? c.averageRating : null,
     preordered: PREORDERED_CAFE_IDS.has(c.id),
   };
@@ -170,6 +173,7 @@ function CafeThumb({ cafe, className }: { cafe: PlayCafe; className: string }) {
       onError={fallBackToOriginal(cafe.photo)}
       alt=""
       className={`${className} object-cover`}
+      style={cafe.photoColor ? { backgroundColor: cafe.photoColor } : undefined}
     />
   );
 }

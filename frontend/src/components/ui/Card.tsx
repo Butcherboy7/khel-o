@@ -26,10 +26,14 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
           elevation === 'flat' && 'border border-border',
           elevation === 'resting' && 'shadow-card border border-border/70',
           elevation === 'raised' && 'shadow-float',
-          // Interactive states
+          // Interactive states. Only transform + shadow animate (cheap; never
+          // layout). The lift waits for a real mouse: on a phone a tap leaves
+          // :hover stuck, so the card stayed lifted after going back. The
+          // press shrink is quick so a tap answers at once.
           interactive && [
-            'cursor-pointer transition-all duration-normal ease-out-expo',
-            'hover:-translate-y-0.5 hover:shadow-float active:scale-[0.99] active:shadow-card',
+            'cursor-pointer transition-[transform,box-shadow] duration-normal ease-out-expo',
+            '[@media(hover:hover)]:hover:-translate-y-0.5 [@media(hover:hover)]:hover:shadow-float',
+            'active:scale-[0.98] active:shadow-card active:duration-75',
           ],
           className,
         )}

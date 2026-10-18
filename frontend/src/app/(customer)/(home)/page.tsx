@@ -6,7 +6,7 @@ import { CampaignWelcome } from '@/components/customer/CampaignWelcome';
 import { HomeSections } from '@/components/customer/HomeSections';
 import { PopularPages } from '@/components/customer/PopularPages';
 import { getSeoPages } from '@/lib/api/seo';
-import { SkeletonCafeGrid } from '@/components/ui/Skeleton';
+import HomeLoading from './loading';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
@@ -86,25 +86,12 @@ export default async function ExplorePage() {
       <Suspense fallback={null}>
         <CampaignWelcome />
       </Suspense>
-      <Suspense fallback={<ExploreFallback />}>
+      <Suspense fallback={<HomeLoading />}>
         <ExploreClient initialCafes={initialCafes} initialActivities={initialActivities}>
           <HomeSections />
           <PopularPages pages={landingPages} />
         </ExploreClient>
       </Suspense>
     </>
-  );
-}
-
-function ExploreFallback() {
-  return (
-    <div className="flex flex-col gap-4 max-w-wide mx-auto" aria-busy="true">
-      <div className="flex flex-col gap-2.5">
-        <div className="h-8 w-64 max-w-full rounded-lg bg-border/60 animate-pulse" />
-        <div className="h-12 w-full rounded-full bg-border/60 animate-pulse" />
-        <div className="h-9 w-72 max-w-full rounded-full bg-border/60 animate-pulse" />
-      </div>
-      <SkeletonCafeGrid count={6} />
-    </div>
   );
 }
