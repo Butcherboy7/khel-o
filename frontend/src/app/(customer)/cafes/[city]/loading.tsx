@@ -1,6 +1,6 @@
 import { Skeleton, SkeletonCafeGrid } from '@/components/ui/Skeleton';
 
-// Also covers /cafes/<city>/<activity>, which has no loading file of its own.
+// Also used one level up (cafes/loading.tsx) and for /cafes/<city>/<activity>.
 export default function CityLoading() {
   return (
     <div className="max-w-5xl mx-auto w-full flex flex-col gap-6 py-6" aria-busy="true" aria-label="Loading cafés">
