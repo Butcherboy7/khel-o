@@ -59,6 +59,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Converted photos are cached here. Compose mounts a named volume on it so the
+# cache outlives deploys; the folder must exist and belong to nextjs first, or
+# Docker creates the mount root-owned and the cache silently never saves.
+RUN mkdir -p .next/cache/images && chown -R nextjs:nodejs .next/cache
+
 USER nextjs
 
 EXPOSE 3000

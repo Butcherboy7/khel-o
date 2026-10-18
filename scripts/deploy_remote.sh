@@ -13,11 +13,13 @@ case "$ENVIRONMENT" in
     DIR=/opt/khelo-prod
     COMPOSE_FILE=docker-compose.prod.yml
     HEALTH_URL=https://khel-o.com/health
+    FRONTEND_CONTAINER=khel_o_frontend
     ;;
   dev)
     DIR=/opt/khelo-dev
     COMPOSE_FILE=docker-compose.dev.yml
     HEALTH_URL=https://dev.khel-o.com/health
+    FRONTEND_CONTAINER=khel_o_dev_frontend
     ;;
   *)
     echo "Unknown environment: $ENVIRONMENT (expected prod or dev)" >&2
@@ -56,4 +58,11 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   [ "$i" = 12 ] && exit 1
 done
 echo
+
+echo "== warm photo cache =="
+# The site is already live; this only saves the first visitors from waiting
+# while photos convert. A failure here never fails the deploy.
+timeout 600 docker exec -i "$FRONTEND_CONTAINER" node - < scripts/warm_image_cache.js \
+  || echo "photo cache warm-up did not finish (photos still convert on first view)"
+
 echo "Deploy OK ($ENVIRONMENT): $(git rev-parse --short HEAD)"

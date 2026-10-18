@@ -70,9 +70,16 @@ const nextConfig = {
   // per screen, WebP/AVIF, browser-cached. Only these hosts may be fetched,
   // so the optimizer can't be used as an open image proxy.
   images: {
-    formats: ['image/avif', 'image/webp'],
+    // WebP only. AVIF was a few KB smaller but took 9 s to convert the six
+    // photos of a café page on our 2-CPU box (WebP: 1 s), and every deploy
+    // starts with an empty cache, so real visitors kept paying that.
+    formats: ['image/webp'],
+    // Only our own buckets (+ Unsplash for lead listings). A wildcard let
+    // anyone make our server fetch and convert images from any S3 bucket.
+    // Keep in sync with OPTIMIZABLE in src/lib/imageUrl.ts.
     remotePatterns: [
-      { protocol: 'https', hostname: '*.s3.*.amazonaws.com' },
+      { protocol: 'https', hostname: 'khelo-cafe-photos-prod.s3.ap-south-1.amazonaws.com' },
+      { protocol: 'https', hostname: 'khelo-cafe-photos-dev.s3.ap-south-1.amazonaws.com' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
     ],
     // Uploaded photos get a fresh random key, so a URL's bytes never change:

@@ -49,6 +49,9 @@ services:
       - .env.prod
     depends_on:
       - backend
+    volumes:
+      # Converted café photos survive deploys (rebuilding them is the slow part).
+      - imagecache:/app/.next/cache/images
     networks:
       - khel_o_net
     # No host port published — only Caddy talks to this over khel_o_net.
@@ -78,6 +81,7 @@ volumes:
   pgdata:
   pgbackups:
   qrdata:
+  imagecache:
 
 networks:
   khel_o_net:

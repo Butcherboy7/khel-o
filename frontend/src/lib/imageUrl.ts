@@ -1,6 +1,6 @@
 /**
  * Café photos through Next's image optimizer (/_next/image): resized to the
- * width the screen needs, served as WebP/AVIF, and cached by the browser.
+ * width the screen needs, served as WebP, and cached by the browser.
  * Straight from S3 they were full camera size (2–5 MB each, no cache
  * headers) — PageSpeed measured 15 MB on the homepage, 12 MB of it photos.
  *
@@ -8,8 +8,12 @@
  * the optimizer; anything else is returned untouched so it still loads.
  */
 
-// Must match images.remotePatterns in next.config.js.
-const OPTIMIZABLE = [/^https:\/\/[^/]+\.s3\.[^/]+\.amazonaws\.com\//, /^https:\/\/images\.unsplash\.com\//];
+// Must match images.remotePatterns in next.config.js (a host the optimizer
+// refuses would show a broken image until fallBackToOriginal kicks in).
+const OPTIMIZABLE = [
+  /^https:\/\/khelo-cafe-photos-(prod|dev)\.s3\.ap-south-1\.amazonaws\.com\//,
+  /^https:\/\/images\.unsplash\.com\//,
+];
 
 // Must be in Next's default deviceSizes/imageSizes, or /_next/image rejects the width.
 const WIDTHS = [384, 640, 828, 1080, 1920] as const;
