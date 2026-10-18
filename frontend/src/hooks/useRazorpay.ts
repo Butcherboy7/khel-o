@@ -114,13 +114,12 @@ export function useRazorpay() {
     // Now Pay waits for the script; if it cannot load, the payment is treated
     // like a closed window (the booking stays, Pay can be tapped again).
     if (typeof window.Razorpay === 'undefined') {
-      loadCheckout().then(
-        () => openCheckout(options, razorpayKey),
-        () => {
+      loadCheckout()
+        .then(() => openCheckout(options, razorpayKey))
+        .catch(() => {
           options.onFailed?.(CHECKOUT_UNAVAILABLE);
           options.onDismiss?.();
-        },
-      );
+        });
       return;
     }
     openCheckout(options, razorpayKey);
@@ -134,8 +133,9 @@ export const CHECKOUT_UNAVAILABLE = 'checkout_unavailable';
 
 let checkoutPromise: Promise<void> | null = null;
 
-/** Loads Razorpay's checkout.js once. A failed or timed-out attempt is
- *  forgotten, so the next Pay tries again. */
+/** Loads Razorpay's checkout.js, sharing one download between callers. Only
+ *  the attempt in flight is kept: a failed or timed-out one is forgotten so
+ *  the next Pay tries again, and once loaded window.Razorpay answers. */
 function loadCheckout(): Promise<void> {
   if (window.Razorpay) return Promise.resolve();
   if (checkoutPromise) return checkoutPromise;
@@ -152,8 +152,9 @@ function loadCheckout(): Promise<void> {
     const timer = setTimeout(fail, 15000);
     script.onload = () => {
       clearTimeout(timer);
-      if (window.Razorpay) resolve();
-      else fail();
+      if (!window.Razorpay) return fail();
+      checkoutPromise = null;
+      resolve();
     };
     script.onerror = fail;
     document.body.appendChild(script);
