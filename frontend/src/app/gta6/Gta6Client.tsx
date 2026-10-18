@@ -26,6 +26,9 @@ const AUTOSCROLL_AFTER_MS = 2200;
 const PREORDERED_CAFE_IDS = new Set([
   '73484598-b6a8-4118-82b9-7df16d03ed05', // DG Gaming Cafe
   '69a24177-fc5f-4c07-a792-dacf7c2d147b', // Rockstar Gaming Cafe
+  // AdamsDen Gaming Lounge (told KHEL-O 2026-10-18). Still a draft application:
+  // the page lists only live cafés with a PlayStation, so it shows once approved.
+  '596ebec6-7dd5-480a-bf40-327d7f4c1e7e',
 ]);
 
 const REACH: { value: ReachBy; label: string; icon: typeof Phone; said: string }[] = [
