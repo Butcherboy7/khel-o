@@ -1,0 +1,9 @@
+# /etc/cron.d/khelo-reminders — KHEL-O session reminders (server clock is UTC)
+#
+# Source of truth for what SHOULD be installed on the production box at
+# /etc/cron.d/khelo-reminders. Not applied automatically: copy it to the
+# server after any change. Production only: the script refuses to send on dev.
+#
+# Every 5 minutes: email + in-app note to players whose session starts in
+# about 30 minutes. flock skips a run if the previous one is still going.
+*/5 * * * * root flock -n /tmp/khelo-reminders.lock docker exec -e PYTHONPATH=/app khel_o_backend python scripts/send_session_reminders.py >> /var/log/khelo-reminders.log 2>&1

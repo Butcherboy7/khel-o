@@ -24,6 +24,12 @@ _BRAND_TEXT_SECONDARY = "#5A5E6B"
 _BRAND_BORDER = "#E8E6E2"
 
 
+def format_session_time(t) -> str:
+    """18:30:00 -> "6:30 PM" (the way players read times)."""
+    hour = t.hour % 12 or 12
+    return f"{hour}:{t.minute:02d} {'AM' if t.hour < 12 else 'PM'}"
+
+
 def _email_button(url: str, label: str) -> str:
     return (
         f'<a href="{url}" style="background-color: {_BRAND_PRIMARY}; color: #ffffff; '
@@ -183,19 +189,37 @@ class NotificationService:
         except Exception as e:
             logger.error("send_payment_failure_error", error=str(e), booking_id=str(booking_id))
 
-    async def send_session_reminder(self, db: AsyncSession, booking_id: UUID):
+    async def send_session_reminder(self, db: AsyncSession, booking_id: UUID, minutes: int = 30):
         try:
-            stmt = select(Booking, User, Cafe).join(User, Booking.gamer_id == User.id).join(Cafe, Booking.cafe_id == Cafe.id).where(Booking.id == booking_id)
+            stmt = select(Booking, User, Cafe, HardwareTier).join(
+                User, Booking.gamer_id == User.id
+            ).join(
+                Cafe, Booking.cafe_id == Cafe.id
+            ).join(
+                HardwareTier, Booking.hardware_tier_id == HardwareTier.id
+            ).where(Booking.id == booking_id)
             res = await db.execute(stmt)
             row = res.first()
             if not row:
                 return
-            booking, gamer, cafe = row[0], row[1], row[2]
-            subject = f"Your gaming session starts in 30 minutes! ⚡ [{booking.booking_reference}]"
+            booking, gamer, cafe, tier = row[0], row[1], row[2], row[3]
+            first_name = html.escape((gamer.full_name or "there").split()[0])
+            cafe_name = html.escape(cafe.name)
+            start_label = format_session_time(booking.start_time)
+            address = html.escape(", ".join(p for p in (cafe.address_line1, cafe.city) if p))
+            directions = (
+                f' · <a href="{html.escape(cafe.google_maps_url)}" style="color: {_BRAND_PRIMARY};">Directions</a>'
+                if cafe.google_maps_url else ""
+            )
+            pass_url = f"{settings.FRONTEND_URL}/bookings/{booking.id}"
+
+            subject = f"{cafe.name} at {start_label}: your session starts in {minutes} min [{booking.booking_reference}]"
             html_body = _email_wrapper(f"""
-                <h2 style="margin-top: 0; color: {_BRAND_TEXT_PRIMARY};">Your session starts in 30 minutes!</h2>
-                <p>Your session at <strong>{cafe.name}</strong> ({cafe.address_line1}) starts at <strong>{booking.start_time}</strong>.</p>
-                <p style="color: {_BRAND_TEXT_SECONDARY};">Don't forget your QR code!</p>
+                <h2 style="margin-top: 0; color: {_BRAND_TEXT_PRIMARY};">Hi {first_name}, see you at {start_label}</h2>
+                <p>Your <strong>{html.escape(tier.name)}</strong> session at <strong>{cafe_name}</strong> starts in about {minutes} minutes.</p>
+                <p style="color: {_BRAND_TEXT_SECONDARY};">{address}{directions}</p>
+                <div style="text-align: center; margin: 24px 0;">{_email_button(pass_url, "Open my booking pass")}</div>
+                <p style="color: {_BRAND_TEXT_SECONDARY}; font-size: 14px;">Show the QR code on your pass at the counter to check in.</p>
             """)
             await self._send_resend_email(gamer.email, subject, html_body, booking.booking_reference)
         except Exception as e:
