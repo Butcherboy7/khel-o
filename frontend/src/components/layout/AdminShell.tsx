@@ -26,6 +26,7 @@ import {
   MapPin,
   Megaphone,
   Rocket,
+  Trophy,
   IndianRupee,
   Banknote,
   Clock,
@@ -72,6 +73,7 @@ const adminNavGroups: NavGroup[] = [
       { label: 'Booking Soon', href: '/admin/booking-soon', icon: Clock },
       { label: 'Café Demand', href: '/admin/leads', icon: Megaphone },
       { label: 'GTA 6 List', href: '/admin/launch-list', icon: Rocket },
+      { label: 'Challenges', href: '/admin/challenges', icon: Trophy },
     ],
   },
   {

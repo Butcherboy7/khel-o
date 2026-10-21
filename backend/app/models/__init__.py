@@ -30,6 +30,7 @@ from app.models.marketing_campaign import MarketingCampaign
 from app.models.auth_attempt import AuthAttempt
 from app.models.launch_signup import LaunchSignup
 from app.models.photo_color import PhotoColor
+from app.models.challenge import Challenge, ChallengeEntry
 
 __all__ = [
     "User",
@@ -71,4 +72,6 @@ __all__ = [
     "AuthAttempt",
     "LaunchSignup",
     "PhotoColor",
+    "Challenge",
+    "ChallengeEntry",
 ]

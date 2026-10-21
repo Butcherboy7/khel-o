@@ -9,7 +9,7 @@ import { isInAppBrowser } from '@/lib/campaign';
  * sign-in is often blocked. Only there, say how to open the page in the phone's
  * normal browser. The link and any saved code carry over, so nothing is lost.
  */
-export function InAppBrowserNotice({ className }: { className?: string }) {
+export function InAppBrowserNotice({ className, keeps = 'Your offer stays saved.' }: { className?: string; keeps?: string }) {
   const [show, setShow] = useState(false);
   useEffect(() => {
     setShow(isInAppBrowser(navigator.userAgent));
@@ -20,7 +20,7 @@ export function InAppBrowserNotice({ className }: { className?: string }) {
       <ExternalLink className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden />
       <span>
         Google sign-in can fail inside Instagram. Tap <span className="font-semibold text-text-primary">⋯</span> then{' '}
-        <span className="font-semibold text-text-primary">Open in browser</span>, or use email sign-in. Your offer stays saved.
+        <span className="font-semibold text-text-primary">Open in browser</span>, or use email sign-in. {keeps}
       </span>
     </p>
   );

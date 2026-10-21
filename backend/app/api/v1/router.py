@@ -25,6 +25,7 @@ from app.api.v1.contact import router as contact_router
 from app.api.v1.locations import router as locations_router
 from app.api.v1.owner_intros import router as owner_intros_router
 from app.api.v1.launch_list import public_router as launch_list_router, admin_router as admin_launch_list_router
+from app.api.v1.challenges import public_router as challenges_router, admin_router as admin_challenges_router
 from app.api.v1.marketing_campaigns import public_router as campaign_links_router, admin_router as marketing_campaigns_router
 
 api_router = APIRouter()
@@ -56,6 +57,8 @@ api_router.include_router(launch_list_router)
 api_router.include_router(admin_launch_list_router)
 api_router.include_router(campaign_links_router)
 api_router.include_router(marketing_campaigns_router)
+api_router.include_router(challenges_router)
+api_router.include_router(admin_challenges_router)
 api_router.include_router(locations_router, prefix="/locations", tags=["Locations"])
 
 @api_router.get("/status", tags=["Status"])

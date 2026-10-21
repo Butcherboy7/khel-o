@@ -17,9 +17,11 @@ interface GoogleSignInButtonProps {
   onError?: (message: string) => void;
   /** Stay on the page: called once signed in, instead of redirecting. */
   onSuccess?: () => void;
+  /** Last line of the Instagram-browser note, e.g. what stays saved. */
+  inAppKeeps?: string;
 }
 
-export function GoogleSignInButton({ redirectPath, onError, onSuccess }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({ redirectPath, onError, onSuccess, inAppKeeps }: GoogleSignInButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -102,7 +104,7 @@ export function GoogleSignInButton({ redirectPath, onError, onSuccess }: GoogleS
         strategy="afterInteractive"
         onLoad={initialize}
       />
-      <InAppBrowserNotice className="mb-2 w-full" />
+      <InAppBrowserNotice className="mb-2 w-full" keeps={inAppKeeps} />
       <div ref={containerRef} className="flex w-full justify-center" />
     </>
   );
