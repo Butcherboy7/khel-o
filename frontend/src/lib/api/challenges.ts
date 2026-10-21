@@ -336,6 +336,8 @@ export interface RewardsConfig {
   winnerPercent: number;
   winnerDays: number;
   winnerKheloFunded: boolean;
+  /** Off for a test run, so other cafés' owners don't see the offer. */
+  winnerPartnersOn: boolean;
   waitlistPercent: number;
   waitlistDays: number;
   waitlistKheloFunded: boolean;

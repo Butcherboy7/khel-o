@@ -306,3 +306,16 @@ async def test_a_locked_reward_says_why_instead_of_invalid_code(async_client):
         "/api/v1/bookings/quote", json=_body(cafe, tier, promoCode=code, seatsCount=2), headers=auth_headers(gamer),
     )).json()["data"]
     assert q["discountAmount"] == 0 and "1 seat" in q["offerNote"]
+
+
+@pytest.mark.asyncio
+async def test_a_test_run_can_skip_the_partner_cafe_offer(async_client, db_session):
+    ch, admin, _ = await _field(async_client, db_session, 2)
+    h = auth_headers(admin, is_admin=True)
+    cfg = (await async_client.get(f"/api/v1/admin/challenges/{ch['id']}/rewards", headers=h)).json()["data"]["config"]
+    cfg["winnerPartnersOn"] = False
+    assert (await async_client.patch(f"/api/v1/admin/challenges/{ch['id']}/rewards-config", json=cfg, headers=h)).status_code == 200
+    b = (await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/draw", headers=h)).json()["data"]
+    await _play_out(async_client, ch, admin, b)
+    made = (await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/rewards/make/prizes", headers=h)).json()["data"]
+    assert {r["kind"] for r in made["rewards"]} == {"prize_1", "prize_2"}

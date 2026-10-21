@@ -84,10 +84,12 @@ export default function ChallengeRewardsPage() {
             <p className="flex items-center gap-2 font-semibold text-text-primary"><Trophy className="h-4 w-4 text-warning" /> Prizes</p>
             <p className="text-caption text-text-secondary">
               1st/2nd/3rd: {data.config.prizeHours.map((h) => `${h} hr`).join(' / ')} for {rupees(data.config.prizePrice)} at the challenge café,
-              1 seat, any setup, {data.config.prizeDays} days. Plus the champion’s {data.config.winnerPercent}% off at{' '}
-              {data.partnerCafes.length} other partner {data.partnerCafes.length === 1 ? 'café' : 'cafés'} for {data.config.winnerDays} days.
+              1 seat, any setup, {data.config.prizeDays} days.
+              {data.config.winnerPartnersOn
+                ? ` Plus the champion’s ${data.config.winnerPercent}% off at ${data.partnerCafes.length} other partner ${data.partnerCafes.length === 1 ? 'café' : 'cafés'} for ${data.config.winnerDays} days.`
+                : ' The champion’s % off at other cafés is switched off (Reward settings).'}
             </p>
-            {data.partnerCafes.length > 0 && (
+            {data.config.winnerPartnersOn && data.partnerCafes.length > 0 && (
               <p className="text-xs text-text-secondary">Partner cafés: {data.partnerCafes.join(', ')}</p>
             )}
             <div className="mt-auto pt-2">
@@ -232,7 +234,7 @@ function Settings({ config, locked, busy, onSave }: { config: RewardsConfig; loc
       </span>
     </label>
   );
-  const tick = (k: 'prizeKheloFunded' | 'winnerKheloFunded' | 'waitlistKheloFunded', label: string) => (
+  const tick = (k: 'prizeKheloFunded' | 'winnerKheloFunded' | 'waitlistKheloFunded' | 'winnerPartnersOn', label: string) => (
     <label className="flex items-center gap-2 text-caption text-text-primary">
       <input type="checkbox" checked={c[k]} onChange={(e) => set(k, e.target.checked)} /> {label}
     </label>
@@ -254,6 +256,7 @@ function Settings({ config, locked, busy, onSave }: { config: RewardsConfig; loc
           {tick('prizeKheloFunded', 'KHEL-O pays the prize discount')}
         </div>
         <div className="flex flex-wrap gap-4">
+          {tick('winnerPartnersOn', 'Give the champion % off at other partner cafés')}
           {n('winnerPercent', 'Champion % off elsewhere', '%')}
           {n('winnerDays', 'Lasts', 'days')}
           {tick('winnerKheloFunded', 'KHEL-O pays it')}

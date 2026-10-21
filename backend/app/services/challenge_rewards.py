@@ -38,6 +38,8 @@ DEFAULTS: dict[str, Any] = {
     "winnerPercent": 10,
     "winnerDays": 30,
     "winnerKheloFunded": True,
+    # Off for a test run: the partner cafés' owners would see the offer.
+    "winnerPartnersOn": True,
     "waitlistPercent": 10,
     "waitlistDays": 7,
     "waitlistKheloFunded": True,
@@ -141,7 +143,7 @@ async def create_prizes(db: AsyncSession, ch: Challenge, places: dict[int, Any])
         ))
         made.append(kind)
 
-    if "winner_partners" not in have:
+    if "winner_partners" not in have and cfg["winnerPartnersOn"]:
         winner = await db.get(ChallengeEntry, places[1])
         cafes = await partner_cafes(db, ch.cafe_id)
         if cafes:

@@ -737,6 +737,7 @@ class RewardsConfigIn(_Camel):
     winner_percent: int = Field(10, ge=1, le=50)
     winner_days: int = Field(30, ge=1, le=120)
     winner_khelo_funded: bool = True
+    winner_partners_on: bool = True
     waitlist_percent: int = Field(10, ge=1, le=50)
     waitlist_days: int = Field(7, ge=0, le=60)
     waitlist_khelo_funded: bool = True
