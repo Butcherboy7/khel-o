@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Suspense } from 'react';
 import { DeleteAccountPanel } from '@/components/account/DeleteAccountPanel';
 
@@ -46,7 +47,7 @@ export default function DeleteAccountPage() {
       <ul>
         <li>
           <strong>Upcoming bookings:</strong> if you have a paid session that hasn&apos;t finished, cancel
-          it from <a href="/bookings">My Bookings</a> (our <a href="/refund-policy">refund policy</a> applies)
+          it from <Link href="/bookings">My Bookings</Link> (our <Link href="/refund-policy">refund policy</Link> applies)
           or wait until it&apos;s over.
         </li>
         <li>

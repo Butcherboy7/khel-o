@@ -109,8 +109,16 @@ const nextConfig = {
     // Thank-you pages for interns are plain HTML in public/thanks/ (built by marketing/certificates/).
     return [{ source: '/thanks/maleeha', destination: '/thanks/maleeha.html' }];
   },
+  // The frontend is its own app: without this, Next 15 looks up the folder tree
+  // for a lockfile and can pick the repo root, which moves server.js inside
+  // .next/standalone and breaks the Dockerfile's `node server.js`.
+  outputFileTracingRoot: __dirname,
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion', '@tanstack/react-query'],
+    // Next 14 reused a page fetched in the last 30 s when you tapped back to
+    // it; Next 15 refetches every time (dynamic: 0). Keep the old behaviour so
+    // moving between tabs stays instant.
+    staleTimes: { dynamic: 30 },
   },
 };
 

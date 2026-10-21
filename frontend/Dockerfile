@@ -1,4 +1,5 @@
-FROM node:18-alpine AS base
+# Node 22 LTS: Next 15 and sharp 0.35 need >= 20.9 (Node 18 is end-of-life).
+FROM node:22-alpine AS base
 
 WORKDIR /app
 
