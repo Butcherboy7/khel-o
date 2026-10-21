@@ -24,14 +24,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_optional_user, get_user_roles, require_admin
 from app.api.v1.owner_intros import normalise_phone
+from app.config import settings
 from app.core import bot_guard
-from app.core.exceptions import BadRequestException, ConflictException, NotFoundException
+from app.core.exceptions import BadRequestException, ConflictException, ForbiddenException, NotFoundException
 from app.core.logging import logger
 from app.database import get_db
 from app.models.analytics_event import AnalyticsEvent
 from app.models.cafe import Cafe
 from app.models.challenge import Challenge, ChallengeEntry
+from app.models.promotion import OfferCampaign
 from app.models.user import User
+from app.services import challenge_bracket as bracket
+from app.services import challenge_day as day
+from app.services import challenge_rewards as rewards
 from app.services import challenge_service as svc
 
 public_router = APIRouter(prefix="/challenges", tags=["Challenges"])
@@ -79,6 +84,9 @@ def _challenge_out(ch: Challenge, cafe: Cafe, counts: dict[str, int]) -> dict:
         "coverImageUrl": ch.cover_image_url,
         "communityUrl": ch.community_url,
         "instagramHandle": ch.instagram_handle,
+        "checkinClosedAt": _iso(ch.checkin_closed_at),
+        "drawnAt": _iso(ch.drawn_at),
+        "championPhotoUrl": ch.champion_photo_url,
         "cafe": {
             "id": str(cafe.id),
             "name": cafe.name,
@@ -130,9 +138,18 @@ async def _me_payload(db: AsyncSession, slug: str, user_id) -> dict:
     cafe = await db.get(Cafe, ch.cafe_id)
     mine = await svc.entry_for(db, ch.id, user_id=user_id)
     all_entries = await svc.entries(db, ch.id)
+    entry = _my_entry_out(mine, all_entries) if mine else None
+    if mine is not None:
+        entry["present"] = mine.present
+        if mine.status in svc.ACTIVE and ch.status not in ("finished",):
+            url = f"{settings.FRONTEND_URL.rstrip('/')}/challenge/{ch.slug}/checkin/{day.checkin_token(mine.id)}"
+            entry["checkinQr"] = day.qr_data_url(url)
+        placing = {v: k for k, v in day.standings(await day.matches(db, ch.id)).items()}.get(mine.id)
+        entry["place"] = placing
     return {
         "challenge": _challenge_out(ch, cafe, await svc.counts(db, ch.id)),
-        "entry": _my_entry_out(mine, all_entries) if mine else None,
+        "entry": entry,
+        "rewards": await rewards.mine(db, ch, user_id),
     }
 
 
@@ -468,7 +485,7 @@ async def admin_csv(challenge_id: UUID, db: AsyncSession = Depends(get_db), _adm
     )
 
 
-EntryAction = Literal["withdraw", "no_show", "restore", "promote", "told", "test", "untest"]
+EntryAction = Literal["withdraw", "no_show", "restore", "promote", "told", "test", "untest", "checkin", "uncheckin"]
 
 
 @admin_router.post("/{challenge_id}/entries/{entry_id}/{action}")
@@ -498,6 +515,8 @@ async def admin_entry_action(
             await svc.promote(db, challenge_id, entry_id)
         except svc.NoFreeSpot:
             raise BadRequestException(message="Every spot is taken. Take someone out first.", error_code="NO_FREE_SPOT")
+    elif action in ("checkin", "uncheckin"):
+        await day.set_present(db, entry, action == "checkin")
     elif action == "told":
         entry.told_at = svc.now()
         await db.commit()
@@ -517,3 +536,313 @@ async def admin_release_silent(challenge_id: UUID, db: AsyncSession = Depends(ge
     data["released"] = released
     data["movedUp"] = moved
     return {"success": True, "data": data}
+
+
+# ── The day: check-in, draw, bracket, results (wave 2) ────────────────────
+
+
+def _day_error(e: day.DayError):
+    return BadRequestException(message=e.message, error_code=e.code)
+
+
+async def _can_run_door(db: AsyncSession, user: User, ch: Challenge) -> bool:
+    """Admins, and the owner of the challenge's café, can check people in."""
+    if await _is_admin(db, user):
+        return True
+    cafe = await db.get(Cafe, ch.cafe_id)
+    return cafe is not None and str(cafe.owner_id) == str(user.id)
+
+
+def _bracket_out(ch: Challenge, rows, by_id: dict) -> dict:
+    """The bracket as public pages show it: display names only."""
+    rounds = day.rounds_of(rows)
+
+    def side(entry_id):
+        e = by_id.get(entry_id)
+        return {"entryId": str(e.id), "name": svc.public_name(e), "mainCharacter": e.main_character} if e else None
+
+    def match(m):
+        return {
+            "id": str(m.id),
+            "round": m.round,
+            "position": m.position,
+            "isThirdPlace": m.is_third_place,
+            "name": bracket.round_name(m.round, rounds, m.is_third_place),
+            "bestOf": ch.final_best_of if (m.round == rounds - 1 and not m.is_third_place) else ch.best_of,
+            "a": side(m.entry_a_id),
+            "b": side(m.entry_b_id),
+            "winner": None if m.winner_entry_id is None else ("a" if m.winner_entry_id == m.entry_a_id else "b"),
+            "scoreA": m.score_a,
+            "scoreB": m.score_b,
+            "bye": m.bye,
+        }
+
+    main = [m for m in rows if not m.is_third_place]
+    third = next((m for m in rows if m.is_third_place), None)
+    nxt = day.up_next(rows)
+    places = day.standings(rows)
+    return {
+        "drawn": bool(rows),
+        "rounds": [
+            {"round": r, "name": bracket.round_name(r, rounds), "matches": [match(m) for m in main if m.round == r]}
+            for r in range(rounds)
+        ],
+        "thirdPlace": match(third) if third else None,
+        "upNext": match(nxt) if nxt else None,
+        "standings": [{"place": p, **side(eid)} for p, eid in sorted(places.items()) if by_id.get(eid)],
+    }
+
+
+async def _bracket_payload(db: AsyncSession, ch: Challenge, cafe: Cafe) -> dict:
+    rows = await day.matches(db, ch.id)
+    by_id = {e.id: e for e in await svc.entries(db, ch.id)}
+    return {"challenge": _challenge_out(ch, cafe, await svc.counts(db, ch.id)), **_bracket_out(ch, rows, by_id)}
+
+
+@public_router.get("/{slug}/bracket")
+async def public_bracket(slug: str, db: AsyncSession = Depends(get_db), user: Optional[User] = Depends(get_optional_user)):
+    ch, cafe = await _load(db, slug, user)
+    return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
+
+
+@public_router.get("/{slug}/players/{entry_id}")
+async def public_player(slug: str, entry_id: UUID, db: AsyncSession = Depends(get_db), user: Optional[User] = Depends(get_optional_user)):
+    """For a player's share card: their display name and spot, nothing else."""
+    ch, _ = await _load(db, slug, user)
+    e = await svc.entry_for(db, ch.id, entry_id=entry_id)
+    if e is None or e.status not in svc.ACTIVE:
+        raise NotFoundException(message="No such player", error_code="ENTRY_NOT_FOUND")
+    return {"success": True, "data": {
+        "name": svc.public_name(e), "status": e.status, "rank": svc.rank(e, await svc.entries(db, ch.id)),
+        "mainCharacter": e.main_character,
+    }}
+
+
+def _door_out(e: ChallengeEntry, rows: list[ChallengeEntry], already: bool) -> dict:
+    return {
+        "entryId": str(e.id),
+        "name": e.name,
+        "publicName": svc.public_name(e),
+        "status": e.status,
+        "rank": svc.rank(e, rows),
+        "present": e.present,
+        "alreadyIn": already,
+    }
+
+
+class DoorRequest(_Camel):
+    present: bool = True
+
+
+@public_router.post("/{slug}/checkin/{token}")
+async def door_checkin(
+    slug: str, token: str, payload: DoorRequest,
+    db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+):
+    """The scan at the door. Signed in as an admin or the café's owner."""
+    ch, _ = await _load(db, slug, user)
+    if not await _can_run_door(db, user, ch):
+        raise ForbiddenException(message="Only KHEL-O staff or the café can check players in", error_code="NOT_DOOR_STAFF")
+    entry_id = day.entry_id_from_token(token)
+    e = await svc.entry_for(db, ch.id, entry_id=entry_id) if entry_id else None
+    if e is None:
+        raise NotFoundException(message="This QR isn't for this challenge", error_code="BAD_CHECKIN_CODE")
+    already = e.present
+    if e.present != payload.present:
+        await day.set_present(db, e, payload.present)
+    logger.info("challenge_checkin", challenge=slug, present=payload.present)
+    e = await svc.entry_for(db, ch.id, entry_id=entry_id)
+    return {"success": True, "data": _door_out(e, await svc.entries(db, ch.id), already)}
+
+
+@admin_router.post("/{challenge_id}/close-checkin")
+async def admin_close_checkin(challenge_id: UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    await _admin_get(db, challenge_id)
+    no_shows, moved = await day.close_checkin(db, challenge_id)
+    logger.info("challenge_close_checkin", challenge=str(challenge_id), no_shows=no_shows, moved=moved)
+    data = (await admin_detail(challenge_id, db, admin))["data"]
+    data["noShows"] = no_shows
+    data["movedUp"] = moved
+    return {"success": True, "data": data}
+
+
+@admin_router.post("/{challenge_id}/draw")
+async def admin_draw(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    await _admin_get(db, challenge_id)
+    try:
+        n = await day.draw(db, challenge_id)
+    except day.DayError as e:
+        raise _day_error(e)
+    logger.info("challenge_draw", challenge=str(challenge_id), players=n)
+    ch, cafe = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
+
+
+@admin_router.get("/{challenge_id}/bracket")
+async def admin_bracket(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    ch, cafe = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
+
+
+class ResultIn(_Camel):
+    winner: Literal["a", "b"]
+    score_a: Optional[int] = Field(None, ge=0, le=9)
+    score_b: Optional[int] = Field(None, ge=0, le=9)
+
+
+@admin_router.post("/{challenge_id}/matches/{match_id}/result")
+async def admin_result(
+    challenge_id: UUID, match_id: UUID, payload: ResultIn,
+    db: AsyncSession = Depends(get_db), _admin=Depends(require_admin),
+):
+    await _admin_get(db, challenge_id)
+    try:
+        await day.record_result(db, challenge_id, match_id, payload.winner, payload.score_a, payload.score_b)
+    except day.DayError as e:
+        raise _day_error(e)
+    ch, cafe = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
+
+
+@admin_router.post("/{challenge_id}/matches/{match_id}/clear")
+async def admin_clear_result(challenge_id: UUID, match_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    await _admin_get(db, challenge_id)
+    try:
+        await day.clear_result(db, challenge_id, match_id)
+    except day.DayError as e:
+        raise _day_error(e)
+    ch, cafe = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
+
+
+@admin_router.post("/{challenge_id}/finish")
+async def admin_finish(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    ch, cafe = await _admin_get(db, challenge_id)
+    if 1 not in day.standings(await day.matches(db, ch.id)):
+        raise BadRequestException(message="Enter the final's result first", error_code="NO_WINNER")
+    ch.status = "finished"
+    await db.commit()
+    ch, cafe = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
+
+
+# ── Rewards (wave 2) ──────────────────────────────────────────────────────
+
+
+class RewardsConfigIn(_Camel):
+    prize_hours: list[float] = Field(..., min_length=1, max_length=3)
+    prize_price: int = Field(1, ge=1, le=500)
+    prize_days: int = Field(30, ge=1, le=120)
+    prize_khelo_funded: bool = False
+    winner_percent: int = Field(10, ge=1, le=50)
+    winner_days: int = Field(30, ge=1, le=120)
+    winner_khelo_funded: bool = True
+    waitlist_percent: int = Field(10, ge=1, le=50)
+    waitlist_days: int = Field(7, ge=0, le=60)
+    waitlist_khelo_funded: bool = True
+
+    @field_validator("prize_hours")
+    @classmethod
+    def _hours(cls, v: list[float]) -> list[float]:
+        for h in v:
+            if h <= 0 or h > 12 or (h * 2) != int(h * 2):
+                raise ValueError("Prize hours go in half hours, up to 12")
+        return v
+
+
+async def _rewards_payload(db: AsyncSession, ch: Challenge) -> dict:
+    rows = await svc.entries(db, ch.id)
+    by_user = {str(e.user_id): e for e in rows}
+    return {
+        "config": rewards.config(ch),
+        "standingsReady": 1 in day.standings(await day.matches(db, ch.id)),
+        "waitlistPeople": len(rewards.waitlist_user_ids(rows)),
+        "partnerCafes": [c.name for c in await rewards.partner_cafes(db, ch.cafe_id)],
+        "rewards": await rewards.tracker(db, ch, by_user),
+    }
+
+
+@admin_router.get("/{challenge_id}/rewards")
+async def admin_rewards(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    ch, _ = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _rewards_payload(db, ch)}
+
+
+@admin_router.patch("/{challenge_id}/rewards-config")
+async def admin_rewards_config(
+    challenge_id: UUID, payload: RewardsConfigIn, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin),
+):
+    ch, _ = await _admin_get(db, challenge_id)
+    ch.rewards_config = payload.model_dump(by_alias=True)
+    await db.commit()
+    ch, _ = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _rewards_payload(db, ch)}
+
+
+@admin_router.post("/{challenge_id}/rewards/make/{kind}")
+async def admin_make_rewards(
+    challenge_id: UUID, kind: Literal["prizes", "waitlist"],
+    db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin),
+):
+    admin_id = admin.id
+    ch, _ = await _admin_get(db, challenge_id)
+    try:
+        if kind == "prizes":
+            made = await rewards.create_prizes(db, ch, day.standings(await day.matches(db, ch.id)))
+        else:
+            made = await rewards.create_or_refresh_waitlist(db, ch)
+    except rewards.RewardError as e:
+        raise BadRequestException(message=e.message, error_code=e.code)
+    logger.info("challenge_rewards", challenge=str(challenge_id), kind=kind, made=str(made), admin=str(admin_id))
+    ch, _ = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _rewards_payload(db, ch)}
+
+
+@admin_router.post("/{challenge_id}/rewards/{campaign_id}/active/{on}")
+async def admin_reward_active(
+    challenge_id: UUID, campaign_id: UUID, on: Literal["on", "off"],
+    db: AsyncSession = Depends(get_db), _admin=Depends(require_admin),
+):
+    ch, _ = await _admin_get(db, challenge_id)
+    camp = await db.get(OfferCampaign, campaign_id)
+    if camp is None or camp.challenge_id != ch.id:
+        raise NotFoundException(message="No such reward", error_code="REWARD_NOT_FOUND")
+    camp.is_active = on == "on"
+    await db.commit()
+    ch, _ = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _rewards_payload(db, ch)}
+
+
+# ── Champion photo (wave 3) ───────────────────────────────────────────────
+
+
+class PhotoPresignIn(_Camel):
+    content_type: str = Field(..., min_length=1)
+
+
+class PhotoIn(_Camel):
+    url: Optional[str] = Field(None, max_length=1000)
+
+
+@admin_router.post("/{challenge_id}/champion-photo/presign")
+async def admin_champion_presign(
+    challenge_id: UUID, payload: PhotoPresignIn, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin),
+):
+    from app.services.storage_service import create_presigned_upload
+
+    ch, _ = await _admin_get(db, challenge_id)
+    return {"success": True, "data": create_presigned_upload(ch.cafe_id, payload.content_type)}
+
+
+@admin_router.put("/{challenge_id}/champion-photo")
+async def admin_champion_photo(
+    challenge_id: UUID, payload: PhotoIn, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin),
+):
+    ch, _ = await _admin_get(db, challenge_id)
+    url = (payload.url or "").strip() or None
+    if url is not None and not url.startswith("https://"):
+        raise BadRequestException(message="Use an https:// image link", error_code="BAD_PHOTO_URL")
+    ch.champion_photo_url = url
+    await db.commit()
+    ch, cafe = await _admin_get(db, challenge_id)
+    return {"success": True, "data": _challenge_out(ch, cafe, await svc.counts(db, ch.id))}

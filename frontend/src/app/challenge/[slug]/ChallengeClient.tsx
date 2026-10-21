@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, getMyChallenge, type Challenge, type MyEntry } from '@/lib/api/challenges';
@@ -171,6 +171,16 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
             {ch.finalBestOf !== ch.bestOf ? `, final best of ${ch.finalBestOf}` : ''}.
           </Step>
         </ol>
+        {(ch.drawnAt || ch.status === 'finished') && (
+          <Link
+            href={`/challenge/${ch.slug}/bracket`}
+            className="mt-4 flex items-center gap-3 rounded-2xl border border-[#5A2A26] bg-[#1A1114] px-4 py-3 transition-colors hover:border-[#E8675D]"
+          >
+            <Trophy className="h-4 w-4 text-[#F2C27A]" />
+            <span className="flex-1 font-semibold">{ch.status === 'finished' ? 'See the results' : 'Follow the live bracket'}</span>
+            <ChevronRight className="h-4 w-4 text-[#A3A6B1]" />
+          </Link>
+        )}
         <Link
           href={`/challenge/${ch.slug}/rules`}
           className="mt-4 flex items-center gap-3 rounded-2xl border border-[#262932] bg-[#16181E] px-4 py-3 transition-colors hover:border-[#3A3E4A]"

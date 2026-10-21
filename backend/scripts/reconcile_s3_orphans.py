@@ -38,6 +38,7 @@ from sqlalchemy import select
 
 from app.database import AsyncSessionLocal
 from app.models.cafe import Cafe
+from app.models.challenge import Challenge
 from app.config import settings
 from app.services.storage_service import (
     key_from_url,
@@ -66,6 +67,11 @@ async def referenced_keys() -> set[str]:
                     key = key_from_url(url)
                     if key:
                         keys.add(key)
+        # Challenge champion photos live under their café's folder too.
+        for url in (await db.execute(select(Challenge.champion_photo_url))).scalars().all():
+            key = key_from_url(url) if url else None
+            if key:
+                keys.add(key)
     return keys
 
 

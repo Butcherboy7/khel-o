@@ -315,9 +315,13 @@ class PromotionService:
     def _aware(dt: datetime) -> datetime:
         return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
-    async def resolve_campaign(self, code: Optional[str], cafe_id: UUID) -> Optional[OfferCampaign]:
+    async def resolve_campaign(
+        self, code: Optional[str], cafe_id: UUID, user_id: Optional[UUID] = None, seats: int = 1,
+    ) -> Optional[OfferCampaign]:
         """The campaign this access code opens at this café right now, or None
-        (unknown code, other café, switched off, or outside its dates)."""
+        (unknown code, other café, switched off, or outside its dates).
+        A reward locked to named people (challenge prizes) also opens only for
+        those accounts, up to its seats and its uses per person."""
         if not code:
             return None
         campaign = await self.promo_repo.get_campaign_by_code(code)
@@ -328,6 +332,14 @@ class PromotionService:
         now = datetime.now(timezone.utc)
         if not (self._aware(campaign.starts_at) <= now <= self._aware(campaign.ends_at)):
             return None
+        if campaign.allowed_user_ids is not None:
+            if user_id is None or str(user_id) not in {str(u) for u in campaign.allowed_user_ids}:
+                return None
+        if campaign.max_seats is not None and seats > campaign.max_seats:
+            return None
+        if campaign.max_uses_per_user is not None and user_id is not None:
+            if await self.promo_repo.campaign_uses_by_user(campaign.id, user_id) >= campaign.max_uses_per_user:
+                return None
         return campaign
 
     async def campaign_status(self, campaign: OfferCampaign) -> dict:
@@ -437,6 +449,8 @@ class PromotionService:
         if (
             not campaign or not campaign.is_active
             or not (self._aware(campaign.starts_at) <= now <= self._aware(campaign.ends_at))
+            # A personal reward (challenge prize) never earns the Day One badge.
+            or campaign.allowed_user_ids is not None
         ):
             raise NotFoundException(message="That code isn't valid.", error_code="CAMPAIGN_NOT_FOUND")
         badge, created = await self.promo_repo.grant_badge(user_id, self.BADGE_KEY, campaign.id)
@@ -859,6 +873,15 @@ class PromotionService:
         normalized = code.strip().upper()
         promo = await self.promo_repo.get_by_code(normalized)
         if not promo:
+            # A personal reward that didn't open (resolve_campaign said no):
+            # say why instead of calling the code invalid.
+            campaign = await self.promo_repo.get_campaign_by_code(normalized)
+            if campaign is not None and campaign.allowed_user_ids is not None:
+                seats = ", for 1 seat" if campaign.max_seats == 1 else ""
+                raise ValidationException(
+                    message=f"This reward only works on the account that earned it{seats}, until it's used or ends.",
+                    error_code="REWARD_LOCKED",
+                )
             raise ValidationException(message="Invalid KHELO code", error_code="CODE_NOT_FOUND")
         if str(promo.cafe_id) != str(cafe_id):
             raise ValidationException(message="This code isn't valid for this café", error_code="CODE_CAFE_MISMATCH")

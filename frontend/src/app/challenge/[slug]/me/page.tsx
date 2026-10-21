@@ -3,11 +3,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { CalendarDays, Clock, MapPin, MessageCircle, QrCode, ChevronLeft, PartyPopper, Hourglass } from 'lucide-react';
+import {
+  CalendarDays, Clock, MapPin, MessageCircle, QrCode, ChevronLeft, PartyPopper, Hourglass, CheckCircle2, Trophy, Gift,
+} from 'lucide-react';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { BottomSheet, Button } from '@/components/ui';
 import { trackAction } from '@/lib/api/analyticsEvents';
-import { answerComing, getMyChallenge, withdrawFromChallenge, type Coming, type MyChallenge } from '@/lib/api/challenges';
+import {
+  answerComing, getMyChallenge, withdrawFromChallenge, type Coming, type MyChallenge, type MyReward,
+} from '@/lib/api/challenges';
+import { ShareCardButton } from '@/components/challenge/ShareCardButton';
 import { challengeDay, challengeTime, challengeTimeRange, handle } from '@/lib/challenge';
 
 export default function MyChallengePage() {
@@ -66,6 +71,7 @@ function MyChallenge() {
   }
 
   const { challenge: ch, entry } = data;
+  const rewards = data.rewards ?? [];
   const before = ch.status === 'open' || ch.status === 'closed';
 
   if (!entry || entry.status === 'withdrawn' || entry.status === 'no_show') {
@@ -83,6 +89,7 @@ function MyChallenge() {
             {entry ? 'Sign up again' : 'Sign up free'}
           </Link>
         )}
+        {rewards.length > 0 && <Rewards rewards={rewards} slug={slug} />}
       </Page>
     );
   }
@@ -92,6 +99,24 @@ function MyChallenge() {
 
   return (
     <Page slug={slug}>
+      {entry.place && (
+        <section className="mb-4 rounded-3xl border border-[#6B5A2A] bg-gradient-to-br from-[#2A2210] to-[#16181E] p-5 text-center">
+          <Trophy className="mx-auto h-8 w-8 text-[#F2C27A]" />
+          <p className="mt-2 font-heading text-[36px] font-bold leading-none">{PLACE[entry.place] ?? `#${entry.place}`}</p>
+          <p className="mt-2 text-sm text-[#DADCE3]">{entry.place === 1 ? 'You won the challenge. Champion!' : 'You made the podium. Well played!'}</p>
+          <div className="mt-4">
+            <ShareCardButton
+              src={`/challenge/${ch.slug}/card/results`}
+              fileName={`khelo-${ch.slug}-results.png`}
+              text={`${PLACE[entry.place] ?? ''} at ${ch.title}!`}
+              label="Share the podium"
+              challenge={ch.slug}
+              kind="results"
+            />
+          </div>
+        </section>
+      )}
+
       {/* Their status, big */}
       <section
         className={`rounded-3xl border p-5 ${confirmed ? 'border-[#3B6B4A] bg-[#13221A]' : 'border-[#5A4A2A] bg-[#221D13]'}`}
@@ -186,11 +211,53 @@ function MyChallenge() {
         </a>
       )}
 
-      {/* Check-in QR: wave 2 */}
-      <section className="mt-4 flex items-center gap-3 rounded-2xl border border-dashed border-[#3A3E4A] px-4 py-4 text-sm text-[#A3A6B1]">
-        <QrCode className="h-8 w-8 flex-shrink-0" />
-        <p>Your check-in QR will appear here before the day. Show it at the café.</p>
-      </section>
+      {/* Check-in QR: shown at the door, scanned by the KHELO team or the café */}
+      {entry.present ? (
+        <section className="mt-4 flex items-center gap-3 rounded-2xl border border-[#3B6B4A] bg-[#13221A] px-4 py-4">
+          <CheckCircle2 className="h-8 w-8 flex-shrink-0 text-[#7FE0A0]" />
+          <p className="font-semibold">You’re checked in. Good luck!</p>
+        </section>
+      ) : entry.checkinQr ? (
+        <section className="mt-4 rounded-2xl border border-[#262932] bg-[#16181E] p-4 text-center">
+          <h2 className="flex items-center justify-center gap-2 font-heading text-lg font-bold">
+            <QrCode className="h-5 w-5 text-[#E8675D]" /> Your check-in QR
+          </h2>
+          <p className="mt-1 text-sm text-[#A3A6B1]">
+            Show it at the café, {challengeTime(ch.checkinOpensAt)} to {challengeTime(ch.checkinClosesAt)}. Turn your screen brightness up.
+          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from our server */}
+          <img
+            src={entry.checkinQr}
+            alt="Your check-in QR code"
+            width={240}
+            height={240}
+            className="mx-auto mt-4 h-60 w-60 rounded-2xl bg-white p-2 [image-rendering:pixelated]"
+          />
+          <p className="mt-3 font-heading text-lg font-bold">{entry.publicName}</p>
+        </section>
+      ) : null}
+
+      {(ch.drawnAt || ch.status === 'finished') && (
+        <Link
+          href={`/challenge/${ch.slug}/bracket`}
+          className="mt-4 flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#22252D] font-semibold text-[#F4F1EC] hover:bg-[#2A2D36]"
+        >
+          <Trophy className="h-4 w-4 text-[#F2C27A]" /> {ch.status === 'finished' ? 'See the results' : 'See the live bracket'}
+        </Link>
+      )}
+
+      {rewards.length > 0 && <Rewards rewards={rewards} slug={slug} />}
+
+      <div className="mt-4">
+        <ShareCardButton
+          src={`/challenge/${ch.slug}/card/${entry.id}`}
+          fileName={`khelo-${ch.slug}.png`}
+          text={`I’m in ${ch.title} at ${ch.cafe.name}. Free sign-up: ${typeof window !== 'undefined' ? window.location.origin : 'https://khel-o.com'}/challenge/${ch.slug}`}
+          label="Share that I’m in"
+          challenge={ch.slug}
+          kind="in"
+        />
+      </div>
 
       {ig && (
         <p className="mt-6 text-center text-sm text-[#A3A6B1]">
@@ -230,6 +297,64 @@ function MyChallenge() {
         </div>
       </BottomSheet>
     </Page>
+  );
+}
+
+const PLACE: Record<number, string> = { 1: '1st place', 2: '2nd place', 3: '3rd place' };
+
+const fmtDate = (iso: string) =>
+  new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' }).format(new Date(iso));
+
+/** What they earned, each with a link that opens the café with it already applied. */
+function Rewards({ rewards, slug }: { rewards: MyReward[]; slug: string }) {
+  return (
+    <section className="mt-6">
+      <h2 className="flex items-center gap-2 font-heading text-lg font-bold">
+        <Gift className="h-5 w-5 text-[#E8675D]" /> Your rewards
+      </h2>
+      <p className="mt-1 text-sm text-[#A3A6B1]">Only for your account. Book through KHEL-O and it’s applied for you.</p>
+      <div className="mt-3 flex flex-col gap-3">
+        {rewards.map((r) => {
+          const off = r.usedUp || r.ended;
+          return (
+            <div key={r.kind} className={`rounded-2xl border border-[#262932] bg-[#16181E] p-4 ${off ? 'opacity-60' : ''}`}>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#F2C27A]">{r.label}</p>
+              <p className="mt-1 font-heading text-lg font-bold">{r.title}</p>
+              <p className="mt-0.5 text-sm text-[#A3A6B1]">
+                {r.detail ? `${r.detail}. ` : ''}
+                {r.notStarted ? `From ${fmtDate(r.startsAt)} to ${fmtDate(r.endsAt)}.` : `Until ${fmtDate(r.endsAt)}.`}
+              </p>
+              {r.usedUp ? (
+                <p className="mt-3 text-sm font-semibold text-[#7FE0A0]">Used. Enjoy!</p>
+              ) : r.ended ? (
+                <p className="mt-3 text-sm font-semibold">Ended</p>
+              ) : r.cafes.length === 1 ? (
+                <Link
+                  href={r.cafes[0].href}
+                  onClick={() => trackAction('challenge_reward_open', { challenge: slug, kind: r.kind })}
+                  className="mt-3 flex h-11 items-center justify-center rounded-xl bg-[#D0463C] font-semibold text-white"
+                >
+                  Book at {r.cafes[0].name}
+                </Link>
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {r.cafes.map((c) => (
+                    <Link
+                      key={c.href}
+                      href={c.href}
+                      onClick={() => trackAction('challenge_reward_open', { challenge: slug, kind: r.kind })}
+                      className="rounded-full bg-[#22252D] px-3 py-1.5 text-sm font-semibold hover:bg-[#2A2D36]"
+                    >
+                      {c.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

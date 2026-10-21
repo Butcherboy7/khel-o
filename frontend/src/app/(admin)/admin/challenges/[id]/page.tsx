@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Download, ExternalLink, MessageCircle, Pencil, Projector, Search, UserMinus, UserX, ArrowUp, RotateCcw, FlaskConical, Check, BellRing,
+  Swords, Gift,
 } from 'lucide-react';
 import {
   adminDownloadEntriesCsv, adminEntryAction, adminGetChallenge, adminReleaseSilent,
@@ -160,6 +161,12 @@ export default function AdminChallengeDetailPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href={`/admin/challenges/${c.id}/day`} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3 text-caption font-semibold text-white hover:bg-primary/90">
+            <Swords className="h-4 w-4" /> Challenge day
+          </Link>
+          <Link href={`/admin/challenges/${c.id}/rewards`} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-caption font-semibold text-text-primary hover:bg-surface">
+            <Gift className="h-4 w-4" /> Rewards
+          </Link>
           <a href={`/challenge/${c.slug}`} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-caption font-semibold text-text-primary hover:bg-surface">
             <ExternalLink className="h-4 w-4" /> Public page
           </a>
@@ -288,7 +295,7 @@ export default function AdminChallengeDetailPage() {
                     {e.promotedAt && <Chip tone={e.toldAt ? 'muted' : 'warn'}>{e.toldAt ? 'Moved up · told' : 'Moved up · tell them'}</Chip>}
                     <Chip tone={e.consentFilming ? 'muted' : 'warn'}>{e.consentFilming ? 'OK to film' : 'No filming'}</Chip>
                     {e.consentUpdates && <Chip tone="muted">Wants updates</Chip>}
-                    {e.withdrawnBy && <Chip tone="muted">Out: {e.withdrawnBy === 'player' ? 'their choice' : e.withdrawnBy === 'silent' ? 'no answer' : 'admin'}</Chip>}
+                    {e.withdrawnBy && <Chip tone="muted">Out: {e.withdrawnBy === 'player' ? 'their choice' : e.withdrawnBy === 'silent' ? 'no answer' : e.withdrawnBy === 'checkin' ? 'not at check-in' : 'admin'}</Chip>}
                   </p>
                 </div>
               </div>

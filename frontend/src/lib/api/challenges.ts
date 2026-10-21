@@ -1,4 +1,5 @@
 import { apiClient, call } from './client';
+import { putToPresignedUrl } from './settings';
 
 /** Free in-person challenges at partner cafés. See backend app/api/v1/challenges.py.
  *  Public wording: "challenge", "free sign-up", "spots", "waitlist". */
@@ -28,6 +29,9 @@ export interface Challenge {
   coverImageUrl: string | null;
   communityUrl: string | null;
   instagramHandle: string | null;
+  checkinClosedAt: string | null;
+  drawnAt: string | null;
+  championPhotoUrl: string | null;
   cafe: { id: string; name: string; slug: string | null; address: string; city: string; mapsUrl: string | null };
   /** Real counts, never padded. */
   confirmed: number;
@@ -50,13 +54,99 @@ export interface MyEntry {
   consentFilming: boolean;
   consentUpdates: boolean;
   joinedAt: string;
+  /** Only on the player's own page. */
+  present?: boolean;
+  /** PNG data URL of their check-in QR (only while they're in). */
+  checkinQr?: string;
+  /** 1, 2 or 3 once decided. */
+  place?: number | null;
+}
+
+/** A reward this player earned. `cafes[].href` opens the café with it applied. */
+export interface MyReward {
+  kind: string;
+  label: string;
+  title: string;
+  detail: string;
+  startsAt: string;
+  endsAt: string;
+  notStarted: boolean;
+  ended: boolean;
+  usedUp: boolean;
+  used: number;
+  cafes: { name: string; href: string }[];
 }
 
 export interface MyChallenge {
   challenge: Challenge;
   entry: MyEntry | null;
+  rewards?: MyReward[];
   /** Only on sign-up: false when they were already in. */
   created?: boolean;
+}
+
+// ── The day: bracket, check-in ────────────────────────────────────────────
+
+export interface BracketSide {
+  entryId: string;
+  name: string;
+  mainCharacter: string | null;
+}
+
+export interface BracketMatch {
+  id: string;
+  round: number;
+  position: number;
+  isThirdPlace: boolean;
+  /** "Semi-final", "Final", "3rd place". */
+  name: string;
+  bestOf: number;
+  a: BracketSide | null;
+  b: BracketSide | null;
+  winner: 'a' | 'b' | null;
+  scoreA: number | null;
+  scoreB: number | null;
+  bye: boolean;
+}
+
+export interface Bracket {
+  challenge: Challenge;
+  drawn: boolean;
+  rounds: { round: number; name: string; matches: BracketMatch[] }[];
+  thirdPlace: BracketMatch | null;
+  upNext: BracketMatch | null;
+  standings: (BracketSide & { place: number })[];
+}
+
+export async function getBracket(slug: string): Promise<Bracket> {
+  return call(() => apiClient.get(`/api/v1/challenges/${encodeURIComponent(slug)}/bracket`));
+}
+
+export interface PublicPlayer {
+  name: string;
+  status: EntryStatus;
+  rank: number | null;
+  mainCharacter: string | null;
+}
+
+export async function getPublicPlayer(slug: string, entryId: string): Promise<PublicPlayer> {
+  return call(() => apiClient.get(`/api/v1/challenges/${encodeURIComponent(slug)}/players/${encodeURIComponent(entryId)}`));
+}
+
+export interface DoorResult {
+  entryId: string;
+  name: string;
+  publicName: string;
+  status: EntryStatus;
+  rank: number | null;
+  present: boolean;
+  alreadyIn: boolean;
+}
+
+export async function doorCheckin(slug: string, token: string, present = true): Promise<DoorResult> {
+  return call(() =>
+    apiClient.post(`/api/v1/challenges/${encodeURIComponent(slug)}/checkin/${encodeURIComponent(token)}`, { present }),
+  );
 }
 
 export interface JoinBody {
@@ -105,7 +195,7 @@ export interface AdminEntry extends MyEntry {
   toldAt: string | null;
   comingAt: string | null;
   withdrawnAt: string | null;
-  withdrawnBy: 'player' | 'admin' | 'silent' | null;
+  withdrawnBy: 'player' | 'admin' | 'silent' | 'checkin' | null;
   present: boolean;
   checkedInAt: string | null;
   utmSource: string | null;
@@ -138,6 +228,7 @@ export interface AdminChallengeDetail {
   stats: ChallengeStats;
   released?: number;
   movedUp?: number;
+  noShows?: number;
 }
 
 export interface ChallengeInput {
@@ -163,7 +254,8 @@ export interface ChallengeInput {
   instagramHandle: string | null;
 }
 
-export type EntryAction = 'withdraw' | 'no_show' | 'restore' | 'promote' | 'told' | 'test' | 'untest';
+export type EntryAction =
+  | 'withdraw' | 'no_show' | 'restore' | 'promote' | 'told' | 'test' | 'untest' | 'checkin' | 'uncheckin';
 
 export async function adminListChallenges(): Promise<Challenge[]> {
   return call(() => apiClient.get('/api/v1/admin/challenges'));
@@ -204,4 +296,121 @@ export async function adminDownloadEntriesCsv(id: string, slug: string): Promise
   a.click();
   a.remove();
   URL.revokeObjectURL(href);
+}
+
+export async function adminCloseCheckin(id: string): Promise<AdminChallengeDetail> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/close-checkin`));
+}
+
+export async function adminDraw(id: string): Promise<Bracket> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/draw`));
+}
+
+export async function adminGetBracket(id: string): Promise<Bracket> {
+  return call(() => apiClient.get(`/api/v1/admin/challenges/${id}/bracket`));
+}
+
+export async function adminRecordResult(
+  id: string,
+  matchId: string,
+  body: { winner: 'a' | 'b'; scoreA?: number | null; scoreB?: number | null },
+): Promise<Bracket> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/matches/${matchId}/result`, body));
+}
+
+export async function adminClearResult(id: string, matchId: string): Promise<Bracket> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/matches/${matchId}/clear`));
+}
+
+export async function adminFinish(id: string): Promise<Bracket> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/finish`));
+}
+
+// ── Rewards ────────────────────────────────────────────────────────────────
+
+export interface RewardsConfig {
+  prizeHours: number[];
+  prizePrice: number;
+  prizeDays: number;
+  prizeKheloFunded: boolean;
+  winnerPercent: number;
+  winnerDays: number;
+  winnerKheloFunded: boolean;
+  waitlistPercent: number;
+  waitlistDays: number;
+  waitlistKheloFunded: boolean;
+}
+
+export interface RewardUse {
+  bookingReference: string;
+  cafe: string;
+  player: string;
+  sessionDate: string;
+  startTime: string;
+  hours: number;
+  status: string;
+  discount: number;
+  paid: number;
+  createdAt: string;
+}
+
+export interface RewardRow {
+  id: string;
+  kind: string;
+  label: string;
+  name: string;
+  code: string;
+  isActive: boolean;
+  startsAt: string;
+  endsAt: string;
+  kheloFunded: boolean;
+  forPeople: string[];
+  peopleCount: number;
+  paidUses: number;
+  unpaidOrCancelled: number;
+  discountTotal: number;
+  paidTotal: number;
+  addBack: { cafe: string; amount: number }[];
+  uses: RewardUse[];
+}
+
+export interface RewardsData {
+  config: RewardsConfig;
+  standingsReady: boolean;
+  waitlistPeople: number;
+  partnerCafes: string[];
+  rewards: RewardRow[];
+}
+
+export async function adminGetRewards(id: string): Promise<RewardsData> {
+  return call(() => apiClient.get(`/api/v1/admin/challenges/${id}/rewards`));
+}
+
+export async function adminSaveRewardsConfig(id: string, body: RewardsConfig): Promise<RewardsData> {
+  return call(() => apiClient.patch(`/api/v1/admin/challenges/${id}/rewards-config`, body));
+}
+
+export async function adminMakeRewards(id: string, kind: 'prizes' | 'waitlist'): Promise<RewardsData> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/rewards/make/${kind}`));
+}
+
+export async function adminRewardActive(id: string, campaignId: string, on: boolean): Promise<RewardsData> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/rewards/${campaignId}/active/${on ? 'on' : 'off'}`));
+}
+
+// ── Champion photo ─────────────────────────────────────────────────────────
+
+export async function adminChampionPresign(id: string, contentType: string): Promise<{ uploadUrl: string; publicUrl: string }> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/champion-photo/presign`, { contentType }));
+}
+
+export async function adminSetChampionPhoto(id: string, url: string | null): Promise<Challenge> {
+  return call(() => apiClient.put(`/api/v1/admin/challenges/${id}/champion-photo`, { url }));
+}
+
+/** Presign, PUT straight to storage, then set it as the champion photo. */
+export async function adminUploadChampionPhoto(id: string, file: File): Promise<Challenge> {
+  const { uploadUrl, publicUrl } = await adminChampionPresign(id, file.type);
+  await putToPresignedUrl(uploadUrl, file);
+  return adminSetChampionPhoto(id, publicUrl);
 }

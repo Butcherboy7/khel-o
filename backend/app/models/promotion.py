@@ -34,6 +34,18 @@ class OfferCampaign(Base):
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # A reward for named people (challenge prizes): only these user ids can
+    # use the code, each at most max_uses_per_user times, for max_seats seats.
+    # Checked in PromotionService.resolve_campaign; null = anyone with the code.
+    allowed_user_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    max_uses_per_user: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # KHELO pays the discount: added back to the café by hand in its payout.
+    khelo_funded: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+    # Set on rewards made from a challenge: 'prize_1' | 'prize_2' | 'prize_3'
+    # | 'winner_partners' | 'waitlist'.
+    challenge_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("challenges.id", ondelete="SET NULL"), nullable=True, index=True)
+    reward_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 

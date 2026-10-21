@@ -206,6 +206,25 @@ class PromotionRepository(BaseRepository[Promotion]):
             )
         )).scalar() or 0
 
+    async def campaign_uses_by_user(self, campaign_id: UUID, user_id: UUID) -> int:
+        """This person's paid bookings under the campaign, plus their unpaid
+        ones still inside the 15-minute payment window."""
+        from datetime import timedelta, timezone
+        from sqlalchemy import func, or_, and_
+        from app.models.booking import Booking, BookingStatus, REDEEMED_STATUSES
+
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+        return (await self.db.execute(
+            select(func.count(Booking.id)).where(
+                Booking.promotion_id.in_(select(Promotion.id).where(Promotion.campaign_id == campaign_id)),
+                Booking.gamer_id == user_id,
+                or_(
+                    Booking.status.in_(REDEEMED_STATUSES),
+                    and_(Booking.status == BookingStatus.PENDING_PAYMENT, Booking.created_at >= cutoff),
+                ),
+            )
+        )).scalar() or 0
+
     async def grant_badge(self, user_id: UUID, badge_key: str, campaign_id: Optional[UUID]):
         """(badge, created). Safe to call twice, even concurrently."""
         from sqlalchemy.exc import IntegrityError

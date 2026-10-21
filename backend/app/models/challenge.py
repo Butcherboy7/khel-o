@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from typing import Any
+
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -52,6 +54,13 @@ class Challenge(Base):
     # nobody else changed it first (see challenge_service.claim), so the last
     # spot can never go to two people, even without a row lock.
     spot_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # The day itself (wave 2): when check-in was closed and the draw made.
+    checkin_closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    drawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    champion_photo_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # Reward settings (prize hours, % off, how long they last). Missing keys
+    # fall back to challenge_rewards.DEFAULTS.
+    rewards_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
 
@@ -104,3 +113,27 @@ class ChallengeEntry(Base):
     is_test: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
+
+
+class ChallengeMatch(Base):
+    """One match in the bracket. Round 1 is the first round; the final is the
+    last round, and the 3rd-place match shares the final's round number with
+    is_third_place set. A bye has one player and is won automatically."""
+    __tablename__ = "challenge_matches"
+    __table_args__ = (
+        UniqueConstraint("challenge_id", "round", "position", "is_third_place", name="uq_challenge_matches_slot"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    challenge_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False, index=True)
+    round: Mapped[int] = mapped_column(Integer, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_third_place: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    entry_a_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("challenge_entries.id", ondelete="SET NULL"), nullable=True)
+    entry_b_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("challenge_entries.id", ondelete="SET NULL"), nullable=True)
+    winner_entry_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("challenge_entries.id", ondelete="SET NULL"), nullable=True)
+    score_a: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    score_b: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bye: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

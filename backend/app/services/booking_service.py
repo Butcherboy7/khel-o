@@ -185,7 +185,9 @@ class BookingService:
         # own code can unlock its offers.
         campaign = None
         if booking_in.promo_code and self.promo_service:
-            campaign = await self.promo_service.resolve_campaign(booking_in.promo_code, booking_in.cafe_id)
+            campaign = await self.promo_service.resolve_campaign(
+                booking_in.promo_code, booking_in.cafe_id, user_id=gamer_id, seats=seats_requested,
+            )
         campaign_id = campaign.id if campaign is not None else None
 
         resolved_promotion_id = booking_in.promotion_id
@@ -338,7 +340,9 @@ class BookingService:
             campaign = None
             campaign_full = False
             if quote_in.promo_code:
-                campaign = await self.promo_service.resolve_campaign(quote_in.promo_code, quote_in.cafe_id)
+                campaign = await self.promo_service.resolve_campaign(
+                    quote_in.promo_code, quote_in.cafe_id, user_id=gamer_id, seats=seats_requested,
+                )
                 if campaign is not None:
                     campaign_full = (await self.promo_service.campaign_status(campaign))["full"]
             campaign_id = campaign.id if campaign is not None and not campaign_full else None
@@ -366,8 +370,8 @@ class BookingService:
                     resolved_promotion_id = await self.promo_service.resolve_code_to_promotion_id(
                         code=quote_in.promo_code, cafe_id=quote_in.cafe_id
                     )
-                except ValidationException:
-                    offer_note = "That code isn't valid for this café."
+                except ValidationException as e:
+                    offer_note = e.message if e.error_code == "REWARD_LOCKED" else "That code isn't valid for this café."
 
             chosen = None
             if resolved_promotion_id:
