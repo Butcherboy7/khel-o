@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_optional_user, get_user_roles, require_admin
@@ -355,16 +355,24 @@ async def _stats(db: AsyncSession, ch: Challenge, rows: list[ChallengeEntry]) ->
 
     # Page views and taps, counted from the site's own event log (our own test
     # devices and staff accounts are marked internal and left out).
+    # Counted here, not in SQL: one challenge has a few thousand rows at most.
     events = (await db.execute(
-        select(AnalyticsEvent.event_metadata["action"].as_string(), func.count(), func.count(func.distinct(AnalyticsEvent.session_id)))
+        select(AnalyticsEvent.event_metadata, AnalyticsEvent.session_id)
         .where(
             AnalyticsEvent.event_type == "ui_action",
             AnalyticsEvent.event_metadata["challenge"].as_string() == ch.slug,
             AnalyticsEvent.created_at >= ch.created_at,
         )
-        .group_by(AnalyticsEvent.event_metadata["action"].as_string())
     )).all()
-    taps = {action: {"count": n, "people": people} for action, n, people in events if action}
+    counted: dict[str, tuple[int, set]] = {}
+    for meta, session_id in events:
+        action = (meta or {}).get("action")
+        if not action or (meta or {}).get("internal"):
+            continue
+        n, people = counted.get(action, (0, set()))
+        people.add(session_id)
+        counted[action] = (n + 1, people)
+    taps = {action: {"count": n, "people": len(people)} for action, (n, people) in counted.items()}
     return {
         "signedUp": len(real),
         "confirmed": len(confirmed),

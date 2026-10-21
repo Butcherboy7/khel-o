@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.models.analytics_event import AnalyticsEvent
 from app.models.challenge import Challenge, ChallengeEntry
 from app.models.user import UserRole
 from app.services import challenge_service as svc
@@ -279,3 +280,14 @@ def test_public_name_never_shows_a_full_surname():
     assert svc.public_name(e) == "Arjun R."
     e.display_name = "JinMain"
     assert svc.public_name(e) == "JinMain"
+
+@pytest.mark.asyncio
+async def test_funnel_counts_people_and_skips_our_own_devices(async_client, db_session):
+    ch, admin = await _challenge(async_client, db_session)
+    view = {"action": "challenge_page_view", "challenge": ch["slug"]}
+    for session_id, meta in [("s1", view), ("s1", view), ("s2", view), ("s3", {**view, "internal": True}),
+                             ("s4", {"action": "challenge_page_view", "challenge": "another-one"})]:
+        db_session.add(AnalyticsEvent(session_id=session_id, event_type="ui_action", event_metadata=meta))
+    await db_session.commit()
+    res = await async_client.get(f"/api/v1/admin/challenges/{ch['id']}", headers=auth_headers(admin, is_admin=True))
+    assert res.json()["data"]["stats"]["events"] == {"challenge_page_view": {"count": 3, "people": 2}}

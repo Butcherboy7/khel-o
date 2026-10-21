@@ -9,13 +9,15 @@ export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 export const revalidate = 300;
 
-export default async function Image({ params }: { params: { slug: string } }) {
+// Next 14 passes params as an object, Next 15 as a promise: awaiting works for both.
+export default async function Image({ params }: { params: { slug: string } | Promise<{ slug: string }> }) {
+  const { slug } = await params;
   let title = 'KHELO Challenge';
   let line = 'Free sign-up on KHEL-O';
   let where = '';
   let spots = '';
   try {
-    const ch = await getChallenge(params.slug);
+    const ch = await getChallenge(slug);
     title = ch.title;
     line = `${ch.game} · ${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)}`;
     where = `${ch.cafe.name}, ${ch.cafe.city}`;
