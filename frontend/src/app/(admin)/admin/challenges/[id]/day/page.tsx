@@ -218,7 +218,7 @@ export default function ChallengeDayPage() {
       {/* 4. Finish */}
       <Step n={4} title="Finish and celebrate" done={finished}>
         <p className="text-caption text-text-secondary">
-          Finishing shows the results on the public page and lets you make the prizes on the Rewards page.
+          Finishing shows the results on the public page and lets you make the podium rewards on the Rewards page.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
@@ -232,7 +232,7 @@ export default function ChallengeDayPage() {
           </Button>
           {finished && (
             <Link href={`/admin/challenges/${id}/rewards`} className={linkBtn}>
-              <Gift className="h-4 w-4" /> Make the prizes
+              <Gift className="h-4 w-4" /> Make the podium rewards
             </Link>
           )}
         </div>

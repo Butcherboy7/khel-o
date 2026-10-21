@@ -115,7 +115,7 @@ async def create_prizes(db: AsyncSession, ch: Challenge, places: dict[int, Any])
     """Prizes for the decided places, plus the champion's partner-café offer.
     Already-made rewards are left alone. Returns the kinds made."""
     if 1 not in places:
-        raise RewardError("Finish the final first: the prizes need a winner.", "NO_WINNER")
+        raise RewardError("Finish the final first: the podium rewards need the final's result.", "NO_WINNER")
     cfg = config(ch)
     have = {c.reward_kind for c in await campaigns_for(db, ch.id)}
     now = svc.now()
@@ -128,7 +128,7 @@ async def create_prizes(db: AsyncSession, ch: Challenge, places: dict[int, Any])
         entry = await db.get(ChallengeEntry, entry_id)
         hours = Decimal(str(hours_list[place - 1]))
         camp = OfferCampaign(
-            name=f"{ch.title}: {PLACES[place]} place prize", cafe_id=ch.cafe_id, is_public=False,
+            name=f"{ch.title}: {PLACES[place]} place reward", cafe_id=ch.cafe_id, is_public=False,
             access_code=await _new_code(db), max_uses=1, starts_at=now, ends_at=now + timedelta(days=int(cfg["prizeDays"])),
             is_active=True, allowed_user_ids=[str(entry.user_id)], max_uses_per_user=1, max_seats=1,
             khelo_funded=bool(cfg["prizeKheloFunded"]), challenge_id=ch.id, reward_kind=kind,
@@ -136,8 +136,8 @@ async def create_prizes(db: AsyncSession, ch: Challenge, places: dict[int, Any])
         db.add(camp)
         await db.flush()
         db.add(_promo(
-            ch.cafe_id, camp, f"{PLACES[place]} place prize: {_hours(hours)} for ₹{cfg['prizePrice']}",
-            description=f"{ch.title} prize. 1 seat, any setup.",
+            ch.cafe_id, camp, f"{PLACES[place]} place reward: {_hours(hours)} for ₹{cfg['prizePrice']}",
+            description=f"{ch.title} reward. 1 seat, any setup.",
             promotion_type=PromotionType.FIXED_PRICE, fixed_price_amount=Decimal(str(cfg["prizePrice"])),
             min_duration_hours=hours, play_mode="solo", max_uses=1,
         ))
@@ -228,7 +228,7 @@ def _paid(b: Booking) -> bool:
 
 
 KIND_LABEL = {
-    "prize_1": "1st place prize", "prize_2": "2nd place prize", "prize_3": "3rd place prize",
+    "prize_1": "1st place reward", "prize_2": "2nd place reward", "prize_3": "3rd place reward",
     "winner_partners": "Champion's partner-café discount", "waitlist": "Waitlist thank-you",
 }
 

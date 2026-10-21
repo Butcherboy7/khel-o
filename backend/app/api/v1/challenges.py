@@ -44,6 +44,18 @@ admin_router = APIRouter(prefix="/admin/challenges", tags=["Admin Challenges"])
 
 STATUSES = ("draft", "open", "closed", "live", "finished")
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$")
+# Words a payment partner (Razorpay) can read as gambling, betting or paid
+# entry. Public challenge pages never use them; the admin form refuses them.
+RISKY_WORDS = re.compile(
+    r"\b(tournaments?|tickets?|entry[ -]fees?|registration[ -]fees?|buy|buying|prizes?|prize[ -]money|cash|"
+    r"bets?|betting|wagers?|jackpots?|gambl\w*|lotter\w*|lucky[ -]draw|stakes?|win[ -]money|winnings)\b",
+    re.IGNORECASE,
+)
+
+
+def risky_word(text: str) -> Optional[str]:
+    m = RISKY_WORDS.search(text)
+    return m.group(0) if m else None
 
 
 class _Camel(BaseModel):
@@ -324,6 +336,17 @@ class ChallengeIn(_Camel):
             raise ValueError("The end has to be after the start")
         if self.checkin_closes_at <= self.checkin_opens_at:
             raise ValueError("Check-in has to close after it opens")
+        return self
+
+    @model_validator(mode="after")
+    def _payment_safe_words(self):
+        for field in ("title", "game", "setup_line", "format", "rules_md", "prizes_md"):
+            word = risky_word(getattr(self, field) or "")
+            if word:
+                raise ValueError(
+                    f"Please don't use “{word}” on a public challenge page: payment partners can read it as "
+                    "gambling or paid entry. Try “reward”, “free sign-up”, “spots” or “bracket”."
+                )
         return self
 
 
@@ -747,7 +770,7 @@ class RewardsConfigIn(_Camel):
     def _hours(cls, v: list[float]) -> list[float]:
         for h in v:
             if h <= 0 or h > 12 or (h * 2) != int(h * 2):
-                raise ValueError("Prize hours go in half hours, up to 12")
+                raise ValueError("Reward hours go in half hours, up to 12")
         return v
 
 

@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const champ = b?.standings.find((s) => s.place === 1);
   if (!b || !champ) return { title: 'Champion', robots: { index: false } };
   const title = `${champ.name}: ${b.challenge.title} champion`;
-  const description = `${champ.name} won ${b.challenge.title} at ${b.challenge.cafe.name} on ${challengeDay(b.challenge.startsAt)}.`;
+  const description = `${champ.name} is the champion of ${b.challenge.title} at ${b.challenge.cafe.name}, ${challengeDay(b.challenge.startsAt)}.`;
   return {
     title,
     description,
@@ -74,7 +74,7 @@ export default async function ChampionPage({ params }: PageProps) {
         <h1 className="mt-5 font-heading text-[40px] font-bold leading-none">{champ.name}</h1>
         {champ.mainCharacter && <p className="mt-2 text-[#A3A6B1]">Mains {champ.mainCharacter}</p>}
         <p className="mt-3 text-[#DADCE3]">
-          Won {ch.title} at {ch.cafe.name}, {challengeDay(ch.startsAt)}.
+          Champion of {ch.title} at {ch.cafe.name}, {challengeDay(ch.startsAt)}.
         </p>
 
         {others.length > 0 && (

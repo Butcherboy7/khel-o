@@ -32,7 +32,7 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
       <div className="fixed inset-0 z-[200] flex flex-col overflow-hidden bg-black px-[4vw] py-[4vh] text-white">
         <p className="text-[min(1.8vw,2.8vh)] font-bold uppercase tracking-[0.2em] text-[#E8675D]">{ch.title}</p>
         {!data.drawn ? (
-          <p className="mt-[20vh] text-center font-heading text-[min(4vw,7vh)] font-bold">The draw is coming up</p>
+          <p className="mt-[20vh] text-center font-heading text-[min(4vw,7vh)] font-bold">The bracket is coming up</p>
         ) : (
           <>
             {data.upNext && !finished && <UpNext m={data.upNext} big />}
@@ -67,7 +67,7 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
 
         {!data.drawn ? (
           <p className="mt-10 rounded-2xl border border-dashed border-[#3A3E4A] p-6 text-center text-[#A3A6B1]">
-            The draw happens at the café once check-in closes. The bracket shows up here.
+            The bracket is made at the café once check-in closes. It shows up here.
           </p>
         ) : (
           <>

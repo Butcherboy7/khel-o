@@ -148,10 +148,10 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
         </p>
       </section>
 
-      {/* Prizes */}
+      {/* Rewards (never "prizes": payment partners read the site) */}
       {ch.prizesMd.trim() && (
         <section className="mt-8">
-          <h2 className="font-heading text-xl font-bold">Prizes</h2>
+          <h2 className="font-heading text-xl font-bold">Rewards</h2>
           <SimpleMarkdown text={ch.prizesMd} className="mt-3 text-[15px] leading-relaxed text-[#DADCE3]" />
         </section>
       )}
@@ -165,7 +165,7 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
             Check in at the café from {challengeTime(ch.checkinOpensAt)} to {challengeTime(ch.checkinClosesAt)} with the QR on your
             KHELO page.
           </Step>
-          <Step n={3}>The draw runs live on the screen once check-in closes.</Step>
+          <Step n={3}>The bracket goes up live on the screen once check-in closes.</Step>
           <Step n={4}>
             {ch.format}. Best of {ch.bestOf}
             {ch.finalBestOf !== ch.bestOf ? `, final best of ${ch.finalBestOf}` : ''}.

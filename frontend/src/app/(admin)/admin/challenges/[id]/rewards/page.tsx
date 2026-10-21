@@ -81,7 +81,7 @@ export default function ChallengeRewardsPage() {
       <div className="grid gap-3 md:grid-cols-2">
         <Card>
           <CardContent className="flex h-full flex-col gap-2 p-4">
-            <p className="flex items-center gap-2 font-semibold text-text-primary"><Trophy className="h-4 w-4 text-warning" /> Prizes</p>
+            <p className="flex items-center gap-2 font-semibold text-text-primary"><Trophy className="h-4 w-4 text-warning" /> Podium rewards</p>
             <p className="text-caption text-text-secondary">
               1st/2nd/3rd: {data.config.prizeHours.map((h) => `${h} hr`).join(' / ')} for {rupees(data.config.prizePrice)} at the challenge café,
               1 seat, any setup, {data.config.prizeDays} days.
@@ -98,9 +98,9 @@ export default function ChallengeRewardsPage() {
                 size="sm"
                 disabled={!data.standingsReady}
                 isLoading={busy === 'prizes'}
-                onClick={() => run('prizes', () => adminMakeRewards(id, 'prizes'), 'Prizes made. The winners see them on their challenge page now.')}
+                onClick={() => run('prizes', () => adminMakeRewards(id, 'prizes'), 'Podium rewards made. The players see them on their challenge page now.')}
               >
-                <Gift className="h-4 w-4" /> {prizesMade ? 'Make any missing prizes' : 'Make the prizes'}
+                <Gift className="h-4 w-4" /> {prizesMade ? 'Make any missing podium rewards' : 'Make the podium rewards'}
               </Button>
               {!data.standingsReady && <p className="mt-1 text-xs text-text-secondary">Enter the final’s result first.</p>}
             </div>
@@ -248,12 +248,12 @@ function Settings({ config, locked, busy, onSave }: { config: RewardsConfig; loc
       <div className="flex flex-col gap-4 px-4 pb-4">
         <div className="flex flex-wrap gap-4">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-text-secondary">Prize hours (1st, 2nd, 3rd)</span>
+            <span className="text-xs font-semibold text-text-secondary">Reward hours (1st, 2nd, 3rd)</span>
             <input value={hours} onChange={(e) => setHours(e.target.value)} className="h-9 w-32 rounded-lg border border-border bg-surface px-2 text-caption text-text-primary" />
           </label>
-          {n('prizePrice', 'Prize price', '₹')}
-          {n('prizeDays', 'Prizes last', 'days')}
-          {tick('prizeKheloFunded', 'KHEL-O pays the prize discount')}
+          {n('prizePrice', 'Price', '₹')}
+          {n('prizeDays', 'Rewards last', 'days')}
+          {tick('prizeKheloFunded', 'KHEL-O pays the podium discount')}
         </div>
         <div className="flex flex-wrap gap-4">
           {tick('winnerPartnersOn', 'Give the champion % off at other partner cafés')}

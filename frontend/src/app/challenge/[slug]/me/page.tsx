@@ -103,7 +103,7 @@ function MyChallenge() {
         <section className="mb-4 rounded-3xl border border-[#6B5A2A] bg-gradient-to-br from-[#2A2210] to-[#16181E] p-5 text-center">
           <Trophy className="mx-auto h-8 w-8 text-[#F2C27A]" />
           <p className="mt-2 font-heading text-[36px] font-bold leading-none">{PLACE[entry.place] ?? `#${entry.place}`}</p>
-          <p className="mt-2 text-sm text-[#DADCE3]">{entry.place === 1 ? 'You won the challenge. Champion!' : 'You made the podium. Well played!'}</p>
+          <p className="mt-2 text-sm text-[#DADCE3]">{entry.place === 1 ? 'Top of the podium. Champion!' : 'You made the podium. Well played!'}</p>
           <div className="mt-4">
             <ShareCardButton
               src={`/challenge/${ch.slug}/card/results`}

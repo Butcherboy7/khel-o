@@ -291,3 +291,25 @@ async def test_funnel_counts_people_and_skips_our_own_devices(async_client, db_s
     await db_session.commit()
     res = await async_client.get(f"/api/v1/admin/challenges/{ch['id']}", headers=auth_headers(admin, is_admin=True))
     assert res.json()["data"]["stats"]["events"] == {"challenge_page_view": {"count": 3, "people": 2}}
+
+
+@pytest.mark.asyncio
+async def test_public_wording_refuses_words_payment_partners_flag(async_client, db_session):
+    admin = await _admin(db_session)
+    cafe = await _make_cafe(db_session, f"Den {uuid.uuid4().hex[:6]}")
+    start = datetime(2026, 11, 1, 15, 0, tzinfo=timezone(timedelta(hours=5, minutes=30)))
+    base = {
+        "slug": f"words-{uuid.uuid4().hex[:6]}", "title": "KHELO Tekken Challenge #02", "cafeId": str(cafe.id),
+        "game": "Tekken 8", "startsAt": start.isoformat(), "endsAt": (start + timedelta(hours=3)).isoformat(),
+        "checkinOpensAt": (start - timedelta(minutes=30)).isoformat(),
+        "checkinClosesAt": (start + timedelta(minutes=10)).isoformat(), "capacity": 8,
+    }
+    h = auth_headers(admin, is_admin=True)
+    for field, text in [("prizesMd", "- 1st prize: 2 hours"), ("title", "Tekken Tournament"),
+                        ("rulesMd", "- No entry fee"), ("prizesMd", "- Cash for the winner"), ("rulesMd", "- Lucky draw")]:
+        res = await async_client.post("/api/v1/admin/challenges", json={**base, field: text}, headers=h)
+        assert res.status_code == 422, (field, text, res.text)
+    ok = await async_client.post(
+        "/api/v1/admin/challenges", json={**base, "prizesMd": "- 1st: 2 hours free play", "rulesMd": "- Win 2 games to go through"}, headers=h,
+    )
+    assert ok.status_code == 201, ok.text

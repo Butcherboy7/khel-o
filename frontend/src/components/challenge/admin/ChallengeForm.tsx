@@ -159,9 +159,9 @@ export function ChallengeForm({
         </div>
       </Section>
 
-      <Section title="Prizes and rules">
+      <Section title="Rewards and rules">
         <TextArea
-          label="Prizes"
+          label="Rewards (shown on the public page)"
           hint="One per line, starting with “- ”. **bold** works. Never put a code here: this is public."
           value={f.prizesMd}
           onChange={(v) => set('prizesMd', v)}
