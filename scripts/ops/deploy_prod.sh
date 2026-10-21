@@ -14,8 +14,8 @@ base64 -w0 $W/k.bundle > $W/k.b64
 SIZE=$(wc -c < $W/k.b64)
 echo "bundle base64 size: $SIZE"
 : > $W/send.sh
-if [ "$SIZE" -gt 80000 ]; then
-  # SSM command limit: send the bundle in 20KB pieces first.
+if [ "$SIZE" -gt 60000 ]; then
+  # SSM command limit (~97KB after ssm.sh base64s it again): send the bundle in 20KB pieces first.
   split -b 20000 -d -a 3 $W/k.b64 $W/chunk_
   echo "printf '' > /tmp/kprod$N.b64" > $W/c0.sh; bash $OPS/ssm.sh $W/c0.sh >/dev/null
   for c in $W/chunk_*; do
