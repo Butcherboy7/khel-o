@@ -185,28 +185,32 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
           style={coverPhoto?.color ? { backgroundColor: coverPhoto.color } : undefined}
         >
           {coverPhoto ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              {...optimizedImg(coverPhoto.url, '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw', { maxWidth: 828 })}
-              alt={cafe.name}
-              className="block h-full w-full object-cover object-center transition-transform duration-700 [@media(hover:hover)]:group-hover:scale-105"
-              // Only the first photo is fetched up front: the next ones used
-              // to load alongside it and slow the page's largest paint down.
-              loading={priority ? 'eager' : 'lazy'}
-              fetchPriority={priority ? 'high' : undefined}
-              decoding="async"
-              onError={(e) => {
-                // Optimizer unavailable: retry the original once before
-                // giving up and showing the name placeholder.
-                const img = e.currentTarget;
-                if (img.src.includes('/_next/image') && coverPhoto) {
-                  img.srcset = '';
-                  img.src = coverPhoto.url;
-                  return;
-                }
-                img.style.display = 'none';
-              }}
-            />
+            // The other photos wait until the page has loaded: Chrome fetches
+            // lazy images up to ~1250px below the screen, so cards 2–7 still
+            // downloaded alongside the first photo. The card shows the photo's
+            // own colour until then.
+            (priority || pageLoaded) && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                {...optimizedImg(coverPhoto.url, '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw', { maxWidth: 828 })}
+                alt={cafe.name}
+                className="block h-full w-full object-cover object-center transition-transform duration-700 [@media(hover:hover)]:group-hover:scale-105"
+                loading={priority ? 'eager' : 'lazy'}
+                fetchPriority={priority ? 'high' : undefined}
+                decoding="async"
+                onError={(e) => {
+                  // Optimizer unavailable: retry the original once before
+                  // giving up and showing the name placeholder.
+                  const img = e.currentTarget;
+                  if (img.src.includes('/_next/image') && coverPhoto) {
+                    img.srcset = '';
+                    img.src = coverPhoto.url;
+                    return;
+                  }
+                  img.style.display = 'none';
+                }}
+              />
+            )
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-3 text-center">
               <span className="font-heading text-caption font-bold text-white opacity-80 line-clamp-2">{cafe.name}</span>

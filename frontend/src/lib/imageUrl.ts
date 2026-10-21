@@ -16,7 +16,9 @@ const OPTIMIZABLE = [
 ];
 
 // Must be in Next's default deviceSizes/imageSizes, or /_next/image rejects the width.
-const WIDTHS = [384, 640, 828, 1080, 1920] as const;
+// 750 fits a full-width card on most phones (~400px at 1.75–2x); without it
+// they got the 828 file, which PageSpeed flagged as heavier than needed.
+const WIDTHS = [384, 640, 750, 828, 1080, 1920] as const;
 
 export function canOptimize(url: string | null | undefined): url is string {
   return !!url && OPTIMIZABLE.some((re) => re.test(url));
