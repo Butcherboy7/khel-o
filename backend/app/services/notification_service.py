@@ -76,12 +76,27 @@ def _get_ses_client() -> Any:
     return _ses_client
 
 
+def email_allowed(to_email: str) -> bool:
+    """Production emails everyone; any other box only EMAIL_ALLOWLIST."""
+    if settings.ENVIRONMENT == "production":
+        return True
+    address = (to_email or "").strip().lower()
+    for entry in (e.strip().lower() for e in settings.EMAIL_ALLOWLIST.split(",")):
+        if entry and (address == entry or (entry.startswith("@") and address.endswith(entry))):
+            return True
+    return False
+
+
 class NotificationService:
     async def _send_resend_email(self, to_email: str, subject: str, html_body: str, booking_ref: str) -> bool:
         """SES is primary now that production access (50k/day, 14/s) is approved.
         Resend is the fallback for when SES creds are missing or a send fails.
         Name kept as-is since auth_service and the booking flows already call
         this method."""
+        if not email_allowed(to_email):
+            # Reported as sent so the flow carries on exactly as it would on prod.
+            logger.info("email_held_outside_production", subject=subject, booking_ref=booking_ref)
+            return True
         sent = await self._send_via_ses(to_email, subject, html_body, booking_ref)
         if sent:
             return True

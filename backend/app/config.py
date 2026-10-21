@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     RESEND_API_KEY: Optional[str] = None
     RESEND_SENDER_EMAIL: str = "KHEL-O <notifications@khel-o.com>"
 
+    # Outside production, email only reaches these addresses. Dev runs on a copy
+    # of prod's users, so without this a test booking or reset emails a real
+    # person. Comma-separated; an entry starting with "@" allows a whole domain.
+    EMAIL_ALLOWLIST: str = ""
+
     # KHEL-O V2 Configurations
     RAZORPAY_ROUTE_ENABLED: bool = False
     # 0=Monday ... 6=Sunday. The day the weekly café payout allocation job

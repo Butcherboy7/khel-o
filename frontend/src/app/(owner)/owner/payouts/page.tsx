@@ -11,6 +11,7 @@ import { Card, CardContent, Badge, Button, EmptyState, PageSpinner } from '@/com
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
 import { useAuthStore } from '@/store/authStore';
+import { isCafeSuspended, SuspendedNotice } from '@/components/owner/OwnerLoadError';
 
 // CafePayoutStatus vocabulary for the manual bank-transfer history table.
 function manualPayoutStatusBadge(status: string) {
@@ -61,6 +62,20 @@ export default function OwnerPayoutsPage() {
   const pendingSettlement = cafePayoutsQuery.data?.pendingSettlement ?? 0;
   const totalEarnings = cafePayoutsQuery.data?.totalEarnings ?? 0;
   const totalPaid = cafePayoutsQuery.data?.totalPaid ?? summaryQuery.data?.summary.alreadyPaidOut ?? 0;
+
+  // A suspended café gets 403s here; say so instead of showing ₹0 everywhere.
+  if (isCafeSuspended(summaryQuery.error) || isCafeSuspended(cafePayoutsQuery.error)) {
+    return (
+      <div className="flex flex-col gap-8">
+        <OwnerPageHeader
+        guide="payouts"
+        title="Payouts"
+        description="Where the money from your bookings is, and what has already reached you."
+      />
+        <SuspendedNotice />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">

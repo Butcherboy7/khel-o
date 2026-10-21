@@ -27,12 +27,12 @@ import {
   NumericField,
   Modal,
   SkeletonCard,
-  ErrorState,
   EmptyState,
 } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
+import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
@@ -503,7 +503,7 @@ export default function OwnerOffersPage() {
       )}
 
       {isError && (
-        <ErrorState
+        <OwnerLoadError error={error}
           title="Failed to load offers"
           message={(error as Error)?.message || 'Could not fetch your promotions.'}
           onRetry={() => refetch()}

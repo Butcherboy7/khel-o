@@ -98,7 +98,8 @@ async def get_booking(
 ):
     booking_repo = BookingRepository(db)
     cafe_repo = CafeRepository(db)
-    service = BookingService(booking_repo, cafe_repo)
+    # The tier repo fills in the setup name the booking pass shows.
+    service = BookingService(booking_repo, cafe_repo, HardwareTierRepository(db))
     result = await service.get_booking(booking_id, current_user=current_user)
     return {
         "success": True,

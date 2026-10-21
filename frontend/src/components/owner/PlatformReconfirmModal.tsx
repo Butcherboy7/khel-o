@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Modal, Button } from '@/components/ui';
 import { PLATFORMS, PLATFORM_MODELS, type Platform } from '@/constants/platforms';
 import { getTiersNeedingConfirmation, confirmTierPlatform } from '@/lib/api/platformReconfirm';
+import { useOwnerTourStore } from '@/store/ownerTourStore';
 
 export function PlatformReconfirmModal() {
   const queryClient = useQueryClient();
@@ -29,7 +30,11 @@ export function PlatformReconfirmModal() {
     },
   });
 
-  if (dismissed || !data?.needsConfirmation || data.tiers.length === 0) return null;
+  // Wait while the owner tutorial is on screen: both at once stack two dark
+  // overlays and the tutorial points at buttons the modal covers.
+  const tourOpen = useOwnerTourStore((s) => s.open);
+
+  if (tourOpen || dismissed || !data?.needsConfirmation || data.tiers.length === 0) return null;
 
   return (
     <Modal

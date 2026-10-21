@@ -23,7 +23,6 @@ import {
   BookingStatusBadge,
   PriceDisplay,
   SkeletonBookingRow,
-  ErrorState,
   EmptyState,
 } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
@@ -31,6 +30,7 @@ import { InfoTip } from '@/components/shared/InfoTip';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { cn } from '@/lib/cn';
 import { addDaysToDateString, formatSessionDate, formatSessionDateShort, formatTime, getOwnerPayoutAmount, getTodayString } from '@/lib/format';
+import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 
 export default function OwnerBookingsPage() {
   const queryClient = useQueryClient();
@@ -212,7 +212,7 @@ export default function OwnerBookingsPage() {
         )}
 
         {isError && (
-          <ErrorState
+          <OwnerLoadError error={error}
             title="Failed to load bookings"
             message={(error as Error)?.message || 'Could not fetch desk bookings.'}
             onRetry={() => refetch()}

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart3 } from 'lucide-react';
 import { getOwnerAnalytics, type OwnerInsights } from '@/lib/api/owner';
-import { SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
+import { SkeletonCard, EmptyState } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import {
   CustomersPanel,
@@ -16,6 +16,7 @@ import {
   WeekGrid,
 } from '@/components/owner/InsightsPanels';
 import { cn } from '@/lib/cn';
+import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 
 interface AnalyticsResponse {
   topGames: { name: string; percentage: number }[];
@@ -35,7 +36,7 @@ const PERIODS = [
  */
 export default function OwnerAnalyticsPage() {
   const [days, setDays] = useState(30);
-  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+  const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ['owner-insights', days],
     queryFn: () => getOwnerAnalytics(days) as Promise<AnalyticsResponse>,
     placeholderData: (prev) => prev,
@@ -84,7 +85,7 @@ export default function OwnerAnalyticsPage() {
       )}
 
       {isError && !data && (
-        <ErrorState
+        <OwnerLoadError error={error}
           title="Couldn’t load your insights"
           message="Check your connection and try again."
           onRetry={() => refetch()}

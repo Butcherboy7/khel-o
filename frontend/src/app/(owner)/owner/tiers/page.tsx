@@ -15,7 +15,6 @@ import {
   Badge,
   Modal,
   SkeletonCard,
-  ErrorState,
   EmptyState,
 } from '@/components/ui';
 import { useTaxonomy, missingRequiredAttrs } from '@/lib/taxonomy';
@@ -26,6 +25,7 @@ import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { bookingOptionsFrom, bookingOptionsPayload } from '@/components/owner/SetupBookingOptions';
 import type { HardwareTier, TierConfig, TierCreateRequest, TierUpdateRequest } from '@/types';
 import { Edit, AlertCircle, Power, PowerOff, Plus, Zap, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
+import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 
 export default function HardwareTiersPage() {
   const queryClient = useQueryClient();
@@ -358,7 +358,7 @@ export default function HardwareTiersPage() {
         )}
 
         {isError && (
-          <ErrorState
+          <OwnerLoadError error={error}
             title="Failed to load resources"
             message={(error as Error)?.message || 'Couldn’t load your setups. Try again.'}
             onRetry={() => refetch()}

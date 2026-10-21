@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Star, MessageSquare, Edit3, CheckCircle2 } from 'lucide-react';
-import { Card, CardContent, Badge, Button, Textarea, SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
+import { Card, CardContent, Badge, Button, Textarea, SkeletonCard, EmptyState } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { ReviewShareCard } from '@/components/owner/ReviewShareCard';
 import { getOwnerStatus } from '@/lib/api/owner';
 import { listCafeReviews, replyToReview } from '@/lib/api/reviews';
 import type { Review } from '@/types';
+import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 
 export default function OwnerReviewsPage() {
   const queryClient = useQueryClient();
@@ -62,7 +63,7 @@ export default function OwnerReviewsPage() {
       )}
 
       {isError && (
-        <ErrorState
+        <OwnerLoadError error={error}
           title="Failed to load reviews"
           message={(error as Error)?.message ?? 'Could not fetch reviews for your café.'}
           onRetry={() => refetch()}
