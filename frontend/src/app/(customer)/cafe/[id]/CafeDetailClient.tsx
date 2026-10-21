@@ -670,7 +670,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                       {campaign.active && (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
                           {campaign.offers
-                            .filter((o) => o.applicableTierId === tier.id)
+                            // No setup on the offer = it works on any setup (challenge prizes).
+                            .filter((o) => !o.applicableTierId || o.applicableTierId === tier.id)
                             .map((o) => (
                               <OfferChip key={o.id} label={offerLabelWithMode(o.label || 'Offer', o.playMode)} tone="soft" />
                             ))}

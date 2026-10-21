@@ -248,16 +248,18 @@ function MyChallenge() {
 
       {rewards.length > 0 && <Rewards rewards={rewards} slug={slug} />}
 
-      <div className="mt-4">
-        <ShareCardButton
-          src={`/challenge/${ch.slug}/card/${entry.id}`}
-          fileName={`khelo-${ch.slug}.png`}
-          text={`I’m in ${ch.title} at ${ch.cafe.name}. Free sign-up: ${typeof window !== 'undefined' ? window.location.origin : 'https://khel-o.com'}/challenge/${ch.slug}`}
-          label="Share that I’m in"
-          challenge={ch.slug}
-          kind="in"
-        />
-      </div>
+      {ch.status !== 'finished' && (
+        <div className="mt-4">
+          <ShareCardButton
+            src={`/challenge/${ch.slug}/card/${entry.id}`}
+            fileName={`khelo-${ch.slug}.png`}
+            text={`I’m in ${ch.title} at ${ch.cafe.name}. Free sign-up: ${typeof window !== 'undefined' ? window.location.origin : 'https://khel-o.com'}/challenge/${ch.slug}`}
+            label="Share that I’m in"
+            challenge={ch.slug}
+            kind="in"
+          />
+        </div>
+      )}
 
       {ig && (
         <p className="mt-6 text-center text-sm text-[#A3A6B1]">
