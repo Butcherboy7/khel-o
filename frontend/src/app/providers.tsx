@@ -1,7 +1,6 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AnimatePresence } from 'framer-motion';
 import { useState, useEffect, type ReactNode } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { RoleSyncProvider } from '@/components/providers/RoleSyncProvider';
@@ -66,7 +65,10 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthInitializer>
         <RoleSyncProvider>
-          <AnimatePresence mode="wait">{children}</AnimatePresence>
+          {/* No AnimatePresence here: the page tree under it never changes key,
+              so it animated nothing, and it put framer-motion in every page's
+              first download. */}
+          {children}
           <PwaUpdatePrompt />
           <PageViewTracker />
         </RoleSyncProvider>

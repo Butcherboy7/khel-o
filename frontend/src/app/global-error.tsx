@@ -1,6 +1,6 @@
 'use client';
 
-import * as Sentry from '@sentry/nextjs';
+import { captureException } from '@/lib/monitoring';
 import { useEffect } from 'react';
 
 const RELOAD_GUARD_KEY = 'khelo_chunk_error_reloaded';
@@ -27,7 +27,7 @@ export default function GlobalError({
   error: Error & { digest?: string };
 }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    captureException(error);
 
     if (isChunkLoadError(error) && !sessionStorage.getItem(RELOAD_GUARD_KEY)) {
       sessionStorage.setItem(RELOAD_GUARD_KEY, '1');

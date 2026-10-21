@@ -17,7 +17,11 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ['latin'],
+  // latin-ext holds the ₹ sign, which is on nearly every page. Listing it
+  // here preloads it with the others: otherwise the browser only found it
+  // after the CSS had loaded and the price text had laid out (PageSpeed's
+  // longest request chain, 4.3 s on a slow phone).
+  subsets: ['latin', 'latin-ext'],
   display: 'swap',
   variable: '--font-plus-jakarta',
   weight: ['400', '500', '600'],

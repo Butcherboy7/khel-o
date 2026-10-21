@@ -5,6 +5,7 @@ import { optimizedImg } from '@/lib/imageUrl';
 import { MapPin, Star, Zap, ArrowRight, Users, Clock, ThumbsUp } from 'lucide-react';
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
+import { usePageLoaded } from '@/hooks/usePageLoaded';
 import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity, customerPrice } from '@/lib/format';
 import { hasConsoleTier, hasPcTier } from '@/lib/platformTags';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
@@ -61,6 +62,7 @@ interface CafeCardProps {
 
 export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCardProps) {
   const { userLat, userLng } = useLocationStore();
+  const pageLoaded = usePageLoaded();
   const distanceLabel =
     userLat != null && userLng != null && cafe.latitude != null && cafe.longitude != null
       ? formatDistance(calculateDistance(userLat, userLng, cafe.latitude, cafe.longitude))
@@ -147,7 +149,7 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
         </div>
       )}
 
-      <Link href={cafePath(cafe)} className="relative block h-full group">
+      <Link href={cafePath(cafe)} prefetch={pageLoaded ? undefined : false} className="relative block h-full group">
       <Card
         interactive
         elevation="resting"
@@ -188,7 +190,9 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
               {...optimizedImg(coverPhoto.url, '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw', { maxWidth: 828 })}
               alt={cafe.name}
               className="block h-full w-full object-cover object-center transition-transform duration-700 [@media(hover:hover)]:group-hover:scale-105"
-              loading={isLive || priority ? 'eager' : 'lazy'}
+              // Only the first photo is fetched up front: the next ones used
+              // to load alongside it and slow the page's largest paint down.
+              loading={priority ? 'eager' : 'lazy'}
               fetchPriority={priority ? 'high' : undefined}
               decoding="async"
               onError={(e) => {

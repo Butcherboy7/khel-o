@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePageLoaded } from '@/hooks/usePageLoaded';
 
 export const COOKIE_NOTICE_KEY = 'khelo-cookie-notice-dismissed';
 
@@ -18,6 +19,7 @@ export function CookieConsentBanner() {
   // html[data-cookie-ok] rule in globals.css hide it for anyone who already
   // dismissed it, without waiting for React.
   const [visible, setVisible] = useState(true);
+  const pageLoaded = usePageLoaded();
 
   const dismiss = () => {
     setVisible(false);
@@ -39,7 +41,7 @@ export function CookieConsentBanner() {
       <div className="mx-auto flex max-w-content items-center justify-between gap-3 px-4 py-2 md:px-6">
         <p className="text-[12px] leading-snug text-text-secondary">
           We only use storage to keep you signed in and see how gamers find KHEL-O. No ad cookies.{' '}
-          <Link href="/cookie-policy" className="font-semibold text-primary hover:underline">
+          <Link href="/cookie-policy" prefetch={pageLoaded ? undefined : false} className="font-semibold text-primary hover:underline">
             Details
           </Link>
         </p>

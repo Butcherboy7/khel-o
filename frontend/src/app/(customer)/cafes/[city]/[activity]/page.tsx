@@ -204,8 +204,8 @@ export default async function FacetPage({ params }: PageProps) {
         </dl>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {cafes.map((cafe) => (
-            <CafeCard key={cafe.id} cafe={cafe} />
+          {cafes.map((cafe, i) => (
+            <CafeCard key={cafe.id} cafe={cafe} priority={i === 0} />
           ))}
         </div>
 

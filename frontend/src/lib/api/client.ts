@@ -4,7 +4,7 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import * as Sentry from '@sentry/nextjs';
+import { captureException } from '@/lib/monitoring';
 import { ApiError } from './errors';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
@@ -134,7 +134,7 @@ apiClient.interceptors.response.use(
           }
         }
       } catch (roleRefreshError) {
-        Sentry.captureException(roleRefreshError, { tags: { location: 'client-interceptor-403-role-refresh' } });
+        captureException(roleRefreshError, { tags: { location: 'client-interceptor-403-role-refresh' } });
       }
     }
 
@@ -192,7 +192,7 @@ apiClient.interceptors.response.use(
             localStorage.setItem('user', JSON.stringify(userRes.data.data.user));
           }
         } catch (userFetchError) {
-          Sentry.captureException(userFetchError, { tags: { location: 'client-interceptor-post-refresh-me' } });
+          captureException(userFetchError, { tags: { location: 'client-interceptor-post-refresh-me' } });
         }
 
         flushQueue(null, newAccess);

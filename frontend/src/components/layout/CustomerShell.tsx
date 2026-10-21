@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
+import { usePageLoaded } from '@/hooks/usePageLoaded';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 import { PhoneNumberPrompt } from '@/components/layout/PhoneNumberPrompt';
 import { CampaignBadgeClaimer } from '@/components/customer/CampaignBadgeClaimer';
@@ -36,6 +37,8 @@ const customerNavItems: NavItem[] = [
 
 function CustomerHeader() {
   const pathname = usePathname();
+  // Prefetch these pages after the first screen, not during it.
+  const prefetch = usePageLoaded() ? undefined : false;
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
@@ -57,7 +60,7 @@ function CustomerHeader() {
     <header className="sticky top-0 z-nav w-full border-b border-border bg-card">
       <div className="mx-auto flex h-16 max-w-wide items-center justify-between px-4 md:px-6">
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2">
+        <Link prefetch={prefetch} href="/" className="flex items-center gap-2">
           <Image
             src="/brand/khelo-logo-64.png"
             alt=""
@@ -80,6 +83,7 @@ function CustomerHeader() {
 
             return (
               <Link
+                prefetch={prefetch}
                 key={item.href}
                 href={item.href}
                 className={cn(
@@ -105,6 +109,7 @@ function CustomerHeader() {
             <>
               <RoleSwitcher />
               <Link
+                prefetch={prefetch}
                 href="/notifications"
                 className="relative flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition hover:bg-border/60 hover:text-text-primary active:scale-95"
                 aria-label="Notifications"
@@ -117,7 +122,7 @@ function CustomerHeader() {
                 )}
               </Link>
 
-              <Link href="/profile">
+              <Link prefetch={prefetch} href="/profile">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary font-heading text-caption font-semibold text-white shadow-card transition-transform hover:scale-105">
                   {initial}
                 </div>
@@ -125,6 +130,7 @@ function CustomerHeader() {
             </>
           ) : (
             <Link
+              prefetch={prefetch}
               href={`/login?redirect=${encodeURIComponent(pathname)}`}
               className="inline-flex min-h-[36px] items-center rounded-full bg-primary px-4 text-caption font-semibold text-white transition-colors hover:bg-primary-dark"
             >
@@ -139,6 +145,7 @@ function CustomerHeader() {
 
 function CustomerBottomNav() {
   const pathname = usePathname();
+  const prefetch = usePageLoaded() ? undefined : false;
 
   return (
     <nav
@@ -155,6 +162,7 @@ function CustomerBottomNav() {
 
         return (
           <Link
+            prefetch={prefetch}
             key={item.href}
             href={item.href}
             className={cn(
