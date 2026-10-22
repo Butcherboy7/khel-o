@@ -28,7 +28,8 @@ function toLocalIst(iso: string | undefined): string {
 
 /** "2026-11-01T15:00" plus some minutes, as the same kind of string (no time zone involved). */
 function addMinutes(v: string, minutes: number): string {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return '';
+  // Skip half-typed years (Chrome reports "0002-…" while the year is being typed).
+  if (!/^20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return '';
   const [d, t] = v.split('T');
   const [y, mo, day] = d.split('-').map(Number);
   const [h, mi] = t.split(':').map(Number);
@@ -96,7 +97,13 @@ export function ChallengeForm({
     if (initial) setF(fromChallenge(initial));
   }, [initial]);
 
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+  // Once every box it named has been edited, the "Not saved yet" summary is out of date.
+  const flagged = Object.values(fieldErrors).some(Boolean);
+  useEffect(() => {
+    if (!flagged) setError((e) => (e?.startsWith('Not saved yet') ? null : e));
+  }, [flagged]);
+
+  const set =<K extends keyof FormState>(key: K, value: FormState[K]) => {
     setF((s) => ({ ...s, [key]: value }));
     setFieldErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
     if (key in AUTO_OFFSETS) setAutoTimes((a) => (a.has(key as AutoTime) ? new Set(Array.from(a).filter((k) => k !== key)) : a));
