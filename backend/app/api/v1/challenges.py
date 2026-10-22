@@ -11,13 +11,13 @@ numbers only ever go to their owner and to admins.
 import csv
 import io
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,6 +51,9 @@ RISKY_WORDS = re.compile(
     r"bets?|betting|wagers?|jackpots?|gambl\w*|lotter\w*|lucky[ -]draw|stakes?|win[ -]money|winnings)\b",
     re.IGNORECASE,
 )
+
+
+CHECKIN_EARLIEST = timedelta(hours=6)
 
 
 def risky_word(text: str) -> Optional[str]:
@@ -330,24 +333,48 @@ class ChallengeIn(_Camel):
             raise ValueError("Send times with their time zone")
         return v
 
-    @model_validator(mode="after")
-    def _order(self):
-        if self.ends_at <= self.starts_at:
+    # Field validators (not one model validator) so each error names its own
+    # box: the admin form shows the message under the field that caused it.
+    # Fields validate in order, so info.data already holds the earlier times.
+    @field_validator("ends_at")
+    @classmethod
+    def _ends_after_start(cls, v: datetime, info) -> datetime:
+        start = info.data.get("starts_at")
+        if start and v <= start:
             raise ValueError("The end has to be after the start")
-        if self.checkin_closes_at <= self.checkin_opens_at:
-            raise ValueError("Check-in has to close after it opens")
-        return self
+        return v
 
-    @model_validator(mode="after")
-    def _payment_safe_words(self):
-        for field in ("title", "game", "setup_line", "format", "rules_md", "prizes_md"):
-            word = risky_word(getattr(self, field) or "")
-            if word:
-                raise ValueError(
-                    f"Please don't use “{word}” on a public challenge page: payment partners can read it as "
-                    "gambling or paid entry. Try “reward”, “free sign-up”, “spots” or “bracket”."
-                )
-        return self
+    @field_validator("checkin_opens_at")
+    @classmethod
+    def _checkin_opens_on_the_day(cls, v: datetime, info) -> datetime:
+        # Players only ever see check-in as a clock time ("from 14:30"), on the day.
+        start = info.data.get("starts_at")
+        if start and not (start - CHECKIN_EARLIEST <= v <= start):
+            raise ValueError(
+                "Check-in opens on the day: no earlier than 6 hours before the start, and no later than the start"
+            )
+        return v
+
+    @field_validator("checkin_closes_at")
+    @classmethod
+    def _checkin_closes_in_time(cls, v: datetime, info) -> datetime:
+        opens, ends = info.data.get("checkin_opens_at"), info.data.get("ends_at")
+        if opens and v <= opens:
+            raise ValueError("Check-in has to close after it opens")
+        if ends and v > ends:
+            raise ValueError("Check-in has to close before the challenge ends")
+        return v
+
+    @field_validator("title", "game", "setup_line", "format", "rules_md", "prizes_md")
+    @classmethod
+    def _payment_safe_words(cls, v: Optional[str]) -> Optional[str]:
+        word = risky_word(v or "")
+        if word:
+            raise ValueError(
+                f"Please don't use “{word}” on a public challenge page: payment partners can read it as "
+                "gambling or paid entry. Try “reward”, “free sign-up”, “spots” or “bracket”"
+            )
+        return v
 
 
 def _admin_entry_out(e: ChallengeEntry, all_entries: list[ChallengeEntry]) -> dict:

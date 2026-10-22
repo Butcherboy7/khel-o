@@ -5,7 +5,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios';
 import { captureException } from '@/lib/monitoring';
-import { ApiError } from './errors';
+import { ApiError, type ApiFieldError } from './errors';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
 // Resolved fresh per request rather than captured once at module load — the
@@ -63,12 +63,25 @@ function clearAuthAndRedirect() {
 function normaliseError(err: unknown): ApiError {
   if (err instanceof ApiError) return err;
 
-  const axiosErr = err as AxiosError<{ error?: { code?: string; message?: string }; detail?: any }>;
+  const axiosErr = err as AxiosError<{
+    error?: { code?: string; message?: string; details?: unknown };
+    detail?: any;
+  }>;
 
   if (axiosErr.isAxiosError && axiosErr.response) {
     const data = axiosErr.response.data;
     const code = data?.error?.code;
     let message = data?.error?.message ?? (typeof data?.detail === 'string' ? data?.detail : null);
+    // VALIDATION_ERROR carries which field failed and why; keep it, and say it
+    // instead of the bare "Request validation failed".
+    const fieldErrors: ApiFieldError[] = Array.isArray(data?.error?.details)
+      ? (data.error.details as Partial<ApiFieldError>[])
+          .filter((d) => typeof d?.message === 'string')
+          .map((d) => ({ field: d.field ?? '', message: d.message as string }))
+      : [];
+    if (code === 'VALIDATION_ERROR' && fieldErrors.length) {
+      message = fieldErrors.map((d) => (d.field ? `${d.field}: ${d.message}` : d.message)).join(' · ');
+    }
 
     if (!message && Array.isArray(data?.detail)) {
       const fieldErrs = data.detail.map((d: any) => {
@@ -82,7 +95,7 @@ function normaliseError(err: unknown): ApiError {
       message = 'An unexpected error occurred.';
     }
 
-    return new ApiError(message, axiosErr.response.status, code);
+    return new ApiError(message, axiosErr.response.status, code, fieldErrors);
   }
 
   if (axiosErr.isAxiosError && !axiosErr.response) {

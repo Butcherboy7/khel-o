@@ -392,8 +392,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         field = " -> ".join(str(loc) for loc in error["loc"] if loc != "body")
         errors.append({
             "field": field,
-            "message": error["msg"]
+            # Our own validators' text is written for people; drop pydantic's prefix.
+            "message": error["msg"].removeprefix("Value error, ")
         })
+    # Which fields failed (never the values), so a "Request validation failed"
+    # someone reports can be traced from the logs.
+    logger.info("request_validation_failed", path=request.url.path, fields=[e["field"] for e in errors])
     return JSONResponse(
         status_code=422,
         content={

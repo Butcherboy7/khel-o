@@ -313,3 +313,40 @@ async def test_public_wording_refuses_words_payment_partners_flag(async_client, 
         "/api/v1/admin/challenges", json={**base, "prizesMd": "- 1st: 2 hours free play", "rulesMd": "- Win 2 games to go through"}, headers=h,
     )
     assert ok.status_code == 201, ok.text
+
+
+async def test_create_names_the_field_that_failed_and_takes_empty_optionals(async_client, db_session):
+    """The admin form used to show only "Request validation failed": every
+    error now names its own field, in plain words, all at once."""
+    admin = await _admin(db_session)
+    cafe = await _make_cafe(db_session, f"Den {uuid.uuid4().hex[:6]}")
+    h = auth_headers(admin, is_admin=True)
+    # What ChallengeForm sends with every optional box left empty.
+    base = {
+        "slug": f"t8-{uuid.uuid4().hex[:6]}", "title": "KHELO Tekken Challenge #01", "cafeId": str(cafe.id),
+        "game": "tekken 8", "setupLine": None, "format": "Single elimination + 3rd-place match", "bestOf": 3,
+        "finalBestOf": 5, "startsAt": "2026-10-25T11:00:00+05:30", "endsAt": "2026-10-25T18:00:00+05:30",
+        "checkinOpensAt": "2026-10-25T10:30:00+05:30", "checkinClosesAt": "2026-10-25T11:15:00+05:30",
+        "capacity": 10, "minAge": 18, "status": "open", "rulesMd": "", "prizesMd": "",
+        "coverImageUrl": None, "communityUrl": None, "instagramHandle": None,
+    }
+    ok = await async_client.post("/api/v1/admin/challenges", json=base, headers=h)
+    assert ok.status_code == 201, ok.text
+
+    async def fields(**over):
+        res = await async_client.post("/api/v1/admin/challenges", json={**base, "slug": f"t8-{uuid.uuid4().hex[:6]}", **over}, headers=h)
+        assert res.status_code == 422, res.text
+        details = res.json()["error"]["details"]
+        assert all(not d["message"].startswith("Value error") for d in details), details
+        return {d["field"]: d["message"] for d in details}
+
+    assert set(await fields(prizesMd="Prizes\n- 1st: 2 hours")) == {"prizesMd"}
+    assert set(await fields(title="KHELO Tekken Tournament")) == {"title"}
+    assert set(await fields(slug="tekken 01")) == {"slug"}
+    assert set(await fields(endsAt="2026-10-25T10:00:00+05:30")) == {"endsAt"}
+    # The schedule from the bug report: check-in two days before the start.
+    early = await fields(checkinOpensAt="2026-10-22T12:00:00+05:30", checkinClosesAt="2026-10-23T18:46:00+05:30")
+    assert set(early) == {"checkinOpensAt"} and "on the day" in early["checkinOpensAt"]
+    assert set(await fields(checkinClosesAt="2026-10-25T19:00:00+05:30")) == {"checkinClosesAt"}
+    # Several problems come back together, not one per attempt.
+    assert set(await fields(title="Tournament", rulesMd="- Buy a ticket")) == {"title", "rulesMd"}

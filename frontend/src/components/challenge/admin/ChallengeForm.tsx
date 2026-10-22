@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, CardContent, Input } from '@/components/ui';
 import { adminCafeOptions, type Challenge, type ChallengeInput, type ChallengeStatus } from '@/lib/api/challenges';
+import { isApiError } from '@/lib/api/errors';
 
 /** Admin create/edit for one challenge. Times are typed in India time. */
 
@@ -25,6 +26,14 @@ function toLocalIst(iso: string | undefined): string {
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour') === '24' ? '00' : get('hour')}:${get('minute')}`;
 }
 
+/** "2026-11-01T15:00" plus some minutes, as the same kind of string (no time zone involved). */
+function addMinutes(v: string, minutes: number): string {
+  const [d, t] = v.split('T');
+  const [y, mo, day] = d.split('-').map(Number);
+  const [h, mi] = t.split(':').map(Number);
+  return new Date(Date.UTC(y, mo - 1, day, h, mi + minutes)).toISOString().slice(0, 16);
+}
+
 /** "2026-11-01T15:00" typed as India time → an ISO string with +05:30. */
 function fromLocalIst(v: string): string {
   return v ? `${v}:00+05:30` : '';
@@ -37,6 +46,15 @@ const EMPTY = {
 };
 
 type FormState = typeof EMPTY;
+
+/** The API's field names, as the admin sees them on this form. */
+const LABELS: Record<string, string> = {
+  slug: 'Link name', title: 'Title', cafeId: 'Café', game: 'Game', setupLine: 'Setup line', status: 'Status',
+  startsAt: 'Starts', endsAt: 'Ends', checkinOpensAt: 'Check-in opens', checkinClosesAt: 'Check-in closes',
+  format: 'Format', capacity: 'Spots', bestOf: 'Best of', finalBestOf: 'Final best of', minAge: 'Minimum age',
+  prizesMd: 'Rewards', rulesMd: 'Rules', coverImageUrl: 'Cover image', communityUrl: 'WhatsApp community link',
+  instagramHandle: 'Instagram handle',
+};
 
 function fromChallenge(c: Challenge): FormState {
   return {
@@ -60,17 +78,35 @@ export function ChallengeForm({
   const [f, setF] = useState<FormState>(initial ? fromChallenge(initial) : EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which box the API refused, and why: shown under that box. Typed values stay put.
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const cafes = useQuery({ queryKey: ['admin', 'challenge-cafes'], queryFn: adminCafeOptions, staleTime: 300_000 });
 
   useEffect(() => {
     if (initial) setF(fromChallenge(initial));
   }, [initial]);
 
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setF((s) => ({ ...s, [key]: value }));
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setF((s) => ({ ...s, [key]: value }));
+    setFieldErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
+  };
+
+  // Picking the start fills any empty times around it: check-in on the day, 30 min before to 15 min after.
+  const setStart = (v: string) => {
+    setF((s) => ({
+      ...s,
+      startsAt: v,
+      ...(v && !s.endsAt ? { endsAt: addMinutes(v, 180) } : {}),
+      ...(v && !s.checkinOpensAt ? { checkinOpensAt: addMinutes(v, -30) } : {}),
+      ...(v && !s.checkinClosesAt ? { checkinClosesAt: addMinutes(v, 15) } : {}),
+    }));
+    setFieldErrors((e) => ({ ...e, startsAt: undefined }));
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
     for (const [key, label] of [['startsAt', 'Start'], ['endsAt', 'End'], ['checkinOpensAt', 'Check-in opens'], ['checkinClosesAt', 'Check-in closes']] as const) {
       if (!f[key]) return setError(`${label} time is missing.`);
     }
@@ -90,7 +126,16 @@ export function ChallengeForm({
         checkinClosesAt: fromLocalIst(f.checkinClosesAt),
       });
     } catch (err) {
-      setError((err as Error).message || 'Could not save.');
+      if (isApiError(err) && err.fieldErrors.length) {
+        const byField: Partial<Record<keyof FormState, string>> = {};
+        for (const fe of err.fieldErrors) if (fe.field in f) byField[fe.field as keyof FormState] = fe.message;
+        setFieldErrors(byField);
+        setError(
+          `Not saved yet. ${err.fieldErrors.map((fe) => (LABELS[fe.field] ? `${LABELS[fe.field]}: ${fe.message}` : fe.message)).join('. ')}.`,
+        );
+      } else {
+        setError((err as Error).message || 'Could not save.');
+      }
     } finally {
       setBusy(false);
     }
@@ -99,16 +144,17 @@ export function ChallengeForm({
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <Section title="Basics">
-        <Input label="Title" value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="KHELO Tekken Challenge #01" required />
+        <Input label="Title" value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="KHELO Tekken Challenge #01" error={fieldErrors.title} required />
         <Input
           label="Link name"
           hint={`khel-o.com/challenge/${f.slug || 'your-link'} — lowercase, numbers and dashes`}
           value={f.slug}
           onChange={(e) => set('slug', e.target.value)}
           placeholder="tekken-01"
+          error={fieldErrors.slug}
           required
         />
-        <Field label="Café">
+        <Field label="Café" error={fieldErrors.cafeId}>
           <select
             value={f.cafeId}
             onChange={(e) => set('cafeId', e.target.value)}
@@ -124,8 +170,8 @@ export function ChallengeForm({
           </select>
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="Game" value={f.game} onChange={(e) => set('game', e.target.value)} placeholder="Tekken 8" required />
-          <Input label="Setup line (optional)" value={f.setupLine} onChange={(e) => set('setupLine', e.target.value)} placeholder="One PS5 on a projector" />
+          <Input label="Game" value={f.game} onChange={(e) => set('game', e.target.value)} placeholder="Tekken 8" error={fieldErrors.game} required />
+          <Input label="Setup line (optional)" value={f.setupLine} onChange={(e) => set('setupLine', e.target.value)} placeholder="One PS5 on a projector" error={fieldErrors.setupLine} />
         </div>
         <Field label="Status">
           <select
@@ -142,20 +188,23 @@ export function ChallengeForm({
 
       <Section title="When (India time)">
         <div className="grid gap-3 sm:grid-cols-2">
-          <DateTime label="Starts" value={f.startsAt} onChange={(v) => set('startsAt', v)} />
-          <DateTime label="Ends" value={f.endsAt} onChange={(v) => set('endsAt', v)} />
-          <DateTime label="Check-in opens" value={f.checkinOpensAt} onChange={(v) => set('checkinOpensAt', v)} />
-          <DateTime label="Check-in closes" value={f.checkinClosesAt} onChange={(v) => set('checkinClosesAt', v)} />
+          <DateTime label="Starts" value={f.startsAt} onChange={setStart} error={fieldErrors.startsAt} />
+          <DateTime label="Ends" value={f.endsAt} onChange={(v) => set('endsAt', v)} error={fieldErrors.endsAt} />
+          <DateTime label="Check-in opens" value={f.checkinOpensAt} onChange={(v) => set('checkinOpensAt', v)} error={fieldErrors.checkinOpensAt} />
+          <DateTime label="Check-in closes" value={f.checkinClosesAt} onChange={(v) => set('checkinClosesAt', v)} error={fieldErrors.checkinClosesAt} />
         </div>
+        <p className="text-xs text-text-secondary">
+          Check-in is at the café on the day: it opens up to 6 hours before the start and closes before the end. Players only see the times.
+        </p>
       </Section>
 
       <Section title="Format and spots">
-        <Input label="Format" value={f.format} onChange={(e) => set('format', e.target.value)} />
+        <Input label="Format" value={f.format} onChange={(e) => set('format', e.target.value)} error={fieldErrors.format} />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Input label="Spots" type="number" min={1} max={256} value={f.capacity} onChange={(e) => set('capacity', Number(e.target.value))} />
-          <Input label="Best of" type="number" min={1} max={9} value={f.bestOf} onChange={(e) => set('bestOf', Number(e.target.value))} />
-          <Input label="Final best of" type="number" min={1} max={9} value={f.finalBestOf} onChange={(e) => set('finalBestOf', Number(e.target.value))} />
-          <Input label="Minimum age" type="number" min={0} max={99} value={f.minAge} onChange={(e) => set('minAge', Number(e.target.value))} />
+          <Input label="Spots" type="number" min={1} max={256} value={f.capacity} onChange={(e) => set('capacity', Number(e.target.value))} error={fieldErrors.capacity} />
+          <Input label="Best of" type="number" min={1} max={9} value={f.bestOf} onChange={(e) => set('bestOf', Number(e.target.value))} error={fieldErrors.bestOf} />
+          <Input label="Final best of" type="number" min={1} max={9} value={f.finalBestOf} onChange={(e) => set('finalBestOf', Number(e.target.value))} error={fieldErrors.finalBestOf} />
+          <Input label="Minimum age" type="number" min={0} max={99} value={f.minAge} onChange={(e) => set('minAge', Number(e.target.value))} error={fieldErrors.minAge} />
         </div>
       </Section>
 
@@ -165,14 +214,15 @@ export function ChallengeForm({
           hint="One per line, starting with “- ”. **bold** works. Never put a code here: this is public."
           value={f.prizesMd}
           onChange={(v) => set('prizesMd', v)}
+          error={fieldErrors.prizesMd}
           rows={6}
         />
-        <TextArea label="Rules" hint="One rule per line, starting with “- ”." value={f.rulesMd} onChange={(v) => set('rulesMd', v)} rows={10} />
+        <TextArea label="Rules" hint="One rule per line, starting with “- ”." value={f.rulesMd} onChange={(v) => set('rulesMd', v)} error={fieldErrors.rulesMd} rows={10} />
       </Section>
 
       <Section title="Links">
-        <Input label="WhatsApp community link (optional)" value={f.communityUrl} onChange={(e) => set('communityUrl', e.target.value)} placeholder="https://chat.whatsapp.com/…" />
-        <Input label="Instagram handle" value={f.instagramHandle} onChange={(e) => set('instagramHandle', e.target.value)} placeholder="khelo.journey" />
+        <Input label="WhatsApp community link (optional)" value={f.communityUrl} onChange={(e) => set('communityUrl', e.target.value)} placeholder="https://chat.whatsapp.com/…" error={fieldErrors.communityUrl} />
+        <Input label="Instagram handle" value={f.instagramHandle} onChange={(e) => set('instagramHandle', e.target.value)} placeholder="khelo.journey" error={fieldErrors.instagramHandle} />
       </Section>
 
       {error && (
@@ -198,39 +248,48 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-caption font-semibold text-text-primary">{label}</span>
       {children}
+      {error && (
+        <span role="alert" className="text-caption text-error">
+          {error}
+        </span>
+      )}
     </label>
   );
 }
 
-function DateTime({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function DateTime({ label, value, onChange, error }: { label: string; value: string; onChange: (v: string) => void; error?: string }) {
   return (
-    <Field label={label}>
+    <Field label={label} error={error}>
       <input
         type="datetime-local"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-12 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary"
+        aria-invalid={error ? true : undefined}
+        className={`h-12 w-full rounded-xl border bg-card px-3 text-body text-text-primary ${error ? 'border-error' : 'border-border'}`}
         required
       />
     </Field>
   );
 }
 
-function TextArea({ label, hint, value, onChange, rows }: { label: string; hint?: string; value: string; onChange: (v: string) => void; rows: number }) {
+function TextArea({
+  label, hint, value, onChange, rows, error,
+}: { label: string; hint?: string; value: string; onChange: (v: string) => void; rows: number; error?: string }) {
   return (
-    <Field label={label}>
+    <Field label={label} error={error}>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="w-full rounded-xl border border-border bg-card p-3 font-mono text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+        aria-invalid={error ? true : undefined}
+        className={`w-full rounded-xl border bg-card p-3 font-mono text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40 ${error ? 'border-error' : 'border-border'}`}
       />
-      {hint && <span className="text-xs text-text-secondary">{hint}</span>}
+      {hint && !error && <span className="text-xs text-text-secondary">{hint}</span>}
     </Field>
   );
 }

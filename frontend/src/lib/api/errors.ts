@@ -1,3 +1,9 @@
+/** One field the API refused (VALIDATION_ERROR), e.g. { field: 'prizesMd', message: '…' }. */
+export interface ApiFieldError {
+  field: string;
+  message: string;
+}
+
 /**
  * All errors thrown by API functions are instances of ApiError.
  * Network errors (no response) still produce an ApiError with status 0.
@@ -5,13 +11,15 @@
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | undefined;
+  readonly fieldErrors: ApiFieldError[];
   override readonly message: string;
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(message: string, status: number, code?: string, fieldErrors: ApiFieldError[] = []) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.fieldErrors = fieldErrors;
     this.message = message;
   }
 }
