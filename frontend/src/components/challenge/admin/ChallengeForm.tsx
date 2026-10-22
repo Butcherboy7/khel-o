@@ -28,6 +28,7 @@ function toLocalIst(iso: string | undefined): string {
 
 /** "2026-11-01T15:00" plus some minutes, as the same kind of string (no time zone involved). */
 function addMinutes(v: string, minutes: number): string {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return '';
   const [d, t] = v.split('T');
   const [y, mo, day] = d.split('-').map(Number);
   const [h, mi] = t.split(':').map(Number);
@@ -46,6 +47,13 @@ const EMPTY = {
 };
 
 type FormState = typeof EMPTY;
+
+/** Minutes from the start for the times the form fills in by itself. */
+const AUTO_OFFSETS = { endsAt: 180, checkinOpensAt: -30, checkinClosesAt: 15 } as const;
+type AutoTime = keyof typeof AUTO_OFFSETS;
+
+/** Refusals that aren't validation errors but still belong to one box. */
+const CODE_FIELD: Record<string, keyof FormState> = { SLUG_TAKEN: 'slug', CAFE_NOT_FOUND: 'cafeId' };
 
 /** The API's field names, as the admin sees them on this form. */
 const LABELS: Record<string, string> = {
@@ -80,6 +88,8 @@ export function ChallengeForm({
   const [error, setError] = useState<string | null>(null);
   // Which box the API refused, and why: shown under that box. Typed values stay put.
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  // Times this form filled in from the start: they follow the start until the admin edits them.
+  const [autoTimes, setAutoTimes] = useState<Set<AutoTime>>(new Set());
   const cafes = useQuery({ queryKey: ['admin', 'challenge-cafes'], queryFn: adminCafeOptions, staleTime: 300_000 });
 
   useEffect(() => {
@@ -89,18 +99,21 @@ export function ChallengeForm({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setF((s) => ({ ...s, [key]: value }));
     setFieldErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
+    if (key in AUTO_OFFSETS) setAutoTimes((a) => (a.has(key as AutoTime) ? new Set(Array.from(a).filter((k) => k !== key)) : a));
   };
 
-  // Picking the start fills any empty times around it: check-in on the day, 30 min before to 15 min after.
+  // Picking the start fills the empty times around it (check-in on the day, 30 min before to
+  // 15 min after) and moves the ones it filled earlier, so they never drift away from the start.
   const setStart = (v: string) => {
+    const follow = (Object.keys(AUTO_OFFSETS) as AutoTime[]).filter((k) => autoTimes.has(k) || !f[k]);
+    const next = addMinutes(v, 0) ? follow : [];
     setF((s) => ({
       ...s,
       startsAt: v,
-      ...(v && !s.endsAt ? { endsAt: addMinutes(v, 180) } : {}),
-      ...(v && !s.checkinOpensAt ? { checkinOpensAt: addMinutes(v, -30) } : {}),
-      ...(v && !s.checkinClosesAt ? { checkinClosesAt: addMinutes(v, 15) } : {}),
+      ...Object.fromEntries(next.map((k) => [k, addMinutes(v, AUTO_OFFSETS[k])])),
     }));
-    setFieldErrors((e) => ({ ...e, startsAt: undefined }));
+    if (next.length) setAutoTimes(new Set(next));
+    setFieldErrors((e) => ({ ...e, startsAt: undefined, ...Object.fromEntries(next.map((k) => [k, undefined])) }));
   };
 
   const submit = async (e: FormEvent) => {
@@ -130,9 +143,14 @@ export function ChallengeForm({
         const byField: Partial<Record<keyof FormState, string>> = {};
         for (const fe of err.fieldErrors) if (fe.field in f) byField[fe.field as keyof FormState] = fe.message;
         setFieldErrors(byField);
-        setError(
-          `Not saved yet. ${err.fieldErrors.map((fe) => (LABELS[fe.field] ? `${LABELS[fe.field]}: ${fe.message}` : fe.message)).join('. ')}.`,
-        );
+        const line = (fe: { field: string; message: string }) => {
+          const label = LABELS[fe.field];
+          return !label || fe.message.startsWith(label) ? fe.message : `${label}: ${fe.message}`;
+        };
+        setError(`Not saved yet. ${err.fieldErrors.map(line).join('. ')}.`);
+      } else if (isApiError(err) && err.code && CODE_FIELD[err.code]) {
+        setFieldErrors({ [CODE_FIELD[err.code]]: err.message });
+        setError(`Not saved yet. ${err.message}.`);
       } else {
         setError((err as Error).message || 'Could not save.');
       }

@@ -7,6 +7,7 @@ import { useBotGuard } from '@/components/auth/BotGuard';
 import { getLaunch, joinLaunch, type ReachBy } from '@/lib/api/launchList';
 import { listCafes, cafePath } from '@/lib/api/cafes';
 import { trackAction } from '@/lib/api/analyticsEvents';
+import { isApiError } from '@/lib/api/errors';
 import { optimizedImg, fallBackToOriginal } from '@/lib/imageUrl';
 import type { CafeListItem } from '@/types';
 import { customerPrice } from '@/lib/format';
@@ -158,10 +159,9 @@ function CountdownTiles({ countdown }: { countdown: Countdown }) {
 }
 
 function errorText(err: unknown): string {
-  const e = err as { response?: { data?: { error?: { message?: string; details?: { msg?: string }[] } } }; message?: string };
-  const body = e?.response?.data?.error;
-  const detail = body?.details?.[0]?.msg?.replace(/^Value error, /, '');
-  return detail || body?.message || 'Something went wrong. Please try again.';
+  // apiClient rejects with an ApiError; a refused field's own message reads best.
+  if (isApiError(err)) return err.fieldErrors[0]?.message || err.message;
+  return 'Something went wrong. Please try again.';
 }
 
 function CafeThumb({ cafe, className }: { cafe: PlayCafe; className: string }) {

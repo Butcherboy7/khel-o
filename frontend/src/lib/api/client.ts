@@ -80,7 +80,8 @@ function normaliseError(err: unknown): ApiError {
           .map((d) => ({ field: d.field ?? '', message: d.message as string }))
       : [];
     if (code === 'VALIDATION_ERROR' && fieldErrors.length) {
-      message = fieldErrors.map((d) => (d.field ? `${d.field}: ${d.message}` : d.message)).join(' · ');
+      const label = (field: string) => field.replace(/ -> /g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+      message = fieldErrors.map((d) => (d.field ? `${label(d.field)}: ${d.message}` : d.message)).join(' · ');
     }
 
     if (!message && Array.isArray(data?.detail)) {

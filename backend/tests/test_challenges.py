@@ -350,3 +350,66 @@ async def test_create_names_the_field_that_failed_and_takes_empty_optionals(asyn
     assert set(await fields(checkinClosesAt="2026-10-25T19:00:00+05:30")) == {"checkinClosesAt"}
     # Several problems come back together, not one per attempt.
     assert set(await fields(title="Tournament", rulesMd="- Buy a ticket")) == {"title", "rulesMd"}
+
+
+async def test_challenge_form_edge_cases(async_client, db_session):
+    admin = await _admin(db_session)
+    cafe = await _make_cafe(db_session, f"Den {uuid.uuid4().hex[:6]}")
+    h = auth_headers(admin, is_admin=True)
+    base = {
+        "title": "KHELO Tekken Challenge #01", "cafeId": str(cafe.id), "game": "Tekken 8",
+        "startsAt": "2026-11-01T15:00:00+05:30", "endsAt": "2026-11-01T18:00:00+05:30",
+        "checkinOpensAt": "2026-11-01T14:30:00+05:30", "checkinClosesAt": "2026-11-01T15:10:00+05:30",
+        "capacity": 10, "status": "draft",
+    }
+
+    async def post(**over):
+        return await async_client.post(
+            "/api/v1/admin/challenges", json={**base, "slug": f"edge-{uuid.uuid4().hex[:6]}", **over}, headers=h,
+        )
+
+    async def refused(**over):
+        res = await post(**over)
+        assert res.status_code == 422, res.text
+        return {d["field"]: d["message"] for d in res.json()["error"]["details"]}
+
+    # Boundaries: exactly 6 h before, exactly at the start, closing exactly at the end all save.
+    for over in ({"checkinOpensAt": "2026-11-01T09:00:00+05:30"},
+                 {"checkinOpensAt": "2026-11-01T15:00:00+05:30", "checkinClosesAt": "2026-11-01T15:20:00+05:30"},
+                 {"checkinClosesAt": "2026-11-01T18:00:00+05:30"},
+                 # Same moments sent in UTC: compared as instants, not as text.
+                 {"startsAt": "2026-11-01T09:30:00Z", "checkinOpensAt": "2026-11-01T09:00:00Z"}):
+        res = await post(**over)
+        assert res.status_code == 201, (over, res.text)
+    # One minute past each boundary is refused, on that field only.
+    assert set(await refused(checkinOpensAt="2026-11-01T08:59:00+05:30")) == {"checkinOpensAt"}
+    assert set(await refused(checkinOpensAt="2026-11-01T15:01:00+05:30")) == {"checkinOpensAt"}
+    assert set(await refused(checkinClosesAt="2026-11-01T18:01:00+05:30")) == {"checkinClosesAt"}
+    assert set(await refused(checkinClosesAt="2026-11-01T14:30:00+05:30")) == {"checkinClosesAt"}
+    assert set(await refused(endsAt="2026-11-01T15:00:00+05:30")) == {"endsAt"}
+    # A time without its zone: only that field is reported, and nothing crashes.
+    assert set(await refused(startsAt="2026-11-01T15:00:00")) == {"startsAt"}
+    # Missing required fields are named too.
+    no_title = {k: v for k, v in base.items() if k != "title"}
+    res = await async_client.post("/api/v1/admin/challenges", json={**no_title, "slug": "edge-no-title"}, headers=h)
+    assert res.status_code == 422 and {d["field"] for d in res.json()["error"]["details"]} == {"title"}
+    assert set(await refused(capacity=0)) == {"capacity"}
+
+    # Ordinary words that merely contain a risky one are fine.
+    ok = await post(rulesMd="- Alphabet order seeding\n- Better of 3 goes through\n- Cashback offers stay at the café\n- Stakeholders: AdamsDen",
+                    prizesMd="- 1st: 2 hours free play", setupLine="   ")
+    assert ok.status_code == 201, ok.text
+    assert ok.json()["data"]["setupLine"] is None
+    for word in ("PRIZE", "Buy-in", "tickets", "Entry-fee", "betting", "jackpot", "Gambling", "lottery"):
+        assert set(await refused(rulesMd=f"- {word} rules")) == {"rulesMd"}, word
+
+    # Same checks on edit, plus the duplicate link name.
+    made = (await post(slug="edge-taken")).json()["data"]
+    cid = made["id"]
+    body = {**base, "slug": "edge-taken"}
+    res = await async_client.patch(f"/api/v1/admin/challenges/{cid}", json={**body, "prizesMd": "Prizes"}, headers=h)
+    assert res.status_code == 422 and {d["field"] for d in res.json()["error"]["details"]} == {"prizesMd"}
+    res = await async_client.patch(f"/api/v1/admin/challenges/{cid}", json={**body, "capacity": 12}, headers=h)
+    assert res.status_code == 200, res.text
+    res = await post(slug="edge-taken")
+    assert res.status_code == 409 and res.json()["error"]["code"] == "SLUG_TAKEN"
