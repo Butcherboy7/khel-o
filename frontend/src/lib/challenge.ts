@@ -71,3 +71,49 @@ export function recalledUtm(search: string): ChallengeUtm {
     return {};
   }
 }
+
+/** Roughly how long one match takes, including sitting down and picking
+ *  characters: about 8 min for best of 3, 13 min for best of 5. */
+export function matchMinutes(bestOf: number): number {
+  return Math.round(bestOf * 2.5 + 0.5);
+}
+
+export interface ChallengePlan {
+  players: number;
+  rounds: number;
+  /** Matches actually played (byes don't count), 3rd-place match included. */
+  matches: number;
+  minutes: number;
+}
+
+/** The knockout for `players` people: rounds, matches and a rough time with
+ *  `setups` matches running at once. The 3rd-place match and the final are
+ *  played one after the other at the end. Only an estimate. */
+export function challengePlan(players: number, bestOf: number, finalBestOf: number, setups: number): ChallengePlan | null {
+  if (players < 2) return null;
+  const size = 2 ** Math.ceil(Math.log2(players));
+  const rounds = Math.log2(size);
+  const each = matchMinutes(bestOf);
+  const lanes = Math.max(1, Math.floor(setups) || 1);
+  let matches = 0;
+  let minutes = 0;
+  for (let r = 0; r < rounds - 1; r += 1) {
+    // Round 1 only has the matches that aren't byes; later rounds are full.
+    const n = r === 0 ? players - size / 2 : size / 2 ** (r + 1);
+    matches += n;
+    minutes += Math.ceil(n / lanes) * each;
+  }
+  // With 3 players the lone semi-final loser takes 3rd without playing.
+  const third = players >= 4 ? 1 : 0;
+  matches += 1 + third;
+  minutes += matchMinutes(finalBestOf) + third * each;
+  return { players, rounds, matches, minutes };
+}
+
+/** "1 h 40 min" / "45 min". */
+export function hoursAndMinutes(total: number): string {
+  const rounded = Math.max(5, Math.round(total / 5) * 5);
+  const h = Math.floor(rounded / 60);
+  const m = rounded % 60;
+  return h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`;
+}

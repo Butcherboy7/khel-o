@@ -1,18 +1,20 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, CheckCircle2, Circle, Dices, ExternalLink, Flag, Gift, Lock, Projector, Search, Trash2 } from 'lucide-react';
+import { Camera, CheckCircle2, Circle, Clock, Dices, ExternalLink, Flag, Gift, Lock, Projector, Search, Swords, Trash2 } from 'lucide-react';
 import {
   adminClearResult, adminCloseCheckin, adminDraw, adminEntryAction, adminFinish, adminGetBracket, adminGetChallenge,
   adminRecordResult, adminSetChampionPhoto, adminUploadChampionPhoto,
   type AdminChallengeDetail, type AdminEntry, type Bracket, type BracketMatch,
 } from '@/lib/api/challenges';
-import { challengeTime } from '@/lib/challenge';
+import { challengePlan, challengeTime, hoursAndMinutes } from '@/lib/challenge';
 import { BracketView, Podium } from '@/components/challenge/BracketView';
 import { Button, Card, CardContent, ErrorState, Modal, PageSpinner } from '@/components/ui';
+import { HostTour, HostTutorialButton, useHostTour } from '@/components/challenge/admin/HostTour';
+import { DAY_PAGE_STEPS } from '@/components/challenge/admin/hostTourSteps';
 
 /** Everything for the day itself, top to bottom in the order it happens:
  *  check people in, close check-in, draw, enter results, finish. */
@@ -29,6 +31,7 @@ export default function ChallengeDayPage() {
   const [closeOpen, setCloseOpen] = useState(false);
   const [drawOpen, setDrawOpen] = useState(false);
   const [picked, setPicked] = useState<BracketMatch | null>(null);
+  const tour = useHostTour('day', Boolean(detail.data && bracket.data));
 
   const setDetail = (d: AdminChallengeDetail) => qc.setQueryData(detailKey, d);
   const setBracket = (b: Bracket) => {
@@ -71,6 +74,9 @@ export default function ChallengeDayPage() {
   const resultsIn = [...b.rounds.flatMap((r) => r.matches), ...(b.thirdPlace ? [b.thirdPlace] : [])].some((m) => m.winner && !m.bye);
   const champion = b.standings.find((s) => s.place === 1);
   const finished = c.status === 'finished';
+  // Who the estimate is for: the bracket once drawn, else who's here, else everyone confirmed.
+  const drawnPlayers = b.rounds[0]?.matches.reduce((n, m) => n + (m.a ? 1 : 0) + (m.b ? 1 : 0), 0) ?? 0;
+  const playerCount = b.drawn ? drawnPlayers : c.checkinClosedAt || here >= 2 ? here : confirmed.length;
 
   const toggle = (e: AdminEntry) =>
     run(`p:${e.id}`, () => adminEntryAction(id, e.id, e.present ? 'uncheckin' : 'checkin'), setDetail);
@@ -81,8 +87,11 @@ export default function ChallengeDayPage() {
         <Link href={`/admin/challenges/${id}`} className="text-caption font-semibold text-text-secondary hover:text-text-primary">
           ← {c.title}
         </Link>
-        <h1 className="mt-1 font-heading text-h1 text-text-primary">Challenge day</h1>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="font-heading text-h1 text-text-primary">Challenge day</h1>
+          <HostTutorialButton onClick={tour.start} />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2" data-host-tour="screens">
           <a href={`/challenge/${c.slug}/bracket?projector=1`} target="_blank" rel="noopener noreferrer" className={linkBtn}>
             <Projector className="h-4 w-4" /> Bracket on projector
           </a>
@@ -105,7 +114,7 @@ export default function ChallengeDayPage() {
       )}
 
       {/* 1. Check-in */}
-      <Step n={1} title="Check people in" done={Boolean(c.checkinClosedAt)}>
+      <Step n={1} title="Check people in" done={Boolean(c.checkinClosedAt)} tour="checkin">
         <p className="text-caption text-text-secondary">
           Scan each player’s QR with your phone camera (signed in to KHEL-O), or tap their name here. Check-in time on their page:{' '}
           {challengeTime(c.checkinOpensAt)}–{challengeTime(c.checkinClosesAt)}.
@@ -151,7 +160,7 @@ export default function ChallengeDayPage() {
             </button>
           ))}
         </div>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" data-host-tour="close-checkin">
           <p className="text-caption text-text-secondary">
             {c.checkinClosedAt
               ? `Closed at ${challengeTime(c.checkinClosedAt)}. Late arrival? Put them back on the main page, tick them here, then close again.`
@@ -163,8 +172,10 @@ export default function ChallengeDayPage() {
         </div>
       </Step>
 
+      <PlanCard id={id} players={playerCount} bestOf={c.bestOf} finalBestOf={c.finalBestOf} drawn={b.drawn} />
+
       {/* 2. Draw */}
-      <Step n={2} title="Make the draw" done={b.drawn}>
+      <Step n={2} title="Make the draw" done={b.drawn} tour="draw">
         <p className="text-caption text-text-secondary">
           Shuffles the {here} confirmed players who are here into the bracket. If the numbers are uneven, some get a bye into round 2.
           {b.drawn && !resultsIn ? ' You can redo it until the first result is in.' : ''}
@@ -183,27 +194,21 @@ export default function ChallengeDayPage() {
       </Step>
 
       {/* 3. Results */}
-      <Step n={3} title="Enter results" done={Boolean(champion)}>
+      <Step n={3} title="Play and enter results" done={Boolean(champion)}>
         {!b.drawn ? (
-          <p className="text-caption text-text-secondary">The bracket shows up here after the draw.</p>
+          <p className="text-caption text-text-secondary" data-host-tour="ready">
+            After the draw, the matches ready to play show up here, with the whole bracket below.
+          </p>
         ) : (
           <>
-            <p className="text-caption text-text-secondary">
-              Tap a match to enter who won. You can fix a result until the next match has one.
-            </p>
-            {b.upNext && (
-              <button
-                type="button"
-                onClick={() => setPicked(b.upNext)}
-                className="mt-3 w-full rounded-xl border border-primary/40 bg-primary/5 p-3 text-left"
-              >
-                <span className="text-xs font-semibold uppercase tracking-wide text-primary">Up next · {b.upNext.name}</span>
-                <span className="mt-0.5 block font-heading text-h3 text-text-primary">
-                  {b.upNext.a?.name} vs {b.upNext.b?.name}
-                </span>
-              </button>
-            )}
-            <div className="mt-3 rounded-2xl bg-[#0E0F13] p-3 text-[#F4F1EC]">
+            <div data-host-tour="ready">
+              <p className="text-caption text-text-secondary">
+                Send the top match to whichever setup is free. When it ends, tap it and enter who won. You can fix a result until the
+                next match has one.
+              </p>
+              <ReadyList matches={b.ready} onPick={setPicked} />
+            </div>
+            <div className="mt-3 rounded-2xl bg-[#0E0F13] p-3 text-[#F4F1EC]" data-host-tour="bracket">
               {b.standings.length > 0 && (
                 <div className="mb-3">
                   <Podium bracket={b} />
@@ -216,7 +221,7 @@ export default function ChallengeDayPage() {
       </Step>
 
       {/* 4. Finish */}
-      <Step n={4} title="Finish and celebrate" done={finished}>
+      <Step n={4} title="Finish and celebrate" done={finished} tour="finish">
         <p className="text-caption text-text-secondary">
           Finishing shows the results on the public page and lets you make the podium rewards on the Rewards page.
         </p>
@@ -300,6 +305,8 @@ export default function ChallengeDayPage() {
           if (r) setPicked(null);
         }}
       />
+
+      <HostTour steps={DAY_PAGE_STEPS} open={tour.open} onClose={tour.close} />
     </div>
   );
 }
@@ -307,9 +314,9 @@ export default function ChallengeDayPage() {
 const linkBtn =
   'inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-caption font-semibold text-text-primary hover:bg-surface';
 
-function Step({ n, title, done, children }: { n: number; title: string; done: boolean; children: React.ReactNode }) {
+function Step({ n, title, done, tour, children }: { n: number; title: string; done: boolean; tour?: string; children: React.ReactNode }) {
   return (
-    <Card>
+    <Card data-host-tour={tour}>
       <CardContent className="p-4">
         <h2 className="flex items-center gap-2 font-heading text-h3 text-text-primary">
           <span className={`flex h-7 w-7 items-center justify-center rounded-full text-caption font-bold ${done ? 'bg-success/15 text-success' : 'bg-surface text-text-secondary'}`}>
@@ -318,6 +325,105 @@ function Step({ n, title, done, children }: { n: number; title: string; done: bo
           {title}
         </h2>
         <div className="mt-2">{children}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Every match that can start now. The café sends the top one to whichever
+ *  setup is free; tapping a match enters its result. */
+function ReadyList({ matches, onPick }: { matches: BracketMatch[]; onPick: (m: BracketMatch) => void }) {
+  if (matches.length === 0) return null;
+  return (
+    <div className="mt-3 flex flex-col gap-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+        <Swords className="h-3.5 w-3.5" /> Ready to play · {matches.length}
+      </p>
+      {matches.map((m, i) => (
+        <button
+          key={m.id}
+          type="button"
+          onClick={() => onPick(m)}
+          className={`flex items-center gap-3 rounded-xl border p-3 text-left ${i === 0 ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-surface'}`}
+        >
+          <span
+            className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-caption font-bold ${
+              i === 0 ? 'bg-primary text-white' : 'bg-surface text-text-secondary'
+            }`}
+          >
+            {i + 1}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-semibold text-text-secondary">
+              {m.name} · best of {m.bestOf}
+            </span>
+            <span className="block truncate font-heading text-body-emphasis font-bold text-text-primary">
+              {m.a?.name} vs {m.b?.name}
+            </span>
+          </span>
+          <span className="flex-shrink-0 text-caption font-semibold text-primary-dark">Enter result</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Rounds, matches and a rough time, from the number of setups the café can
+ *  use. The setups number is only for this estimate (kept on this device). */
+function PlanCard({
+  id, players, bestOf, finalBestOf, drawn,
+}: { id: string; players: number; bestOf: number; finalBestOf: number; drawn: boolean }) {
+  const key = `khelo.challenge.setups.${id}`;
+  const [setups, setSetups] = useState('1');
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved) setSetups(saved);
+    } catch {
+      /* 1 is fine */
+    }
+  }, [key]);
+  const change = (v: string) => {
+    const clean = v.replace(/\D/g, '').slice(0, 2);
+    setSetups(clean);
+    try {
+      if (clean) localStorage.setItem(key, clean);
+    } catch {
+      /* ignore */
+    }
+  };
+  const n = Math.max(1, Number(setups) || 1);
+  const plan = challengePlan(players, bestOf, finalBestOf, n);
+  return (
+    <Card data-host-tour="plan">
+      <CardContent className="p-4">
+        <h2 className="flex items-center gap-2 font-heading text-h3 text-text-primary">
+          <Clock className="h-5 w-5 text-text-secondary" /> How long it takes
+        </h2>
+        <label className="mt-2 flex items-center gap-2 text-caption text-text-primary">
+          Setups you can use
+          <input
+            inputMode="numeric"
+            value={setups}
+            onChange={(e) => change(e.target.value)}
+            className="h-10 w-16 rounded-xl border border-border bg-surface text-center text-text-primary"
+          />
+        </label>
+        {plan ? (
+          <p className="mt-2 text-body text-text-primary" data-testid="plan">
+            {plan.players} players · best of {bestOf}
+            {finalBestOf !== bestOf ? ` (final best of ${finalBestOf})` : ''} → {plan.rounds} {plan.rounds === 1 ? 'round' : 'rounds'},{' '}
+            {plan.matches} {plan.matches === 1 ? 'match' : 'matches'} · <b>about {hoursAndMinutes(plan.minutes)}</b> with {n}{' '}
+            {n === 1 ? 'setup' : 'setups'}
+          </p>
+        ) : (
+          <p className="mt-2 text-caption text-text-secondary">Needs at least 2 players.</p>
+        )}
+        <p className="mt-1 text-xs text-text-secondary">
+          {drawn ? 'For the players in the bracket. ' : 'For the players here so far (or everyone confirmed before anyone checks in). '}
+          About 8 min a best-of-3 match and 13 min a best-of-5, with the 3rd-place match and the final one after the other. Breaks not
+          included.
+        </p>
       </CardContent>
     </Card>
   );

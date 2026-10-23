@@ -629,6 +629,7 @@ class PromotionService:
             if p.campaign_id is not None:
                 camp = await self.promo_repo.db.get(OfferCampaign, p.campaign_id)
                 resp.campaign_name = camp.name if camp else None
+                resp.challenge_reward = bool(camp and camp.challenge_id)
             row = await self._campaign_offer_row(p, datetime.now(timezone.utc))
             if row:
                 resp.tier_name = row["activity"]
@@ -637,6 +638,18 @@ class PromotionService:
                 resp.offer_minutes = row["minutes"]
             out.append(resp)
         return out
+
+    async def _refuse_challenge_reward(self, promo) -> None:
+        """Challenge rewards belong to the players who earned them: only KHEL-O
+        (admin → the challenge's Rewards page) can switch them off."""
+        if promo.campaign_id is None:
+            return
+        camp = await self.promo_repo.db.get(OfferCampaign, promo.campaign_id)
+        if camp is not None and camp.challenge_id is not None:
+            raise ForbiddenException(
+                message="This is a challenge reward a player earned, so it can't be changed here. Ask KHEL-O if something is wrong.",
+                error_code="CHALLENGE_REWARD_LOCKED",
+            )
 
     async def get_promotion(self, promotion_id: UUID) -> PromotionResponse:
         promo = await self.promo_repo.get_by_id(promotion_id)
@@ -658,6 +671,7 @@ class PromotionService:
             cafe = await self.cafe_repo.get_by_id(promo.cafe_id)
             if not cafe or str(cafe.owner_id) != str(owner_id):
                 raise ForbiddenException(message="You do not have permission to update this promotion", error_code="FORBIDDEN")
+            await self._refuse_challenge_reward(promo)
 
         update_dict = update_in.model_dump(exclude_unset=True)
 
@@ -757,6 +771,7 @@ class PromotionService:
             cafe = await self.cafe_repo.get_by_id(promo.cafe_id)
             if not cafe or str(cafe.owner_id) != str(owner_id):
                 raise ForbiddenException(message="You do not have permission to deactivate this promotion", error_code="FORBIDDEN")
+            await self._refuse_challenge_reward(promo)
 
         await self.promo_repo.deactivate(promotion_id)
 
@@ -779,6 +794,7 @@ class PromotionService:
             cafe = await self.cafe_repo.get_by_id(promo.cafe_id)
             if not cafe or str(cafe.owner_id) != str(owner_id):
                 raise ForbiddenException(message="You do not have permission to delete this promotion", error_code="FORBIDDEN")
+            await self._refuse_challenge_reward(promo)
 
         if promo.current_uses > 0:
             raise ValidationException(

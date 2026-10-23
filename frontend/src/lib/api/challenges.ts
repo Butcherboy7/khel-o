@@ -115,6 +115,8 @@ export interface Bracket {
   rounds: { round: number; name: string; matches: BracketMatch[] }[];
   thirdPlace: BracketMatch | null;
   upNext: BracketMatch | null;
+  /** Every match that can be played now, in playing order (upNext is the first). */
+  ready: BracketMatch[];
   standings: (BracketSide & { place: number })[];
 }
 
@@ -163,6 +165,22 @@ export interface JoinBody {
   utmContent?: string;
   formTicket?: string;
   website?: string;
+}
+
+export interface MyActiveChallenge {
+  slug: string;
+  title: string;
+  game: string;
+  status: ChallengeStatus;
+  startsAt: string;
+  cafeName: string;
+  entryStatus: 'confirmed' | 'waitlist';
+  rank: number | null;
+}
+
+/** Challenges the signed-in player is in that haven't ended (home screen card). */
+export async function getMyActiveChallenges(): Promise<MyActiveChallenge[]> {
+  return call(() => apiClient.get('/api/v1/challenges/mine/active'));
 }
 
 export async function getChallenge(slug: string): Promise<Challenge> {
@@ -226,6 +244,11 @@ export interface AdminChallengeDetail {
   challenge: Challenge;
   entries: AdminEntry[];
   stats: ChallengeStats;
+  /** Practice players are for rehearsals on dev only. */
+  practiceAllowed: boolean;
+  practicePlayers: number;
+  added?: number;
+  removed?: number;
   released?: number;
   movedUp?: number;
   noShows?: number;
@@ -296,6 +319,14 @@ export async function adminDownloadEntriesCsv(id: string, slug: string): Promise
   a.click();
   a.remove();
   URL.revokeObjectURL(href);
+}
+
+export async function adminFillPractice(id: string): Promise<AdminChallengeDetail> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/practice-players`));
+}
+
+export async function adminClearPractice(id: string): Promise<AdminChallengeDetail> {
+  return call(() => apiClient.delete(`/api/v1/admin/challenges/${id}/practice-players`));
 }
 
 export async function adminCloseCheckin(id: string): Promise<AdminChallengeDetail> {
@@ -382,6 +413,9 @@ export interface RewardsData {
   waitlistPeople: number;
   partnerCafes: string[];
   rewards: RewardRow[];
+  posterUrl: string;
+  /** PNG data URL of the winners' "scan to see your rewards" QR. */
+  posterQr: string;
 }
 
 export async function adminGetRewards(id: string): Promise<RewardsData> {

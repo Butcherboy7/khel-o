@@ -35,7 +35,7 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
           <p className="mt-[20vh] text-center font-heading text-[min(4vw,7vh)] font-bold">The bracket is coming up</p>
         ) : (
           <>
-            {data.upNext && !finished && <UpNext m={data.upNext} big />}
+            {data.ready.length > 0 && !finished && <UpNext matches={data.ready} big />}
             {data.standings.length > 0 && (finished || !data.upNext) && (
               <div className="mt-[2vh]">
                 <Podium bracket={data} big />
@@ -96,9 +96,9 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
                 )}
               </section>
             )}
-            {data.upNext && !finished && (
+            {data.ready.length > 0 && !finished && (
               <div className="mt-5">
-                <UpNext m={data.upNext} />
+                <UpNext matches={data.ready} />
               </div>
             )}
             <section className="mt-6">
@@ -111,15 +111,37 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
   );
 }
 
-function UpNext({ m, big = false }: { m: BracketMatch; big?: boolean }) {
+/** The next few matches that can start now: the café sends each one to
+ *  whichever setup is free, so players watch here for their names. */
+function UpNext({ matches, big = false }: { matches: BracketMatch[]; big?: boolean }) {
+  const [first, ...rest] = matches.slice(0, big ? 4 : 3);
+  const more = matches.length - 1 - rest.length;
   return (
     <div className={`rounded-2xl border border-[#5A2A26] bg-[#1A1114] ${big ? 'mt-[2vh] px-[2vw] py-[2vh]' : 'p-4'}`}>
       <p className={`flex items-center gap-2 font-bold uppercase tracking-[0.16em] text-[#E8675D] ${big ? 'text-[min(1.4vw,2.2vh)]' : 'text-[11px]'}`}>
-        <Swords className={big ? 'h-[2.4vh] w-[2.4vh]' : 'h-3.5 w-3.5'} /> Up next · {m.name} · best of {m.bestOf}
+        <Swords className={big ? 'h-[2.4vh] w-[2.4vh]' : 'h-3.5 w-3.5'} /> Up next · {first.name} · best of {first.bestOf}
       </p>
       <p className={`mt-1 font-heading font-bold ${big ? 'text-[min(4vw,6.5vh)]' : 'text-2xl'}`}>
-        {m.a?.name} <span className="text-[#A3A6B1]">vs</span> {m.b?.name}
+        {first.a?.name} <span className="text-[#A3A6B1]">vs</span> {first.b?.name}
       </p>
+      {rest.length > 0 && (
+        <div className={`border-t border-[#3A2226] ${big ? 'mt-[1.5vh] pt-[1.2vh]' : 'mt-3 pt-2'}`}>
+          <p className={`font-bold uppercase tracking-[0.16em] text-[#A3A6B1] ${big ? 'text-[min(1.1vw,1.8vh)]' : 'text-[10px]'}`}>
+            Then, as setups free up
+          </p>
+          <ul className={big ? 'mt-[0.6vh] flex flex-col gap-[0.6vh]' : 'mt-1 flex flex-col gap-1'}>
+            {rest.map((m) => (
+              <li key={m.id} className={`flex items-baseline justify-between gap-3 ${big ? 'text-[min(2vw,3.4vh)]' : 'text-sm'}`}>
+                <span className="truncate font-semibold">
+                  {m.a?.name} <span className="text-[#A3A6B1]">vs</span> {m.b?.name}
+                </span>
+                <span className={`flex-shrink-0 text-[#A3A6B1] ${big ? 'text-[min(1.2vw,2vh)]' : 'text-xs'}`}>{m.name}</span>
+              </li>
+            ))}
+          </ul>
+          {more > 0 && <p className={`text-[#A3A6B1] ${big ? 'mt-[0.6vh] text-[min(1.2vw,2vh)]' : 'mt-1 text-xs'}`}>+{more} more</p>}
+        </div>
+      )}
     </div>
   );
 }

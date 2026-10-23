@@ -565,7 +565,16 @@ export default function OwnerOffersPage() {
 
                   {p.campaignName && (
                     <div className="flex flex-col gap-1 rounded-xl border border-accent/20 bg-accent/5 p-3">
-                      <p className="text-caption font-semibold text-text-primary">Part of the “{p.campaignName}” campaign</p>
+                      {p.challengeReward ? (
+                        <p className="flex flex-wrap items-center gap-2 text-caption font-semibold text-text-primary">
+                          <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-accent">
+                            Challenge reward
+                          </span>
+                          {p.campaignName}
+                        </p>
+                      ) : (
+                        <p className="text-caption font-semibold text-text-primary">Part of the “{p.campaignName}” campaign</p>
+                      )}
                       {p.regularPrice != null && p.offerPrice != null && p.offerMinutes != null && (
                         <p className="text-caption text-text-secondary">
                           Customers pay <span className="font-semibold text-text-primary">₹{p.offerPrice}</span> instead of{' '}
@@ -655,6 +664,12 @@ export default function OwnerOffersPage() {
                     </div>
                   )}
 
+                  {p.challengeReward ? (
+                    <p className="border-t border-border pt-3 text-caption text-text-secondary">
+                      A player earned this at a KHEL-O challenge, so it can&apos;t be edited or paused here. Ask KHEL-O if something looks
+                      wrong.
+                    </p>
+                  ) : (
                   <div className="flex items-center gap-2 pt-3 border-t border-border">
                     <Button variant="outline" size="sm" onClick={() => openEdit(p)} className="flex-1">
                       Edit
@@ -693,6 +708,7 @@ export default function OwnerOffersPage() {
                       </Button>
                     )}
                   </div>
+                  )}
                 </CardContent>
               </Card>
             );

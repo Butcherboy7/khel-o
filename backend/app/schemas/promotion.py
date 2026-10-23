@@ -159,6 +159,8 @@ class PromotionResponse(PromotionBase):
     # offer belongs to, the setup it is on, and the regular vs offer price at
     # its headline length, so the owner sees the same numbers customers do.
     campaign_name: Optional[str] = None
+    # A challenge reward a player earned: the owner sees it but can't edit or pause it.
+    challenge_reward: bool = False
     tier_name: Optional[str] = None
     regular_price: Optional[float] = None
     offer_price: Optional[float] = None

@@ -274,10 +274,17 @@ def standings(rows: list[ChallengeMatch]) -> dict[int, uuid.UUID]:
     return out
 
 
-def up_next(rows: list[ChallengeMatch]) -> Optional[ChallengeMatch]:
-    """The next match ready to play: both players known, no result yet.
-    The 3rd-place match is played just before the final."""
+def ready_matches(rows: list[ChallengeMatch]) -> list[ChallengeMatch]:
+    """Every match that can be played now (both players known, no result yet),
+    in playing order: earlier rounds first, the 3rd-place match just before
+    the final. The café sends players to whichever setup is free."""
     ready = [m for m in rows if m.winner_entry_id is None and m.entry_a_id and m.entry_b_id]
     rounds = rounds_of(rows)
     ready.sort(key=lambda m: (m.round + (0 if m.is_third_place else (0.5 if m.round == rounds - 1 else 0)), m.position))
+    return ready
+
+
+def up_next(rows: list[ChallengeMatch]) -> Optional[ChallengeMatch]:
+    """The first of the ready matches."""
+    ready = ready_matches(rows)
     return ready[0] if ready else None

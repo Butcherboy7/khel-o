@@ -30,6 +30,8 @@ export interface Promotion {
   /** Owner view, set by the server: campaign the offer belongs to, the setup, and the
    *  regular vs offer price at its headline length (offerMinutes). */
   campaignName?: string | null;
+  /** A reward a player earned at a challenge: shown, but only KHEL-O can change it. */
+  challengeReward?: boolean;
   tierName?: string | null;
   regularPrice?: number | null;
   offerPrice?: number | null;

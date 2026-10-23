@@ -4,12 +4,14 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Gift, Trophy, Users } from 'lucide-react';
+import { Gift, Printer, QrCode, Trophy, Users } from 'lucide-react';
 import {
   adminGetChallenge, adminGetRewards, adminMakeRewards, adminRewardActive, adminSaveRewardsConfig,
   type RewardsConfig, type RewardsData, type RewardRow,
 } from '@/lib/api/challenges';
 import { Button, Card, CardContent, ErrorState, PageSpinner } from '@/components/ui';
+import { HostTour, HostTutorialButton, useHostTour } from '@/components/challenge/admin/HostTour';
+import { REWARDS_PAGE_STEPS } from '@/components/challenge/admin/hostTourSteps';
 
 const rupees = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 const day = (iso: string) =>
@@ -25,6 +27,7 @@ export default function ChallengeRewardsPage() {
   const challenge = useQuery({ queryKey: ['admin', 'challenge', id], queryFn: () => adminGetChallenge(id) });
   const [busy, setBusy] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const tour = useHostTour('rewards', Boolean(data));
 
   const run = async (what: string, fn: () => Promise<RewardsData>, ok?: string) => {
     setBusy(what);
@@ -52,7 +55,10 @@ export default function ChallengeRewardsPage() {
     <div className="flex flex-col gap-5 pb-16">
       <div>
         <Link href={`/admin/challenges/${id}`} className="text-caption font-semibold text-text-secondary hover:text-text-primary">← {title}</Link>
-        <h1 className="mt-1 font-heading text-h1 text-text-primary">Rewards</h1>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="font-heading text-h1 text-text-primary">Rewards</h1>
+          <HostTutorialButton onClick={tour.start} />
+        </div>
         <p className="text-body text-text-secondary">
           Each reward works only on the accounts that earned it. Players see theirs on their challenge page with a “Book” button.
         </p>
@@ -79,7 +85,7 @@ export default function ChallengeRewardsPage() {
       )}
 
       <div className="grid gap-3 md:grid-cols-2">
-        <Card>
+        <Card data-host-tour="podium">
           <CardContent className="flex h-full flex-col gap-2 p-4">
             <p className="flex items-center gap-2 font-semibold text-text-primary"><Trophy className="h-4 w-4 text-warning" /> Podium rewards</p>
             <p className="text-caption text-text-secondary">
@@ -106,7 +112,7 @@ export default function ChallengeRewardsPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card data-host-tour="waitlist">
           <CardContent className="flex h-full flex-col gap-2 p-4">
             <p className="flex items-center gap-2 font-semibold text-text-primary"><Users className="h-4 w-4 text-primary" /> Waitlist thank-you</p>
             <p className="text-caption text-text-secondary">
@@ -128,6 +134,8 @@ export default function ChallengeRewardsPage() {
         </Card>
       </div>
 
+      <Poster title={title} url={data.posterUrl} qr={data.posterQr} />
+
       <Settings
         config={data.config}
         locked={data.rewards.length > 0}
@@ -135,12 +143,65 @@ export default function ChallengeRewardsPage() {
         onSave={(cfg) => run('config', () => adminSaveRewardsConfig(id, cfg), 'Saved.')}
       />
 
-      <h2 className="font-heading text-h2 text-text-primary">Every use</h2>
+      <h2 className="font-heading text-h2 text-text-primary" data-host-tour="uses">Every use</h2>
       {data.rewards.length === 0 && <p className="text-caption text-text-secondary">No rewards made yet.</p>}
       {data.rewards.map((r) => (
         <RewardCard key={r.id} r={r} busy={busy === r.id} onToggle={() => run(r.id, () => adminRewardActive(id, r.id, !r.isActive))} />
       ))}
+
+      <HostTour steps={REWARDS_PAGE_STEPS} open={tour.open} onClose={tour.close} />
     </div>
+  );
+}
+
+/** One printed QR for the winners. It opens their own challenge page, where
+ *  their rewards wait behind their sign-in; it holds no code. */
+function Poster({ title, url, qr }: { title: string; url: string; qr: string }) {
+  const print = () => {
+    const w = window.open('', '_blank', 'width=800,height=1000');
+    if (!w) return;
+    const esc = (t: string) => t.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch] as string);
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Winners: scan to see your rewards</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; text-align: center; color: #111; margin: 0; }
+  .kicker { letter-spacing: .2em; text-transform: uppercase; font-weight: 700; color: #D0463C; font-size: 14pt; margin-top: 10mm; }
+  h1 { font-size: 34pt; margin: 6mm 0 2mm; }
+  p { font-size: 15pt; margin: 2mm 0; }
+  img { width: 120mm; height: 120mm; image-rendering: pixelated; margin: 10mm auto 6mm; display: block; }
+  .small { font-size: 11pt; color: #555; }
+</style></head><body>
+<div class="kicker">${esc(title)}</div>
+<h1>Winners: scan to see your rewards</h1>
+<p>Scan with your phone camera and sign in with the account you signed up with.</p>
+<img src="${qr}" alt="QR code">
+<p class="small">${esc(url.replace(/^https?:\/\//, ''))}</p>
+<p class="small">Your rewards are on your own page, with a Book button.</p>
+<script>window.onload = () => { window.print(); };</script>
+</body></html>`);
+    w.document.close();
+  };
+  return (
+    <Card data-host-tour="poster">
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL QR made by our API */}
+        <img src={qr} alt="QR code to the players' own challenge page" className="h-28 w-28 rounded-lg border border-border bg-white p-1" />
+        <div className="flex-1">
+          <p className="flex items-center gap-2 font-semibold text-text-primary">
+            <QrCode className="h-4 w-4 text-primary" /> Winners: scan to see your rewards
+          </p>
+          <p className="text-caption text-text-secondary">
+            Print it and put it by the screen. Winners scan it, sign in, and their rewards are on their page. It has no code in it, so
+            anyone else just sees their own page.
+          </p>
+          <div className="mt-2">
+            <Button variant="secondary" size="sm" onClick={print}>
+              <Printer className="h-4 w-4" /> Print the poster
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

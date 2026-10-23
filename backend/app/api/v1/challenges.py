@@ -36,6 +36,7 @@ from app.models.promotion import OfferCampaign
 from app.models.user import User
 from app.services import challenge_bracket as bracket
 from app.services import challenge_day as day
+from app.services import challenge_practice as practice
 from app.services import challenge_rewards as rewards
 from app.services import challenge_service as svc
 
@@ -169,6 +170,32 @@ async def _me_payload(db: AsyncSession, slug: str, user_id) -> dict:
 
 
 # ── Public ────────────────────────────────────────────────────────────────
+
+
+@public_router.get("/mine/active")
+async def my_active_challenges(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    """Challenges this player is in that haven't ended: for the home screen card."""
+    rows = (await db.execute(
+        select(Challenge, Cafe, ChallengeEntry)
+        .join(Cafe, Cafe.id == Challenge.cafe_id)
+        .join(ChallengeEntry, ChallengeEntry.challenge_id == Challenge.id)
+        .where(
+            ChallengeEntry.user_id == user.id,
+            ChallengeEntry.status.in_(("confirmed", "waitlist")),
+            Challenge.status.in_(("open", "closed", "live")),
+            Challenge.ends_at > svc.now(),
+        )
+        .order_by(Challenge.starts_at)
+    )).all()
+    out = []
+    for ch, cafe, e in rows:
+        everyone = await svc.entries(db, ch.id)
+        out.append({
+            "slug": ch.slug, "title": ch.title, "game": ch.game, "status": ch.status,
+            "startsAt": _iso(ch.starts_at), "cafeName": cafe.name,
+            "entryStatus": e.status, "rank": svc.rank(e, everyone),
+        })
+    return {"success": True, "data": out}
 
 
 @public_router.get("/{slug}")
@@ -494,7 +521,42 @@ async def admin_detail(challenge_id: UUID, db: AsyncSession = Depends(get_db), _
         "challenge": _challenge_out(ch, cafe, await svc.counts(db, ch.id)),
         "entries": [_admin_entry_out(e, rows) for e in rows],
         "stats": await _stats(db, ch, rows),
+        "practiceAllowed": _practice_allowed(),
+        "practicePlayers": await practice.count(db, ch.id) if _practice_allowed() else 0,
     }}
+
+
+def _practice_allowed() -> bool:
+    return settings.ENVIRONMENT != "production"
+
+
+def _refuse_practice_on_prod() -> None:
+    if not _practice_allowed():
+        raise ForbiddenException(message="Practice players are only for rehearsals on dev", error_code="PRACTICE_DEV_ONLY")
+
+
+@admin_router.post("/{challenge_id}/practice-players")
+async def admin_fill_practice(challenge_id: UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    _refuse_practice_on_prod()
+    ch, _ = await _admin_get(db, challenge_id)
+    if ch.drawn_at is not None:
+        raise BadRequestException(message="The draw is done. Clear the practice players first to start again.", error_code="ALREADY_DRAWN")
+    added = await practice.fill(db, ch)
+    logger.info("challenge_practice_fill", challenge=str(challenge_id), added=added)
+    data = (await admin_detail(challenge_id, db, admin))["data"]
+    data["added"] = added
+    return {"success": True, "data": data}
+
+
+@admin_router.delete("/{challenge_id}/practice-players")
+async def admin_clear_practice(challenge_id: UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    _refuse_practice_on_prod()
+    ch, _ = await _admin_get(db, challenge_id)
+    removed = await practice.clear(db, ch)
+    logger.info("challenge_practice_clear", challenge=str(challenge_id), removed=removed)
+    data = (await admin_detail(challenge_id, db, admin))["data"]
+    data["removed"] = removed
+    return {"success": True, "data": data}
 
 
 @admin_router.patch("/{challenge_id}")
@@ -629,7 +691,8 @@ def _bracket_out(ch: Challenge, rows, by_id: dict) -> dict:
 
     main = [m for m in rows if not m.is_third_place]
     third = next((m for m in rows if m.is_third_place), None)
-    nxt = day.up_next(rows)
+    ready = day.ready_matches(rows)
+    nxt = ready[0] if ready else None
     places = day.standings(rows)
     return {
         "drawn": bool(rows),
@@ -639,6 +702,7 @@ def _bracket_out(ch: Challenge, rows, by_id: dict) -> dict:
         ],
         "thirdPlace": match(third) if third else None,
         "upNext": match(nxt) if nxt else None,
+        "ready": [match(m) for m in ready],
         "standings": [{"place": p, **side(eid)} for p, eid in sorted(places.items()) if by_id.get(eid)],
     }
 
@@ -803,6 +867,7 @@ class RewardsConfigIn(_Camel):
 
 async def _rewards_payload(db: AsyncSession, ch: Challenge) -> dict:
     rows = await svc.entries(db, ch.id)
+    poster = f"{settings.FRONTEND_URL.rstrip('/')}/challenge/{ch.slug}/me"
     by_user = {str(e.user_id): e for e in rows}
     return {
         "config": rewards.config(ch),
@@ -810,6 +875,10 @@ async def _rewards_payload(db: AsyncSession, ch: Challenge) -> dict:
         "waitlistPeople": len(rewards.waitlist_user_ids(rows)),
         "partnerCafes": [c.name for c in await rewards.partner_cafes(db, ch.cafe_id)],
         "rewards": await rewards.tracker(db, ch, by_user),
+        # One printed QR for the winners: it opens their own challenge page,
+        # where their rewards wait behind their sign-in. No code in it.
+        "posterUrl": poster,
+        "posterQr": day.qr_data_url(poster),
     }
 
 

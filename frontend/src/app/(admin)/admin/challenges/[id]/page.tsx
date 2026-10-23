@@ -9,11 +9,13 @@ import {
   Swords, Gift,
 } from 'lucide-react';
 import {
-  adminDownloadEntriesCsv, adminEntryAction, adminGetChallenge, adminReleaseSilent,
+  adminClearPractice, adminDownloadEntriesCsv, adminEntryAction, adminFillPractice, adminGetChallenge, adminReleaseSilent,
   type AdminChallengeDetail, type AdminEntry, type Challenge, type EntryAction,
 } from '@/lib/api/challenges';
 import { challengeDay, challengeTime, challengeTimeRange, whatsappLink } from '@/lib/challenge';
 import { Button, Card, CardContent, ErrorState, Modal, PageSpinner } from '@/components/ui';
+import { HostTour, HostTutorialButton, useHostTour } from '@/components/challenge/admin/HostTour';
+import { CHALLENGE_PAGE_STEPS } from '@/components/challenge/admin/hostTourSteps';
 
 type Tab = 'confirmed' | 'waitlist' | 'out' | 'all';
 type MessageKind = 'confirmed' | 'waitlist' | 'movedUp' | 'coming';
@@ -130,6 +132,27 @@ export default function AdminChallengeDetailPage() {
     });
   }, [data, tab, q]);
 
+  const tour = useHostTour('challenge', Boolean(data));
+
+  const practice = async (fill: boolean) => {
+    setBusy(fill ? 'practice:fill' : 'practice:clear');
+    setFlash(null);
+    try {
+      const d = await (fill ? adminFillPractice(id) : adminClearPractice(id));
+      update(d);
+      qc.invalidateQueries({ queryKey: ['admin', 'challenge', id, 'bracket'] });
+      setFlash(
+        fill
+          ? `Added ${d.added ?? 0} practice players. Open Challenge day to check them in and run it.`
+          : `Removed ${d.removed ?? 0} practice players, their matches and rewards. Sign-ups are open again.`,
+      );
+    } catch (e) {
+      setFlash((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   if (isLoading) return <PageSpinner label="Loading the challenge" />;
   if (isError || !data) return <ErrorState message={(error as Error)?.message} onRetry={() => refetch()} />;
 
@@ -161,7 +184,8 @@ export default function AdminChallengeDetailPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/admin/challenges/${c.id}/day`} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3 text-caption font-semibold text-white hover:bg-primary/90">
+          <HostTutorialButton onClick={tour.start} />
+          <Link href={`/admin/challenges/${c.id}/day`} data-host-tour="day-link" className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3 text-caption font-semibold text-white hover:bg-primary/90">
             <Swords className="h-4 w-4" /> Challenge day
           </Link>
           <Link href={`/admin/challenges/${c.id}/rewards`} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-caption font-semibold text-text-primary hover:bg-surface">
@@ -186,6 +210,37 @@ export default function AdminChallengeDetailPage() {
         <button type="button" onClick={() => setFlash(null)} className="rounded-xl bg-primary/10 px-3 py-2 text-left text-caption text-text-primary">
           {flash} <span className="text-text-secondary">(tap to hide)</span>
         </button>
+      )}
+
+      {data.practiceAllowed && (
+        <Card className="border-dashed border-primary/40" data-host-tour="practice">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="flex items-center gap-2 font-semibold text-text-primary">
+                <FlaskConical className="h-4 w-4 text-primary" /> Practice run (dev only)
+              </p>
+              <p className="text-caption text-text-secondary">
+                {data.practicePlayers > 0
+                  ? `${data.practicePlayers} practice players are in. Run the day, then clear them to start again.`
+                  : 'Fill the spots with made-up players (plus 2 on the waitlist) to rehearse the whole day.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="primary" size="sm" isLoading={busy === 'practice:fill'} onClick={() => practice(true)}>
+                Fill with practice players
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={data.practicePlayers === 0}
+                isLoading={busy === 'practice:clear'}
+                onClick={() => practice(false)}
+              >
+                Clear practice players
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* The numbers that matter, real people only (test sign-ups left out) */}
@@ -245,7 +300,7 @@ export default function AdminChallengeDetailPage() {
         </div>
       </details>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center" data-host-tour="people">
         <div className="flex gap-1.5 overflow-x-auto">
           {tabs.map((t) => (
             <button
@@ -348,6 +403,12 @@ export default function AdminChallengeDetailPage() {
           </div>
         )}
       </Modal>
+
+      <HostTour
+        steps={data.practiceAllowed ? CHALLENGE_PAGE_STEPS : CHALLENGE_PAGE_STEPS.filter((s) => s.target !== 'practice')}
+        open={tour.open}
+        onClose={tour.close}
+      />
 
       <Modal isOpen={releaseOpen} onClose={() => setReleaseOpen(false)} title={`Release ${silent} people?`} size="sm">
         <div className="flex flex-col gap-3">
