@@ -22,7 +22,7 @@ class PromotionRepository(BaseRepository[Promotion]):
         pass the current_uses < max_uses check before any of them increments,
         letting a "first 10 customers" promo go to more than 10 people."""
         result = await self.db.execute(
-            select(Promotion).where(Promotion.id == promotion_id).with_for_update()
+            select(Promotion).where(Promotion.id == promotion_id).with_for_update().execution_options(populate_existing=True)
         )
         return result.scalars().first()
 
@@ -175,7 +175,10 @@ class PromotionRepository(BaseRepository[Promotion]):
         return list((await self.db.execute(stmt)).scalars().all())
 
     async def get_campaign_with_lock(self, campaign_id: UUID) -> Optional[OfferCampaign]:
-        stmt = select(OfferCampaign).where(OfferCampaign.id == campaign_id).with_for_update()
+        # populate_existing: the copy loaded earlier in this request (the unlocked check)
+        # may be stale; under the lock we must see what is committed now, e.g. a reward
+        # Finish has just replaced.
+        stmt = select(OfferCampaign).where(OfferCampaign.id == campaign_id).with_for_update().execution_options(populate_existing=True)
         return (await self.db.execute(stmt)).scalars().first()
 
     async def campaign_claimed(self, campaign_id: UUID) -> int:

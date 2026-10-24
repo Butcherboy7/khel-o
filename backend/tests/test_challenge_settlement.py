@@ -519,3 +519,22 @@ async def test_add_back_is_admin_only(async_client, db_session):
     assert (await async_client.get("/api/v1/admin/cafe-payouts/add-back")).status_code in (401, 403)
     user = await db_session.get(User, await _user_of(_places(fin)[1]))
     assert (await async_client.get("/api/v1/admin/cafe-payouts/add-back", headers=auth_headers(user))).status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_the_locked_reward_read_sees_what_finish_just_committed(async_client, db_session):
+    """Checkout loads the reward for its early check, then re-reads it under the lock.
+    If Finish replaced the reward in between, the re-read must see that, not the old copy."""
+    from app.repositories.promotion_repository import PromotionRepository
+    ch, admin, h, fin = await _finished(async_client, db_session)
+    camp = next(c for c in await _campaigns(ch["id"]) if c.reward_kind == "prize_1")
+    async with AsyncSessionLocal() as checkout:
+        repo = PromotionRepository(checkout)
+        early = await checkout.get(OfferCampaign, camp.id)  # the unlocked check's copy
+        assert early.is_active is True and early.superseded_at is None
+        async with AsyncSessionLocal() as other:  # Finish replaces it and commits
+            row = await other.get(OfferCampaign, camp.id)
+            row.is_active, row.superseded_at = False, datetime.now(timezone.utc)
+            await other.commit()
+        locked = await repo.get_campaign_with_lock(camp.id)
+        assert locked.is_active is False and locked.superseded_at is not None
