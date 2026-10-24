@@ -141,9 +141,16 @@ Additive, nullable: `offer_campaigns.superseded_at` + the partial unique index;
 
 Pre-check (done 2026-10-24, read-only, aggregates): dev — 0 duplicate groups,
 1 redeemed prize (café-funded), 0 funded amounts owed, alembic 068; prod — no
-challenges or challenge rewards at all, alembic 068. The migration still checks
-for duplicate groups and **aborts** if any exist, for manual review; it never
-supersedes rows itself.
+challenges or challenge rewards at all, alembic 068.
+
+Duplicates: **stricter than the first plan.** The earlier draft kept one row per
+duplicate group by a tie-break rule and superseded the rest. Migration 069
+instead counts `(challenge_id, reward_kind)` groups with more than one row and,
+if any exist, raises before creating the index, naming each group. Nothing is
+superseded or changed automatically; the groups go to manual review, then the
+migration is run again. Applied on dev 2026-10-24 (qa106): 0 groups, index
+created; a duplicate insert inside a rolled-back transaction was refused by
+Postgres.
 
 Old code with the new schema: ignores new columns; superseded rows are inactive
 so checkout refuses them; old `create_prizes` counts them as made. Risks: old
@@ -164,3 +171,14 @@ only on "promote".
 
 Each phase: targeted + regression tests, migration/transaction checks, dev
 deploy, browser test, report.
+
+Concurrency: the pytest suite runs on SQLite, which has no row locks
+(`FOR UPDATE` is ignored), so it can't prove the locking guarantees. Every
+lock-dependent rule (one-booking reward limit, Finish/reconcile, duplicate
+reward creation, holds during supersede) is also tested against dev
+PostgreSQL with truly simultaneous requests, using test accounts at Matrix
+Cyber Lounge only, Razorpay test mode, and nothing paid for real.
+
+Test data on dev is created with a recognisable slug/title prefix and removed
+afterwards by an exact, guarded delete (named rows only, aborts if anything
+doesn't match).
