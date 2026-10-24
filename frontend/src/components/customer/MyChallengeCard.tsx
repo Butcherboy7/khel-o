@@ -28,31 +28,35 @@ function ComingPrompt({ c }: { c: MyActiveChallenge }) {
     new Date(c.startsAt).getTime() > Date.now();
   if (!showable || hidden) return null;
   return (
-    <div role="group" aria-label="Are you coming?" className="flex items-center gap-2 rounded-2xl border border-[#5A2A26] bg-[#241A1D] px-3 py-2 text-[#F4F1EC]">
-      <p className="min-w-0 flex-1 text-caption">
-        <span className="font-semibold">Are you coming?</span>{' '}
-        <span className="text-[#A3A6B1]">Tell us so we can keep your spot.</span>
-      </p>
-      <button
-        type="button"
-        disabled={yes.isPending}
-        onClick={() => yes.mutate()}
-        className="inline-flex h-9 flex-shrink-0 items-center rounded-xl bg-[#D0463C] px-3 text-caption font-semibold text-white hover:bg-[#B93C33] disabled:opacity-60"
-      >
-        {yes.isPending ? 'Saving…' : 'Yes, I’m coming'}
-      </button>
-      <Link href={`/challenge/${c.slug}/me`} className="flex-shrink-0 text-caption font-semibold text-[#E8675D] underline">Can’t make it</Link>
-      <button
-        type="button"
-        aria-label="Hide this for now"
-        onClick={() => {
-          try { window.localStorage.setItem(dismissKey(c.slug), '1'); } catch { /* storage blocked: it just hides for this visit */ }
-          setHidden(true);
-        }}
-        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-[#A3A6B1] hover:bg-white/10"
-      >
-        <X className="h-4 w-4" aria-hidden />
-      </button>
+    <div role="group" aria-label="Are you coming?" className="flex flex-col gap-2 rounded-2xl border border-[#5A2A26] bg-[#241A1D] px-3 py-2.5 text-[#F4F1EC]">
+      <div className="flex items-start gap-2">
+        <p className="min-w-0 flex-1 text-caption">
+          <span className="font-semibold">Are you coming?</span>{' '}
+          <span className="text-[#A3A6B1]">Tell us so we can keep your spot in {c.title}.</span>
+        </p>
+        <button
+          type="button"
+          aria-label="Hide this for now"
+          onClick={() => {
+            try { window.localStorage.setItem(dismissKey(c.slug), '1'); } catch { /* storage blocked: it just hides for this visit */ }
+            setHidden(true);
+          }}
+          className="-mr-1 -mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-[#A3A6B1] hover:bg-white/10"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={yes.isPending}
+          onClick={() => yes.mutate()}
+          className="inline-flex h-10 items-center rounded-xl bg-[#D0463C] px-4 text-caption font-semibold text-white hover:bg-[#B93C33] disabled:opacity-60"
+        >
+          {yes.isPending ? 'Saving…' : 'Yes, I’m coming'}
+        </button>
+        <Link href={`/challenge/${c.slug}/me`} className="text-caption font-semibold text-[#E8675D] underline">Can’t make it</Link>
+      </div>
     </div>
   );
 }
