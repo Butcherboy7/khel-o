@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.challenge import Challenge, ChallengeEntry
+from app.models.notification import Notification, NotificationType
 
 ACTIVE = ("confirmed", "waitlist")
 # Statuses where a dropped spot is passed on automatically.
@@ -183,7 +184,33 @@ async def fill_spots(db: AsyncSession, challenge: Challenge) -> list[ChallengeEn
             e.told_at = None
             moved.append(e)
             free -= 1
+    await tell_moved_up(db, challenge, moved)
     return moved
+
+
+async def tell_moved_up(db: AsyncSession, challenge: Challenge, moved: list[ChallengeEntry]) -> None:
+    """Put an in-app notification in front of each real player who just moved
+    up. Added to the caller's transaction, so it is saved (or rolled back and
+    retried) together with the spot change; the dedupe key makes it once per
+    move-up even if the same change is run again. Doesn't commit."""
+    for e in moved:
+        if e.is_test or e.user_id is None or e.promoted_at is None:
+            continue
+        moved_at = e.promoted_at if e.promoted_at.tzinfo else e.promoted_at.replace(tzinfo=timezone.utc)
+        key = f"challenge_moved_up:{e.id}:{int(moved_at.timestamp())}"
+        seen = (await db.execute(
+            select(Notification.id).where(Notification.user_id == e.user_id, Notification.dedupe_key == key)
+        )).first()
+        if seen is not None:
+            continue
+        db.add(Notification(
+            user_id=e.user_id,
+            title="You're in!",
+            message=f"A spot opened up in {challenge.title}, and it's yours. Tap to confirm you're coming.",
+            notification_type=NotificationType.SYSTEM,
+            link=f"/challenge/{challenge.slug}/me",
+            dedupe_key=key,
+        ))
 
 
 class AlreadySignedUp(Exception):
@@ -307,6 +334,7 @@ async def promote(db: AsyncSession, challenge_id, entry_id) -> None:
         entry.status = "confirmed"
         entry.promoted_at = now()
         entry.told_at = None
+        await tell_moved_up(db, locked, [entry])
 
     try:
         await change_spots(db, challenge_id, work)

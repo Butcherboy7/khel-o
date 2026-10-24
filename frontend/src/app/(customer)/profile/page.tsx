@@ -41,6 +41,7 @@ import {
   Trash2,
   KeyRound,
   Lock,
+  Swords,
 } from 'lucide-react';
 
 const CITIES = ['Bengaluru', 'Hyderabad', 'Mumbai', 'Delhi', 'Pune', 'Chennai'];
@@ -526,6 +527,17 @@ export default function ProfilePage() {
             <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
               <Ticket className="h-4 w-4 text-primary" />
               <span>My Booking Passes</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-text-secondary" />
+          </Link>
+
+          <Link
+            href="/my-challenges"
+            className="flex items-center justify-between p-3.5 hover:bg-surface rounded-xl transition-colors"
+          >
+            <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
+              <Swords className="h-4 w-4 text-primary" />
+              <span>My challenges</span>
             </div>
             <ChevronRight className="h-4 w-4 text-text-secondary" />
           </Link>

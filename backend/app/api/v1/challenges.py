@@ -11,7 +11,7 @@ numbers only ever go to their owner and to admins.
 import csv
 import io
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 from uuid import UUID
 
@@ -195,7 +195,36 @@ async def my_active_challenges(db: AsyncSession = Depends(get_db), user: User = 
         out.append({
             "slug": ch.slug, "title": ch.title, "game": ch.game, "status": ch.status,
             "startsAt": _iso(ch.starts_at), "cafeName": cafe.name,
-            "entryStatus": e.status, "rank": svc.rank(e, everyone),
+            "entryStatus": e.status, "rank": svc.rank(e, everyone), "coming": e.coming,
+        })
+    return {"success": True, "data": out}
+
+
+@public_router.get("/mine")
+async def my_challenges(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    """Every challenge this player has signed up for, coming up and past, so
+    they can always find their registration. Their own entries only; never
+    drafts or practice runs; no phone numbers."""
+    rows = (await db.execute(
+        select(Challenge, Cafe, ChallengeEntry)
+        .join(Cafe, Cafe.id == Challenge.cafe_id)
+        .join(ChallengeEntry, ChallengeEntry.challenge_id == Challenge.id)
+        .where(ChallengeEntry.user_id == user.id, ChallengeEntry.is_test.is_(False), Challenge.status != "draft")
+        .order_by(Challenge.starts_at.desc())
+    )).all()
+    out = []
+    for ch, cafe, e in rows:
+        everyone = await svc.entries(db, ch.id)
+        place = None
+        if ch.status == "finished":
+            place = {v: k for k, v in day.standings(await day.matches(db, ch.id)).items()}.get(e.id)
+        out.append({
+            "slug": ch.slug, "title": ch.title, "game": ch.game, "status": ch.status,
+            "startsAt": _iso(ch.starts_at), "cafeName": cafe.name,
+            "entryStatus": e.status, "rank": svc.rank(e, everyone) if e.status in svc.ACTIVE else None,
+            "coming": e.coming, "place": place,
+            "upcoming": ch.status in ("open", "closed", "live")
+            and (ch.ends_at if ch.ends_at.tzinfo else ch.ends_at.replace(tzinfo=timezone.utc)) > svc.now(),
         })
     return {"success": True, "data": out}
 

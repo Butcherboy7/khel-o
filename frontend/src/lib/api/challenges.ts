@@ -183,6 +183,28 @@ export interface MyActiveChallenge {
   cafeName: string;
   entryStatus: 'confirmed' | 'waitlist';
   rank: number | null;
+  /** Their answer to "Coming on the day?"; null until they answer. */
+  coming: Coming | null;
+}
+
+/** One of the player's own sign-ups, coming up or past (My challenges). */
+export interface MyChallengeSummary {
+  slug: string;
+  title: string;
+  game: string;
+  status: ChallengeStatus;
+  startsAt: string;
+  cafeName: string;
+  entryStatus: 'confirmed' | 'waitlist' | 'withdrawn' | 'no_show';
+  rank: number | null;
+  coming: Coming | null;
+  /** Final place once the challenge is finished. */
+  place: number | null;
+  upcoming: boolean;
+}
+
+export async function getMyChallenges(): Promise<MyChallengeSummary[]> {
+  return call(() => apiClient.get('/api/v1/challenges/mine'));
 }
 
 /** Challenges the signed-in player is in that haven't ended (home screen card). */
