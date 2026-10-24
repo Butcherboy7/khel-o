@@ -142,7 +142,11 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
           ))}
         </div>
         <p className="mt-3 text-sm text-[#A3A6B1]">
-          {full
+          {!open
+            ? ch.status === 'closed' && !ch.checkinClosedAt && ch.waitlist > 0
+              ? 'Sign-ups are closed. Already on the waitlist? Come anyway: if someone doesn’t show, the next waitlist player there plays.'
+              : 'The spots are set.'
+            : full
             ? 'The waitlist is open. Waitlist players are welcome on the day, and if someone doesn’t show, the next waitlist player there plays.'
             : `The first ${ch.capacity} to sign up play. After that, the waitlist opens.`}
         </p>
