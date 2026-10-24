@@ -48,13 +48,15 @@ def _all_matches(b):
 
 
 async def _play_out(async_client, ch, admin, bracket_data):
-    """Enter results until nothing is left to play: side a always wins 2-1."""
+    """Enter results until nothing is left to play: side a always wins by one
+    game (2-1 in a best of 3, 3-2 in the best-of-5 final)."""
     b = bracket_data
     while b["upNext"]:
         m = b["upNext"]
+        need = m["bestOf"] // 2 + 1
         res = await async_client.post(
             f"/api/v1/admin/challenges/{ch['id']}/matches/{m['id']}/result",
-            json={"winner": "a", "scoreA": 2, "scoreB": 1}, headers=auth_headers(admin, is_admin=True),
+            json={"winner": "a", "scoreA": need, "scoreB": need - 1}, headers=auth_headers(admin, is_admin=True),
         )
         assert res.status_code == 200, res.text
         b = res.json()["data"]

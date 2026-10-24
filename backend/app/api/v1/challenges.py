@@ -17,7 +17,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +26,7 @@ from app.api.deps import get_current_active_user, get_optional_user, get_user_ro
 from app.api.v1.owner_intros import normalise_phone
 from app.config import settings
 from app.core import bot_guard
-from app.core.exceptions import BadRequestException, ConflictException, ForbiddenException, NotFoundException
+from app.core.exceptions import BadRequestException, ConflictException, ForbiddenException, NotFoundException, ValidationException
 from app.core.logging import logger
 from app.database import get_db
 from app.models.analytics_event import AnalyticsEvent
@@ -37,6 +37,7 @@ from app.models.user import User
 from app.services import challenge_bracket as bracket
 from app.services import challenge_day as day
 from app.services import challenge_practice as practice
+from app.services import challenge_results as results
 from app.services import challenge_rewards as rewards
 from app.services import challenge_service as svc
 
@@ -88,6 +89,7 @@ def _challenge_out(ch: Challenge, cafe: Cafe, counts: dict[str, int]) -> dict:
         "format": ch.format,
         "bestOf": ch.best_of,
         "finalBestOf": ch.final_best_of,
+        "resultType": results.result_type(ch),
         "startsAt": _iso(ch.starts_at),
         "endsAt": _iso(ch.ends_at),
         "checkinOpensAt": _iso(ch.checkin_opens_at),
@@ -252,7 +254,7 @@ async def join_challenge(
 ):
     user_id = user.id
     ch, _ = await _load(db, slug, user)
-    if ch.status != "open":
+    if ch.status != "open" or ch.checkin_closed_at is not None:
         raise BadRequestException(message="Sign-ups for this challenge are closed", error_code="CHALLENGE_CLOSED")
     if not payload.consent_rules:
         raise BadRequestException(message="Tick the box to agree to the rules", error_code="RULES_REQUIRED")
@@ -271,6 +273,8 @@ async def join_challenge(
             message="This number is already signed up for this challenge on another account",
             error_code="PHONE_ALREADY_SIGNED_UP",
         )
+    except svc.SignUpsClosed:
+        raise BadRequestException(message="Sign-ups for this challenge are closed", error_code="CHALLENGE_CLOSED")
     if created:
         logger.info("challenge_signup", challenge=slug, status=entry.status)
     data = await _me_payload(db, slug, user_id)
@@ -333,6 +337,8 @@ class ChallengeIn(_Camel):
     capacity: int = Field(..., ge=1, le=256)
     min_age: int = Field(18, ge=0, le=99)
     status: Literal["draft", "open", "closed", "live", "finished", "cancelled"] = "draft"
+    # How results are scored: games won (Tekken) or goals with penalties (EA SPORTS FC).
+    result_type: Literal["games", "goals"] = "games"
     rules_md: str = Field("", max_length=8000)
     prizes_md: str = Field("", max_length=4000)
     cover_image_url: Optional[str] = Field(None, max_length=1000)
@@ -391,6 +397,12 @@ class ChallengeIn(_Camel):
         if ends and v > ends:
             raise ValueError("Check-in has to close before the challenge ends")
         return v
+
+    @model_validator(mode="after")
+    def _goals_are_one_game(self) -> "ChallengeIn":
+        if self.result_type == "goals" and (self.best_of != 1 or self.final_best_of != 1):
+            raise ValueError("EA SPORTS FC style (goals) is one game per match: set Best of and Final best of to 1")
+        return self
 
     @field_validator("title", "game", "setup_line", "format", "rules_md", "prizes_md")
     @classmethod
@@ -528,8 +540,16 @@ async def admin_detail(challenge_id: UUID, db: AsyncSession = Depends(get_db), _
     }}
 
 
+# Practice players only where the server says, explicitly, that it's a dev box.
+# Anything else is refused: production, an unknown name, or no ENVIRONMENT set
+# at all (the settings default is "development", so a missing variable must not
+# count as dev).
+PRACTICE_ENVIRONMENTS = {"development", "dev", "staging", "test", "local"}
+
+
 def _practice_allowed() -> bool:
-    return settings.ENVIRONMENT != "production"
+    explicitly_set = "ENVIRONMENT" in settings.model_fields_set
+    return explicitly_set and (settings.ENVIRONMENT or "").strip().lower() in PRACTICE_ENVIRONMENTS
 
 
 def _refuse_practice_on_prod() -> None:
@@ -543,6 +563,8 @@ async def admin_fill_practice(challenge_id: UUID, db: AsyncSession = Depends(get
     ch, _ = await _admin_get(db, challenge_id)
     if ch.drawn_at is not None:
         raise BadRequestException(message="The draw is done. Clear the practice players first to start again.", error_code="ALREADY_DRAWN")
+    if ch.status != "open" or ch.checkin_closed_at is not None:
+        raise BadRequestException(message="Practice players sign up like anyone: open sign-ups first.", error_code="CHALLENGE_CLOSED")
     added = await practice.fill(db, ch)
     logger.info("challenge_practice_fill", challenge=str(challenge_id), added=added)
     data = (await admin_detail(challenge_id, db, admin))["data"]
@@ -571,6 +593,8 @@ async def admin_update(challenge_id: UUID, payload: ChallengeIn, db: AsyncSessio
     def apply(locked: Challenge) -> None:
         # Checked against the locked row, so two admins can't race past it.
         svc.check_status_change(locked.status, fields["status"], real_players)
+        if locked.drawn_at is not None and results.result_type(locked) != fields["result_type"]:
+            raise svc.StatusChangeError("The draw is made, so how results are scored can't change now.", "RESULT_TYPE_LOCKED")
         for key, value in fields.items():
             setattr(locked, key, value)
 
@@ -637,7 +661,10 @@ async def admin_entry_action(
         except svc.NoFreeSpot:
             raise BadRequestException(message="Every spot is taken. Take someone out first.", error_code="NO_FREE_SPOT")
     elif action in ("checkin", "uncheckin"):
-        await day.set_present(db, entry, action == "checkin")
+        try:
+            await day.set_present(db, entry, action == "checkin")
+        except day.DayError as e:
+            raise _day_error(e)
     elif action == "told":
         entry.told_at = svc.now()
         await db.commit()
@@ -666,6 +693,8 @@ def _day_error(e: day.DayError):
     # The challenge is in the wrong state for this: a conflict, not a bad request.
     if e.code in day.STATE_CODES:
         return ConflictException(message=e.message, error_code=e.code)
+    if e.code in day.RESULT_CODES:
+        return ValidationException(message=e.message, error_code=e.code)
     return BadRequestException(message=e.message, error_code=e.code)
 
 
@@ -698,6 +727,9 @@ def _bracket_out(ch: Challenge, rows, by_id: dict) -> dict:
             "winner": None if m.winner_entry_id is None else ("a" if m.winner_entry_id == m.entry_a_id else "b"),
             "scoreA": m.score_a,
             "scoreB": m.score_b,
+            "tiebreak": m.tiebreak,
+            "tiebreakA": m.tiebreak_a,
+            "tiebreakB": m.tiebreak_b,
             "bye": m.bye,
         }
 
@@ -775,7 +807,10 @@ async def door_checkin(
         raise NotFoundException(message="This QR isn't for this challenge", error_code="BAD_CHECKIN_CODE")
     already = e.present
     if e.present != payload.present:
-        await day.set_present(db, e, payload.present)
+        try:
+            await day.set_present(db, e, payload.present)
+        except day.DayError as err:
+            raise _day_error(err)
     logger.info("challenge_checkin", challenge=slug, present=payload.present)
     e = await svc.entry_for(db, ch.id, entry_id=entry_id)
     return {"success": True, "data": _door_out(e, await svc.entries(db, ch.id), already)}
@@ -812,8 +847,13 @@ async def admin_bracket(challenge_id: UUID, db: AsyncSession = Depends(get_db), 
 
 class ResultIn(_Camel):
     winner: Literal["a", "b"]
-    score_a: Optional[int] = Field(None, ge=0, le=9)
-    score_b: Optional[int] = Field(None, ge=0, le=9)
+    # Whether a score fits is checked against the challenge's result type
+    # (challenge_results.check_result); these are only the outer limits.
+    score_a: Optional[int] = Field(None, ge=0, le=30)
+    score_b: Optional[int] = Field(None, ge=0, le=30)
+    tiebreak: Optional[Literal["penalties"]] = None
+    tiebreak_a: Optional[int] = Field(None, ge=0, le=30)
+    tiebreak_b: Optional[int] = Field(None, ge=0, le=30)
 
 
 @admin_router.post("/{challenge_id}/matches/{match_id}/result")
@@ -823,9 +863,14 @@ async def admin_result(
 ):
     await _admin_get(db, challenge_id)
     try:
-        await day.record_result(db, challenge_id, match_id, payload.winner, payload.score_a, payload.score_b)
+        await day.record_result(
+            db, challenge_id, match_id, payload.winner, payload.score_a, payload.score_b,
+            payload.tiebreak, payload.tiebreak_a, payload.tiebreak_b,
+        )
     except day.DayError as e:
         raise _day_error(e)
+    except results.ResultError as e:
+        raise ValidationException(message=e.message, error_code=e.code)
     ch, cafe = await _admin_get(db, challenge_id)
     return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
 
@@ -843,16 +888,12 @@ async def admin_clear_result(challenge_id: UUID, match_id: UUID, db: AsyncSessio
 
 @admin_router.post("/{challenge_id}/finish")
 async def admin_finish(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
-    ch, cafe = await _admin_get(db, challenge_id)
-    if ch.status == "finished":
+    await _admin_get(db, challenge_id)
+    try:
         # Pressing Finish again changes nothing.
-        return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
-    if ch.status != "live":
-        raise ConflictException(message="Make the draw and play it out before finishing.", error_code="USE_ACTION")
-    if 1 not in day.standings(await day.matches(db, ch.id)):
-        raise BadRequestException(message="Enter the final's result first", error_code="NO_WINNER")
-    ch.status = "finished"
-    await db.commit()
+        await day.finish(db, challenge_id)
+    except day.DayError as e:
+        raise _day_error(e)
     ch, cafe = await _admin_get(db, challenge_id)
     return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
 
@@ -892,6 +933,8 @@ async def _rewards_payload(db: AsyncSession, ch: Challenge) -> dict:
         "waitlistPeople": len(rewards.waitlist_user_ids(rows)),
         "partnerCafes": [c.name for c in await rewards.partner_cafes(db, ch.cafe_id)],
         "rewards": await rewards.tracker(db, ch, by_user),
+        # Podium places held by our own test or practice entries: no reward for them.
+        "testPlaces": await rewards.test_places(db, day.standings(await day.matches(db, ch.id))),
         # One printed QR for the winners: it opens their own challenge page,
         # where their rewards wait behind their sign-in. No code in it.
         "posterUrl": poster,
@@ -944,6 +987,9 @@ async def admin_reward_active(
     camp = await db.get(OfferCampaign, campaign_id)
     if camp is None or camp.challenge_id != ch.id:
         raise NotFoundException(message="No such reward", error_code="REWARD_NOT_FOUND")
+    if camp.superseded_at is not None and on == "on":
+        # A replaced reward stays off: its replacement is the one in force.
+        raise ConflictException(message="This reward was replaced after a correction and stays off.", error_code="REWARD_SUPERSEDED")
     camp.is_active = on == "on"
     await db.commit()
     ch, _ = await _admin_get(db, challenge_id)

@@ -292,11 +292,12 @@ export default function ChallengeDayPage() {
 
       <ResultModal
         match={picked}
+        goals={c.resultType === 'goals'}
         busy={busy === 'result'}
         onClose={() => setPicked(null)}
-        onSave={async (winner, scoreA, scoreB) => {
+        onSave={async (body) => {
           if (!picked) return;
-          const r = await run('result', () => adminRecordResult(id, picked.id, { winner, scoreA, scoreB }), setBracket);
+          const r = await run('result', () => adminRecordResult(id, picked.id, body), setBracket);
           if (r) setPicked(null);
         }}
         onClear={async () => {
@@ -438,29 +439,65 @@ function Mini({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+type ResultBody = {
+  winner: 'a' | 'b'; scoreA: number | null; scoreB: number | null;
+  tiebreak: 'penalties' | null; tiebreakA: number | null; tiebreakB: number | null;
+};
+
+/** What the server will refuse, said before Save. The server checks it again. */
+function resultProblem(goals: boolean, bestOf: number, b: ResultBody): string | null {
+  const { winner, scoreA, scoreB } = b;
+  if ((scoreA === null) !== (scoreB === null)) return 'Enter both scores, or leave both empty.';
+  if (scoreA === null || scoreB === null) return null;
+  const [win, lose] = winner === 'a' ? [scoreA, scoreB] : [scoreB, scoreA];
+  if (!goals) {
+    const need = Math.floor(bestOf / 2) + 1;
+    return win === need && lose < need ? null : `In a best of ${bestOf} the winner wins ${need}, like ${need}–${need - 1}.`;
+  }
+  if (win < lose) return 'The winner can’t have fewer goals.';
+  if (win > lose) return null;
+  if (b.tiebreakA === null || b.tiebreakB === null) return 'Level on goals: enter the penalty shoot-out.';
+  const [pw, pl] = winner === 'a' ? [b.tiebreakA, b.tiebreakB] : [b.tiebreakB, b.tiebreakA];
+  return pw > pl ? null : 'The winner must have scored more penalties.';
+}
+
 function ResultModal({
-  match, busy, onClose, onSave, onClear,
+  match, goals, busy, onClose, onSave, onClear,
 }: {
   match: BracketMatch | null;
+  goals: boolean;
   busy: boolean;
   onClose: () => void;
-  onSave: (winner: 'a' | 'b', scoreA: number | null, scoreB: number | null) => void;
+  onSave: (body: ResultBody) => void;
   onClear: () => void;
 }) {
   const [winner, setWinner] = useState<'a' | 'b' | null>(null);
   const [scoreA, setScoreA] = useState('');
   const [scoreB, setScoreB] = useState('');
+  const [penA, setPenA] = useState('');
+  const [penB, setPenB] = useState('');
   const [forId, setForId] = useState<string | null>(null);
   if (match && match.id !== forId) {
     setForId(match.id);
     setWinner(match.winner);
     setScoreA(match.scoreA?.toString() ?? '');
     setScoreB(match.scoreB?.toString() ?? '');
+    setPenA(match.tiebreakA?.toString() ?? '');
+    setPenB(match.tiebreakB?.toString() ?? '');
   }
-  const num = (v: string) => (v.trim() === '' ? null : Math.max(0, Math.min(9, Number(v) || 0)));
+  const num = (v: string) => (v.trim() === '' ? null : Number(v));
+  const level = goals && scoreA !== '' && scoreA === scoreB;
+  const body: ResultBody | null = winner
+    ? {
+        winner, scoreA: num(scoreA), scoreB: num(scoreB),
+        tiebreak: level ? 'penalties' : null, tiebreakA: level ? num(penA) : null, tiebreakB: level ? num(penB) : null,
+      }
+    : null;
+  const problem = match && body ? resultProblem(goals, match.bestOf, body) : null;
+  const maxLen = goals ? 2 : 1;
 
   return (
-    <Modal isOpen={!!match} onClose={onClose} title={match ? `${match.name} · best of ${match.bestOf}` : ''} size="sm">
+    <Modal isOpen={!!match} onClose={onClose} title={match ? (goals ? `${match.name} · one game` : `${match.name} · best of ${match.bestOf}`) : ''} size="sm">
       {match && (
         <div className="flex flex-col gap-3">
           <p className="text-caption text-text-secondary">Who won?</p>
@@ -480,16 +517,37 @@ function ResultModal({
                 </button>
                 <input
                   inputMode="numeric"
-                  aria-label={`Games won by ${side?.name}`}
-                  placeholder="Games"
+                  aria-label={`${goals ? 'Goals' : 'Games won'} by ${side?.name}`}
+                  placeholder={goals ? 'Goals' : 'Games'}
                   value={s === 'a' ? scoreA : scoreB}
-                  onChange={(e) => (s === 'a' ? setScoreA : setScoreB)(e.target.value.replace(/\D/g, '').slice(0, 1))}
+                  onChange={(e) => (s === 'a' ? setScoreA : setScoreB)(e.target.value.replace(/\D/g, '').slice(0, maxLen))}
                   className="h-12 w-20 rounded-xl border border-border bg-surface text-center text-text-primary"
                 />
               </div>
             );
           })}
-          <p className="text-xs text-text-secondary">Games won is optional.</p>
+          {level && (
+            <div className="rounded-xl bg-surface p-3" data-penalties>
+              <p className="text-caption font-semibold text-text-primary">Level on goals: penalty shoot-out</p>
+              <div className="mt-2 flex items-center gap-2">
+                {(['a', 'b'] as const).map((s) => (
+                  <input
+                    key={s}
+                    inputMode="numeric"
+                    aria-label={`Penalties scored by ${(s === 'a' ? match.a : match.b)?.name}`}
+                    placeholder={`${(s === 'a' ? match.a : match.b)?.name ?? ''} pens`}
+                    value={s === 'a' ? penA : penB}
+                    onChange={(e) => (s === 'a' ? setPenA : setPenB)(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                    className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-card px-2 text-center text-text-primary"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-text-secondary">
+            {goals ? 'Goals are optional. A level score needs the penalties.' : 'Games won is optional.'}
+          </p>
+          {problem && <p className="text-caption font-semibold text-error" role="alert">{problem}</p>}
           <div className="flex justify-between gap-2">
             {match.winner ? (
               <Button variant="ghost" onClick={onClear} disabled={busy}>
@@ -500,7 +558,7 @@ function ResultModal({
             )}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button variant="primary" disabled={!winner} isLoading={busy} onClick={() => winner && onSave(winner, num(scoreA), num(scoreB))}>
+              <Button variant="primary" disabled={!body || !!problem} isLoading={busy} onClick={() => body && onSave(body)}>
                 Save
               </Button>
             </div>

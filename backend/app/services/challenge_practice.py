@@ -83,7 +83,11 @@ async def clear(db: AsyncSession, ch: Challenge) -> int:
     await db.execute(delete(ChallengeMatch).where(ChallengeMatch.challenge_id == ch.id))
     if ids:
         await db.execute(delete(ChallengeEntry).where(ChallengeEntry.id.in_(ids)))
-    await db.execute(update(OfferCampaign).where(OfferCampaign.challenge_id == ch.id).values(is_active=False))
+    # Switched off and superseded (kept, like any reward), so the next rehearsal can make fresh ones.
+    await db.execute(
+        update(OfferCampaign).where(OfferCampaign.challenge_id == ch.id, OfferCampaign.superseded_at.is_(None))
+        .values(is_active=False, superseded_at=svc.now())
+    )
     ch.drawn_at = None
     ch.checkin_closed_at = None
     ch.champion_photo_url = None

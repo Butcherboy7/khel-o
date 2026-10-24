@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, CardContent, Input } from '@/components/ui';
-import { adminCafeOptions, type Challenge, type ChallengeInput, type ChallengeStatus } from '@/lib/api/challenges';
+import { adminCafeOptions, type Challenge, type ChallengeInput, type ChallengeStatus, type ResultType } from '@/lib/api/challenges';
 import { isApiError } from '@/lib/api/errors';
 
 /** Admin create/edit for one challenge. Times are typed in India time. */
@@ -60,7 +60,7 @@ function fromLocalIst(v: string): string {
 
 const EMPTY = {
   slug: '', title: '', cafeId: '', game: '', setupLine: '', format: 'Single elimination + 3rd-place match',
-  bestOf: 3, finalBestOf: 5, startsAt: '', endsAt: '', checkinOpensAt: '', checkinClosesAt: '', capacity: 10, minAge: 18,
+  bestOf: 3, finalBestOf: 5, resultType: 'games' as ResultType, startsAt: '', endsAt: '', checkinOpensAt: '', checkinClosesAt: '', capacity: 10, minAge: 18,
   status: 'draft' as ChallengeStatus, rulesMd: '', prizesMd: '', coverImageUrl: '', communityUrl: '', instagramHandle: 'khelo.journey',
 };
 
@@ -77,7 +77,7 @@ const CODE_FIELD: Record<string, keyof FormState> = { SLUG_TAKEN: 'slug', CAFE_N
 const LABELS: Record<string, string> = {
   slug: 'Link name', title: 'Title', cafeId: 'Café', game: 'Game', setupLine: 'Setup line', status: 'Status',
   startsAt: 'Starts', endsAt: 'Ends', checkinOpensAt: 'Check-in opens', checkinClosesAt: 'Check-in closes',
-  format: 'Format', capacity: 'Spots', bestOf: 'Best of', finalBestOf: 'Final best of', minAge: 'Minimum age',
+  format: 'Format', resultType: 'How results are scored', capacity: 'Spots', bestOf: 'Best of', finalBestOf: 'Final best of', minAge: 'Minimum age',
   prizesMd: 'Rewards', rulesMd: 'Rules', coverImageUrl: 'Cover image', communityUrl: 'WhatsApp community link',
   instagramHandle: 'Instagram handle',
 };
@@ -85,7 +85,7 @@ const LABELS: Record<string, string> = {
 function fromChallenge(c: Challenge): FormState {
   return {
     slug: c.slug, title: c.title, cafeId: c.cafe.id, game: c.game, setupLine: c.setupLine ?? '', format: c.format,
-    bestOf: c.bestOf, finalBestOf: c.finalBestOf, startsAt: toLocalIst(c.startsAt), endsAt: toLocalIst(c.endsAt),
+    bestOf: c.bestOf, finalBestOf: c.finalBestOf, resultType: c.resultType ?? 'games', startsAt: toLocalIst(c.startsAt), endsAt: toLocalIst(c.endsAt),
     checkinOpensAt: toLocalIst(c.checkinOpensAt), checkinClosesAt: toLocalIst(c.checkinClosesAt), capacity: c.capacity,
     minAge: c.minAge, status: c.status, rulesMd: c.rulesMd, prizesMd: c.prizesMd, coverImageUrl: c.coverImageUrl ?? '',
     communityUrl: c.communityUrl ?? '', instagramHandle: c.instagramHandle ?? '',
@@ -248,6 +248,23 @@ export function ChallengeForm({
 
       <Section title="Format and spots">
         <Input label="Format" value={f.format} onChange={(e) => set('format', e.target.value)} error={fieldErrors.format} />
+        <Field label="How results are scored" error={fieldErrors.resultType}>
+          <select
+            value={f.resultType}
+            disabled={!!initial?.drawnAt}
+            onChange={(e) => {
+              const v = e.target.value as ResultType;
+              // EA SPORTS FC: one game per match, so best of 1 everywhere.
+              setF((s) => ({ ...s, resultType: v, ...(v === 'goals' ? { bestOf: 1, finalBestOf: 1 } : s.resultType === 'goals' ? { bestOf: 3, finalBestOf: 5 } : {}) }));
+              setFieldErrors((e) => ({ ...e, resultType: undefined, bestOf: undefined, finalBestOf: undefined }));
+            }}
+            className="h-12 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary disabled:opacity-60"
+          >
+            <option value="games">Games won (Tekken and other fighting games): best of 3, final best of 5</option>
+            <option value="goals">Goals (EA SPORTS FC): one game per match, a draw goes to penalties</option>
+          </select>
+          {initial?.drawnAt && <p className="mt-1.5 text-caption text-text-secondary">Fixed once the draw is made.</p>}
+        </Field>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Input label="Spots" type="number" min={1} max={256} value={f.capacity} onChange={(e) => set('capacity', Number(e.target.value))} error={fieldErrors.capacity} />
           <Input label="Best of" type="number" min={1} max={9} value={f.bestOf} onChange={(e) => set('bestOf', Number(e.target.value))} error={fieldErrors.bestOf} />

@@ -30,13 +30,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.challenge import Challenge, ChallengeEntry, ChallengeMatch
 from app.services import challenge_bracket as bracket
+from app.services import challenge_results as results
 from app.services import challenge_service as svc
 
 
 # The draw may be made (or redone) only while sign-ups are open or closed, or on the day.
 DRAW_STATUSES = ("open", "closed", "live")
 # Error codes that mean "the challenge is in the wrong state": answered 409.
-STATE_CODES = {"CHALLENGE_FINISHED", "WRONG_STATUS", "USE_ACTION", "CHALLENGE_CANCELLED"}
+STATE_CODES = {"CHALLENGE_FINISHED", "WRONG_STATUS", "USE_ACTION", "CHALLENGE_CANCELLED", "BRACKET_INCOMPLETE"}
+# A result that can't have happened: answered 422.
+RESULT_CODES = {"INVALID_RESULT", "INVALID_WINNER", "TIEBREAK_NEEDED"}
+# Where a player can be checked in at the door.
+CHECKIN_STATUSES = ("open", "closed", "live")
+CHECKIN_ENTRY_STATUSES = ("confirmed", "waitlist")
 
 
 class DayError(Exception):
@@ -79,7 +85,27 @@ def qr_data_url(url: str) -> str:
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
+def check_can_check_in(ch: Challenge, entry: ChallengeEntry) -> None:
+    """Only someone still in (confirmed or waiting) at a challenge that's on."""
+    if ch.status not in CHECKIN_STATUSES:
+        raise DayError(
+            "This challenge is finished." if ch.status == "finished"
+            else "This challenge was cancelled." if ch.status == "cancelled"
+            else "Check-in isn't open: the challenge is a draft.",
+            "CHALLENGE_FINISHED" if ch.status == "finished" else "WRONG_STATUS",
+        )
+    if entry.status not in CHECKIN_ENTRY_STATUSES:
+        raise DayError(
+            "They dropped out of this challenge, so they can't be checked in." if entry.status == "withdrawn"
+            else "They were marked as not here when check-in closed.",
+            "ENTRY_NOT_ACTIVE",
+        )
+
+
 async def set_present(db: AsyncSession, entry: ChallengeEntry, present: bool) -> None:
+    if present:
+        ch = await db.get(Challenge, entry.challenge_id)
+        check_can_check_in(ch, entry)
     entry.present = present
     entry.checked_in_at = svc.now() if present else None
     await db.commit()
@@ -108,6 +134,9 @@ async def close_checkin(db: AsyncSession, challenge_id) -> tuple[int, int]:
                 moved += 1
                 free -= 1
         locked.checkin_closed_at = svc.now()
+        # Sign-ups end with check-in: nobody can join after the door closes.
+        if locked.status == "open":
+            locked.status = "closed"
         return no_shows, moved
 
     return await svc.change_spots(db, challenge_id, work)
@@ -235,7 +264,30 @@ def _downstream_decided(rows: list[ChallengeMatch], m: ChallengeMatch) -> bool:
     return False
 
 
-async def record_result(db: AsyncSession, challenge_id, match_id, winner: str, score_a: Optional[int], score_b: Optional[int]) -> None:
+async def _lock_live(db: AsyncSession, challenge_id) -> Challenge:
+    """Lock the challenge row and make sure results can change now."""
+    ch = await svc.lock(db, challenge_id)
+    if ch.status == "finished":
+        raise DayError("This challenge is finished, so its results are locked. Reopen it first.", "CHALLENGE_FINISHED")
+    if ch.status != "live":
+        raise DayError("Results go in once the draw is made.", "WRONG_STATUS")
+    return ch
+
+
+async def record_result(
+    db: AsyncSession, challenge_id, match_id, winner: str, score_a: Optional[int], score_b: Optional[int],
+    tiebreak: Optional[str] = None, tiebreak_a: Optional[int] = None, tiebreak_b: Optional[int] = None,
+) -> None:
+    try:
+        ch = await _lock_live(db, challenge_id)
+        await _record(db, ch, match_id, winner, score_a, score_b, tiebreak, tiebreak_a, tiebreak_b)
+    except (DayError, results.ResultError):
+        await db.rollback()
+        raise
+
+
+async def _record(db, ch, match_id, winner, score_a, score_b, tiebreak, tiebreak_a, tiebreak_b) -> None:
+    challenge_id = ch.id
     rows = await matches(db, challenge_id)
     m = next((x for x in rows if x.id == match_id), None)
     if m is None:
@@ -246,8 +298,13 @@ async def record_result(db: AsyncSession, challenge_id, match_id, winner: str, s
         raise DayError("Both players aren't known yet.", "MATCH_NOT_READY")
     if _downstream_decided(rows, m):
         raise DayError("The next match already has a result. Clear that one first.", "NEXT_MATCH_DECIDED")
+    results.check_result(
+        results.result_type(ch), results.match_best_of(ch, rounds_of(rows), m),
+        winner, score_a, score_b, tiebreak, tiebreak_a, tiebreak_b,
+    )
     m.winner_entry_id = m.entry_a_id if winner == "a" else m.entry_b_id
     m.score_a, m.score_b = score_a, score_b
+    m.tiebreak, m.tiebreak_a, m.tiebreak_b = tiebreak, tiebreak_a, tiebreak_b
     m.completed_at = svc.now()
     _advance(rows, m)
     _settle_third(rows)
@@ -255,18 +312,45 @@ async def record_result(db: AsyncSession, challenge_id, match_id, winner: str, s
 
 
 async def clear_result(db: AsyncSession, challenge_id, match_id) -> None:
-    rows = await matches(db, challenge_id)
-    m = next((x for x in rows if x.id == match_id), None)
-    if m is None or m.bye:
-        raise DayError("Nothing to clear here.", "MATCH_NOT_FOUND")
-    if _downstream_decided(rows, m):
-        raise DayError("The next match already has a result. Clear that one first.", "NEXT_MATCH_DECIDED")
+    try:
+        await _lock_live(db, challenge_id)
+        rows = await matches(db, challenge_id)
+        m = next((x for x in rows if x.id == match_id), None)
+        if m is None or m.bye:
+            raise DayError("Nothing to clear here.", "MATCH_NOT_FOUND")
+        if _downstream_decided(rows, m):
+            raise DayError("The next match already has a result. Clear that one first.", "NEXT_MATCH_DECIDED")
+    except DayError:
+        await db.rollback()
+        raise
     m.winner_entry_id = None
     m.score_a = m.score_b = None
+    m.tiebreak = m.tiebreak_a = m.tiebreak_b = None
     m.completed_at = None
     _advance(rows, m)
     _settle_third(rows)
     await db.commit()
+
+
+async def finish(db: AsyncSession, challenge_id) -> bool:
+    """Lock the results. Only a live challenge whose whole bracket is played
+    and consistent can finish. Returns False if it was already finished."""
+    ch = await svc.lock(db, challenge_id)
+    try:
+        if ch.status == "finished":
+            return False
+        if ch.status != "live":
+            raise DayError("Make the draw and play it out before finishing.", "USE_ACTION")
+        problems = results.bracket_problems(ch, await matches(db, challenge_id))
+        if problems:
+            raise DayError("Not ready to finish: " + " ".join(problems[:5]), "BRACKET_INCOMPLETE")
+    except DayError:
+        await db.rollback()
+        raise
+    ch.status = "finished"
+    ch.finished_at = svc.now()
+    await db.commit()
+    return True
 
 
 def standings(rows: list[ChallengeMatch]) -> dict[int, uuid.UUID]:

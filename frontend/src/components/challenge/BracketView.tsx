@@ -51,9 +51,9 @@ function MatchCard({ m, onPick, big }: { m: BracketMatch; onPick?: (m: BracketMa
   const clickable = Boolean(onPick && ready);
   const body = (
     <>
-      <Row side={m.a} won={m.winner === 'a'} lost={m.winner === 'b'} score={m.scoreA} big={big} bye={m.bye && !m.a} />
+      <Row side={m.a} won={m.winner === 'a'} lost={m.winner === 'b'} score={m.scoreA} pens={m.tiebreak ? m.tiebreakA : null} big={big} bye={m.bye && !m.a} />
       <div className="h-px bg-[#262932]" />
-      <Row side={m.b} won={m.winner === 'b'} lost={m.winner === 'a'} score={m.scoreB} big={big} bye={m.bye && !m.b} />
+      <Row side={m.b} won={m.winner === 'b'} lost={m.winner === 'a'} score={m.scoreB} pens={m.tiebreak ? m.tiebreakB : null} big={big} bye={m.bye && !m.b} />
     </>
   );
   const cls = `block w-full overflow-hidden rounded-xl border text-left ${
@@ -69,8 +69,8 @@ function MatchCard({ m, onPick, big }: { m: BracketMatch; onPick?: (m: BracketMa
 }
 
 function Row({
-  side, won, lost, score, big, bye,
-}: { side: BracketSide | null; won: boolean; lost: boolean; score: number | null; big: boolean; bye: boolean }) {
+  side, won, lost, score, pens, big, bye,
+}: { side: BracketSide | null; won: boolean; lost: boolean; score: number | null; pens?: number | null; big: boolean; bye: boolean }) {
   return (
     <div className={`flex items-center gap-2 ${big ? 'px-[1vw] py-[1vh]' : 'px-3 py-2'}`}>
       <span
@@ -81,6 +81,9 @@ function Row({
         {side ? side.name : bye ? 'Bye' : 'To be decided'}
       </span>
       {score !== null && <span className={`tabular-nums ${big ? 'text-[min(1.7vw,2.8vh)]' : 'text-sm'} ${won ? 'font-bold' : 'text-[#A3A6B1]'}`}>{score}</span>}
+      {pens != null && (
+        <span className={`tabular-nums text-[#A3A6B1] ${big ? 'text-[min(1.2vw,2vh)]' : 'text-xs'}`} title="Penalties">({pens} pens)</span>
+      )}
       {won && <Trophy className={`${big ? 'h-[2.4vh] w-[2.4vh]' : 'h-3.5 w-3.5'} text-[#F2C27A]`} />}
     </div>
   );

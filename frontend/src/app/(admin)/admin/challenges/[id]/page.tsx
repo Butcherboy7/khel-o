@@ -159,12 +159,18 @@ export default function AdminChallengeDetailPage() {
   const { challenge: c, stats } = data;
   const ev = (name: string) => stats.events[name]?.people ?? 0;
   const silent = stats.comingNoAnswer;
-  const tabs: { id: Tab; label: string; n: number }[] = [
-    { id: 'confirmed', label: 'Confirmed', n: data.entries.filter((e) => e.status === 'confirmed').length },
-    { id: 'waitlist', label: 'Waitlist', n: data.entries.filter((e) => e.status === 'waitlist').length },
-    { id: 'out', label: 'Out', n: data.entries.filter((e) => e.status === 'withdrawn' || e.status === 'no_show').length },
-    { id: 'all', label: 'All', n: data.entries.length },
-  ];
+  // One rule for every number: real sign-ups are counted, our test and
+  // practice entries are listed (greyed) and said separately.
+  const inTab = (t: Tab) => data.entries.filter((e) =>
+    t === 'all' ? true : t === 'out' ? e.status === 'withdrawn' || e.status === 'no_show' : e.status === t);
+  const tabs: { id: Tab; label: string; n: number; tests: number }[] = (['confirmed', 'waitlist', 'out', 'all'] as Tab[]).map((id) => {
+    const rows = inTab(id);
+    return {
+      id, label: { confirmed: 'Confirmed', waitlist: 'Waitlist', out: 'Out', all: 'All' }[id],
+      n: rows.filter((e) => !e.isTest).length, tests: rows.filter((e) => e.isTest).length,
+    };
+  });
+  const confirmedTests = tabs[0].tests;
 
   const waMessage = (e: AdminEntry) => {
     const kind: MessageKind =
@@ -245,7 +251,11 @@ export default function AdminChallengeDetailPage() {
 
       {/* The numbers that matter, real people only (test sign-ups left out) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Confirmed" value={`${stats.confirmed}/${c.capacity}`} hint={`${stats.filmingOk} OK to film`} />
+        <Stat
+          label="Confirmed"
+          value={`${stats.confirmed}/${c.capacity}`}
+          hint={`${stats.filmingOk} OK to film${confirmedTests ? ` · ${confirmedTests} test in spots, not counted` : ''}`}
+        />
         <Stat label="Waitlist" value={stats.waitlist} />
         <Stat label="Said “coming”" value={stats.comingYes} hint={`${silent} not answered yet`} />
         <Stat label="Moved up, not told" value={stats.movedUpNotTold} warn={stats.movedUpNotTold > 0} />
@@ -310,6 +320,7 @@ export default function AdminChallengeDetailPage() {
               className={`h-9 whitespace-nowrap rounded-full px-3.5 text-caption font-semibold ${tab === t.id ? 'bg-text-primary text-white' : 'bg-surface text-text-secondary hover:text-text-primary'}`}
             >
               {t.label} <span className="tabular-nums opacity-70">{t.n}</span>
+              {t.tests > 0 && <span className="text-xs opacity-60"> +{t.tests} test</span>}
             </button>
           ))}
         </div>

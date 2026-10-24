@@ -11,6 +11,12 @@ Payments are untouched: a reward is just a price the normal checkout charges.
   one booking each, from the event day for a week.
 
 Every use is a booking with promotion_id set, so tracking reads bookings.
+
+Our own test and practice entries keep their place in the results but get no
+reward; nobody moves up into their place. A reward replaced after a corrected
+result is superseded (superseded_at), switched off and kept with its bookings;
+only one not-superseded reward per challenge and kind exists (unique index).
+Rewards are made under the challenge row lock, so two clicks make one.
 """
 from __future__ import annotations
 
@@ -20,6 +26,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.time import IST
@@ -68,6 +75,21 @@ async def campaigns_for(db: AsyncSession, challenge_id) -> list[OfferCampaign]:
     )).scalars().all())
 
 
+def current(campaigns: list[OfferCampaign]) -> list[OfferCampaign]:
+    """The rewards still in force: not replaced after a corrected result."""
+    return [c for c in campaigns if c.superseded_at is None]
+
+
+async def test_places(db: AsyncSession, places: dict[int, Any]) -> list[int]:
+    """Podium places held by our own test or practice entries (no reward for them)."""
+    out = []
+    for place, entry_id in sorted(places.items()):
+        entry = await db.get(ChallengeEntry, entry_id)
+        if entry is not None and entry.is_test:
+            out.append(place)
+    return out
+
+
 def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
@@ -113,11 +135,22 @@ class RewardError(Exception):
 
 async def create_prizes(db: AsyncSession, ch: Challenge, places: dict[int, Any]) -> list[str]:
     """Prizes for the decided places, plus the champion's partner-café offer.
-    Already-made rewards are left alone. Returns the kinds made."""
+    Already-made rewards are left alone, and test or practice entries get
+    none. Returns the kinds made."""
     if 1 not in places:
         raise RewardError("Finish the final first: the podium rewards need the final's result.", "NO_WINNER")
+    ch = await svc.lock(db, ch.id)
+    try:
+        return await _create_prizes(db, ch, places)
+    except IntegrityError:
+        # Another request made the same reward first (the unique index held).
+        await db.rollback()
+        return []
+
+
+async def _create_prizes(db: AsyncSession, ch: Challenge, places: dict[int, Any]) -> list[str]:
     cfg = config(ch)
-    have = {c.reward_kind for c in await campaigns_for(db, ch.id)}
+    have = {c.reward_kind for c in current(await campaigns_for(db, ch.id))}
     now = svc.now()
     made = []
     for place, entry_id in sorted(places.items()):
@@ -126,6 +159,8 @@ async def create_prizes(db: AsyncSession, ch: Challenge, places: dict[int, Any])
         if kind in have or place > len(hours_list):
             continue
         entry = await db.get(ChallengeEntry, entry_id)
+        if entry.is_test:
+            continue
         hours = Decimal(str(hours_list[place - 1]))
         camp = OfferCampaign(
             name=f"{ch.title}: {PLACES[place]} place reward", cafe_id=ch.cafe_id, is_public=False,
@@ -145,7 +180,7 @@ async def create_prizes(db: AsyncSession, ch: Challenge, places: dict[int, Any])
 
     if "winner_partners" not in have and cfg["winnerPartnersOn"]:
         winner = await db.get(ChallengeEntry, places[1])
-        cafes = await partner_cafes(db, ch.cafe_id)
+        cafes = await partner_cafes(db, ch.cafe_id) if not winner.is_test else []
         if cafes:
             camp = OfferCampaign(
                 name=f"{ch.title}: champion's {cfg['winnerPercent']}% at partner cafés", cafe_id=None, is_public=False,
@@ -174,20 +209,35 @@ def _hours(h: Decimal) -> str:
 
 
 def waitlist_user_ids(rows: list[ChallengeEntry]) -> list[str]:
-    """Everyone who was on the waitlist: still waiting, or moved up (they keep it)."""
-    return [str(e.user_id) for e in rows if not e.is_test and (e.status == "waitlist" or e.promoted_at is not None)]
+    """Everyone who was on the waitlist: still waiting, or moved up (they keep
+    it), except anyone moved up who then didn't show. Never test entries."""
+    return [
+        str(e.user_id) for e in rows
+        if not e.is_test and (e.status == "waitlist" or (e.promoted_at is not None and e.status != "no_show"))
+    ]
 
 
 async def create_or_refresh_waitlist(db: AsyncSession, ch: Challenge) -> int:
     """Make the waitlist reward, or update who it's for. Returns how many people."""
+    ch = await svc.lock(db, ch.id)
+    try:
+        return await _create_or_refresh_waitlist(db, ch)
+    except IntegrityError:
+        await db.rollback()
+        existing = next((c for c in current(await campaigns_for(db, ch.id)) if c.reward_kind == "waitlist"), None)
+        return len(existing.allowed_user_ids or []) if existing else 0
+
+
+async def _create_or_refresh_waitlist(db: AsyncSession, ch: Challenge) -> int:
     cfg = config(ch)
     users = waitlist_user_ids(await svc.entries(db, ch.id))
-    existing = next((c for c in await campaigns_for(db, ch.id) if c.reward_kind == "waitlist"), None)
+    existing = next((c for c in current(await campaigns_for(db, ch.id)) if c.reward_kind == "waitlist"), None)
     if existing is not None:
         existing.allowed_user_ids = users
         await db.commit()
         return len(users)
     if not users:
+        await db.rollback()
         raise RewardError("Nobody was on the waitlist.", "NO_WAITLIST")
     event_day = ch.starts_at.astimezone(IST).date()
     camp = OfferCampaign(
@@ -251,6 +301,8 @@ async def tracker(db: AsyncSession, ch: Challenge, entries_by_user: dict[str, Ch
             "name": camp.name,
             "code": camp.access_code,
             "isActive": camp.is_active,
+            # Replaced after a corrected result: kept, with its bookings, for the records.
+            "superseded": camp.superseded_at is not None,
             "startsAt": _aware(camp.starts_at).isoformat(),
             "endsAt": _aware(camp.ends_at).isoformat(),
             "kheloFunded": camp.khelo_funded,

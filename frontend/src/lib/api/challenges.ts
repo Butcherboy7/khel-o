@@ -5,6 +5,8 @@ import { putToPresignedUrl } from './settings';
  *  Public wording: "challenge", "free sign-up", "spots", "waitlist". */
 
 export type ChallengeStatus = 'draft' | 'open' | 'closed' | 'live' | 'finished' | 'cancelled';
+/** games: games won (Tekken). goals: one game, a level score settled on penalties (EA SPORTS FC). */
+export type ResultType = 'games' | 'goals';
 export type EntryStatus = 'confirmed' | 'waitlist' | 'withdrawn' | 'no_show';
 export type Coming = 'yes' | 'no';
 
@@ -17,6 +19,7 @@ export interface Challenge {
   format: string;
   bestOf: number;
   finalBestOf: number;
+  resultType: ResultType;
   startsAt: string;
   endsAt: string;
   checkinOpensAt: string;
@@ -106,6 +109,10 @@ export interface BracketMatch {
   winner: 'a' | 'b' | null;
   scoreA: number | null;
   scoreB: number | null;
+  /** A level EA SPORTS FC score settled on penalties. */
+  tiebreak: 'penalties' | null;
+  tiebreakA: number | null;
+  tiebreakB: number | null;
   bye: boolean;
 }
 
@@ -263,6 +270,7 @@ export interface ChallengeInput {
   format: string;
   bestOf: number;
   finalBestOf: number;
+  resultType: ResultType;
   startsAt: string;
   endsAt: string;
   checkinOpensAt: string;
@@ -344,7 +352,10 @@ export async function adminGetBracket(id: string): Promise<Bracket> {
 export async function adminRecordResult(
   id: string,
   matchId: string,
-  body: { winner: 'a' | 'b'; scoreA?: number | null; scoreB?: number | null },
+  body: {
+    winner: 'a' | 'b'; scoreA?: number | null; scoreB?: number | null;
+    tiebreak?: 'penalties' | null; tiebreakA?: number | null; tiebreakB?: number | null;
+  },
 ): Promise<Bracket> {
   return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/matches/${matchId}/result`, body));
 }
@@ -394,6 +405,8 @@ export interface RewardRow {
   name: string;
   code: string;
   isActive: boolean;
+  /** Replaced after a corrected result: kept, with its bookings, for the records. */
+  superseded: boolean;
   startsAt: string;
   endsAt: string;
   kheloFunded: boolean;
@@ -413,6 +426,8 @@ export interface RewardsData {
   waitlistPeople: number;
   partnerCafes: string[];
   rewards: RewardRow[];
+  /** Podium places held by our own test or practice entries: no reward for them. */
+  testPlaces: number[];
   posterUrl: string;
   /** PNG data URL of the winners' "scan to see your rewards" QR. */
   posterQr: string;

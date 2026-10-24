@@ -13,7 +13,7 @@ import {
   answerComing, getMyChallenge, withdrawFromChallenge, type Coming, type MyChallenge, type MyReward,
 } from '@/lib/api/challenges';
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
-import { challengeDay, challengeTime, challengeTimeRange, handle } from '@/lib/challenge';
+import { challengeDay, challengeMoment, challengeTime, challengeTimeRange, handle } from '@/lib/challenge';
 
 export default function MyChallengePage() {
   return (
@@ -304,9 +304,6 @@ function MyChallenge() {
 
 const PLACE: Record<number, string> = { 1: '1st place', 2: '2nd place', 3: '3rd place' };
 
-const fmtDate = (iso: string) =>
-  new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' }).format(new Date(iso));
-
 /** What they earned, each with a link that opens the café with it already applied. */
 function Rewards({ rewards, slug }: { rewards: MyReward[]; slug: string }) {
   return (
@@ -324,7 +321,9 @@ function Rewards({ rewards, slug }: { rewards: MyReward[]; slug: string }) {
               <p className="mt-1 font-heading text-lg font-bold">{r.title}</p>
               <p className="mt-0.5 text-sm text-[#A3A6B1]">
                 {r.detail ? `${r.detail}. ` : ''}
-                {r.notStarted ? `From ${fmtDate(r.startsAt)} to ${fmtDate(r.endsAt)}.` : `Until ${fmtDate(r.endsAt)}.`}
+                {r.notStarted
+                  ? `From ${challengeMoment(r.startsAt)} until ${challengeMoment(r.endsAt)}.`
+                  : `Until ${challengeMoment(r.endsAt)}.`}
               </p>
               {r.usedUp ? (
                 <p className="mt-3 text-sm font-semibold text-[#7FE0A0]">Used. Enjoy!</p>

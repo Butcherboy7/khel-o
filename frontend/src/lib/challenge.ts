@@ -21,6 +21,11 @@ export function challengeTime(iso: string): string {
   return `${hour}${minute === '00' ? '' : `:${minute}`} ${period}`;
 }
 
+/** "Sat 21 Nov, 11:59 PM IST": an exact moment, such as when a reward ends. */
+export function challengeMoment(iso: string): string {
+  return `${challengeDay(iso)}, ${challengeTime(iso)} IST`;
+}
+
 /** "3–6 PM" / "11 AM–2 PM". */
 export function challengeTimeRange(startIso: string, endIso: string): string {
   const a = challengeTime(startIso);

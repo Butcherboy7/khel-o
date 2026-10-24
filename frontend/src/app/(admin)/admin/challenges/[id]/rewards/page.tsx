@@ -109,6 +109,12 @@ export default function ChallengeRewardsPage() {
                 <Gift className="h-4 w-4" /> {prizesMade ? 'Make any missing podium rewards' : 'Make the podium rewards'}
               </Button>
               {!data.standingsReady && <p className="mt-1 text-xs text-text-secondary">Enter the final’s result first.</p>}
+              {data.testPlaces.length > 0 && (
+                <p className="mt-1 text-xs text-text-secondary" data-test-places>
+                  {data.testPlaces.map((p) => ['1st', '2nd', '3rd'][p - 1]).join(', ')} place{data.testPlaces.length > 1 ? 's are' : ' is'} a
+                  test or practice entry: no reward for {data.testPlaces.length > 1 ? 'them' : 'it'}, and nobody moves up into it.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -213,6 +219,7 @@ function RewardCard({ r, busy, onToggle }: { r: RewardRow; busy: boolean; onTogg
           <div>
             <p className="font-semibold text-text-primary">
               {r.label}
+              {r.superseded && <span className="ml-1.5 rounded bg-surface px-1.5 text-xs font-semibold text-text-secondary">Replaced</span>}
               {r.forPeople.length > 0 && r.forPeople.length <= 3 && <span className="font-normal text-text-secondary"> · {r.forPeople.join(', ')}</span>}
               {r.forPeople.length > 3 && <span className="font-normal text-text-secondary"> · {r.peopleCount} people</span>}
             </p>
@@ -220,9 +227,11 @@ function RewardCard({ r, busy, onToggle }: { r: RewardRow; busy: boolean; onTogg
               {day(r.startsAt)}–{day(r.endsAt)} · {r.kheloFunded ? 'KHEL-O pays the discount' : 'Café gives it'} · code {r.code} (private)
             </p>
           </div>
-          <Button variant="ghost" size="sm" isLoading={busy} onClick={onToggle}>
-            {r.isActive ? 'Switch off' : 'Switch on'}
-          </Button>
+          {!r.superseded && (
+            <Button variant="ghost" size="sm" isLoading={busy} onClick={onToggle}>
+              {r.isActive ? 'Switch off' : 'Switch on'}
+            </Button>
+          )}
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2">
           <Num label="Paid bookings" value={r.paidUses} />

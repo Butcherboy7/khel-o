@@ -231,6 +231,7 @@ class BookingService:
                 seats_count=seats_requested,
                 is_coop=is_coop,
                 campaign_id=campaign_id,
+                gamer_id=gamer_id,
             )
 
         subtotal = base_amount - discount_amount

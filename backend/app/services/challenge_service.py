@@ -190,6 +190,10 @@ class AlreadySignedUp(Exception):
     """This phone number is on another account's entry for the same challenge."""
 
 
+class SignUpsClosed(Exception):
+    """Sign-ups aren't open, or check-in has already closed."""
+
+
 async def join(db: AsyncSession, challenge_id, user_id, fields: dict) -> tuple[ChallengeEntry, bool]:
     """Sign someone up, or hand back the entry they already have.
     Returns (entry, created)."""
@@ -197,6 +201,9 @@ async def join(db: AsyncSession, challenge_id, user_id, fields: dict) -> tuple[C
         mine = await entry_for(db, locked.id, user_id=user_id)
         if mine is not None and mine.status in ACTIVE:
             return mine, False
+        # Checked on the locked row: a sign-up racing "Close check-in" can't slip in.
+        if locked.status != "open" or locked.checkin_closed_at is not None:
+            raise SignUpsClosed()
         other = (await db.execute(
             select(ChallengeEntry.id).where(
                 ChallengeEntry.challenge_id == locked.id,
@@ -227,7 +234,7 @@ async def join(db: AsyncSession, challenge_id, user_id, fields: dict) -> tuple[C
 
     try:
         return await change_spots(db, challenge_id, work)
-    except AlreadySignedUp:
+    except (AlreadySignedUp, SignUpsClosed):
         await db.rollback()
         raise
 

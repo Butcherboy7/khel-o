@@ -914,6 +914,7 @@ class PromotionService:
         seats_count: int = 1,
         is_coop: bool = False,
         campaign_id: Optional[UUID] = None,
+        gamer_id: Optional[UUID] = None,
     ) -> Decimal:
         # Row-locked so a concurrent booking applying the same promo can't read
         # current_uses until this one commits — closes the race where N
@@ -951,6 +952,21 @@ class PromotionService:
                         message="This promotion has reached its maximum uses",
                         error_code="PROMOTION_EXHAUSTED"
                     )
+            # A reward for named people (challenge rewards): the same checks as
+            # resolve_campaign, repeated here under the campaign row lock, so two
+            # bookings at the same moment can't both use a one-booking reward.
+            # The lock is held until the booking insert commits.
+            if campaign.allowed_user_ids is not None:
+                if gamer_id is None or str(gamer_id) not in {str(u) for u in campaign.allowed_user_ids}:
+                    raise ValidationException(message="This reward is for someone else's account", error_code="CAMPAIGN_NOT_FOR_YOU")
+            if campaign.max_seats is not None and seats_count > campaign.max_seats:
+                raise ValidationException(
+                    message=f"This reward is for {campaign.max_seats} seat{'s' if campaign.max_seats > 1 else ''}",
+                    error_code="CAMPAIGN_TOO_MANY_SEATS",
+                )
+            if campaign.max_uses_per_user is not None and gamer_id is not None:
+                if await self.promo_repo.campaign_uses_by_user(campaign.id, gamer_id) >= campaign.max_uses_per_user:
+                    raise ValidationException(message="You've already used this reward", error_code="CAMPAIGN_ALREADY_USED")
 
         # Paid redemptions plus unpaid bookings still inside their payment
         # window: the last slot can't be taken twice, and an abandoned
