@@ -225,4 +225,10 @@ podium badges -> audit rows -> `finished`, then a single commit. Any error
   "not included in any payout amount; KHEL-O doesn't record whether this was
   paid". Each booking shows whether the café's own share is in a recorded payout.
   Nothing is recorded, marked paid or changed.
+- **Found on dev PostgreSQL:** checkout's "locked" re-read of the promotion and
+  campaign returned the copy loaded for the early check, so a reward Finish had
+  just replaced still looked active and a booking could use it (2 of the first
+  12 race rounds). Both locked reads now use `populate_existing`; 24 of 24 later
+  rounds were correct (a reward is either used, and Finish refuses, or replaced,
+  and the booking is refused).
 
