@@ -17,7 +17,7 @@ The release is `main` fast-forwarded to the dev tip. It is exactly the commits b
 | `d9569af` | Phase 3: atomic Finish (rewards + badges + audit in one transaction), Reopen, KHEL-O-funded replacements flagged, Payouts "add-back" (read-only) |
 | `364d97e` | Fix: checkout re-reads the reward fresh under its lock (found by the Postgres race test) |
 | `921e952`, `1944916` | Docs; Payouts date/time separator |
-| `0a1418c`, next | Phase 4 (trimmed): My challenges page, move-up notification, "Are you coming?" prompt |
+| `0a1418c`, `7195730` | Phase 4 (trimmed): My challenges page, move-up notification, "Are you coming?" prompt |
 
 Migrations: **069** (new nullable columns on offer_campaigns/challenges/challenge_entries/challenge_matches + one partial unique index, stops with a clear error if a challenge already has two current rewards of one kind) and **070** (two nullable columns + a self-referencing foreign key on offer_campaigns). Both additive. Phase 4 adds **no** migration.
 
