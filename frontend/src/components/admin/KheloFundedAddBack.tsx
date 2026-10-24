@@ -91,7 +91,7 @@ function Row({ b }: { b: AddBackBooking }) {
     <>
       <tr className="border-t border-border align-top">
         <td className="py-1.5 pr-3 font-mono">{b.bookingReference}</td>
-        <td className="py-1.5 pr-3">{b.sessionDate} {b.startTime}</td>
+        <td className="py-1.5 pr-3 whitespace-nowrap">{b.sessionDate} · {b.startTime.slice(0, 5)}</td>
         <td className="py-1.5 pr-3">
           {b.label}
           <span className="block text-text-secondary">{b.challenge}</span>
