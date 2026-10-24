@@ -29,17 +29,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.challenge import Challenge, ChallengeEntry, ChallengeMatch
+from app.models.user import User
 from app.services import challenge_bracket as bracket
 from app.services import challenge_results as results
 from app.services import challenge_service as svc
+from app.services import challenge_settlement as settlement
 
 
 # The draw may be made (or redone) only while sign-ups are open or closed, or on the day.
 DRAW_STATUSES = ("open", "closed", "live")
 # Error codes that mean "the challenge is in the wrong state": answered 409.
-STATE_CODES = {"CHALLENGE_FINISHED", "WRONG_STATUS", "USE_ACTION", "CHALLENGE_CANCELLED", "BRACKET_INCOMPLETE"}
+STATE_CODES = {"CHALLENGE_FINISHED", "WRONG_STATUS", "USE_ACTION", "CHALLENGE_CANCELLED", "BRACKET_INCOMPLETE", "REWARD_IN_USE"}
 # A result that can't have happened: answered 422.
-RESULT_CODES = {"INVALID_RESULT", "INVALID_WINNER", "TIEBREAK_NEEDED"}
+RESULT_CODES = {"INVALID_RESULT", "INVALID_WINNER", "TIEBREAK_NEEDED", "REASON_REQUIRED"}
 # Where a player can be checked in at the door.
 CHECKIN_STATUSES = ("open", "closed", "live")
 CHECKIN_ENTRY_STATUSES = ("confirmed", "waitlist")
@@ -332,25 +334,66 @@ async def clear_result(db: AsyncSession, challenge_id, match_id) -> None:
     await db.commit()
 
 
-async def finish(db: AsyncSession, challenge_id) -> bool:
-    """Lock the results. Only a live challenge whose whole bracket is played
-    and consistent can finish. Returns False if it was already finished."""
+async def finish(db: AsyncSession, challenge_id, admin: User) -> Optional[settlement.Settlement]:
+    """Finish, all or nothing. Only a live challenge whose whole bracket is
+    played and consistent can finish. In ONE transaction under the challenge
+    lock: rewards and podium badges are settled, audit rows are written and
+    the status changes. Any error rolls back all of it, so a half-finished
+    challenge can't exist, and pressing Finish again is safe.
+    Returns None if it was already finished (nothing changes), else what was settled."""
     ch = await svc.lock(db, challenge_id)
     try:
         if ch.status == "finished":
-            return False
+            await db.rollback()
+            return None
         if ch.status != "live":
             raise DayError("Make the draw and play it out before finishing.", "USE_ACTION")
-        problems = results.bracket_problems(ch, await matches(db, challenge_id))
+        rows = await matches(db, challenge_id)
+        problems = results.bracket_problems(ch, rows)
         if problems:
             raise DayError("Not ready to finish: " + " ".join(problems[:5]), "BRACKET_INCOMPLETE")
+        done = await settlement.settle(db, ch, standings(rows), admin)
+        ch.status = "finished"
+        ch.finished_at = svc.now()
+        settlement.audit(db, admin, "challenge.finish", ch, (
+            f"finished. Rewards made: {', '.join(done.made) or 'none'}; replaced: {', '.join(done.replaced) or 'none'}; "
+            f"badges granted {done.badges}, moved {done.badges_moved}"
+        ))
+        await db.commit()
+        return done
+    except settlement.SettlementError as e:
+        await db.rollback()
+        raise DayError(e.message, e.code)
+    except BaseException:
+        await db.rollback()
+        raise
+
+
+async def reopen(db: AsyncSession, challenge_id, admin: User, reason: str) -> bool:
+    """Back to live so a result can be corrected. Nothing else changes: rewards,
+    bookings and badges stay exactly as they are until the next Finish settles
+    any difference. Returns False if it wasn't finished."""
+    reason = (reason or "").strip()
+    if len(reason) < 5:
+        raise DayError("Say why you're reopening it (a few words), so the record makes sense later.", "REASON_REQUIRED")
+    ch = await svc.lock(db, challenge_id)
+    try:
+        if ch.status == "cancelled":
+            raise DayError("This challenge was cancelled and can't be changed.", "CHALLENGE_CANCELLED")
+        if ch.status != "finished":
+            await db.rollback()
+            return False
+        ch.status = "live"
+        ch.finished_at = None
+        settlement.audit(db, admin, "challenge.reopen", ch, reason)
+        await db.commit()
+        return True
     except DayError:
         await db.rollback()
         raise
-    ch.status = "finished"
-    ch.finished_at = svc.now()
-    await db.commit()
-    return True
+    except BaseException:
+        await db.rollback()
+        raise
 
 
 def standings(rows: list[ChallengeMatch]) -> dict[int, uuid.UUID]:

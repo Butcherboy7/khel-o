@@ -182,3 +182,47 @@ Cyber Lounge only, Razorpay test mode, and nothing paid for real.
 Test data on dev is created with a recognisable slug/title prefix and removed
 afterwards by an exact, guarded delete (named rows only, aborts if anything
 doesn't match).
+
+## 10. Phase 3 as built (2026-10-25, dev)
+
+Finish (`challenge_day.finish` + `challenge_settlement.settle`) is one
+transaction under the challenge lock: validate the bracket -> settle rewards ->
+podium badges -> audit rows -> `finished`, then a single commit. Any error
+(including the hold refusal) rolls back all of it. A second Finish returns
+"already finished" and writes nothing. Nothing in the settlement commits.
+
+- **Keep / make / replace** per place (and the champion's partner offer): the
+  right account already holds the current reward -> unchanged; no reward -> make
+  it; another account holds it (corrected result) -> mark it `superseded_at`,
+  switch it off, keep it and its bookings, make the new one.
+- **Redeemed old reward:** the booking is never touched. The replacement is
+  **KHEL-O-funded**, `replaces_campaign_id` points at the old reward and
+  `financial_review_note` says why (migration **070**, additive). The audit row
+  names the redeemed booking reference(s) and discount.
+- **Hold:** a booking on the old reward that is `pending_payment`, not released
+  and under 15 minutes old refuses Finish (409 `REWARD_IN_USE`) with the retry
+  time in IST (latest hold + 15 min). Re-read on every Finish; a release, a
+  cancellation, a completed payment or the 15 minutes passing allows it. The old
+  reward is locked in checkout's order (promotions, then the campaign) so a
+  booking and a Finish cannot deadlock.
+- **Eligibility:** account- and café-specific, expiry as configured; test and
+  practice entries get no reward and no badge and nobody moves up; the waitlist
+  thank-you is made once (not for moved-up no-shows). Checkout, fees and payout
+  calculations are unchanged.
+- **Badges:** `user_badges` key `ch_<challenge hex>_<place>`, `INSERT ... ON
+  CONFLICT DO NOTHING`; a corrected result moves the badge (removal audited).
+  Shown on /rewards as a podium achievement worth no XP.
+- **Reopen:** `POST /admin/challenges/{id}/reopen`, reason required (5+ chars),
+  back to `live`, one audit row, nothing else changes. Players are told nothing.
+- **Audit actions** (admin_audit_logs, entity challenge): `challenge.finish`,
+  `challenge.reopen`, `challenge.reward_made`, `challenge.reward_replaced`,
+  `challenge.badge_granted`, `challenge.badge_removed`.
+- **Payouts:** `GET /admin/cafe-payouts/add-back` (read-only) and a section on
+  Admin -> Payouts: every paid booking on a KHEL-O-funded challenge reward, once
+  each, replaced rewards included, by café. One shared source
+  (`challenge_rewards.funded_bookings`) feeds both this and the Rewards page.
+  Labelled "Outstanding add-back estimate (manual reconciliation needed)" and
+  "not included in any payout amount; KHEL-O doesn't record whether this was
+  paid". Each booking shows whether the café's own share is in a recorded payout.
+  Nothing is recorded, marked paid or changed.
+

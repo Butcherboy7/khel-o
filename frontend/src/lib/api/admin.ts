@@ -353,6 +353,46 @@ export interface CafePayout {
   createdAt: string;
 }
 
+/** One paid booking made with a KHEL-O-funded challenge reward. */
+export interface AddBackBooking {
+  bookingId: string;
+  bookingReference: string;
+  sessionDate: string;
+  startTime: string;
+  status: string;
+  /** The discount the café gave, which KHEL-O funds. */
+  discount: number;
+  cafeId: string;
+  cafe: string;
+  campaignId: string;
+  kind: string | null;
+  label: string;
+  /** The reward was replaced after a corrected result (the booking stands). */
+  superseded: boolean;
+  /** Set on a KHEL-O-funded replacement for a reward that had already been used. */
+  financialReviewNote: string | null;
+  challengeId: string;
+  challenge: string;
+  cafeShare: number | null;
+  /** The café's own share of this booking is in a recorded payout. Says nothing about the discount. */
+  cafeShareInPayout: boolean;
+}
+
+export interface KheloFundedAddBack {
+  /** Always false: KHEL-O doesn't record these reimbursements anywhere. */
+  recorded: false;
+  label: string;
+  note: string;
+  estimateTotal: number;
+  bookingCount: number;
+  needsReviewCount: number;
+  cafes: { cafeId: string; cafe: string; total: number; bookings: AddBackBooking[] }[];
+}
+
+export async function getKheloFundedAddBack(): Promise<KheloFundedAddBack> {
+  return call(() => apiClient.get('/api/v1/admin/cafe-payouts/add-back'));
+}
+
 export async function listOutstandingCafePayouts(): Promise<{ cafes: AdminOutstandingCafePayout[] }> {
   return call(() => apiClient.get('/api/v1/admin/cafe-payouts/outstanding'));
 }

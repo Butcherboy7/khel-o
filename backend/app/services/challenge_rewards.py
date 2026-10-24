@@ -32,7 +32,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.time import IST
 from app.models.booking import REDEEMED_STATUSES, Booking, BookingStatus
 from app.models.cafe import Cafe, VerificationStatus
+from app.models.cafe_payout_item import CafePayoutItem
 from app.models.challenge import Challenge, ChallengeEntry
+from app.models.platform_fee import PlatformFee
 from app.models.promotion import OfferCampaign, Promotion, PromotionType
 from app.models.user import User
 from app.services import challenge_service as svc
@@ -136,70 +138,97 @@ class RewardError(Exception):
 async def create_prizes(db: AsyncSession, ch: Challenge, places: dict[int, Any]) -> list[str]:
     """Prizes for the decided places, plus the champion's partner-café offer.
     Already-made rewards are left alone, and test or practice entries get
-    none. Returns the kinds made."""
+    none. Returns the kinds made. (Finish does this itself, in its own
+    transaction; this is the admin's "make them now" button.)"""
     if 1 not in places:
         raise RewardError("Finish the final first: the podium rewards need the final's result.", "NO_WINNER")
     ch = await svc.lock(db, ch.id)
     try:
-        return await _create_prizes(db, ch, places)
+        made = await _create_prizes(db, ch, places)
+        await db.commit()
+        return made
     except IntegrityError:
         # Another request made the same reward first (the unique index held).
         await db.rollback()
         return []
 
 
+async def make_prize(
+    db: AsyncSession, ch: Challenge, place: int, entry: ChallengeEntry, *,
+    khelo_funded: Optional[bool] = None, replaces: Optional[OfferCampaign] = None, review_note: Optional[str] = None,
+) -> OfferCampaign:
+    """One place's reward for one account. No commit: the caller owns the transaction."""
+    cfg = config(ch)
+    hours = Decimal(str(cfg["prizeHours"][place - 1]))
+    now = svc.now()
+    camp = OfferCampaign(
+        name=f"{ch.title}: {PLACES[place]} place reward", cafe_id=ch.cafe_id, is_public=False,
+        access_code=await _new_code(db), max_uses=1, starts_at=now, ends_at=now + timedelta(days=int(cfg["prizeDays"])),
+        is_active=True, allowed_user_ids=[str(entry.user_id)], max_uses_per_user=1, max_seats=1,
+        khelo_funded=bool(cfg["prizeKheloFunded"]) if khelo_funded is None else khelo_funded,
+        challenge_id=ch.id, reward_kind=f"prize_{place}",
+        replaces_campaign_id=replaces.id if replaces is not None else None, financial_review_note=review_note,
+    )
+    db.add(camp)
+    await db.flush()
+    db.add(_promo(
+        ch.cafe_id, camp, f"{PLACES[place]} place reward: {_hours(hours)} for ₹{cfg['prizePrice']}",
+        description=f"{ch.title} reward. 1 seat, any setup.",
+        promotion_type=PromotionType.FIXED_PRICE, fixed_price_amount=Decimal(str(cfg["prizePrice"])),
+        min_duration_hours=hours, play_mode="solo", max_uses=1,
+    ))
+    return camp
+
+
+async def make_partner_offer(
+    db: AsyncSession, ch: Challenge, winner: ChallengeEntry, cafes: list[Cafe], *,
+    khelo_funded: Optional[bool] = None, replaces: Optional[OfferCampaign] = None, review_note: Optional[str] = None,
+) -> OfferCampaign:
+    """The champion's % off at the other partner cafés. No commit."""
+    cfg = config(ch)
+    now = svc.now()
+    camp = OfferCampaign(
+        name=f"{ch.title}: champion's {cfg['winnerPercent']}% at partner cafés", cafe_id=None, is_public=False,
+        access_code=await _new_code(db), max_uses=None, starts_at=now,
+        ends_at=now + timedelta(days=int(cfg["winnerDays"])), is_active=True,
+        allowed_user_ids=[str(winner.user_id)], max_uses_per_user=None, max_seats=1,
+        khelo_funded=bool(cfg["winnerKheloFunded"]) if khelo_funded is None else khelo_funded,
+        challenge_id=ch.id, reward_kind="winner_partners",
+        replaces_campaign_id=replaces.id if replaces is not None else None, financial_review_note=review_note,
+    )
+    db.add(camp)
+    await db.flush()
+    for cafe in cafes:
+        db.add(_promo(
+            cafe.id, camp, f"Champion's {cfg['winnerPercent']}% off",
+            description=f"{ch.title} champion. Paid by KHEL-O.",
+            promotion_type=PromotionType.PERCENTAGE, discount_percentage=int(cfg["winnerPercent"]),
+            play_mode="any", max_uses=None,
+        ))
+    return camp
+
+
 async def _create_prizes(db: AsyncSession, ch: Challenge, places: dict[int, Any]) -> list[str]:
+    """Missing podium rewards only. No commit."""
     cfg = config(ch)
     have = {c.reward_kind for c in current(await campaigns_for(db, ch.id))}
-    now = svc.now()
     made = []
     for place, entry_id in sorted(places.items()):
         kind = f"prize_{place}"
-        hours_list = cfg["prizeHours"]
-        if kind in have or place > len(hours_list):
+        if kind in have or place > len(cfg["prizeHours"]):
             continue
         entry = await db.get(ChallengeEntry, entry_id)
         if entry.is_test:
             continue
-        hours = Decimal(str(hours_list[place - 1]))
-        camp = OfferCampaign(
-            name=f"{ch.title}: {PLACES[place]} place reward", cafe_id=ch.cafe_id, is_public=False,
-            access_code=await _new_code(db), max_uses=1, starts_at=now, ends_at=now + timedelta(days=int(cfg["prizeDays"])),
-            is_active=True, allowed_user_ids=[str(entry.user_id)], max_uses_per_user=1, max_seats=1,
-            khelo_funded=bool(cfg["prizeKheloFunded"]), challenge_id=ch.id, reward_kind=kind,
-        )
-        db.add(camp)
-        await db.flush()
-        db.add(_promo(
-            ch.cafe_id, camp, f"{PLACES[place]} place reward: {_hours(hours)} for ₹{cfg['prizePrice']}",
-            description=f"{ch.title} reward. 1 seat, any setup.",
-            promotion_type=PromotionType.FIXED_PRICE, fixed_price_amount=Decimal(str(cfg["prizePrice"])),
-            min_duration_hours=hours, play_mode="solo", max_uses=1,
-        ))
+        await make_prize(db, ch, place, entry)
         made.append(kind)
 
     if "winner_partners" not in have and cfg["winnerPartnersOn"]:
         winner = await db.get(ChallengeEntry, places[1])
         cafes = await partner_cafes(db, ch.cafe_id) if not winner.is_test else []
         if cafes:
-            camp = OfferCampaign(
-                name=f"{ch.title}: champion's {cfg['winnerPercent']}% at partner cafés", cafe_id=None, is_public=False,
-                access_code=await _new_code(db), max_uses=None, starts_at=now,
-                ends_at=now + timedelta(days=int(cfg["winnerDays"])), is_active=True,
-                allowed_user_ids=[str(winner.user_id)], max_uses_per_user=None, max_seats=1,
-                khelo_funded=bool(cfg["winnerKheloFunded"]), challenge_id=ch.id, reward_kind="winner_partners",
-            )
-            db.add(camp)
-            await db.flush()
-            for cafe in cafes:
-                db.add(_promo(
-                    cafe.id, camp, f"Champion's {cfg['winnerPercent']}% off",
-                    description=f"{ch.title} champion. Paid by KHEL-O.",
-                    promotion_type=PromotionType.PERCENTAGE, discount_percentage=int(cfg["winnerPercent"]),
-                    play_mode="any", max_uses=None,
-                ))
+            await make_partner_offer(db, ch, winner, cafes)
             made.append("winner_partners")
-    await db.commit()
     return made
 
 
@@ -229,7 +258,6 @@ async def create_or_refresh_waitlist(db: AsyncSession, ch: Challenge) -> int:
 
 
 async def _create_or_refresh_waitlist(db: AsyncSession, ch: Challenge) -> int:
-    cfg = config(ch)
     users = waitlist_user_ids(await svc.entries(db, ch.id))
     existing = next((c for c in current(await campaigns_for(db, ch.id)) if c.reward_kind == "waitlist"), None)
     if existing is not None:
@@ -239,6 +267,14 @@ async def _create_or_refresh_waitlist(db: AsyncSession, ch: Challenge) -> int:
     if not users:
         await db.rollback()
         raise RewardError("Nobody was on the waitlist.", "NO_WAITLIST")
+    await make_waitlist(db, ch, users)
+    await db.commit()
+    return len(users)
+
+
+async def make_waitlist(db: AsyncSession, ch: Challenge, users: list[str]) -> OfferCampaign:
+    """The waitlist thank-you for these accounts. No commit."""
+    cfg = config(ch)
     event_day = ch.starts_at.astimezone(IST).date()
     camp = OfferCampaign(
         name=f"{ch.title}: waitlist {cfg['waitlistPercent']}% off", cafe_id=ch.cafe_id, is_public=False,
@@ -255,8 +291,7 @@ async def _create_or_refresh_waitlist(db: AsyncSession, ch: Challenge) -> int:
         promotion_type=PromotionType.PERCENTAGE, discount_percentage=int(cfg["waitlistPercent"]),
         play_mode="any", max_uses=None,
     ))
-    await db.commit()
-    return len(users)
+    return camp
 
 
 # ── Reading them back ──────────────────────────────────────────────────────
@@ -283,16 +318,57 @@ KIND_LABEL = {
 }
 
 
+async def funded_bookings(db: AsyncSession, challenge_id=None) -> list[dict]:
+    """Every paid booking made with a KHEL-O-funded challenge reward, once each,
+    current and replaced rewards alike. The ONE source for what KHEL-O may owe a
+    café back: the Rewards tracker and Admin -> Payouts both read it.
+
+    A booking has one promotion, a promotion one campaign, a fee row one booking
+    and a payout item one fee row, so nothing here can repeat."""
+    q = (
+        select(Booking, Cafe, OfferCampaign, Challenge, PlatformFee.owner_settlement_amount, CafePayoutItem.id)
+        .join(Promotion, Promotion.id == Booking.promotion_id)
+        .join(OfferCampaign, OfferCampaign.id == Promotion.campaign_id)
+        .join(Challenge, Challenge.id == OfferCampaign.challenge_id)
+        .join(Cafe, Cafe.id == Booking.cafe_id)
+        .outerjoin(PlatformFee, PlatformFee.booking_id == Booking.id)
+        .outerjoin(CafePayoutItem, CafePayoutItem.platform_fee_id == PlatformFee.id)
+        .where(OfferCampaign.khelo_funded.is_(True), Booking.status.in_(REDEEMED_STATUSES))
+        .order_by(Cafe.name, Booking.session_date, Booking.created_at)
+    )
+    if challenge_id is not None:
+        q = q.where(OfferCampaign.challenge_id == challenge_id)
+    out = []
+    for b, cafe, camp, ch, cafe_share, payout_item in (await db.execute(q)).all():
+        out.append({
+            "bookingId": str(b.id), "bookingReference": b.booking_reference,
+            "sessionDate": b.session_date.isoformat(), "startTime": b.start_time.strftime("%H:%M"),
+            "status": b.status.value if isinstance(b.status, BookingStatus) else str(b.status),
+            "discount": round(float(b.discount_amount or 0), 2),
+            "cafeId": str(cafe.id), "cafe": cafe.name,
+            "campaignId": str(camp.id), "kind": camp.reward_kind, "label": KIND_LABEL.get(camp.reward_kind or "", camp.name),
+            "superseded": camp.superseded_at is not None,
+            "financialReviewNote": camp.financial_review_note,
+            "challengeId": str(ch.id), "challenge": ch.title,
+            # Whether the café's own share of this booking is in a recorded payout. It says
+            # nothing about the discount KHEL-O funded: that is not recorded anywhere.
+            "cafeShare": round(float(cafe_share), 2) if cafe_share is not None else None,
+            "cafeShareInPayout": payout_item is not None,
+        })
+    return out
+
+
 async def tracker(db: AsyncSession, ch: Challenge, entries_by_user: dict[str, ChallengeEntry]) -> list[dict]:
     """Every reward with every use, and what KHELO owes each café back."""
     out = []
+    funded = await funded_bookings(db, ch.id)
     for camp in await campaigns_for(db, ch.id):
         uses = await _uses(db, camp.id)
         paid = [u for u in uses if _paid(u[0])]
         add_back: dict[str, float] = {}
-        if camp.khelo_funded:
-            for b, cafe, _u in paid:
-                add_back[cafe.name] = add_back.get(cafe.name, 0) + float(b.discount_amount or 0)
+        for row in funded:
+            if row["campaignId"] == str(camp.id):
+                add_back[row["cafe"]] = add_back.get(row["cafe"], 0) + row["discount"]
         people = [entries_by_user.get(uid) for uid in (camp.allowed_user_ids or [])]
         out.append({
             "id": str(camp.id),
@@ -303,6 +379,9 @@ async def tracker(db: AsyncSession, ch: Challenge, entries_by_user: dict[str, Ch
             "isActive": camp.is_active,
             # Replaced after a corrected result: kept, with its bookings, for the records.
             "superseded": camp.superseded_at is not None,
+            # A replacement for a reward already redeemed: KHEL-O-funded, to be looked at with the books.
+            "replacesRewardId": str(camp.replaces_campaign_id) if camp.replaces_campaign_id else None,
+            "financialReviewNote": camp.financial_review_note,
             "startsAt": _aware(camp.starts_at).isoformat(),
             "endsAt": _aware(camp.ends_at).isoformat(),
             "kheloFunded": camp.khelo_funded,

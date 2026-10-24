@@ -9,6 +9,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.models.user_badge import UserBadge
 from app.models.promotion import OfferCampaign
+from app.models.challenge import Challenge
 from app.api.deps import get_current_active_user
 from app.services.badge_service import HELPER_BADGES
 
@@ -183,7 +184,34 @@ async def get_rewards(
         }
         for key, (title, description, xp_reward) in HELPER_BADGES.items()
     ]
-    achievements = achievements[:1] + helper_achievements + achievements[1:]
+    # Podium badges from KHEL-O challenges (key ch_<challenge hex>_<place>). Earned
+    # by finishing 1st-3rd, held while the result stands, worth no XP.
+    podium_achievements = []
+    podium_rows = [b for b in badge_rows if b.badge_key.startswith("ch_")]
+    if podium_rows:
+        import uuid as _uuid
+        titles = {}
+        for row in podium_rows:
+            try:
+                titles[row.badge_key] = _uuid.UUID(row.badge_key.split("_")[1])
+            except (ValueError, IndexError):
+                continue
+        found = {c.id: c.title for c in (await db.execute(
+            select(Challenge).where(Challenge.id.in_(set(titles.values())))
+        )).scalars().all()}
+        medal = {"1": ("Champion", "🏆"), "2": ("Runner-up", "🥈"), "3": ("3rd place", "🥉")}
+        for row in sorted(podium_rows, key=lambda r: r.granted_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True):
+            cid = titles.get(row.badge_key)
+            place = row.badge_key.rsplit("_", 1)[-1]
+            if cid is None or cid not in found or place not in medal:
+                continue
+            label, icon = medal[place]
+            podium_achievements.append({
+                "id": row.badge_key, "title": f"{label}: {found[cid]}",
+                "description": f"Finished {'1st' if place == '1' else '2nd' if place == '2' else '3rd'} in {found[cid]}.",
+                "icon": icon, "isUnlocked": True, "progress": "1 / 1", "xpReward": 0,
+            })
+    achievements = achievements[:1] + helper_achievements + podium_achievements + achievements[1:]
 
     level = xp // 500 + 1
     next_level_xp = level * 500

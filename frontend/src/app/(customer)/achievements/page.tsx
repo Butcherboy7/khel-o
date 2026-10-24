@@ -243,7 +243,7 @@ export default function AchievementsPage() {
                   </h3>
                   {ach.isUnlocked ? (
                     <span className="text-caption text-success font-bold flex-shrink-0">
-                      +{ach.xpReward} XP
+                      {ach.xpReward ? `+${ach.xpReward} XP` : 'Earned'}
                     </span>
                   ) : (
                     <Lock className="h-3.5 w-3.5 text-text-secondary flex-shrink-0" />
@@ -310,10 +310,12 @@ export default function AchievementsPage() {
               {activeAchievement.description}
             </p>
 
-            <div className="w-full rounded-2xl bg-surface p-3 flex items-center justify-between text-caption font-semibold my-1">
-              <span className="text-text-secondary">XP earned:</span>
-              <span className="font-bold text-success">+{activeAchievement.xpReward} XP</span>
-            </div>
+            {activeAchievement.xpReward > 0 && (
+              <div className="w-full rounded-2xl bg-surface p-3 flex items-center justify-between text-caption font-semibold my-1">
+                <span className="text-text-secondary">XP earned:</span>
+                <span className="font-bold text-success">+{activeAchievement.xpReward} XP</span>
+              </div>
+            )}
 
             <Button
               variant="primary"

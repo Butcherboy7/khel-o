@@ -57,6 +57,10 @@ class OfferCampaign(Base):
     # off. Only one not-superseded reward per challenge and kind may exist
     # (uq_offer_campaigns_challenge_reward).
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # A reward made to replace one already redeemed (after a corrected result):
+    # the old reward, and why this one needs a look at the books.
+    replaces_campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("offer_campaigns.id", ondelete="SET NULL"), nullable=True)
+    financial_review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 

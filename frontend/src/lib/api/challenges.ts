@@ -364,8 +364,22 @@ export async function adminClearResult(id: string, matchId: string): Promise<Bra
   return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/matches/${matchId}/clear`));
 }
 
-export async function adminFinish(id: string): Promise<Bracket> {
+/** What Finish settled: rewards made or replaced, podium badges, and anything needing a look at the books. */
+export interface Settlement {
+  made: string[];
+  replaced: string[];
+  badges: number;
+  badgesMoved: number;
+  needsFinancialReview: string[];
+}
+
+export async function adminFinish(id: string): Promise<Bracket & { settlement: Settlement | null }> {
   return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/finish`));
+}
+
+/** Back to live to correct a result. Rewards, bookings and badges stay as they are until the next Finish. */
+export async function adminReopen(id: string, reason: string): Promise<Bracket> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/reopen`, { reason }));
 }
 
 // ── Rewards ────────────────────────────────────────────────────────────────
@@ -407,6 +421,10 @@ export interface RewardRow {
   isActive: boolean;
   /** Replaced after a corrected result: kept, with its bookings, for the records. */
   superseded: boolean;
+  /** The reward this one replaced, when that one had already been redeemed. */
+  replacesRewardId: string | null;
+  /** Set on a KHEL-O-funded replacement: why it needs a look at the books. */
+  financialReviewNote: string | null;
   startsAt: string;
   endsAt: string;
   kheloFunded: boolean;

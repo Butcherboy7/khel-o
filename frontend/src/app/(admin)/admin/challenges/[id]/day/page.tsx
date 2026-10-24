@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, CheckCircle2, Circle, Clock, Dices, ExternalLink, Flag, Gift, Lock, Projector, Search, Swords, Trash2 } from 'lucide-react';
+import { Camera, CheckCircle2, Circle, Clock, Dices, ExternalLink, Flag, Gift, Lock, Projector, RotateCcw, Search, Swords, Trash2 } from 'lucide-react';
 import {
-  adminClearResult, adminCloseCheckin, adminDraw, adminEntryAction, adminFinish, adminGetBracket, adminGetChallenge,
+  adminClearResult, adminCloseCheckin, adminDraw, adminEntryAction, adminFinish, adminGetBracket, adminGetChallenge, adminReopen,
   adminRecordResult, adminSetChampionPhoto, adminUploadChampionPhoto,
   type AdminChallengeDetail, type AdminEntry, type Bracket, type BracketMatch,
 } from '@/lib/api/challenges';
@@ -29,6 +29,8 @@ export default function ChallengeDayPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [closeOpen, setCloseOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenReason, setReopenReason] = useState('');
   const [drawOpen, setDrawOpen] = useState(false);
   const [picked, setPicked] = useState<BracketMatch | null>(null);
   const tour = useHostTour('day', Boolean(detail.data && bracket.data));
@@ -223,7 +225,8 @@ export default function ChallengeDayPage() {
       {/* 4. Finish */}
       <Step n={4} title="Finish and celebrate" done={finished} tour="finish">
         <p className="text-caption text-text-secondary">
-          Finishing shows the results on the public page and lets you make the podium rewards on the Rewards page.
+          Finishing shows the results on the public page and makes the podium rewards and badges in the same step. If one can’t be made,
+          nothing changes and you can try again.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
@@ -231,18 +234,72 @@ export default function ChallengeDayPage() {
             size="sm"
             disabled={!champion || finished}
             isLoading={busy === 'finish'}
-            onClick={() => run('finish', () => adminFinish(id), setBracket)}
+            onClick={async () => {
+              const r = await run('finish', () => adminFinish(id), setBracket);
+              if (r?.settlement) {
+                const s = r.settlement;
+                const bits = [
+                  s.made.length ? `${s.made.length} reward${s.made.length === 1 ? '' : 's'} made` : null,
+                  s.replaced.length ? `${s.replaced.length} replaced after the correction` : null,
+                  s.badges ? `${s.badges} badge${s.badges === 1 ? '' : 's'} given` : null,
+                  s.badgesMoved ? `${s.badgesMoved} badge${s.badgesMoved === 1 ? '' : 's'} moved` : null,
+                ].filter(Boolean);
+                setFlash(`Finished. ${bits.length ? bits.join(', ') + '.' : 'Nothing new to make.'}${
+                  s.needsFinancialReview.length ? ' A replacement for a reward that was already used is KHEL-O-funded: see Admin → Payouts.' : ''}`);
+              }
+            }}
           >
             <Flag className="h-4 w-4" /> {finished ? 'Finished' : 'Finish the challenge'}
           </Button>
           {finished && (
             <Link href={`/admin/challenges/${id}/rewards`} className={linkBtn}>
-              <Gift className="h-4 w-4" /> Make the podium rewards
+              <Gift className="h-4 w-4" /> See the podium rewards
             </Link>
+          )}
+          {finished && (
+            <Button variant="outline" size="sm" onClick={() => { setReopenReason(''); setReopenOpen(true); }}>
+              <RotateCcw className="h-4 w-4" /> Reopen to correct a result
+            </Button>
           )}
         </div>
         {champion && <ChampionPhoto id={id} slug={c.slug} url={c.championPhotoUrl} onSaved={() => detail.refetch()} />}
       </Step>
+
+      <Modal isOpen={reopenOpen} onClose={() => setReopenOpen(false)} title="Reopen to correct a result?" size="sm">
+        <div className="flex flex-col gap-3">
+          <p className="text-body text-text-secondary">
+            Nothing is undone: rewards that were used stay used, bookings stay booked and badges stay put. Fix the result, then Finish again.
+            If a place changes hands, its reward is replaced (a replacement for a used reward is paid for by KHEL-O and flagged in Payouts).
+          </p>
+          <label className="flex flex-col gap-1 text-caption font-semibold text-text-primary">
+            Why are you reopening it?
+            <input
+              value={reopenReason}
+              onChange={(e) => setReopenReason(e.target.value)}
+              maxLength={500}
+              placeholder="e.g. the final was entered the wrong way round"
+              className="h-11 rounded-xl border border-border bg-surface px-3 font-normal text-text-primary"
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setReopenOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              disabled={reopenReason.trim().length < 5}
+              isLoading={busy === 'reopen'}
+              onClick={async () => {
+                const r = await run('reopen', () => adminReopen(id, reopenReason.trim()), setBracket);
+                if (r) {
+                  setReopenOpen(false);
+                  setFlash('Reopened. Correct the result, then press Finish again. Rewards and badges stay as they are until then.');
+                }
+              }}
+            >
+              Reopen
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal isOpen={closeOpen} onClose={() => setCloseOpen(false)} title="Close check-in?" size="sm">
         <div className="flex flex-col gap-3">

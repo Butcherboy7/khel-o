@@ -19,6 +19,7 @@ from app.models.owner_payout_account import OwnerPayoutAccount
 from app.api.v1.owner import PhotoPresignRequest
 from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.repositories.cafe_repository import CafeRepository
+from app.services import challenge_rewards
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -56,6 +57,38 @@ async def list_outstanding_cafe_payouts(
     repo = CafePayoutRepository(db)
     cafes = await repo.list_cafes_with_outstanding()
     return {"success": True, "data": {"cafes": cafes}}
+
+
+ADD_BACK_NOTE = (
+    "Not included in any payout amount. KHEL-O doesn't record whether this was paid, "
+    "so this is an estimate of what is still outstanding: check your bank records and settle it with each café by hand."
+)
+
+
+@router.get("/add-back", status_code=status.HTTP_200_OK)
+async def list_khelo_funded_add_back(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Read-only. Challenge rewards KHEL-O funds: the discount each café gave on a
+    paid booking, which KHEL-O owes back by hand. Nothing here is recorded as paid,
+    changes a payout, or touches checkout. Same source as the challenge Rewards page."""
+    rows = await challenge_rewards.funded_bookings(db)
+    cafes: dict[str, dict] = {}
+    for r in rows:
+        c = cafes.setdefault(r["cafeId"], {"cafeId": r["cafeId"], "cafe": r["cafe"], "total": 0.0, "bookings": []})
+        c["total"] = round(c["total"] + r["discount"], 2)
+        c["bookings"].append(r)
+    flagged = [r for r in rows if r["financialReviewNote"]]
+    return {"success": True, "data": {
+        "recorded": False,
+        "label": "Outstanding add-back estimate (manual reconciliation needed)",
+        "note": ADD_BACK_NOTE,
+        "estimateTotal": round(sum(r["discount"] for r in rows), 2),
+        "bookingCount": len(rows),
+        "needsReviewCount": len(flagged),
+        "cafes": sorted(cafes.values(), key=lambda c: c["cafe"].lower()),
+    }}
 
 
 @router.post("/reconcile-settlements", status_code=status.HTTP_200_OK)

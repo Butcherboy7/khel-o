@@ -887,11 +887,32 @@ async def admin_clear_result(challenge_id: UUID, match_id: UUID, db: AsyncSessio
 
 
 @admin_router.post("/{challenge_id}/finish")
-async def admin_finish(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+async def admin_finish(challenge_id: UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
     await _admin_get(db, challenge_id)
     try:
-        # Pressing Finish again changes nothing.
-        await day.finish(db, challenge_id)
+        # All or nothing: rewards, badges, audit rows and the status change in one
+        # transaction. Pressing Finish again changes nothing.
+        done = await day.finish(db, challenge_id, admin)
+    except day.DayError as e:
+        raise _day_error(e)
+    ch, cafe = await _admin_get(db, challenge_id)
+    data = await _bracket_payload(db, ch, cafe)
+    data["settlement"] = done.as_dict() if done is not None else None
+    return {"success": True, "data": data}
+
+
+class ReopenIn(_Camel):
+    reason: str = Field(..., min_length=1, max_length=500)
+
+
+@admin_router.post("/{challenge_id}/reopen")
+async def admin_reopen(
+    challenge_id: UUID, payload: ReopenIn, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin),
+):
+    """Back to live to correct a result. Rewards, bookings and badges are untouched until the next Finish."""
+    await _admin_get(db, challenge_id)
+    try:
+        await day.reopen(db, challenge_id, admin, payload.reason)
     except day.DayError as e:
         raise _day_error(e)
     ch, cafe = await _admin_get(db, challenge_id)
