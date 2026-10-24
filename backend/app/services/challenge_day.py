@@ -33,6 +33,12 @@ from app.services import challenge_bracket as bracket
 from app.services import challenge_service as svc
 
 
+# The draw may be made (or redone) only while sign-ups are open or closed, or on the day.
+DRAW_STATUSES = ("open", "closed", "live")
+# Error codes that mean "the challenge is in the wrong state": answered 409.
+STATE_CODES = {"CHALLENGE_FINISHED", "WRONG_STATUS", "USE_ACTION", "CHALLENGE_CANCELLED"}
+
+
 class DayError(Exception):
     """A plain-English reason an action can't happen right now."""
 
@@ -173,6 +179,12 @@ async def draw(db: AsyncSession, challenge_id) -> int:
     """Shuffle the confirmed players who are here into a bracket. Can be redone
     until the first real result is in. Returns the number of players."""
     ch = await db.get(Challenge, challenge_id)
+    if ch.status not in DRAW_STATUSES:
+        raise DayError(
+            "This challenge is finished. Reopen it first." if ch.status == "finished"
+            else "Open the challenge before making the draw.",
+            "CHALLENGE_FINISHED" if ch.status == "finished" else "WRONG_STATUS",
+        )
     existing = await matches(db, challenge_id)
     if any(m.completed_at and not m.bye for m in existing):
         raise DayError("Results are already in. The draw can't be redone now.", "RESULTS_IN")
@@ -202,8 +214,7 @@ async def draw(db: AsyncSession, challenge_id) -> int:
             _advance(made, m)
     _settle_third(made)
     ch.drawn_at = svc.now()
-    if ch.status != "finished":
-        ch.status = "live"
+    ch.status = "live"
     await db.commit()
     return len(players)
 

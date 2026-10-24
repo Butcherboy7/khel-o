@@ -31,6 +31,53 @@ ATTEMPTS = 25
 
 T = TypeVar("T")
 
+# Status moves the edit form may make. Everything else has its own action
+# (draw, Finish, Reopen, Cancel) with its own checks, so the form can't skip them.
+EDIT_MOVES = {
+    "draft": {"open", "closed"},
+    "open": {"closed", "draft"},
+    "closed": {"open", "draft"},
+}
+CREATE_STATUSES = ("draft", "open", "closed")
+_USE_ACTION = {
+    "live": "A challenge goes live when you make the draw on the Challenge day page.",
+    "finished": "Use Finish on the Challenge day page.",
+    "cancelled": "Cancelling has its own button, with a reason.",
+}
+
+
+class StatusChangeError(Exception):
+    def __init__(self, message: str, code: str):
+        super().__init__(message)
+        self.message = message
+        self.code = code
+
+
+def check_status_change(old: str, new: str, has_real_players: bool) -> None:
+    """Refuse a status change the edit form isn't allowed to make."""
+    if old == new:
+        return
+    if old == "cancelled":
+        raise StatusChangeError("A cancelled challenge can't be changed. Create a new one instead.", "CHALLENGE_CANCELLED")
+    if old == "finished":
+        raise StatusChangeError("Use Reopen on the Challenge day page to change a finished challenge.", "USE_ACTION")
+    if old == "live":
+        raise StatusChangeError("The challenge is live. Use Finish on the Challenge day page.", "USE_ACTION")
+    if new == "draft" and has_real_players:
+        raise StatusChangeError(
+            "Players have signed up, so it can't go back to draft: that would hide their page. Set it to Closed instead.",
+            "HAS_PLAYERS",
+        )
+    if new not in EDIT_MOVES.get(old, set()):
+        raise StatusChangeError(_USE_ACTION.get(new, "That status change isn't allowed here."), "USE_ACTION")
+
+
+async def has_real_players(db: AsyncSession, challenge_id) -> bool:
+    """Anyone who signed up for real (not our test or practice entries), in any status."""
+    return (await db.execute(
+        select(ChallengeEntry.id).where(ChallengeEntry.challenge_id == challenge_id, ChallengeEntry.is_test.is_(False)).limit(1)
+    )).first() is not None
+
 
 def now() -> datetime:
     return datetime.now(timezone.utc)

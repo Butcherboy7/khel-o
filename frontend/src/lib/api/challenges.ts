@@ -4,7 +4,7 @@ import { putToPresignedUrl } from './settings';
 /** Free in-person challenges at partner cafés. See backend app/api/v1/challenges.py.
  *  Public wording: "challenge", "free sign-up", "spots", "waitlist". */
 
-export type ChallengeStatus = 'draft' | 'open' | 'closed' | 'live' | 'finished';
+export type ChallengeStatus = 'draft' | 'open' | 'closed' | 'live' | 'finished' | 'cancelled';
 export type EntryStatus = 'confirmed' | 'waitlist' | 'withdrawn' | 'no_show';
 export type Coming = 'yes' | 'no';
 

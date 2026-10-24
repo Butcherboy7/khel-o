@@ -332,7 +332,7 @@ class ChallengeIn(_Camel):
     checkin_closes_at: datetime
     capacity: int = Field(..., ge=1, le=256)
     min_age: int = Field(18, ge=0, le=99)
-    status: Literal["draft", "open", "closed", "live", "finished"] = "draft"
+    status: Literal["draft", "open", "closed", "live", "finished", "cancelled"] = "draft"
     rules_md: str = Field("", max_length=8000)
     prizes_md: str = Field("", max_length=4000)
     cover_image_url: Optional[str] = Field(None, max_length=1000)
@@ -506,6 +506,8 @@ async def admin_cafe_options(db: AsyncSession = Depends(get_db), _admin=Depends(
 @admin_router.post("", status_code=status.HTTP_201_CREATED)
 async def admin_create(payload: ChallengeIn, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
     await _check_cafe_and_slug(db, payload)
+    if payload.status not in svc.CREATE_STATUSES:
+        raise ConflictException(message="A new challenge starts as draft, open or closed.", error_code="USE_ACTION")
     ch = Challenge(**payload.model_dump())
     db.add(ch)
     await db.commit()
@@ -564,13 +566,20 @@ async def admin_update(challenge_id: UUID, payload: ChallengeIn, db: AsyncSessio
     ch, _ = await _admin_get(db, challenge_id)
     await _check_cafe_and_slug(db, payload, exclude_id=ch.id)
     fields = payload.model_dump()
+    real_players = await svc.has_real_players(db, challenge_id)
 
     def apply(locked: Challenge) -> None:
+        # Checked against the locked row, so two admins can't race past it.
+        svc.check_status_change(locked.status, fields["status"], real_players)
         for key, value in fields.items():
             setattr(locked, key, value)
 
     # More spots: the waitlist moves up into them.
-    await svc.set_capacity(db, challenge_id, apply)
+    try:
+        await svc.set_capacity(db, challenge_id, apply)
+    except svc.StatusChangeError as e:
+        await db.rollback()
+        raise ConflictException(message=e.message, error_code=e.code)
     ch, cafe = await _admin_get(db, challenge_id)
     return {"success": True, "data": _challenge_out(ch, cafe, await svc.counts(db, ch.id))}
 
@@ -654,6 +663,9 @@ async def admin_release_silent(challenge_id: UUID, db: AsyncSession = Depends(ge
 
 
 def _day_error(e: day.DayError):
+    # The challenge is in the wrong state for this: a conflict, not a bad request.
+    if e.code in day.STATE_CODES:
+        return ConflictException(message=e.message, error_code=e.code)
     return BadRequestException(message=e.message, error_code=e.code)
 
 
@@ -832,6 +844,11 @@ async def admin_clear_result(challenge_id: UUID, match_id: UUID, db: AsyncSessio
 @admin_router.post("/{challenge_id}/finish")
 async def admin_finish(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
     ch, cafe = await _admin_get(db, challenge_id)
+    if ch.status == "finished":
+        # Pressing Finish again changes nothing.
+        return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
+    if ch.status != "live":
+        raise ConflictException(message="Make the draw and play it out before finishing.", error_code="USE_ACTION")
     if 1 not in day.standings(await day.matches(db, ch.id)):
         raise BadRequestException(message="Enter the final's result first", error_code="NO_WINNER")
     ch.status = "finished"

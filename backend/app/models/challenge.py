@@ -21,7 +21,9 @@ class Challenge(Base):
     Public pages say "challenge", "free sign-up", "spots" and "waitlist".
 
     status: draft (invisible to the public) | open (sign-ups on) |
-    closed (sign-ups off, page still up) | live (the day itself) | finished.
+    closed (sign-ups off, page still up) | live (the day itself) | finished |
+    cancelled (page still up with a notice; final). Which moves are allowed,
+    and through which action, is challenge_service.check_status_change.
     """
     __tablename__ = "challenges"
 
@@ -61,6 +63,13 @@ class Challenge(Base):
     # Reward settings (prize hours, % off, how long they last). Missing keys
     # fall back to challenge_rewards.DEFAULTS.
     rewards_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    # Set by Finish; cleared again by Reopen.
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # How results are scored: 'games' (games won, Tekken) | 'goals' (EA SPORTS
+    # FC, one game, level goals settled on penalties). None = 'games'.
+    result_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Time estimate settings: minutes per match, for the final, between matches.
+    plan_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
 
@@ -97,6 +106,9 @@ class ChallengeEntry(Base):
     # Moved up from the waitlist: the team still has to tell them.
     promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     told_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # How they were told they moved up: 'app' (in-app notification) |
+    # 'in_person' (at the door) | 'whatsapp'. None on older rows.
+    told_via: Mapped[str | None] = mapped_column(String(10), nullable=True)
     withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 'player' (Can't make it / said no) | 'admin' | 'silent' (didn't answer in time)
     withdrawn_by: Mapped[str | None] = mapped_column(String(10), nullable=True)
@@ -106,6 +118,8 @@ class ChallengeEntry(Base):
     consent_age: Mapped[bool] = mapped_column(Boolean, nullable=False)
     consent_filming: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     consent_updates: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Which wording they agreed to. None = signed up before versioning.
+    consent_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
     utm_source: Mapped[str | None] = mapped_column(String(80), nullable=True)
     utm_campaign: Mapped[str | None] = mapped_column(String(80), nullable=True)
     utm_content: Mapped[str | None] = mapped_column(String(80), nullable=True)
@@ -134,6 +148,10 @@ class ChallengeMatch(Base):
     winner_entry_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("challenge_entries.id", ondelete="SET NULL"), nullable=True)
     score_a: Mapped[int | None] = mapped_column(Integer, nullable=True)
     score_b: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # A level 'goals' result settled another way: 'penalties', with its score.
+    tiebreak: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    tiebreak_a: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tiebreak_b: Mapped[int | None] = mapped_column(Integer, nullable=True)
     bye: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

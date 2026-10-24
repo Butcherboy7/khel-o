@@ -14,6 +14,23 @@ const STATUS_HELP: Record<ChallengeStatus, string> = {
   closed: 'Closed: public, sign-ups off',
   live: 'Live: the day itself',
   finished: 'Finished',
+  cancelled: 'Cancelled',
+};
+
+/** The statuses this form may pick, from where the challenge is now. Going live
+ *  (the draw), finishing, reopening and cancelling have their own buttons. */
+const FORM_MOVES: Record<ChallengeStatus, ChallengeStatus[]> = {
+  draft: ['draft', 'open', 'closed'],
+  open: ['open', 'closed', 'draft'],
+  closed: ['closed', 'open', 'draft'],
+  live: ['live'],
+  finished: ['finished'],
+  cancelled: ['cancelled'],
+};
+const STATUS_NOTE: Partial<Record<ChallengeStatus, string>> = {
+  live: 'Live since the draw. Finish it on the Challenge day page.',
+  finished: 'Finished. To change results, use Reopen on the Challenge day page.',
+  cancelled: 'Cancelled. This can’t be undone; create a new challenge instead.',
 };
 
 /** ISO → "2026-11-01T15:00" in India time, for a datetime-local input. */
@@ -204,10 +221,16 @@ export function ChallengeForm({
             onChange={(e) => set('status', e.target.value as ChallengeStatus)}
             className="h-12 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary"
           >
-            {(Object.keys(STATUS_HELP) as ChallengeStatus[]).map((s) => (
+            {FORM_MOVES[initial?.status ?? 'draft'].map((s) => (
               <option key={s} value={s}>{STATUS_HELP[s]}</option>
             ))}
           </select>
+          {initial && STATUS_NOTE[initial.status] && (
+            <p className="mt-1.5 text-caption text-text-secondary">{STATUS_NOTE[initial.status]}</p>
+          )}
+          {initial && (initial.status === 'open' || initial.status === 'closed') && f.status === 'draft' && (
+            <p className="mt-1.5 text-caption text-text-secondary">Only possible while nobody has signed up.</p>
+          )}
         </Field>
       </Section>
 

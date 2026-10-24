@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 from typing import Any
-from sqlalchemy import String, Text, Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, JSON
+from sqlalchemy import String, Text, Boolean, DateTime, Enum, ForeignKey, Index, Integer, Numeric, JSON, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -21,6 +21,13 @@ class OfferCampaign(Base):
     and never apply without the code. The cap counts people (paid bookings
     across all its promotions), never invented numbers."""
     __tablename__ = "offer_campaigns"
+    __table_args__ = (
+        Index(
+            "uq_offer_campaigns_challenge_reward", "challenge_id", "reward_kind", unique=True,
+            postgresql_where=text("challenge_id IS NOT NULL AND superseded_at IS NULL"),
+            sqlite_where=text("challenge_id IS NOT NULL AND superseded_at IS NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     # Null = spans several cafés (each promotion carries its own cafe_id).
@@ -46,6 +53,10 @@ class OfferCampaign(Base):
     # | 'winner_partners' | 'waitlist'.
     challenge_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("challenges.id", ondelete="SET NULL"), nullable=True, index=True)
     reward_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Replaced after a corrected result: kept (with its bookings) but switched
+    # off. Only one not-superseded reward per challenge and kind may exist
+    # (uq_offer_campaigns_challenge_reward).
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
