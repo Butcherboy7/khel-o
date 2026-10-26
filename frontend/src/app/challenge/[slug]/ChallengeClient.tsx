@@ -132,7 +132,7 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
       <section className="mt-6 rounded-2xl border border-[#262932] bg-[#16181E] p-4" aria-live="polite">
         <div className="flex items-baseline justify-between gap-3">
           <p className="font-heading text-lg font-bold">
-            {full ? `All ${ch.capacity} spots taken` : `${ch.spotsLeft} of ${ch.capacity} spots left`}
+            {full ? `All ${ch.capacity} player spots taken` : `${ch.spotsLeft} of ${ch.capacity} player spots left`}
           </p>
           {ch.waitlist > 0 && <p className="text-xs text-[#A3A6B1]">{ch.waitlist} on the waitlist</p>}
         </div>
@@ -150,6 +150,18 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
             ? 'The waitlist is open. Waitlist players are welcome on the day, and if someone doesn’t show, the next waitlist player there plays.'
             : `The first ${ch.capacity} to sign up play. After that, the waitlist opens.`}
         </p>
+      </section>
+
+      {/* Watching is open to everyone: the spots above are only for players. */}
+      <section className="mt-4 rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-4">
+        <h2 className="flex items-center gap-2 font-heading text-lg font-bold">
+          <Users className="h-5 w-5 text-[#7FE0A0]" /> Not playing? Come watch
+        </h2>
+        <p className="mt-1 text-sm text-[#DADCE3]">
+          The {ch.capacity} spots are only for players. Anyone can come to {ch.cafe.name} on the day to watch and cheer. No sign-up needed
+          to watch.
+        </p>
+        {ch.visitorOffer && <p className="mt-2 text-sm font-semibold text-[#7FE0A0]">{ch.visitorOffer}</p>}
       </section>
 
       {/* Rewards (never "prizes": payment partners read the site) */}
@@ -201,7 +213,10 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
         <dl className="mt-3 flex flex-col divide-y divide-[#262932] rounded-2xl border border-[#262932] bg-[#16181E]">
           <Faq q="Is it free?" a="Yes. Signing up and playing cost nothing." />
           <Faq q="What if I’m on the waitlist?" a="Come anyway. If someone doesn’t show up, the next waitlist player who’s there plays." />
-          <Faq q="Is there an age limit?" a={`Yes, ${ch.minAge}+ only.`} />
+          <Faq
+            q="Can my friends come?"
+            a={`Yes. Anyone can come to watch, no sign-up needed. To play, they sign up here: the first ${ch.capacity} get spots, then the waitlist.`}
+          />
           <Faq q="Will I be filmed?" a="Only if you say yes when you sign up. If you say no, the camera stays off you." />
           <Faq q="Can’t make it after all?" a="Tap “Can’t make it” on your KHELO page, so the next person gets your spot." />
         </dl>

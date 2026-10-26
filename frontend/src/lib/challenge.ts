@@ -122,3 +122,20 @@ export function hoursAndMinutes(total: number): string {
   const m = rounded % 60;
   return h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`;
 }
+
+/** The challenge the home page and /community point people to. Its link is
+ *  printed on reels and posters, so it never changes. */
+export const FEATURED_CHALLENGE_SLUG = 'tekken-01';
+
+/** KHEL-O's WhatsApp community invite (Announcements, Lobby, Challengers). */
+export const COMMUNITY_URL = 'https://chat.whatsapp.com/FWVq1Iv7EgaDlyspNkS3ps';
+
+/** Still worth showing: open for sign-ups, or closed/live but not over. */
+export function isUpcoming(c: { status: string; endsAt: string }): boolean {
+  return ['open', 'closed', 'live'].includes(c.status) && new Date(c.endsAt).getTime() > Date.now();
+}
+
+/** A WhatsApp share with no number: the person picks who to send it to. */
+export function whatsappShare(text: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}

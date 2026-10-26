@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import {
-  CalendarDays, Clock, MapPin, MessageCircle, QrCode, ChevronLeft, PartyPopper, Hourglass, CheckCircle2, Trophy, Gift,
+  CalendarDays, Clock, MapPin, MessageCircle, QrCode, ChevronLeft, PartyPopper, Hourglass, CheckCircle2, Trophy, Gift, UserPlus,
 } from 'lucide-react';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { BottomSheet, Button } from '@/components/ui';
@@ -13,7 +13,7 @@ import {
   answerComing, getMyChallenge, withdrawFromChallenge, type Coming, type MyChallenge, type MyReward,
 } from '@/lib/api/challenges';
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
-import { challengeDay, challengeMoment, challengeTime, challengeTimeRange, handle } from '@/lib/challenge';
+import { challengeDay, challengeMoment, challengeTime, challengeTimeRange, handle, whatsappShare } from '@/lib/challenge';
 
 export default function MyChallengePage() {
   return (
@@ -247,6 +247,26 @@ function MyChallenge() {
       )}
 
       {rewards.length > 0 && <Rewards rewards={rewards} slug={slug} />}
+
+      {ch.status !== 'finished' && ch.status !== 'cancelled' && (
+        <a
+          href={whatsappShare(
+            `I'm playing in ${ch.title} at ${ch.cafe.name}${ch.cafe.city ? `, ${ch.cafe.city}` : ''}: ${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)}. ` +
+              `Come watch, anyone can come. Want to play? Sign up free, ${ch.capacity} player spots then a waitlist.` +
+              `${ch.visitorOffer ? ` ${ch.visitorOffer}.` : ''} ${typeof window !== 'undefined' ? window.location.origin : 'https://khel-o.com'}/challenge/${ch.slug}`,
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => trackAction('challenge_invite_friend', { challenge: slug })}
+          className="mt-4 flex items-center gap-3 rounded-2xl border border-[#262932] bg-[#16181E] px-4 py-3 hover:border-[#3A3E4A]"
+        >
+          <UserPlus className="h-5 w-5 text-[#E8675D]" />
+          <span className="flex-1">
+            <span className="block font-semibold">Bring a friend</span>
+            <span className="block text-xs text-[#A3A6B1]">Send them the link on WhatsApp. They can watch, or sign up to play if a spot is free.</span>
+          </span>
+        </a>
+      )}
 
       {ch.status !== 'finished' && (
         <div className="mt-4">

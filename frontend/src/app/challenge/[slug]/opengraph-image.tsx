@@ -21,7 +21,7 @@ export default async function Image({ params }: { params: { slug: string } | Pro
     title = ch.title;
     line = `${ch.game} · ${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)}`;
     where = `${ch.cafe.name}, ${ch.cafe.city}`;
-    spots = `Free sign-up · ${ch.capacity} spots · ${ch.minAge}+`;
+    spots = `Free sign-up · ${ch.capacity} spots`;
   } catch {
     /* a draft or a wrong link: the plain card */
   }

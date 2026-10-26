@@ -105,6 +105,9 @@ def _challenge_out(ch: Challenge, cafe: Cafe, counts: dict[str, int]) -> dict:
         "checkinClosedAt": _iso(ch.checkin_closed_at),
         "drawnAt": _iso(ch.drawn_at),
         "championPhotoUrl": ch.champion_photo_url,
+        # The café's own offer for anyone who comes on the day (players or not).
+        # Set by KHEL-O per challenge; nothing to do with checkout or rewards.
+        "visitorOffer": (ch.plan_config or {}).get("visitorOffer") if isinstance(ch.plan_config, dict) else None,
         "cafe": {
             "id": str(cafe.id),
             "name": cafe.name,
