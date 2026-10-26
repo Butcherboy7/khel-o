@@ -3,16 +3,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play, Send } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, getMyChallenge, type Challenge, type MyEntry } from '@/lib/api/challenges';
-import { challengeDay, challengeTime, challengeTimeRange, rememberUtm } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeTime, challengeTimeRange, rememberUtm, whatsappShare } from '@/lib/challenge';
 import { markChallengeSeen } from '@/lib/challengeNudge';
 import { SimpleMarkdown } from '@/components/challenge/SimpleMarkdown';
 import { ChallengeSignUpSheet } from '@/components/challenge/ChallengeSignUpSheet';
 import { ChallengeIntro } from '@/components/challenge/ChallengeIntro';
-import { PlayerSelect, VsPanel } from '@/components/challenge/ChallengeHero';
+import { FightHud, FightStage, PlayerSelect, RoundFight, fightFont } from '@/components/challenge/ChallengeHero';
 
 const REFRESH_MS = 30_000;
 
@@ -103,48 +103,86 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
         </p>
       )}
 
-      {showIntro && open && <ChallengeIntro slug={ch.slug} caption={ch.heroLine || 'No wallet needed'} />}
+      {showIntro && open && (
+        <>
+          <ChallengeIntro slug={ch.slug} />
+          <RoundFight delayMs={2700} />
+        </>
+      )}
 
-      {/* First screen: the reel's promise in one look. Few words, big signs. */}
-      <section>
-        <h1 className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#E8675D]">{ch.title}</h1>
-        <div className="mt-3">
-          <VsPanel />
-        </div>
-        <p className="mt-4 text-balance font-heading text-[30px] font-bold leading-[1.08] tracking-[-0.02em] md:text-[44px]">
-          {ch.heroLine || 'Free to play. Just show up.'}
-        </p>
-        <p className="mt-1.5 text-[16px] text-[#DADCE3]">{ch.heroSub || `${ch.game}${ch.setupLine ? ` · ${ch.setupLine}` : ''}`}</p>
-        <div className="mt-4 flex flex-wrap gap-2 text-sm font-semibold">
-          <Chip icon={<CalendarDays className="h-4 w-4" />}>{challengeDay(ch.startsAt)}</Chip>
-          <Chip icon={<Clock className="h-4 w-4" />}>{challengeTimeRange(ch.startsAt, ch.endsAt)}</Chip>
-          <Chip icon={<MapPin className="h-4 w-4" />}>{ch.cafe.name.replace(/ Gaming Lounge$/i, '')}</Chip>
-        </div>
-        {open && !active && (
-          <button
-            type="button"
-            onClick={() => start('hero')}
-            className="chv-start mt-5 flex h-16 w-full flex-col items-center justify-center rounded-2xl bg-[#D0463C] text-white transition-colors hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-          >
-            <span className="flex items-center gap-2 font-heading text-xl font-black uppercase tracking-[0.14em]">
-              <Play className="h-5 w-5 fill-current" /> Press start
+      {/* First screen: the fight is about to start, and you're player one. */}
+      <section className="relative -mx-4 -mt-6 px-4 pb-6 pt-5">
+        <FightStage />
+        <div className="relative">
+          <FightHud />
+          <h1 className={`${fightFont.className} relative mt-6 uppercase`}>
+            <span
+              className="chs-title-slash absolute left-[-4%] top-[30%] h-3 w-[78%] bg-[#D0463C]/80"
+              aria-hidden
+            />
+            <span className="relative block -skew-x-[8deg] text-[78px] font-bold leading-[0.8] tracking-[0.01em] text-white [text-shadow:0_6px_24px_rgba(0,0,0,0.7)]">
+              {ch.game}
             </span>
-            <span className="text-xs font-semibold text-white/85">{full ? 'Join the waitlist · free' : 'Sign up free · takes a minute'}</span>
-          </button>
-        )}
-        <p className="mt-4 text-[15px] text-[#C9CBD3]">Remember those 1v1s with your friends at home? This time it&apos;s on the big screen.</p>
+            <span className="relative mt-1 block -skew-x-[8deg] text-[40px] font-semibold leading-[0.9] tracking-[0.04em] text-[#E8675D]">
+              Challenge {ch.title.match(/#\s?\d+/)?.[0] ?? ''}
+            </span>
+          </h1>
+          <p className="mt-4 text-balance font-heading text-[22px] font-bold leading-[1.15] text-white">
+            {ch.heroLine || 'Free to play. Just show up.'}
+          </p>
+          <p className="mt-1 text-[15px] text-[#D8CFD2]">{ch.heroSub || `${ch.game}${ch.setupLine ? ` · ${ch.setupLine}` : ''}`}</p>
+          <div className="mt-4 flex flex-wrap gap-2 text-sm font-semibold">
+            <Chip icon={<CalendarDays className="h-4 w-4" />}>{challengeDay(ch.startsAt)}</Chip>
+            <Chip icon={<Clock className="h-4 w-4" />}>{challengeTimeRange(ch.startsAt, ch.endsAt)}</Chip>
+            <Chip icon={<MapPin className="h-4 w-4" />}>{ch.cafe.name.replace(/ Gaming Lounge$/i, '')}</Chip>
+          </div>
+          {open && !active && (
+            <button
+              type="button"
+              onClick={() => start('hero')}
+              className="chv-start mt-5 flex h-[68px] w-full flex-col items-center justify-center bg-[#D0463C] text-white transition-colors [clip-path:polygon(3%_0,100%_0,97%_100%,0_100%)] hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            >
+              <span className={`${fightFont.className} flex items-center gap-2 text-[34px] font-bold uppercase leading-none tracking-[0.08em]`}>
+                <Play className="h-6 w-6 fill-current" /> Press start
+              </span>
+              <span className="text-xs font-semibold text-white/90">{full ? 'Join the waitlist · free' : 'Sign up free · takes a minute'}</span>
+            </button>
+          )}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <a
+              href={whatsappShare(`${ch.game} challenge, free to play. ${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)} at ${ch.cafe.name}. You vs me?`)}
+              onClick={(e) => {
+                e.currentTarget.href = whatsappShare(
+                  `${ch.game} challenge, free to play. ${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)} at ${ch.cafe.name}. You vs me? ${window.location.origin}/challenge/${ch.slug}`,
+                );
+                trackAction('challenge_invite_friend', { challenge: slug, where: 'hero' });
+              }}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-h-[52px] items-center justify-center gap-2 border border-white/25 bg-black/40 px-3 text-sm font-semibold text-white transition-colors hover:border-white/50"
+            >
+              <Send className="h-4 w-4" /> Challenge a friend
+            </a>
+            <a
+              href={ch.communityUrl || COMMUNITY_URL}
+              onClick={() => trackAction('challenge_community_click', { challenge: slug, where: 'hero' })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-h-[52px] items-center justify-center gap-2 border border-[#25D366]/50 bg-[#25D366]/15 px-3 text-sm font-semibold text-[#9BF0B9] transition-colors hover:bg-[#25D366]/25"
+            >
+              <MessageCircle className="h-4 w-4" /> Join the community
+            </a>
+          </div>
+          <p className="mt-4 text-[15px] text-[#C9C0C4]">Remember those 1v1s with your friends at home? This time it&apos;s on the big screen.</p>
+        </div>
       </section>
 
-      {/* Spots: the real count, as a player-select screen */}
-      <section className="mt-7 rounded-2xl border border-[#262932] bg-[#16181E] p-4" aria-live="polite">
+      {/* Spots: the real count, as a select screen */}
+      <section className="mt-2" aria-live="polite">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="font-heading text-lg font-bold">
-            {full
-              ? `All ${ch.capacity} players in`
-              : filled === 0
-              ? 'Player 1 is still open. Be the first.'
-              : `${filled} in · ${ch.spotsLeft} ${ch.spotsLeft === 1 ? 'spot' : 'spots'} open`}
-          </p>
+          <h2 className={`${fightFont.className} text-[30px] font-semibold uppercase leading-none tracking-wide`}>
+            {full ? `All ${ch.capacity} players in` : filled === 0 ? 'Player 1 is still open' : `${filled} in · ${ch.spotsLeft} open`}
+          </h2>
           {ch.waitlist > 0 && <p className="text-xs text-[#A3A6B1]">{ch.waitlist} on the waitlist</p>}
         </div>
         {ch.capacity <= 20 ? (
@@ -311,7 +349,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#0E0F13] text-[#F4F1EC]">
+    <div className="min-h-screen bg-[#0A0809] text-[#F4F1EC] selection:bg-[#D0463C] selection:text-white">
       <header className="mx-auto flex max-w-xl items-center justify-between px-4 pt-4">
         <Link href="/" className="font-heading text-base font-bold tracking-wide">
           KHEL-O
@@ -324,7 +362,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Chip({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#262932] bg-[#16181E] px-3 py-1.5">
+    <span className="inline-flex items-center gap-1.5 border border-white/15 bg-black/45 px-3 py-1.5">
       <span className="text-[#E8675D]">{icon}</span>
       {children}
     </span>

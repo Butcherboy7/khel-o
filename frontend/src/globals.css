@@ -615,14 +615,35 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
 @keyframes chi-stamp { 0%, 64% { opacity: 0; transform: rotate(-12deg) scale(3); } 76% { opacity: 1; transform: rotate(-12deg) scale(.92); } 82%, 100% { opacity: 1; transform: rotate(-12deg) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .chi-overlay { display: none; } }
 
-.chv-left { clip-path: polygon(0 0, 60% 0, 40% 100%, 0 100%); animation: chv-in-left .55s cubic-bezier(.2,.9,.2,1) both; }
-.chv-right { clip-path: polygon(60% 0, 100% 0, 100% 100%, 40% 100%); animation: chv-in-right .55s cubic-bezier(.2,.9,.2,1) both; }
-.chv-vs { animation: chv-vs .5s .4s cubic-bezier(.3,1.6,.5,1) both, chv-flash 2.4s 1.2s ease-in-out infinite; }
-@keyframes chv-in-left { from { transform: translateX(-60%); } to { transform: none; } }
-@keyframes chv-in-right { from { transform: translateX(60%); } to { transform: none; } }
-@keyframes chv-vs { from { opacity: 0; transform: translate(-50%, -50%) scale(2.6) rotate(-8deg); } to { opacity: 1; transform: translate(-50%, -50%) rotate(-8deg); } }
-@keyframes chv-flash { 0%, 100% { text-shadow: 0 0 0 rgb(242 201 76 / 0); } 50% { text-shadow: 0 0 22px rgb(242 201 76 / .85); } }
-.chv-start { animation: chv-start 2s ease-in-out infinite; }
-@keyframes chv-start { 0%, 100% { box-shadow: 0 0 0 0 rgb(208 70 60 / .55); } 50% { box-shadow: 0 0 0 9px rgb(208 70 60 / 0); } }
-.chv-open-slot { animation: chv-open-slot 1.6s ease-in-out infinite; }
-@keyframes chv-open-slot { 0%, 100% { border-color: rgb(232 103 93 / .45); } 50% { border-color: rgb(232 103 93 / 1); } }
+.chv-start { animation: chv-start 2.2s ease-in-out infinite; }
+@keyframes chv-start { 0%, 100% { box-shadow: 0 10px 30px -12px rgb(208 70 60 / .7), 0 0 0 0 rgb(232 103 93 / .5); } 50% { box-shadow: 0 10px 30px -12px rgb(208 70 60 / .7), 0 0 0 8px rgb(232 103 93 / 0); } }
+
+/* Fight stage */
+.chs-smoke { animation: chs-drift 14s ease-in-out infinite alternate; }
+.chs-smoke-2 { animation: chs-drift 18s ease-in-out infinite alternate-reverse; }
+@keyframes chs-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-6%, 4%, 0) scale(1.08); } }
+.chs-ember { opacity: 0; box-shadow: 0 0 6px 1px rgb(255 120 60 / .8); animation: chs-ember 6s linear infinite; }
+@keyframes chs-ember { 0% { opacity: 0; transform: translate3d(0, 0, 0); } 10% { opacity: .9; } 70% { opacity: .5; } 100% { opacity: 0; transform: translate3d(18px, -460px, 0) scale(.4); } }
+.chs-hp { width: 100%; animation: chs-hp .9s .25s cubic-bezier(.2, .8, .2, 1) both; transform-origin: left; }
+.chs-hp-r { transform-origin: right; }
+@keyframes chs-hp { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.chs-title-slash { animation: chs-slash .5s .15s cubic-bezier(.2, .9, .2, 1) both; transform-origin: left; }
+@keyframes chs-slash { from { transform: rotate(-14deg) scaleX(0); } to { transform: rotate(-14deg) scaleX(1); } }
+
+/* ROUND 1 · FIGHT! */
+.chs-round { animation: chs-round-out .35s calc(var(--rf-delay) + 1.7s) ease-in forwards; }
+.chs-round-1 { opacity: 0; animation: chs-round-1 .5s var(--rf-delay) cubic-bezier(.2, .9, .2, 1) forwards; }
+.chs-round-fight { opacity: 0; animation: chs-fight .45s calc(var(--rf-delay) + .7s) cubic-bezier(.3, 1.5, .5, 1) forwards; }
+@keyframes chs-round-1 { from { opacity: 0; transform: translateX(-40vw) skewX(-12deg); } to { opacity: 1; transform: none; } }
+@keyframes chs-fight { from { opacity: 0; transform: scale(2.6) rotate(-4deg); } to { opacity: 1; transform: rotate(-4deg); } }
+@keyframes chs-round-out { 0% { opacity: 1; } 100% { opacity: 0; transform: scale(1.08); visibility: hidden; } }
+
+/* Select screen */
+.chs-chamfer { clip-path: polygon(14% 0, 100% 0, 100% 86%, 86% 100%, 0 100%, 0 14%); }
+.chs-tile { animation: chs-tile .45s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes chs-tile { from { opacity: .001; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+.chs-next { box-shadow: inset 0 0 0 2px rgb(232 103 93); animation: chs-next 1.4s ease-in-out infinite; }
+@keyframes chs-next { 0%, 100% { box-shadow: inset 0 0 0 2px rgb(232 103 93 / .5); } 50% { box-shadow: inset 0 0 0 2px rgb(232 103 93), inset 0 0 22px rgb(232 103 93 / .35); } }
+.chs-cursor { clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%); animation: chs-cursor 1s ease-in-out infinite; }
+@keyframes chs-cursor { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+@media (prefers-reduced-motion: reduce) { .chs-ember, .chs-round { display: none; } }

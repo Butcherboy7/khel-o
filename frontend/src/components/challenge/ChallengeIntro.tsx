@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { introCookie } from '@/lib/challenge';
+import { fightFont } from '@/components/challenge/ChallengeHero';
 
 const PLAY_MS = 2700;
 
@@ -12,7 +13,7 @@ const PLAY_MS = 2700;
  * Rendered on the server for visitors from an outside link, and animated in
  * pure CSS, so it plays before the page's JS has loaded.
  */
-export function ChallengeIntro({ slug, caption }: { slug: string; caption: string }) {
+export function ChallengeIntro({ slug }: { slug: string }) {
   const [gone, setGone] = useState(false);
 
   useEffect(() => {
@@ -31,7 +32,7 @@ export function ChallengeIntro({ slug, caption }: { slug: string; caption: strin
   if (gone) return null;
   return (
     <div
-      className="chi-overlay fixed inset-0 z-[70] flex cursor-pointer flex-col items-center justify-center overflow-hidden bg-[#0E0F13]"
+      className="chi-overlay fixed inset-0 z-[70] flex cursor-pointer flex-col items-center justify-center overflow-hidden bg-[#0A0809]"
       onClick={() => {
         setGone(true);
         trackAction('challenge_intro', { challenge: slug, how: 'skipped' });
@@ -42,8 +43,12 @@ export function ChallengeIntro({ slug, caption }: { slug: string; caption: strin
         <span className="chi-hand relative z-10 -mb-10 text-[120px] leading-none drop-shadow-[0_8px_18px_rgba(0,0,0,0.6)]">✋</span>
         <Wallet />
       </div>
-      <p className="chi-caption absolute bottom-[22%] px-6 text-center font-heading text-3xl font-bold text-[#F4F1EC]">{caption}</p>
-      <div className="chi-stamp absolute rounded-2xl border-[6px] border-[#E8675D] px-7 py-2 font-heading text-[64px] font-black leading-none tracking-[0.08em] text-[#E8675D] [mix-blend-mode:screen]">
+      <p className="chi-caption absolute bottom-[20%] px-6 text-center">
+        {/* The reel's own line, in the reel's language. Everything else is English. */}
+        <span className="block font-heading text-3xl font-bold text-[#F4F1EC]">Wallet enduku bro?</span>
+        <span className="mt-1 block text-base text-[#C9C0C4]">No wallet needed. It&apos;s free.</span>
+      </p>
+      <div className={`${fightFont.className} chi-stamp absolute border-[6px] border-[#E8675D] px-7 pb-0 pt-3 text-[92px] font-bold leading-[0.8] tracking-[0.06em] text-[#E8675D] [mix-blend-mode:screen]`}>
         FREE
       </div>
       <p className="absolute bottom-[max(env(safe-area-inset-bottom),20px)] text-xs text-[#6B6F7B]">Tap to skip</p>
