@@ -565,6 +565,22 @@ body:has(.gta6) [aria-label='Cookie notice'] { display: none; }
   .gta6-nudge { animation: gta6-nudge 0.9s var(--ease-out) 1.2s 3; }
 }
 
+/* First-visit cookie note: floats at the bottom, above the phone menu. */
+.cookie-notice {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: var(--z-overlay);
+  max-width: 480px;
+  margin: 0 auto;
+}
+@media (max-width: 767px) {
+  body:has(nav[aria-label='Mobile navigation']) .cookie-notice {
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 10px);
+  }
+}
+
 /* Cookie notice already dismissed: hidden before first paint (no layout shift). */
 html[data-cookie-ok] .cookie-notice {
   display: none;

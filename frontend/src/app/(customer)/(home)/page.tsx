@@ -4,7 +4,6 @@ import { listCafes, listActivities, cafePath } from '@/lib/api/cafes';
 import { ExploreClient } from '@/components/customer/ExploreClient';
 import { CampaignWelcome } from '@/components/customer/CampaignWelcome';
 import { MyChallengeCard } from '@/components/customer/MyChallengeCard';
-import { ChallengeTeaser } from '@/components/customer/ChallengeTeaser';
 import { HomeSections } from '@/components/customer/HomeSections';
 import { PopularPages } from '@/components/customer/PopularPages';
 import { getSeoPages } from '@/lib/api/seo';
@@ -90,8 +89,6 @@ export default async function ExplorePage() {
       </Suspense>
       {/* Signed-in players in an upcoming challenge: their day, place and QR. */}
       <MyChallengeCard />
-      {/* Everyone else: the upcoming challenge, with a link to it. */}
-      <ChallengeTeaser />
       <Suspense fallback={<HomeLoading />}>
         <ExploreClient initialCafes={initialCafes} initialActivities={initialActivities}>
           <HomeSections />

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { usePageLoaded } from '@/hooks/usePageLoaded';
 
 export const COOKIE_NOTICE_KEY = 'khelo-cookie-notice-dismissed';
@@ -20,6 +21,7 @@ export function CookieConsentBanner() {
   // dismissed it, without waiting for React.
   const [visible, setVisible] = useState(true);
   const pageLoaded = usePageLoaded();
+  const pathname = usePathname() ?? '';
 
   const dismiss = () => {
     setVisible(false);
@@ -31,14 +33,17 @@ export function CookieConsentBanner() {
     }
   };
 
-  if (!visible) return null;
+  // Pages with their own bottom action bar (Book, Pay, Sign up): the notice
+  // waits for another page rather than cover the button.
+  const busyBottom = pathname.startsWith('/cafe/') || pathname.startsWith('/bookings/new') || pathname.startsWith('/challenge/');
+  if (!visible || busyBottom) return null;
 
-  // An in-flow strip at the very top, not a fixed bar: this notice is
-  // informational (no advertising cookies), so it must never sit on top of
-  // the booking bar or the bottom menu where first-time visitors tap.
+  // A small floating note at the bottom (fixed, so nothing shifts), above the
+  // bottom menu (see .cookie-notice in globals.css). It's informational: no
+  // advertising cookies.
   return (
-    <div role="region" aria-label="Cookie notice" className="cookie-notice border-b border-border bg-card">
-      <div className="mx-auto flex max-w-content items-center justify-between gap-3 px-4 py-2 md:px-6">
+    <div role="region" aria-label="Cookie notice" className="cookie-notice">
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5 shadow-overlay">
         <p className="text-[12px] leading-snug text-text-secondary">
           We only use storage to keep you signed in and see how gamers find KHEL-O. No ad cookies.{' '}
           <Link href="/cookie-policy" prefetch={pageLoaded ? undefined : false} className="font-semibold text-primary hover:underline">
