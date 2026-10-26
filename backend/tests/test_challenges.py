@@ -121,6 +121,19 @@ async def test_public_page_shows_the_visitor_offer_only_when_set(async_client, d
 
 
 @pytest.mark.asyncio
+async def test_public_page_carries_the_optional_first_screen_lines(async_client, db_session):
+    ch, _ = await _challenge(async_client, db_session)
+    data = (await async_client.get(f"/api/v1/challenges/{ch['slug']}")).json()["data"]
+    assert data["heroLine"] is None and data["heroSub"] is None
+    async with TestAsyncSessionLocal() as db:
+        row = await db.get(Challenge, uuid.UUID(ch["id"]))
+        row.plan_config = {"heroLine": "Wallet enduku bro?", "heroSub": "Free ga aadu."}
+        await db.commit()
+    data = (await async_client.get(f"/api/v1/challenges/{ch['slug']}")).json()["data"]
+    assert (data["heroLine"], data["heroSub"]) == ("Wallet enduku bro?", "Free ga aadu.")
+
+
+@pytest.mark.asyncio
 async def test_signup_needs_an_account_and_the_required_ticks(async_client, db_session):
     ch, _ = await _challenge(async_client, db_session)
     res = await async_client.post(f"/api/v1/challenges/{ch['slug']}/entries", json=_join_body())

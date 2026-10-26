@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, getMyChallenge, type Challenge, type MyEntry } from '@/lib/api/challenges';
@@ -11,10 +11,12 @@ import { challengeDay, challengeTime, challengeTimeRange, rememberUtm } from '@/
 import { markChallengeSeen } from '@/lib/challengeNudge';
 import { SimpleMarkdown } from '@/components/challenge/SimpleMarkdown';
 import { ChallengeSignUpSheet } from '@/components/challenge/ChallengeSignUpSheet';
+import { ChallengeIntro } from '@/components/challenge/ChallengeIntro';
+import { PlayerSelect, VsPanel } from '@/components/challenge/ChallengeHero';
 
 const REFRESH_MS = 30_000;
 
-export function ChallengeClient({ slug, initial }: { slug: string; initial: Challenge | null }) {
+export function ChallengeClient({ slug, initial, showIntro = false }: { slug: string; initial: Challenge | null; showIntro?: boolean }) {
   const router = useRouter();
   const { isAuthenticated, isHydrated } = useAuthStore();
   const [ch, setCh] = useState<Challenge | null>(initial);
@@ -65,8 +67,8 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
     }
   }, [isHydrated, isAuthenticated]);
 
-  const start = useCallback(() => {
-    trackAction('challenge_signup_started', { challenge: slug, signedIn: isAuthenticated });
+  const start = useCallback((where: 'hero' | 'sticky') => {
+    trackAction('challenge_signup_started', { challenge: slug, signedIn: isAuthenticated, where });
     setSheetOpen(true);
   }, [slug, isAuthenticated]);
 
@@ -101,49 +103,59 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
         </p>
       )}
 
-      {/* Hero */}
+      {showIntro && open && <ChallengeIntro slug={ch.slug} caption={ch.heroLine || 'No wallet needed'} />}
+
+      {/* First screen: the reel's promise in one look. Few words, big signs. */}
       <section>
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#E8675D]">KHELO challenge · free sign-up</p>
-        <h1 className="mt-2 font-heading text-[34px] font-bold leading-[1.05] tracking-[-0.02em] md:text-[52px]">{ch.title}</h1>
-        <p className="mt-3 text-[15px] text-[#C9CBD3]">
-          {ch.game}
-          {ch.setupLine ? ` · ${ch.setupLine}` : ''}
+        <h1 className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#E8675D]">{ch.title}</h1>
+        <div className="mt-3">
+          <VsPanel />
+        </div>
+        <p className="mt-4 font-heading text-[30px] font-bold leading-[1.08] tracking-[-0.02em] md:text-[44px]">
+          {ch.heroLine || 'Free to play. Just show up.'}
         </p>
+        <p className="mt-1.5 text-[16px] text-[#DADCE3]">{ch.heroSub || `${ch.game}${ch.setupLine ? ` · ${ch.setupLine}` : ''}`}</p>
+        <div className="mt-4 flex flex-wrap gap-2 text-sm font-semibold">
+          <Chip icon={<CalendarDays className="h-4 w-4" />}>{challengeDay(ch.startsAt)}</Chip>
+          <Chip icon={<Clock className="h-4 w-4" />}>{challengeTimeRange(ch.startsAt, ch.endsAt)}</Chip>
+          <Chip icon={<MapPin className="h-4 w-4" />}>{ch.cafe.name.replace(/ Gaming Lounge$/i, '')}</Chip>
+        </div>
+        {open && !active && (
+          <button
+            type="button"
+            onClick={() => start('hero')}
+            className="chv-start mt-5 flex h-16 w-full flex-col items-center justify-center rounded-2xl bg-[#D0463C] text-white transition-colors hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          >
+            <span className="flex items-center gap-2 font-heading text-xl font-black uppercase tracking-[0.14em]">
+              <Play className="h-5 w-5 fill-current" /> Press start
+            </span>
+            <span className="text-xs font-semibold text-white/85">{full ? 'Join the waitlist · free' : 'Sign up free · takes a minute'}</span>
+          </button>
+        )}
+        <p className="mt-4 text-[15px] text-[#C9CBD3]">Remember those 1v1s with your friends at home? This time it&apos;s on the big screen.</p>
       </section>
 
-      {/* When and where */}
-      <section className="mt-6 grid grid-cols-2 gap-2.5">
-        <Fact icon={<CalendarDays className="h-4 w-4" />} label="Date" value={challengeDay(ch.startsAt)} />
-        <Fact icon={<Clock className="h-4 w-4" />} label="Time" value={challengeTimeRange(ch.startsAt, ch.endsAt)} />
-        <a
-          href={ch.cafe.mapsUrl ?? undefined}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => trackAction('challenge_map_click', { challenge: slug })}
-          className="col-span-2 flex items-center gap-3 rounded-2xl border border-[#262932] bg-[#16181E] px-4 py-3 transition-colors hover:border-[#3A3E4A]"
-        >
-          <MapPin className="h-4 w-4 flex-shrink-0 text-[#E8675D]" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold">{ch.cafe.name}</span>
-            <span className="block truncate text-xs text-[#A3A6B1]">{ch.cafe.address || ch.cafe.city}</span>
-          </span>
-          {ch.cafe.mapsUrl && <span className="text-xs font-semibold text-[#E8675D]">Map</span>}
-        </a>
-      </section>
-
-      {/* Spots: the real count */}
-      <section className="mt-6 rounded-2xl border border-[#262932] bg-[#16181E] p-4" aria-live="polite">
+      {/* Spots: the real count, as a player-select screen */}
+      <section className="mt-7 rounded-2xl border border-[#262932] bg-[#16181E] p-4" aria-live="polite">
         <div className="flex items-baseline justify-between gap-3">
           <p className="font-heading text-lg font-bold">
-            {full ? `All ${ch.capacity} player spots taken` : `${ch.spotsLeft} of ${ch.capacity} player spots left`}
+            {full
+              ? `All ${ch.capacity} players in`
+              : filled === 0
+              ? 'Player 1 is still open. Be the first.'
+              : `${filled} in · ${ch.spotsLeft} ${ch.spotsLeft === 1 ? 'spot' : 'spots'} open`}
           </p>
           {ch.waitlist > 0 && <p className="text-xs text-[#A3A6B1]">{ch.waitlist} on the waitlist</p>}
         </div>
-        <div className="mt-3 flex gap-1" aria-hidden>
-          {Array.from({ length: ch.capacity }, (_, i) => (
-            <span key={i} className={`h-2 flex-1 rounded-full ${i < filled ? 'bg-[#D0463C]' : 'bg-[#2A2D36]'}`} />
-          ))}
-        </div>
+        {ch.capacity <= 20 ? (
+          <PlayerSelect capacity={ch.capacity} filled={filled} open={open} />
+        ) : (
+          <div className="mt-3 flex gap-1" aria-hidden>
+            {Array.from({ length: ch.capacity }, (_, i) => (
+              <span key={i} className={`h-2 flex-1 rounded-full ${i < filled ? 'bg-[#D0463C]' : 'bg-[#2A2D36]'}`} />
+            ))}
+          </div>
+        )}
         <p className="mt-3 text-sm text-[#A3A6B1]">
           {!open
             ? ch.status === 'closed' && !ch.checkinClosedAt && ch.waitlist > 0
@@ -155,17 +167,20 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
         </p>
       </section>
 
-      {/* Watching is open to everyone: the spots above are only for players. */}
-      <section className="mt-4 rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-4">
-        <h2 className="flex items-center gap-2 font-heading text-lg font-bold">
-          <Users className="h-5 w-5 text-[#7FE0A0]" /> Not playing? Come watch
-        </h2>
-        <p className="mt-1 text-sm text-[#DADCE3]">
-          The {ch.capacity} spots are only for players. Anyone can come to {ch.cafe.name} on the day to watch and cheer. No sign-up needed
-          to watch.
-        </p>
-        {ch.visitorOffer && <p className="mt-2 text-sm font-semibold text-[#7FE0A0]">{ch.visitorOffer}</p>}
-      </section>
+      <a
+        href={ch.cafe.mapsUrl ?? undefined}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => trackAction('challenge_map_click', { challenge: slug })}
+        className="mt-4 flex items-center gap-3 rounded-2xl border border-[#262932] bg-[#16181E] px-4 py-3 transition-colors hover:border-[#3A3E4A]"
+      >
+        <MapPin className="h-4 w-4 flex-shrink-0 text-[#E8675D]" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold">{ch.cafe.name}</span>
+          <span className="block truncate text-xs text-[#A3A6B1]">{ch.cafe.address || ch.cafe.city}</span>
+        </span>
+        {ch.cafe.mapsUrl && <span className="text-xs font-semibold text-[#E8675D]">Map</span>}
+      </a>
 
       {/* Rewards (never "prizes": payment partners read the site) */}
       {ch.prizesMd.trim() && (
@@ -208,6 +223,18 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
           <span className="flex-1 font-semibold">Read the rules</span>
           <ChevronRight className="h-4 w-4 text-[#A3A6B1]" />
         </Link>
+      </section>
+
+      {/* Watching is open to everyone: the spots above are only for players. */}
+      <section className="mt-8 rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-4">
+        <h2 className="flex items-center gap-2 font-heading text-lg font-bold">
+          <Users className="h-5 w-5 text-[#7FE0A0]" /> Not playing? Come watch
+        </h2>
+        <p className="mt-1 text-sm text-[#DADCE3]">
+          The {ch.capacity} spots are only for players. Anyone can come to {ch.cafe.name} on the day to watch and cheer. No sign-up needed
+          to watch.
+        </p>
+        {ch.visitorOffer && <p className="mt-2 text-sm font-semibold text-[#7FE0A0]">{ch.visitorOffer}</p>}
       </section>
 
       {/* FAQ */}
@@ -258,10 +285,10 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
           ) : open ? (
             <button
               type="button"
-              onClick={start}
+              onClick={() => start('sticky')}
               className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#D0463C] font-heading text-lg font-bold text-white transition-colors hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
-              <Users className="h-5 w-5" />
+              <Play className="h-5 w-5 fill-current" />
               {full ? 'Join the waitlist · free' : 'Sign up free'}
             </button>
           ) : (
@@ -295,15 +322,12 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Fact({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function Chip({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-[#262932] bg-[#16181E] px-4 py-3">
-      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A3A6B1]">
-        <span className="text-[#E8675D]">{icon}</span>
-        {label}
-      </p>
-      <p className="mt-1 font-heading text-[17px] font-bold">{value}</p>
-    </div>
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#262932] bg-[#16181E] px-3 py-1.5">
+      <span className="text-[#E8675D]">{icon}</span>
+      {children}
+    </span>
   );
 }
 

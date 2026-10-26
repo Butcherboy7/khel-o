@@ -593,3 +593,36 @@ html[data-hints-seen~='booking'] [data-hint='booking'],
 html[data-hints-seen~='pass'] [data-hint='pass'] {
   display: none;
 }
+
+/* ── Challenge page: "wallet" intro for visitors from an ad or reel, VS screen,
+   player-select grid. Pure CSS so it plays before the JS loads (Instagram's
+   in-app browser is slow). The global reduced-motion rule shortens all of it;
+   the intro is skipped outright for people who ask for less motion. ── */
+.chi-overlay {
+  animation: chi-shake 2.3s linear both, chi-out 0.4s 2.3s ease-in forwards;
+}
+.chi-pair { animation: chi-pair 2.3s cubic-bezier(.2,.8,.2,1) both; }
+.chi-hand { animation: chi-hand 2.3s cubic-bezier(.3,1.4,.5,1) both; }
+.chi-wallet { animation: chi-wallet 2.3s ease-out both; transform-origin: 50% 100%; }
+.chi-caption { animation: chi-caption 2.3s ease-out both; }
+.chi-stamp { animation: chi-stamp 2.3s cubic-bezier(.3,1.5,.5,1) both; }
+@keyframes chi-out { to { opacity: 0; transform: scale(1.06); visibility: hidden; pointer-events: none; } }
+@keyframes chi-shake { 0%, 75% { translate: 0; } 77% { translate: -7px 3px; } 79% { translate: 6px -2px; } 81% { translate: -3px 1px; } 83%, 100% { translate: 0; } }
+@keyframes chi-pair { 0% { transform: translateY(70vh); } 20%, 52% { transform: none; } 66%, 100% { transform: translateY(85vh); } }
+@keyframes chi-hand { 0%, 22% { opacity: 0; transform: translateY(-55vh) scale(1.5); } 33% { opacity: 1; transform: none; } 36% { transform: scale(.9); } 40%, 100% { opacity: 1; transform: none; } }
+@keyframes chi-wallet { 0%, 33% { transform: none; } 36% { transform: scale(1.08, .86); } 42%, 100% { transform: none; } }
+@keyframes chi-caption { 0%, 36% { opacity: 0; transform: translateY(10px); } 42%, 58% { opacity: 1; transform: none; } 64%, 100% { opacity: 0; } }
+@keyframes chi-stamp { 0%, 64% { opacity: 0; transform: rotate(-12deg) scale(3); } 76% { opacity: 1; transform: rotate(-12deg) scale(.92); } 82%, 100% { opacity: 1; transform: rotate(-12deg) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .chi-overlay { display: none; } }
+
+.chv-left { clip-path: polygon(0 0, 60% 0, 40% 100%, 0 100%); animation: chv-in-left .55s cubic-bezier(.2,.9,.2,1) both; }
+.chv-right { clip-path: polygon(60% 0, 100% 0, 100% 100%, 40% 100%); animation: chv-in-right .55s cubic-bezier(.2,.9,.2,1) both; }
+.chv-vs { animation: chv-vs .5s .4s cubic-bezier(.3,1.6,.5,1) both, chv-flash 2.4s 1.2s ease-in-out infinite; }
+@keyframes chv-in-left { from { transform: translateX(-60%); } to { transform: none; } }
+@keyframes chv-in-right { from { transform: translateX(60%); } to { transform: none; } }
+@keyframes chv-vs { from { opacity: 0; transform: translate(-50%, -50%) scale(2.6) rotate(-8deg); } to { opacity: 1; transform: translate(-50%, -50%) rotate(-8deg); } }
+@keyframes chv-flash { 0%, 100% { text-shadow: 0 0 0 rgb(242 201 76 / 0); } 50% { text-shadow: 0 0 22px rgb(242 201 76 / .85); } }
+.chv-start { animation: chv-start 2s ease-in-out infinite; }
+@keyframes chv-start { 0%, 100% { box-shadow: 0 0 0 0 rgb(208 70 60 / .55); } 50% { box-shadow: 0 0 0 9px rgb(208 70 60 / 0); } }
+.chv-open-slot { animation: chv-open-slot 1.6s ease-in-out infinite; }
+@keyframes chv-open-slot { 0%, 100% { border-color: rgb(232 103 93 / .45); } 50% { border-color: rgb(232 103 93 / 1); } }

@@ -37,6 +37,9 @@ export interface Challenge {
   championPhotoUrl: string | null;
   /** The café's own offer for everyone who comes on the day, if any. */
   visitorOffer?: string | null;
+  /** Optional first-screen lines in the audience's language; English defaults when empty. */
+  heroLine?: string | null;
+  heroSub?: string | null;
   cafe: { id: string; name: string; slug: string | null; address: string; city: string; mapsUrl: string | null };
   /** Real counts, never padded. */
   confirmed: number;

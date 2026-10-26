@@ -108,6 +108,10 @@ def _challenge_out(ch: Challenge, cafe: Cafe, counts: dict[str, int]) -> dict:
         # The café's own offer for anyone who comes on the day (players or not).
         # Set by KHEL-O per challenge; nothing to do with checkout or rewards.
         "visitorOffer": (ch.plan_config or {}).get("visitorOffer") if isinstance(ch.plan_config, dict) else None,
+        # Optional first-screen lines in the audience's own language (e.g. Tenglish
+        # for a Telugu reel). Set by KHEL-O per challenge; the page has English defaults.
+        "heroLine": (ch.plan_config or {}).get("heroLine") if isinstance(ch.plan_config, dict) else None,
+        "heroSub": (ch.plan_config or {}).get("heroSub") if isinstance(ch.plan_config, dict) else None,
         "cafe": {
             "id": str(cafe.id),
             "name": cafe.name,

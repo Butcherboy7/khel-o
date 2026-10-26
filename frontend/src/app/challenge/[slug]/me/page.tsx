@@ -262,7 +262,7 @@ function MyChallenge() {
         >
           <UserPlus className="h-5 w-5 text-[#E8675D]" />
           <span className="flex-1">
-            <span className="block font-semibold">Bring a friend</span>
+            <span className="block font-semibold">Bring your 2P</span>
             <span className="block text-xs text-[#A3A6B1]">Send them the link on WhatsApp. They can watch, or sign up to play if a spot is free.</span>
           </span>
         </a>

@@ -139,3 +139,8 @@ export function isUpcoming(c: { status: string; endsAt: string }): boolean {
 export function whatsappShare(text: string): string {
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
+
+/** Cookie the server reads so the challenge intro plays once per device per challenge. */
+export function introCookie(slug: string): string {
+  return `khelo_intro_${slug.replace(/[^a-z0-9-]/gi, '')}`;
+}
