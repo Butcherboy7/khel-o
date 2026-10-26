@@ -16,6 +16,12 @@ from tests.test_challenges import _challenge, _join, _player
 from tests.test_khelo_promo_codes import _make_cafe_owner_gamer
 
 
+@pytest.fixture(autouse=True)
+def _rehearsal_environment(monkeypatch):
+    # Practice players need ENVIRONMENT set on purpose; CI has no .env file.
+    monkeypatch.setattr(settings, "ENVIRONMENT", "test")
+
+
 def _url(ch, tail=""):
     return f"/api/v1/admin/challenges/{ch['id']}{tail}"
 
