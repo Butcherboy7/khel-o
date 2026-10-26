@@ -39,7 +39,7 @@ export function ChallengeIntro({ slug, caption }: { slug: string; caption: strin
       aria-hidden
     >
       <div className="chi-pair relative flex flex-col items-center">
-        <span className="chi-hand relative z-10 -mb-8 text-[88px] leading-none drop-shadow-[0_8px_18px_rgba(0,0,0,0.6)]">✋</span>
+        <span className="chi-hand relative z-10 -mb-10 text-[120px] leading-none drop-shadow-[0_8px_18px_rgba(0,0,0,0.6)]">✋</span>
         <Wallet />
       </div>
       <p className="chi-caption absolute bottom-[22%] px-6 text-center font-heading text-3xl font-bold text-[#F4F1EC]">{caption}</p>
@@ -53,7 +53,7 @@ export function ChallengeIntro({ slug, caption }: { slug: string; caption: strin
 
 function Wallet() {
   return (
-    <svg className="chi-wallet" width="150" height="112" viewBox="0 0 150 112" aria-hidden>
+    <svg className="chi-wallet" width="210" height="157" viewBox="0 0 150 112" aria-hidden>
       {/* a ₹ note peeking out */}
       <rect x="22" y="2" width="96" height="46" rx="5" fill="#3B6B4A" transform="rotate(-6 70 25)" />
       <text x="62" y="35" fill="#BFE8CB" fontSize="24" fontWeight="700" transform="rotate(-6 70 25)">

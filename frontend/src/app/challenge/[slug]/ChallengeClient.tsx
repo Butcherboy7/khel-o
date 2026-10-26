@@ -111,7 +111,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
         <div className="mt-3">
           <VsPanel />
         </div>
-        <p className="mt-4 font-heading text-[30px] font-bold leading-[1.08] tracking-[-0.02em] md:text-[44px]">
+        <p className="mt-4 text-balance font-heading text-[30px] font-bold leading-[1.08] tracking-[-0.02em] md:text-[44px]">
           {ch.heroLine || 'Free to play. Just show up.'}
         </p>
         <p className="mt-1.5 text-[16px] text-[#DADCE3]">{ch.heroSub || `${ch.game}${ch.setupLine ? ` · ${ch.setupLine}` : ''}`}</p>
