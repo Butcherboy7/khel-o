@@ -23,6 +23,7 @@ import {
   MoreHorizontal,
   LifeBuoy,
   Bell,
+  Swords,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -32,6 +33,7 @@ import { OwnerTour } from '@/components/owner/OwnerTour';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 import { PlatformReconfirmModal } from '@/components/owner/PlatformReconfirmModal';
 import { apiClient } from '@/lib/api/client';
+import { getHostingChallenges } from '@/lib/api/challenges';
 import type { User } from '@/types';
 
 /* ── Navigation Items ────────────────────────────────────────────── */
@@ -111,6 +113,29 @@ const ownerNavSections: NavSection[] = [
   },
 ];
 
+// Only for owners whose café is hosting a KHEL-O challenge.
+const challengesNavItem: NavItem = {
+  label: 'Challenges',
+  href: '/owner/challenges',
+  icon: Swords,
+  hint: 'The challenge at your café: players and the day',
+};
+
+/** The owner's menu, with Challenges under Today while they host one. */
+function useOwnerSections(isStaff: boolean): NavSection[] {
+  const { data: hosting } = useQuery({
+    queryKey: ['owner', 'hosting-challenges'],
+    queryFn: getHostingChallenges,
+    enabled: !isStaff,
+    staleTime: 5 * 60_000,
+  });
+  if (isStaff) return [{ heading: 'Operations', items: staffNavItems }];
+  if (!hosting?.length) return ownerNavSections;
+  return ownerNavSections.map((section, i) =>
+    i === 0 ? { ...section, items: [...section.items, challengesNavItem] } : section,
+  );
+}
+
 // Staff sees a dedicated operational view
 const staffNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard, hint: "Today's arrivals" },
@@ -124,7 +149,7 @@ function useCurrentSectionLabel(isStaff: boolean): string {
   const pathname = usePathname();
   const all = isStaff
     ? staffNavItems
-    : ownerNavSections.flatMap((section) => section.items);
+    : [...ownerNavSections.flatMap((section) => section.items), challengesNavItem];
   // Longest match wins so /owner/settings never resolves to a shorter sibling.
   const match = all
     .filter((item) => pathname.startsWith(item.href))
@@ -165,9 +190,7 @@ function OwnerSidebar({ isStaff }: { isStaff: boolean }) {
     ? activeUser.email[0].toUpperCase()
     : 'O';
 
-  const sections = isStaff
-    ? [{ heading: 'Operations', items: staffNavItems }]
-    : ownerNavSections;
+  const sections = useOwnerSections(isStaff);
 
   return (
     <aside className="fixed left-0 top-0 z-nav hidden h-screen w-owner-sidebar flex-col border-r border-border bg-secondary lg:flex">
@@ -263,9 +286,7 @@ function OwnerMobileMenu({
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
 
-  const sections = isStaff
-    ? [{ heading: 'Operations', items: staffNavItems }]
-    : ownerNavSections;
+  const sections = useOwnerSections(isStaff);
 
   if (!isOpen) return null;
 

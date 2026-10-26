@@ -232,6 +232,29 @@ async def my_challenges(db: AsyncSession = Depends(get_db), user: User = Depends
     return {"success": True, "data": out}
 
 
+@public_router.get("/hosting")
+async def hosting(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    """For a café owner: the challenges at their cafés (not drafts), newest
+    first, with live numbers and who's playing. Names as the public pages show
+    them; never phone numbers. Read-only: KHEL-O runs results and check-in."""
+    rows = (await db.execute(
+        select(Challenge, Cafe)
+        .join(Cafe, Cafe.id == Challenge.cafe_id)
+        .where(Cafe.owner_id == user.id, Challenge.status != "draft")
+        .order_by(Challenge.starts_at.desc())
+    )).all()
+    out = []
+    for ch, cafe in rows:
+        everyone = [e for e in await svc.entries(db, ch.id) if not e.is_test]
+        item = _challenge_out(ch, cafe, await svc.counts(db, ch.id))
+        item["players"] = [
+            {"name": svc.public_name(e), "status": e.status, "rank": svc.rank(e, everyone), "present": e.present}
+            for e in everyone if e.status in svc.ACTIVE
+        ]
+        out.append(item)
+    return {"success": True, "data": out}
+
+
 @public_router.get("/{slug}")
 async def get_challenge(slug: str, db: AsyncSession = Depends(get_db), user: Optional[User] = Depends(get_optional_user)):
     ch, cafe = await _load(db, slug, user)

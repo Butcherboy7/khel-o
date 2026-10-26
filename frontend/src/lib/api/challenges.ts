@@ -507,3 +507,16 @@ export async function adminUploadChampionPhoto(id: string, file: File): Promise<
   await putToPresignedUrl(uploadUrl, file);
   return adminSetChampionPhoto(id, publicUrl);
 }
+
+export interface HostedPlayer {
+  name: string;
+  status: 'confirmed' | 'waitlist';
+  rank: number | null;
+  present: boolean;
+}
+export type HostedChallenge = Challenge & { players: HostedPlayer[] };
+
+/** Café owner: the challenges at their cafés (read-only, no phone numbers). */
+export async function getHostingChallenges(): Promise<HostedChallenge[]> {
+  return call(() => apiClient.get('/api/v1/challenges/hosting'));
+}

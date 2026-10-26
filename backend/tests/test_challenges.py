@@ -433,3 +433,23 @@ async def test_challenge_form_edge_cases(async_client, db_session):
     assert res.status_code == 200, res.text
     res = await post(slug="edge-taken")
     assert res.status_code == 409 and res.json()["error"]["code"] == "SLUG_TAKEN"
+
+
+@pytest.mark.asyncio
+async def test_owner_sees_only_their_cafes_challenges_without_phones(async_client, db_session):
+    from app.models.cafe import Cafe
+    from app.models.user import User
+    ch, _ = await _challenge(async_client, db_session)
+    p = await _player(db_session)
+    assert (await _join(async_client, ch["slug"], p, phone="9876501234")).status_code == 201
+    async with TestAsyncSessionLocal() as db:
+        owner = await db.get(User, (await db.get(Cafe, uuid.UUID(ch["cafe"]["id"]))).owner_id)
+    res = await async_client.get("/api/v1/challenges/hosting", headers=auth_headers(owner))
+    assert res.status_code == 200, res.text
+    data = res.json()["data"]
+    assert [c["slug"] for c in data] == [ch["slug"]]
+    assert data[0]["confirmed"] == 1 and data[0]["players"][0]["status"] == "confirmed"
+    assert "9876501234" not in res.text and "phone" not in res.text.lower()
+    stranger = await _player(db_session)
+    assert (await async_client.get("/api/v1/challenges/hosting", headers=auth_headers(stranger))).json()["data"] == []
+    assert (await async_client.get("/api/v1/challenges/hosting")).status_code == 401
