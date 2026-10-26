@@ -1,32 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, Swords } from 'lucide-react';
-import { getChallenge, getMyActiveChallenges } from '@/lib/api/challenges';
 import { trackAction } from '@/lib/api/analyticsEvents';
-import { FEATURED_CHALLENGE_SLUG, challengeDay, challengeTimeRange, isUpcoming } from '@/lib/challenge';
-import { useAuthStore } from '@/store/authStore';
+import { challengeDay, challengeTimeRange } from '@/lib/challenge';
+import { useChallengeToNudge } from '@/lib/challengeNudge';
 
 /** Home screen: the upcoming challenge, for everyone who hasn't signed up yet.
  *  Players already in it see their own card (MyChallengeCard) instead.
  *  Hides itself when the challenge is over, cancelled or missing. */
 export function ChallengeTeaser({ where = 'home', className = 'mx-auto w-full max-w-6xl px-4 pt-3' }: { where?: string; className?: string } = {}) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { data: ch } = useQuery({
-    queryKey: ['challenges', FEATURED_CHALLENGE_SLUG],
-    queryFn: () => getChallenge(FEATURED_CHALLENGE_SLUG),
-    staleTime: 60_000,
-    retry: false,
-  });
-  const { data: mine } = useQuery({
-    queryKey: ['challenges', 'mine', 'active'],
-    queryFn: getMyActiveChallenges,
-    enabled: isAuthenticated,
-    staleTime: 60_000,
-  });
-  if (!ch || !isUpcoming(ch)) return null;
-  if (mine?.some((c) => c.slug === ch.slug)) return null;
+  const ch = useChallengeToNudge();
+  if (!ch) return null;
 
   const full = ch.spotsLeft === 0;
   const spots = ch.status !== 'open'

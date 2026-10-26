@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { QrCode, Swords, X } from 'lucide-react';
@@ -64,6 +64,10 @@ function ComingPrompt({ c }: { c: MyActiveChallenge }) {
 /** Top of the home screen for a signed-in player who is in an upcoming or
  *  live challenge: when it is, their place, and their check-in QR. */
 export function MyChallengeCard() {
+  // After hydration only: the nav may have fetched this already, and the
+  // server HTML never has it.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { data } = useQuery({
     queryKey: ['challenges', 'mine', 'active'],
@@ -71,7 +75,7 @@ export function MyChallengeCard() {
     enabled: isAuthenticated,
     staleTime: 60_000,
   });
-  if (!isAuthenticated || !data?.length) return null;
+  if (!mounted || !isAuthenticated || !data?.length) return null;
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 pt-3">

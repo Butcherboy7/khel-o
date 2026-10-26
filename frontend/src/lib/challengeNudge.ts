@@ -58,6 +58,10 @@ function useNudgeState(slug: string): NudgeState | undefined {
 
 /** The featured challenge, if it's still ahead and this person isn't in it. */
 export function useChallengeToNudge(): Challenge | null {
+  // Nothing until after hydration: the nav fetches this early, so the data can
+  // land before the page has hydrated, and the server HTML never has it.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { data: ch } = useQuery({
     queryKey: ['challenges', FEATURED_CHALLENGE_SLUG],
@@ -71,7 +75,7 @@ export function useChallengeToNudge(): Challenge | null {
     enabled: isAuthenticated,
     staleTime: 60_000,
   });
-  if (!ch || !isUpcoming(ch)) return null;
+  if (!mounted || !ch || !isUpcoming(ch)) return null;
   if (isAuthenticated && !mineLoaded) return null;
   if (mine?.some((c) => c.slug === ch.slug)) return null;
   return ch;
