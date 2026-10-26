@@ -22,8 +22,8 @@ interface Props {
 /**
  * Sign-up over the challenge page: sign in first (Google, or email and
  * password for people inside Instagram's browser), then name, phone and the
- * tick boxes. Rules and 18+ are required; filming and updates are optional,
- * and updates starts unticked.
+ * tick boxes. Rules is required; one optional box covers filming and
+ * hearing about future challenges, and starts unticked.
  */
 export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: Props) {
   const router = useRouter();
@@ -36,8 +36,8 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
   const [phone, setPhone] = useState('');
   const [main, setMain] = useState('');
   const [rules, setRules] = useState(false);
-  const [filming, setFilming] = useState(false);
-  const [updates, setUpdates] = useState(false);
+  // One optional box for both: OK to film me, and tell me about the next ones.
+  const [extras, setExtras] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,8 +70,8 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
         phone,
         mainCharacter: main.trim() || undefined,
         consentRules: rules,
-        consentFilming: filming,
-        consentUpdates: updates,
+        consentFilming: extras,
+        consentUpdates: extras,
         ...recalledUtm(window.location.search),
         ...(await guardFields()),
       });
@@ -159,11 +159,8 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
             </Link>
             . <span className="text-text-secondary">(required)</span>
           </Tick>
-          <Tick checked={filming} onChange={setFilming}>
-            It&apos;s OK to film me for KHELO videos. <span className="text-text-secondary">(optional)</span>
-          </Tick>
-          <Tick checked={updates} onChange={setUpdates}>
-            Tell me about future challenges. <span className="text-text-secondary">(optional)</span>
+          <Tick checked={extras} onChange={setExtras}>
+            It&apos;s OK to film me for KHELO videos, and tell me about future challenges. <span className="text-text-secondary">(optional)</span>
           </Tick>
         </fieldset>
 

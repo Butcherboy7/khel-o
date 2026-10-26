@@ -31,7 +31,9 @@ function isPublicPath(pathname: string): boolean {
     pathname === '/know-the-owner' ||
     // Help must not start with "make an account": signed-out visitors get the
     // public contact form there, signed-in ones their tickets.
-    pathname === '/support'
+    pathname === '/support' ||
+    // Anyone can look for challenges here; their own sign-ups show once signed in.
+    pathname === '/my-challenges'
   );
 }
 

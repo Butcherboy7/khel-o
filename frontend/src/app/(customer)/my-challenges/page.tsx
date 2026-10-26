@@ -1,11 +1,17 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { QrCode, Swords } from 'lucide-react';
 import { getMyChallenges, type MyChallengeSummary } from '@/lib/api/challenges';
 import { challengeDay, challengeTime } from '@/lib/challenge';
-import { Card, CardContent, EmptyState, ErrorState, SkeletonCard } from '@/components/ui';
+import { FEATURED_CHALLENGE_SLUG } from '@/lib/challenge';
+import { markChallengeSeen, useChallengeToNudge } from '@/lib/challengeNudge';
+import { useAuthStore } from '@/store/authStore';
+import { ChallengeTeaser } from '@/components/customer/ChallengeTeaser';
+import { CommunityInviteCard } from '@/components/customer/CommunityInvite';
+import { Card, CardContent, ErrorState, SkeletonCard } from '@/components/ui';
 
 /** The plain-words state of one sign-up. */
 function stateOf(c: MyChallengeSummary): { text: string; tone: string } {
@@ -51,12 +57,18 @@ function Row({ c }: { c: MyChallengeSummary }) {
   );
 }
 
+/** Open to everyone: your own sign-ups (when signed in), the challenge you
+ *  could still join, and the WhatsApp Community where new ones drop first. */
 export default function MyChallengesPage() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['challenges', 'mine', 'all'],
     queryFn: getMyChallenges,
     staleTime: 0,
+    enabled: isAuthenticated,
   });
+  const openToJoin = useChallengeToNudge();
+  useEffect(() => markChallengeSeen(FEATURED_CHALLENGE_SLUG), []);
 
   const coming = (data ?? []).filter((c) => c.upcoming);
   const past = (data ?? []).filter((c) => !c.upcoming);
@@ -65,15 +77,31 @@ export default function MyChallengesPage() {
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6">
       <h1 className="font-heading text-h1 font-bold text-text-primary">My challenges</h1>
 
-      {isLoading && <SkeletonCard />}
+      {isAuthenticated && isLoading && <SkeletonCard />}
       {isError && <ErrorState title="Couldn’t load your challenges" message={(error as Error)?.message ?? 'Try again.'} onRetry={() => refetch()} />}
 
-      {data && data.length === 0 && (
-        <EmptyState
-          icon={<Swords className="h-8 w-8" />}
-          title="No challenges yet"
-          description="When you sign up for a KHEL-O challenge, it shows up here with your spot and your check-in QR."
-        />
+      {(!isAuthenticated || (data && data.length === 0)) && (
+        <Card elevation="resting">
+          <CardContent className="flex items-start gap-3 p-4">
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-surface text-text-secondary">
+              <Swords className="h-5 w-5" aria-hidden />
+            </span>
+            <span>
+              <span className="block font-heading text-body-emphasis font-bold text-text-primary">
+                You&apos;re not signed up for any challenge yet
+              </span>
+              <span className="block text-caption text-text-secondary">
+                {openToJoin ? 'There’s one open right now. Have a look 👇' : 'When you sign up for one, your spot and check-in QR show here.'}
+                {!isAuthenticated && (
+                  <>
+                    {' '}Already signed up?{' '}
+                    <Link href="/login?redirect=/my-challenges" className="font-semibold text-primary underline">Log in</Link>
+                  </>
+                )}
+              </span>
+            </span>
+          </CardContent>
+        </Card>
       )}
 
       {coming.length > 0 && (
@@ -82,6 +110,18 @@ export default function MyChallengesPage() {
           {coming.map((c) => <Row key={c.slug} c={c} />)}
         </section>
       )}
+      {openToJoin && (
+        <section className="flex flex-col gap-2" aria-label="Open challenges">
+          <h2 className="font-heading text-h3 font-semibold text-text-primary">Open now</h2>
+          <ChallengeTeaser where="my_challenges" className="w-full" />
+        </section>
+      )}
+
+      <section className="flex flex-col gap-2" aria-label="WhatsApp Community">
+        {!openToJoin && <h2 className="font-heading text-h3 font-semibold text-text-primary">Next challenge</h2>}
+        <CommunityInviteCard where="my_challenges" />
+      </section>
+
       {past.length > 0 && (
         <section className="flex flex-col gap-2" aria-label="Past">
           <h2 className="font-heading text-h3 font-semibold text-text-primary">Past</h2>

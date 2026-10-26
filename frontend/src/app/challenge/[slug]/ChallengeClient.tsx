@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, getMyChallenge, type Challenge, type MyEntry } from '@/lib/api/challenges';
 import { challengeDay, challengeTime, challengeTimeRange, rememberUtm } from '@/lib/challenge';
+import { markChallengeSeen } from '@/lib/challengeNudge';
 import { SimpleMarkdown } from '@/components/challenge/SimpleMarkdown';
 import { ChallengeSignUpSheet } from '@/components/challenge/ChallengeSignUpSheet';
 
@@ -18,6 +19,8 @@ export function ChallengeClient({ slug, initial }: { slug: string; initial: Chal
   const { isAuthenticated, isHydrated } = useAuthStore();
   const [ch, setCh] = useState<Challenge | null>(initial);
   const [missing, setMissing] = useState(false);
+  // They found it: no more pop-up or New tag for this challenge.
+  useEffect(() => markChallengeSeen(slug), [slug]);
   const [entry, setEntry] = useState<MyEntry | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 

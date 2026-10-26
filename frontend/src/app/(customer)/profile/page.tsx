@@ -11,6 +11,7 @@ import { apiClient } from '@/lib/api/client';
 import { SpecialAccessBadge, OG_BADGE_NAME } from '@/components/customer/SpecialAccessBadge';
 import { OgBadgeSheet } from '@/components/customer/OgBadgeSheet';
 import { HelperEmblem, isHelperBadgeKey } from '@/components/customer/HelperEmblem';
+import { useChallengeNudge } from '@/lib/challengeNudge';
 import {
   Avatar,
   Card,
@@ -76,6 +77,7 @@ export default function ProfilePage() {
   const { user, setUser, logout, switchActiveRole } = useAuthStore();
   const [isSwitchingToOwner, setIsSwitchingToOwner] = useState(false);
   const [switchToOwnerError, setSwitchToOwnerError] = useState('');
+  const { showNew: challengeNew } = useChallengeNudge();
 
   // Entering the owner workspace is a role SWITCH, not a plain navigation. A
   // bare <Link href="/owner/dashboard"> leaves activeRole stuck on 'gamer'
@@ -533,13 +535,21 @@ export default function ProfilePage() {
 
           <Link
             href="/my-challenges"
-            className="flex items-center justify-between p-3.5 hover:bg-surface rounded-xl transition-colors"
+            className={`flex items-center justify-between p-3.5 rounded-xl transition-colors ${
+              challengeNew ? 'bg-primary/10 ring-2 ring-primary/40 hover:bg-primary/15' : 'hover:bg-surface'
+            }`}
           >
             <div className="flex items-center gap-3 text-text-primary font-semibold text-body">
               <Swords className="h-4 w-4 text-primary" />
               <span>My challenges</span>
+              {challengeNew && (
+                <span className="rounded-full bg-accent px-2 py-px text-[10px] font-bold uppercase tracking-wide text-white">New</span>
+              )}
             </div>
-            <ChevronRight className="h-4 w-4 text-text-secondary" />
+            <span className="flex items-center gap-1.5">
+              {challengeNew && <span className="text-caption font-semibold text-primary">Challenge open</span>}
+              <ChevronRight className="h-4 w-4 text-text-secondary" />
+            </span>
           </Link>
 
           <Link

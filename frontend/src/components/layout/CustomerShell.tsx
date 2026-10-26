@@ -19,6 +19,8 @@ import { usePageLoaded } from '@/hooks/usePageLoaded';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 import { PhoneNumberPrompt } from '@/components/layout/PhoneNumberPrompt';
 import { CampaignBadgeClaimer } from '@/components/customer/CampaignBadgeClaimer';
+import { ChallengePopup } from '@/components/customer/ChallengePopup';
+import { useChallengeNudge } from '@/lib/challengeNudge';
 import { apiClient } from '@/lib/api/client';
 
 interface NavItem {
@@ -34,6 +36,26 @@ const customerNavItems: NavItem[] = [
   { label: 'Achievements', href: '/achievements', icon: Trophy, matchPrefix: false },
   { label: 'Profile', href: '/profile', icon: UserCircle, matchPrefix: false },
 ];
+
+/** Profile is where the challenge pop-up tucks itself away. While its "New"
+ *  tag is on, signed-out visitors go straight to My challenges (Profile would
+ *  only ask them to log in). */
+function useProfileNav() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { showNew } = useChallengeNudge();
+  return {
+    showNew,
+    href: (item: NavItem) => (item.href === '/profile' && showNew && !isAuthenticated ? '/my-challenges' : item.href),
+  };
+}
+
+function NewTag({ className }: { className?: string }) {
+  return (
+    <span className={cn('rounded-full bg-accent px-1.5 py-px text-[9px] font-bold uppercase leading-[14px] tracking-wide text-white', className)}>
+      New
+    </span>
+  );
+}
 
 function CustomerHeader() {
   const pathname = usePathname();
@@ -53,6 +75,7 @@ function CustomerHeader() {
     refetchInterval: 30_000,
   });
 
+  const profileNav = useProfileNav();
   const initial = user?.fullName ? user.fullName[0].toUpperCase() : 'A';
   const unreadCount = unreadData?.unreadCount || 0;
 
@@ -85,7 +108,8 @@ function CustomerHeader() {
               <Link
                 prefetch={prefetch}
                 key={item.href}
-                href={item.href}
+                href={profileNav.href(item)}
+                data-challenge-dock={item.href === '/profile' ? '' : undefined}
                 className={cn(
                   'relative rounded-full px-4 py-2 text-body font-medium transition duration-fast',
                   isActive
@@ -95,6 +119,7 @@ function CustomerHeader() {
                 aria-current={isActive ? 'page' : undefined}
               >
                 {item.label}
+                {item.href === '/profile' && profileNav.showNew && <NewTag className="absolute -right-1 -top-1" />}
                 {isActive && (
                   <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-4 rounded-full bg-primary" />
                 )}
@@ -146,6 +171,7 @@ function CustomerHeader() {
 function CustomerBottomNav() {
   const pathname = usePathname();
   const prefetch = usePageLoaded() ? undefined : false;
+  const profileNav = useProfileNav();
 
   return (
     <nav
@@ -164,9 +190,10 @@ function CustomerBottomNav() {
           <Link
             prefetch={prefetch}
             key={item.href}
-            href={item.href}
+            href={profileNav.href(item)}
+            data-challenge-dock={item.href === '/profile' ? '' : undefined}
             className={cn(
-              'flex flex-col items-center gap-0.5 px-4 py-1.5 transition duration-fast',
+              'relative flex flex-col items-center gap-0.5 px-4 py-1.5 transition duration-fast',
               isActive ? 'text-primary-dark font-bold' : 'text-text-secondary hover:text-text-primary',
             )}
             aria-current={isActive ? 'page' : undefined}
@@ -179,6 +206,7 @@ function CustomerBottomNav() {
             >
               <item.icon className="h-5 w-5" />
             </span>
+            {item.href === '/profile' && profileNav.showNew && <NewTag className="absolute right-1 top-0" />}
             <span className="text-badge">{item.label}</span>
           </Link>
         );
@@ -216,6 +244,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
       {pathname !== '/bookings/new' && <CustomerBottomNav />}
       <PhoneNumberPrompt />
       <CampaignBadgeClaimer />
+      <ChallengePopup />
     </div>
   );
 }

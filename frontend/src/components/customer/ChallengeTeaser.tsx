@@ -11,7 +11,7 @@ import { useAuthStore } from '@/store/authStore';
 /** Home screen: the upcoming challenge, for everyone who hasn't signed up yet.
  *  Players already in it see their own card (MyChallengeCard) instead.
  *  Hides itself when the challenge is over, cancelled or missing. */
-export function ChallengeTeaser() {
+export function ChallengeTeaser({ where = 'home', className = 'mx-auto w-full max-w-6xl px-4 pt-3' }: { where?: string; className?: string } = {}) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { data: ch } = useQuery({
     queryKey: ['challenges', FEATURED_CHALLENGE_SLUG],
@@ -36,10 +36,10 @@ export function ChallengeTeaser() {
     : `${ch.spotsLeft} of ${ch.capacity} player spots left`;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pt-3">
+    <div className={className}>
       <Link
         href={`/challenge/${ch.slug}`}
-        onClick={() => trackAction('challenge_teaser_click', { challenge: ch.slug, where: 'home' })}
+        onClick={() => trackAction('challenge_teaser_click', { challenge: ch.slug, where })}
         className="group flex items-center gap-3 rounded-2xl border border-[#5A2A26] bg-[#1A1114] p-3 text-[#F4F1EC] shadow-sm transition-colors hover:border-[#E8675D]"
       >
         <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#D0463C] text-white">

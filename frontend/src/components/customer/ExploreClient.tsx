@@ -15,6 +15,7 @@ import { calculateDistance, isCafeOpenNow, getCafeOpenStatus } from '@/lib/forma
 import { ActivityIcon } from '@/components/icons/PlatformIcons';
 import { SUPPORTED_CITIES } from '@/constants/cities';
 import { SocialLinks } from '@/components/layout/SocialLinks';
+import { CommunityButton } from '@/components/customer/CommunityInvite';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
@@ -704,6 +705,7 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
           separated by more space than the links give each other, so the two
           read as distinct groups rather than one long wrapped line. */}
       <footer className="flex flex-col items-center gap-3 pt-5 pb-2 border-t border-border/60">
+        <CommunityButton where="footer_home" />
         <SocialLinks />
         <nav
           aria-label="Legal and company links"
