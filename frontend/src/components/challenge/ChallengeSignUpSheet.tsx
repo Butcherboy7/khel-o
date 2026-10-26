@@ -36,7 +36,6 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
   const [phone, setPhone] = useState('');
   const [main, setMain] = useState('');
   const [rules, setRules] = useState(false);
-  const [age, setAge] = useState(false);
   const [filming, setFilming] = useState(false);
   const [updates, setUpdates] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,7 +62,6 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
     if (!name.trim()) return setError('Tell us your name.');
     if (phone.replace(/\D/g, '').length < 10) return setError('Enter your 10-digit mobile number.');
     if (!rules) return setError('Tick the box to agree to the rules.');
-    if (!age) return setError(`This challenge is ${challenge.minAge}+ only.`);
     setBusy(true);
     try {
       const res = await joinChallenge(challenge.slug, {
@@ -72,7 +70,6 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
         phone,
         mainCharacter: main.trim() || undefined,
         consentRules: rules,
-        consentAge: age,
         consentFilming: filming,
         consentUpdates: updates,
         ...recalledUtm(window.location.search),
@@ -161,9 +158,6 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
               rules
             </Link>
             . <span className="text-text-secondary">(required)</span>
-          </Tick>
-          <Tick checked={age} onChange={setAge}>
-            I&apos;m {challenge.minAge} or older. <span className="text-text-secondary">(required)</span>
           </Tick>
           <Tick checked={filming} onChange={setFilming}>
             It&apos;s OK to film me for KHELO videos. <span className="text-text-secondary">(optional)</span>

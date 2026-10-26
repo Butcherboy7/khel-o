@@ -244,7 +244,8 @@ class JoinRequest(_Camel):
     phone: str = Field(..., min_length=10, max_length=20)
     main_character: Optional[str] = Field(None, max_length=60)
     consent_rules: bool
-    consent_age: bool
+    # No longer asked on the form (ages are checked by the team). Old clients may still send it.
+    consent_age: bool = False
     consent_filming: bool = False
     consent_updates: bool = False
     utm_source: Optional[str] = Field(None, max_length=80)
@@ -290,8 +291,6 @@ async def join_challenge(
         raise BadRequestException(message="Sign-ups for this challenge are closed", error_code="CHALLENGE_CLOSED")
     if not payload.consent_rules:
         raise BadRequestException(message="Tick the box to agree to the rules", error_code="RULES_REQUIRED")
-    if not payload.consent_age:
-        raise BadRequestException(message=f"This challenge is {ch.min_age}+ only", error_code="AGE_REQUIRED")
     try:
         await bot_guard.check(db, request, "challenge", payload.phone, payload.form_ticket, payload.website)
     except bot_guard.Blocked:

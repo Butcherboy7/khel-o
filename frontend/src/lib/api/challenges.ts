@@ -166,7 +166,7 @@ export interface JoinBody {
   phone: string;
   mainCharacter?: string;
   consentRules: boolean;
-  consentAge: boolean;
+  consentAge?: boolean;
   consentFilming: boolean;
   consentUpdates: boolean;
   utmSource?: string;
@@ -240,7 +240,7 @@ export interface AdminEntry extends MyEntry {
   position: number;
   userId: string;
   consentRules: boolean;
-  consentAge: boolean;
+  consentAge?: boolean;
   toldAt: string | null;
   comingAt: string | null;
   withdrawnAt: string | null;

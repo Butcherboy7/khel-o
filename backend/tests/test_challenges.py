@@ -100,6 +100,15 @@ async def test_public_page_shows_real_spots_and_no_phones(async_client, db_sessi
 
 
 @pytest.mark.asyncio
+async def test_signup_does_not_ask_for_an_age_tick(async_client, db_session):
+    ch, _ = await _challenge(async_client, db_session)
+    p = await _player(db_session)
+    body = _join_body(); body.pop("consentAge")
+    res = await async_client.post(f"/api/v1/challenges/{ch['slug']}/entries", json=body, headers=auth_headers(p))
+    assert res.status_code == 201, res.text
+
+
+@pytest.mark.asyncio
 async def test_public_page_shows_the_visitor_offer_only_when_set(async_client, db_session):
     ch, _ = await _challenge(async_client, db_session)
     assert (await async_client.get(f"/api/v1/challenges/{ch['slug']}")).json()["data"]["visitorOffer"] is None
@@ -118,7 +127,6 @@ async def test_signup_needs_an_account_and_the_required_ticks(async_client, db_s
     assert res.status_code == 401
     p = await _player(db_session)
     assert (await _join(async_client, ch["slug"], p, consentRules=False)).json()["error"]["code"] == "RULES_REQUIRED"
-    assert (await _join(async_client, ch["slug"], p, consentAge=False)).json()["error"]["code"] == "AGE_REQUIRED"
     assert (await _join(async_client, ch["slug"], p, phone="12345")).status_code == 422
 
 
