@@ -117,7 +117,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
           <FightHud />
           <h1 className={`${fightFont.className} relative mt-6 uppercase`}>
             <span
-              className="chs-title-slash absolute left-[-4%] top-[30%] h-3 w-[78%] bg-[#D0463C]/80"
+              className="chs-title-slash absolute left-[-4%] top-[44%] h-3 w-[86%] bg-[#D0463C]/80"
               aria-hidden
             />
             <span className="relative block -skew-x-[8deg] text-[78px] font-bold leading-[0.8] tracking-[0.01em] text-white [text-shadow:0_6px_24px_rgba(0,0,0,0.7)]">
@@ -159,7 +159,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               }}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex min-h-[52px] items-center justify-center gap-2 border border-white/25 bg-black/40 px-3 text-sm font-semibold text-white transition-colors hover:border-white/50"
+              className="flex min-h-[52px] items-center justify-center gap-1.5 whitespace-nowrap border border-white/25 bg-black/40 px-2 text-[13px] font-semibold text-white transition-colors hover:border-white/50"
             >
               <Send className="h-4 w-4" /> Challenge a friend
             </a>
@@ -168,7 +168,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               onClick={() => trackAction('challenge_community_click', { challenge: slug, where: 'hero' })}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex min-h-[52px] items-center justify-center gap-2 border border-[#25D366]/50 bg-[#25D366]/15 px-3 text-sm font-semibold text-[#9BF0B9] transition-colors hover:bg-[#25D366]/25"
+              className="flex min-h-[52px] items-center justify-center gap-1.5 whitespace-nowrap border border-[#25D366]/50 bg-[#25D366]/15 px-2 text-[13px] font-semibold text-[#9BF0B9] transition-colors hover:bg-[#25D366]/25"
             >
               <MessageCircle className="h-4 w-4" /> Join the community
             </a>

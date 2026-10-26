@@ -638,6 +638,9 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
 @keyframes chs-fight { from { opacity: 0; transform: scale(2.6) rotate(-4deg); } to { opacity: 1; transform: rotate(-4deg); } }
 @keyframes chs-round-out { 0% { opacity: 1; } 100% { opacity: 0; transform: scale(1.08); visibility: hidden; } }
 
+.chs-band { opacity: 0; animation: chs-band .3s var(--rf-delay) ease-out forwards; }
+@keyframes chs-band { from { opacity: 0; transform: scaleY(0); } to { opacity: 1; transform: none; } }
+
 /* Select screen */
 .chs-chamfer { clip-path: polygon(14% 0, 100% 0, 100% 86%, 86% 100%, 0 100%, 0 14%); }
 .chs-tile { animation: chs-tile .45s cubic-bezier(.2, .8, .2, 1) both; }

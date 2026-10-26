@@ -81,10 +81,11 @@ export function RoundFight({ delayMs }: { delayMs: number }) {
       style={{ '--rf-delay': `${delayMs}ms` } as CSSProperties}
       aria-hidden
     >
-      <span className="chs-round-1 text-[54px] font-semibold uppercase leading-none tracking-[0.06em] text-white [text-shadow:0_4px_18px_rgba(0,0,0,0.8)]">
+      <span className="chs-band absolute inset-x-0 top-[-14px] h-[calc(100%+28px)] bg-black/80 [clip-path:polygon(0_10%,100%_0,100%_90%,0_100%)]" />
+      <span className="chs-round-1 relative text-[54px] font-semibold uppercase leading-none tracking-[0.06em] text-white [text-shadow:0_4px_18px_rgba(0,0,0,0.8)]">
         Round 1
       </span>
-      <span className="chs-round-fight text-[112px] font-bold uppercase italic leading-[0.8] text-[#E8675D] [text-shadow:0_6px_28px_rgba(0,0,0,0.85)]">
+      <span className="chs-round-fight relative text-[112px] font-bold uppercase italic leading-[0.8] text-[#E8675D] [text-shadow:0_6px_28px_rgba(0,0,0,0.85)]">
         Fight!
       </span>
     </div>
