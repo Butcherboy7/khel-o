@@ -1,5 +1,6 @@
 import { apiClient, call } from './client';
 import { putToPresignedUrl } from './settings';
+import type { User } from '@/types';
 
 /** Free in-person challenges at partner cafés. See backend app/api/v1/challenges.py.
  *  Public wording: "challenge", "free sign-up", "spots", "waitlist". */
@@ -223,6 +224,18 @@ export async function getChallenge(slug: string): Promise<Challenge> {
 
 export async function joinChallenge(slug: string, body: JoinBody): Promise<MyChallenge> {
   return call(() => apiClient.post(`/api/v1/challenges/${encodeURIComponent(slug)}/entries`, body));
+}
+
+export interface QuickJoinBody extends JoinBody {
+  email: string;
+}
+
+/** Sign up with just a name, number and email: the account is made behind the scenes. */
+export async function quickJoinChallenge(
+  slug: string,
+  body: QuickJoinBody,
+): Promise<MyChallenge & { accessToken: string; refreshToken: string; user: User }> {
+  return call(() => apiClient.post(`/api/v1/challenges/${encodeURIComponent(slug)}/quick-join`, body));
 }
 
 export async function getMyChallenge(slug: string): Promise<MyChallenge> {

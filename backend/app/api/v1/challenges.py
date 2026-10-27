@@ -33,7 +33,9 @@ from app.models.analytics_event import AnalyticsEvent
 from app.models.cafe import Cafe
 from app.models.challenge import Challenge, ChallengeEntry
 from app.models.promotion import OfferCampaign
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.repositories.user_repository import UserRepository
+from app.services.auth_service import AuthService
 from app.services import challenge_bracket as bracket
 from app.services import challenge_day as day
 from app.services import challenge_practice as practice
@@ -337,6 +339,93 @@ async def join_challenge(
         logger.info("challenge_signup", challenge=slug, status=entry.status)
     data = await _me_payload(db, slug, user_id)
     data["created"] = created
+    return {"success": True, "data": data}
+
+
+class QuickJoinRequest(JoinRequest):
+    """Sign up without an account first: name, WhatsApp number and email. The
+    account is made as part of the sign-up (no password; Google or the reset
+    link can claim it later)."""
+    email: str = Field(..., min_length=5, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def _email(cls, v: str) -> str:
+        email = v.strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]{2,}", email):
+            raise ValueError("Enter a valid email")
+        return email
+
+
+@public_router.post("/{slug}/quick-join", status_code=status.HTTP_201_CREATED)
+async def quick_join_challenge(
+    slug: str,
+    payload: QuickJoinRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """One-step sign-up for someone with no KHEL-O account yet. An email that
+    already has an account is refused (never merged, so typing a stranger's
+    email can't reach their account); they sign in instead."""
+    ch, _ = await _load(db, slug, None)
+    if ch.status != "open" or ch.checkin_closed_at is not None:
+        raise BadRequestException(message="Sign-ups for this challenge are closed", error_code="CHALLENGE_CLOSED")
+    if not payload.consent_rules:
+        raise BadRequestException(message="Tick the box to agree to the rules", error_code="RULES_REQUIRED")
+    try:
+        await bot_guard.check(db, request, "challenge", payload.phone, payload.form_ticket, payload.website)
+    except bot_guard.Blocked:
+        raise bot_guard.try_again()
+
+    users = UserRepository(db)
+    if await users.get_by_email(payload.email):
+        raise ConflictException(
+            message="You already have a KHEL-O account with this email. Sign in to lock your spot.",
+            error_code="EMAIL_ALREADY_EXISTS",
+        )
+    # Checked before the account exists, so a refused sign-up leaves nothing behind.
+    taken = (await db.execute(
+        select(ChallengeEntry.id).where(ChallengeEntry.challenge_id == ch.id, ChallengeEntry.phone == payload.phone)
+    )).first()
+    if taken is not None:
+        raise ConflictException(
+            message="This number is already signed up for this challenge on another account",
+            error_code="PHONE_ALREADY_SIGNED_UP",
+        )
+
+    user = await users.create({
+        "email": payload.email,
+        "password_hash": None,
+        "google_id": None,
+        "full_name": payload.name.strip(),
+        "phone_number": payload.phone,
+        "role": UserRole.GAMER,
+        "is_active": True,
+        "acquisition_source": payload.utm_source,
+        "acquisition_campaign": payload.utm_campaign,
+    })
+    auth = AuthService(users)
+    await auth._claim_pending_staff_invitations(user)
+
+    fields = payload.model_dump(exclude={"form_ticket", "website", "email"})
+    try:
+        entry, created = await svc.join(db, ch.id, user.id, fields)
+    except svc.AlreadySignedUp:
+        raise ConflictException(
+            message="This number is already signed up for this challenge on another account",
+            error_code="PHONE_ALREADY_SIGNED_UP",
+        )
+    except svc.SignUpsClosed:
+        raise BadRequestException(message="Sign-ups for this challenge are closed", error_code="CHALLENGE_CLOSED")
+    if created:
+        logger.info("challenge_quick_signup", challenge=slug, status=entry.status)
+
+    access_token, refresh_token = auth.create_tokens(user)
+    data = await _me_payload(db, slug, user.id)
+    data["created"] = created
+    data["accessToken"] = access_token
+    data["refreshToken"] = refresh_token
+    data["user"] = await auth._user_response_with_roles(user)
     return {"success": True, "data": data}
 
 

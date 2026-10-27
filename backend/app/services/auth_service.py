@@ -31,6 +31,20 @@ class AuthService:
         user_dict["hasPassword"] = user.password_hash is not None
         return user_dict
 
+    @staticmethod
+    def _issued_before_cutoff(user: User, payload: Dict[str, Any]) -> bool:
+        """True when this login predates the account being claimed (sessions_valid_from)."""
+        cutoff = getattr(user, "sessions_valid_from", None)
+        if cutoff is None:
+            return False
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=timezone.utc)
+        iat = payload.get("iat")
+        return iat is None or int(iat) < int(cutoff.timestamp())
+
+    async def _cut_off_earlier_logins(self, user_id) -> None:
+        await self.user_repo.update(user_id, {"sessions_valid_from": datetime.now(timezone.utc)})
+
     def create_tokens(self, user: User) -> Tuple[str, str]:
         now = datetime.now(timezone.utc)
         
@@ -43,6 +57,7 @@ class AuthService:
             "email": user.email,
             "role": role_str,
             "type": "access",
+            "iat": int(now.timestamp()),
             "exp": access_exp
         }
         access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm=ALGORITHM)
@@ -52,6 +67,7 @@ class AuthService:
         refresh_payload = {
             "sub": str(user.id),
             "type": "refresh",
+            "iat": int(now.timestamp()),
             "exp": refresh_exp
         }
         refresh_token = jwt.encode(refresh_payload, settings.SECRET_KEY, algorithm=ALGORITHM)
@@ -190,8 +206,14 @@ class AuthService:
         if user_by_email:
             if not user_by_email.is_active:
                 raise ForbiddenException(message="Your account has been deactivated", error_code="ACCOUNT_DEACTIVATED")
+            # An account made from just a name, number and email (no password, no Google
+            # link) is being claimed by the real owner of that email: every login issued
+            # before now stops working.
+            unclaimed = not user_by_email.password_hash and not user_by_email.google_id
             # Link Google ID and avatar
             updated_data = {"google_id": google_id}
+            if unclaimed:
+                updated_data["sessions_valid_from"] = datetime.now(timezone.utc)
             if avatar_url and not user_by_email.avatar_url:
                 updated_data["avatar_url"] = avatar_url
             user = await self.user_repo.update(user_by_email.id, updated_data)
@@ -240,6 +262,8 @@ class AuthService:
         user = await self.user_repo.get_by_id(user_id)
         if not user or not user.is_active:
             raise AuthException(message="Invalid or expired refresh token", error_code="UNAUTHORIZED")
+        if self._issued_before_cutoff(user, payload):
+            raise AuthException(message="Invalid or expired refresh token", error_code="UNAUTHORIZED")
 
         now = datetime.now(timezone.utc)
         access_exp = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -249,6 +273,7 @@ class AuthService:
             "email": user.email,
             "role": role_str,
             "type": "access",
+            "iat": int(now.timestamp()),
             "exp": access_exp
         }
         new_access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm=ALGORITHM)
@@ -261,7 +286,7 @@ class AuthService:
         # frontend storing "undefined" as the refresh token (see client.ts).
         refresh_exp = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
         new_refresh_token = jwt.encode(
-            {"sub": str(user.id), "type": "refresh", "exp": refresh_exp},
+            {"sub": str(user.id), "type": "refresh", "iat": int(now.timestamp()), "exp": refresh_exp},
             settings.SECRET_KEY,
             algorithm=ALGORITHM
         )
@@ -297,6 +322,9 @@ class AuthService:
 
         if not user.is_active:
             raise ForbiddenException(message="Your account has been deactivated", error_code="ACCOUNT_DEACTIVATED")
+
+        if self._issued_before_cutoff(user, payload):
+            raise AuthException(message="Session expired. Please login again.", error_code="UNAUTHORIZED")
 
         return user
 
@@ -334,11 +362,12 @@ class AuthService:
             "roles": roles_list,
             "active_role": target_role,
             "type": "access",
+            "iat": int(now.timestamp()),
             "exp": access_exp
         }
         access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm=ALGORITHM)
         refresh_exp = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-        refresh_token = jwt.encode({"sub": str(user.id), "type": "refresh", "exp": refresh_exp}, settings.SECRET_KEY, algorithm=ALGORITHM)
+        refresh_token = jwt.encode({"sub": str(user.id), "type": "refresh", "iat": int(now.timestamp()), "exp": refresh_exp}, settings.SECRET_KEY, algorithm=ALGORITHM)
 
         user_dict = UserResponse.model_validate(user).model_dump(by_alias=True)
         user_dict["roles"] = roles_list
@@ -401,5 +430,10 @@ class AuthService:
         if expires_at < datetime.now(timezone.utc):
             raise BadRequestException(message="This reset link has expired. Please request a new one.", error_code="RESET_TOKEN_EXPIRED")
 
-        await self.user_repo.update(reset_token.user_id, {"password_hash": get_password_hash(new_password)})
+        claimed = await self.user_repo.get_by_id(reset_token.user_id)
+        changes = {"password_hash": get_password_hash(new_password)}
+        if claimed is not None and not claimed.password_hash:
+            # First password on an account that had none: earlier logins stop working.
+            changes["sessions_valid_from"] = datetime.now(timezone.utc)
+        await self.user_repo.update(reset_token.user_id, changes)
         await reset_repo.mark_used(reset_token.id)

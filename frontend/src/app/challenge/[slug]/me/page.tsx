@@ -13,6 +13,7 @@ import {
   answerComing, getMyChallenge, withdrawFromChallenge, type Coming, type MyChallenge, type MyReward,
 } from '@/lib/api/challenges';
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
+import { hasTappedCommunity, markCommunityTapped } from '@/lib/challenge-signup';
 import { challengeDay, challengeMoment, challengeTime, challengeTimeRange, handle, whatsappShare } from '@/lib/challenge';
 
 export default function MyChallengePage() {
@@ -26,6 +27,8 @@ export default function MyChallengePage() {
 function MyChallenge() {
   const { slug } = useParams<{ slug: string }>();
   const isNew = useSearchParams().get('new') === '1';
+  const [communityDone, setCommunityDone] = useState(false);
+  useEffect(() => setCommunityDone(hasTappedCommunity(slug)), [slug]);
   const [data, setData] = useState<MyChallenge | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -200,13 +203,17 @@ function MyChallenge() {
           href={ch.communityUrl}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={() => trackAction('challenge_community_click', { challenge: slug, where: isNew ? 'after_signup' : 'me' })}
+          onClick={() => {
+            markCommunityTapped(slug);
+            setCommunityDone(true);
+            trackAction('challenge_community_click', { challenge: slug, where: isNew ? 'after_signup' : 'me' });
+          }}
           className="mt-4 flex items-center gap-3 rounded-2xl bg-[#25D366] px-4 py-4 font-semibold text-[#0B2E17]"
         >
           <MessageCircle className="h-5 w-5" />
           <span className="flex-1">
-            <span className="block">Join the KHELO WhatsApp community</span>
-            <span className="block text-xs font-medium opacity-80">Updates for this and every future challenge. Optional.</span>
+            <span className="block">{communityDone ? 'Open the community again' : 'Step 2 · Join the WhatsApp community'}</span>
+            <span className="block text-xs font-medium opacity-80">Check-in and bracket updates are sent only here.</span>
           </span>
         </a>
       )}

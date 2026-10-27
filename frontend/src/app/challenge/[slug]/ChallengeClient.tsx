@@ -57,7 +57,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
 
   // Back from the email sign-in page with ?join=1: carry on with the form.
   useEffect(() => {
-    if (!isHydrated || !isAuthenticated) return;
+    if (!isHydrated) return;
     const q = new URLSearchParams(window.location.search);
     if (q.get('join') === '1') {
       setSheetOpen(true);
@@ -65,7 +65,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
       const rest = q.toString();
       window.history.replaceState(null, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
     }
-  }, [isHydrated, isAuthenticated]);
+  }, [isHydrated]);
 
   const start = useCallback((where: 'hero' | 'sticky') => {
     trackAction('challenge_signup_started', { challenge: slug, signedIn: isAuthenticated, where });

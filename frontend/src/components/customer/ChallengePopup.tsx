@@ -189,14 +189,14 @@ export function ChallengePopup() {
 
         <div className="mt-auto flex flex-col gap-2 pt-5">
           <Link
-            href={`/challenge/${ch.slug}`}
+            href={`/challenge/${ch.slug}?join=1`}
             onClick={() => {
               trackAction('challenge_teaser_click', { challenge: ch.slug, where: 'popup' });
               markChallengeSeen(ch.slug);
             }}
             className="flex min-h-[52px] items-center justify-center rounded-2xl bg-[#D0463C] text-base font-bold text-white hover:bg-[#E8675D]"
           >
-            See the challenge
+            Lock my spot
           </Link>
           <a
             href={COMMUNITY_URL}

@@ -52,5 +52,8 @@ class User(Base):
     # Set when the person deleted their own account (anonymised in place, see
     # services/account_deletion_service.py). NULL for every live account.
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Logins issued before this moment are refused. Set when an account that
+    # nobody had a password or Google link for gets claimed (see auth_service).
+    sessions_valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
