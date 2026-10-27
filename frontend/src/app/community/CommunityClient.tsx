@@ -213,7 +213,7 @@ export function CommunityClient() {
         <FightStage />
         <div className="relative mx-auto grid w-full max-w-5xl items-center gap-10 px-4 pb-14 pt-8 md:grid-cols-[1.1fr_0.9fr] md:gap-12 md:pb-20 md:pt-14">
           <div>
-            <Link href="/" className="text-sm font-bold tracking-wide text-[#E8675D]">KHEL-O</Link>
+            <Link href="/" className="block text-sm font-bold tracking-wide text-[#E8675D]">KHEL-O</Link>
 
             {upcoming ? (
               <>
