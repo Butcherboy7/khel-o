@@ -199,7 +199,7 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
             {!signedIn && hasGoogle && (
               <div className="relative">
                 {last === 'google' && <LastUsed />}
-                <div className="rounded-full bg-white p-0.5">
+                <div>
                   <GoogleSignInButton
                     onSuccess={() => {
                       setViaGoogle(true);

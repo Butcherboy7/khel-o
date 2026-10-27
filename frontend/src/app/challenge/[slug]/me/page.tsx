@@ -14,7 +14,7 @@ import {
 } from '@/lib/api/challenges';
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
 import { hasTappedCommunity, markCommunityTapped } from '@/lib/challenge-signup';
-import { challengeDay, challengeMoment, challengeTime, challengeTimeRange, handle, whatsappShare } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeMoment, challengeTime, challengeTimeRange, handle, whatsappShare } from '@/lib/challenge';
 
 export default function MyChallengePage() {
   return (
@@ -198,9 +198,9 @@ function MyChallenge() {
       )}
 
       {/* WhatsApp community */}
-      {ch.communityUrl && (
+      {(
         <a
-          href={ch.communityUrl}
+          href={ch.communityUrl || COMMUNITY_URL}
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => {
