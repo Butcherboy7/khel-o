@@ -11,14 +11,14 @@ import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming } from
 
 /** Plain words: what you get, in the order it happens. */
 const GETS = [
-  'The time and place for Sunday',
+  'The time and place of the event',
   'Your match: who you play, and when',
   'Results, photos and the next free event',
 ];
 
 /** What the chat looks like. Illustrative: the kind of posts the group gets. */
 const CHAT = [
-  { pin: true, text: 'Welcome! Free Tekken event, Sunday 3 PM. Everything is pinned here.' },
+  { pin: true, text: 'Welcome! Free Tekken event, 3 PM. Everything is pinned here.' },
   { text: 'Your match time is posted. Check the list.' },
   { text: 'Results and photos are up. Next event soon.' },
 ];
