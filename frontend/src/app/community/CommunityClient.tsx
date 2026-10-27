@@ -49,12 +49,26 @@ export function CommunityClient() {
       <div className="mx-auto w-full max-w-md px-4 pb-16 pt-8">
         <Link href="/" className="text-sm font-bold tracking-wide text-[#E8675D]">KHEL-O</Link>
 
-        <h1 className="mt-6 font-heading text-[2rem] font-bold leading-tight">
-          Hyderabad gamers,<br />one group chat.
-        </h1>
-        <p className="mt-3 text-[#C9CBD3]">
-          Challenges at real cafés, café news before anyone else, and people to play with. Free on WhatsApp. Leave any time.
-        </p>
+        {upcoming ? (
+          <>
+            <h1 className="mt-6 font-heading text-[2rem] font-bold leading-tight">
+              Your Tekken bracket<br />is posted here.
+            </h1>
+            <p className="mt-3 text-[#C9CBD3]">
+              {upcoming.title} is {challengeDay(upcoming.startsAt)} at {upcoming.cafe.name}. Match order, check-in time and results go out
+              only in this WhatsApp community. Free to join, leave any time.
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="mt-6 font-heading text-[2rem] font-bold leading-tight">
+              Hyderabad gamers,<br />one group chat.
+            </h1>
+            <p className="mt-3 text-[#C9CBD3]">
+              Challenges at real cafés, café news before anyone else, and people to play with. Free on WhatsApp. Leave any time.
+            </p>
+          </>
+        )}
 
         <a
           href={COMMUNITY_URL}
@@ -82,6 +96,27 @@ export function CommunityClient() {
               WhatsApp didn&apos;t open? Try again
             </a>
           </div>
+        )}
+
+        {upcoming && (
+          <>
+            <h2 className="mt-8 text-xs font-bold uppercase tracking-[0.1em] text-[#A3A6B1]">What lands in your chat</h2>
+            <ol className="mt-3 space-y-2">
+              {[
+                ['Saturday night', 'The bracket: who plays who, and in what order.'],
+                ['Sunday, 2:30 PM', 'Check-in opens. Show your QR at the door.'],
+                ['After the last match', 'Results, photos, and the next challenge.'],
+              ].map(([when, what]) => (
+                <li key={when} className="flex gap-3 rounded-2xl border border-[#262932] bg-[#16181E] p-3.5">
+                  <span className="w-28 flex-shrink-0 text-sm font-semibold text-[#F2C94C]">{when}</span>
+                  <span className="text-sm text-[#DADCE3]">{what}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3 text-xs text-[#A3A6B1]">
+              WhatsApp shows new members only what is posted after they join. The pinned welcome message at the top has everything you need.
+            </p>
+          </>
         )}
 
         <h2 className="mt-10 text-xs font-bold uppercase tracking-[0.1em] text-[#A3A6B1]">What&apos;s inside</h2>
