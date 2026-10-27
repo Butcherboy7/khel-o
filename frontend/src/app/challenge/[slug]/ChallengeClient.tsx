@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play, Send } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play, Send } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, getMyChallenge, type Challenge, type MyEntry } from '@/lib/api/challenges';
@@ -351,8 +351,8 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#0A0809] text-[#F4F1EC] selection:bg-[#D0463C] selection:text-white">
       <header className="mx-auto flex max-w-xl items-center justify-between px-4 pt-4">
-        <Link href="/" className="font-heading text-base font-bold tracking-wide">
-          KHEL-O
+        <Link href="/" aria-label="Back to the KHEL-O home page" className="relative z-10 inline-flex h-11 items-center gap-1.5 rounded-full border border-white/20 bg-black/60 pl-3 pr-4 text-sm font-semibold text-[#F4F1EC] backdrop-blur hover:bg-black/80">
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Home
         </Link>
       </header>
       <main className="mx-auto max-w-xl px-4 pb-32 pt-6">{children}</main>

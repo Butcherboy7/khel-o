@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, CalendarDays, Check, CheckCheck, Megaphone, MessageCircle, MessagesSquare, Pin, Swords, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Check, CheckCheck, Megaphone, MessageCircle, MessagesSquare, Pin, Swords, Users } from 'lucide-react';
 import { FightStage, fightFont } from '@/components/challenge/ChallengeHero';
 import { getChallenge } from '@/lib/api/challenges';
 import { trackAction } from '@/lib/api/analyticsEvents';
@@ -213,7 +213,9 @@ export function CommunityClient() {
         <FightStage />
         <div className="relative mx-auto grid w-full max-w-5xl items-center gap-10 px-4 pb-14 pt-8 md:grid-cols-[1.1fr_0.9fr] md:gap-12 md:pb-20 md:pt-14">
           <div>
-            <Link href="/" className="block text-sm font-bold tracking-wide text-[#E8675D]">KHEL-O</Link>
+            <Link href="/" aria-label="Back to the KHEL-O home page" className=" inline-flex h-11 items-center gap-1.5 rounded-full border border-white/20 bg-black/60 pl-3 pr-4 text-sm font-semibold text-[#F4F1EC] backdrop-blur hover:bg-black/80">
+              <ArrowLeft className="h-4 w-4" aria-hidden /> Home
+            </Link>
 
             {upcoming ? (
               <>
