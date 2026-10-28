@@ -127,10 +127,19 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               Challenge {ch.title.match(/#\s?\d+/)?.[0] ?? ''}
             </span>
           </h1>
-          <p className="mt-4 text-balance font-heading text-[22px] font-bold leading-[1.15] text-white">
+          {ch.status !== 'finished' && ch.status !== 'cancelled' && (
+            <div className="cm-rise relative mt-4 -skew-x-[6deg] overflow-hidden bg-[#F2C94C] px-4 py-2.5 text-[#1A1306] shadow-[0_10px_30px_rgba(242,201,76,0.22)]">
+              <span className="cm-shine" aria-hidden />
+              <div className="relative skew-x-[6deg]">
+                <p className={`${fightFont.className} text-[46px] font-bold uppercase leading-none tracking-wide`}>Free to enter</p>
+                {ch.prizeLine && <p className="mt-1 text-[17px] font-bold leading-tight">{ch.prizeLine}</p>}
+                {ch.prizeNote && <p className="mt-0.5 text-[13px] font-medium leading-snug text-[#3A2E0A]">{ch.prizeNote}</p>}
+              </div>
+            </div>
+          )}
+          <p className="mt-3 text-balance font-heading text-[19px] font-bold leading-[1.15] text-white">
             {ch.heroLine || 'Free to play. Just show up.'}
           </p>
-          <p className="mt-1 text-[15px] text-[#D8CFD2]">{ch.heroSub || `${ch.game}${ch.setupLine ? ` · ${ch.setupLine}` : ''}`}</p>
           <div className="mt-4 flex flex-wrap gap-2 text-sm font-semibold">
             <Chip icon={<CalendarDays className="h-4 w-4" />}>{challengeDay(ch.startsAt)}</Chip>
             <Chip icon={<Clock className="h-4 w-4" />}>{challengeTimeRange(ch.startsAt, ch.endsAt)}</Chip>
@@ -145,7 +154,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               <span className={`${fightFont.className} flex items-center gap-2 text-[34px] font-bold uppercase leading-none tracking-[0.08em]`}>
                 <Play className="h-6 w-6 fill-current" /> Press start
               </span>
-              <span className="text-xs font-semibold text-white/90">{full ? 'Join the waitlist · free' : 'Sign up free · takes a minute'}</span>
+              <span className="text-xs font-semibold text-white/90">{full ? 'Join the waitlist · free' : 'Free · takes under a minute'}</span>
             </button>
           )}
           <div className="mt-3 grid grid-cols-2 gap-2">

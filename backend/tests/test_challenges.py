@@ -125,6 +125,7 @@ async def test_public_page_carries_the_optional_first_screen_lines(async_client,
     ch, _ = await _challenge(async_client, db_session)
     data = (await async_client.get(f"/api/v1/challenges/{ch['slug']}")).json()["data"]
     assert data["heroLine"] is None and data["heroSub"] is None
+    assert data["prizeLine"] is None and data["prizeNote"] is None
     async with TestAsyncSessionLocal() as db:
         row = await db.get(Challenge, uuid.UUID(ch["id"]))
         row.plan_config = {"heroLine": "Wallet enduku bro?", "heroSub": "Free ga aadu."}

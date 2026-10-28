@@ -41,6 +41,10 @@ export interface Challenge {
   /** Optional first-screen lines in the audience's language; English defaults when empty. */
   heroLine?: string | null;
   heroSub?: string | null;
+  /** The headline reward, shown boldly next to "free to enter". */
+  prizeLine?: string | null;
+  /** One honest line under it (e.g. extra offers on the day). */
+  prizeNote?: string | null;
   cafe: { id: string; name: string; slug: string | null; address: string; city: string; mapsUrl: string | null };
   /** Real counts, never padded. */
   confirmed: number;

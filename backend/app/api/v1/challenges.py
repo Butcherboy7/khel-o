@@ -114,6 +114,8 @@ def _challenge_out(ch: Challenge, cafe: Cafe, counts: dict[str, int]) -> dict:
         # for a Telugu reel). Set by KHEL-O per challenge; the page has English defaults.
         "heroLine": (ch.plan_config or {}).get("heroLine") if isinstance(ch.plan_config, dict) else None,
         "heroSub": (ch.plan_config or {}).get("heroSub") if isinstance(ch.plan_config, dict) else None,
+        "prizeLine": (ch.plan_config or {}).get("prizeLine") if isinstance(ch.plan_config, dict) else None,
+        "prizeNote": (ch.plan_config or {}).get("prizeNote") if isinstance(ch.plan_config, dict) else None,
         "cafe": {
             "id": str(cafe.id),
             "name": cafe.name,
