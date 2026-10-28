@@ -131,7 +131,10 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
             <div className="cm-rise relative mt-4 -skew-x-[6deg] overflow-hidden bg-[#F2C94C] px-4 py-2.5 text-[#1A1306] shadow-[0_10px_30px_rgba(242,201,76,0.22)]">
               <span className="cm-shine" aria-hidden />
               <div className="relative skew-x-[6deg]">
-                <p className={`${fightFont.className} text-[46px] font-bold uppercase leading-none tracking-wide`}>Free to enter</p>
+                <p className={`${fightFont.className} text-[46px] font-bold uppercase leading-none tracking-wide`}>
+                  <span className="cm-free relative mr-2 inline-block bg-[#1A1306] px-2 text-[#F2C94C]">Free</span>
+                  to enter
+                </p>
                 {ch.prizeLine && <p className="mt-1 text-[17px] font-bold leading-tight">{ch.prizeLine}</p>}
                 {ch.prizeNote && <p className="mt-0.5 text-[13px] font-medium leading-snug text-[#3A2E0A]">{ch.prizeNote}</p>}
               </div>
