@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play, Send } from 'lucide-react';
@@ -12,6 +12,7 @@ import { markChallengeSeen } from '@/lib/challengeNudge';
 import { SimpleMarkdown } from '@/components/challenge/SimpleMarkdown';
 import { ChallengeSignUpSheet } from '@/components/challenge/ChallengeSignUpSheet';
 import { ChallengeIntro } from '@/components/challenge/ChallengeIntro';
+import { ChallengeVideo, isVideoId } from '@/components/challenge/ChallengeVideo';
 import { FightHud, FightStage, PlayerSelect, RoundFight, fightFont } from '@/components/challenge/ChallengeHero';
 
 const REFRESH_MS = 30_000;
@@ -25,6 +26,34 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
   useEffect(() => markChallengeSeen(slug), [slug]);
   const [entry, setEntry] = useState<MyEntry | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const startBtn = useRef<HTMLButtonElement>(null);
+  const glided = useRef(false);
+
+  // Landing from the reel: once the intro is done, glide down once so the sign-up
+  // button sits mid-screen with the video under it. Any touch, scroll or key
+  // press from the person cancels it, and it never fights a sign-up sheet.
+  const ready = !!ch;
+  useEffect(() => {
+    if (!ready || glided.current) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let cancelled = false;
+    const cancel = () => {
+      cancelled = true;
+    };
+    const events = ['touchstart', 'wheel', 'keydown', 'pointerdown'] as const;
+    events.forEach((e) => window.addEventListener(e, cancel, { passive: true, once: true }));
+    const t = setTimeout(() => {
+      glided.current = true;
+      const el = startBtn.current;
+      if (cancelled || !el || window.scrollY > 40) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      trackAction('challenge_autoscroll', { challenge: slug });
+    }, showIntro ? 5200 : 1800);
+    return () => {
+      clearTimeout(t);
+      events.forEach((e) => window.removeEventListener(e, cancel));
+    };
+  }, [ready, showIntro, slug]);
 
   // The real count, kept fresh while the page is open.
   useEffect(() => {
@@ -151,6 +180,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
           {open && !active && (
             <button
               type="button"
+              ref={startBtn}
               onClick={() => start('hero')}
               className="chv-start mt-5 flex h-[68px] w-full flex-col items-center justify-center bg-[#D0463C] text-white transition-colors [clip-path:polygon(3%_0,100%_0,97%_100%,0_100%)] hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
@@ -160,6 +190,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               <span className="text-xs font-semibold text-white/90">{full ? 'Join the waitlist · free' : 'Free · takes under a minute'}</span>
             </button>
           )}
+          {isVideoId(ch.videoId) && <ChallengeVideo slug={slug} videoId={ch.videoId} cafe={ch.cafe.name.replace(/ Gaming Lounge$/i, '')} />}
           <div className="mt-3 grid grid-cols-2 gap-2">
             <a
               href={whatsappShare(`${ch.game} challenge, free to play. ${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)} at ${ch.cafe.name}. You vs me?`)}

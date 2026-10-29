@@ -673,3 +673,8 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
 @keyframes cm-stamp { from { opacity: 0; transform: scale(2.6) rotate(-8deg); } to { opacity: 1; transform: none; } }
 @keyframes cm-free-loop { 0%, 62%, 100% { transform: none; } 70% { transform: scale(1.14) rotate(-3deg); } 78% { transform: scale(1.06) rotate(2deg); } 86% { transform: scale(1.1) rotate(-1deg); } }
 @media (prefers-reduced-motion: reduce) { .cm-free { animation: none; } }
+
+/* Play button on the "Tekken on the big screen" card */
+.cm-playpulse { animation: cm-playpulse 2s ease-out infinite; }
+@keyframes cm-playpulse { 0% { box-shadow: 0 0 0 0 rgb(242 201 76 / .6); } 70%, 100% { box-shadow: 0 0 0 18px rgb(242 201 76 / 0); } }
+@media (prefers-reduced-motion: reduce) { .cm-playpulse { animation: none; } }

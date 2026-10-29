@@ -45,6 +45,8 @@ export interface Challenge {
   prizeLine?: string | null;
   /** One honest line under it (e.g. extra offers on the day). */
   prizeNote?: string | null;
+  /** YouTube id of the "Tekken on the big screen" edit; hidden until set. */
+  videoId?: string | null;
   cafe: { id: string; name: string; slug: string | null; address: string; city: string; mapsUrl: string | null };
   /** Real counts, never padded. */
   confirmed: number;

@@ -116,6 +116,7 @@ def _challenge_out(ch: Challenge, cafe: Cafe, counts: dict[str, int]) -> dict:
         "heroSub": (ch.plan_config or {}).get("heroSub") if isinstance(ch.plan_config, dict) else None,
         "prizeLine": (ch.plan_config or {}).get("prizeLine") if isinstance(ch.plan_config, dict) else None,
         "prizeNote": (ch.plan_config or {}).get("prizeNote") if isinstance(ch.plan_config, dict) else None,
+        "videoId": (ch.plan_config or {}).get("videoId") if isinstance(ch.plan_config, dict) else None,
         "cafe": {
             "id": str(cafe.id),
             "name": cafe.name,
