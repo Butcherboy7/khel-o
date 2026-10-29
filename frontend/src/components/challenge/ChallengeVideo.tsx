@@ -33,7 +33,7 @@ export function ChallengeVideo({ slug, videoId, cafe }: { slug: string; videoId:
   return (
     <section aria-label="See what Tekken looks like" className="mt-3">
       <p className="mb-2 text-center text-sm font-semibold text-[#E9E2E5]">Never seen Tekken? Watch it on the big screen.</p>
-      <div className="relative mx-auto aspect-[9/16] w-[min(100%,272px)] overflow-hidden border border-white/15 bg-black shadow-[0_14px_40px_rgba(0,0,0,0.55)]">
+      <div className="relative mx-auto aspect-[9/16] w-[min(100%,208px)] overflow-hidden border border-white/15 bg-black shadow-[0_14px_40px_rgba(0,0,0,0.55)]">
         {playing && !isPlaceholder ? (
           <iframe
             className="absolute inset-0 h-full w-full"
@@ -61,7 +61,7 @@ export function ChallengeVideo({ slug, videoId, cafe }: { slug: string; videoId:
             <span className={`${fightFont.className} absolute left-4 top-3 text-[13px] font-semibold uppercase tracking-[0.14em] text-white/80`} aria-hidden>
               {cafe}
             </span>
-            <span className={`${fightFont.className} absolute bottom-3 left-4 right-4 text-[38px] font-bold uppercase leading-[0.9] text-white [text-shadow:0_4px_16px_rgba(0,0,0,0.8)]`}>
+            <span className={`${fightFont.className} absolute bottom-3 left-4 right-4 text-[32px] font-bold uppercase leading-[0.9] text-white [text-shadow:0_4px_16px_rgba(0,0,0,0.8)]`}>
               Tekken 8<br />
               <span className="text-[#E8675D]">on the big screen</span>
             </span>

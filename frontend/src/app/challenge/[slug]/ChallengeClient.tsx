@@ -27,6 +27,8 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
   const [entry, setEntry] = useState<MyEntry | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const startBtn = useRef<HTMLButtonElement>(null);
+  const videoWrap = useRef<HTMLDivElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
   const glided = useRef(false);
 
   // Landing from the reel: once the intro is done, glide down once so the sign-up
@@ -46,7 +48,19 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
       glided.current = true;
       const el = startBtn.current;
       if (cancelled || !el || window.scrollY > 40) return;
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Bring the whole video into view with the share and community buttons still under it
+      // (above the sticky sign-up bar); if the screen is too short for all of that, the
+      // top of the video card wins. With no video, centre the sign-up button as before.
+      const wrap = videoWrap.current;
+      const actions = actionsRef.current;
+      if (wrap && actions) {
+        const top = wrap.getBoundingClientRect().top + window.scrollY;
+        const bottom = actions.getBoundingClientRect().bottom + window.scrollY;
+        const y = Math.min(bottom - (window.innerHeight - 88), top - 48);
+        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+      } else {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       trackAction('challenge_autoscroll', { challenge: slug });
     }, showIntro ? 5200 : 1800);
     return () => {
@@ -185,13 +199,17 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               className="chv-start mt-5 flex h-[68px] w-full flex-col items-center justify-center bg-[#D0463C] text-white transition-colors [clip-path:polygon(3%_0,100%_0,97%_100%,0_100%)] hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
               <span className={`${fightFont.className} flex items-center gap-2 text-[34px] font-bold uppercase leading-none tracking-[0.08em]`}>
-                <Play className="h-6 w-6 fill-current" /> Press start
+                <Play className="h-6 w-6 fill-current" /> {full ? 'Join the waitlist' : 'Sign up for free'}
               </span>
-              <span className="text-xs font-semibold text-white/90">{full ? 'Join the waitlist · free' : 'Free · takes under a minute'}</span>
+              <span className="text-xs font-semibold text-white/90">{full ? 'Free · seats open up when people don’t show' : 'Free · takes under a minute'}</span>
             </button>
           )}
-          {isVideoId(ch.videoId) && <ChallengeVideo slug={slug} videoId={ch.videoId} cafe={ch.cafe.name.replace(/ Gaming Lounge$/i, '')} />}
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          {isVideoId(ch.videoId) && (
+            <div ref={videoWrap}>
+              <ChallengeVideo slug={slug} videoId={ch.videoId} cafe={ch.cafe.name.replace(/ Gaming Lounge$/i, '')} />
+            </div>
+          )}
+          <div ref={actionsRef} className="mt-3 grid grid-cols-2 gap-2">
             <a
               href={whatsappShare(`${ch.game} challenge, free to play. ${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)} at ${ch.cafe.name}. You vs me?`)}
               onClick={(e) => {
@@ -370,7 +388,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#D0463C] font-heading text-lg font-bold text-white transition-colors hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
               <Play className="h-5 w-5 fill-current" />
-              {full ? 'Join the waitlist · free' : 'Sign up free'}
+              {full ? 'Join the waitlist · free' : 'Sign up for free'}
             </button>
           ) : (
             <p className="flex h-14 items-center justify-center rounded-2xl bg-[#16181E] text-sm font-semibold text-[#A3A6B1]">

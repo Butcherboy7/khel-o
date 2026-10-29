@@ -47,6 +47,21 @@ const getCafeCached = cache(async (id: string): Promise<CafeDetail | null | 'mis
   }
 });
 
+/** "Offers: ₹80 off Mon–Thu 10 AM–2 PM; 25% off Fri–Sun 10 AM–2 PM." Up to two distinct ones, as the café page shows them. */
+function promoSummary(promos: CafeDetail['activePromotions']): string {
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const p of promos ?? []) {
+    if (!p.label) continue;
+    const text = `${p.label}${p.when ? ` ${p.when.replace(' · ', ' ')}` : ''}`;
+    if (seen.has(text)) continue;
+    seen.add(text);
+    parts.push(text);
+    if (parts.length === 2) break;
+  }
+  return parts.length ? ` Offers: ${parts.join('; ')}.` : '';
+}
+
 const getCafeLinksCached = cache((cafeId: string) => getCafeLinks(cafeId).catch(() => null));
 const getWaitlistCountCached = cache((cafeId: string) => getCafeWaitlistCount(cafeId).catch(() => null));
 
@@ -94,6 +109,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       : null,
   ].filter(Boolean).join(', ');
   const factLine = facts ? ` ${facts.charAt(0).toUpperCase()}${facts.slice(1)}.` : '';
+  const offerLine = cafe.isLeadListing ? '' : promoSummary(cafe.activePromotions);
 
   // A bookable venue leads with what only KHEL-O offers in that results
   // list (JustDial, Instagram and the café's own listing can't take a
@@ -105,7 +121,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ? `${place} — ${kind.label} in ${city}`
     : `${place} — Book Online${minPrice ? ` from ₹${minPrice}/hr` : ''}`;
   // A Booking Soon listing can't be booked yet; never say it can.
-  const description = `${kind.label} at ${name}, ${where}.${factLine} ${
+  const description = `${kind.label} at ${name}, ${where}.${factLine}${offerLine} ${
     cafe.isLeadListing
       ? (waitlist?.count ?? 0) >= WAITLIST_SHOW_MIN
         ? `${waitlist!.count} players want to book it online — add your vote and get notified when it opens on KHEL-O.`
@@ -193,7 +209,11 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
             }
           : {}),
         ...(cafe.tiers && cafe.tiers.length > 0
-          ? { priceRange: `₹${Math.min(...cafe.tiers.map((t) => t.pricePerHour))}-₹${Math.max(...cafe.tiers.map((t) => t.pricePerHour))} per hour` }
+          ? {
+              priceRange: cafe.isLeadListing
+                ? `₹${Math.min(...cafe.tiers.map((t) => t.pricePerHour))}-₹${Math.max(...cafe.tiers.map((t) => t.pricePerHour))} per hour`
+                : `₹${Math.min(...cafe.tiers.map((t) => customerPrice(t.pricePerHour)))}-₹${Math.max(...cafe.tiers.map((t) => customerPrice(t.pricePerHour)))} per hour`,
+            }
           : {}),
       }
     : null;

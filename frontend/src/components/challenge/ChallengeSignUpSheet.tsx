@@ -190,7 +190,9 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
           <form onSubmit={submit} noValidate className="relative flex flex-col gap-3">
             {trap}
             <p className="-mt-1 rounded-xl bg-[#F2C94C] px-3 py-2 text-sm font-bold leading-snug text-[#1A1306]">
-              Free to enter. {challenge.prizeLine || 'Nothing to pay.'}
+              {full
+                ? 'Free to enter. Come to check-in: when someone doesn’t show, the next waitlist player there plays.'
+                : `Free to enter. ${challenge.prizeLine || 'Nothing to pay.'}`}
             </p>
             {signedIn && viaGoogle ? (
               <p className="flex items-center gap-2 rounded-xl border border-[#3B6B4A] bg-[#13221A] px-3 py-2.5 text-sm">
