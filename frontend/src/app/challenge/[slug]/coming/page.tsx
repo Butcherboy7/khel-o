@@ -1,5 +1,6 @@
 import { ComingClient } from './ComingClient';
 
-export default function ComingPage({ params }: { params: { slug: string } }) {
-  return <ComingClient slug={params.slug} />;
+export default async function ComingPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  return <ComingClient slug={slug} />;
 }
