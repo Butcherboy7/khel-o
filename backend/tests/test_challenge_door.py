@@ -143,3 +143,27 @@ async def test_only_admins_can_put_a_match_off(async_client, db_session):
         json={"postponed": True}, headers=auth_headers(players[0]),
     )
     assert res.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_yes_im_coming_by_phone_needs_no_login_and_is_only_ever_a_yes(async_client, db_session):
+    ch, admin = await _challenge(async_client, db_session, capacity=3)
+    phone = _phone()
+    p = await _player(db_session, "Kiran Kumar")
+    assert (await _join(async_client, ch["slug"], p, phone=phone, name="Kiran Kumar")).status_code == 201
+    url = f"/api/v1/challenges/{ch['slug']}/coming-yes"
+
+    # Typed the way people type it: spaces and no +91.
+    typed = phone[:5] + " " + phone[5:]
+    res = await async_client.post(url, json={"phone": typed})
+    assert res.status_code == 200, res.text
+    assert res.json()["data"] == {"firstName": "Kiran", "status": "confirmed", "alreadyYes": False}
+    again = await async_client.post(url, json={"phone": phone})
+    assert again.json()["data"]["alreadyYes"] is True
+
+    me = await async_client.get(f"/api/v1/challenges/{ch['slug']}/me", headers=auth_headers(p))
+    assert me.json()["data"]["entry"]["coming"] == "yes" and me.json()["data"]["entry"]["status"] == "confirmed"
+
+    # An unknown number is told so, and nothing is created.
+    nope = await async_client.post(url, json={"phone": _phone()})
+    assert nope.status_code == 404 and nope.json()["error"]["code"] == "NOT_SIGNED_UP"

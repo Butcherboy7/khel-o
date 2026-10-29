@@ -256,6 +256,14 @@ export async function answerComing(slug: string, coming: Coming): Promise<MyChal
   return call(() => apiClient.post(`/api/v1/challenges/${encodeURIComponent(slug)}/me/coming`, { coming }));
 }
 
+/** "Yes, I'm coming" from a WhatsApp link: found by phone number, no login. */
+export async function comingYesByPhone(
+  slug: string,
+  body: { phone: string; formTicket?: string; website?: string },
+): Promise<{ firstName: string; status: EntryStatus; alreadyYes: boolean }> {
+  return call(() => apiClient.post(`/api/v1/challenges/${encodeURIComponent(slug)}/coming-yes`, body));
+}
+
 export async function withdrawFromChallenge(slug: string): Promise<MyChallenge> {
   return call(() => apiClient.post(`/api/v1/challenges/${encodeURIComponent(slug)}/me/withdraw`));
 }

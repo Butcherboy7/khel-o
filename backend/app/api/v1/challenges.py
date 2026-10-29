@@ -467,6 +467,50 @@ async def answer_coming(
     return {"success": True, "data": await _me_payload(db, slug, user_id)}
 
 
+class ComingYesRequest(_Camel):
+    phone: str = Field(..., min_length=10, max_length=20)
+    form_ticket: Optional[str] = None
+    website: Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, v: str) -> str:
+        phone = normalise_phone(v)
+        if not (phone.startswith("+91") and len(phone) == 13):
+            raise ValueError("Enter your 10-digit Indian mobile number")
+        return phone
+
+
+@public_router.post("/{slug}/coming-yes")
+async def coming_yes_by_phone(slug: str, payload: ComingYesRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """One tap from a WhatsApp message, no login: "Yes, I'm coming", found by the number they signed up with.
+    Only ever a "yes": a "no" changes a spot, so it needs their own signed-in page."""
+    ch, _ = await _load(db, slug, None)
+    ch_id = ch.id
+    if ch.status not in ("open", "closed"):
+        raise BadRequestException(message="This challenge has already started", error_code="CHALLENGE_STARTED")
+    try:
+        await bot_guard.check(db, request, "challenge", payload.phone, payload.form_ticket, payload.website)
+    except bot_guard.Blocked:
+        raise bot_guard.try_again()
+    entry = (await db.execute(
+        select(ChallengeEntry).where(
+            ChallengeEntry.challenge_id == ch_id, ChallengeEntry.phone == payload.phone,
+            ChallengeEntry.status.in_(svc.ACTIVE),
+        )
+    )).scalar_one_or_none()
+    if entry is None:
+        raise NotFoundException(
+            message="We can't find that number. Use the WhatsApp number you signed up with, or sign up first.",
+            error_code="NOT_SIGNED_UP",
+        )
+    entry_id, name, status_, already = entry.id, entry.name, entry.status, entry.coming == "yes"
+    if not already:
+        await svc.answer_coming(db, ch_id, entry_id, "yes")
+    logger.info("challenge_coming_yes_link", challenge=slug, already=already)
+    return {"success": True, "data": {"firstName": name.split()[0], "status": status_, "alreadyYes": already}}
+
+
 @public_router.post("/{slug}/me/withdraw")
 async def withdraw_me(slug: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
     user_id = user.id
