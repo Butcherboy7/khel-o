@@ -261,7 +261,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
         <p className="mt-3 text-sm text-[#A3A6B1]">
           {everyone
             ? open
-              ? `${filled > 0 ? `${filled} already signed up. ` : ''}It’s ${startsInWords(ch.startsAt)}: sign up now, we’ll WhatsApp you the check-in details, and you play.`
+              ? `${filled > 0 ? `${filled} already signed up. ` : ''}It’s ${startsInWords(ch.startsAt)}: sign up now, join the community for the check-in details, and you play.`
               : 'Sign-ups are closed, but you can still sign up at the café on the day.'
             : !open
             ? ch.status === 'closed' && !ch.checkinClosedAt && ch.waitlist > 0
