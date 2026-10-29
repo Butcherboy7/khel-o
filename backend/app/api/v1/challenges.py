@@ -285,6 +285,8 @@ class JoinRequest(_Camel):
     utm_content: Optional[str] = Field(None, max_length=80)
     form_ticket: Optional[str] = None
     website: Optional[str] = None
+    # The code in the door QR (walk-ins on the day); anything else is ignored.
+    door: Optional[str] = Field(None, max_length=64)
 
     @field_validator("phone")
     @classmethod
@@ -319,7 +321,9 @@ async def join_challenge(
 ):
     user_id = user.id
     ch, _ = await _load(db, slug, user)
-    if ch.status != "open" or ch.checkin_closed_at is not None:
+    ch_id = ch.id
+    door = day.door_valid(ch, payload.door)
+    if not door and (ch.status != "open" or ch.checkin_closed_at is not None):
         raise BadRequestException(message="Sign-ups for this challenge are closed", error_code="CHALLENGE_CLOSED")
     if not payload.consent_rules:
         raise BadRequestException(message="Tick the box to agree to the rules", error_code="RULES_REQUIRED")
@@ -328,9 +332,9 @@ async def join_challenge(
     except bot_guard.Blocked:
         raise bot_guard.try_again()
 
-    fields = payload.model_dump(exclude={"form_ticket", "website"})
+    fields = payload.model_dump(exclude={"form_ticket", "website", "door"})
     try:
-        entry, created = await svc.join(db, ch.id, user_id, fields)
+        entry, created = await svc.join(db, ch.id, user_id, fields, door=door)
     except svc.AlreadySignedUp:
         raise ConflictException(
             message="This number is already signed up for this challenge on another account",
@@ -339,7 +343,9 @@ async def join_challenge(
     except svc.SignUpsClosed:
         raise BadRequestException(message="Sign-ups for this challenge are closed", error_code="CHALLENGE_CLOSED")
     if created:
-        logger.info("challenge_signup", challenge=slug, status=entry.status)
+        logger.info("challenge_signup", challenge=slug, status=entry.status, door=door)
+    if door:
+        await day.mark_here(db, ch_id, entry.id)
     data = await _me_payload(db, slug, user_id)
     data["created"] = created
     return {"success": True, "data": data}
@@ -371,7 +377,9 @@ async def quick_join_challenge(
     already has an account is refused (never merged, so typing a stranger's
     email can't reach their account); they sign in instead."""
     ch, _ = await _load(db, slug, None)
-    if ch.status != "open" or ch.checkin_closed_at is not None:
+    ch_id = ch.id
+    door = day.door_valid(ch, payload.door)
+    if not door and (ch.status != "open" or ch.checkin_closed_at is not None):
         raise BadRequestException(message="Sign-ups for this challenge are closed", error_code="CHALLENGE_CLOSED")
     if not payload.consent_rules:
         raise BadRequestException(message="Tick the box to agree to the rules", error_code="RULES_REQUIRED")
@@ -410,9 +418,9 @@ async def quick_join_challenge(
     auth = AuthService(users)
     await auth._claim_pending_staff_invitations(user)
 
-    fields = payload.model_dump(exclude={"form_ticket", "website", "email"})
+    fields = payload.model_dump(exclude={"form_ticket", "website", "email", "door"})
     try:
-        entry, created = await svc.join(db, ch.id, user.id, fields)
+        entry, created = await svc.join(db, ch.id, user.id, fields, door=door)
     except svc.AlreadySignedUp:
         raise ConflictException(
             message="This number is already signed up for this challenge on another account",
@@ -421,7 +429,9 @@ async def quick_join_challenge(
     except svc.SignUpsClosed:
         raise BadRequestException(message="Sign-ups for this challenge are closed", error_code="CHALLENGE_CLOSED")
     if created:
-        logger.info("challenge_quick_signup", challenge=slug, status=entry.status)
+        logger.info("challenge_quick_signup", challenge=slug, status=entry.status, door=door)
+    if door:
+        await day.mark_here(db, ch_id, entry.id)
 
     access_token, refresh_token = auth.create_tokens(user)
     data = await _me_payload(db, slug, user.id)
@@ -677,6 +687,12 @@ async def admin_create(payload: ChallengeIn, db: AsyncSession = Depends(get_db),
     return {"success": True, "data": _challenge_out(ch, cafe, await svc.counts(db, ch.id))}
 
 
+def _door_out_admin(ch: Challenge) -> dict:
+    """The walk-in link and its QR, for the counter poster."""
+    url = f"{settings.FRONTEND_URL.rstrip('/')}/challenge/{ch.slug}?join=1&door={day.door_token(ch.slug)}"
+    return {"url": url, "qr": day.qr_data_url(url)}
+
+
 @admin_router.get("/{challenge_id}")
 async def admin_detail(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
     ch, cafe = await _admin_get(db, challenge_id)
@@ -687,6 +703,7 @@ async def admin_detail(challenge_id: UUID, db: AsyncSession = Depends(get_db), _
         "stats": await _stats(db, ch, rows),
         "practiceAllowed": _practice_allowed(),
         "practicePlayers": await practice.count(db, ch.id) if _practice_allowed() else 0,
+        "door": _door_out_admin(ch),
     }}
 
 
@@ -881,6 +898,7 @@ def _bracket_out(ch: Challenge, rows, by_id: dict) -> dict:
             "tiebreakA": m.tiebreak_a,
             "tiebreakB": m.tiebreak_b,
             "bye": m.bye,
+            "postponed": m.postponed_at is not None and m.winner_entry_id is None,
         }
 
     main = [m for m in rows if not m.is_third_place]
@@ -964,6 +982,26 @@ async def door_checkin(
     logger.info("challenge_checkin", challenge=slug, present=payload.present)
     e = await svc.entry_for(db, ch.id, entry_id=entry_id)
     return {"success": True, "data": _door_out(e, await svc.entries(db, ch.id), already)}
+
+
+class PostponeRequest(_Camel):
+    postponed: bool = True
+
+
+@admin_router.post("/{challenge_id}/matches/{match_id}/postpone")
+async def admin_postpone_match(
+    challenge_id: UUID, match_id: UUID, payload: PostponeRequest,
+    db: AsyncSession = Depends(get_db), _admin=Depends(require_admin),
+):
+    """A player is late: put the match off so the next one can start (or bring it back)."""
+    await _admin_get(db, challenge_id)
+    try:
+        await day.postpone(db, challenge_id, match_id, payload.postponed)
+    except day.DayError as e:
+        raise _day_error(e)
+    logger.info("challenge_postpone", challenge=str(challenge_id), postponed=payload.postponed)
+    ch, cafe = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
 
 
 @admin_router.post("/{challenge_id}/close-checkin")

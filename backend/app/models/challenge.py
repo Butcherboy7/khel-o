@@ -153,5 +153,7 @@ class ChallengeMatch(Base):
     tiebreak_a: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tiebreak_b: Mapped[int | None] = mapped_column(Integer, nullable=True)
     bye: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Put off (a player is late): goes to the back of the ready queue until it is brought back.
+    postponed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

@@ -4,13 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, CheckCircle2, Circle, Clock, Dices, ExternalLink, Flag, Gift, Lock, Projector, RotateCcw, Search, Swords, Trash2 } from 'lucide-react';
+import { Camera, CheckCircle2, Circle, Clock, Dices, Download, ExternalLink, Flag, Gift, Lock, Projector, QrCode, RotateCcw, Search, SkipForward, Swords, Trash2, Undo2 } from 'lucide-react';
 import {
   adminClearResult, adminCloseCheckin, adminDraw, adminEntryAction, adminFinish, adminGetBracket, adminGetChallenge, adminReopen,
-  adminRecordResult, adminSetChampionPhoto, adminUploadChampionPhoto,
+  adminPostponeMatch, adminRecordResult, adminSetChampionPhoto, adminUploadChampionPhoto,
   type AdminChallengeDetail, type AdminEntry, type Bracket, type BracketMatch,
 } from '@/lib/api/challenges';
-import { challengePlan, challengeTime, hoursAndMinutes } from '@/lib/challenge';
+import { challengePlan, challengeTime, hoursAndMinutes, openToAll } from '@/lib/challenge';
 import { BracketView, Podium } from '@/components/challenge/BracketView';
 import { Button, Card, CardContent, ErrorState, Modal, PageSpinner } from '@/components/ui';
 import { HostTour, HostTutorialButton, useHostTour } from '@/components/challenge/admin/HostTour';
@@ -124,8 +124,9 @@ export default function ChallengeDayPage() {
         <div className="mt-3 grid grid-cols-3 gap-2">
           <Mini label="Confirmed here" value={`${here}/${confirmed.length}`} />
           <Mini label="Waitlist here" value={waitlistHere} />
-          <Mini label="Spots" value={c.capacity} />
+          <Mini label="Spots" value={openToAll(c.capacity) ? 'Everyone' : c.capacity} />
         </div>
+        <DoorQr door={detail.data.door} slug={c.slug} />
         <label className="relative mt-3 block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
           <input
@@ -206,9 +207,14 @@ export default function ChallengeDayPage() {
             <div data-host-tour="ready">
               <p className="text-caption text-text-secondary">
                 Send the top match to whichever setup is free. When it ends, tap it and enter who won. You can fix a result until the
-                next match has one.
+                next match has one. A player stuck in traffic? Tap “Skip for now” and the next match goes first.
               </p>
-              <ReadyList matches={b.ready} onPick={setPicked} />
+              <ReadyList
+                matches={b.ready}
+                onPick={setPicked}
+                onPostpone={(m, on) => run(`pp:${m.id}`, () => adminPostponeMatch(id, m.id, on), setBracket)}
+                busy={busy}
+              />
             </div>
             <div className="mt-3 rounded-2xl bg-[#0E0F13] p-3 text-[#F4F1EC]" data-host-tour="bracket">
               {b.standings.length > 0 && (
@@ -390,7 +396,9 @@ function Step({ n, title, done, tour, children }: { n: number; title: string; do
 
 /** Every match that can start now. The café sends the top one to whichever
  *  setup is free; tapping a match enters its result. */
-function ReadyList({ matches, onPick }: { matches: BracketMatch[]; onPick: (m: BracketMatch) => void }) {
+function ReadyList({
+  matches, onPick, onPostpone, busy,
+}: { matches: BracketMatch[]; onPick: (m: BracketMatch) => void; onPostpone: (m: BracketMatch, on: boolean) => void; busy: string | null }) {
   if (matches.length === 0) return null;
   return (
     <div className="mt-3 flex flex-col gap-2">
@@ -398,11 +406,13 @@ function ReadyList({ matches, onPick }: { matches: BracketMatch[]; onPick: (m: B
         <Swords className="h-3.5 w-3.5" /> Ready to play · {matches.length}
       </p>
       {matches.map((m, i) => (
+        <div key={m.id} className="flex items-stretch gap-2">
         <button
-          key={m.id}
           type="button"
           onClick={() => onPick(m)}
-          className={`flex items-center gap-3 rounded-xl border p-3 text-left ${i === 0 ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-surface'}`}
+          className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl border p-3 text-left ${
+            m.postponed ? 'border-dashed border-border bg-surface/60' : i === 0 ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-surface'
+          }`}
         >
           <span
             className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-caption font-bold ${
@@ -414,6 +424,7 @@ function ReadyList({ matches, onPick }: { matches: BracketMatch[]; onPick: (m: B
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold text-text-secondary">
               {m.name} · best of {m.bestOf}
+              {m.postponed ? ' · waiting for a player' : ''}
             </span>
             <span className="block truncate font-heading text-body-emphasis font-bold text-text-primary">
               {m.a?.name} vs {m.b?.name}
@@ -421,6 +432,17 @@ function ReadyList({ matches, onPick }: { matches: BracketMatch[]; onPick: (m: B
           </span>
           <span className="flex-shrink-0 text-caption font-semibold text-primary-dark">Enter result</span>
         </button>
+        <button
+          type="button"
+          disabled={busy === `pp:${m.id}`}
+          onClick={() => onPostpone(m, !m.postponed)}
+          aria-label={m.postponed ? `Bring back ${m.a?.name} vs ${m.b?.name}` : `Skip ${m.a?.name} vs ${m.b?.name} for now`}
+          className="flex w-[84px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-border px-2 text-xs font-semibold text-text-primary hover:bg-surface disabled:opacity-50"
+        >
+          {m.postponed ? <Undo2 className="h-4 w-4" /> : <SkipForward className="h-4 w-4" />}
+          {m.postponed ? 'Bring back' : 'Skip for now'}
+        </button>
+        </div>
       ))}
     </div>
   );
@@ -484,6 +506,40 @@ function PlanCard({
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+/** The walk-in sign-up: print the QR for the counter. Anyone who scans it is signed up AND checked in. */
+function DoorQr({ door, slug }: { door: { url: string; qr: string }; slug: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="mt-3 flex gap-3 rounded-xl border border-border p-3" data-testid="door-qr">
+      {/* eslint-disable-next-line @next/next/no-img-element -- our own QR as a data: URL */}
+      <img src={door.qr} alt="Walk-in sign-up QR code" className="h-28 w-28 flex-shrink-0 rounded-lg bg-white p-1" />
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 font-semibold text-text-primary">
+          <QrCode className="h-4 w-4" /> Walk-in sign-up
+        </p>
+        <p className="mt-1 text-caption text-text-secondary">
+          Put this QR on the counter. Anyone who scans it signs up and is checked in straight away, even after check-in closed. It only
+          works on the day. Late walk-ins are not in the draw until you redo it.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <a href={door.qr} download={`khelo-${slug}-walk-in-qr.png`} className={linkBtn}>
+            <Download className="h-4 w-4" /> Save QR
+          </a>
+          <button
+            type="button"
+            className={linkBtn}
+            onClick={() => {
+              navigator.clipboard?.writeText(door.url).then(() => setCopied(true)).catch(() => undefined);
+            }}
+          >
+            {copied ? 'Copied' : 'Copy link'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

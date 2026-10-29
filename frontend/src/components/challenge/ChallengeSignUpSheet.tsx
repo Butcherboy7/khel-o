@@ -12,7 +12,7 @@ import { getPublicEnv } from '@/lib/runtimeEnv';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { joinChallenge, quickJoinChallenge, type Challenge, type MyChallenge } from '@/lib/api/challenges';
 import { ApiError } from '@/lib/api/errors';
-import { COMMUNITY_URL, challengeDay, challengeTimeRange, recalledUtm, whatsappShare } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeTimeRange, openToAll, recalledUtm, whatsappShare } from '@/lib/challenge';
 import {
   hasTappedCommunity,
   lastSignInMethod,
@@ -89,14 +89,17 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
   if (!isOpen) return null;
 
   const signedIn = isAuthenticated && !!user;
-  const full = challenge.spotsLeft <= 0;
-  const cta = full ? 'Join the waitlist' : 'Lock my spot';
+  const full = challenge.spotsLeft <= 0 && !openToAll(challenge.capacity);
+  const cta = full ? 'Join the reserve list' : 'Lock my spot';
 
   const backHere = () => {
     const q = new URLSearchParams(window.location.search);
     q.set('join', '1');
     return encodeURIComponent(`${window.location.pathname}?${q.toString()}`);
   };
+
+  // From the QR at the café counter: walk-ins sign up and are checked in at once.
+  const door = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('door') ?? '';
 
   const finish = (res: MyChallenge, method: SignInMethod) => {
     rememberSignInMethod(method);
@@ -127,6 +130,7 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
         consentFilming: extras,
         consentUpdates: extras,
         ...recalledUtm(window.location.search),
+        ...(door ? { door } : {}),
         ...(await guardFields()),
       };
       if (signedIn) {
@@ -150,7 +154,7 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
   const shareText =
     `I'm playing in ${challenge.title} at ${challenge.cafe.name}${challenge.cafe.city ? `, ${challenge.cafe.city}` : ''}: ` +
     `${challengeDay(challenge.startsAt)}, ${challengeTimeRange(challenge.startsAt, challenge.endsAt)}. ` +
-    `Free to sign up, ${challenge.capacity} player spots. ${window.location.origin}/challenge/${challenge.slug}`;
+    `Free to sign up${openToAll(challenge.capacity) ? '' : `, ${challenge.capacity} player spots`}. ${window.location.origin}/challenge/${challenge.slug}`;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center" role="presentation">
@@ -165,7 +169,7 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 className={`${fightFont.className} text-3xl font-bold uppercase leading-none tracking-wide`}>
-            {done ? (done.entry?.status === 'waitlist' ? 'On the waitlist' : 'You’re in') : cta}
+            {done ? (done.entry?.present ? 'You’re checked in' : done.entry?.status === 'waitlist' ? 'You’re on the reserve list' : 'You’re in') : cta}
           </h2>
           <button type="button" onClick={onClose} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#22252D]">
             <X className="h-5 w-5" />
@@ -191,7 +195,7 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
             {trap}
             <p className="-mt-1 rounded-xl bg-[#F2C94C] px-3 py-2 text-sm font-bold leading-snug text-[#1A1306]">
               {full
-                ? 'Free to enter. Come to check-in: when someone doesn’t show, the next waitlist player there plays.'
+                ? 'Free to enter. Come to check-in and we’ll fit you in: when someone doesn’t show, the next reserve player there plays.'
                 : `Free to enter. ${challenge.prizeLine || 'Nothing to pay.'}`}
             </p>
             {signedIn && viaGoogle ? (
@@ -336,8 +340,10 @@ function Done({
     <div className="flex flex-col gap-3">
       <p className="rounded-xl border border-[#3B6B4A] bg-[#13221A] px-3 py-3 text-sm">
         <CheckCircle2 className="mr-2 inline h-4 w-4 text-[#7FE0A0]" aria-hidden />
-        {waitlist
-          ? 'You’re on the waitlist. We’ll WhatsApp you if a spot opens.'
+        {res.entry?.present
+          ? 'You’re checked in. Watch the big screen: your name goes into the draw.'
+          : waitlist
+          ? 'You’re on the reserve list. Come to check-in and we’ll fit you in as spots free up.'
           : `Your spot is locked${res.entry?.rank ? `: P${res.entry.rank}` : ''}.`}
       </p>
       <div className="rounded-2xl border border-[#1F6B3A] bg-[#0E1D14] p-4">

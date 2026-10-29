@@ -130,6 +130,12 @@ export const FEATURED_CHALLENGE_SLUG = 'tekken-01';
 /** KHEL-O's WhatsApp community invite (Announcements, Lobby, Challengers). */
 export const COMMUNITY_URL = 'https://chat.whatsapp.com/FWVq1Iv7EgaDlyspNkS3ps';
 
+/** A challenge with no real cap (the host just sets a very high number): everyone who signs up and
+ *  comes to check-in plays, so the pages talk about "everyone" instead of counting spots. */
+export function openToAll(capacity: number): boolean {
+  return capacity >= 100;
+}
+
 /** Still worth showing: open for sign-ups, or closed/live but not over. */
 export function isUpcoming(c: { status: string; endsAt: string }): boolean {
   return ['open', 'closed', 'live'].includes(c.status) && new Date(c.endsAt).getTime() > Date.now();

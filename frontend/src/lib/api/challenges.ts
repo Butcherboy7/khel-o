@@ -126,6 +126,8 @@ export interface BracketMatch {
   tiebreakA: number | null;
   tiebreakB: number | null;
   bye: boolean;
+  /** Put off because a player is late: waits at the back of the queue. */
+  postponed: boolean;
 }
 
 export interface Bracket {
@@ -184,6 +186,8 @@ export interface JoinBody {
   utmContent?: string;
   formTicket?: string;
   website?: string;
+  /** The code in the walk-in QR at the café (only works on the day). */
+  door?: string;
 }
 
 export interface MyActiveChallenge {
@@ -300,6 +304,8 @@ export interface AdminChallengeDetail {
   /** Practice players are for rehearsals on dev only. */
   practiceAllowed: boolean;
   practicePlayers: number;
+  /** The walk-in sign-up link and its QR (PNG data URL), for the counter poster. */
+  door: { url: string; qr: string };
   added?: number;
   removed?: number;
   released?: number;
@@ -404,6 +410,11 @@ export async function adminRecordResult(
   },
 ): Promise<Bracket> {
   return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/matches/${matchId}/result`, body));
+}
+
+/** A player is late: put the match off so the next one can start (or bring it back). */
+export async function adminPostponeMatch(id: string, matchId: string, postponed: boolean): Promise<Bracket> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/matches/${matchId}/postpone`, { postponed }));
 }
 
 export async function adminClearResult(id: string, matchId: string): Promise<Bracket> {

@@ -14,7 +14,7 @@ import {
 } from '@/lib/api/challenges';
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
 import { hasTappedCommunity, markCommunityTapped } from '@/lib/challenge-signup';
-import { COMMUNITY_URL, challengeDay, challengeMoment, challengeTime, challengeTimeRange, handle, whatsappShare } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeMoment, challengeTime, challengeTimeRange, handle, openToAll, whatsappShare } from '@/lib/challenge';
 
 export default function MyChallengePage() {
   return (
@@ -127,17 +127,19 @@ function MyChallenge() {
       >
         <p className={`flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] ${confirmed ? 'text-[#7FE0A0]' : 'text-[#F2C27A]'}`}>
           {confirmed ? <PartyPopper className="h-4 w-4" /> : <Hourglass className="h-4 w-4" />}
-          {isNew ? (confirmed ? 'You’re in!' : 'You’re on the waitlist') : ch.title}
+          {isNew ? (confirmed ? 'You’re in!' : 'You’re on the reserve list') : ch.title}
         </p>
         <p className="mt-2 font-heading text-[40px] font-bold leading-none">
-          {confirmed ? `Confirmed #${entry.rank}` : `Waitlist #${entry.rank}`}
+          {confirmed ? `Confirmed #${entry.rank}` : `Reserve #${entry.rank}`}
         </p>
         <p className="mt-3 text-sm text-[#DADCE3]">
           {confirmed
             ? entry.promotedAt
               ? 'A spot opened up and it’s yours now.'
+              : openToAll(ch.capacity)
+              ? 'Come to check-in and you play.'
               : `You have one of the ${ch.capacity} spots.`
-            : 'You can still come on the day. If someone doesn’t show, the next waitlist player who’s there plays.'}
+            : 'Come to check-in and we’ll fit you in. If someone doesn’t show, the next reserve player who’s there plays.'}
         </p>
       </section>
 
@@ -148,7 +150,7 @@ function MyChallenge() {
         <div className="col-span-2 rounded-2xl border border-[#262932] bg-[#16181E] px-4 py-3 text-sm">
           <p>
             <span className="font-semibold">Check-in:</span> {challengeTime(ch.checkinOpensAt)} to {challengeTime(ch.checkinClosesAt)}.
-            {confirmed ? ' After that, your spot goes to the waitlist.' : ''}
+            {confirmed && !openToAll(ch.capacity) ? ' After that, your spot goes to the reserve list.' : ''}
           </p>
         </div>
         {ch.cafe.mapsUrl && (
@@ -259,7 +261,7 @@ function MyChallenge() {
         <a
           href={whatsappShare(
             `I'm playing in ${ch.title} at ${ch.cafe.name}${ch.cafe.city ? `, ${ch.cafe.city}` : ''}: ${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)}. ` +
-              `Come watch, anyone can come. Want to play? Sign up free, ${ch.capacity} player spots then a waitlist.` +
+              `Come watch, anyone can come. Want to play? Sign up free${openToAll(ch.capacity) ? '' : `, ${ch.capacity} player spots then a reserve list`}.` +
               `${ch.visitorOffer ? ` ${ch.visitorOffer}.` : ''} ${typeof window !== 'undefined' ? window.location.origin : 'https://khel-o.com'}/challenge/${ch.slug}`,
           )}
           target="_blank"
@@ -313,8 +315,8 @@ function MyChallenge() {
       <BottomSheet isOpen={confirmOut} onClose={() => setConfirmOut(false)} title="Give up your place?">
         <p className="-mt-1 text-caption text-text-secondary">
           {confirmed
-            ? 'Your spot goes to the next person on the waitlist. You can sign up again, but you’ll join the back of the line.'
-            : 'You’ll leave the waitlist. You can sign up again, but you’ll join the back of the line.'}
+            ? 'Your spot goes to the next person on the reserve list. You can sign up again, but you’ll join the back of the line.'
+            : 'You’ll leave the reserve list. You can sign up again, but you’ll join the back of the line.'}
         </p>
         <div className="mt-4 flex flex-col gap-2">
           <Button variant="primary" fullWidth isLoading={busy === 'withdraw'} onClick={withdraw}>

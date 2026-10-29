@@ -7,7 +7,7 @@ import { ArrowLeft, ArrowRight, Check, CheckCheck, MessageCircle, Pin } from 'lu
 import { FightStage, fightFont } from '@/components/challenge/ChallengeHero';
 import { getChallenge } from '@/lib/api/challenges';
 import { trackAction } from '@/lib/api/analyticsEvents';
-import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming } from '@/lib/challenge';
+import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll } from '@/lib/challenge';
 
 /** Plain words: what you get, in the order it happens. */
 const GETS = [
@@ -227,7 +227,7 @@ export function CommunityClient() {
         {upcoming && (
           <div className="flex flex-col gap-3 rounded-2xl border border-[#5A2A26] bg-[#1A1114] p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[15px] text-[#DADCE3]">
-              <b className="text-[#F4F1EC]">Want to play, not just watch?</b> {upcoming.capacity} free spots at {upcoming.cafe.name}. Takes a minute.
+              <b className="text-[#F4F1EC]">Want to play, not just watch?</b> {openToAll(upcoming.capacity) ? 'Free to play' : `${upcoming.capacity} free spots`} at {upcoming.cafe.name}. Takes a minute.
             </p>
             <Link
               href={`/challenge/${upcoming.slug}?join=1`}

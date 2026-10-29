@@ -21,6 +21,7 @@ import hmac
 import io
 import random
 import uuid
+from datetime import timedelta, timezone
 from typing import Optional
 
 import qrcode
@@ -77,6 +78,32 @@ def entry_id_from_token(token: str) -> Optional[uuid.UUID]:
     except ValueError:
         return None
     return entry_id if hmac.compare_digest(token[32:], _sign(entry_id)) else None
+
+
+def door_token(slug: str) -> str:
+    """The code in the door QR: the same for everyone, tied to this challenge."""
+    return hmac.new(settings.SECRET_KEY.encode(), f"challenge-door:{slug}".encode(), hashlib.sha256).hexdigest()[:16]
+
+
+def door_valid(ch: Challenge, token: Optional[str]) -> bool:
+    """A walk-in code works only on the day: from when check-in opens until an hour after the end."""
+    if not token or ch.status not in CHECKIN_STATUSES:
+        return False
+    if not hmac.compare_digest(token.strip().lower(), door_token(ch.slug)):
+        return False
+    def aware(dt):  # the test database hands back naive UTC; Postgres hands back aware times
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+    return aware(ch.checkin_opens_at) <= svc.now() <= aware(ch.ends_at) + timedelta(hours=1)
+
+
+async def mark_here(db: AsyncSession, challenge_id, entry_id) -> None:
+    """Someone who signed up at the door (or already had) counts as here."""
+    e = await svc.entry_for(db, challenge_id, entry_id=entry_id)
+    if e is not None and e.status in CHECKIN_ENTRY_STATUSES and not e.present:
+        e.present = True
+        e.checked_in_at = svc.now()
+        await db.commit()
 
 
 def qr_data_url(url: str) -> str:
@@ -308,9 +335,28 @@ async def _record(db, ch, match_id, winner, score_a, score_b, tiebreak, tiebreak
     m.score_a, m.score_b = score_a, score_b
     m.tiebreak, m.tiebreak_a, m.tiebreak_b = tiebreak, tiebreak_a, tiebreak_b
     m.completed_at = svc.now()
+    m.postponed_at = None
     _advance(rows, m)
     _settle_third(rows)
     await db.commit()
+
+
+async def postpone(db: AsyncSession, challenge_id, match_id, on: bool) -> None:
+    """Put a match off (a player is late) so the next one can start, or bring it back.
+    The bracket doesn't change: the match just goes to the back of the ready queue."""
+    try:
+        await _lock_live(db, challenge_id)
+        rows = await matches(db, challenge_id)
+        m = next((x for x in rows if x.id == match_id), None)
+        if m is None:
+            raise DayError("No such match.", "MATCH_NOT_FOUND")
+        if m.bye or m.winner_entry_id is not None:
+            raise DayError("This one is already played, so it can't be put off.", "MATCH_NOT_PENDING")
+        m.postponed_at = svc.now() if on else None
+        await db.commit()
+    except DayError:
+        await db.rollback()
+        raise
 
 
 async def clear_result(db: AsyncSession, challenge_id, match_id) -> None:
@@ -329,6 +375,7 @@ async def clear_result(db: AsyncSession, challenge_id, match_id) -> None:
     m.score_a = m.score_b = None
     m.tiebreak = m.tiebreak_a = m.tiebreak_b = None
     m.completed_at = None
+    m.postponed_at = None
     _advance(rows, m)
     _settle_third(rows)
     await db.commit()
@@ -415,10 +462,13 @@ def standings(rows: list[ChallengeMatch]) -> dict[int, uuid.UUID]:
 def ready_matches(rows: list[ChallengeMatch]) -> list[ChallengeMatch]:
     """Every match that can be played now (both players known, no result yet),
     in playing order: earlier rounds first, the 3rd-place match just before
-    the final. The café sends players to whichever setup is free."""
+    the final. Put-off matches (a player is late) wait at the back.
+    The café sends players to whichever setup is free."""
     ready = [m for m in rows if m.winner_entry_id is None and m.entry_a_id and m.entry_b_id]
     rounds = rounds_of(rows)
-    ready.sort(key=lambda m: (m.round + (0 if m.is_third_place else (0.5 if m.round == rounds - 1 else 0)), m.position))
+    ready.sort(key=lambda m: (
+        m.postponed_at is not None, m.round + (0 if m.is_third_place else (0.5 if m.round == rounds - 1 else 0)), m.position,
+    ))
     return ready
 
 

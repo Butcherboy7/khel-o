@@ -7,7 +7,7 @@ import { ArrowLeft, CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircl
 import { useAuthStore } from '@/store/authStore';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, getMyChallenge, type Challenge, type MyEntry } from '@/lib/api/challenges';
-import { COMMUNITY_URL, challengeDay, challengeTime, challengeTimeRange, rememberUtm, whatsappShare } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeTime, challengeTimeRange, openToAll, rememberUtm, whatsappShare } from '@/lib/challenge';
 import { markChallengeSeen } from '@/lib/challengeNudge';
 import { SimpleMarkdown } from '@/components/challenge/SimpleMarkdown';
 import { ChallengeSignUpSheet } from '@/components/challenge/ChallengeSignUpSheet';
@@ -134,7 +134,8 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
   }
 
   const active = entry && (entry.status === 'confirmed' || entry.status === 'waitlist');
-  const full = ch.spotsLeft === 0;
+  const everyone = openToAll(ch.capacity);
+  const full = ch.spotsLeft === 0 && !everyone;
   const open = ch.status === 'open';
   const filled = Math.min(ch.confirmed, ch.capacity);
 
@@ -199,9 +200,9 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               className="chv-start mt-5 flex h-[68px] w-full flex-col items-center justify-center bg-[#D0463C] text-white transition-colors [clip-path:polygon(3%_0,100%_0,97%_100%,0_100%)] hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
               <span className={`${fightFont.className} flex items-center gap-2 text-[34px] font-bold uppercase leading-none tracking-[0.08em]`}>
-                <Play className="h-6 w-6 fill-current" /> {full ? 'Join the waitlist' : 'Sign up for free'}
+                <Play className="h-6 w-6 fill-current" /> {full ? 'Join the reserve list' : 'Sign up for free'}
               </span>
-              <span className="text-xs font-semibold text-white/90">{full ? 'Free · seats open up when people don’t show' : 'Free · takes under a minute'}</span>
+              <span className="text-xs font-semibold text-white/90">{full ? 'Free · we fit you in when people don’t show' : 'Free · takes under a minute'}</span>
             </button>
           )}
           {isVideoId(ch.videoId) && (
@@ -242,11 +243,13 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
       <section className="mt-2" aria-live="polite">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className={`${fightFont.className} text-[30px] font-semibold uppercase leading-none tracking-wide`}>
-            {full ? `All ${ch.capacity} players in` : filled === 0 ? 'Player 1 is still open' : `${filled} in · ${ch.spotsLeft} open`}
+            {everyone
+              ? filled === 0 ? 'Be the first one in' : `${filled} ${filled === 1 ? 'player' : 'players'} in`
+              : full ? `All ${ch.capacity} players in` : filled === 0 ? 'Player 1 is still open' : `${filled} in · ${ch.spotsLeft} open`}
           </h2>
-          {ch.waitlist > 0 && <p className="text-xs text-[#A3A6B1]">{ch.waitlist} on the waitlist</p>}
+          {ch.waitlist > 0 && <p className="text-xs text-[#A3A6B1]">{ch.waitlist} on the reserve list</p>}
         </div>
-        {ch.capacity <= 20 ? (
+        {everyone ? null : ch.capacity <= 20 ? (
           <PlayerSelect capacity={ch.capacity} filled={filled} open={open} />
         ) : (
           <div className="mt-3 flex gap-1" aria-hidden>
@@ -256,13 +259,17 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
           </div>
         )}
         <p className="mt-3 text-sm text-[#A3A6B1]">
-          {!open
+          {everyone
+            ? open
+              ? 'No spots to fight for. Sign up, come to check-in, and you play.'
+              : 'Sign-ups are closed, but you can still sign up at the café on the day.'
+            : !open
             ? ch.status === 'closed' && !ch.checkinClosedAt && ch.waitlist > 0
-              ? 'Sign-ups are closed. Already on the waitlist? Come anyway: if someone doesn’t show, the next waitlist player there plays.'
+              ? 'Sign-ups are closed. Already on the reserve list? Come anyway: if someone doesn’t show, the next reserve player there plays.'
               : 'The spots are set.'
             : full
-            ? 'The waitlist is open. Waitlist players are welcome on the day, and if someone doesn’t show, the next waitlist player there plays.'
-            : `The first ${ch.capacity} to sign up play. After that, the waitlist opens.`}
+            ? 'The reserve list is open. Come to check-in and we’ll fit you in as spots free up.'
+            : `The first ${ch.capacity} to sign up get a spot. After that, the reserve list opens.`}
         </p>
       </section>
 
@@ -330,8 +337,8 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
           <Users className="h-5 w-5 text-[#7FE0A0]" /> Not playing? Come watch
         </h2>
         <p className="mt-1 text-sm text-[#DADCE3]">
-          The {ch.capacity} spots are only for players. Anyone can come to {ch.cafe.name} on the day to watch and cheer. No sign-up needed
-          to watch.
+          {everyone ? 'Anyone' : `The ${ch.capacity} spots are only for players. Anyone`} can come to {ch.cafe.name} on the day to watch and
+          cheer. No sign-up needed to watch.
         </p>
         {ch.visitorOffer && <p className="mt-2 text-sm font-semibold text-[#7FE0A0]">{ch.visitorOffer}</p>}
       </section>
@@ -341,10 +348,16 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
         <h2 className="font-heading text-xl font-bold">Questions</h2>
         <dl className="mt-3 flex flex-col divide-y divide-[#262932] rounded-2xl border border-[#262932] bg-[#16181E]">
           <Faq q="Is it free?" a="Yes. Signing up and playing cost nothing." />
-          <Faq q="What if I’m on the waitlist?" a="Come anyway. If someone doesn’t show up, the next waitlist player who’s there plays." />
+          {everyone ? (
+            <Faq q="Is there a limit on players?" a="No. Everyone who signs up and comes to check-in plays. You can even sign up at the café on the day." />
+          ) : (
+            <Faq q="What if I’m on the reserve list?" a="Come anyway. If someone doesn’t show up, the next reserve player who’s there plays." />
+          )}
           <Faq
             q="Can my friends come?"
-            a={`Yes. Anyone can come to watch, no sign-up needed. To play, they sign up here: the first ${ch.capacity} get spots, then the waitlist.`}
+            a={everyone
+              ? 'Yes. Anyone can come to watch, no sign-up needed. To play, they sign up here or at the café on the day.'
+              : `Yes. Anyone can come to watch, no sign-up needed. To play, they sign up here: the first ${ch.capacity} get spots, then the reserve list.`}
           />
           <Faq q="Will I be filmed?" a="Only if you say yes when you sign up. If you say no, the camera stays off you." />
           <Faq q="Can’t make it after all?" a="Tap “Can’t make it” on your KHELO page, so the next person gets your spot." />
@@ -378,7 +391,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#1F2A22] font-semibold text-[#7FE0A0]"
             >
               <Check className="h-5 w-5" />
-              {entry!.status === 'confirmed' ? `You’re in · Spot #${entry!.rank}` : `You’re on the waitlist · #${entry!.rank}`}
+              {entry!.status === 'confirmed' ? `You’re in · Spot #${entry!.rank}` : `You’re on the reserve list · #${entry!.rank}`}
               <ChevronRight className="h-4 w-4" />
             </button>
           ) : open ? (
@@ -388,7 +401,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#D0463C] font-heading text-lg font-bold text-white transition-colors hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
               <Play className="h-5 w-5 fill-current" />
-              {full ? 'Join the waitlist · free' : 'Sign up for free'}
+              {full ? 'Join the reserve list · free' : 'Sign up for free'}
             </button>
           ) : (
             <p className="flex h-14 items-center justify-center rounded-2xl bg-[#16181E] text-sm font-semibold text-[#A3A6B1]">

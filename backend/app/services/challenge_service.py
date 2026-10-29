@@ -221,15 +221,19 @@ class SignUpsClosed(Exception):
     """Sign-ups aren't open, or check-in has already closed."""
 
 
-async def join(db: AsyncSession, challenge_id, user_id, fields: dict) -> tuple[ChallengeEntry, bool]:
+async def join(db: AsyncSession, challenge_id, user_id, fields: dict, door: bool = False) -> tuple[ChallengeEntry, bool]:
     """Sign someone up, or hand back the entry they already have.
-    Returns (entry, created)."""
+    At the door (a valid door code, on the day) there is no cap and no closed
+    check-in: the person is in, and counts as here. Returns (entry, created)."""
     async def work(locked: Challenge):
         mine = await entry_for(db, locked.id, user_id=user_id)
         if mine is not None and mine.status in ACTIVE:
             return mine, False
         # Checked on the locked row: a sign-up racing "Close check-in" can't slip in.
-        if locked.status != "open" or locked.checkin_closed_at is not None:
+        if door:
+            if locked.status not in ("open", "closed", "live"):
+                raise SignUpsClosed()
+        elif locked.status != "open" or locked.checkin_closed_at is not None:
             raise SignUpsClosed()
         other = (await db.execute(
             select(ChallengeEntry.id).where(
@@ -242,7 +246,7 @@ async def join(db: AsyncSession, challenge_id, user_id, fields: dict) -> tuple[C
             raise AlreadySignedUp()
 
         confirmed = (await counts(db, locked.id))["confirmed"]
-        status = "confirmed" if confirmed < locked.capacity else "waitlist"
+        status = "confirmed" if door or confirmed < locked.capacity else "waitlist"
         top = (await db.execute(
             select(func.max(ChallengeEntry.position)).where(ChallengeEntry.challenge_id == locked.id)
         )).scalar_one()
@@ -254,8 +258,12 @@ async def join(db: AsyncSession, challenge_id, user_id, fields: dict) -> tuple[C
             mine.position, mine.status = position, status
             mine.coming = mine.coming_at = mine.withdrawn_at = mine.withdrawn_by = None
             mine.promoted_at = mine.told_at = None
+            if door:
+                mine.present, mine.checked_in_at = True, now()
             return mine, True
         entry = ChallengeEntry(challenge_id=locked.id, user_id=user_id, position=position, status=status, **fields)
+        if door:
+            entry.present, entry.checked_in_at = True, now()
         db.add(entry)
         return entry, True
 

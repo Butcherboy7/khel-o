@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const ch = await load(slug);
   if (!ch) return { title: 'Challenge', robots: { index: false } };
   const when = `${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)}`;
-  const description = `Free sign-up. ${ch.game} at ${ch.cafe.name}, ${ch.cafe.city}. ${when}. ${ch.capacity} player spots, then a waitlist. Anyone can come to watch.`;
+  const description = `Free sign-up. ${ch.game} at ${ch.cafe.name}, ${ch.cafe.city}. ${when}. ${ch.capacity >= 100 ? 'Everyone who signs up plays.' : `${ch.capacity} player spots, then a reserve list.`} Anyone can come to watch.`;
   return {
     title: ch.title,
     description,

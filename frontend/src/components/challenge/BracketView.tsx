@@ -59,12 +59,19 @@ function MatchCard({ m, onPick, big }: { m: BracketMatch; onPick?: (m: BracketMa
   const cls = `block w-full overflow-hidden rounded-xl border text-left ${
     m.winner ? 'border-[#262932] bg-[#121318]' : ready ? 'border-[#3A3E4A] bg-[#16181E]' : 'border-dashed border-[#262932] bg-[#121318]'
   }`;
+  const late = m.postponed && !m.winner;
+  const inner = (
+    <>
+      {late && <p className="bg-[#2A1F10] px-3 py-1 text-xs font-semibold text-[#F2C27A]">Waiting for a player</p>}
+      {body}
+    </>
+  );
   return clickable ? (
     <button type="button" onClick={() => onPick?.(m)} className={`${cls} hover:border-[#E8675D]`}>
-      {body}
+      {inner}
     </button>
   ) : (
-    <div className={cls}>{body}</div>
+    <div className={cls}>{inner}</div>
   );
 }
 

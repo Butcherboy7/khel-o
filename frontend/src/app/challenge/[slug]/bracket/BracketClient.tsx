@@ -119,7 +119,8 @@ function UpNext({ matches, big = false }: { matches: BracketMatch[]; big?: boole
   return (
     <div className={`rounded-2xl border border-[#5A2A26] bg-[#1A1114] ${big ? 'mt-[2vh] px-[2vw] py-[2vh]' : 'p-4'}`}>
       <p className={`flex items-center gap-2 font-bold uppercase tracking-[0.16em] text-[#E8675D] ${big ? 'text-[min(1.4vw,2.2vh)]' : 'text-[11px]'}`}>
-        <Swords className={big ? 'h-[2.4vh] w-[2.4vh]' : 'h-3.5 w-3.5'} /> Up next · {first.name} · best of {first.bestOf}
+        <Swords className={big ? 'h-[2.4vh] w-[2.4vh]' : 'h-3.5 w-3.5'} />{' '}
+        {first.postponed ? 'Waiting for a player' : 'Up next'} · {first.name} · best of {first.bestOf}
       </p>
       <p className={`mt-1 font-heading font-bold ${big ? 'text-[min(4vw,6.5vh)]' : 'text-2xl'}`}>
         {first.a?.name} <span className="text-[#A3A6B1]">vs</span> {first.b?.name}
@@ -135,7 +136,9 @@ function UpNext({ matches, big = false }: { matches: BracketMatch[]; big?: boole
                 <span className="truncate font-semibold">
                   {m.a?.name} <span className="text-[#A3A6B1]">vs</span> {m.b?.name}
                 </span>
-                <span className={`flex-shrink-0 text-[#A3A6B1] ${big ? 'text-[min(1.2vw,2vh)]' : 'text-xs'}`}>{m.name}</span>
+                <span className={`flex-shrink-0 ${m.postponed ? 'text-[#F2C27A]' : 'text-[#A3A6B1]'} ${big ? 'text-[min(1.2vw,2vh)]' : 'text-xs'}`}>
+                  {m.postponed ? 'waiting for a player' : m.name}
+                </span>
               </li>
             ))}
           </ul>
