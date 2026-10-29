@@ -27,6 +27,8 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
   const [entry, setEntry] = useState<MyEntry | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const startBtn = useRef<HTMLButtonElement>(null);
+  // The sticky sign-up bar only shows once the hero button has scrolled away: one button on the first screen.
+  const [heroGone, setHeroGone] = useState(false);
   const videoWrap = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const glided = useRef(false);
@@ -110,6 +112,17 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
     }
   }, [isHydrated]);
 
+  useEffect(() => {
+    const el = startBtn.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setHeroGone(true); // no way to tell: keep the sticky button so there is always one
+      return;
+    }
+    const io = new IntersectionObserver(([e]) => setHeroGone(!e.isIntersecting), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ch, entry]);
+
   const start = useCallback((where: 'hero' | 'sticky' | 'players') => {
     trackAction('challenge_signup_started', { challenge: slug, signedIn: isAuthenticated, where });
     setSheetOpen(true);
@@ -172,15 +185,14 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
             </span>
           </h1>
           {ch.status !== 'finished' && ch.status !== 'cancelled' && (
-            <div className="cm-rise relative mt-4 -skew-x-[6deg] overflow-hidden bg-[#F2C94C] px-4 py-2.5 text-[#1A1306] shadow-[0_10px_30px_rgba(242,201,76,0.22)]">
+            <div className="cm-rise relative mt-4 -skew-x-[6deg] overflow-hidden bg-[#F2C94C] px-4 py-2 text-[#1A1306] shadow-[0_8px_20px_rgba(0,0,0,0.35)]">
               <span className="cm-shine" aria-hidden />
               <div className="relative skew-x-[6deg]">
-                <p className={`${fightFont.className} text-[46px] font-bold uppercase leading-none tracking-wide`}>
+                <p className={`${fightFont.className} text-[38px] font-bold uppercase leading-none tracking-wide`}>
                   <span className="cm-free relative mr-2 inline-block bg-[#1A1306] px-2 text-[#F2C94C]">Free</span>
                   to enter
                 </p>
-                {ch.prizeLine && <p className="mt-1 text-[17px] font-bold leading-tight">{ch.prizeLine}</p>}
-                {ch.prizeNote && <p className="mt-0.5 text-[13px] font-medium leading-snug text-[#3A2E0A]">{ch.prizeNote}</p>}
+                {ch.prizeLine && <p className="mt-1 text-[15px] font-bold leading-tight">{ch.prizeLine}</p>}
               </div>
             </div>
           )}
@@ -202,7 +214,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               <span className={`${fightFont.className} flex items-center gap-2 text-[34px] font-bold uppercase leading-none tracking-[0.08em]`}>
                 <Play className="h-6 w-6 fill-current" /> {full ? 'Reserve my spot' : 'Sign up for free'}
               </span>
-              <span className="text-xs font-semibold text-white/90">{full ? 'Free · we fit you in when people don’t show' : 'Free · takes under a minute'}</span>
+              <span className="text-xs font-semibold text-white/90">{full ? 'Free · we fit you in when people don’t show' : ch.confirmed > 0 ? `${ch.confirmed} already in · free · under a minute` : 'Free · takes under a minute'}</span>
             </button>
           )}
           {isVideoId(ch.videoId) && (
@@ -294,7 +306,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
         <MapPin className="h-4 w-4 flex-shrink-0 text-[#E8675D]" />
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{ch.cafe.name}</span>
-          <span className="block truncate text-xs text-[#A3A6B1]">{ch.cafe.address || ch.cafe.city}</span>
+          <span className="mt-0.5 line-clamp-2 text-xs leading-snug text-[#A3A6B1]">{ch.cafe.address || ch.cafe.city}</span>
         </span>
         {ch.cafe.mapsUrl && <span className="text-xs font-semibold text-[#E8675D]">Map</span>}
       </a>
@@ -392,7 +404,8 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
         </a>
       )}
 
-      {/* Sticky action */}
+      {/* Sticky action: the player's status, the closed message, or (once the hero button is out of sight) the sign-up button */}
+      {(active || !open || heroGone) && (
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#262932] bg-[#0E0F13]/95 px-4 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 backdrop-blur">
         <div className="mx-auto max-w-xl">
           {active ? (
@@ -421,6 +434,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
           )}
         </div>
       </div>
+      )}
 
       <ChallengeSignUpSheet
         challenge={ch}

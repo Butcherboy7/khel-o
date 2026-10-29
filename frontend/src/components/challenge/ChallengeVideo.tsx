@@ -56,8 +56,15 @@ export function ChallengeVideo({ slug, videoId, cafe }: { slug: string; videoId:
             className="group absolute inset-0 flex items-center justify-center overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
           >
             {/* Our own poster art: stage glow, slash, big lettering */}
-            <span className="absolute inset-0 bg-[radial-gradient(70%_90%_at_30%_30%,rgba(208,70,60,0.55),transparent),radial-gradient(60%_80%_at_90%_100%,rgba(92,34,150,0.5),transparent),#0E0A10]" aria-hidden />
-            <span className="absolute -left-10 top-[58%] h-2.5 w-[130%] -rotate-[10deg] bg-[#D0463C]/80 shadow-[0_0_30px_rgba(208,70,60,0.7)]" aria-hidden />
+            <span
+              className="absolute inset-0"
+              style={{
+                background:
+                  'radial-gradient(80% 60% at 22% 22%, rgba(242,201,76,0.55), transparent 62%), radial-gradient(95% 80% at 88% 92%, rgba(232,103,93,0.9), transparent 66%), linear-gradient(160deg, #4A1630 0%, #1E0C2A 100%)',
+              }}
+              aria-hidden
+            />
+            <span className="absolute -left-10 top-[60%] h-2.5 w-[130%] -rotate-[10deg] bg-[#F2C94C]/85" aria-hidden />
             <span className={`${fightFont.className} absolute left-4 top-3 text-[13px] font-semibold uppercase tracking-[0.14em] text-white/80`} aria-hidden>
               {cafe}
             </span>
@@ -65,8 +72,11 @@ export function ChallengeVideo({ slug, videoId, cafe }: { slug: string; videoId:
               Tekken 8<br />
               <span className="text-[#E8675D]">on the big screen</span>
             </span>
-            <span className="cm-playpulse relative flex h-16 w-16 items-center justify-center rounded-full bg-[#F2C94C] text-[#1A1306] transition-transform group-hover:scale-110 group-active:scale-95">
-              <Play className="ml-1 h-7 w-7 fill-current" aria-hidden />
+            <span className="relative -mt-8 flex flex-col items-center gap-2">
+              <span className="cm-playpulse flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#F2C94C] text-[#1A1306] shadow-[0_8px_24px_rgba(0,0,0,0.45)] transition-transform group-hover:scale-110 group-active:scale-95">
+                <Play className="ml-1 h-8 w-8 fill-current" aria-hidden />
+              </span>
+              <span className="rounded-full bg-black/55 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">Tap to watch</span>
             </span>
           </button>
         )}
