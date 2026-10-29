@@ -20,6 +20,11 @@ export function startsInWords(iso: string, now: Date = new Date()): string {
   return diff <= 6 ? `this ${weekday}` : `on ${weekday}`;
 }
 
+/** "Sunday" in India time. */
+export function challengeWeekday(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: IST, weekday: 'long' }).format(new Date(iso));
+}
+
 /** "3 PM" or "2:30 PM" in India time. */
 export function challengeTime(iso: string): string {
   const d = new Date(iso);

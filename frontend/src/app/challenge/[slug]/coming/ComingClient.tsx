@@ -7,7 +7,7 @@ import { fightFont } from '@/components/challenge/ChallengeHero';
 import { useBotGuard } from '@/components/auth/BotGuard';
 import { comingYesByPhone, getChallenge, type Challenge } from '@/lib/api/challenges';
 import { trackAction } from '@/lib/api/analyticsEvents';
-import { COMMUNITY_URL, challengeDay, challengeTime, challengeTimeRange, whatsappShare } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeTime, challengeWeekday, challengeTimeRange, whatsappShare } from '@/lib/challenge';
 
 /** Opened from the community message. One field, one tap: "Yes, I'm coming".
  *  Found by the WhatsApp number they signed up with, so there is nothing to log in to. */
@@ -76,7 +76,7 @@ export function ComingClient({ slug }: { slug: string }) {
         <form onSubmit={submit} noValidate className="relative mt-10 flex flex-col gap-4">
           {trap}
           <h1 className={`${fightFont.className} text-5xl font-bold uppercase leading-none`}>
-            Coming{ch ? ` ${challengeDay(ch.startsAt).split(' ')[0]}` : ''}?
+            Coming{ch ? ` ${challengeWeekday(ch.startsAt)}` : ''}?
           </h1>
           <p className="text-[#DADCE3]">
             {ch ? `${ch.title} at ${ch.cafe.name}, ${when}.` : 'Tap yes so we know to expect you.'} One tap and we’ll hold your place.
