@@ -200,7 +200,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               className="chv-start mt-5 flex h-[68px] w-full flex-col items-center justify-center bg-[#D0463C] text-white transition-colors [clip-path:polygon(3%_0,100%_0,97%_100%,0_100%)] hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
               <span className={`${fightFont.className} flex items-center gap-2 text-[34px] font-bold uppercase leading-none tracking-[0.08em]`}>
-                <Play className="h-6 w-6 fill-current" /> {full ? 'Join the reserve list' : 'Sign up for free'}
+                <Play className="h-6 w-6 fill-current" /> {full ? 'Reserve my spot' : 'Sign up for free'}
               </span>
               <span className="text-xs font-semibold text-white/90">{full ? 'Free · we fit you in when people don’t show' : 'Free · takes under a minute'}</span>
             </button>
