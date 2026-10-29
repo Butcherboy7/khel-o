@@ -660,6 +660,29 @@ function ResultModal({
           <p className="text-xs text-text-secondary">
             {goals ? 'Goals are optional. A level score needs the penalties.' : 'Games won is optional.'}
           </p>
+          {!match.winner && match.a && match.b && (
+            <div className="rounded-xl bg-surface p-3" data-walkover>
+              <p className="text-caption font-semibold text-text-primary">Someone didn’t turn up?</p>
+              <p className="text-xs text-text-secondary">The other player goes through with a walkover (no score).</p>
+              <div className="mt-2 flex flex-col gap-2">
+                {(['a', 'b'] as const).map((s) => {
+                  const side = s === 'a' ? match.a : match.b;
+                  const other = s === 'a' ? match.b : match.a;
+                  return (
+                    <Button
+                      key={s}
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => onSave({ winner: s, scoreA: null, scoreB: null, tiebreak: null, tiebreakA: null, tiebreakB: null })}
+                    >
+                      {other?.name} didn’t show: {side?.name} wins
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {problem && <p className="text-caption font-semibold text-error" role="alert">{problem}</p>}
           <div className="flex justify-between gap-2">
             {match.winner ? (

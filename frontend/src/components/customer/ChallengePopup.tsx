@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CalendarDays, MapPin, MessageCircle, Swords, Users, X } from 'lucide-react';
 import { trackAction } from '@/lib/api/analyticsEvents';
-import { COMMUNITY_URL, challengeDay, challengeTimeRange, openToAll } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeTimeRange, openToAll, startsInWords } from '@/lib/challenge';
 import { markChallengeSeen, useChallengeNudge, writeNudge } from '@/lib/challengeNudge';
 
 const SHOW_AFTER_MS = 2500;
@@ -118,7 +118,7 @@ export function ChallengePopup() {
     ch.status !== 'open'
       ? 'Player sign-ups closed · come watch'
       : openToAll(ch.capacity)
-      ? 'Free to play · everyone who signs up plays'
+      ? `${ch.confirmed > 0 ? `${ch.confirmed} already in · ` : ''}free to play ${startsInWords(ch.startsAt)}`
       : ch.spotsLeft === 0
         ? `All ${ch.capacity} player spots taken · reserve list open`
         : `${ch.spotsLeft} of ${ch.capacity} player spots left`;

@@ -10,6 +10,16 @@ export function challengeDay(iso: string): string {
   return `${get('weekday')} ${get('day')} ${get('month')}`;
 }
 
+/** When it is, in words for a nudge: "today", "tomorrow", "this Sunday", "on Sunday" (India time). */
+export function startsInWords(iso: string, now: Date = new Date()): string {
+  const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: IST }).format(d); // YYYY-MM-DD
+  const diff = Math.round((Date.parse(day(new Date(iso))) - Date.parse(day(now))) / 86_400_000);
+  const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: IST, weekday: 'long' }).format(new Date(iso));
+  if (diff <= 0) return 'today';
+  if (diff === 1) return 'tomorrow';
+  return diff <= 6 ? `this ${weekday}` : `on ${weekday}`;
+}
+
 /** "3 PM" or "2:30 PM" in India time. */
 export function challengeTime(iso: string): string {
   const d = new Date(iso);

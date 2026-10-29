@@ -7,7 +7,7 @@ import { ArrowLeft, CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircl
 import { useAuthStore } from '@/store/authStore';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, getMyChallenge, type Challenge, type MyEntry } from '@/lib/api/challenges';
-import { COMMUNITY_URL, challengeDay, challengeTime, challengeTimeRange, openToAll, rememberUtm, whatsappShare } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeTime, challengeTimeRange, openToAll, rememberUtm, startsInWords, whatsappShare } from '@/lib/challenge';
 import { markChallengeSeen } from '@/lib/challengeNudge';
 import { SimpleMarkdown } from '@/components/challenge/SimpleMarkdown';
 import { ChallengeSignUpSheet } from '@/components/challenge/ChallengeSignUpSheet';
@@ -261,7 +261,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
         <p className="mt-3 text-sm text-[#A3A6B1]">
           {everyone
             ? open
-              ? 'No spots to fight for. Sign up, come to check-in, and you play.'
+              ? `${filled > 0 ? `${filled} already signed up. ` : ''}It’s ${startsInWords(ch.startsAt)}: sign up now, we’ll WhatsApp you the check-in details, and you play.`
               : 'Sign-ups are closed, but you can still sign up at the café on the day.'
             : !open
             ? ch.status === 'closed' && !ch.checkinClosedAt && ch.waitlist > 0
