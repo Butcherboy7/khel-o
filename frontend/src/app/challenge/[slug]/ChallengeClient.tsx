@@ -110,7 +110,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
     }
   }, [isHydrated]);
 
-  const start = useCallback((where: 'hero' | 'sticky') => {
+  const start = useCallback((where: 'hero' | 'sticky' | 'players') => {
     trackAction('challenge_signup_started', { challenge: slug, signedIn: isAuthenticated, where });
     setSheetOpen(true);
   }, [slug, isAuthenticated]);
@@ -249,7 +249,9 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
           </h2>
           {ch.waitlist > 0 && <p className="text-xs text-[#A3A6B1]">{ch.waitlist} on the reserve list</p>}
         </div>
-        {everyone ? null : ch.capacity <= 20 ? (
+        {everyone ? (
+          <PlayerSelect capacity={10} filled={Math.min(ch.confirmed, 10)} open={open} more={Math.max(0, ch.confirmed - 10)} />
+        ) : ch.capacity <= 20 ? (
           <PlayerSelect capacity={ch.capacity} filled={filled} open={open} />
         ) : (
           <div className="mt-3 flex gap-1" aria-hidden>
@@ -271,6 +273,15 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
             ? 'The reserve list is open. Come to check-in and we’ll fit you in as spots free up.'
             : `The first ${ch.capacity} to sign up get a spot. After that, the reserve list opens.`}
         </p>
+        {everyone && open && !active && (
+          <button
+            type="button"
+            onClick={() => start('players')}
+            className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#F2C94C] text-base font-bold text-[#1A1306] transition-colors hover:bg-[#E6BC3D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          >
+            <Play className="h-4 w-4 fill-current" aria-hidden /> Be player {ch.confirmed + 1}: sign up free
+          </button>
+        )}
       </section>
 
       <a

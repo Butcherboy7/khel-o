@@ -113,7 +113,7 @@ function Bust({ variant, lit }: { variant: number; lit: boolean }) {
 }
 
 /** The real spots as a fighting-game select screen: taken slots lit, the next one waits for you. */
-export function PlayerSelect({ capacity, filled, open }: { capacity: number; filled: number; open: boolean }) {
+export function PlayerSelect({ capacity, filled, open, more = 0 }: { capacity: number; filled: number; open: boolean; more?: number }) {
   return (
     <div className={`${fightFont.className} mt-4 grid grid-cols-5 gap-x-2 gap-y-4`} aria-hidden>
       {Array.from({ length: capacity }, (_, i) => {
@@ -143,9 +143,15 @@ export function PlayerSelect({ capacity, filled, open }: { capacity: number; fil
                   ?
                 </span>
               )}
+              {/* More players than tiles: the last tile says how many more, like a photo grid's "+3" */}
+              {more > 0 && i === capacity - 1 && (
+                <span className="absolute inset-0 flex items-center justify-center bg-[#0A0809]/70 text-[40px] font-bold leading-none text-white">
+                  +{more}
+                </span>
+              )}
             </div>
             <p className={`mt-1 text-center text-[15px] font-semibold uppercase leading-none ${taken ? 'text-white' : next ? 'text-[#E8675D]' : 'text-[#4A4654]'}`}>
-              {taken ? `P${i + 1}` : next ? 'You?' : 'Open'}
+              {more > 0 && i === capacity - 1 ? 'And more' : taken ? `P${i + 1}` : next ? 'You?' : 'Open'}
             </p>
           </div>
         );
