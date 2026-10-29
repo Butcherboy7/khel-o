@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CalendarDays, Clock, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play, Send } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Clock, Hourglass, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play, Send } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, getMyChallenge, type Challenge, type MyEntry } from '@/lib/api/challenges';
-import { COMMUNITY_URL, challengeDay, challengeTime, challengeTimeRange, openToAll, rememberUtm, startsInWords, whatsappShare } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeTime, challengeTimeRange, openToAll, rememberUtm, startsInDays, startsInWords, whatsappShare } from '@/lib/challenge';
 import { markChallengeSeen } from '@/lib/challengeNudge';
 import { SimpleMarkdown } from '@/components/challenge/SimpleMarkdown';
 import { ChallengeSignUpSheet } from '@/components/challenge/ChallengeSignUpSheet';
@@ -203,6 +203,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
             <Chip icon={<CalendarDays className="h-4 w-4" />}>{challengeDay(ch.startsAt)}</Chip>
             <Chip icon={<Clock className="h-4 w-4" />}>{challengeTimeRange(ch.startsAt, ch.endsAt)}</Chip>
             <Chip icon={<MapPin className="h-4 w-4" />}>{ch.cafe.name.replace(/ Gaming Lounge$/i, '')}</Chip>
+            {open && <Chip icon={<Hourglass className="h-4 w-4" />}>{startsInDays(ch.startsAt)}</Chip>}
           </div>
           {open && !active && (
             <button
@@ -214,7 +215,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               <span className={`${fightFont.className} flex items-center gap-2 text-[34px] font-bold uppercase leading-none tracking-[0.08em]`}>
                 <Play className="h-6 w-6 fill-current" /> {full ? 'Reserve my spot' : 'Sign up for free'}
               </span>
-              <span className="text-xs font-semibold text-white/90">{full ? 'Free · we fit you in when people don’t show' : ch.confirmed > 0 ? `${ch.confirmed} already in · free · under a minute` : 'Free · takes under a minute'}</span>
+              <span className="text-xs font-semibold text-white/90">{full ? 'Free · we fit you in when people don’t show' : ch.confirmed > 0 ? `${ch.confirmed} already in · free · just name + WhatsApp` : 'Free · takes under a minute'}</span>
             </button>
           )}
           {isVideoId(ch.videoId) && (
@@ -425,7 +426,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#D0463C] font-heading text-lg font-bold text-white transition-colors hover:bg-[#B23A31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
               <Play className="h-5 w-5 fill-current" />
-              {full ? 'Join the reserve list · free' : 'Sign up for free'}
+              {full ? 'Join the reserve list · free' : ch.confirmed > 0 ? `Sign up for free · ${ch.confirmed} in` : 'Sign up for free'}
             </button>
           ) : (
             <p className="flex h-14 items-center justify-center rounded-2xl bg-[#16181E] text-sm font-semibold text-[#A3A6B1]">

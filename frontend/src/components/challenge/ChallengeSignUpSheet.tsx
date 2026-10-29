@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, MessageCircle, Share2, X } from 'lucide-react';
+import { CalendarPlus, CheckCircle2, MessageCircle, Share2, X } from 'lucide-react';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { useBotGuard } from '@/components/auth/BotGuard';
 import { fightFont } from '@/components/challenge/ChallengeHero';
@@ -12,7 +12,7 @@ import { getPublicEnv } from '@/lib/runtimeEnv';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { joinChallenge, quickJoinChallenge, type Challenge, type MyChallenge } from '@/lib/api/challenges';
 import { ApiError } from '@/lib/api/errors';
-import { COMMUNITY_URL, challengeDay, challengeTimeRange, openToAll, recalledUtm, whatsappShare } from '@/lib/challenge';
+import { COMMUNITY_URL, calendarUrl, challengeDay, challengeTimeRange, openToAll, recalledUtm, whatsappShare } from '@/lib/challenge';
 import {
   hasTappedCommunity,
   lastSignInMethod,
@@ -188,6 +188,7 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
               trackAction('challenge_community_click', { challenge: challenge.slug, where: 'after_signup' });
             }}
             shareHref={whatsappShare(shareText)}
+            calendarHref={calendarUrl(challenge)}
             onSpot={onJoined}
           />
         ) : (
@@ -291,6 +292,9 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
               </p>
             )}
 
+            {!full && challenge.confirmed > 0 && (
+              <p className="text-center text-sm font-bold text-[#F2C94C]">You’ll be player {challenge.confirmed + 1}</p>
+            )}
             <button
               type="submit"
               disabled={busy}
@@ -325,6 +329,7 @@ function Done({
   tapped,
   onTap,
   shareHref,
+  calendarHref,
   onSpot,
 }: {
   slug: string;
@@ -333,6 +338,7 @@ function Done({
   tapped: boolean;
   onTap: () => void;
   shareHref: string;
+  calendarHref: string;
   onSpot: () => void;
 }) {
   const waitlist = res.entry?.status === 'waitlist';
@@ -361,6 +367,15 @@ function Done({
         </a>
         {tapped && <p className="mt-2 text-xs text-[#7FE0A0]">Thanks. Make sure you tapped “Join” inside WhatsApp.</p>}
       </div>
+      <a
+        href={calendarHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => trackAction('challenge_calendar_add', { challenge: slug, where: 'after_signup' })}
+        className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#F2C94C]/60 bg-[#F2C94C]/10 font-semibold text-[#F2C94C]"
+      >
+        <CalendarPlus className="h-4 w-4" aria-hidden /> Add to my calendar
+      </a>
       <a
         href={shareHref}
         target="_blank"

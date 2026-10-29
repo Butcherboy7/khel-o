@@ -14,7 +14,7 @@ import {
 } from '@/lib/api/challenges';
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
 import { hasTappedCommunity, markCommunityTapped } from '@/lib/challenge-signup';
-import { COMMUNITY_URL, challengeDay, challengeMoment, challengeTime, challengeTimeRange, handle, openToAll, whatsappShare } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeMoment, challengeTime, challengeTimeRange, calendarUrl, handle, openToAll, whatsappShare } from '@/lib/challenge';
 
 export default function MyChallengePage() {
   return (
@@ -153,6 +153,17 @@ function MyChallenge() {
             {confirmed && !openToAll(ch.capacity) ? ' After that, your spot goes to the reserve list.' : ''}
           </p>
         </div>
+        {before && (
+          <a
+            href={calendarUrl(ch)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => trackAction('challenge_calendar_add', { challenge: slug, where: 'me' })}
+            className="col-span-2 flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#F2C94C]/60 bg-[#F2C94C]/10 font-semibold text-[#F2C94C]"
+          >
+            Add to my calendar
+          </a>
+        )}
         {ch.cafe.mapsUrl && (
           <a
             href={ch.cafe.mapsUrl}

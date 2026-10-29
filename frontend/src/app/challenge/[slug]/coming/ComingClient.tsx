@@ -7,7 +7,7 @@ import { fightFont } from '@/components/challenge/ChallengeHero';
 import { useBotGuard } from '@/components/auth/BotGuard';
 import { comingYesByPhone, getChallenge, type Challenge } from '@/lib/api/challenges';
 import { trackAction } from '@/lib/api/analyticsEvents';
-import { COMMUNITY_URL, challengeDay, challengeTime, challengeWeekday, challengeTimeRange, whatsappShare } from '@/lib/challenge';
+import { COMMUNITY_URL, calendarUrl, challengeDay, challengeTime, challengeWeekday, challengeTimeRange, whatsappShare } from '@/lib/challenge';
 
 /** Opened from the community message. One field, one tap: "Yes, I'm coming".
  *  Found by the WhatsApp number they signed up with, so there is nothing to log in to. */
@@ -68,6 +68,16 @@ export function ComingClient({ slug }: { slug: string }) {
           >
             <MessageCircle className="h-5 w-5" aria-hidden /> Bring a friend to watch
           </a>
+          {ch && (
+            <a
+              href={calendarUrl(ch)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-14 items-center justify-center rounded-xl border border-[#F2C94C]/60 bg-[#F2C94C]/10 text-base font-bold text-[#F2C94C]"
+            >
+              Add to my calendar
+            </a>
+          )}
           <a href={ch?.communityUrl || COMMUNITY_URL} target="_blank" rel="noopener noreferrer" className="text-center text-sm font-semibold underline">
             Open the community
           </a>

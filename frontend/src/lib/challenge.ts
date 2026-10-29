@@ -25,6 +25,31 @@ export function challengeWeekday(iso: string): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone: IST, weekday: 'long' }).format(new Date(iso));
 }
 
+/** "today", "tomorrow", "in 3 days": how far off it is (India time). */
+export function startsInDays(iso: string, now: Date = new Date()): string {
+  const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: IST }).format(d);
+  const diff = Math.round((Date.parse(day(new Date(iso))) - Date.parse(day(now))) / 86_400_000);
+  if (diff <= 0) return 'today';
+  if (diff === 1) return 'tomorrow';
+  return `in ${diff} days`;
+}
+
+/** A Google Calendar "add event" link: from when check-in opens until the end. A reminder on their phone is the cheapest way to get people to turn up. */
+export function calendarUrl(c: {
+  title: string; slug: string; checkinOpensAt: string; endsAt: string; cafe: { name: string; address?: string | null; city?: string | null };
+}): string {
+  const stamp = (iso: string) => new Date(iso).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const where = [c.cafe.name, c.cafe.address || c.cafe.city].filter(Boolean).join(', ');
+  const q = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: c.title,
+    dates: `${stamp(c.checkinOpensAt)}/${stamp(c.endsAt)}`,
+    details: `Free to play. Check-in opens ${challengeTime(c.checkinOpensAt)}: walk in and say your name. https://khel-o.com/challenge/${c.slug}`,
+    location: where,
+  });
+  return `https://calendar.google.com/calendar/render?${q.toString()}`;
+}
+
 /** "3 PM" or "2:30 PM" in India time. */
 export function challengeTime(iso: string): string {
   const d = new Date(iso);
