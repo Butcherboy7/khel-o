@@ -137,12 +137,13 @@ function CafeBlock({ c, busy, onDownload }: { c: CafeStatement; busy: boolean; o
                 <th className="py-1 pr-3 text-right font-semibold">Offers</th>
                 {showChallenge && <th className="py-1 pr-3 text-right font-semibold">Challenge 20%</th>}
                 <th className="py-1 pr-3 text-right font-semibold">Café earns</th>
-                <th className="py-1 text-right font-semibold">KHEL-O adds back</th>
+                <th className="py-1 pr-3 text-right font-semibold">KHEL-O adds back</th>
+                <th className="py-1 text-right font-semibold">Payment</th>
               </tr>
             </thead>
             <tbody className="text-text-primary">
               {c.lines.length === 0 && (
-                <tr><td colSpan={showChallenge ? 8 : 7} className="py-2 text-text-secondary">No paid bookings this week.</td></tr>
+                <tr><td colSpan={showChallenge ? 9 : 8} className="py-2 text-text-secondary">No paid bookings this week.</td></tr>
               )}
               {c.lines.map((l) => (
                 <tr key={l.reference} className="border-t border-border align-top">
@@ -153,7 +154,12 @@ function CafeBlock({ c, busy, onDownload }: { c: CafeStatement; busy: boolean; o
                   <td className="py-1.5 pr-3 text-right font-data">{dash(l.offerDiscount)}</td>
                   {showChallenge && <td className="py-1.5 pr-3 text-right font-data">{dash(l.challengeDiscount)}</td>}
                   <td className="py-1.5 pr-3 text-right font-data font-semibold">{rupees(l.earnings)}</td>
-                  <td className="py-1.5 text-right font-data">{dash(l.addedBack)}</td>
+                  <td className="py-1.5 pr-3 text-right font-data">{dash(l.addedBack)}</td>
+                  <td className="py-1.5 text-right" data-payment={l.payment}>
+                    {l.payment === 'paid' ? (
+                      <span className="text-success">Paid{l.paidOn ? ` ${label(l.paidOn)}` : ''}{l.utr && <span className="block font-mono text-xs text-text-secondary">{l.utr}</span>}</span>
+                    ) : l.payment === 'processing' ? 'Processing' : <span className="text-text-secondary">Not yet paid</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -164,10 +170,16 @@ function CafeBlock({ c, busy, onDownload }: { c: CafeStatement; busy: boolean; o
                 <td className="py-1.5 pr-3 text-right font-data">{dash(t.offerDiscounts)}</td>
                 {showChallenge && <td className="py-1.5 pr-3 text-right font-data">{dash(t.challengeDiscounts)}</td>}
                 <td className="py-1.5 pr-3 text-right font-data">{rupees(t.earnings)}</td>
-                <td className="py-1.5 text-right font-data">{dash(t.addedBack)}</td>
+                <td className="py-1.5 pr-3 text-right font-data">{dash(t.addedBack)}</td>
+                <td />
               </tr>
             </tfoot>
           </table>
+        </div>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-caption text-text-primary" data-statement-balance>
+          <span>Total due <b className="font-data">{rupees(t.totalDue)}</b></span>
+          <span>Already paid <b className="font-data">{rupees(t.paidOut)}</b></span>
+          <span>Balance to pay <b className="font-data">{rupees(t.balance)}</b></span>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-caption text-text-secondary">Statement {c.number}</p>

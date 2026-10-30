@@ -24,8 +24,10 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.time import now_ist
+from app.core.time import IST, now_ist
 from app.models.booking import REDEEMED_STATUSES, Booking
+from app.models.cafe_payout import CafePayout
+from app.models.cafe_payout_item import CafePayoutItem
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
 from app.models.platform_fee import PlatformFee
@@ -66,6 +68,11 @@ class Line:
     earnings: Decimal
     khelo_added_back: Decimal        # the discount KHEL-O funds, owed back to the café
     offer: str = ""
+    # Whether KHEL-O has paid this booking's earnings to the café: "paid" (with the UTR and date),
+    # "processing", or "pending" (not in a payout yet, or the payout isn't paid).
+    payment: str = "pending"
+    paid_on: Optional[date] = None
+    utr: str = ""
 
 
 @dataclass
@@ -103,6 +110,17 @@ class Statement:
     def total_due(self) -> Decimal:
         return self.earnings + self.added_back
 
+    @property
+    def paid_out(self) -> Decimal:
+        """Earnings KHEL-O has already paid the café: bookings whose payout is marked paid."""
+        return sum((l.earnings for l in self.lines if l.payment == "paid"), Decimal("0.00"))
+
+    @property
+    def balance(self) -> Decimal:
+        """Still to be paid: everything due less what is already paid out. The add-back is
+        settled by hand and is not recorded as paid anywhere, so it always stays in here."""
+        return self.total_due - self.paid_out
+
 
 def financial_year(d: date) -> str:
     start = d.year if d.month >= 4 else d.year - 1
@@ -122,12 +140,14 @@ async def build(db: AsyncSession, cafe: Cafe, week_start: date) -> Statement:
     week_start = week_monday(week_start)
     week_end = week_start + timedelta(days=6)
     rows = (await db.execute(
-        select(Booking, User, HardwareTier, PlatformFee, Promotion, OfferCampaign)
+        select(Booking, User, HardwareTier, PlatformFee, Promotion, OfferCampaign, CafePayout)
         .join(User, User.id == Booking.gamer_id)
         .join(HardwareTier, HardwareTier.id == Booking.hardware_tier_id)
         .outerjoin(PlatformFee, PlatformFee.booking_id == Booking.id)
         .outerjoin(Promotion, Promotion.id == Booking.promotion_id)
         .outerjoin(OfferCampaign, OfferCampaign.id == Promotion.campaign_id)
+        .outerjoin(CafePayoutItem, CafePayoutItem.platform_fee_id == PlatformFee.id)
+        .outerjoin(CafePayout, CafePayout.id == CafePayoutItem.payout_id)
         .where(
             Booking.cafe_id == cafe.id, Booking.status.in_(REDEEMED_STATUSES),
             Booking.session_date >= week_start, Booking.session_date <= week_end,
@@ -138,7 +158,7 @@ async def build(db: AsyncSession, cafe: Cafe, week_start: date) -> Statement:
         cafe_id=str(cafe.id), cafe_name=cafe.name, cafe_address=_address(cafe), week_start=week_start,
         week_end=week_end, number=statement_number(cafe, week_start), generated_on=now_ist().date(),
     )
-    for b, user, tier, fee, promo, camp in rows:
+    for b, user, tier, fee, promo, camp, payout in rows:
         discount = money(b.discount_amount)
         challenge_reward = camp is not None and camp.challenge_id is not None
         funded = bool(challenge_reward and camp.khelo_funded)
@@ -152,6 +172,9 @@ async def build(db: AsyncSession, cafe: Cafe, week_start: date) -> Statement:
             challenge_discount=discount if cafe_funded_challenge else Decimal("0.00"),
             earnings=earnings, khelo_added_back=discount if funded else Decimal("0.00"),
             offer=(promo.title if promo is not None else ""),
+            payment=(payout.status.value if payout is not None and payout.status is not None else "pending"),
+            paid_on=(payout.paid_at.astimezone(IST).date() if payout is not None and payout.paid_at is not None else None),
+            utr=((payout.utr_reference or "") if payout is not None else ""),
         ))
     return st
 
@@ -176,12 +199,14 @@ def as_json(st: Statement) -> dict:
             "bookings": len(st.lines), "value": f(st.value), "offerDiscounts": f(st.offer_discounts),
             "challengeDiscounts": f(st.challenge_discounts), "earnings": f(st.earnings),
             "addedBack": f(st.added_back), "totalDue": f(st.total_due),
+            "paidOut": f(st.paid_out), "balance": f(st.balance),
         },
         "lines": [{
             "date": l.date.isoformat(), "time": l.time, "reference": l.reference, "player": l.player,
             "setup": l.setup, "hours": l.hours, "value": f(l.value), "offerDiscount": f(l.offer_discount),
             "challengeDiscount": f(l.challenge_discount), "earnings": f(l.earnings),
             "addedBack": f(l.khelo_added_back), "offer": l.offer,
+            "payment": l.payment, "paidOn": l.paid_on.isoformat() if l.paid_on else None, "utr": l.utr,
         } for l in st.lines],
     }
 
@@ -244,6 +269,12 @@ def in_words(amount) -> str:
     if paise:
         text += f" and {_below_thousand(paise)} Paise"
     return text + " Only"
+
+
+def _payment_text(l: Line) -> str:
+    if l.payment == "paid":
+        return "Paid" + (f" {l.paid_on.strftime('%d %b')}" if l.paid_on else "") + (f"<br/>UTR {l.utr}" if l.utr else "")
+    return "Processing" if l.payment == "processing" else "Not yet paid"
 
 
 def render_pdf(st: Statement) -> bytes:
@@ -323,7 +354,6 @@ def render_pdf(st: Statement) -> bytes:
     story += [parties, Spacer(1, 8)]
 
     summary_rows = [
-        ["Paid bookings this week", str(len(st.lines))],
         ["Total booking value (at your prices)", inr(st.value)],
         ["Less: offers and discounts you set", "-" + inr(st.offer_discounts)],
     ]
@@ -333,22 +363,30 @@ def render_pdf(st: Statement) -> bytes:
     if st.added_back:
         summary_rows.append(["Add: discounts KHEL-O funded and adds back to you", inr(st.added_back)])
     summary_rows.append(["TOTAL DUE TO YOUR CAFÉ", inr(st.total_due)])
-    summary = Table([[Paragraph(a, bold if i == len(summary_rows) - 1 else body), Paragraph(b, right_bold if i in (len(summary_rows) - 1,) else right)]
-                     for i, (a, b) in enumerate(summary_rows)], colWidths=[width * 0.46, width * 0.2], hAlign="LEFT")
+    summary_rows.append(["Less: already paid to you by KHEL-O", "-" + inr(st.paid_out)])
+    summary_rows.append(["BALANCE STILL TO BE PAID", inr(st.balance)])
+    strong = {len(summary_rows) - 3, len(summary_rows) - 1}  # total due, balance
+    summary = Table([[Paragraph(a, bold if i in strong else body), Paragraph(b, right_bold if i in strong else right)]
+                     for i, (a, b) in enumerate(summary_rows)], colWidths=[width * 0.34, width * 0.14], hAlign="LEFT")
     summary.setStyle(TableStyle([
         ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor(RULE)),
-        ("LINEABOVE", (0, -1), (-1, -1), 0.9, colors.HexColor(INK)),
-        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor(BAND)),
+        *[cmd for i in sorted(strong) for cmd in (
+            ("LINEABOVE", (0, i), (-1, i), 0.9, colors.HexColor(INK)), ("BACKGROUND", (0, i), (-1, i), colors.HexColor(BAND)))],
         ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
-    story += [Paragraph("SUMMARY", small), Spacer(1, 3), summary, Spacer(1, 8)]
+    words = Paragraph(f"<b>Balance in words:</b> {in_words(st.balance)}<br/><b>Total due in words:</b> {in_words(st.total_due)}", body)
+    side = Table([[[Paragraph("SUMMARY", small), Spacer(1, 3), summary],
+                   [Spacer(1, 12), words, Spacer(1, 26), Paragraph("For <b>Khelo</b>", right), Spacer(1, 22), Paragraph("Authorised signatory", right)]]],
+                 colWidths=[width * 0.5, width * 0.5], style=TableStyle([
+                     ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+    story += [side, Spacer(1, 8)]
 
     story += [Paragraph("BOOKINGS", small), Spacer(1, 3)]
     show_ch = bool(st.challenge_discounts)
     header = ["Date", "Time", "Booking ref", "Player", "Setup", "Hrs", "Value", "Offer / discount"]
     if show_ch:
         header.append("Challenge 20%")
-    header += ["Your earnings", "KHEL-O adds back"]
+    header += ["Your earnings", "KHEL-O adds back", "Payment"]
     data = [[Paragraph(f"<b>{h}</b>", cell if i < 5 else base("hr", fontSize=8, leading=10, alignment=TA_RIGHT, fontName="Helvetica-Bold")) for i, h in enumerate(header)]]
     for l in st.lines:
         r = [Paragraph(l.date.strftime("%d %b"), cell), Paragraph(l.time, cell), Paragraph(l.reference, cell),
@@ -358,18 +396,19 @@ def render_pdf(st: Statement) -> bytes:
         if show_ch:
             r.append(Paragraph(inr(l.challenge_discount) if l.challenge_discount else "-", base("n3", fontSize=8, leading=10, alignment=TA_RIGHT)))
         r += [Paragraph(inr(l.earnings), base("n4", fontSize=8, leading=10, alignment=TA_RIGHT, fontName="Helvetica-Bold")),
-              Paragraph(inr(l.khelo_added_back) if l.khelo_added_back else "-", base("n5", fontSize=8, leading=10, alignment=TA_RIGHT))]
+              Paragraph(inr(l.khelo_added_back) if l.khelo_added_back else "-", base("n5", fontSize=8, leading=10, alignment=TA_RIGHT)),
+              Paragraph(_payment_text(l), base("n6", fontSize=7.5, leading=9, alignment=TA_RIGHT))]
         data.append(r)
     if not st.lines:
         data.append([Paragraph("No paid bookings in this period.", cell)] + [""] * (len(header) - 1))
     tail = ["", "", "", "", "", "", Paragraph(inr(st.value), right_bold), Paragraph(inr(st.offer_discounts), right_bold)]
     if show_ch:
         tail.append(Paragraph(inr(st.challenge_discounts), right_bold))
-    tail += [Paragraph(inr(st.earnings), right_bold), Paragraph(inr(st.added_back), right_bold)]
+    tail += [Paragraph(inr(st.earnings), right_bold), Paragraph(inr(st.added_back), right_bold), ""]
     tail[0] = Paragraph("<b>Total</b>", cell)
     data.append(tail)
 
-    fixed = [16, 15, 24, 34, 28, 8, 20, 22] + ([20] if show_ch else []) + [22, 20]
+    fixed = [15, 14, 22, 30, 25, 7, 19, 20] + ([19] if show_ch else []) + [21, 19, 22]
     scale = width / sum(fixed)
     t = Table(data, colWidths=[w * scale for w in fixed], repeatRows=1)
     t.setStyle(TableStyle([
@@ -383,20 +422,11 @@ def render_pdf(st: Statement) -> bytes:
     ]))
     story += [t, Spacer(1, 8)]
 
-    words = Paragraph(f"<b>Total due, in words:</b> {in_words(st.total_due)}", body)
     notes = [
-        "Your earnings are each booking's value minus the offers and discounts on it. KHEL-O's booking fee is paid by the player on top and is not deducted from you.",
-        "KHEL-O pays the Rs 1 price drop itself, and any discount shown under 'KHEL-O adds back' is paid to you on top of your earnings.",
-        "Payouts are made by KHEL-O to your registered account. This statement is a record of the week and is not a tax invoice.",
+        "Earnings = booking value minus offers and discounts. KHEL-O's booking fee is paid by the player on top and the Rs 1 price drop by KHEL-O, so neither reduces you.",
+        "'Paid' = part of a payout KHEL-O has marked paid (UTR shown). Discounts KHEL-O adds back are settled separately and stay in the balance until then. Not a tax invoice.",
     ]
-    closing = [Table([[
-        [words, Spacer(1, 6), Paragraph("NOTES", small), Spacer(1, 2),
-         *[Paragraph(f"{i}. {n}", small) for i, n in enumerate(notes, 1)]],
-        [Spacer(1, 4), Paragraph("For <b>Khelo</b>", right), Spacer(1, 26), Paragraph("Authorised signatory", right)],
-    ]], colWidths=[width * 0.74, width * 0.26], style=TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-    ]))]
-    story.extend(closing)
+    story += [Paragraph("NOTES", small), Spacer(1, 2), *[Paragraph(f"{i}. {n}", small) for i, n in enumerate(notes, 1)]]
     doc.build(story)
     return buf.getvalue()
 

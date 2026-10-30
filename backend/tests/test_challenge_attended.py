@@ -220,3 +220,30 @@ def test_amounts_in_words_and_indian_grouping():
     assert cafe_statement.inr(Decimal("-40")) == "-Rs 40.00"
     assert cafe_statement.financial_year(date(2026, 11, 2)) == "2026-27"
     assert cafe_statement.financial_year(date(2027, 2, 1)) == "2026-27"
+
+
+@pytest.mark.asyncio
+async def test_the_statement_shows_what_was_paid_and_what_is_left(async_client, db_session):
+    from app.models.cafe_payout import CafePayout, CafePayoutStatus
+    from app.models.cafe_payout_item import CafePayoutItem
+    ch, admin, h, players, cafe, tier = await _start(async_client, db_session)
+    monday = cafe_statement.week_monday(date.today()) - timedelta(days=7)
+    await _paid_booking(cafe, tier, players[0], monday + timedelta(days=1), "PD-0001", "400", "0", "400")
+    await _paid_booking(cafe, tier, players[1], monday + timedelta(days=2), "PD-0002", "300", "0", "300")
+    async with AsyncSessionLocal() as db:
+        fee = (await db.execute(select(PlatformFee).join(Booking, Booking.id == PlatformFee.booking_id).where(Booking.booking_reference == "PD-0001"))).scalar_one()
+        payout = CafePayout(
+            id=uuid.uuid4(), cafe_id=cafe.id, amount=Decimal("400"), utr_reference="UTR123456", status=CafePayoutStatus.PAID,
+            created_by_admin_id=admin.id, paid_at=datetime.now(timezone.utc),
+        )
+        db.add(payout)
+        await db.flush()
+        db.add(CafePayoutItem(id=uuid.uuid4(), payout_id=payout.id, platform_fee_id=fee.id, booking_id=fee.booking_id, amount_allocated=Decimal("400")))
+        await db.commit()
+    data = (await async_client.get(f"/api/v1/admin/cafe-payouts/{cafe.id}/statement?weekStart={monday.isoformat()}", headers=h)).json()["data"]
+    assert data["totals"]["totalDue"] == 700 and data["totals"]["paidOut"] == 400 and data["totals"]["balance"] == 300
+    by = {l["reference"]: l for l in data["lines"]}
+    assert by["PD-0001"]["payment"] == "paid" and by["PD-0001"]["utr"] == "UTR123456"
+    assert by["PD-0002"]["payment"] == "pending" and by["PD-0002"]["utr"] == ""
+    pdf = await async_client.get(f"/api/v1/admin/cafe-payouts/{cafe.id}/statement.pdf?weekStart={monday.isoformat()}", headers=h)
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")

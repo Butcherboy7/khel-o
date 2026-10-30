@@ -406,6 +406,10 @@ export interface StatementLine {
   earnings: number;
   addedBack: number;
   offer: string;
+  /** Whether KHEL-O has paid this booking's earnings: from the payout it is in. */
+  payment: 'paid' | 'processing' | 'pending' | string;
+  paidOn: string | null;
+  utr: string;
 }
 
 export interface CafeStatement {
@@ -414,7 +418,7 @@ export interface CafeStatement {
   number: string;
   weekStart: string;
   weekEnd: string;
-  totals: { bookings: number; value: number; offerDiscounts: number; challengeDiscounts: number; earnings: number; addedBack: number; totalDue: number };
+  totals: { bookings: number; value: number; offerDiscounts: number; challengeDiscounts: number; earnings: number; addedBack: number; totalDue: number; paidOut: number; balance: number };
   lines: StatementLine[];
 }
 
