@@ -1166,6 +1166,10 @@ class RewardsConfigIn(_Camel):
     waitlist_percent: int = Field(10, ge=1, le=50)
     waitlist_days: int = Field(7, ge=0, le=60)
     waitlist_khelo_funded: bool = True
+    attended_on: bool = False
+    attended_percent: int = Field(20, ge=1, le=50)
+    attended_days: int = Field(7, ge=1, le=60)
+    attended_khelo_funded: bool = False
 
     @field_validator("prize_hours")
     @classmethod
@@ -1184,6 +1188,7 @@ async def _rewards_payload(db: AsyncSession, ch: Challenge) -> dict:
         "config": rewards.config(ch),
         "standingsReady": 1 in day.standings(await day.matches(db, ch.id)),
         "waitlistPeople": len(rewards.waitlist_user_ids(rows)),
+        "checkedInPeople": len(await rewards.attended_user_ids(db, ch.id)),
         "partnerCafes": [c.name for c in await rewards.partner_cafes(db, ch.cafe_id)],
         "rewards": await rewards.tracker(db, ch, by_user),
         # Podium places held by our own test or practice entries: no reward for them.
@@ -1208,6 +1213,7 @@ async def admin_rewards_config(
     ch, _ = await _admin_get(db, challenge_id)
     ch.rewards_config = payload.model_dump(by_alias=True)
     await db.commit()
+    await rewards.ensure_attended(db, ch)
     ch, _ = await _admin_get(db, challenge_id)
     return {"success": True, "data": await _rewards_payload(db, ch)}
 

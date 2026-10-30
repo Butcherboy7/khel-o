@@ -393,6 +393,61 @@ export async function getKheloFundedAddBack(): Promise<KheloFundedAddBack> {
   return call(() => apiClient.get('/api/v1/admin/cafe-payouts/add-back'));
 }
 
+export interface StatementLine {
+  date: string;
+  time: string;
+  reference: string;
+  player: string;
+  setup: string;
+  hours: number;
+  value: number;
+  offerDiscount: number;
+  challengeDiscount: number;
+  earnings: number;
+  addedBack: number;
+  offer: string;
+}
+
+export interface CafeStatement {
+  cafeId: string;
+  cafe: string;
+  number: string;
+  weekStart: string;
+  weekEnd: string;
+  totals: { bookings: number; value: number; offerDiscounts: number; challengeDiscounts: number; earnings: number; addedBack: number; totalDue: number };
+  lines: StatementLine[];
+}
+
+export interface WeeklyStatements {
+  weekStart: string;
+  weekEnd: string;
+  totalDue: number;
+  bookings: number;
+  cafes: CafeStatement[];
+}
+
+export async function getWeeklyStatements(weekStart?: string): Promise<WeeklyStatements> {
+  return call(() => apiClient.get('/api/v1/admin/cafe-payouts/statements', { params: weekStart ? { weekStart } : {} }));
+}
+
+/** Saves a statement PDF (one café) or a zip of every live café's. Goes through apiClient so the bearer token is attached. */
+export async function downloadStatement(weekStart: string, cafeId?: string): Promise<void> {
+  const url = cafeId
+    ? `/api/v1/admin/cafe-payouts/${cafeId}/statement.pdf`
+    : '/api/v1/admin/cafe-payouts/statements.zip';
+  const res = await apiClient.get(url, { params: { weekStart }, responseType: 'blob', timeout: 60_000 });
+  const disposition = String(res.headers['content-disposition'] ?? '');
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? (cafeId ? 'khelo-statement.pdf' : 'khelo-statements.zip');
+  const href = URL.createObjectURL(res.data as Blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(href);
+}
+
 export async function listOutstandingCafePayouts(): Promise<{ cafes: AdminOutstandingCafePayout[] }> {
   return call(() => apiClient.get('/api/v1/admin/cafe-payouts/outstanding'));
 }

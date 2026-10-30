@@ -52,6 +52,11 @@ DEFAULTS: dict[str, Any] = {
     "waitlistPercent": 10,
     "waitlistDays": 7,
     "waitlistKheloFunded": True,
+    # Thank-you for everyone who checks in: off by default, switched on per challenge.
+    "attendedOn": False,
+    "attendedPercent": 20,
+    "attendedDays": 7,
+    "attendedKheloFunded": False,
 }
 PLACES = {1: "1st", 2: "2nd", 3: "3rd"}
 ALL_DAYS = [0, 1, 2, 3, 4, 5, 6]
@@ -294,6 +299,49 @@ async def make_waitlist(db: AsyncSession, ch: Challenge, users: list[str]) -> Of
     return camp
 
 
+async def attended_user_ids(db: AsyncSession, challenge_id) -> list[str]:
+    """Everyone who actually checked in (still in, not our own test entries)."""
+    rows = await svc.entries(db, challenge_id)
+    return [str(e.user_id) for e in rows if e.present and not e.is_test and e.status in ("confirmed", "waitlist")]
+
+
+async def ensure_attended(db: AsyncSession, ch: Challenge) -> Optional[OfferCampaign]:
+    """The checked-in thank-you, made once: X% off at the challenge café, one
+    booking each, from the event day for a week. It has no list of people:
+    PromotionService works out who may use it from the check-ins, so it
+    applies on its own the moment someone is checked in. Commits."""
+    cfg = config(ch)
+    if not cfg["attendedOn"]:
+        return None
+    ch = await svc.lock(db, ch.id)
+    existing = next((c for c in current(await campaigns_for(db, ch.id)) if c.reward_kind == "attended"), None)
+    if existing is not None:
+        await db.commit()
+        return existing
+    event_day = ch.starts_at.astimezone(IST).date()
+    pct = int(cfg["attendedPercent"])
+    camp = OfferCampaign(
+        name=f"{ch.title}: checked-in {pct}% off", cafe_id=ch.cafe_id, is_public=False,
+        access_code=await _new_code(db), max_uses=None, starts_at=_day_start(event_day),
+        ends_at=_day_end(event_day + timedelta(days=int(cfg["attendedDays"]))), is_active=True,
+        allowed_user_ids=None, max_uses_per_user=1, max_seats=None,
+        khelo_funded=bool(cfg["attendedKheloFunded"]), challenge_id=ch.id, reward_kind="attended",
+    )
+    try:
+        db.add(camp)
+        await db.flush()
+        db.add(_promo(
+            ch.cafe_id, camp, f"Thank-you for coming: {pct}% off",
+            description=f"For everyone who checked in at {ch.title}. One booking, within {int(cfg['attendedDays'])} days.",
+            promotion_type=PromotionType.PERCENTAGE, discount_percentage=pct, play_mode="any", max_uses=None,
+        ))
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return next((c for c in current(await campaigns_for(db, ch.id)) if c.reward_kind == "attended"), None)
+    return camp
+
+
 # ── Reading them back ──────────────────────────────────────────────────────
 
 
@@ -315,6 +363,7 @@ def _paid(b: Booking) -> bool:
 KIND_LABEL = {
     "prize_1": "1st place reward", "prize_2": "2nd place reward", "prize_3": "3rd place reward",
     "winner_partners": "Champion's partner-café discount", "waitlist": "Waitlist thank-you",
+    "attended": "Checked-in thank-you",
 }
 
 
@@ -369,7 +418,8 @@ async def tracker(db: AsyncSession, ch: Challenge, entries_by_user: dict[str, Ch
         for row in funded:
             if row["campaignId"] == str(camp.id):
                 add_back[row["cafe"]] = add_back.get(row["cafe"], 0) + row["discount"]
-        people = [entries_by_user.get(uid) for uid in (camp.allowed_user_ids or [])]
+        ids = await attended_user_ids(db, ch.id) if camp.reward_kind == "attended" else (camp.allowed_user_ids or [])
+        people = [entries_by_user.get(uid) for uid in ids]
         out.append({
             "id": str(camp.id),
             "kind": camp.reward_kind,
@@ -386,7 +436,7 @@ async def tracker(db: AsyncSession, ch: Challenge, entries_by_user: dict[str, Ch
             "endsAt": _aware(camp.ends_at).isoformat(),
             "kheloFunded": camp.khelo_funded,
             "forPeople": [svc.public_name(e) for e in people if e is not None],
-            "peopleCount": len(camp.allowed_user_ids or []),
+            "peopleCount": len(ids),
             "paidUses": len(paid),
             "unpaidOrCancelled": len(uses) - len(paid),
             "discountTotal": round(sum(float(b.discount_amount or 0) for b, _c, _u in paid), 2),
@@ -413,8 +463,10 @@ async def mine(db: AsyncSession, ch: Challenge, user_id) -> list[dict]:
     code already applied. Only ever sent to that person."""
     out = []
     now = svc.now()
+    here = await attended_user_ids(db, ch.id)
     for camp in await campaigns_for(db, ch.id):
-        if str(user_id) not in (camp.allowed_user_ids or []) or not camp.is_active:
+        ids = here if camp.reward_kind == "attended" else (camp.allowed_user_ids or [])
+        if str(user_id) not in ids or not camp.is_active or camp.superseded_at is not None:
             continue
         uses = await _uses(db, camp.id)
         used = sum(1 for b, _c, u in uses if _paid(b) and str(u.id) == str(user_id))
@@ -449,4 +501,6 @@ def _detail(camp: OfferCampaign, p: Optional[Promotion]) -> str:
         bits.append("any setup")
     if camp.max_uses_per_user == 1 or camp.max_uses == 1:
         bits.append("one booking")
+    if camp.reward_kind == "attended":
+        bits.append("applies on its own at checkout")
     return ", ".join(bits).capitalize()

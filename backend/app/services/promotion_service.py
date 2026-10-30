@@ -335,12 +335,52 @@ class PromotionService:
         if campaign.allowed_user_ids is not None:
             if user_id is None or str(user_id) not in {str(u) for u in campaign.allowed_user_ids}:
                 return None
+        if campaign.reward_kind == "attended" and not await self.checked_in(campaign, user_id):
+            return None
         if campaign.max_seats is not None and seats > campaign.max_seats:
             return None
         if campaign.max_uses_per_user is not None and user_id is not None:
             if await self.promo_repo.campaign_uses_by_user(campaign.id, user_id) >= campaign.max_uses_per_user:
                 return None
         return campaign
+
+    async def checked_in(self, campaign: OfferCampaign, user_id: Optional[UUID]) -> bool:
+        """The "thank-you for coming" reward belongs to whoever was checked in at its
+        challenge. Worked out from the check-ins themselves, so it is there the moment
+        someone is marked present and never needs a list kept up to date."""
+        if user_id is None or campaign.challenge_id is None:
+            return False
+        from app.models.challenge import ChallengeEntry
+        row = (await self.promo_repo.db.execute(
+            select(ChallengeEntry.id).where(
+                ChallengeEntry.challenge_id == campaign.challenge_id,
+                ChallengeEntry.user_id == user_id,
+                ChallengeEntry.present.is_(True),
+                ChallengeEntry.status.in_(("confirmed", "waitlist")),
+            ).limit(1)
+        )).first()
+        return row is not None
+
+    async def automatic_reward(self, cafe_id: UUID, user_id: Optional[UUID], seats: int = 1) -> Optional[OfferCampaign]:
+        """A reward the customer has earned and that needs no code: today only the
+        checked-in thank-you at the café that hosted the challenge. Returns the
+        campaign so checkout can include its offer, or None."""
+        if user_id is None:
+            return None
+        now = datetime.now(timezone.utc)
+        rows = (await self.promo_repo.db.execute(
+            select(OfferCampaign).where(
+                OfferCampaign.reward_kind == "attended", OfferCampaign.is_active.is_(True),
+                OfferCampaign.superseded_at.is_(None), OfferCampaign.cafe_id == cafe_id,
+            ).order_by(OfferCampaign.starts_at)
+        )).scalars().all()
+        for camp in rows:
+            if not (self._aware(camp.starts_at) <= now <= self._aware(camp.ends_at)):
+                continue
+            found = await self.resolve_campaign(camp.access_code, cafe_id, user_id=user_id, seats=seats)
+            if found is not None:
+                return found
+        return None
 
     async def campaign_status(self, campaign: OfferCampaign) -> dict:
         """Real numbers only: `claimed` is paid bookings, `held` is unpaid
@@ -959,6 +999,8 @@ class PromotionService:
             if campaign.allowed_user_ids is not None:
                 if gamer_id is None or str(gamer_id) not in {str(u) for u in campaign.allowed_user_ids}:
                     raise ValidationException(message="This reward is for someone else's account", error_code="CAMPAIGN_NOT_FOR_YOU")
+            if campaign.reward_kind == "attended" and not await self.checked_in(campaign, gamer_id):
+                raise ValidationException(message="This reward is for people who checked in", error_code="CAMPAIGN_NOT_FOR_YOU")
             if campaign.max_seats is not None and seats_count > campaign.max_seats:
                 raise ValidationException(
                     message=f"This reward is for {campaign.max_seats} seat{'s' if campaign.max_seats > 1 else ''}",

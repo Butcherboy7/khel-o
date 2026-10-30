@@ -21,6 +21,7 @@ import { isApiError, API_ERROR_CODES } from '@/lib/api/errors';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Card, CardContent, Button, Badge, SkeletonCard, ErrorState, EmptyState, Tooltip, Modal } from '@/components/ui';
 import { KheloFundedAddBackSection } from '@/components/admin/KheloFundedAddBack';
+import { WeeklyStatementsSection } from '@/components/admin/WeeklyStatements';
 
 export default function AdminCafePayoutsPage() {
   const queryClient = useQueryClient();
@@ -286,6 +287,8 @@ export default function AdminCafePayoutsPage() {
             ))}
         </div>
       )}
+
+      <WeeklyStatementsSection />
 
       <KheloFundedAddBackSection />
 

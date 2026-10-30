@@ -1,7 +1,7 @@
 import logging
 from typing import Literal, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid as _uuid
 
 from fastapi import APIRouter, Depends, Query, Response, status
@@ -19,7 +19,8 @@ from app.models.owner_payout_account import OwnerPayoutAccount
 from app.api.v1.owner import PhotoPresignRequest
 from app.repositories.cafe_payout_repository import CafePayoutRepository
 from app.repositories.cafe_repository import CafeRepository
-from app.services import challenge_rewards
+from app.models.cafe import Cafe
+from app.services import cafe_statement, challenge_rewards
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -123,6 +124,77 @@ async def run_weekly_payout_allocation(
     repo = CafePayoutRepository(db)
     results = await repo.run_weekly_allocation(admin_id=current_admin.id)
     return {"success": True, "data": {"cafes": results}}
+
+
+def _week(week_start: Optional[str]):
+    from datetime import date as _date
+    try:
+        return cafe_statement.week_monday(_date.fromisoformat(week_start)) if week_start else cafe_statement.last_full_week()
+    except ValueError:
+        raise BadRequestException(message="weekStart must look like 2026-11-02", error_code="BAD_DATE")
+
+
+@router.get("/statements", status_code=status.HTTP_200_OK)
+async def list_weekly_statements(
+    weekStart: Optional[str] = Query(None, description="Any date in the week; defaults to the last finished week"),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Read-only. One line per live café for the Monday-Sunday week: what it earned and is
+    due, with that café's bookings in a table. Nothing here records a payment."""
+    monday = _week(weekStart)
+    out = []
+    for cafe in await cafe_statement.live_cafes(db):
+        out.append(cafe_statement.as_json(await cafe_statement.build(db, cafe, monday)))
+    return {"success": True, "data": {
+        "weekStart": monday.isoformat(), "weekEnd": (monday + timedelta(days=6)).isoformat(),
+        "totalDue": round(sum(c["totals"]["totalDue"] for c in out), 2),
+        "bookings": sum(c["totals"]["bookings"] for c in out), "cafes": out,
+    }}
+
+
+@router.get("/statements.zip", status_code=status.HTTP_200_OK)
+async def download_all_statements(
+    weekStart: Optional[str] = Query(None),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Every live café's PDF statement for the week, in one zip."""
+    monday = _week(weekStart)
+    files = []
+    for cafe in await cafe_statement.live_cafes(db):
+        st = await cafe_statement.build(db, cafe, monday)
+        files.append((cafe_statement.file_name(st), cafe_statement.render_pdf(st)))
+    return Response(
+        content=cafe_statement.zip_pdfs(files), media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="khelo-statements-{monday.isoformat()}.zip"'},
+    )
+
+
+@router.get("/{cafe_id}/statement", status_code=status.HTTP_200_OK)
+async def get_cafe_statement(
+    cafe_id: UUID, weekStart: Optional[str] = Query(None),
+    current_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db),
+):
+    cafe = await db.get(Cafe, cafe_id)
+    if cafe is None:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+    return {"success": True, "data": cafe_statement.as_json(await cafe_statement.build(db, cafe, _week(weekStart)))}
+
+
+@router.get("/{cafe_id}/statement.pdf", status_code=status.HTTP_200_OK)
+async def download_cafe_statement(
+    cafe_id: UUID, weekStart: Optional[str] = Query(None),
+    current_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db),
+):
+    cafe = await db.get(Cafe, cafe_id)
+    if cafe is None:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+    st = await cafe_statement.build(db, cafe, _week(weekStart))
+    return Response(
+        content=cafe_statement.render_pdf(st), media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{cafe_statement.file_name(st)}"'},
+    )
 
 
 # NOTE: routes below use "/{cafe_id}" and MUST stay after every literal-path

@@ -188,6 +188,9 @@ class BookingService:
             campaign = await self.promo_service.resolve_campaign(
                 booking_in.promo_code, booking_in.cafe_id, user_id=gamer_id, seats=seats_requested,
             )
+        if campaign is None and self.promo_service:
+            # A reward they earned that needs no code (the checked-in thank-you).
+            campaign = await self.promo_service.automatic_reward(booking_in.cafe_id, gamer_id, seats_requested)
         campaign_id = campaign.id if campaign is not None else None
 
         resolved_promotion_id = booking_in.promotion_id
@@ -346,6 +349,8 @@ class BookingService:
                 )
                 if campaign is not None:
                     campaign_full = (await self.promo_service.campaign_status(campaign))["full"]
+            if campaign is None:
+                campaign = await self.promo_service.automatic_reward(quote_in.cafe_id, gamer_id, seats_requested)
             campaign_id = campaign.id if campaign is not None and not campaign_full else None
 
             eligible, hint_promo, hint_message, hint_minutes = await self.promo_service.list_eligible_offers(

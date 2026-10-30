@@ -462,6 +462,11 @@ export interface RewardsConfig {
   waitlistPercent: number;
   waitlistDays: number;
   waitlistKheloFunded: boolean;
+  /** The thank-you for everyone who checks in: applies on its own at checkout. */
+  attendedOn: boolean;
+  attendedPercent: number;
+  attendedDays: number;
+  attendedKheloFunded: boolean;
 }
 
 export interface RewardUse {
@@ -507,6 +512,7 @@ export interface RewardsData {
   config: RewardsConfig;
   standingsReady: boolean;
   waitlistPeople: number;
+  checkedInPeople: number;
   partnerCafes: string[];
   rewards: RewardRow[];
   /** Podium places held by our own test or practice entries: no reward for them. */

@@ -119,6 +119,17 @@ export default function ChallengeRewardsPage() {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="flex h-full flex-col gap-2 p-4">
+            <p className="flex items-center gap-2 font-semibold text-text-primary"><Users className="h-4 w-4 text-primary" /> Thank-you for coming</p>
+            <p className="text-caption text-text-secondary">
+              {data.config.attendedOn
+                ? `${data.config.attendedPercent}% off the next booking at the challenge café for everyone who checks in (${data.checkedInPeople} so far). It applies on its own at checkout, once, for ${data.config.attendedDays} days from the challenge day.${data.config.attendedKheloFunded ? ' KHEL-O pays it.' : ' The café pays it.'}`
+                : 'Off. Turn it on in Reward settings below: everyone who checks in then gets a % off their next booking, automatically.'}
+            </p>
+            {kinds.has('attended') && <p className="text-xs text-text-secondary">It is live. Uses are listed under Rewards below.</p>}
+          </CardContent>
+        </Card>
         <Card data-host-tour="waitlist">
           <CardContent className="flex h-full flex-col gap-2 p-4">
             <p className="flex items-center gap-2 font-semibold text-text-primary"><Users className="h-4 w-4 text-primary" /> Waitlist thank-you</p>
@@ -313,7 +324,7 @@ function Settings({ config, locked, busy, onSave }: { config: RewardsConfig; loc
       </span>
     </label>
   );
-  const tick = (k: 'prizeKheloFunded' | 'winnerKheloFunded' | 'waitlistKheloFunded' | 'winnerPartnersOn', label: string) => (
+  const tick = (k: 'prizeKheloFunded' | 'winnerKheloFunded' | 'waitlistKheloFunded' | 'winnerPartnersOn' | 'attendedOn' | 'attendedKheloFunded', label: string) => (
     <label className="flex items-center gap-2 text-caption text-text-primary">
       <input type="checkbox" checked={c[k]} onChange={(e) => set(k, e.target.checked)} /> {label}
     </label>
@@ -344,6 +355,12 @@ function Settings({ config, locked, busy, onSave }: { config: RewardsConfig; loc
           {n('waitlistPercent', 'Waitlist % off', '%')}
           {n('waitlistDays', 'Days after the challenge', 'days')}
           {tick('waitlistKheloFunded', 'KHEL-O pays it')}
+        </div>
+        <div className="flex flex-wrap gap-4">
+          {tick('attendedOn', 'Thank everyone who checks in')}
+          {n('attendedPercent', 'Checked-in % off', '%')}
+          {n('attendedDays', 'Days after the challenge', 'days')}
+          {tick('attendedKheloFunded', 'KHEL-O pays it (otherwise the café does)')}
         </div>
         <div>
           <Button
