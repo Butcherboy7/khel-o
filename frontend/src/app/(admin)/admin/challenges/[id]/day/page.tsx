@@ -33,7 +33,11 @@ export default function ChallengeDayPage() {
   const [reopenReason, setReopenReason] = useState('');
   const [drawOpen, setDrawOpen] = useState(false);
   const [picked, setPicked] = useState<BracketMatch | null>(null);
-  const tour = useHostTour('day', Boolean(detail.data && bracket.data));
+  // Never pops up by itself once the day has started: it would cover check-in and results.
+  const beforeTheDay = Boolean(
+    detail.data && detail.data.challenge.status === 'open' && Date.now() < new Date(detail.data.challenge.checkinOpensAt).getTime(),
+  );
+  const tour = useHostTour('day', Boolean(detail.data && bracket.data) && beforeTheDay);
 
   const setDetail = (d: AdminChallengeDetail) => qc.setQueryData(detailKey, d);
   const setBracket = (b: Bracket) => {
@@ -86,7 +90,7 @@ export default function ChallengeDayPage() {
   return (
     <div className="flex flex-col gap-5 pb-16">
       <div>
-        <Link href={`/admin/challenges/${id}`} className="text-caption font-semibold text-text-secondary hover:text-text-primary">
+        <Link href={`/admin/challenges/${id}`} className="-my-2 inline-flex min-h-11 items-center text-caption font-semibold text-text-secondary hover:text-text-primary">
           ← {c.title}
         </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
