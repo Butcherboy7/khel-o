@@ -63,6 +63,26 @@ export const DAY_PAGE_STEPS: HostStep[] = [
     ),
   },
   {
+    title: 'New since the last practice',
+    body: (
+      <ul className="list-disc space-y-1 pl-5">
+        <li>
+          <b>Make the draw</b> keeps the bracket if pressed twice. Only <b>Redo the draw</b> shuffles again.
+        </li>
+        <li>The counter QR checks in people already on the list too, not only new walk-ins.</li>
+        <li>
+          Someone checks in after the draw? They show <b>Not in the bracket</b>. Tap <b>Add to bracket</b>: they take a bye, nobody is
+          reshuffled. No bye left? They watch, and still get the 20% off.
+        </li>
+        <li>Players who lose see “You are out. Good game!” on their page, with the 20% offer.</li>
+        <li>The 20% off for everyone who checks in works today only. Podium prizes last 7 days.</li>
+        <li>
+          After the final: <b>Take photo</b> of the champion, then <b>Download post</b> and <b>Download story</b>.
+        </li>
+      </ul>
+    ),
+  },
+  {
     target: 'screens',
     title: 'Put the bracket on the big screen',
     body: (
@@ -116,6 +136,21 @@ export const DAY_PAGE_STEPS: HostStep[] = [
         Shuffles the players who are here into the bracket. With an uneven number, a few get a free pass (a bye) into round 2. You can
         redo the draw until the first result is in.
       </p>
+    ),
+  },
+  {
+    target: 'checkin',
+    title: 'Someone arrives after the draw',
+    body: (
+      <>
+        <p>
+          They scan the counter QR (or you tick them). Next to their name: <b>Not in the bracket</b> and an <b>Add to bracket</b> button.
+        </p>
+        <p>
+          Tap it: they take a free pass (a bye) and play the player who had it. If there’s no free place, they can’t play today, but they
+          still get the 20% off.
+        </p>
+      </>
     ),
   },
   {
@@ -179,6 +214,16 @@ export const DAY_PAGE_STEPS: HostStep[] = [
         </p>
         <p>Upload a photo of the champion for their page, then go to Rewards.</p>
       </>
+    ),
+  },
+  {
+    target: 'finish',
+    title: 'Champion photo and poster',
+    body: (
+      <p>
+        Press <b>Take photo</b> to open your camera and snap the champion. Then <b>Download post</b> (WhatsApp) and <b>Download story</b>{' '}
+        (Instagram): the photo, their name and the top 3, ready to share.
+      </p>
     ),
   },
 ];

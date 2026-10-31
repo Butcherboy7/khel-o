@@ -292,6 +292,8 @@ export interface AdminEntry extends MyEntry {
   utmCampaign: string | null;
   utmContent: string | null;
   isTest: boolean;
+  /** In the drawn bracket. A late arrival after the draw isn't, until added. */
+  inBracket?: boolean;
 }
 
 export interface ChallengeStats {
@@ -321,6 +323,10 @@ export interface AdminChallengeDetail {
   practicePlayers: number;
   /** The walk-in sign-up link and its QR (PNG data URL), for the counter poster. */
   door: { url: string; qr: string };
+  /** The worst-case rehearsal (dev only; null on the live site). */
+  rehearsal: { practicePlayers: number; hereNotInBracket: number; freeBye: boolean } | null;
+  /** What the last rehearsal step did. */
+  did?: { signedUp?: number; arrived?: string[]; walkedIn?: string[]; played?: number };
   added?: number;
   removed?: number;
   released?: number;
@@ -432,6 +438,18 @@ export async function adminRecordResult(
 /** A player is late: put the match off so the next one can start (or bring it back). */
 export async function adminPostponeMatch(id: string, matchId: string, postponed: boolean): Promise<Bracket> {
   return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/matches/${matchId}/postpone`, { postponed }));
+}
+
+/** A late arrival after the draw: into a round-1 bye, no reshuffle. */
+export async function adminAddToBracket(id: string, entryId: string): Promise<Bracket> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/entries/${entryId}/add-to-bracket`));
+}
+
+export type RehearsalAction = 'start' | 'arrive' | 'walk_in' | 'play' | 'play_to_final';
+
+/** Dev only: make the next thing of the worst-case day happen. */
+export async function adminRehearsal(id: string, action: RehearsalAction, n = 1, leave = 0): Promise<AdminChallengeDetail> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/rehearsal`, { action, n, leave }));
 }
 
 export async function adminClearResult(id: string, matchId: string): Promise<Bracket> {

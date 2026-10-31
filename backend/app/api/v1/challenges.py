@@ -39,6 +39,7 @@ from app.services.auth_service import AuthService
 from app.services import challenge_bracket as bracket
 from app.services import challenge_day as day
 from app.services import challenge_practice as practice
+from app.services import challenge_rehearsal as rehearsal
 from app.services import challenge_results as results
 from app.services import challenge_rewards as rewards
 from app.services import challenge_service as svc
@@ -772,13 +773,15 @@ def _door_out_admin(ch: Challenge) -> dict:
 async def admin_detail(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
     ch, cafe = await _admin_get(db, challenge_id)
     rows = await svc.entries(db, ch.id)
+    inside = day.in_bracket(await day.matches(db, ch.id))
     return {"success": True, "data": {
         "challenge": _challenge_out(ch, cafe, await svc.counts(db, ch.id)),
-        "entries": [_admin_entry_out(e, rows) for e in rows],
+        "entries": [{**_admin_entry_out(e, rows), "inBracket": e.id in inside} for e in rows],
         "stats": await _stats(db, ch, rows),
         "practiceAllowed": _practice_allowed(),
         "practicePlayers": await practice.count(db, ch.id) if _practice_allowed() else 0,
         "door": _door_out_admin(ch),
+        "rehearsal": await rehearsal.state(db, ch) if _practice_allowed() else None,
     }}
 
 
@@ -823,6 +826,55 @@ async def admin_clear_practice(challenge_id: UUID, db: AsyncSession = Depends(ge
     data = (await admin_detail(challenge_id, db, admin))["data"]
     data["removed"] = removed
     return {"success": True, "data": data}
+
+
+class RehearsalIn(_Camel):
+    action: Literal["start", "arrive", "walk_in", "play", "play_to_final"]
+    n: int = Field(1, ge=0, le=40)
+    leave: int = Field(0, ge=0, le=8)
+
+
+@admin_router.post("/{challenge_id}/rehearsal")
+async def admin_rehearsal(
+    challenge_id: UUID, payload: RehearsalIn, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin),
+):
+    """Dev only: make the next thing of the worst-case day happen."""
+    _refuse_practice_on_prod()
+    ch, _ = await _admin_get(db, challenge_id)
+    try:
+        if payload.action == "start":
+            out = await rehearsal.start(db, ch, payload.n)
+        elif payload.action == "arrive":
+            out = await rehearsal.arrive(db, ch, payload.n)
+        elif payload.action == "walk_in":
+            out = await rehearsal.walk_in(db, ch, payload.n)
+        elif payload.action == "play":
+            out = await rehearsal.play(db, ch, leave=payload.leave)
+        else:
+            out = await rehearsal.play(db, ch, until_final=True)
+    except day.DayError as e:
+        raise _day_error(e)
+    except svc.SignUpsClosed:
+        raise BadRequestException(message="Sign-ups are closed for this challenge.", error_code="SIGNUPS_CLOSED")
+    logger.info("challenge_rehearsal", challenge=str(challenge_id), action=payload.action, n=payload.n)
+    data = (await admin_detail(challenge_id, db, admin))["data"]
+    data["did"] = out
+    return {"success": True, "data": data}
+
+
+@admin_router.post("/{challenge_id}/entries/{entry_id}/add-to-bracket")
+async def admin_add_to_bracket(
+    challenge_id: UUID, entry_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin),
+):
+    """A late arrival after the draw: into a round-1 bye, no reshuffle."""
+    await _admin_get(db, challenge_id)
+    try:
+        await day.add_late(db, challenge_id, entry_id)
+    except day.DayError as e:
+        raise _day_error(e)
+    logger.info("challenge_add_late", challenge=str(challenge_id), entry=str(entry_id))
+    ch, cafe = await _admin_get(db, challenge_id)
+    return {"success": True, "data": await _bracket_payload(db, ch, cafe)}
 
 
 @admin_router.patch("/{challenge_id}")

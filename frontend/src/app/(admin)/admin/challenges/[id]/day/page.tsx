@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, CheckCircle2, Circle, Clock, Dices, Download, ExternalLink, Flag, Gift, Lock, Projector, QrCode, RotateCcw, Search, SkipForward, Swords, Trash2, Undo2 } from 'lucide-react';
+import { Camera, CheckCircle2, Circle, Clock, Dices, Download, ExternalLink, Flag, Gift, ImagePlus, Lock, Projector, QrCode, RotateCcw, Search, SkipForward, Swords, Trash2, Undo2, UserPlus } from 'lucide-react';
 import {
-  adminClearResult, adminCloseCheckin, adminDraw, adminEntryAction, adminFinish, adminGetBracket, adminGetChallenge, adminReopen,
+  adminAddToBracket, adminClearResult, adminCloseCheckin, adminDraw, adminEntryAction, adminFinish, adminGetBracket, adminGetChallenge, adminReopen,
   adminPostponeMatch, adminRecordResult, adminSetChampionPhoto, adminUploadChampionPhoto,
   type AdminChallengeDetail, type AdminEntry, type Bracket, type BracketMatch,
 } from '@/lib/api/challenges';
@@ -15,6 +15,7 @@ import { BracketView, Podium } from '@/components/challenge/BracketView';
 import { Button, Card, CardContent, ErrorState, Modal, PageSpinner } from '@/components/ui';
 import { HostTour, HostTutorialButton, useHostTour } from '@/components/challenge/admin/HostTour';
 import { DAY_PAGE_STEPS } from '@/components/challenge/admin/hostTourSteps';
+import { RehearsalGuide } from '@/components/challenge/admin/RehearsalGuide';
 
 /** Everything for the day itself, top to bottom in the order it happens:
  *  check people in, close check-in, draw, enter results, finish. */
@@ -86,9 +87,16 @@ export default function ChallengeDayPage() {
 
   const toggle = (e: AdminEntry) =>
     run(`p:${e.id}`, () => adminEntryAction(id, e.id, e.present ? 'uncheckin' : 'checkin'), setDetail);
+  // Here after the draw, but not in it: can still be added (into a bye).
+  const lateOut = (e: AdminEntry) => b.drawn && !finished && e.status === 'confirmed' && e.present && e.inBracket === false;
+  const addLate = (e: AdminEntry) =>
+    run(`add:${e.id}`, () => adminAddToBracket(id, e.id), (nb) => {
+      setBracket(nb);
+      setFlash(`${e.displayName || e.name} is in the bracket. Their first match is in Ready to play.`);
+    });
 
   return (
-    <div className="flex flex-col gap-5 pb-16">
+    <div className={`flex flex-col gap-5 ${detail.data.rehearsal ? 'pb-[60vh]' : 'pb-16'}`}>
       <div>
         <Link href={`/admin/challenges/${id}`} className="-my-2 inline-flex min-h-11 items-center text-caption font-semibold text-text-secondary hover:text-text-primary">
           ← {c.title}
@@ -143,12 +151,12 @@ export default function ChallengeDayPage() {
         <div className="mt-2 flex flex-col divide-y divide-border rounded-xl border border-border">
           {players.length === 0 && <p className="p-4 text-center text-caption text-text-secondary">Nobody to check in.</p>}
           {players.map((e) => (
+            <div key={e.id} className="flex items-stretch">
             <button
-              key={e.id}
               type="button"
               disabled={busy === `p:${e.id}`}
               onClick={() => toggle(e)}
-              className="flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface disabled:opacity-50"
+              className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left hover:bg-surface disabled:opacity-50"
             >
               {e.present ? <CheckCircle2 className="h-6 w-6 text-success" /> : <Circle className="h-6 w-6 text-text-secondary" />}
               <span className="min-w-0 flex-1">
@@ -160,11 +168,23 @@ export default function ChallengeDayPage() {
                   {e.status === 'confirmed' ? `Confirmed #${e.rank}` : `Waitlist #${e.rank}`}
                   {e.present && e.checkedInAt ? ` · here since ${challengeTime(e.checkedInAt)}` : ''}
                 </span>
+                {lateOut(e) && <span className="block text-xs font-semibold text-warning">Not in the bracket</span>}
               </span>
               <span className={`text-caption font-semibold ${e.present ? 'text-success' : 'text-text-secondary'}`}>
                 {e.present ? 'Here' : 'Tap when here'}
               </span>
             </button>
+            {lateOut(e) && (
+              <button
+                type="button"
+                disabled={busy === `add:${e.id}`}
+                onClick={() => addLate(e)}
+                className="my-1.5 mr-2 flex w-[84px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-primary/50 bg-primary/5 px-2 text-xs font-semibold text-primary-dark hover:bg-primary/10 disabled:opacity-50"
+              >
+                <UserPlus className="h-4 w-4" /> Add to bracket
+              </button>
+            )}
+            </div>
           ))}
         </div>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" data-host-tour="close-checkin">
@@ -186,6 +206,7 @@ export default function ChallengeDayPage() {
         <p className="text-caption text-text-secondary">
           Shuffles the {here} confirmed players who are here into the bracket. If the numbers are uneven, some get a bye into round 2.
           {b.drawn && !resultsIn ? ' You can redo it until the first result is in.' : ''}
+          {b.drawn ? ' Someone checked in after the draw? Tap Add to bracket next to their name: they take a bye, nobody is reshuffled.' : ''}
         </p>
         <div className="mt-3">
           <Button
@@ -375,6 +396,18 @@ export default function ChallengeDayPage() {
       />
 
       <HostTour steps={DAY_PAGE_STEPS} open={tour.open} onClose={tour.close} />
+      {detail.data.rehearsal && (
+        <RehearsalGuide
+          id={id}
+          detail={detail.data}
+          bracket={b}
+          here={here}
+          onDetail={(d) => {
+            setDetail(d);
+            qc.invalidateQueries({ queryKey: bracketKey });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -526,7 +559,7 @@ function DoorQr({ door, slug }: { door: { url: string; qr: string }; slug: strin
         </p>
         <p className="mt-1 text-caption text-text-secondary">
           Put this QR on the counter. Anyone who scans it signs up and is checked in straight away, even after check-in closed. It only
-          works on the day. Late walk-ins are not in the draw until you redo it.
+          works on the day. Walk-ins after the draw show “Not in the bracket”: tap Add to bracket next to their name.
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           <a href={door.qr} download={`khelo-${slug}-walk-in-qr.png`} className={linkBtn}>
@@ -712,6 +745,7 @@ function ResultModal({
 /** Wave 3: the champion's photo for their page. Upload, or paste a link. */
 function ChampionPhoto({ id, slug, url, onSaved }: { id: string; slug: string; url: string | null; onSaved: () => void }) {
   const input = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -741,25 +775,32 @@ function ChampionPhoto({ id, slug, url, onSaved }: { id: string; slug: string; u
   return (
     <div className="mt-4 rounded-xl border border-border p-3">
       <p className="font-semibold text-text-primary">Champion photo</p>
-      <p className="text-caption text-text-secondary">Shown on the champion’s page. A portrait photo works best.</p>
+      <p className="text-caption text-text-secondary">Shown on the champion’s page and on the poster. Hold the phone upright.</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {url && (
           // eslint-disable-next-line @next/next/no-img-element -- admin preview of our own upload
           <img src={url} alt="Champion" className="h-20 w-16 rounded-lg object-cover" />
         )}
-        <input
-          ref={input}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) upload(f);
-            e.target.value = '';
-          }}
-        />
-        <Button variant="secondary" size="sm" isLoading={busy} onClick={() => input.current?.click()}>
-          <Camera className="h-4 w-4" /> {url ? 'Change photo' : 'Upload photo'}
+        {[input, camera].map((ref, k) => (
+          <input
+            key={k}
+            ref={ref}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            {...(k === 1 ? { capture: 'environment' as const } : {})}
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) upload(f);
+              e.target.value = '';
+            }}
+          />
+        ))}
+        <Button variant="primary" size="sm" isLoading={busy} onClick={() => camera.current?.click()}>
+          <Camera className="h-4 w-4" /> Take photo
+        </Button>
+        <Button variant="secondary" size="sm" disabled={busy} onClick={() => input.current?.click()}>
+          <ImagePlus className="h-4 w-4" /> {url ? 'Choose another' : 'Choose photo'}
         </Button>
         {url && (
           <>
@@ -772,6 +813,18 @@ function ChampionPhoto({ id, slug, url, onSaved }: { id: string; slug: string; u
           </>
         )}
       </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <a href={`/challenge/${slug}/champion/poster?size=post&download=1&v=${encodeURIComponent(url ?? 'none')}`} download className={linkBtn}>
+          <Download className="h-4 w-4" /> Download post
+        </a>
+        <a href={`/challenge/${slug}/champion/poster?size=story&download=1&v=${encodeURIComponent(url ?? 'none')}`} download className={linkBtn}>
+          <Download className="h-4 w-4" /> Download story
+        </a>
+      </div>
+      <p className="mt-1 text-xs text-text-secondary">
+        The poster has the photo, the champion’s name and 2nd and 3rd place: post size (1080×1350) for WhatsApp, story size (1080×1920) for
+        Instagram. It shows the podium once the final has a result.
+      </p>
       {error && <p className="mt-2 text-caption text-error">{error}</p>}
     </div>
   );

@@ -282,6 +282,64 @@ async def draw(db: AsyncSession, challenge_id, redo: bool = False) -> int:
     return len(players)
 
 
+def _free_bye(rows: list[ChallengeMatch]) -> Optional[ChallengeMatch]:
+    """A round-1 bye whose next match hasn't been played: a late player can
+    take the empty side and play the player who had the bye."""
+    rounds = rounds_of(rows)
+    for m in sorted((x for x in rows if x.round == 0 and not x.is_third_place and x.bye), key=lambda x: x.position):
+        if rounds < 2:
+            return m
+        r, p, _ = bracket.next_slot(m.round, m.position)
+        nxt = _find(rows, r, p)
+        if nxt is None or nxt.winner_entry_id is None or nxt.bye:
+            if not _downstream_decided(rows, m):
+                return m
+    return None
+
+
+def in_bracket(rows: list[ChallengeMatch]) -> set:
+    return {i for m in rows for i in (m.entry_a_id, m.entry_b_id) if i is not None}
+
+
+async def add_late(db: AsyncSession, challenge_id, entry_id) -> None:
+    """Someone checked in after the draw: put them in the bracket without a
+    reshuffle, against a player who had a bye in round 1 (that match has to be
+    played now). Refused when no bye is left that hasn't been played on from."""
+    try:
+        ch = await _lock_live(db, challenge_id)
+        rows = await matches(db, challenge_id)
+        e = await svc.entry_for(db, challenge_id, entry_id=entry_id)
+        if e is None or e.status != "confirmed" or not e.present:
+            raise DayError("Check them in first.", "NOT_CHECKED_IN")
+        if e.id in in_bracket(rows):
+            raise DayError("They're already in the bracket.", "ALREADY_IN_BRACKET")
+        m = _free_bye(rows)
+        if m is None:
+            raise DayError(
+                "No free place left in the bracket. If no result is in yet, redo the draw. "
+                "Otherwise they can't play today, but they still get the 20% off.",
+                "BRACKET_FULL",
+            )
+        rounds = rounds_of(rows)
+        if rounds >= 2:
+            r, p, side = bracket.next_slot(m.round, m.position)
+            nxt = _find(rows, r, p)
+            if nxt is not None and getattr(nxt, f"entry_{side}_id") == m.winner_entry_id:
+                setattr(nxt, f"entry_{side}_id", None)
+        if m.entry_a_id is None:
+            m.entry_a_id = e.id
+        else:
+            m.entry_b_id = e.id
+        m.bye = False
+        m.winner_entry_id = None
+        m.completed_at = None
+        _settle_third(rows)
+        await db.commit()
+    except DayError:
+        await db.rollback()
+        raise
+
+
 def _downstream_decided(rows: list[ChallengeMatch], m: ChallengeMatch) -> bool:
     if m.is_third_place:
         return False

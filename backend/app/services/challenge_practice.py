@@ -17,6 +17,9 @@ from app.services import challenge_service as svc
 NAMES = [
     "Rohan", "Ronak", "Aarav", "Ishaan", "Kabir", "Vihaan", "Arjun", "Dev", "Meera",
     "Kiran", "Sana", "Zoya", "Rahul", "Neha", "Aditya", "Tara", "Yash", "Riya",
+    # More for the worst-case rehearsal (a crowd of walk-ins).
+    "Farhan", "Pooja", "Sameer", "Anika", "Varun", "Nikhil", "Isha", "Manav", "Diya", "Kunal",
+    "Aisha", "Pranav", "Rehan", "Lavanya", "Siddharth", "Tanvi", "Harsh", "Mira", "Omar", "Pallavi",
 ]
 CHARACTERS = ["Jin", "Kazuya", "Paul", "King", "Law", "Nina", "Hwoarang", "Asuka", "Lili"]
 MAX_CONFIRMED = 16
