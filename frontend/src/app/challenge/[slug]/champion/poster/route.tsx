@@ -39,7 +39,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const logo = logoBuf ? `data:image/png;base64,${logoBuf.toString('base64')}` : null;
   const photo = ch.championPhotoUrl;
   const tall = kind === 'story';
-  const photoH = tall ? 1000 : 720;
+  const photoH = tall ? 860 : 560;
   const head = teko ? 'Teko' : 'sans-serif';
 
   const img = new ImageResponse(
