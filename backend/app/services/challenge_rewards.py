@@ -380,7 +380,7 @@ def _paid(b: Booking) -> bool:
 KIND_LABEL = {
     "prize_1": "1st place reward", "prize_2": "2nd place reward", "prize_3": "3rd place reward",
     "winner_partners": "Champion's partner-café discount", "waitlist": "Waitlist thank-you",
-    "attended": "Checked-in thank-you",
+    "attended": "Thank you for coming",
 }
 
 
@@ -515,9 +515,9 @@ def _detail(camp: OfferCampaign, p: Optional[Promotion]) -> str:
         bits.append("1 seat")
     if p is not None and p.promotion_type == PromotionType.FIXED_PRICE:
         bits.append(f"book exactly {_hours(Decimal(str(p.min_duration_hours)))}")
-        bits.append("any setup")
+        bits.append("any PC or console")
     if camp.max_uses_per_user == 1 or camp.max_uses == 1:
         bits.append("one booking")
     if camp.reward_kind == "attended":
-        bits.append("applies on its own at checkout")
+        bits.append("added for you at checkout")
     return ", ".join(bits).capitalize()

@@ -67,7 +67,7 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
 
         {!data.drawn ? (
           <p className="mt-10 rounded-2xl border border-dashed border-[#3A3E4A] p-6 text-center text-[#A3A6B1]">
-            The bracket is made at the café once check-in closes. It shows up here.
+            We make the matches at the café when check-in closes. You will see them here.
           </p>
         ) : (
           <>
@@ -128,7 +128,7 @@ function UpNext({ matches, big = false }: { matches: BracketMatch[]; big?: boole
       {rest.length > 0 && (
         <div className={`border-t border-[#3A2226] ${big ? 'mt-[1.5vh] pt-[1.2vh]' : 'mt-3 pt-2'}`}>
           <p className={`font-bold uppercase tracking-[0.16em] text-[#A3A6B1] ${big ? 'text-[min(1.1vw,1.8vh)]' : 'text-[10px]'}`}>
-            Then, as setups free up
+            Next, when a screen is free
           </p>
           <ul className={big ? 'mt-[0.6vh] flex flex-col gap-[0.6vh]' : 'mt-1 flex flex-col gap-1'}>
             {rest.map((m) => (

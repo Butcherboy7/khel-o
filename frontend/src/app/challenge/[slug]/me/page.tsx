@@ -117,12 +117,12 @@ function MyChallenge() {
       {(entry.out || guest) && (
         <section className="mb-4 rounded-3xl border border-[#7A2E28] bg-gradient-to-br from-[#2A1311] to-[#16181E] p-5" aria-live="polite">
           <p className="font-heading text-[30px] font-bold leading-none">
-            {entry.out ? 'You’re out. Well played!' : 'You’re checked in'}
+            {entry.out ? 'You are out. Good game!' : 'You are checked in'}
           </p>
           <p className="mt-2 text-sm text-[#DADCE3]">
             {entry.out
-              ? 'Thanks for coming to play.'
-              : 'The bracket was drawn before you got here, so you’re watching this one.'}
+              ? 'Thank you for playing.'
+              : 'The matches were set before you came, so today you watch.'}
             {thanks ? ` ${thanksLine(thanks)}` : ''}
           </p>
           {thanks && (
@@ -150,13 +150,13 @@ function MyChallenge() {
         <section className="mb-4 rounded-3xl border border-[#6B5A2A] bg-gradient-to-br from-[#2A2210] to-[#16181E] p-5 text-center">
           <Trophy className="mx-auto h-8 w-8 text-[#F2C27A]" />
           <p className="mt-2 font-heading text-[36px] font-bold leading-none">{PLACE[entry.place] ?? `#${entry.place}`}</p>
-          <p className="mt-2 text-sm text-[#DADCE3]">{entry.place === 1 ? 'Top of the podium. Champion!' : 'You made the podium. Well played!'}</p>
+          <p className="mt-2 text-sm text-[#DADCE3]">{entry.place === 1 ? 'You are the champion!' : 'You are in the top 3. Good game!'}</p>
           <div className="mt-4">
             <ShareCardButton
               src={`/challenge/${ch.slug}/card/results`}
               fileName={`khelo-${ch.slug}-results.png`}
               text={`${PLACE[entry.place] ?? ''} at ${ch.title}!`}
-              label="Share the podium"
+              label="Share my result"
               challenge={ch.slug}
               kind="results"
             />
@@ -180,11 +180,11 @@ function MyChallenge() {
         <p className="mt-3 text-sm text-[#DADCE3]">
           {confirmed
             ? entry.promotedAt
-              ? 'A spot opened up and it’s yours now.'
+              ? 'A spot is free, and it is yours now.'
               : openToAll(ch.capacity)
-              ? 'Come to check-in and you play.'
+              ? 'Come at check-in time and you play.'
               : `You have one of the ${ch.capacity} spots.`
-            : 'Come to check-in and we’ll fit you in. If someone doesn’t show, the next reserve player who’s there plays.'}
+            : 'Come at check-in time. If a player does not come, the next reserve player who is here plays.'}
         </p>
       </section>
       )}
@@ -230,8 +230,8 @@ function MyChallenge() {
           <h2 className="font-heading text-lg font-bold">Coming on {challengeDay(ch.startsAt)}?</h2>
           <p className="mt-1 text-sm text-[#A3A6B1]">
             {confirmed
-              ? 'Tell us, so nobody waits for an empty spot. Saying no gives your spot to the next person.'
-              : 'Tell us if you’ll be there in case a spot opens up.'}
+              ? 'Please tell us. If you say no, your spot goes to the next person.'
+              : 'Tell us if you will come, in case a spot is free.'}
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
@@ -272,7 +272,7 @@ function MyChallenge() {
           <MessageCircle className="h-5 w-5" />
           <span className="flex-1">
             <span className="block">{communityDone ? 'Open the community again' : 'Step 2 · Join the WhatsApp community'}</span>
-            <span className="block text-xs font-medium opacity-80">Check-in and bracket updates are sent only here.</span>
+            <span className="block text-xs font-medium opacity-80">We send check-in and match updates only here.</span>
           </span>
         </a>
       )}
@@ -289,7 +289,7 @@ function MyChallenge() {
             <QrCode className="h-5 w-5 text-[#E8675D]" /> Your check-in QR
           </h2>
           <p className="mt-1 text-sm text-[#A3A6B1]">
-            Show it at the café, {challengeTime(ch.checkinOpensAt)} to {challengeTime(ch.checkinClosesAt)}. Turn your screen brightness up.
+            Show it at the café, {challengeTime(ch.checkinOpensAt)} to {challengeTime(ch.checkinClosesAt)}. Make your screen bright.
           </p>
           {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from our server */}
           <img
@@ -328,8 +328,8 @@ function MyChallenge() {
         >
           <UserPlus className="h-5 w-5 text-[#E8675D]" />
           <span className="flex-1">
-            <span className="block font-semibold">Bring your 2P</span>
-            <span className="block text-xs text-[#A3A6B1]">Send them the link on WhatsApp. They can watch, or sign up to play if a spot is free.</span>
+            <span className="block font-semibold">Bring a friend</span>
+            <span className="block text-xs text-[#A3A6B1]">Send them the link on WhatsApp. They can watch or sign up to play.</span>
           </span>
         </a>
       )}
@@ -359,7 +359,7 @@ function MyChallenge() {
           onClick={() => setConfirmOut(true)}
           className="mx-auto mt-8 block text-sm font-semibold text-[#A3A6B1] underline underline-offset-4"
         >
-          Can’t make it
+          I can’t come
         </button>
       )}
 
@@ -369,18 +369,18 @@ function MyChallenge() {
         </p>
       )}
 
-      <BottomSheet isOpen={confirmOut} onClose={() => setConfirmOut(false)} title="Give up your place?">
+      <BottomSheet isOpen={confirmOut} onClose={() => setConfirmOut(false)} title="Leave the challenge?">
         <p className="-mt-1 text-caption text-text-secondary">
           {confirmed
-            ? 'Your spot goes to the next person on the reserve list. You can sign up again, but you’ll join the back of the line.'
-            : 'You’ll leave the reserve list. You can sign up again, but you’ll join the back of the line.'}
+            ? 'Your spot goes to the next person on the reserve list. You can sign up again, but you will be last in line.'
+            : 'You will leave the reserve list. You can sign up again, but you will be last in line.'}
         </p>
         <div className="mt-4 flex flex-col gap-2">
           <Button variant="primary" fullWidth isLoading={busy === 'withdraw'} onClick={withdraw}>
-            Yes, give up my place
+            Yes, leave
           </Button>
           <Button variant="ghost" fullWidth onClick={() => setConfirmOut(false)}>
-            Keep my place
+            No, stay in
           </Button>
         </div>
       </BottomSheet>
@@ -406,7 +406,7 @@ function Rewards({ rewards, slug }: { rewards: MyReward[]; slug: string }) {
       <h2 className="flex items-center gap-2 font-heading text-lg font-bold">
         <Gift className="h-5 w-5 text-[#E8675D]" /> Your rewards
       </h2>
-      <p className="mt-1 text-sm text-[#A3A6B1]">Only for your account. Book through KHEL-O and it’s applied for you.</p>
+      <p className="mt-1 text-sm text-[#A3A6B1]">Only for you. Book on KHEL-O and the discount is added for you.</p>
       <div className="mt-3 flex flex-col gap-3">
         {rewards.map((r) => {
           const off = r.usedUp || r.ended;
@@ -421,7 +421,7 @@ function Rewards({ rewards, slug }: { rewards: MyReward[]; slug: string }) {
                   : `Until ${challengeMoment(r.endsAt)}.`}
               </p>
               {r.usedUp ? (
-                <p className="mt-3 text-sm font-semibold text-[#7FE0A0]">Used. Enjoy!</p>
+                <p className="mt-3 text-sm font-semibold text-[#7FE0A0]">Used. Have fun!</p>
               ) : r.ended ? (
                 <p className="mt-3 text-sm font-semibold">Ended</p>
               ) : r.cafes.length === 1 ? (

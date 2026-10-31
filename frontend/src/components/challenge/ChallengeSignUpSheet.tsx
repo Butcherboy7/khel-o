@@ -188,11 +188,11 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
             <p className="rounded-xl border border-[#3B6B4A] bg-[#13221A] px-3 py-3 text-sm">
               <CheckCircle2 className="mr-2 inline h-4 w-4 text-[#7FE0A0]" aria-hidden />
               {challenge.status === 'live'
-                ? `Welcome, ${doorIn}. You’re checked in. The bracket is already drawn, so enjoy the matches: you still get the checked-in reward.`
-                : `Welcome, ${doorIn}. You were already on the list, and now you’re checked in. Watch the big screen for the draw.`}
+                ? `Welcome, ${doorIn}. You are checked in. The matches are already set, so today you watch. You still get your 20% off.`
+                : `Welcome, ${doorIn}. You were already on the list. Now you are checked in. Watch the big screen for your name.`}
             </p>
             <p className="text-sm text-[#C9C4CF]">
-              To see your reward, sign in with the email you signed up with.
+              To see your 20% off, sign in with the same email you used to sign up.
             </p>
             <a
               href={`/login?redirect=${encodeURIComponent(`/challenge/${challenge.slug}/me`)}`}
@@ -229,7 +229,7 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
             {trap}
             <p className="-mt-1 rounded-xl bg-[#F2C94C] px-3 py-2 text-sm font-bold leading-snug text-[#1A1306]">
               {full
-                ? 'Free to enter. Come to check-in and we’ll fit you in: when someone doesn’t show, the next reserve player there plays.'
+                ? 'Free to enter. Come at check-in time. If a player does not come, the next player on the reserve list plays.'
                 : `Free to enter. ${challenge.prizeLine || 'Nothing to pay.'}`}
             </p>
             {signedIn && viaGoogle ? (
@@ -303,13 +303,13 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
                 .
               </Tick>
               <Tick checked={extras} onChange={setExtras}>
-                OK to film me for KHELO videos and tell me about future challenges. <span className="text-[#A39DAB]">(optional)</span>
+                You can film me for KHELO videos and tell me about new challenges. <span className="text-[#A39DAB]">(optional)</span>
               </Tick>
             </fieldset>
 
             {existingEmail && (
               <div role="alert" className="rounded-xl bg-[#2A1A1C] px-3 py-3 text-sm">
-                You already have a KHEL-O account. Sign in to lock your spot.
+                You already have a KHEL-O account. Sign in to save your spot.
                 <button
                   type="button"
                   onClick={() => router.push(`/login?redirect=${backHere()}`)}
@@ -380,17 +380,17 @@ function Done({
       <p className="rounded-xl border border-[#3B6B4A] bg-[#13221A] px-3 py-3 text-sm">
         <CheckCircle2 className="mr-2 inline h-4 w-4 text-[#7FE0A0]" aria-hidden />
         {res.entry?.present && res.challenge.status === 'live' && !res.entry.inBracket
-          ? 'You’re checked in. The bracket is already drawn, so enjoy the matches: your checked-in reward is on your challenge page.'
+          ? 'You are checked in. The matches are already set, so today you watch. Your 20% off is on your challenge page.'
           : res.entry?.present
-          ? 'You’re checked in. Watch the big screen: your name goes into the draw.'
+          ? 'You are checked in. Watch the big screen for your name.'
           : waitlist
-          ? 'You’re on the reserve list. Come to check-in and we’ll fit you in as spots free up.'
-          : `Your spot is locked${res.entry?.rank ? `: P${res.entry.rank}` : ''}.`}
+          ? 'You are on the reserve list. Come at check-in time. If a spot is free, you play.'
+          : `Your spot is saved${res.entry?.rank ? `: P${res.entry.rank}` : ''}.`}
       </p>
       <div className="rounded-2xl border border-[#1F6B3A] bg-[#0E1D14] p-4">
         <p className="text-xs font-semibold text-[#7FE0A0]">Step 2 · Required</p>
         <p className="mt-1 font-semibold">Join the WhatsApp community.</p>
-        <p className="mt-1 text-sm text-[#C9C4CF]">Check-in and bracket updates are sent only there. Players who skip it miss them.</p>
+        <p className="mt-1 text-sm text-[#C9C4CF]">We send check-in and match updates only there. If you do not join, you will miss them.</p>
         <a
           href={communityUrl}
           target="_blank"
@@ -400,7 +400,7 @@ function Done({
         >
           <MessageCircle className="h-5 w-5" aria-hidden /> {tapped ? 'Open the community again' : 'Join the community'}
         </a>
-        {tapped && <p className="mt-2 text-xs text-[#7FE0A0]">Thanks. Make sure you tapped “Join” inside WhatsApp.</p>}
+        {tapped && <p className="mt-2 text-xs text-[#7FE0A0]">Thank you. Check that you tapped “Join” in WhatsApp.</p>}
       </div>
       <a
         href={calendarHref}
