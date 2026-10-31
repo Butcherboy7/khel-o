@@ -233,10 +233,12 @@ def _advance(rows: list[ChallengeMatch], m: ChallengeMatch) -> None:
         setattr(nxt, f"entry_{side}_id", m.winner_entry_id)
 
 
-async def draw(db: AsyncSession, challenge_id) -> int:
+async def draw(db: AsyncSession, challenge_id, redo: bool = False) -> int:
     """Shuffle the confirmed players who are here into a bracket. Can be redone
-    until the first real result is in. Returns the number of players."""
-    ch = await db.get(Challenge, challenge_id)
+    (redo=True) until the first real result is in. Without redo, a bracket that
+    already exists is kept, so a double tap or a second admin can't reshuffle it.
+    Returns the number of players."""
+    ch = await svc.lock(db, challenge_id)
     if ch.status not in DRAW_STATUSES:
         raise DayError(
             "This challenge is finished. Reopen it first." if ch.status == "finished"
@@ -244,6 +246,9 @@ async def draw(db: AsyncSession, challenge_id) -> int:
             "CHALLENGE_FINISHED" if ch.status == "finished" else "WRONG_STATUS",
         )
     existing = await matches(db, challenge_id)
+    if existing and not redo:
+        await db.commit()
+        return len({i for m in existing for i in (m.entry_a_id, m.entry_b_id) if i is not None})
     if any(m.completed_at and not m.bye for m in existing):
         raise DayError("Results are already in. The draw can't be redone now.", "RESULTS_IN")
     rows = await svc.entries(db, challenge_id)

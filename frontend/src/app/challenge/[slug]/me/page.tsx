@@ -42,6 +42,16 @@ function MyChallenge() {
 
   useEffect(load, [load]);
 
+  // On the day the page follows the bracket: knocked out, podium, checked in.
+  const live = data?.challenge.status === 'open' || data?.challenge.status === 'closed' || data?.challenge.status === 'live';
+  useEffect(() => {
+    if (!live) return;
+    const t = window.setInterval(() => {
+      if (document.visibilityState === 'visible') getMyChallenge(slug).then(setData).catch(() => {});
+    }, 20000);
+    return () => window.clearInterval(t);
+  }, [live, slug]);
+
   const act = async (what: string, fn: () => Promise<MyChallenge>) => {
     setBusy(what);
     setError(null);
@@ -99,9 +109,43 @@ function MyChallenge() {
 
   const confirmed = entry.status === 'confirmed';
   const ig = handle(ch.instagramHandle);
+  const thanks = rewards.find((r) => r.kind === 'attended' && !r.usedUp && !r.ended && r.cafes.length > 0);
+  const guest = entry.present && ch.status === 'live' && entry.inBracket === false;
 
   return (
     <Page slug={slug}>
+      {(entry.out || guest) && (
+        <section className="mb-4 rounded-3xl border border-[#7A2E28] bg-gradient-to-br from-[#2A1311] to-[#16181E] p-5" aria-live="polite">
+          <p className="font-heading text-[30px] font-bold leading-none">
+            {entry.out ? 'You’re out. Well played!' : 'You’re checked in'}
+          </p>
+          <p className="mt-2 text-sm text-[#DADCE3]">
+            {entry.out
+              ? 'Thanks for coming to play.'
+              : 'The bracket was drawn before you got here, so you’re watching this one.'}
+            {thanks ? ` ${thanksLine(thanks)}` : ''}
+          </p>
+          {thanks && (
+            <Link
+              href={thanks.cafes[0].href}
+              onClick={() => trackAction('challenge_reward_open', { challenge: slug, kind: thanks.kind, where: entry.out ? 'out' : 'guest' })}
+              className="mt-4 flex h-14 items-center justify-center rounded-2xl bg-[#D0463C] font-heading text-lg font-bold text-white"
+            >
+              Book now
+            </Link>
+          )}
+          <a
+            href={ch.communityUrl || COMMUNITY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => trackAction('challenge_community_click', { challenge: slug, where: entry.out ? 'out' : 'guest' })}
+            className="mt-2 flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#25D366] font-semibold text-[#0B2E17]"
+          >
+            <MessageCircle className="h-5 w-5" /> WhatsApp community: next challenge
+          </a>
+        </section>
+      )}
+
       {entry.place && (
         <section className="mb-4 rounded-3xl border border-[#6B5A2A] bg-gradient-to-br from-[#2A2210] to-[#16181E] p-5 text-center">
           <Trophy className="mx-auto h-8 w-8 text-[#F2C27A]" />
@@ -121,6 +165,7 @@ function MyChallenge() {
       )}
 
       {/* Their status, big */}
+      {!entry.out && !guest && (
       <section
         className={`rounded-3xl border p-5 ${confirmed ? 'border-[#3B6B4A] bg-[#13221A]' : 'border-[#5A4A2A] bg-[#221D13]'}`}
         aria-live="polite"
@@ -142,6 +187,7 @@ function MyChallenge() {
             : 'Come to check-in and we’ll fit you in. If someone doesn’t show, the next reserve player who’s there plays.'}
         </p>
       </section>
+      )}
 
       {/* When and where */}
       <section className="mt-4 grid grid-cols-2 gap-2.5">
@@ -235,7 +281,7 @@ function MyChallenge() {
       {entry.present ? (
         <section className="mt-4 flex items-center gap-3 rounded-2xl border border-[#3B6B4A] bg-[#13221A] px-4 py-4">
           <CheckCircle2 className="h-8 w-8 flex-shrink-0 text-[#7FE0A0]" />
-          <p className="font-semibold">You’re checked in. Good luck!</p>
+          <p className="font-semibold">{entry.out || guest ? 'You’re checked in.' : 'You’re checked in. Good luck!'}</p>
         </section>
       ) : entry.checkinQr ? (
         <section className="mt-4 rounded-2xl border border-[#262932] bg-[#16181E] p-4 text-center">
@@ -343,6 +389,15 @@ function MyChallenge() {
 }
 
 const PLACE: Record<number, string> = { 1: '1st place', 2: '2nd place', 3: '3rd place' };
+
+/** "20% off at AdamsDen today." (or "until Sun 8 Nov" when it runs longer). */
+function thanksLine(r: MyReward): string {
+  const pct = /(\d+)%/.exec(r.title)?.[1];
+  const what = pct ? `${pct}% off` : r.title;
+  const ends = new Date(r.endsAt).getTime();
+  const today = ends - Date.now() < 24 * 3600 * 1000;
+  return `${what} at ${r.cafes[0].name} ${today ? 'today' : `until ${challengeMoment(r.endsAt)}`}.`;
+}
 
 /** What they earned, each with a link that opens the café with it already applied. */
 function Rewards({ rewards, slug }: { rewards: MyReward[]; slug: string }) {

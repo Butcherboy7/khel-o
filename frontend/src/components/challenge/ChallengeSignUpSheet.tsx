@@ -55,6 +55,8 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
   const [error, setError] = useState<string | null>(null);
   const [existingEmail, setExistingEmail] = useState(false);
   const [done, setDone] = useState<MyChallenge | null>(null);
+  // At the door, someone already on the list who isn't signed in: checked in, no sign-in made.
+  const [doorIn, setDoorIn] = useState<string | null>(null);
   const [last, setLast] = useState<SignInMethod | null>(null);
   const [viaGoogle, setViaGoogle] = useState(false);
   const [communityTapped, setCommunityTapped] = useState(false);
@@ -137,6 +139,11 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
         finish(await joinChallenge(challenge.slug, base), viaGoogle ? 'google' : 'form');
       } else {
         const res = await quickJoinChallenge(challenge.slug, { ...base, email: email.trim().toLowerCase() });
+        if ('checkedIn' in res && res.checkedIn) {
+          trackAction('challenge_door_checkin_existing', { challenge: challenge.slug });
+          setDoorIn(res.name.split(' ')[0] || res.name);
+          return;
+        }
         setAuth(res.user, res.accessToken, res.refreshToken);
         finish(res, 'form');
       }
@@ -169,14 +176,40 @@ export function ChallengeSignUpSheet({ challenge, isOpen, onClose, onJoined }: P
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 className={`${fightFont.className} text-3xl font-bold uppercase leading-none tracking-wide`}>
-            {done ? (done.entry?.present ? 'You’re checked in' : done.entry?.status === 'waitlist' ? 'You’re on the reserve list' : 'You’re in') : cta}
+            {doorIn ? 'You’re checked in' : done ? (done.entry?.present ? 'You’re checked in' : done.entry?.status === 'waitlist' ? 'You’re on the reserve list' : 'You’re in') : cta}
           </h2>
           <button type="button" onClick={onClose} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#22252D]">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {done ? (
+        {doorIn ? (
+          <div className="flex flex-col gap-3">
+            <p className="rounded-xl border border-[#3B6B4A] bg-[#13221A] px-3 py-3 text-sm">
+              <CheckCircle2 className="mr-2 inline h-4 w-4 text-[#7FE0A0]" aria-hidden />
+              {challenge.status === 'live'
+                ? `Welcome, ${doorIn}. You’re checked in. The bracket is already drawn, so enjoy the matches: you still get the checked-in reward.`
+                : `Welcome, ${doorIn}. You were already on the list, and now you’re checked in. Watch the big screen for the draw.`}
+            </p>
+            <p className="text-sm text-[#C9C4CF]">
+              To see your reward, sign in with the email you signed up with.
+            </p>
+            <a
+              href={`/login?redirect=${encodeURIComponent(`/challenge/${challenge.slug}/me`)}`}
+              className="flex h-14 items-center justify-center rounded-xl bg-[#D0463C] text-base font-bold text-white"
+            >
+              Sign in to see my reward
+            </a>
+            <a
+              href={challenge.communityUrl || COMMUNITY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-12 items-center justify-center rounded-xl bg-[#25D366] text-base font-bold text-[#0B2E17]"
+            >
+              Join the WhatsApp community
+            </a>
+          </div>
+        ) : done ? (
           <Done
             slug={challenge.slug}
             res={done}
@@ -346,7 +379,9 @@ function Done({
     <div className="flex flex-col gap-3">
       <p className="rounded-xl border border-[#3B6B4A] bg-[#13221A] px-3 py-3 text-sm">
         <CheckCircle2 className="mr-2 inline h-4 w-4 text-[#7FE0A0]" aria-hidden />
-        {res.entry?.present
+        {res.entry?.present && res.challenge.status === 'live' && !res.entry.inBracket
+          ? 'You’re checked in. The bracket is already drawn, so enjoy the matches: your checked-in reward is on your challenge page.'
+          : res.entry?.present
           ? 'You’re checked in. Watch the big screen: your name goes into the draw.'
           : waitlist
           ? 'You’re on the reserve list. Come to check-in and we’ll fit you in as spots free up.'

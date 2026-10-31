@@ -305,6 +305,15 @@ async def attended_user_ids(db: AsyncSession, challenge_id) -> list[str]:
     return [str(e.user_id) for e in rows if e.present and not e.is_test and e.status in ("confirmed", "waitlist")]
 
 
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _attended_text(ch: Challenge, days: int, event_day) -> str:
+    when = f"on {event_day.strftime('%a')} {event_day.day} {event_day.strftime('%b')} only" if days == 0 else f"within {days} days"
+    return f"For everyone who checked in at {ch.title}. One booking, {when}."
+
+
 async def ensure_attended(db: AsyncSession, ch: Challenge) -> Optional[OfferCampaign]:
     """The checked-in thank-you, made once: X% off at the challenge café, one
     booking each, from the event day for a week. It has no list of people:
@@ -314,16 +323,24 @@ async def ensure_attended(db: AsyncSession, ch: Challenge) -> Optional[OfferCamp
     if not cfg["attendedOn"]:
         return None
     ch = await svc.lock(db, ch.id)
+    event_day = ch.starts_at.astimezone(IST).date()
+    days = int(cfg["attendedDays"])
+    ends = _day_end(event_day + timedelta(days=days))
     existing = next((c for c in current(await campaigns_for(db, ch.id)) if c.reward_kind == "attended"), None)
     if existing is not None:
+        # The setting drives the window: changing the days moves the live reward too.
+        if existing.ends_at is None or abs((_aware(existing.ends_at) - ends).total_seconds()) > 1:
+            existing.ends_at = ends
+            for p in (await db.execute(select(Promotion).where(Promotion.campaign_id == existing.id))).scalars():
+                p.valid_until = ends
+                p.description = _attended_text(ch, days, event_day)
         await db.commit()
         return existing
-    event_day = ch.starts_at.astimezone(IST).date()
     pct = int(cfg["attendedPercent"])
     camp = OfferCampaign(
         name=f"{ch.title}: checked-in {pct}% off", cafe_id=ch.cafe_id, is_public=False,
         access_code=await _new_code(db), max_uses=None, starts_at=_day_start(event_day),
-        ends_at=_day_end(event_day + timedelta(days=int(cfg["attendedDays"]))), is_active=True,
+        ends_at=ends, is_active=True,
         allowed_user_ids=None, max_uses_per_user=1, max_seats=None,
         khelo_funded=bool(cfg["attendedKheloFunded"]), challenge_id=ch.id, reward_kind="attended",
     )
@@ -332,7 +349,7 @@ async def ensure_attended(db: AsyncSession, ch: Challenge) -> Optional[OfferCamp
         await db.flush()
         db.add(_promo(
             ch.cafe_id, camp, f"Thank-you for coming: {pct}% off",
-            description=f"For everyone who checked in at {ch.title}. One booking, within {int(cfg['attendedDays'])} days.",
+            description=_attended_text(ch, days, event_day),
             promotion_type=PromotionType.PERCENTAGE, discount_percentage=pct, play_mode="any", max_uses=None,
         ))
         await db.commit()

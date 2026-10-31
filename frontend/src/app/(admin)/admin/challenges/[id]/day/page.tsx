@@ -343,7 +343,7 @@ export default function ChallengeDayPage() {
               variant="primary"
               isLoading={busy === 'draw'}
               onClick={async () => {
-                await run('draw', () => adminDraw(id), setBracket);
+                await run('draw', () => adminDraw(id, b.drawn), setBracket);
                 setDrawOpen(false);
               }}
             >

@@ -143,14 +143,20 @@ async def test_draw_needs_two_players_and_results_run_to_a_podium(async_client, 
     byes = [m for m in _all_matches(b) if m["bye"]]
     assert len(byes) == 3 and all(m["winner"] for m in byes)
 
-    # Redrawing is fine until a real result is in.
-    assert (await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/draw", headers=h)).status_code == 200
+    # A plain second Draw (double tap, second admin) keeps the bracket as it is.
+    again = (await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/draw", headers=h)).json()["data"]
+    assert _all_matches(again) == _all_matches(b)
+    # Redrawing on purpose is fine until a real result is in.
+    assert (await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/draw", json={"redo": True}, headers=h)).status_code == 200
     b = (await async_client.get(f"/api/v1/admin/challenges/{ch['id']}/bracket", headers=h)).json()["data"]
     b = await _play_out(async_client, ch, admin, b)
     assert [s["place"] for s in b["standings"]] == [1, 2, 3]
     assert len({s["entryId"] for s in b["standings"]}) == 3
-    redo = await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/draw", headers=h)
+    redo = await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/draw", json={"redo": True}, headers=h)
     assert redo.json()["error"]["code"] == "RESULTS_IN"
+    # A plain Draw now changes nothing.
+    kept = await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/draw", headers=h)
+    assert kept.status_code == 200 and kept.json()["data"]["standings"] == b["standings"]
 
     # The public bracket has display names only.
     pub = await async_client.get(f"/api/v1/challenges/{ch['slug']}/bracket")

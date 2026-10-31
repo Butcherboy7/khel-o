@@ -174,8 +174,15 @@ async def _me_payload(db: AsyncSession, slug: str, user_id) -> dict:
         if mine.status in svc.ACTIVE and ch.status not in ("finished",):
             url = f"{settings.FRONTEND_URL.rstrip('/')}/challenge/{ch.slug}/checkin/{day.checkin_token(mine.id)}"
             entry["checkinQr"] = day.qr_data_url(url)
-        placing = {v: k for k, v in day.standings(await day.matches(db, ch.id)).items()}.get(mine.id)
+        ms = await day.matches(db, ch.id)
+        placing = {v: k for k, v in day.standings(ms).items()}.get(mine.id)
         entry["place"] = placing
+        mine_ms = [m for m in ms if mine.id in (m.entry_a_id, m.entry_b_id)]
+        lost = any(m.completed_at and not m.bye and m.winner_entry_id not in (None, mine.id) for m in mine_ms)
+        for_third = any(m.is_third_place and not m.completed_at for m in mine_ms)
+        entry["inBracket"] = bool(mine_ms)
+        # Knocked out and not on the podium: the page points them at today's reward.
+        entry["out"] = bool(lost and not for_third and placing is None)
     return {
         "challenge": _challenge_out(ch, cafe, await svc.counts(db, ch.id)),
         "entry": entry,
@@ -389,6 +396,30 @@ async def quick_join_challenge(
         raise bot_guard.try_again()
 
     users = UserRepository(db)
+    if door:
+        # At the door, someone already on the list (or with an account) is
+        # checked in on what they have. No tokens: it only marks them here.
+        owner = (await db.execute(
+            select(ChallengeEntry.user_id).where(ChallengeEntry.challenge_id == ch.id, ChallengeEntry.phone == payload.phone)
+        )).scalars().first()
+        if owner is None:
+            known = await users.get_by_email(payload.email)
+            owner = known.id if known else None
+        if owner is not None:
+            fields = payload.model_dump(exclude={"form_ticket", "website", "email", "door"})
+            try:
+                entry, created = await svc.join(db, ch_id, owner, fields, door=True)
+            except svc.AlreadySignedUp:
+                raise ConflictException(
+                    message="This number is already signed up on another account. Show your name at the counter.",
+                    error_code="PHONE_ALREADY_SIGNED_UP",
+                )
+            except svc.SignUpsClosed:
+                raise BadRequestException(message="Sign-ups for this challenge are closed", error_code="CHALLENGE_CLOSED")
+            entry_id, entry_name = entry.id, entry.name
+            await day.mark_here(db, ch_id, entry_id)
+            logger.info("challenge_door_checkin_existing", challenge=slug, created=created)
+            return {"success": True, "data": {"checkedIn": True, "signInNeeded": True, "name": entry_name, "created": created}}
     if await users.get_by_email(payload.email):
         raise ConflictException(
             message="You already have a KHEL-O account with this email. Sign in to lock your spot.",
@@ -1059,11 +1090,20 @@ async def admin_close_checkin(challenge_id: UUID, db: AsyncSession = Depends(get
     return {"success": True, "data": data}
 
 
+class DrawIn(BaseModel):
+    redo: bool = False
+
+
 @admin_router.post("/{challenge_id}/draw")
-async def admin_draw(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+async def admin_draw(
+    challenge_id: UUID,
+    payload: Optional[DrawIn] = None,
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
     await _admin_get(db, challenge_id)
     try:
-        n = await day.draw(db, challenge_id)
+        n = await day.draw(db, challenge_id, redo=bool(payload and payload.redo))
     except day.DayError as e:
         raise _day_error(e)
     logger.info("challenge_draw", challenge=str(challenge_id), players=n)
@@ -1168,7 +1208,7 @@ class RewardsConfigIn(_Camel):
     waitlist_khelo_funded: bool = True
     attended_on: bool = False
     attended_percent: int = Field(20, ge=1, le=50)
-    attended_days: int = Field(7, ge=1, le=60)
+    attended_days: int = Field(7, ge=0, le=60)
     attended_khelo_funded: bool = False
 
     @field_validator("prize_hours")

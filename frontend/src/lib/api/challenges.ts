@@ -75,6 +75,10 @@ export interface MyEntry {
   checkinQr?: string;
   /** 1, 2 or 3 once decided. */
   place?: number | null;
+  /** Drawn into the bracket (a walk-in after the draw is not). */
+  inBracket?: boolean;
+  /** Knocked out and not on the podium. */
+  out?: boolean;
 }
 
 /** A reward this player earned. `cafes[].href` opens the café with it applied. */
@@ -244,7 +248,10 @@ export interface QuickJoinBody extends JoinBody {
 export async function quickJoinChallenge(
   slug: string,
   body: QuickJoinBody,
-): Promise<MyChallenge & { accessToken: string; refreshToken: string; user: User }> {
+): Promise<
+  | (MyChallenge & { accessToken: string; refreshToken: string; user: User; checkedIn?: undefined })
+  | { checkedIn: true; signInNeeded: true; name: string; created: boolean }
+> {
   return call(() => apiClient.post(`/api/v1/challenges/${encodeURIComponent(slug)}/quick-join`, body));
 }
 
@@ -386,7 +393,8 @@ export async function adminDownloadEntriesCsv(id: string, slug: string): Promise
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(href);
+  // Phones start the download after this returns; freeing the link at once can cancel it.
+  window.setTimeout(() => URL.revokeObjectURL(href), 60000);
 }
 
 export async function adminFillPractice(id: string): Promise<AdminChallengeDetail> {
@@ -401,8 +409,9 @@ export async function adminCloseCheckin(id: string): Promise<AdminChallengeDetai
   return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/close-checkin`));
 }
 
-export async function adminDraw(id: string): Promise<Bracket> {
-  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/draw`));
+/** Without redo, a bracket that already exists is kept (a double tap can't reshuffle it). */
+export async function adminDraw(id: string, redo = false): Promise<Bracket> {
+  return call(() => apiClient.post(`/api/v1/admin/challenges/${id}/draw`, { redo }));
 }
 
 export async function adminGetBracket(id: string): Promise<Bracket> {

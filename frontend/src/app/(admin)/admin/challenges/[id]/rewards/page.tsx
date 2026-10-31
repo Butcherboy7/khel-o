@@ -124,7 +124,7 @@ export default function ChallengeRewardsPage() {
             <p className="flex items-center gap-2 font-semibold text-text-primary"><Users className="h-4 w-4 text-primary" /> Thank-you for coming</p>
             <p className="text-caption text-text-secondary">
               {data.config.attendedOn
-                ? `${data.config.attendedPercent}% off the next booking at the challenge café for everyone who checks in (${data.checkedInPeople} so far). It applies on its own at checkout, once, for ${data.config.attendedDays} days from the challenge day.${data.config.attendedKheloFunded ? ' KHEL-O pays it.' : ' The café pays it.'}`
+                ? `${data.config.attendedPercent}% off the next booking at the challenge café for everyone who checks in (${data.checkedInPeople} so far). It applies on its own at checkout, once, ${data.config.attendedDays === 0 ? 'on the challenge day only' : `for ${data.config.attendedDays} days from the challenge day`}.${data.config.attendedKheloFunded ? ' KHEL-O pays it.' : ' The café pays it.'}`
                 : 'Off. Turn it on in Reward settings below: everyone who checks in then gets a % off their next booking, automatically.'}
             </p>
             {kinds.has('attended') && <p className="text-xs text-text-secondary">It is live. Uses are listed under Rewards below.</p>}
@@ -359,7 +359,7 @@ function Settings({ config, locked, busy, onSave }: { config: RewardsConfig; loc
         <div className="flex flex-wrap gap-4">
           {tick('attendedOn', 'Thank everyone who checks in')}
           {n('attendedPercent', 'Checked-in % off', '%')}
-          {n('attendedDays', 'Days after the challenge', 'days')}
+          {n('attendedDays', 'Days after the challenge (0 = that day only)', 'days')}
           {tick('attendedKheloFunded', 'KHEL-O pays it (otherwise the café does)')}
         </div>
         <div>
