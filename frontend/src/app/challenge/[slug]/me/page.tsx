@@ -141,7 +141,7 @@ function MyChallenge() {
             onClick={() => trackAction('challenge_community_click', { challenge: slug, where: entry.out ? 'out' : 'guest' })}
             className="mt-2 flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#25D366] font-semibold text-[#0B2E17]"
           >
-            <MessageCircle className="h-5 w-5" /> WhatsApp community: next challenge
+            <MessageCircle className="h-5 w-5" /> Join the community
           </a>
         </section>
       )}
@@ -257,7 +257,7 @@ function MyChallenge() {
       )}
 
       {/* WhatsApp community */}
-      {(
+      {!entry.out && !guest && (
         <a
           href={ch.communityUrl || COMMUNITY_URL}
           target="_blank"
