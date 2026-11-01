@@ -237,7 +237,7 @@ function MyChallenge() {
             {confirmed && !openToAll(ch.capacity) ? ' After that, your spot goes to the reserve list.' : ''}
           </p>
         </div>
-        {before && (
+        {before && !isNew && (
           <a
             href={calendarUrl(ch)}
             target="_blank"

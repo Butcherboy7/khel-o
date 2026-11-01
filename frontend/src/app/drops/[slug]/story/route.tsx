@@ -29,12 +29,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
               padding: '20px 40px',
               borderRadius: 999,
               background: '#F6C25B',
-              fontSize: 44,
+              fontSize: 38,
               fontWeight: 700,
               color: '#231A05',
             }}
           >
-            {`Get yours: khel-o.com/drops/${d.slug}`}
+            {`khel-o.com/drops/${d.slug}`}
           </div>
         </div>
       ),

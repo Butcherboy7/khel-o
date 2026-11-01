@@ -8,7 +8,7 @@ from __future__ import annotations
 import csv
 import io
 import re
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal, Optional
 from uuid import UUID
 
@@ -441,11 +441,18 @@ async def export_csv(drop_id: UUID, db: AsyncSession = Depends(get_db), user: Us
     for b in data["blocks"]:
         for r in b["reservations"]:
             w.writerow([b["date"], b["startTime"], b["endTime"], r["reference"], r["name"], r["phone"] or "",
-                        r["seats"], r["status"], r["deposit"], r["balanceDue"], r["checkedInAt"] or ""])
+                        r["seats"], r["status"], r["deposit"], r["balanceDue"], _ist_clock(r["checkedInAt"])])
     return StreamingResponse(
         iter([buf.getvalue()]), media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{drop.slug}-reservations.csv"'},
     )
+
+
+def _ist_clock(iso: Optional[str]) -> str:
+    """'2026-11-19T13:05:00+00:00' -> '2026-11-19 18:35' (café time), for the CSV."""
+    if not iso:
+        return ""
+    return datetime.fromisoformat(iso).astimezone(timezone(timedelta(hours=5, minutes=30))).strftime("%Y-%m-%d %H:%M")
 
 
 class CheckInRequest(_Camel):
