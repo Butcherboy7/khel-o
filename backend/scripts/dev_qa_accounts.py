@@ -81,7 +81,25 @@ async def main() -> None:
 
         cafe = (await db.execute(select(Cafe).where(Cafe.name.ilike("adamsden%")))).scalars().first()
         if cafe is None:
-            print("AdamsDen not found: no owner login made")
+            # This dev copy predates AdamsDen. Make a stand-in (placeholder
+            # address, nothing copied from prod) so the GTA 6 drop has a café.
+            from app.models.cafe import VerificationStatus
+            owner = (await db.execute(select(User).where(User.email == OWNER_EMAIL))).scalars().first()
+            if owner is None:
+                owner = User(id=uuid.uuid4(), email=OWNER_EMAIL, full_name="QA AdamsDen Owner",
+                             role=UserRole.CAFE_OWNER, password_hash=hashed, is_active=True)
+                db.add(owner)
+                await db.flush()
+                for r in (UserRole.GAMER, UserRole.CAFE_OWNER):
+                    db.add(UserRoleMapping(id=uuid.uuid4(), user_id=owner.id, role=r))
+            owner.password_hash, owner.is_active = hashed, True
+            cafe = Cafe(owner_id=owner.id, name="AdamsDen", slug="adamsden-hyderabad",
+                        address_line1="Dev placeholder address", city="Hyderabad", state="Telangana",
+                        pincode="500001", phone_number="0000000000",
+                        verification_status=VerificationStatus.VERIFIED, is_active=True)
+            db.add(cafe)
+            await db.flush()
+            print(f"made dev stand-in AdamsDen ({cafe.id}) owner login: {OWNER_EMAIL}")
         else:
             other = (await db.execute(select(User).where(User.email == OWNER_EMAIL))).scalars().first()
             owner = await db.get(User, cafe.owner_id)
