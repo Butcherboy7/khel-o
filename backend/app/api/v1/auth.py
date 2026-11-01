@@ -114,8 +114,8 @@ async def form_ticket():
 async def register_user(payload: UserCreateRequest, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         await bot_guard.check(db, request, "register", payload.email, payload.form_ticket, payload.website)
-    except bot_guard.Blocked:
-        raise bot_guard.try_again()
+    except bot_guard.Blocked as blocked:
+        raise bot_guard.refusal(blocked.reason)
     repo = UserRepository(db)
     service = AuthService(repo)
     result = await service.register_with_email(payload)
@@ -128,8 +128,8 @@ async def register_user(payload: UserCreateRequest, request: Request, db: AsyncS
 async def login_user(payload: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         await bot_guard.check(db, request, "login", payload.email, payload.form_ticket, payload.website)
-    except bot_guard.Blocked:
-        raise bot_guard.try_again()
+    except bot_guard.Blocked as blocked:
+        raise bot_guard.refusal(blocked.reason)
     repo = UserRepository(db)
     service = AuthService(repo)
     result = await service.login_with_email(payload.email, payload.password)
@@ -165,8 +165,11 @@ async def forgot_password(payload: ForgotPasswordRequest, request: Request, db: 
         repo = UserRepository(db)
         service = AuthService(repo)
         await service.request_password_reset(payload.email)
-    except bot_guard.Blocked:
-        pass  # same answer as a real request, and no email goes out
+    except bot_guard.Blocked as blocked:
+        # A filled trap never clears, so a person there must hear why. The
+        # speed check stays quiet: same answer as a real request, no email.
+        if blocked.reason == "trap":
+            raise bot_guard.refusal(blocked.reason)
     return {
         "success": True,
         "data": {"message": "If that email is registered, a reset link has been sent."}

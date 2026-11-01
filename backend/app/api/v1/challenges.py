@@ -337,8 +337,8 @@ async def join_challenge(
         raise BadRequestException(message="Tick the box to agree to the rules", error_code="RULES_REQUIRED")
     try:
         await bot_guard.check(db, request, "challenge", payload.phone, payload.form_ticket, payload.website)
-    except bot_guard.Blocked:
-        raise bot_guard.try_again()
+    except bot_guard.Blocked as blocked:
+        raise bot_guard.refusal(blocked.reason)
 
     fields = payload.model_dump(exclude={"form_ticket", "website", "door"})
     try:
@@ -393,8 +393,8 @@ async def quick_join_challenge(
         raise BadRequestException(message="Tick the box to agree to the rules", error_code="RULES_REQUIRED")
     try:
         await bot_guard.check(db, request, "challenge", payload.phone, payload.form_ticket, payload.website)
-    except bot_guard.Blocked:
-        raise bot_guard.try_again()
+    except bot_guard.Blocked as blocked:
+        raise bot_guard.refusal(blocked.reason)
 
     users = UserRepository(db)
     if door:
@@ -523,8 +523,8 @@ async def coming_yes_by_phone(slug: str, payload: ComingYesRequest, request: Req
         raise BadRequestException(message="This challenge has already started", error_code="CHALLENGE_STARTED")
     try:
         await bot_guard.check(db, request, "challenge", payload.phone, payload.form_ticket, payload.website)
-    except bot_guard.Blocked:
-        raise bot_guard.try_again()
+    except bot_guard.Blocked as blocked:
+        raise bot_guard.refusal(blocked.reason)
     entry = (await db.execute(
         select(ChallengeEntry).where(
             ChallengeEntry.challenge_id == ch_id, ChallengeEntry.phone == payload.phone,

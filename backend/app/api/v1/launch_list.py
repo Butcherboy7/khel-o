@@ -104,8 +104,8 @@ async def join_launch_list(key: str, payload: LaunchJoinRequest, request: Reques
     _launch(key)
     try:
         await bot_guard.check(db, request, "launch", payload.phone, payload.form_ticket, payload.website)
-    except bot_guard.Blocked:
-        raise bot_guard.try_again()
+    except bot_guard.Blocked as blocked:
+        raise bot_guard.refusal(blocked.reason)
 
     existing = (await db.execute(
         select(LaunchSignup).where(LaunchSignup.launch == key, LaunchSignup.phone == payload.phone)

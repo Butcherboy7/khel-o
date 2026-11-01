@@ -71,7 +71,9 @@ async def test_instant_or_trapped_signups_create_no_account(strict_bot_guard):
         assert r.status_code == 400 and r.json()["error"]["code"] == "TRY_AGAIN"
         trapped = f"bot_{uuid4().hex[:8]}@test.com"
         r = await c.post("/api/v1/auth/register", json=_signup(trapped, formTicket=_old_ticket(), website="http://x"))
-        assert r.status_code == 400
+        # The trap never clears on retry, so it must not say "try again".
+        assert r.status_code == 400 and r.json()["error"]["code"] == "FORM_AUTOFILLED"
+        assert "try again" not in r.json()["error"]["message"].lower()
         no_ticket = f"bot_{uuid4().hex[:8]}@test.com"
         r = await c.post("/api/v1/auth/register", json=_signup(no_ticket))
         assert r.status_code == 400
@@ -145,3 +147,66 @@ async def test_admin_sees_bots_stopped(strict_bot_guard, db_session):
     assert r.status_code == 200, r.text
     d = r.json()["data"]
     assert d["blocked"] >= 1 and d["byReason"].get("trap", 0) >= 1 and d["byKind"].get("register", 0) >= 1
+
+
+# ---- QA bypass key (TEST_BYPASS_KEY) ----
+
+KEY = "qa-key-for-tests-only"
+
+
+@pytest.fixture
+def bypass_key(monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "TEST_BYPASS_KEY", KEY)
+
+
+@pytest.mark.asyncio
+async def test_test_key_skips_trap_speed_and_ip_limit(strict_bot_guard, bypass_key):
+    ip = _ip()
+    async with _client(ip) as c:
+        c.headers["X-Khelo-Test-Key"] = KEY
+        codes = []
+        for _ in range(7):  # past the 5-per-IP cap, no ticket, trap filled
+            r = await c.post("/api/v1/auth/register", json=_signup(f"qa_{uuid4().hex[:8]}@test.com", website="autofill"))
+            codes.append(r.status_code)
+    assert codes == [201] * 7
+    async with AsyncSessionLocal() as db:
+        reasons = (await db.execute(select(AuthAttempt.reason).where(AuthAttempt.ip == ip))).scalars().all()
+        assert set(reasons) == {"test_key"}
+
+
+@pytest.mark.asyncio
+async def test_test_key_still_has_the_per_email_limit(strict_bot_guard, bypass_key):
+    email = f"qa_{uuid4().hex[:8]}@test.com"
+    async with _client(_ip()) as c:
+        c.headers["X-Khelo-Test-Key"] = KEY
+        codes = [(await c.post("/api/v1/auth/login", json={"email": email, "password": "wrongpass1"})).status_code for _ in range(11)]
+    assert codes[10] == 429
+
+
+@pytest.mark.asyncio
+async def test_wrong_or_missing_key_gets_no_bypass(strict_bot_guard, bypass_key):
+    async with _client(_ip()) as c:
+        c.headers["X-Khelo-Test-Key"] = "guess"
+        r = await c.post("/api/v1/auth/register", json=_signup(f"bot_{uuid4().hex[:8]}@test.com"))
+        assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_no_bypass_when_the_server_has_no_key(strict_bot_guard, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "TEST_BYPASS_KEY", "")
+    async with _client(_ip()) as c:
+        c.headers["X-Khelo-Test-Key"] = ""
+        r = await c.post("/api/v1/auth/register", json=_signup(f"bot_{uuid4().hex[:8]}@test.com", formTicket=_old_ticket(), website="x"))
+        assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_trapped_reset_request_is_told_why(strict_bot_guard, db_session):
+    from tests.test_password_reset import _make_user
+
+    user = await _make_user(db_session)
+    async with _client(_ip()) as c:
+        r = await c.post("/api/v1/auth/forgot-password", json={"email": user.email, "formTicket": _old_ticket(), "website": "x"})
+        assert r.status_code == 400 and r.json()["error"]["code"] == "FORM_AUTOFILLED"

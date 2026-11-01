@@ -119,6 +119,17 @@ def bot_reason(kind: str, ticket: Optional[str], trap: Optional[str], now: Optio
     return None
 
 
+TEST_KEY_HEADER = "x-khelo-test-key"
+
+
+def has_test_key(request: Request) -> bool:
+    """QA runs (scripts, Claude, Playwright) carry the server's TEST_BYPASS_KEY.
+    No key configured = no bypass, whatever the request sends."""
+    key = settings.TEST_BYPASS_KEY
+    sent = request.headers.get(TEST_KEY_HEADER, "")
+    return bool(key) and bool(sent) and hmac.compare_digest(sent, key)
+
+
 async def check(
     db: AsyncSession,
     request: Request,
@@ -127,12 +138,16 @@ async def check(
     ticket: Optional[str],
     trap: Optional[str],
 ) -> None:
-    """Log the attempt; raise Blocked (bot signals) or TooManyAttempts (limits)."""
+    """Log the attempt; raise Blocked (bot signals) or TooManyAttempts (limits).
+
+    With the test key the trap, speed and per-IP checks are skipped. The
+    per-email limit still applies, so a leaked key can't flood one address."""
     ip, eh = client_ip(request), email_hash(email)
     window, per_ip, per_email = LIMITS[kind]
     since = datetime.now(timezone.utc) - window
+    bypass = has_test_key(request)
 
-    reason = bot_reason(kind, ticket, trap)
+    reason = None if bypass else bot_reason(kind, ticket, trap)
     if reason is None:
         by_ip = (await db.execute(
             select(func.count()).select_from(AuthAttempt)
@@ -144,12 +159,15 @@ async def check(
                 select(func.count()).select_from(AuthAttempt)
                 .where(AuthAttempt.kind == kind, AuthAttempt.email_hash == eh, AuthAttempt.created_at >= since)
             )).scalar_one()
-        if by_ip >= per_ip:
+        if by_ip >= per_ip and not bypass:
             reason = "limit_ip"
         elif by_email >= per_email:
             reason = "limit_email"
 
-    db.add(AuthAttempt(kind=kind, ip=ip, email_hash=eh, outcome="blocked" if reason else "allowed", reason=reason))
+    db.add(AuthAttempt(
+        kind=kind, ip=ip, email_hash=eh, outcome="blocked" if reason else "allowed",
+        reason=reason or ("test_key" if bypass else None),
+    ))
     if random.random() < 0.02:
         await db.execute(delete(AuthAttempt).where(
             AuthAttempt.created_at < datetime.now(timezone.utc) - timedelta(days=KEEP_DAYS)
@@ -164,5 +182,19 @@ async def check(
 
 
 def try_again() -> BadRequestException:
-    """What a blocked sign-up or login sees. Vague on purpose: no hint for the bot."""
+    """A too-fast or ticketless form: honest, because sending again does work."""
     return BadRequestException(message="Please wait a moment and try again.", error_code="TRY_AGAIN")
+
+
+def refusal(reason: str) -> BadRequestException:
+    """What a blocked form sees. The trap block never clears on its own (the
+    hidden box stays filled), so it must not say "try again"."""
+    if reason == "trap":
+        return BadRequestException(
+            message=(
+                "We couldn't send this form. A browser add-on or autofill tool filled in a hidden box. "
+                "Reload the page and type your details yourself."
+            ),
+            error_code="FORM_AUTOFILLED",
+        )
+    return try_again()
