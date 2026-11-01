@@ -598,7 +598,7 @@ function DoorQr({ door, slug }: { door: { url: string; qr: string }; slug: strin
         </p>
         <p className="mt-1 text-caption text-text-secondary">
           Put this QR on the counter. Anyone who scans it signs up and is checked in straight away, even after check-in closed. It only
-          works on the day. Walk-ins after the draw show “Not in the bracket”: tap Add to bracket next to their name.
+          works on the day. Walk-ins after the draw show at the top of step 3, with Add to bracket while a place is free.
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           <a href={door.qr} download={`khelo-${slug}-walk-in-qr.png`} className={linkBtn}>
