@@ -15,7 +15,7 @@ from app.core.payout_encryption import encrypt_bank_account_number, decrypt_bank
 from tests.conftest import auth_headers
 
 
-async def _make_owner_with_cafe(db_session, password="testpass123"):
+async def _make_owner_with_cafe(db_session, password="UnitTestPw123"):
     owner = User(
         id=uuid.uuid4(), email=f"payout_dest_owner_{uuid.uuid4().hex[:8]}@test.com",
         full_name="Payout Dest Owner", password_hash=get_password_hash(password),

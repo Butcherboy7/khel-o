@@ -45,7 +45,7 @@ async def test_onboarding_submission_does_not_grant_cafe_owner_role(db_session, 
         id=user_id,
         email=f"gamer_timing_{uuid4().hex}@test.com",
         full_name="Test Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )
@@ -97,7 +97,7 @@ async def test_onboarding_submission_does_not_grant_cafe_owner_role(db_session, 
     # =========================================================================
     login_response = await async_client.post("/api/v1/auth/login", json={
         "email": user.email,
-        "password": "testpass123"
+        "password": "UnitTestPw123"
     })
     
     assert login_response.status_code == 200, f"User login failed: {login_response.json()}"
@@ -144,7 +144,7 @@ async def test_owner_onboarding_preserves_gamer_role(db_session, async_client: A
         id=user_id,
         email=f"gamer_preserve_{uuid4().hex}@test.com",
         full_name="Test Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )
@@ -200,7 +200,7 @@ async def test_owner_onboarding_preserves_gamer_role(db_session, async_client: A
         id=admin_id,
         email=f"admin_preserve_{uuid4().hex}@test.com",
         full_name="Test Admin",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.ADMIN,
         is_active=True
     )
@@ -226,7 +226,7 @@ async def test_owner_onboarding_preserves_gamer_role(db_session, async_client: A
     # =========================================================================
     login_response = await async_client.post("/api/v1/auth/login", json={
         "email": admin.email,
-        "password": "testpass123"
+        "password": "UnitTestPw123"
     })
     
     assert login_response.status_code == 200, f"Admin login failed: {login_response.json()}"
@@ -292,7 +292,7 @@ async def test_booking_works_after_role_addition(db_session, async_client: Async
         id=user_id,
         email=f"dual_role_{uuid4().hex}@test.com",
         full_name="Dual Role User",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,  # Primary role
         is_active=True
     )
@@ -317,7 +317,7 @@ async def test_booking_works_after_role_addition(db_session, async_client: Async
     # Login as user
     login_response = await async_client.post("/api/v1/auth/login", json={
         "email": user.email,
-        "password": "testpass123"
+        "password": "UnitTestPw123"
     })
     
     assert login_response.status_code == 200
@@ -349,7 +349,7 @@ async def test_login_response_includes_full_roles_list(db_session, async_client:
         id=user_id,
         email=f"multi_role_{uuid4().hex}@test.com",
         full_name="Multi Role User",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )
@@ -362,7 +362,7 @@ async def test_login_response_includes_full_roles_list(db_session, async_client:
 
     login_response = await async_client.post("/api/v1/auth/login", json={
         "email": user.email,
-        "password": "testpass123"
+        "password": "UnitTestPw123"
     })
 
     assert login_response.status_code == 200

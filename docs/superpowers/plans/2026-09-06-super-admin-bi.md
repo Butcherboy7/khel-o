@@ -102,7 +102,7 @@ async def test_user_has_acquisition_columns(db_session):
         id=uuid4(),
         email=f"acq_{uuid4().hex[:8]}@test.com",
         full_name="Acq Test",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("<demo password>"),
         role=UserRole.GAMER,
         is_active=True,
         city="Hyderabad",
@@ -793,7 +793,7 @@ async def test_register_persists_city_and_acquisition(async_client, db_session):
         "/api/v1/auth/register",
         json={
             "email": email,
-            "password": "testpass123",
+            "password": "<demo password>",
             "fullName": "New User",
             "city": "Hyderabad",
             "acquisitionSource": "whatsapp",
@@ -814,7 +814,7 @@ async def test_register_without_acquisition_fields_still_succeeds(async_client):
     email = f"newuser_{uuid4().hex[:8]}@test.com"
     resp = await async_client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "testpass123", "fullName": "New User"},
+        json={"email": email, "password": "<demo password>", "fullName": "New User"},
     )
     assert resp.status_code == 201
 
@@ -832,7 +832,7 @@ async def test_register_backfills_anonymous_session_events(async_client, db_sess
     email = f"newuser_{uuid4().hex[:8]}@test.com"
     resp = await async_client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "testpass123", "fullName": "New User", "sessionId": session_id},
+        json={"email": email, "password": "<demo password>", "fullName": "New User", "sessionId": session_id},
     )
     assert resp.status_code == 201
     new_user_id = resp.json()["data"]["user"]["id"]
@@ -1077,11 +1077,11 @@ from app.schemas.booking import BookingCreateRequest
 async def test_create_booking_persists_game(db_session):
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([owner, gamer])
     await db_session.flush()
@@ -1262,7 +1262,7 @@ from tests.conftest import auth_headers
 async def _make_admin(db_session) -> User:
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.ADMIN, is_active=True,
     )
     db_session.add(admin)
     await db_session.commit()
@@ -1275,11 +1275,11 @@ async def test_executive_dashboard_totals(async_client, db_session):
 
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([owner, gamer])
     await db_session.flush()
@@ -1632,15 +1632,15 @@ from tests.conftest import auth_headers
 async def test_cafe_performance_ranks_by_gmv(async_client, db_session):
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.ADMIN, is_active=True,
     )
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([admin, owner, gamer])
     await db_session.flush()
@@ -1935,15 +1935,15 @@ from tests.conftest import auth_headers
 async def test_setup_performance_groups_by_platform(async_client, db_session):
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.ADMIN, is_active=True,
     )
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([admin, owner, gamer])
     await db_session.flush()
@@ -2184,15 +2184,15 @@ from tests.conftest import auth_headers
 async def test_geography_groups_by_cafe_city(async_client, db_session):
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.ADMIN, is_active=True,
     )
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([admin, owner, gamer])
     await db_session.flush()
@@ -2421,15 +2421,15 @@ from tests.conftest import auth_headers
 async def test_revenue_splits_gmv_and_khel_revenue(async_client, db_session):
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.ADMIN, is_active=True,
     )
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([admin, owner, gamer])
     await db_session.flush()
@@ -2695,15 +2695,15 @@ from tests.conftest import auth_headers
 async def test_marketplace_health_rates(async_client, db_session):
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.ADMIN, is_active=True,
     )
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([admin, owner, gamer])
     await db_session.flush()
@@ -2946,15 +2946,15 @@ from tests.conftest import auth_headers
 async def test_attribution_groups_by_source(async_client, db_session):
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.ADMIN, is_active=True,
     )
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.GAMER, is_active=True,
         acquisition_source="whatsapp",
     )
     db_session.add_all([admin, owner, gamer])
@@ -3194,15 +3194,15 @@ from tests.conftest import auth_headers
 async def test_funnel_stage_counts(async_client, db_session):
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.ADMIN, is_active=True,
     )
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([admin, owner, gamer])
     await db_session.flush()

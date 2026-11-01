@@ -11,7 +11,7 @@ test.describe('Onboarding Step 1: state-first location flow', () => {
   test('state locks after selecting a city and unlocks via the city field Change button', async ({ page }) => {
     await page.goto('/login');
     await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.click('button[type="submit"]');
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
 
@@ -54,7 +54,7 @@ test.describe('Onboarding Step 1: state-first location flow', () => {
   test('city search shows popular cities for the state on focus, before typing', async ({ page }) => {
     await page.goto('/login');
     await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.click('button[type="submit"]');
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
 
@@ -75,7 +75,7 @@ test.describe('Onboarding Step 1: state-first location flow', () => {
   test('city search finds a named locality, not just major metros', async ({ page }) => {
     await page.goto('/login');
     await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.click('button[type="submit"]');
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
 
@@ -93,7 +93,7 @@ test.describe('Onboarding Step 1: state-first location flow', () => {
   test('clicking outside the city dropdown closes it', async ({ page }) => {
     await page.goto('/login');
     await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.click('button[type="submit"]');
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
 

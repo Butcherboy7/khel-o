@@ -26,7 +26,7 @@ async def _make_booking(db):
         id=uuid4(),
         email=f"dup_pay_owner_{uuid4().hex}@test.com",
         full_name="Owner",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True,
     )
@@ -34,7 +34,7 @@ async def _make_booking(db):
         id=uuid4(),
         email=f"dup_pay_gamer_{uuid4().hex}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True,
     )

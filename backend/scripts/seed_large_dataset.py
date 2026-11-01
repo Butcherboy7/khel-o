@@ -1,3 +1,7 @@
+import os
+
+# Never commit a password: pass it in, e.g. SEED_PASSWORD=... python scripts/<this>.py
+SEED_PASSWORD = os.environ.get("SEED_PASSWORD") or exit("Set SEED_PASSWORD first.")
 import asyncio
 import uuid
 from datetime import time, datetime, timezone
@@ -67,7 +71,7 @@ async def seed():
                 id=uuid.UUID("2083bd7d-7811-4adf-99ec-4915bbd95eec"),
                 email="owner@example.com",
                 phone_number="+919876543210",
-                hashed_password=get_password_hash("testpass123"),
+                hashed_password=get_password_hash(SEED_PASSWORD),
                 full_name="Rajesh Sharma (Owner)",
                 role=UserRole.CAFE_OWNER,
                 is_active=True,

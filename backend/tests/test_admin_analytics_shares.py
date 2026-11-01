@@ -14,7 +14,7 @@ URL = "/api/v1/admin/analytics/shares"
 def _user(role=UserRole.GAMER, **kw):
     return User(
         id=uuid4(), email=f"{role.value}_{uuid4().hex[:8]}@test.com", full_name="T",
-        password_hash=get_password_hash("testpass123"), role=role, is_active=True, **kw,
+        password_hash=get_password_hash("UnitTestPw123"), role=role, is_active=True, **kw,
     )
 
 

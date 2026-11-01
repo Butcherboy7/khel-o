@@ -2,6 +2,10 @@
 Seed realistic cafes with comprehensive test scenarios.
 Each cafe has specific operating hours and description explaining what can be tested.
 """
+import os
+
+# Never commit a password: pass it in, e.g. SEED_PASSWORD=... python scripts/<this>.py
+SEED_PASSWORD = os.environ.get("SEED_PASSWORD") or exit("Set SEED_PASSWORD first.")
 import asyncio
 from datetime import time
 from uuid import uuid4
@@ -21,7 +25,7 @@ async def seed_test_cafes():
             id=uuid4(),
             email="testowner@khelo.com",
             full_name="Test Owner",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash(SEED_PASSWORD),
             role=UserRole.CAFE_OWNER,
             is_active=True
         )

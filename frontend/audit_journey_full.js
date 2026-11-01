@@ -527,7 +527,7 @@ async function clearAndFill(page, selector, text) {
     await page.evaluate(() => localStorage.clear());
     await page.goto('http://localhost:3000/login');
     await clearAndFill(page, 'input[type="email"]', 'admin@example.com');
-    await clearAndFill(page, 'input[type="password"]', 'testpass123');
+    await clearAndFill(page, 'input[type="password"]', process.env.E2E_PASSWORD);
 
     const [adminLoginRes] = await Promise.all([
       page.waitForResponse(res => res.url().includes('/api/v1/auth/login')),
@@ -891,7 +891,7 @@ async function clearAndFill(page, selector, text) {
     await page.evaluate(() => localStorage.clear());
     await page.goto('http://localhost:3000/login');
     await clearAndFill(page, 'input[type="email"]', 'staff@example.com');
-    await clearAndFill(page, 'input[type="password"]', 'testpass123');
+    await clearAndFill(page, 'input[type="password"]', process.env.E2E_PASSWORD);
 
     const [staffLoginRes] = await Promise.all([
       page.waitForResponse(res => res.url().includes('/api/v1/auth/login')),

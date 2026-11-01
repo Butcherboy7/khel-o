@@ -15,7 +15,7 @@ async def _make_owner_with_cafe(db, *, email_prefix: str, phone_suffix: str, caf
     require_cafe_owner actually reads) plus a verified café."""
     owner = User(
         id=uuid4(), email=f"{email_prefix}_{uuid4().hex[:6]}@test.com",
-        password_hash=get_password_hash("testpass123"), full_name="Test Owner",
+        password_hash=get_password_hash("UnitTestPw123"), full_name="Test Owner",
         role=UserRole.CAFE_OWNER, is_active=True
     )
     db.add(owner)
@@ -41,7 +41,7 @@ async def test_needs_confirmation_lists_unmigrated_tiers_with_guess():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"reconfirm_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Reconfirm Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Reconfirm Owner",
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
@@ -119,7 +119,7 @@ async def test_needs_confirmation_false_once_all_tiers_migrated():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"reconfirm_done_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Reconfirm Done Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Reconfirm Done Owner",
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)

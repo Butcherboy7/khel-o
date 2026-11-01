@@ -5,7 +5,7 @@ test.describe('Dual-Role Switcher E2E Integration (Phase 3)', () => {
     // 1. Log in as verified owner
     await page.goto('/login');
     await page.fill('input[type="email"]', 'owner@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.click('button[type="submit"]');
 
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });

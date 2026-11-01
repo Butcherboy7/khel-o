@@ -436,7 +436,7 @@ async def test_create_tier_with_platform_derives_specs_and_name():
         owner = User(
             id=uuid4(),
             email=f"platform_tier_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("<demo password>"),
             full_name="Platform Tier Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -493,7 +493,7 @@ async def test_create_tier_without_platform_still_works():
         owner = User(
             id=uuid4(),
             email=f"legacy_tier_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("<demo password>"),
             full_name="Legacy Tier Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -546,7 +546,7 @@ async def test_create_tier_with_invalid_model_for_platform_rejected():
         owner = User(
             id=uuid4(),
             email=f"invalid_model_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("<demo password>"),
             full_name="Invalid Model Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -989,7 +989,7 @@ async def test_needs_confirmation_lists_unmigrated_tiers_with_guess():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"reconfirm_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Reconfirm Owner",
+            password_hash=get_password_hash("<demo password>"), full_name="Reconfirm Owner",
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
@@ -1046,7 +1046,7 @@ async def test_needs_confirmation_false_once_all_tiers_migrated():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"reconfirm_done_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Reconfirm Done Owner",
+            password_hash=get_password_hash("<demo password>"), full_name="Reconfirm Done Owner",
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
@@ -1238,7 +1238,7 @@ async def test_delete_menu_photo_removes_url():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"menu_photo_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Menu Photo Owner",
+            password_hash=get_password_hash("<demo password>"), full_name="Menu Photo Owner",
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
@@ -1356,7 +1356,7 @@ async def test_update_cafe_details_persists_menu_photos():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"menu_add_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Menu Add Owner",
+            password_hash=get_password_hash("<demo password>"), full_name="Menu Add Owner",
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
@@ -1405,7 +1405,7 @@ async def test_owner_settings_includes_menu_photos():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"menu_settings_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Menu Settings Owner",
+            password_hash=get_password_hash("<demo password>"), full_name="Menu Settings Owner",
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)

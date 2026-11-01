@@ -18,7 +18,7 @@ async def test_hardware_tier_defaults_to_gaming_type():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"activity_owner_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Activity Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Activity Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -49,7 +49,7 @@ async def test_activity_tier_and_units_roundtrip():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"activity_owner2_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Activity Owner 2",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Activity Owner 2",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -91,7 +91,7 @@ async def test_maintenance_unit_reduces_booking_capacity():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"activity_owner3_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Activity Owner 3",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Activity Owner 3",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -136,7 +136,7 @@ async def test_capacity_conflict_detected_for_fully_booked_future_slot():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"activity_owner4_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Activity Owner 4",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Activity Owner 4",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -185,7 +185,7 @@ async def test_create_activity_tier_via_api_generates_units():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"activity_api_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Activity API Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Activity API Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -253,7 +253,7 @@ async def test_create_pooled_activity_tier_has_no_units():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"pooled_owner_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Pooled Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Pooled Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -309,7 +309,7 @@ async def test_platforms_complete_ignores_activity_tiers():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"platforms_owner_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Platforms Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Platforms Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -347,7 +347,7 @@ async def test_maintenance_blocked_when_it_would_oversell_a_booking():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"maint_block_owner_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Maint Block Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Maint Block Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -416,12 +416,12 @@ async def test_owner_cannot_patch_another_cafes_unit_via_own_tier_url():
     async with AsyncSessionLocal() as db:
         owner_a = User(
             id=uuid4(), email=f"idor_owner_a_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="IDOR Owner A",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="IDOR Owner A",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         owner_b = User(
             id=uuid4(), email=f"idor_owner_b_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="IDOR Owner B",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="IDOR Owner B",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add_all([owner_a, owner_b])
@@ -495,7 +495,7 @@ async def test_activity_tier_excluded_from_platform_confirmation():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"confirm_owner_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Confirm Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Confirm Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -537,7 +537,7 @@ async def test_confirm_platform_rejects_activity_tier():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"confirm_direct_owner_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Confirm Direct Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Confirm Direct Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -588,7 +588,7 @@ async def test_shrinking_past_nine_units_preserves_low_numbered_labels():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"order_owner_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Order Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Order Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -627,7 +627,7 @@ async def test_shrinking_only_app_bookable_seats_runs_capacity_check():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"m4_owner_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="M4 Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="M4 Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -692,7 +692,7 @@ async def test_past_session_today_does_not_block_maintenance():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"past_session_owner_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Past Session Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Past Session Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)
@@ -759,7 +759,7 @@ async def test_switching_activity_between_units_and_pooled_sticks():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"pool_switch_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Pool Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Pool Owner",
             role=UserRole.CAFE_OWNER, is_active=True,
         )
         db.add(owner)

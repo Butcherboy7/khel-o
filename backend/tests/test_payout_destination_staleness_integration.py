@@ -27,7 +27,7 @@ from tests.test_admin_v2_features import _make_gamer, _make_booking_with_payment
 async def _make_admin(db_session) -> User:
     admin = User(
         id=uuid.uuid4(), email=f"stale_admin_{uuid.uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.ADMIN, is_active=True,
     )
     db_session.add(admin)
     await db_session.flush()

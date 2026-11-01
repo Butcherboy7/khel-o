@@ -13,7 +13,7 @@ from tests.conftest import auth_headers
 async def _make_admin(db_session) -> User:
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.ADMIN, is_active=True,
     )
     db_session.add(admin)
     await db_session.commit()
@@ -26,11 +26,11 @@ async def test_executive_dashboard_totals(async_client, db_session):
 
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([owner, gamer])
     await db_session.flush()
@@ -87,19 +87,19 @@ async def test_repeat_booking_rate_respects_period_days(async_client, db_session
 
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     repeat_gamer = User(
         id=uuid4(), email=f"repeat_{uuid4().hex[:8]}@test.com", full_name="Repeat Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     single_gamer = User(
         id=uuid4(), email=f"single_{uuid4().hex[:8]}@test.com", full_name="Single Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     old_only_gamer = User(
         id=uuid4(), email=f"old_{uuid4().hex[:8]}@test.com", full_name="Old-Only Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([owner, repeat_gamer, single_gamer, old_only_gamer])
     await db_session.flush()

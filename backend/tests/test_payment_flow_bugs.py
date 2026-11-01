@@ -30,7 +30,7 @@ async def test_pending_payment_booking_can_be_cancelled_immediately(db_session):
         id=uuid4(),
         email=f"cancel_pending_owner_{uuid4().hex}@test.com",
         full_name="Owner",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -38,7 +38,7 @@ async def test_pending_payment_booking_can_be_cancelled_immediately(db_session):
         id=uuid4(),
         email=f"cancel_pending_gamer_{uuid4().hex}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )
@@ -138,7 +138,7 @@ async def test_failed_payment_booking_can_be_cancelled_immediately(db_session):
         id=uuid4(),
         email=f"cancel_failed_owner_{uuid4().hex}@test.com",
         full_name="Owner",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -146,7 +146,7 @@ async def test_failed_payment_booking_can_be_cancelled_immediately(db_session):
         id=uuid4(),
         email=f"cancel_failed_gamer_{uuid4().hex}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )
@@ -231,7 +231,7 @@ async def test_confirmed_booking_rejects_cancellation_under_2_hours(db_session):
         id=uuid4(),
         email=f"cancel_confirmed_owner_{uuid4().hex}@test.com",
         full_name="Owner",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -239,7 +239,7 @@ async def test_confirmed_booking_rejects_cancellation_under_2_hours(db_session):
         id=uuid4(),
         email=f"cancel_confirmed_gamer_{uuid4().hex}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )

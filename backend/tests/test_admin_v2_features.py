@@ -26,7 +26,7 @@ async def _make_admin(db_session) -> User:
         id=uuid4(),
         email=f"admin_{uuid4().hex[:8]}@test.com",
         full_name="Admin",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.ADMIN,
         is_active=True,
     )
@@ -42,7 +42,7 @@ async def _make_gamer(db_session, email_prefix: str) -> User:
         id=uuid4(),
         email=f"{email_prefix}_{uuid4().hex[:8]}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True,
     )
@@ -56,7 +56,7 @@ async def _make_gamer(db_session, email_prefix: str) -> User:
 async def _make_booking_with_payment(db_session, gamer: User, razorpay_payment_id=None) -> tuple[Booking, Payment]:
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     db_session.add(owner)
     await db_session.flush()
@@ -252,7 +252,7 @@ async def test_admin_reset_password_issues_working_new_password_and_is_audited(d
         # Old password no longer works.
         old_login_res = await client.post(
             "/api/v1/auth/login",
-            json={"email": target.email, "password": "testpass123"},
+            json={"email": target.email, "password": "UnitTestPw123"},
         )
         assert old_login_res.status_code in (400, 401)
 
@@ -294,7 +294,7 @@ async def test_pause_bookings_and_promotion_deactivate_are_now_audited(db_sessio
     admin = await _make_admin(db_session)
     owner = User(
         id=uuid4(), email=f"pause_owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     db_session.add(owner)
     await db_session.flush()
@@ -329,7 +329,7 @@ async def test_admin_can_update_cafe_description_and_it_is_audited(db_session):
     admin = await _make_admin(db_session)
     owner = User(
         id=uuid4(), email=f"desc_owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     db_session.add(owner)
     await db_session.flush()
@@ -370,7 +370,7 @@ async def test_admin_reviews_include_cafe_name(db_session):
     gamer = await _make_gamer(db_session, "review_author")
     owner = User(
         id=uuid4(), email=f"review_owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     db_session.add(owner)
     await db_session.flush()

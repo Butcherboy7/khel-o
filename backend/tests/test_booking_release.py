@@ -61,15 +61,15 @@ def _install_fake_razorpay_refund(monkeypatch, call_log):
 async def _make_pending_booking(db, amount=100.0, minutes_ago=1, with_payment=True):
     owner = User(
         id=uuid4(), email=f"release_owner_{uuid4().hex}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     other_owner = User(
         id=uuid4(), email=f"release_other_owner_{uuid4().hex}@test.com", full_name="Other Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"release_gamer_{uuid4().hex}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     db.add_all([owner, other_owner, gamer])
     await db.flush()
@@ -144,7 +144,7 @@ async def test_admin_can_release_any_cafes_pending_booking(db_session):
     _owner, _other, gamer, _cafe, _tier, booking, _payment = await _make_pending_booking(db_session)
     admin = User(
         id=uuid4(), email=f"release_admin_{uuid4().hex}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.ADMIN, is_active=True,
     )
     db_session.add(admin)
     await db_session.commit()

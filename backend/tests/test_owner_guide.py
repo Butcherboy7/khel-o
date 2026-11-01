@@ -11,7 +11,7 @@ URL = "/api/v1/owner/guide"
 async def _user(db_session, role):
     u = User(
         id=uuid4(), email=f"{role.value}_{uuid4().hex[:8]}@test.com", full_name="T",
-        password_hash=get_password_hash("testpass123"), role=role, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=role, is_active=True,
     )
     db_session.add(u)
     await db_session.commit()

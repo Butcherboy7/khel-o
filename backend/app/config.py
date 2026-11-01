@@ -60,6 +60,22 @@ class Settings(BaseSettings):
     # person. Comma-separated; an entry starting with "@" allows a whole domain.
     EMAIL_ALLOWLIST: str = ""
 
+    # Dev site gate (HTTP basic auth for the whole site). Set both on dev only;
+    # empty = gate off. The frontend middleware reads the same two values, so a
+    # person who passes the browser prompt once gets a cookie that also opens
+    # /api/*. See app/core/dev_gate.py.
+    DEV_GATE_USER: str = ""
+    DEV_GATE_PASSWORD: str = ""
+
+    # QA bypass for the bot guard: a request carrying header X-Khelo-Test-Key
+    # equal to this skips the trap, speed and per-IP checks (never the
+    # per-email limit). Empty = no bypass. See app/core/bot_guard.py.
+    TEST_BYPASS_KEY: str = ""
+
+    # Password for the demo accounts seeded at startup in development. Empty =
+    # nothing is seeded. Never commit a value.
+    DEMO_SEED_PASSWORD: str = ""
+
     # KHEL-O V2 Configurations
     RAZORPAY_ROUTE_ENABLED: bool = False
     # 0=Monday ... 6=Sunday. The day the weekly café payout allocation job

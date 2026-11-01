@@ -32,7 +32,7 @@ async def async_client():
 async def _make_cafe_owner(db):
     owner = User(
         id=uuid.uuid4(), email=f"fp_owner_{uuid.uuid4().hex[:8]}@test.com", full_name="FP Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     db.add(owner)
     await db.flush()
@@ -335,7 +335,7 @@ async def test_owner_cannot_permanently_delete_promotion_with_unpaid_booking(asy
 
     gamer = User(
         id=uuid.uuid4(), email=f"fp_gamer_{uuid.uuid4().hex[:8]}@test.com", full_name="FP Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     async with AsyncSessionLocal() as db:
         db.add(gamer)

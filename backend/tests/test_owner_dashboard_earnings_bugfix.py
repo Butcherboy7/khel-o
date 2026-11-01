@@ -31,7 +31,7 @@ async def _make_owner_and_cafe(db_session, suffix: str):
         id=uuid4(),
         email=f"owner_earn_{suffix}_{uuid4().hex[:8]}@test.com",
         full_name="Owner Earnings",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True,
     )
@@ -72,7 +72,7 @@ async def test_dashboard_earnings_exclude_pending_and_failed_bookings(db_session
 
     gamer = User(
         id=uuid4(), email=f"gamer_earn_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add(gamer)
     await db_session.flush()

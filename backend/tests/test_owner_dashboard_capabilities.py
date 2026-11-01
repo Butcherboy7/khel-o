@@ -25,7 +25,7 @@ async def test_owner_can_set_bookable_stations(db_session):
         id=uuid4(),
         email=f"owner_set_{uuid4().hex}@test.com",
         full_name="Owner One",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -99,7 +99,7 @@ async def test_locked_tier_seat_quota_survives_global_rescale(db_session):
         id=uuid4(),
         email=f"owner_lock_{uuid4().hex}@test.com",
         full_name="Owner Lock",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -194,7 +194,7 @@ async def test_resume_toggle_restores_real_seat_capacity(db_session):
         id=uuid4(),
         email=f"owner_resume_{uuid4().hex}@test.com",
         full_name="Owner Resume",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -279,7 +279,7 @@ async def test_pausing_bookings_blocks_new_bookings(db_session):
         id=uuid4(),
         email=f"owner_a_pause_{uuid4().hex}@test.com",
         full_name="Owner A",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -287,7 +287,7 @@ async def test_pausing_bookings_blocks_new_bookings(db_session):
         id=uuid4(),
         email=f"owner_b_pause_{uuid4().hex}@test.com",
         full_name="Owner B",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -295,7 +295,7 @@ async def test_pausing_bookings_blocks_new_bookings(db_session):
         id=uuid4(),
         email=f"gamer_pause_{uuid4().hex}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )
@@ -419,7 +419,7 @@ async def test_different_owner_cannot_edit_cafe(db_session):
         id=uuid4(),
         email=f"owner_a_forbid_{uuid4().hex}@test.com",
         full_name="Owner A",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -427,7 +427,7 @@ async def test_different_owner_cannot_edit_cafe(db_session):
         id=uuid4(),
         email=f"owner_b_forbid_{uuid4().hex}@test.com",
         full_name="Owner B",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -494,7 +494,7 @@ async def test_edit_operating_hours_overnight(db_session):
         id=uuid4(),
         email=f"owner_hours_{uuid4().hex}@test.com",
         full_name="Owner",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )

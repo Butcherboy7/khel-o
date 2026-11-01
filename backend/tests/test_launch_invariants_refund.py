@@ -34,7 +34,7 @@ from tests.test_launch_invariants import (
 async def _make_admin(db_session):
     admin = User(
         id=uuid4(), email=f"rf_admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.ADMIN, is_active=True,
     )
     db_session.add(admin)

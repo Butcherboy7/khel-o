@@ -13,7 +13,7 @@ async def test_user_has_acquisition_columns(db_session):
         id=uuid4(),
         email=f"acq_{uuid4().hex[:8]}@test.com",
         full_name="Acq Test",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True,
         city="Hyderabad",

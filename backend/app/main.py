@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.dev_gate import DevGateMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -29,7 +30,9 @@ async def ensure_demo_users():
         
         async with AsyncSessionLocal() as session:
             repo = UserRepository(session)
-            hashed_password = get_password_hash("testpass123")
+            # No password in code: the accounts are only seeded when
+            # DEMO_SEED_PASSWORD is set (local development).
+            hashed_password = get_password_hash(settings.DEMO_SEED_PASSWORD)
             
             demo_accounts = [
                 ("uzair@gmail.com", "Uzair (Gamer)", UserRole.GAMER),
@@ -343,7 +346,7 @@ async def lifespan(app: FastAPI):
         if settings.SECRET_KEY == "super-secret-key-change-in-production-at-least-32-chars":
             raise RuntimeError("CRITICAL: Default insecure SECRET_KEY detected in production.")
 
-    if settings.ENVIRONMENT == "development":
+    if settings.ENVIRONMENT == "development" and settings.DEMO_SEED_PASSWORD:
         await ensure_demo_users()
     yield
     logger.info("stopping_khel_o_backend")
@@ -376,6 +379,10 @@ app.add_middleware(
 # photo arrays benefit most) — added after CORS so it wraps the outermost,
 # compressing the final response including CORS headers.
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Dev site gate (basic auth), outermost so a locked-out request does no work.
+# Off unless DEV_GATE_USER and DEV_GATE_PASSWORD are set (dev only).
+app.add_middleware(DevGateMiddleware)
 
 # Mount static files directory
 os.makedirs("static/qr", exist_ok=True)

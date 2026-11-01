@@ -26,7 +26,7 @@ async def test_overnight_hours_generate_correct_slots(db_session):
         id=uuid4(),
         email=f"overnight_owner_{uuid4().hex}@test.com",
         full_name="Overnight Owner",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -34,7 +34,7 @@ async def test_overnight_hours_generate_correct_slots(db_session):
         id=uuid4(),
         email=f"overnight_gamer_{uuid4().hex}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )
@@ -126,7 +126,7 @@ async def test_post_midnight_booking_locks_correct_date(db_session):
         id=uuid4(),
         email=f"lockdate_owner_{uuid4().hex}@test.com",
         full_name="Owner",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -134,7 +134,7 @@ async def test_post_midnight_booking_locks_correct_date(db_session):
         id=uuid4(),
         email=f"lockdate_gamer_{uuid4().hex}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )
@@ -230,7 +230,7 @@ async def test_normal_hours_unaffected_regression(db_session):
         id=uuid4(),
         email=f"normal_owner_{uuid4().hex}@test.com",
         full_name="Owner",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -238,7 +238,7 @@ async def test_normal_hours_unaffected_regression(db_session):
         id=uuid4(),
         email=f"normal_gamer_{uuid4().hex}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )
@@ -315,7 +315,7 @@ async def test_cancellation_window_overnight_booking(db_session):
         id=uuid4(),
         email=f"cancel_owner_{uuid4().hex}@test.com",
         full_name="Owner",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True
     )
@@ -323,7 +323,7 @@ async def test_cancellation_window_overnight_booking(db_session):
         id=uuid4(),
         email=f"cancel_gamer_{uuid4().hex}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True
     )

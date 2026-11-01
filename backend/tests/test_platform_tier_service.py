@@ -15,7 +15,7 @@ async def test_create_tier_with_platform_derives_specs_and_name():
         owner = User(
             id=uuid4(),
             email=f"platform_tier_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("UnitTestPw123"),
             full_name="Platform Tier Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -74,7 +74,7 @@ async def test_create_tier_with_explicit_name_survives_platform_derivation():
         owner = User(
             id=uuid4(),
             email=f"explicit_name_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("UnitTestPw123"),
             full_name="Explicit Name Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -145,7 +145,7 @@ async def test_create_tier_without_platform_still_works():
         owner = User(
             id=uuid4(),
             email=f"legacy_tier_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("UnitTestPw123"),
             full_name="Legacy Tier Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -199,7 +199,7 @@ async def test_create_tier_with_invalid_model_for_platform_rejected():
         owner = User(
             id=uuid4(),
             email=f"invalid_model_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("UnitTestPw123"),
             full_name="Invalid Model Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -252,7 +252,7 @@ async def test_update_tier_with_new_platform_rederives_specs_and_name():
         owner = User(
             id=uuid4(),
             email=f"update_platform_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("UnitTestPw123"),
             full_name="Update Platform Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -322,7 +322,7 @@ async def test_update_tier_resending_same_platform_model_preserves_owner_name():
         owner = User(
             id=uuid4(),
             email=f"preserve_name_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("UnitTestPw123"),
             full_name="Preserve Name Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -393,7 +393,7 @@ async def test_update_tier_with_invalid_model_for_platform_rejected():
         owner = User(
             id=uuid4(),
             email=f"update_invalid_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("UnitTestPw123"),
             full_name="Update Invalid Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -457,7 +457,7 @@ async def test_update_tier_with_platform_overrides_explicit_empty_specs():
         owner = User(
             id=uuid4(),
             email=f"update_override_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("UnitTestPw123"),
             full_name="Update Override Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -525,7 +525,7 @@ async def test_update_tier_single_field_platform_only_does_not_wipe_specs():
         owner = User(
             id=uuid4(),
             email=f"single_field_platform_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("UnitTestPw123"),
             full_name="Single Field Platform Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True
@@ -593,7 +593,7 @@ async def test_update_tier_single_field_model_only_does_not_rename_unmigrated_ti
         owner = User(
             id=uuid4(),
             email=f"single_field_model_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"),
+            password_hash=get_password_hash("UnitTestPw123"),
             full_name="Single Field Model Owner",
             role=UserRole.CAFE_OWNER,
             is_active=True

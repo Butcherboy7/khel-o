@@ -11,7 +11,7 @@ test.describe('Ticket 7: End-to-End Onboarding Flow', () => {
     const timestamp = Date.now();
     const testUser = {
       email: `test-${timestamp}@example.com`,
-      password: 'TestPass123!',
+      password: process.env.E2E_PASSWORD!,
       fullName: 'Test Cafe Owner',
     };
     

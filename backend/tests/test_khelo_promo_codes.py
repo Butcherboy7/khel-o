@@ -33,11 +33,11 @@ async def async_client():
 async def _make_cafe_owner_gamer(db):
     owner = User(
         id=uuid.uuid4(), email=f"promo_owner_{uuid.uuid4().hex[:8]}@test.com", full_name="Promo Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid.uuid4(), email=f"promo_gamer_{uuid.uuid4().hex[:8]}@test.com", full_name="Promo Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     db.add_all([owner, gamer])
     await db.flush()

@@ -57,7 +57,7 @@ def _body(cafe, tier, hour=20, **extra):
 
 async def _second_gamer(db):
     g = User(id=uuid.uuid4(), email=f"fnd_g_{uuid.uuid4().hex[:8]}@test.com", full_name="Second Gamer",
-             password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True)
+             password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True)
     db.add(g)
     await db.flush()
     db.add(UserRoleMapping(id=uuid.uuid4(), user_id=g.id, role=UserRole.GAMER))

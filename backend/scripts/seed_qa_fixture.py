@@ -16,6 +16,10 @@ Idempotent: re-running updates the existing rows rather than duplicating.
 
 Run:  "C:/Program Files/Python313/python.exe" -m scripts.seed_qa_fixture
 """
+import os
+
+# Never commit a password: pass it in, e.g. SEED_PASSWORD=... python scripts/<this>.py
+SEED_PASSWORD = os.environ.get("SEED_PASSWORD") or exit("Set SEED_PASSWORD first.")
 import asyncio
 from datetime import time
 from uuid import uuid4
@@ -29,7 +33,7 @@ from app.models.user_role import UserRoleMapping
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.hardware_tier import HardwareTier
 
-PASSWORD = "testpass123"
+PASSWORD = SEED_PASSWORD
 
 # A real Google Maps share URL shape, for the F-01 external-link tests.
 MAPS_URL = "https://maps.app.goo.gl/QaTeStFixTure123"

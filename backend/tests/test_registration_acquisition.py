@@ -12,7 +12,7 @@ async def test_register_persists_city_and_acquisition(async_client, db_session):
         "/api/v1/auth/register",
         json={
             "email": email,
-            "password": "testpass123",
+            "password": "UnitTestPw123",
             "fullName": "New User",
             "city": "Hyderabad",
             "acquisitionSource": "whatsapp",
@@ -33,7 +33,7 @@ async def test_register_without_acquisition_fields_still_succeeds(async_client):
     email = f"newuser_{uuid4().hex[:8]}@test.com"
     resp = await async_client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "testpass123", "fullName": "New User"},
+        json={"email": email, "password": "UnitTestPw123", "fullName": "New User"},
     )
     assert resp.status_code == 201
 
@@ -51,7 +51,7 @@ async def test_register_backfills_anonymous_session_events(async_client, db_sess
     email = f"newuser_{uuid4().hex[:8]}@test.com"
     resp = await async_client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "testpass123", "fullName": "New User", "sessionId": session_id},
+        json={"email": email, "password": "UnitTestPw123", "fullName": "New User", "sessionId": session_id},
     )
     assert resp.status_code == 201
     new_user_id = resp.json()["data"]["user"]["id"]

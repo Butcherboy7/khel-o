@@ -71,7 +71,7 @@ def test_longest_booking_caps_the_lengths():
 async def _owner_and_cafe():
     async with AsyncSessionLocal() as db:
         owner = User(id=uuid4(), email=f"lp_{uuid4().hex[:8]}@test.com",
-                     password_hash=get_password_hash("testpass123"), full_name="Package Owner",
+                     password_hash=get_password_hash("UnitTestPw123"), full_name="Package Owner",
                      role=UserRole.CAFE_OWNER, is_active=True)
         db.add(owner)
         await db.flush()

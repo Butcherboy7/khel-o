@@ -63,7 +63,7 @@ async def _make_expired_pending_booking(db, amount=100.0, minutes_ago=20):
         id=uuid4(),
         email=f"expiry_owner_{uuid4().hex}@test.com",
         full_name="Owner",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER,
         is_active=True,
     )
@@ -71,7 +71,7 @@ async def _make_expired_pending_booking(db, amount=100.0, minutes_ago=20):
         id=uuid4(),
         email=f"expiry_gamer_{uuid4().hex}@test.com",
         full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER,
         is_active=True,
     )

@@ -5,7 +5,7 @@ test.describe('Owner Café Onboarding Wizard Flow (Phase 2)', () => {
     // 1. Navigate to login as customer/gamer
     await page.goto('/login');
     await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.click('button[type="submit"]');
 
     // Wait for redirect away from login after successful auth
@@ -37,7 +37,7 @@ test.describe('Owner Café Onboarding Wizard Flow (Phase 2)', () => {
     // 1. Navigate to login as pending owner
     await page.goto('/login');
     await page.fill('input[type="email"]', 'pending@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.click('button[type="submit"]');
 
     // Wait for redirect away from login after successful auth

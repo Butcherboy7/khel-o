@@ -23,15 +23,15 @@ IST = timezone(timedelta(hours=5, minutes=30))
 async def _make_cafe_with_review(db_session):
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     other_owner = User(
         id=uuid4(), email=f"other_owner_{uuid4().hex[:8]}@test.com", full_name="Other Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([owner, other_owner, gamer])
     await db_session.flush()

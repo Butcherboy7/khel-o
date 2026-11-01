@@ -59,7 +59,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 async def _make_cafe_with_promotion(db):
     owner = User(
         id=uuid.uuid4(), email=f"promo_upd_owner_{uuid.uuid4().hex[:8]}@test.com",
-        full_name="Promo Update Owner", password_hash=get_password_hash("testpass123"),
+        full_name="Promo Update Owner", password_hash=get_password_hash("<demo password>"),
         role=UserRole.CAFE_OWNER, is_active=True,
     )
     db.add(owner)
@@ -1436,7 +1436,7 @@ from app.core.security import get_password_hash
 from tests.conftest import auth_headers
 
 
-async def _make_owner_with_cafe(db_session, password="testpass123"):
+async def _make_owner_with_cafe(db_session, password="<demo password>"):
     owner = User(
         id=uuid.uuid4(), email=f"payout_dest_owner_{uuid.uuid4().hex[:8]}@test.com",
         full_name="Payout Dest Owner", password_hash=get_password_hash(password),
@@ -1758,7 +1758,7 @@ from tests.test_admin_v2_features import _make_gamer, _make_booking_with_payment
 async def _make_admin(db_session) -> User:
     admin = User(
         id=uuid.uuid4(), email=f"stale_admin_{uuid.uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("<demo password>"), role=UserRole.ADMIN, is_active=True,
     )
     db_session.add(admin)
     await db_session.flush()

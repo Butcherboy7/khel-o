@@ -37,7 +37,7 @@ async def _make_owner_and_cafe(db_session, suffix: str):
     owner = User(
         id=uuid4(), email=f"inv_own_{suffix}_{uuid4().hex[:8]}@test.com",
         full_name=f"Invariant Owner {suffix}",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER, is_active=True,
     )
     db_session.add(owner)
@@ -66,7 +66,7 @@ async def _make_owner_and_cafe(db_session, suffix: str):
 async def _make_gamer(db_session):
     gamer = User(
         id=uuid4(), email=f"inv_gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.GAMER, is_active=True,
     )
     db_session.add(gamer)

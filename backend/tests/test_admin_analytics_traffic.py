@@ -23,7 +23,7 @@ def _utc(y, m, d, hh=12, mm=0):
 def _user(role=UserRole.GAMER, created_at=None):
     return User(
         id=uuid4(), email=f"{role.value}_{uuid4().hex[:8]}@test.com", full_name="T",
-        password_hash=get_password_hash("testpass123"), role=role, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=role, is_active=True,
         created_at=created_at or datetime.now(timezone.utc),
     )
 

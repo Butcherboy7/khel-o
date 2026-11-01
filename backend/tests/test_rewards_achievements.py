@@ -43,11 +43,11 @@ def _booking(gamer, cafe, tier, **overrides):
 async def test_rewards_unlocks_new_milestone_achievements(async_client, db_session):
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([owner, gamer])
     await db_session.flush()
@@ -87,11 +87,11 @@ async def test_rewards_unlocks_new_milestone_achievements(async_client, db_sessi
 async def test_rewards_new_achievements_locked_with_no_qualifying_bookings(async_client, db_session):
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([owner, gamer])
     await db_session.flush()

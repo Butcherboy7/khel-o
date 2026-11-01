@@ -14,18 +14,18 @@ from tests.conftest import auth_headers
 async def test_revenue_splits_gmv_and_khel_revenue(async_client, db_session):
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.ADMIN, is_active=True,
     )
     db_session.add(admin)
     await db_session.commit()
 
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([owner, gamer])
     await db_session.flush()
@@ -81,18 +81,18 @@ async def test_revenue_gmv_includes_bookings_without_platform_fee_row(async_clie
     toward gmv (gmv is sum(Booking.total_amount), not joined to PlatformFee)."""
     admin = User(
         id=uuid4(), email=f"admin_{uuid4().hex[:8]}@test.com", full_name="Admin",
-        password_hash=get_password_hash("testpass123"), role=UserRole.ADMIN, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.ADMIN, is_active=True,
     )
     db_session.add(admin)
     await db_session.commit()
 
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com", full_name="Owner",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     gamer = User(
         id=uuid4(), email=f"gamer_{uuid4().hex[:8]}@test.com", full_name="Gamer",
-        password_hash=get_password_hash("testpass123"), role=UserRole.GAMER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.GAMER, is_active=True,
     )
     db_session.add_all([owner, gamer])
     await db_session.flush()

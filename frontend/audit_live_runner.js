@@ -329,7 +329,7 @@ async function safeType(page, selector, text) {
   try {
     await page.goto('http://localhost:3000/login');
     await safeType(page, 'input[type="email"]', 'admin@khel.com');
-    await safeType(page, 'input[type="password"]', 'Admin123!');
+    await safeType(page, 'input[type="password"]', process.env.E2E_PASSWORD);
     await page.click('button[type="submit"]');
     await page.waitForTimeout(2000);
 

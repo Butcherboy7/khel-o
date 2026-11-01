@@ -10,7 +10,7 @@ from app.core.security import get_password_hash
 async def _cafe_with_tier(db_session, activity_kind: str | None, tier_type=TierType.ACTIVITY, name="Cafe"):
     owner = User(
         id=uuid4(), email=f"owner_{uuid4().hex[:8]}@test.com",
-        password_hash=get_password_hash("testpass123"), full_name="Owner",
+        password_hash=get_password_hash("UnitTestPw123"), full_name="Owner",
         role=UserRole.CAFE_OWNER, is_active=True,
     )
     db_session.add(owner)

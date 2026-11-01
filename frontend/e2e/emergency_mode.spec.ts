@@ -5,7 +5,7 @@ test.describe('Emergency Mode Browser Flow (Tier B)', () => {
     // 1. Owner login
     await page.goto('/login');
     await page.fill('input[type="email"]', 'owner@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     const submitBtn = page.locator('button[type="submit"]').first();
     await submitBtn.click();
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
@@ -36,7 +36,7 @@ test.describe('Emergency Mode Browser Flow (Tier B)', () => {
     // 4. Switch to gamer account
     await page.goto('/login');
     await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     const submitBtn2 = page.locator('button[type="submit"]').first();
     await submitBtn2.click();
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
@@ -58,7 +58,7 @@ test.describe('Emergency Mode Browser Flow (Tier B)', () => {
     // 6. Cleanup: toggle emergency mode OFF
     await page.goto('/login');
     await page.fill('input[type="email"]', 'owner@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     const submitBtn3 = page.locator('button[type="submit"]').first();
     await submitBtn3.click();
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });

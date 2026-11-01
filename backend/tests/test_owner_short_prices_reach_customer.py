@@ -19,7 +19,7 @@ from app.models.user_role import UserRoleMapping
 async def test_edited_15m_price_reaches_public_api_and_quote():
     async with AsyncSessionLocal() as db:
         owner = User(id=uuid4(), email=f"p15_{uuid4().hex[:8]}@test.com",
-                     password_hash=get_password_hash("testpass123"), full_name="P15 Owner",
+                     password_hash=get_password_hash("UnitTestPw123"), full_name="P15 Owner",
                      role=UserRole.CAFE_OWNER, is_active=True)
         db.add(owner)
         await db.flush()
@@ -68,7 +68,7 @@ async def test_edited_15m_price_reaches_public_api_and_quote():
 async def test_price15m_accepted_on_create_in_either_spelling_and_serialised_as_price15m():
     async with AsyncSessionLocal() as db:
         owner = User(id=uuid4(), email=f"p15b_{uuid4().hex[:8]}@test.com",
-                     password_hash=get_password_hash("testpass123"), full_name="P15b Owner",
+                     password_hash=get_password_hash("UnitTestPw123"), full_name="P15b Owner",
                      role=UserRole.CAFE_OWNER, is_active=True)
         db.add(owner)
         await db.flush()

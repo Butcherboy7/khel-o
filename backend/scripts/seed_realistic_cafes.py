@@ -1,3 +1,7 @@
+import os
+
+# Never commit a password: pass it in, e.g. SEED_PASSWORD=... python scripts/<this>.py
+SEED_PASSWORD = os.environ.get("SEED_PASSWORD") or exit("Set SEED_PASSWORD first.")
 import asyncio
 import os
 import sys
@@ -410,7 +414,7 @@ async def clean_and_seed_realistic_cafes():
         print("Old data cleaned successfully.")
 
         # 2. Ensure Owner Account
-        hashed_password = get_password_hash("testpass123")
+        hashed_password = get_password_hash(SEED_PASSWORD)
         owner_res = await session.execute(select(User).where(User.email == "owner@example.com"))
         owner = owner_res.scalar_one_or_none()
         if not owner:

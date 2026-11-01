@@ -22,7 +22,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 async def _make_cafe_with_promotion(db):
     owner = User(
         id=uuid.uuid4(), email=f"promo_upd_owner_{uuid.uuid4().hex[:8]}@test.com",
-        full_name="Promo Update Owner", password_hash=get_password_hash("testpass123"),
+        full_name="Promo Update Owner", password_hash=get_password_hash("UnitTestPw123"),
         role=UserRole.CAFE_OWNER, is_active=True,
     )
     db.add(owner)

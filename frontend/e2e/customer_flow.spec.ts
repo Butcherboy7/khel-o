@@ -14,7 +14,7 @@ test.describe('Customer Baseline Flow Smoke Tests (Phase 1a Baseline)', () => {
     await page.goto('/login');
     
     await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     
     const submitBtn = page.locator('button[type="submit"]').first();
     await submitBtn.click();
@@ -29,7 +29,7 @@ test.describe('Customer Baseline Flow Smoke Tests (Phase 1a Baseline)', () => {
       // Authenticate as test gamer account before customer browsing tests
       await page.goto('/login');
       await page.fill('input[type="email"]', 'test@example.com');
-      await page.fill('input[type="password"]', 'testpass123');
+      await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
       const submitBtn = page.locator('button[type="submit"]').first();
       await submitBtn.click();
       await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });

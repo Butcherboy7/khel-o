@@ -16,7 +16,7 @@ async def test_suspend_cafe_sends_owner_notification_only_on_success(async_clien
         id=uuid4(),
         email="owner_suspend@test.com",
         full_name="Owner Test",
-        password_hash=get_password_hash("testpass123"),
+        password_hash=get_password_hash("UnitTestPw123"),
         is_active=True,
     )
     db_session.add(owner)

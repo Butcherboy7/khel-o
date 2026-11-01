@@ -7,7 +7,7 @@ test.describe('Ticket 2: Frontend Role Sync Acceptance Tests', () => {
 
   test('1. Admin approves café → RoleSwitcher becomes visible without reload', async ({ page, request, context }) => {
     const adminLoginRes = await request.post('http://localhost:8000/api/v1/auth/login', {
-      data: { email: 'admin@example.com', password: 'testpass123' }
+      data: { email: 'admin@example.com', password: process.env.E2E_PASSWORD! }
     });
     expect(adminLoginRes.ok()).toBeTruthy();
     const adminData = await adminLoginRes.json();
@@ -24,7 +24,7 @@ test.describe('Ticket 2: Frontend Role Sync Acceptance Tests', () => {
         
         await page.goto('/login');
         await page.fill('input[type="email"]', 'owner@example.com');
-        await page.fill('input[type="password"]', 'testpass123');
+        await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
         await page.locator('button[type="submit"]').first().click();
         await page.waitForURL('**/owner/dashboard', { timeout: 15000 });
         
@@ -57,14 +57,14 @@ test.describe('Ticket 2: Frontend Role Sync Acceptance Tests', () => {
     const registerRes = await request.post('http://localhost:8000/api/v1/auth/register', {
       data: { 
         email: 'gamer-test@example.com', 
-        password: 'testpass123',
+        password: process.env.E2E_PASSWORD!,
         fullName: 'Test Gamer'
       }
     });
     
     await page.goto('/login');
     await page.fill('input[type="email"]', 'gamer-test@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.locator('button[type="submit"]').first().click();
     await page.waitForURL('**/', { timeout: 10000 });
     
@@ -82,7 +82,7 @@ test.describe('Ticket 2: Frontend Role Sync Acceptance Tests', () => {
     
     await page.goto('/login');
     await page.fill('input[type="email"]', 'owner@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.locator('button[type="submit"]').first().click();
     await page.waitForURL('**/owner/dashboard', { timeout: 10000 });
     
@@ -98,7 +98,7 @@ test.describe('Ticket 2: Frontend Role Sync Acceptance Tests', () => {
   test('3. Switch to Owner Mode → perform owner action → success', async ({ page }) => {
     await page.goto('/login');
     await page.fill('input[type="email"]', 'owner@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.locator('button[type="submit"]').first().click();
     await page.waitForURL('**/owner/dashboard', { timeout: 10000 });
     
@@ -137,7 +137,7 @@ test.describe('Ticket 2: Frontend Role Sync Acceptance Tests', () => {
   test('4. Switch to Customer Mode → customer booking flow works', async ({ page }) => {
     await page.goto('/login');
     await page.fill('input[type="email"]', 'owner@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.locator('button[type="submit"]').first().click();
     await page.waitForURL('**/owner/dashboard', { timeout: 10000 });
     
@@ -165,7 +165,7 @@ test.describe('Ticket 2: Frontend Role Sync Acceptance Tests', () => {
   test('5. Hard reload in Owner Mode → mode persists', async ({ page, context }) => {
     await page.goto('/login');
     await page.fill('input[type="email"]', 'owner@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     await page.locator('button[type="submit"]').first().click();
     await page.waitForURL('**/owner/dashboard', { timeout: 10000 });
     

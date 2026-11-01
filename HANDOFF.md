@@ -79,7 +79,7 @@ This document tracks the features, architecture, and current status of the KHEL-
   - Added Pydantic `model_validator` in `config.py` and `lifespan` in `main.py` ensuring the application refuses to boot in production if SQLite or placeholder secret keys are detected.
 - **Account Preservation & Idempotent Seeding**:
   - `backend/app/main.py`: Gated demo user initialization strictly behind `ENVIRONMENT == "development"`.
-  - Preserved existing user records (`uzair@gmail.com`) in `backend/khel_o.db` while ensuring password hash (`testpass123`) and gamer/primary role mappings for all test accounts (`uzair1@...`, `uzair2@...`, `uzair3@...`, `owner@...`, `admin@...`, `staff@...`).
+  - Preserved existing user records (`uzair@gmail.com`) in `backend/khel_o.db` while ensuring password hash (`<demo password>`) and gamer/primary role mappings for all test accounts (`uzair1@...`, `uzair2@...`, `uzair3@...`, `owner@...`, `admin@...`, `staff@...`).
 - **Authentic Esports Lounges & Cascaded Cleanup**:
   - `backend/scripts/seed_realistic_cafes.py`: Cascaded cleanup of throwaway test fixtures, orphaned bookings, reviews, and payments.
   - Seeded 7 authentic esports venues across Bengaluru, Mumbai, Delhi, Hyderabad, and Pune (LXG, Respawn, Immortal, Havoc, Matrix, PlayMax, GearUp) with verified tiers, ₹80–₹280/hr pricing, coordinates, amenities, and photos.

@@ -1,3 +1,7 @@
+import os
+
+# Never commit a password: pass it in, e.g. SEED_PASSWORD=... python scripts/<this>.py
+SEED_PASSWORD = os.environ.get("SEED_PASSWORD") or exit("Set SEED_PASSWORD first.")
 import asyncio
 import uuid
 from datetime import time
@@ -11,31 +15,31 @@ from sqlalchemy import select
 TEST_ACCOUNTS = [
     {
         "email": "test@example.com",
-        "password": "testpass123",
+        "password": SEED_PASSWORD,
         "full_name": "Demo Gamer",
         "role": UserRole.GAMER,
     },
     {
         "email": "pending@example.com",
-        "password": "testpass123",
+        "password": SEED_PASSWORD,
         "full_name": "Pending Cafe Owner",
         "role": UserRole.GAMER, # Role remains gamer until application verified
     },
     {
         "email": "owner@example.com",
-        "password": "testpass123",
+        "password": SEED_PASSWORD,
         "full_name": "Verified Cafe Owner",
         "role": UserRole.CAFE_OWNER,
     },
     {
         "email": "staff@example.com",
-        "password": "testpass123",
+        "password": SEED_PASSWORD,
         "full_name": "Arena Staff Member",
         "role": UserRole.STAFF,
     },
     {
         "email": "admin@example.com",
-        "password": "testpass123",
+        "password": SEED_PASSWORD,
         "full_name": "Platform Admin",
         "role": UserRole.ADMIN,
     },

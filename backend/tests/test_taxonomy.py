@@ -89,7 +89,7 @@ from app.core.security import get_password_hash, create_access_token
 async def _owner_cafe():
     async with AsyncSessionLocal() as db:
         owner = User(id=uuid4(), email=f"tx_{uuid4().hex[:8]}@test.com",
-                     password_hash=get_password_hash("testpass123"), full_name="Tx Owner",
+                     password_hash=get_password_hash("UnitTestPw123"), full_name="Tx Owner",
                      role=UserRole.CAFE_OWNER, is_active=True)
         db.add(owner)
         await db.flush()

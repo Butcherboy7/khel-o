@@ -35,7 +35,7 @@ def test_snooker_and_pool_require_max_players_other_tables_do_not():
 async def test_pool_price_is_per_table_and_group_size_is_capped():
     async with AsyncSessionLocal() as db:
         owner = User(id=uuid4(), email=f"grp_{uuid4().hex[:8]}@test.com",
-                     password_hash=get_password_hash("testpass123"), full_name="Grp Owner",
+                     password_hash=get_password_hash("UnitTestPw123"), full_name="Grp Owner",
                      role=UserRole.CAFE_OWNER, is_active=True)
         db.add(owner)
         await db.flush()

@@ -117,7 +117,7 @@ Razorpay delivers `payment.captured` at-least-once and retries on any non-2xx, s
 
 | Account | Role | Owns |
 |---|---|---|
-| `qa.ownera@example.com` | CAFE_OWNER | Café A, Café C, Stress café (all `testpass123`) |
+| `qa.ownera@example.com` | CAFE_OWNER | Café A, Café C, Stress café (all `<demo password>`) |
 | `qa.ownerb@example.com` | CAFE_OWNER | Café B |
 | `qa.gamer2@example.com` | GAMER | — |
 
@@ -274,7 +274,7 @@ At full scroll-bottom the sticky "Book now" bar occupies 857–945px. The last c
 - Frontend (PID from `next start-server`) and backend both confirmed serving **this worktree**. The backend originally on :8000 was serving the **main checkout**; it was killed and restarted from here. `BASE_DIR` and `DATABASE_URL` verified to resolve to `…/manual-cafe-payouts/backend/khel_o.db`.
 - Backend now runs **without `--reload`**. If you want your fixes to hot-apply, restart it with `--reload`. Note: `--reload` spawns a `multiprocessing-fork` child that keeps port 8000 bound after you kill the parent — kill the child too.
 - Baseline snapshot exists at `backend/khel_o.db.baseline` (taken **after** seeding). Restore: `Copy-Item backend/khel_o.db.baseline backend/khel_o.db -Force`.
-- **Fixture seeded** via new idempotent script `backend/scripts/seed_qa_fixture.py` (re-run: `& "C:/Program Files/Python313/python.exe" -m scripts.seed_qa_fixture`). All passwords `testpass123`:
+- **Fixture seeded** via new idempotent script `backend/scripts/seed_qa_fixture.py` (re-run: `& "C:/Program Files/Python313/python.exe" -m scripts.seed_qa_fixture`). All passwords `<demo password>`:
 
 | Account | Role | Owns |
 |---|---|---|
@@ -418,7 +418,7 @@ DELETE /owner/staff/{staff_id}
 
 ### 1.4 Credentials & environment
 
-All seeded passwords: **`testpass123`** (`backend/scripts/seed_test_accounts.py`)
+All seeded passwords: **`<demo password>`** (`backend/scripts/seed_test_accounts.py`)
 
 | Email | Role |
 |---|---|
@@ -568,7 +568,7 @@ from tests.conftest import auth_headers
 async def _make_owner_and_cafe(db_session, suffix: str):
     owner = User(
         id=uuid4(), email=f"own_{suffix}_{uuid4().hex[:8]}@test.com",
-        full_name="Owner", password_hash=get_password_hash("testpass123"),
+        full_name="Owner", password_hash=get_password_hash("<demo password>"),
         role=UserRole.CAFE_OWNER, is_active=True,
     )
     db_session.add(owner)

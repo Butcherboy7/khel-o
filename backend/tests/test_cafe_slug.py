@@ -17,7 +17,7 @@ def test_slugify():
 async def _cafe(db_session, name, city="Hyderabad"):
     owner = User(
         id=uuid4(), email=f"o_{uuid4().hex[:8]}@test.com", full_name="O",
-        password_hash=get_password_hash("testpass123"), role=UserRole.CAFE_OWNER, is_active=True,
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.CAFE_OWNER, is_active=True,
     )
     db_session.add(owner)
     await db_session.flush()

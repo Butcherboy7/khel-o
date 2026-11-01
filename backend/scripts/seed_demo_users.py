@@ -1,3 +1,7 @@
+import os
+
+# Never commit a password: pass it in, e.g. SEED_PASSWORD=... python scripts/<this>.py
+SEED_PASSWORD = os.environ.get("SEED_PASSWORD") or exit("Set SEED_PASSWORD first.")
 import asyncio
 from uuid import uuid4
 from app.database import AsyncSessionLocal
@@ -24,7 +28,7 @@ async def seed_users():
             },
             {
                 "email": "admin@khelo.com",
-                "password": "Admin123!",
+                "password": SEED_PASSWORD,
                 "full_name": "Platform Admin",
                 "role": UserRole.ADMIN,
             },

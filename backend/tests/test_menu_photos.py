@@ -14,7 +14,7 @@ async def test_delete_menu_photo_removes_url():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"menu_photo_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Menu Photo Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Menu Photo Owner",
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
@@ -56,7 +56,7 @@ async def test_update_cafe_details_persists_menu_photos():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"menu_add_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Menu Add Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Menu Add Owner",
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)
@@ -94,7 +94,7 @@ async def test_owner_settings_includes_menu_photos():
     async with AsyncSessionLocal() as db:
         owner = User(
             id=uuid4(), email=f"menu_settings_{uuid4().hex[:6]}@test.com",
-            password_hash=get_password_hash("testpass123"), full_name="Menu Settings Owner",
+            password_hash=get_password_hash("UnitTestPw123"), full_name="Menu Settings Owner",
             role=UserRole.CAFE_OWNER, is_active=True
         )
         db.add(owner)

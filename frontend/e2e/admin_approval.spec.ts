@@ -4,7 +4,7 @@ test.describe('Admin Verification Queue E2E (Tier B)', () => {
   test('Admin approves pending cafe and verifies status change', async ({ page, request }) => {
     // 1. Create a pending cafe via API (owner account)
     const ownerLoginRes = await request.post('http://localhost:8000/api/v1/auth/login', {
-      data: { email: 'owner@example.com', password: 'testpass123' }
+      data: { email: 'owner@example.com', password: process.env.E2E_PASSWORD! }
     });
     const ownerData = await ownerLoginRes.json();
     const ownerToken = ownerData.data.accessToken;
@@ -30,7 +30,7 @@ test.describe('Admin Verification Queue E2E (Tier B)', () => {
     // 2. Login as admin
     await page.goto('/login');
     await page.fill('input[type="email"]', 'admin@example.com');
-    await page.fill('input[type="password"]', 'testpass123');
+    await page.fill('input[type="password"]', process.env.E2E_PASSWORD!);
     const submitBtn = page.locator('button[type="submit"]').first();
     await submitBtn.click();
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
