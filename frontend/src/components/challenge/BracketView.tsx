@@ -102,7 +102,17 @@ export function Podium({ bracket, big = false }: { bracket: Bracket; big?: boole
   return (
     <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${bracket.standings.length}, minmax(0, 1fr))` }}>
       {bracket.standings.map((s) => (
-        <div key={s.place} className="rounded-2xl border border-[#262932] bg-[#16181E] p-3 text-center">
+        <div
+          key={s.place}
+          className={`relative animate-podium-rise overflow-hidden rounded-2xl border p-3 text-center ${
+            s.place === 1 ? 'border-[#6B5A2A] bg-gradient-to-b from-[#2A2210] to-[#16181E]' : 'border-[#262932] bg-[#16181E]'
+          }`}
+          // 3rd first, the champion last.
+          style={{ animationDelay: `${(3 - s.place) * 0.25 + 0.1}s` }}
+        >
+          {s.place === 1 && (
+            <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-1/3 animate-champ-shine bg-gradient-to-r from-transparent via-[#FFE29A]/35 to-transparent" />
+          )}
           <Trophy className={`mx-auto ${big ? 'h-[5vh] w-[5vh]' : 'h-6 w-6'}`} style={{ color: MEDAL[s.place] }} />
           <p className={`mt-1 font-bold uppercase tracking-[0.14em] ${big ? 'text-[min(1.4vw,2.2vh)]' : 'text-[11px]'}`} style={{ color: MEDAL[s.place] }}>
             {PLACE[s.place]}

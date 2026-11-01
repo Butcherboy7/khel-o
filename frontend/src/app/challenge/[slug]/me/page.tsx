@@ -15,6 +15,7 @@ import {
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
 import { hasTappedCommunity, markCommunityTapped } from '@/lib/challenge-signup';
 import { COMMUNITY_URL, challengeDay, challengeMoment, challengeTime, challengeTimeRange, calendarUrl, handle, openToAll, whatsappShare } from '@/lib/challenge';
+import { Celebration } from '@/components/challenge/Celebration';
 
 export default function MyChallengePage() {
   return (
@@ -147,9 +148,11 @@ function MyChallenge() {
       )}
 
       {entry.place && (
-        <section className="mb-4 rounded-3xl border border-[#6B5A2A] bg-gradient-to-br from-[#2A2210] to-[#16181E] p-5 text-center">
-          <Trophy className="mx-auto h-8 w-8 text-[#F2C27A]" />
-          <p className="mt-2 font-heading text-[36px] font-bold leading-none">{PLACE[entry.place] ?? `#${entry.place}`}</p>
+        <section className="relative mb-4 overflow-hidden rounded-3xl border border-[#6B5A2A] bg-gradient-to-br from-[#2A2210] to-[#16181E] p-5 text-center">
+          <Celebration id={`me-${ch.slug}-${entry.place}`} />
+          <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-1/3 animate-champ-shine bg-gradient-to-r from-transparent via-[#FFE29A]/25 to-transparent" />
+          <Trophy className="mx-auto h-10 w-10 animate-win-pop text-[#F2C27A]" />
+          <p className="mt-2 animate-podium-rise font-heading text-[36px] font-bold leading-none" style={{ animationDelay: '0.45s' }}>{PLACE[entry.place] ?? `#${entry.place}`}</p>
           <p className="mt-2 text-sm text-[#DADCE3]">{entry.place === 1 ? 'You are the champion!' : 'You are in the top 3. Good game!'}</p>
           <div className="mt-4">
             <ShareCardButton

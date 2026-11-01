@@ -218,8 +218,27 @@ const config: Config = {
           '70%': { boxShadow: '0 0 0 7px rgb(229 77 66 / 0)' },
           '100%': { boxShadow: '0 0 0 0 rgb(229 77 66 / 0)' },
         },
+        // Challenge podium: each place rises in, 3rd → 2nd → 1st.
+        'podium-rise': {
+          '0%': { opacity: '0', transform: 'translateY(24px) scale(0.92)' },
+          '70%': { opacity: '1', transform: 'translateY(-4px) scale(1.03)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        // One light pass across the champion's card, then it rests.
+        'champ-shine': {
+          '0%': { transform: 'translateX(-120%) skewX(-20deg)' },
+          '100%': { transform: 'translateX(220%) skewX(-20deg)' },
+        },
+        'win-pop': {
+          '0%': { opacity: '0', transform: 'scale(0.6) rotate(-8deg)' },
+          '60%': { opacity: '1', transform: 'scale(1.12) rotate(3deg)' },
+          '100%': { opacity: '1', transform: 'scale(1) rotate(0)' },
+        },
       },
       animation: {
+        'podium-rise': 'podium-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'champ-shine': 'champ-shine 1.4s ease-out 1.2s both',
+        'win-pop': 'win-pop 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both',
         'skeleton-pulse': 'skeleton-pulse 2s ease-in-out infinite',
         'fade-in-up': 'fade-in-up var(--duration-slow) var(--ease-out) both',
         'live-sweep': 'live-sweep 6s linear infinite',

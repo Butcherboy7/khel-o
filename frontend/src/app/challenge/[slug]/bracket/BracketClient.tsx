@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, Swords, Trophy } from 'lucide-react';
 import { getBracket, type BracketMatch } from '@/lib/api/challenges';
 import { BracketView, Podium } from '@/components/challenge/BracketView';
+import { Celebration } from '@/components/challenge/Celebration';
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
 
 /** Refreshes on its own every few seconds, so the projector and phones
@@ -36,6 +37,7 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
         ) : (
           <>
             {data.ready.length > 0 && !finished && <UpNext matches={data.ready} big />}
+            {finished && data.standings.length > 0 && <Celebration id={`projector-${slug}`} big />}
             {data.standings.length > 0 && (finished || !data.upNext) && (
               <div className="mt-[2vh]">
                 <Podium bracket={data} big />
@@ -73,6 +75,7 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
           <>
             {data.standings.length > 0 && (
               <section className="mt-5">
+                {finished && <Celebration id={`results-${slug}`} />}
                 <Podium bracket={data} />
                 {finished && (
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">

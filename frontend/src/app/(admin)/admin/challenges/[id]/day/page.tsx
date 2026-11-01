@@ -16,6 +16,7 @@ import { Button, Card, CardContent, ErrorState, Modal, PageSpinner } from '@/com
 import { HostTour, HostTutorialButton, useHostTour } from '@/components/challenge/admin/HostTour';
 import { DAY_PAGE_STEPS } from '@/components/challenge/admin/hostTourSteps';
 import { RehearsalGuide } from '@/components/challenge/admin/RehearsalGuide';
+import { Celebration } from '@/components/challenge/Celebration';
 
 /** Everything for the day itself, top to bottom in the order it happens:
  *  check people in, close check-in, draw, enter results, finish. */
@@ -401,6 +402,7 @@ export default function ChallengeDayPage() {
       />
 
       <HostTour steps={DAY_PAGE_STEPS} open={tour.open} onClose={tour.close} />
+      {finished && champion && <Celebration id={`host-${id}-${champion.name}`} />}
       {detail.data.rehearsal && (
         <RehearsalGuide
           id={id}
