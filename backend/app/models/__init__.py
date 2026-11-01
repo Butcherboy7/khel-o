@@ -31,6 +31,7 @@ from app.models.auth_attempt import AuthAttempt
 from app.models.launch_signup import LaunchSignup
 from app.models.photo_color import PhotoColor
 from app.models.challenge import Challenge, ChallengeEntry, ChallengeMatch
+from app.models.drop import Drop, DropBlock, DropReservation, DropWaitlist
 
 __all__ = [
     "User",
@@ -74,4 +75,8 @@ __all__ = [
     "PhotoColor",
     "Challenge",
     "ChallengeEntry",
+    "Drop",
+    "DropBlock",
+    "DropReservation",
+    "DropWaitlist",
 ]

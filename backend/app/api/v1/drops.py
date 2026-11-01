@@ -1,0 +1,462 @@
+"""Drops: public page + reserving (/drops) and the café's view (/owner/drops).
+
+The public page needs no login; reserving does. See services/drop_service.py
+for the seat and payment rules.
+"""
+from __future__ import annotations
+
+import csv
+import io
+import re
+from datetime import date, datetime, time
+from typing import Literal, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Request, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic.alias_generators import to_camel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_active_user, get_optional_user, get_user_roles
+from app.config import settings
+from app.core.exceptions import ForbiddenException, NotFoundException
+from app.database import get_db
+from app.models.cafe import Cafe
+from app.models.drop import Drop, DropBlock, DropReservation, DropWaitlist
+from app.models.user import User
+from app.services import drop_service as svc
+from app.services.challenge_day import qr_data_url
+
+public_router = APIRouter(prefix="/drops", tags=["Drops"])
+owner_router = APIRouter(prefix="/owner/drops", tags=["Owner Drops"])
+
+
+class _Camel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+def _iso(dt: Optional[datetime]) -> Optional[str]:
+    return svc._aware(dt).isoformat() if dt else None
+
+
+def _site() -> str:
+    return settings.FRONTEND_URL.rstrip("/")
+
+
+def _block_out(drop: Drop, b: DropBlock) -> dict:
+    per_seat = svc.block_price_per_seat(drop, b)
+    return {
+        "id": str(b.id),
+        "date": b.session_date.isoformat(),
+        "startTime": b.start_time.strftime("%H:%M"),
+        "endTime": b.end_time.strftime("%H:%M"),
+        "hours": float(svc.block_hours(b)),
+        "seatsTotal": b.seats_total,
+        "seatsLeft": max(0, b.seats_total - b.seats_taken),
+        "pricePerSeat": float(per_seat),
+        "balancePerSeat": float(max(0, per_seat - svc.money(drop.deposit_amount))),
+        "started": svc.block_starts_at(b) <= svc.now_utc(),
+    }
+
+
+def _reservation_out(drop: Drop, r: DropReservation, block: Optional[DropBlock]) -> dict:
+    pass_url = f"{_site()}/drops/{drop.slug}/pass/{r.checkin_token}"
+    paid = r.status in svc.PAID
+    return {
+        "id": str(r.id),
+        "reference": r.reference,
+        "status": r.status,
+        "seats": r.seats,
+        "blockId": str(r.block_id),
+        "block": _block_out(drop, block) if block else None,
+        "blockPrice": float(r.block_price),
+        "depositPaid": float(r.deposit_amount) if paid or r.status == "refunded" else 0,
+        "deposit": float(r.deposit_amount),
+        "balanceDue": float(r.balance_due),
+        "expiresAt": _iso(r.expires_at),
+        "checkedInAt": _iso(r.checked_in_at),
+        "refundedAt": _iso(r.refunded_at),
+        "passUrl": pass_url if paid else None,
+        "qr": qr_data_url(pass_url) if paid else None,
+    }
+
+
+def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
+    return {
+        "id": str(drop.id),
+        "slug": drop.slug,
+        "title": drop.title,
+        "game": drop.game,
+        "tagline": drop.tagline,
+        "coverImageUrl": drop.cover_image_url,
+        "pricePerHour": float(drop.price_per_hour),
+        "deposit": float(drop.deposit_amount),
+        "maxSeatsPerUser": drop.max_seats_per_user,
+        "earlyAccessStartsAt": _iso(drop.early_access_starts_at),
+        "publicStartsAt": _iso(drop.public_starts_at),
+        "hasEarlyAccessCode": bool(drop.early_access_code),
+        "state": svc.state(drop),
+        "status": drop.status,
+        "cafe": {
+            "id": str(cafe.id), "name": cafe.name, "slug": cafe.slug,
+            "address": ", ".join(p for p in (cafe.address_line1, cafe.address_line2, cafe.city) if p),
+            "city": cafe.city, "mapsUrl": svc.maps_url(cafe),
+        },
+        "blocks": [_block_out(drop, b) for b in blocks],
+        "seatsLeft": sum(max(0, b.seats_total - b.seats_taken) for b in blocks if svc.block_starts_at(b) > svc.now_utc()),
+        "seatsTotal": sum(b.seats_total for b in blocks),
+    }
+
+
+async def _public_drop(db: AsyncSession, slug: str, user: Optional[User]) -> tuple[Drop, Cafe]:
+    drop = await svc.get_drop_by_slug(db, slug)
+    cafe = await db.get(Cafe, drop.cafe_id)
+    if drop.status == "draft" and not (user and await svc.can_manage(db, user, drop.cafe_id)):
+        raise NotFoundException(message="We couldn't find this drop.", error_code="DROP_NOT_FOUND")
+    return drop, cafe
+
+
+# ---------------------------------------------------------------- public
+
+@public_router.get("/{slug}")
+async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional[User] = Depends(get_optional_user)):
+    drop, cafe = await _public_drop(db, slug, user)
+    await svc.release_expired(db, drop.id)
+    blocks = await svc.blocks_of(db, drop.id)
+    data = _drop_out(drop, cafe, blocks)
+    mine = []
+    if user is not None:
+        by_id = {b.id: b for b in blocks}
+        rows = (await db.execute(
+            select(DropReservation).where(
+                DropReservation.drop_id == drop.id, DropReservation.user_id == user.id,
+                DropReservation.status.in_(("pending_payment", "confirmed", "checked_in", "refunded")),
+            ).order_by(DropReservation.created_at)
+        )).scalars().all()
+        mine = [_reservation_out(drop, r, by_id.get(r.block_id)) for r in rows]
+        data["needsPhone"] = not bool(user.phone_number)
+    data["myReservations"] = mine
+    data["waitlistCount"] = (await db.execute(
+        select(func.count()).select_from(DropWaitlist).where(DropWaitlist.drop_id == drop.id)
+    )).scalar_one()
+    return {"success": True, "data": data}
+
+
+class ReserveRequest(_Camel):
+    block_id: UUID
+    seats: int = Field(1, ge=1, le=10)
+    code: Optional[str] = Field(None, max_length=40)
+    phone: Optional[str] = Field(None, max_length=20)
+
+
+@public_router.post("/{slug}/reserve", status_code=status.HTTP_201_CREATED)
+async def reserve(slug: str, payload: ReserveRequest, db: AsyncSession = Depends(get_db),
+                  user: User = Depends(get_current_active_user)):
+    drop, cafe = await _public_drop(db, slug, user)
+    if not user.phone_number:
+        if not payload.phone:
+            raise svc.DropError("Add your mobile number so the café can reach you.", "NEED_PHONE")
+        user.phone_number = svc.clean_phone(payload.phone)
+        await db.flush()
+    done = await svc.reserve(db, drop, payload.block_id, user, payload.seats, payload.code)
+    block = await db.get(DropBlock, done.reservation.block_id)
+    return {"success": True, "data": {
+        "reservation": _reservation_out(drop, done.reservation, block),
+        "order": {"orderId": done.order_id, "amount": float(done.reservation.deposit_amount),
+                  "currency": "INR", "keyId": done.key_id},
+    }}
+
+
+class VerifyRequest(_Camel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
+@public_router.post("/reservations/verify")
+async def verify(payload: VerifyRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    res, outcome = await svc.verify(db, user, payload.razorpay_order_id, payload.razorpay_payment_id, payload.razorpay_signature)
+    drop = await db.get(Drop, res.drop_id)
+    block = await db.get(DropBlock, res.block_id)
+    return {"success": True, "data": {"outcome": outcome, "reservation": _reservation_out(drop, res, block)}}
+
+
+class WaitlistRequest(_Camel):
+    phone: str = Field(..., min_length=10, max_length=20)
+
+
+@public_router.post("/{slug}/waitlist", status_code=status.HTTP_201_CREATED)
+async def join_waitlist(slug: str, payload: WaitlistRequest, db: AsyncSession = Depends(get_db),
+                        user: Optional[User] = Depends(get_optional_user)):
+    drop, _ = await _public_drop(db, slug, user)
+    if drop.status != "live":
+        raise svc.DropError("This drop isn't open.", "DROP_CLOSED")
+    count, added = await svc.join_waitlist(db, drop, payload.phone, user)
+    return {"success": True, "data": {"count": count, "added": added}}
+
+
+@public_router.get("/{slug}/pass/{token}")
+async def get_pass(slug: str, token: str, db: AsyncSession = Depends(get_db),
+                   user: Optional[User] = Depends(get_optional_user)):
+    """What the QR opens. The holder sees their pass; the café sees a Check in button."""
+    drop = await svc.get_drop_by_slug(db, slug)
+    res = (await db.execute(select(DropReservation).where(
+        DropReservation.checkin_token == token, DropReservation.drop_id == drop.id))).scalars().first()
+    if res is None:
+        raise NotFoundException(message="This pass isn't valid.", error_code="PASS_NOT_FOUND")
+    manager = bool(user and await svc.can_manage(db, user, drop.cafe_id))
+    if not manager and not (user and user.id == res.user_id):
+        # Anyone else only learns whether the pass is real.
+        return {"success": True, "data": {"valid": res.status in svc.PAID, "status": res.status, "canCheckIn": False,
+                                          "dropTitle": drop.title, "reference": res.reference}}
+    block = await db.get(DropBlock, res.block_id)
+    holder = await db.get(User, res.user_id)
+    out = _reservation_out(drop, res, block)
+    out.update({"valid": res.status in svc.PAID, "canCheckIn": manager and res.status == "confirmed",
+                "dropTitle": drop.title, "holderName": holder.full_name if manager else None,
+                "holderPhone": holder.phone_number if manager else None})
+    return {"success": True, "data": out}
+
+
+# ---------------------------------------------------------------- café
+
+async def _managed(db: AsyncSession, user: User, drop_id: UUID) -> tuple[Drop, Cafe]:
+    drop = await db.get(Drop, drop_id)
+    if drop is None:
+        raise NotFoundException(message="We couldn't find this drop.", error_code="DROP_NOT_FOUND")
+    if not await svc.can_manage(db, user, drop.cafe_id):
+        raise ForbiddenException(message="This drop belongs to another café.", error_code="FORBIDDEN")
+    return drop, await db.get(Cafe, drop.cafe_id)
+
+
+class BlockIn(_Camel):
+    date: date
+    start_time: time
+    end_time: time
+    seats: int = Field(..., ge=1, le=100)
+
+    @model_validator(mode="after")
+    def _same_day(self):
+        if self.end_time <= self.start_time:
+            raise ValueError("A time must end after it starts, before midnight")
+        return self
+
+
+class DropCreate(_Camel):
+    cafe_id: UUID
+    title: str = Field(..., min_length=3, max_length=120)
+    game: str = Field(..., min_length=1, max_length=80)
+    slug: Optional[str] = Field(None, max_length=60)
+    tagline: Optional[str] = Field(None, max_length=160)
+    cover_image_url: Optional[str] = Field(None, max_length=1000)
+    price_per_hour: float = Field(..., gt=0, le=10000)
+    deposit_amount: float = Field(99, ge=1, le=10000)
+    max_seats_per_user: int = Field(2, ge=1, le=2)
+    early_access_code: Optional[str] = Field(None, max_length=40)
+    early_access_starts_at: datetime
+    public_starts_at: datetime
+    status: Literal["draft", "live"] = "draft"
+    blocks: list[BlockIn] = Field(..., min_length=1, max_length=40)
+
+    @field_validator("cover_image_url")
+    @classmethod
+    def _https(cls, v):
+        if v and not v.startswith("https://"):
+            raise ValueError("The picture link must start with https://")
+        return v or None
+
+    @model_validator(mode="after")
+    def _check(self):
+        if self.early_access_starts_at > self.public_starts_at:
+            raise ValueError("Early access must start before (or when) everyone can reserve")
+        for b in self.blocks:
+            hours = ((b.end_time.hour * 60 + b.end_time.minute) - (b.start_time.hour * 60 + b.start_time.minute)) / 60
+            if self.deposit_amount > self.price_per_hour * hours:
+                raise ValueError("The deposit can't be more than the price of a time")
+        return self
+
+
+def _slugify(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:50] or "drop"
+
+
+@owner_router.get("")
+async def list_my_drops(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    roles = await get_user_roles(user.id, db)
+    stmt = select(Drop, Cafe).join(Cafe, Cafe.id == Drop.cafe_id).order_by(Drop.created_at.desc())
+    if "admin" not in roles:
+        stmt = stmt.where(Cafe.owner_id == user.id)
+    rows = (await db.execute(stmt)).all()
+    out = []
+    for drop, cafe in rows:
+        blocks = await svc.blocks_of(db, drop.id)
+        item = _drop_out(drop, cafe, blocks)
+        item["paidReservations"] = (await db.execute(select(func.count()).select_from(DropReservation).where(
+            DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.PAID)))).scalar_one()
+        out.append(item)
+    cafes_stmt = select(Cafe.id, Cafe.name).order_by(Cafe.name)
+    if "admin" not in roles:
+        cafes_stmt = cafes_stmt.where(Cafe.owner_id == user.id)
+    cafes = [{"id": str(i), "name": n} for i, n in (await db.execute(cafes_stmt)).all()]
+    return {"success": True, "data": {"drops": out, "cafes": cafes, "suggestedPrice": list(svc.SUGGESTED_PRICE)}}
+
+
+@owner_router.post("", status_code=status.HTTP_201_CREATED)
+async def create_drop(payload: DropCreate, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    cafe = await db.get(Cafe, payload.cafe_id)
+    if cafe is None or not await svc.can_manage(db, user, cafe.id):
+        raise ForbiddenException(message="You can only make drops for your own café.", error_code="FORBIDDEN")
+    slug = _slugify(payload.slug or f"{payload.title}-{cafe.name.split()[0]}")
+    if not svc.SLUG_RE.match(slug):
+        raise svc.DropError("The link name can only use small letters, numbers and dashes.", "BAD_SLUG")
+    base, n = slug, 2
+    while (await db.execute(select(Drop.id).where(Drop.slug == slug))).first():
+        slug, n = f"{base}-{n}", n + 1
+    drop = Drop(
+        slug=slug, cafe_id=cafe.id, title=payload.title.strip(), game=payload.game.strip(),
+        tagline=(payload.tagline or "").strip() or None, cover_image_url=payload.cover_image_url,
+        price_per_hour=payload.price_per_hour, deposit_amount=payload.deposit_amount,
+        max_seats_per_user=payload.max_seats_per_user,
+        early_access_code=(payload.early_access_code or "").strip().upper() or None,
+        early_access_starts_at=payload.early_access_starts_at, public_starts_at=payload.public_starts_at,
+        status=payload.status,
+    )
+    db.add(drop)
+    await db.flush()
+    for b in payload.blocks:
+        db.add(DropBlock(drop_id=drop.id, session_date=b.date, start_time=b.start_time, end_time=b.end_time, seats_total=b.seats))
+    await db.commit()
+    return {"success": True, "data": _drop_out(drop, cafe, await svc.blocks_of(db, drop.id))}
+
+
+class DropUpdate(_Camel):
+    title: Optional[str] = Field(None, min_length=3, max_length=120)
+    tagline: Optional[str] = Field(None, max_length=160)
+    cover_image_url: Optional[str] = Field(None, max_length=1000)
+    price_per_hour: Optional[float] = Field(None, gt=0, le=10000)
+    deposit_amount: Optional[float] = Field(None, ge=1, le=10000)
+    early_access_code: Optional[str] = Field(None, max_length=40)
+    early_access_starts_at: Optional[datetime] = None
+    public_starts_at: Optional[datetime] = None
+    status: Optional[Literal["draft", "live"]] = None
+    add_blocks: list[BlockIn] = Field(default_factory=list, max_length=40)
+
+
+@owner_router.patch("/{drop_id}")
+async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Depends(get_db),
+                      user: User = Depends(get_current_active_user)):
+    drop, cafe = await _managed(db, user, drop_id)
+    if drop.status == "cancelled":
+        raise svc.DropError("This drop was cancelled and can't be changed.", "DROP_CANCELLED")
+    paid = (await db.execute(select(func.count()).select_from(DropReservation).where(
+        DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.HOLDING)))).scalar_one()
+    fields = payload.model_dump(exclude_unset=True, exclude={"add_blocks"})
+    if paid and ({"price_per_hour", "deposit_amount"} & fields.keys()):
+        raise svc.DropError("People have already reserved, so the price and deposit can't change now.", "PRICE_LOCKED")
+    if "cover_image_url" in fields and fields["cover_image_url"] and not fields["cover_image_url"].startswith("https://"):
+        raise svc.DropError("The picture link must start with https://", "BAD_IMAGE")
+    if "early_access_code" in fields:
+        fields["early_access_code"] = (fields["early_access_code"] or "").strip().upper() or None
+    for k, v in fields.items():
+        setattr(drop, k, v)
+    if svc._aware(drop.early_access_starts_at) > svc._aware(drop.public_starts_at):
+        raise svc.DropError("Early access must start before everyone can reserve.", "BAD_TIMES")
+    for b in payload.add_blocks:
+        db.add(DropBlock(drop_id=drop.id, session_date=b.date, start_time=b.start_time, end_time=b.end_time, seats_total=b.seats))
+    await db.commit()
+    return {"success": True, "data": _drop_out(drop, cafe, await svc.blocks_of(db, drop.id))}
+
+
+class BlockSeats(_Camel):
+    seats: int = Field(..., ge=0, le=100)
+
+
+@owner_router.patch("/{drop_id}/blocks/{block_id}")
+async def set_block_seats(drop_id: UUID, block_id: UUID, payload: BlockSeats, db: AsyncSession = Depends(get_db),
+                          user: User = Depends(get_current_active_user)):
+    drop, _ = await _managed(db, user, drop_id)
+    block = (await db.execute(select(DropBlock).where(DropBlock.id == block_id, DropBlock.drop_id == drop.id).with_for_update())).scalars().first()
+    if block is None:
+        raise NotFoundException(message="We couldn't find that time.", error_code="BLOCK_NOT_FOUND")
+    if payload.seats < block.seats_taken:
+        raise svc.DropError(f"{block.seats_taken} seats are already reserved, so it can't go below that.", "SEATS_BELOW_TAKEN")
+    block.seats_total = payload.seats
+    await db.commit()
+    return {"success": True, "data": _block_out(drop, block)}
+
+
+async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
+    await svc.release_expired(db, drop.id)
+    blocks = await svc.blocks_of(db, drop.id)
+    rows = (await db.execute(
+        select(DropReservation, User.full_name, User.phone_number, User.email)
+        .join(User, User.id == DropReservation.user_id)
+        .where(DropReservation.drop_id == drop.id)
+        .order_by(DropReservation.created_at)
+    )).all()
+    by_block: dict[UUID, list] = {b.id: [] for b in blocks}
+    for r, name, phone, email in rows:
+        if r.status in ("expired", "cancelled"):
+            continue
+        by_block.setdefault(r.block_id, []).append({
+            "id": str(r.id), "reference": r.reference, "name": name, "phone": phone, "seats": r.seats,
+            "status": r.status, "deposit": float(r.deposit_amount), "balanceDue": float(r.balance_due),
+            "checkedInAt": _iso(r.checked_in_at), "paidAt": _iso(r.paid_at), "earlyAccess": r.used_early_access,
+            "checkinToken": r.checkin_token if r.status in svc.PAID else None,
+        })
+    data = _drop_out(drop, cafe, blocks)
+    data["earlyAccessCode"] = drop.early_access_code
+    for b in data["blocks"]:
+        b["reservations"] = by_block.get(UUID(b["id"]), [])
+    data["waitlistCount"] = (await db.execute(
+        select(func.count()).select_from(DropWaitlist).where(DropWaitlist.drop_id == drop.id))).scalar_one()
+    data["funnel"] = await svc.funnel(db, drop)
+    paid = [r for r, *_ in rows if r.status in svc.PAID]
+    data["totals"] = {
+        "paidReservations": len(paid), "seatsSold": sum(r.seats for r in paid),
+        "depositsCollected": float(sum(svc.money(r.deposit_amount) for r in paid)),
+        "balanceToCollect": float(sum(svc.money(r.balance_due) for r in paid)),
+        "checkedIn": sum(1 for r in paid if r.status == "checked_in"),
+    }
+    return data
+
+
+@owner_router.get("/{drop_id}")
+async def drop_detail(drop_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    drop, cafe = await _managed(db, user, drop_id)
+    return {"success": True, "data": await _detail(db, drop, cafe)}
+
+
+@owner_router.get("/{drop_id}/export.csv")
+async def export_csv(drop_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    drop, cafe = await _managed(db, user, drop_id)
+    data = await _detail(db, drop, cafe)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Date", "Start", "End", "Reference", "Name", "Phone", "Seats", "Status", "Deposit paid", "Pay at café", "Checked in"])
+    for b in data["blocks"]:
+        for r in b["reservations"]:
+            w.writerow([b["date"], b["startTime"], b["endTime"], r["reference"], r["name"], r["phone"] or "",
+                        r["seats"], r["status"], r["deposit"], r["balanceDue"], r["checkedInAt"] or ""])
+    return StreamingResponse(
+        iter([buf.getvalue()]), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{drop.slug}-reservations.csv"'},
+    )
+
+
+class CheckInRequest(_Camel):
+    token: str = Field(..., min_length=8, max_length=200)
+
+
+@owner_router.post("/check-in")
+async def check_in(payload: CheckInRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    token = payload.token.strip().rstrip("/").split("/")[-1]  # a pasted pass link works too
+    res, outcome = await svc.check_in(db, token, user)
+    drop = await db.get(Drop, res.drop_id)
+    block = await db.get(DropBlock, res.block_id)
+    holder = await db.get(User, res.user_id)
+    out = _reservation_out(drop, res, block)
+    out.update({"outcome": outcome, "holderName": holder.full_name})
+    return {"success": True, "data": out}

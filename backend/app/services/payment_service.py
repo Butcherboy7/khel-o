@@ -537,6 +537,12 @@ class PaymentService:
             payment_id = entity.get("id")
             if order_id:
                 payment = await self.payment_repo.get_by_razorpay_order_id(order_id)
+                if payment is None:
+                    # Not a normal booking: a drop deposit uses its own order.
+                    from app.services import drop_service
+                    outcome = await drop_service.handle_webhook_capture(self.payment_repo.db, order_id, payment_id)
+                    if outcome is not None:
+                        return {"status": f"drop_{outcome}"}
                 if payment:
                     # Row-locked for the same reason as verify_payment: this must
                     # not interleave with a concurrent owner "Release Slot" action.
