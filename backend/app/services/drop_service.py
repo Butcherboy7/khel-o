@@ -29,7 +29,7 @@ from typing import Optional
 from urllib.parse import quote_plus
 from uuid import UUID
 
-from sqlalchemy import and_, func, select, update
+from sqlalchemy import and_, func, literal_column, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -450,7 +450,9 @@ async def funnel(db: AsyncSession, drop: Drop) -> dict:
             action.in_(FUNNEL_ACTIONS),
             AnalyticsEvent.event_metadata["drop"].as_string() == drop.slug,
         )
-        .group_by(action, AnalyticsEvent.event_metadata["channel"].as_string())
+        # By position: Postgres sees each ->> with a bound key as a different
+        # expression, so grouping by the expressions fails there (not on SQLite).
+        .group_by(literal_column("1"), literal_column("2"))
     )).all()
     out = {a: 0 for a in FUNNEL_ACTIONS}
     channels: dict[str, int] = {}
