@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CalendarDays, Clock, Hourglass, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play, Send } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Clock, Hourglass, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, getMyChallenge, type Challenge, type MyEntry } from '@/lib/api/challenges';
 import { COMMUNITY_URL, challengeDay, challengeTime, challengeTimeRange, openToAll, rememberUtm, startsInDays, startsInWords, whatsappShare } from '@/lib/challenge';
@@ -236,7 +237,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               rel="noopener noreferrer"
               className="flex min-h-[52px] items-center justify-center gap-1.5 whitespace-nowrap border border-white/25 bg-black/40 px-2 text-[13px] font-semibold text-white transition-colors hover:border-white/50"
             >
-              <Send className="h-4 w-4" /> Challenge a friend
+              <WhatsAppIcon className="h-4 w-4 text-[#25D366]" /> Challenge a friend
             </a>
             <a
               href={ch.communityUrl || COMMUNITY_URL}

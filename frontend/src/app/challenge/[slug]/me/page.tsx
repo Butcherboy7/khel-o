@@ -13,6 +13,7 @@ import {
   answerComing, getMyChallenge, withdrawFromChallenge, type Coming, type MyChallenge, type MyReward,
 } from '@/lib/api/challenges';
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
+import { ShareIconRow, WhatsAppButton, type ShareChannel } from '@/components/shared/ShareActions';
 import { hasTappedCommunity, markCommunityTapped } from '@/lib/challenge-signup';
 import { COMMUNITY_URL, challengeDay, challengeMoment, challengeTime, challengeTimeRange, calendarUrl, handle, openToAll, whatsappShare } from '@/lib/challenge';
 import { Celebration } from '@/components/challenge/Celebration';
@@ -112,6 +113,8 @@ function MyChallenge() {
   const ig = handle(ch.instagramHandle);
   const thanks = rewards.find((r) => r.kind === 'attended' && !r.usedUp && !r.ended && r.cafes.length > 0);
   const guest = entry.present && ch.status === 'live' && entry.inBracket === false;
+  const challengeLink = `${typeof window !== 'undefined' ? window.location.origin : 'https://khel-o.com'}/challenge/${ch.slug}`;
+  const shareTap = (channel: ShareChannel) => trackAction('challenge_share_clicked', { challenge: slug, channel, where: 'after_signup' });
 
   return (
     <Page slug={slug}>
@@ -192,6 +195,38 @@ function MyChallenge() {
       </section>
       )}
 
+      {/* Right after sign-up, sharing is the main thing to do */}
+      {isNew && !entry.out && !guest && ch.status !== 'finished' && ch.status !== 'cancelled' && (
+        <section className="mt-4 rounded-3xl border border-[#25D366]/40 bg-[#0F1F15] p-4">
+          <h2 className="font-heading text-xl font-bold">Share with friends</h2>
+          <p className="mt-1 text-sm text-[#DADCE3]">Send them the link. They can sign up to play, or just come and watch.</p>
+          <WhatsAppButton
+            className="mt-3"
+            label="Share on WhatsApp"
+            text={`I'm playing in ${ch.title} at ${ch.cafe.name}, ${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)}. Sign up free or come watch:`}
+            url={challengeLink}
+            onShare={shareTap}
+          />
+          <div className="mt-2">
+            <ShareIconRow
+              url={challengeLink}
+              mapsUrl={ch.cafe.mapsUrl}
+              calendar={{
+                title: ch.title,
+                start: new Date(ch.checkinOpensAt),
+                end: new Date(ch.endsAt),
+                location: [ch.cafe.name, ch.cafe.address || ch.cafe.city].filter(Boolean).join(', '),
+                details: `Check-in from ${challengeTime(ch.checkinOpensAt)}. Show your KHELO QR at the door.`,
+                url: challengeLink,
+                fileName: `${ch.slug}.ics`,
+              }}
+              story={{ src: `/challenge/${ch.slug}/card/${entry.id}`, fileName: `khelo-${ch.slug}.png`, text: `I’m in ${ch.title} at ${ch.cafe.name}` }}
+              onShare={shareTap}
+            />
+          </div>
+        </section>
+      )}
+
       {/* When and where */}
       <section className="mt-4 grid grid-cols-2 gap-2.5">
         <Fact icon={<CalendarDays className="h-4 w-4" />} label="Date" value={challengeDay(ch.startsAt)} />
@@ -270,7 +305,9 @@ function MyChallenge() {
             setCommunityDone(true);
             trackAction('challenge_community_click', { challenge: slug, where: isNew ? 'after_signup' : 'me' });
           }}
-          className="mt-4 flex items-center gap-3 rounded-2xl bg-[#25D366] px-4 py-4 font-semibold text-[#0B2E17]"
+          className={`mt-4 flex items-center gap-3 rounded-2xl px-4 py-4 font-semibold ${
+            isNew ? 'border border-[#25D366]/50 bg-[#25D366]/10 text-[#9BF0B9]' : 'bg-[#25D366] text-[#0B2E17]'
+          }`}
         >
           <MessageCircle className="h-5 w-5" />
           <span className="flex-1">
@@ -317,7 +354,7 @@ function MyChallenge() {
 
       {rewards.length > 0 && <Rewards rewards={rewards} slug={slug} />}
 
-      {ch.status !== 'finished' && ch.status !== 'cancelled' && (
+      {!isNew && ch.status !== 'finished' && ch.status !== 'cancelled' && (
         <a
           href={whatsappShare(
             `I'm playing in ${ch.title} at ${ch.cafe.name}${ch.cafe.city ? `, ${ch.cafe.city}` : ''}: ${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)}. ` +
@@ -337,7 +374,7 @@ function MyChallenge() {
         </a>
       )}
 
-      {ch.status !== 'finished' && (
+      {!isNew && ch.status !== 'finished' && (
         <div className="mt-4">
           <ShareCardButton
             src={`/challenge/${ch.slug}/card/${entry.id}`}
