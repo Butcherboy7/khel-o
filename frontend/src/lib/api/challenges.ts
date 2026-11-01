@@ -323,6 +323,7 @@ export interface AdminChallengeDetail {
   practicePlayers: number;
   /** The walk-in sign-up link and its QR (PNG data URL), for the counter poster. */
   door: { url: string; qr: string };
+  bracketHasRoom?: boolean;
   /** The worst-case rehearsal (dev only; null on the live site). */
   rehearsal: { practicePlayers: number; hereNotInBracket: number; freeBye: boolean } | null;
   /** What the last rehearsal step did. */

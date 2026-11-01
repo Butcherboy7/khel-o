@@ -164,7 +164,8 @@ const SCENES: Scene[] = [
     move: (
       <>
         <p>
-          Press <b>Add to bracket</b>. If a bye is still free, they play. If it says there’s no free place, they can’t play today.
+          Look at the top of step 3: a yellow box <b>Here but not in the bracket</b>. If a bye is still free it has an <b>Add to bracket</b>{' '}
+          button. If it says <b>No free place left</b>, they can’t play today.
         </p>
         <p>
           Tell them nicely: “The matches are fixed, but you still get <b>20% off at AdamsDen today</b>. Stay and watch!”

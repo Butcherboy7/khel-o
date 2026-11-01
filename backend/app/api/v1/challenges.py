@@ -773,7 +773,8 @@ def _door_out_admin(ch: Challenge) -> dict:
 async def admin_detail(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
     ch, cafe = await _admin_get(db, challenge_id)
     rows = await svc.entries(db, ch.id)
-    inside = day.in_bracket(await day.matches(db, ch.id))
+    ms = await day.matches(db, ch.id)
+    inside = day.in_bracket(ms)
     return {"success": True, "data": {
         "challenge": _challenge_out(ch, cafe, await svc.counts(db, ch.id)),
         "entries": [{**_admin_entry_out(e, rows), "inBracket": e.id in inside} for e in rows],
@@ -781,6 +782,8 @@ async def admin_detail(challenge_id: UUID, db: AsyncSession = Depends(get_db), _
         "practiceAllowed": _practice_allowed(),
         "practicePlayers": await practice.count(db, ch.id) if _practice_allowed() else 0,
         "door": _door_out_admin(ch),
+        # A late arrival can still be added (into a bye) only while this is true.
+        "bracketHasRoom": bool(ms) and day._free_bye(ms) is not None,
         "rehearsal": await rehearsal.state(db, ch) if _practice_allowed() else None,
     }}
 

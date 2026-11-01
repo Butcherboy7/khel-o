@@ -89,6 +89,8 @@ export default function ChallengeDayPage() {
     run(`p:${e.id}`, () => adminEntryAction(id, e.id, e.present ? 'uncheckin' : 'checkin'), setDetail);
   // Here after the draw, but not in it: can still be added (into a bye).
   const lateOut = (e: AdminEntry) => b.drawn && !finished && e.status === 'confirmed' && e.present && e.inBracket === false;
+  const room = Boolean(detail.data.bracketHasRoom);
+  const late = all.filter(lateOut);
   const addLate = (e: AdminEntry) =>
     run(`add:${e.id}`, () => adminAddToBracket(id, e.id), (nb) => {
       setBracket(nb);
@@ -168,13 +170,15 @@ export default function ChallengeDayPage() {
                   {e.status === 'confirmed' ? `Confirmed #${e.rank}` : `Waitlist #${e.rank}`}
                   {e.present && e.checkedInAt ? ` · here since ${challengeTime(e.checkedInAt)}` : ''}
                 </span>
-                {lateOut(e) && <span className="block text-xs font-semibold text-warning">Not in the bracket</span>}
+                {lateOut(e) && (
+                  <span className="block text-xs font-semibold text-warning">{room ? 'Not in the bracket' : 'Not in the bracket · no free place'}</span>
+                )}
               </span>
               <span className={`text-caption font-semibold ${e.present ? 'text-success' : 'text-text-secondary'}`}>
                 {e.present ? 'Here' : 'Tap when here'}
               </span>
             </button>
-            {lateOut(e) && (
+            {lateOut(e) && room && (
               <button
                 type="button"
                 disabled={busy === `add:${e.id}`}
@@ -206,7 +210,7 @@ export default function ChallengeDayPage() {
         <p className="text-caption text-text-secondary">
           Shuffles the {here} confirmed players who are here into the bracket. If the numbers are uneven, some get a bye into round 2.
           {b.drawn && !resultsIn ? ' You can redo it until the first result is in.' : ''}
-          {b.drawn ? ' Someone checked in after the draw? Tap Add to bracket next to their name: they take a bye, nobody is reshuffled.' : ''}
+          {b.drawn ? ' Someone checked in after the draw? They show at the top of step 3. If a bye is still free, tap Add to bracket: nobody is reshuffled.' : ''}
         </p>
         <div className="mt-3">
           <Button
@@ -229,6 +233,7 @@ export default function ChallengeDayPage() {
           </p>
         ) : (
           <>
+            {late.length > 0 && <LateArrivals people={late} room={room} busy={busy} onAdd={addLate} />}
             <div data-host-tour="ready">
               <p className="text-caption text-text-secondary">
                 Send the top match to whichever setup is free. When it ends, tap it and enter who won. You can fix a result until the
@@ -433,6 +438,40 @@ function Step({ n, title, done, tour, children }: { n: number; title: string; do
 
 /** Every match that can start now. The café sends the top one to whichever
  *  setup is free; tapping a match enters its result. */
+/** Checked in after the draw. Shown above the matches, because that's where
+ *  the host is looking by then. They can only go into a free bye. */
+function LateArrivals({
+  people, room, busy, onAdd,
+}: { people: AdminEntry[]; room: boolean; busy: string | null; onAdd: (e: AdminEntry) => void }) {
+  return (
+    <div className="mb-3 rounded-xl border border-warning/50 bg-warning/10 p-3" data-testid="late-arrivals">
+      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-warning">
+        <UserPlus className="h-3.5 w-3.5" /> Here but not in the bracket · {people.length}
+      </p>
+      <p className="mt-1 text-caption text-text-secondary">
+        {room
+          ? 'There’s still a free place. Add them and they play the player who had a bye. Nobody else moves.'
+          : 'No free place left: every first-round match is set or already played. They can’t play today, but they still get the check-in reward. Ask them to stay and watch.'}
+      </p>
+      <div className="mt-2 flex flex-col gap-2">
+        {people.map((e) => (
+          <div key={e.id} className="flex items-center gap-2 rounded-lg bg-card px-3 py-2">
+            <span className="min-w-0 flex-1 truncate font-semibold text-text-primary">
+              {e.displayName || e.name}
+              {e.checkedInAt && <span className="font-normal text-text-secondary"> · here since {challengeTime(e.checkedInAt)}</span>}
+            </span>
+            {room && (
+              <Button size="sm" disabled={busy === `add:${e.id}`} isLoading={busy === `add:${e.id}`} onClick={() => onAdd(e)}>
+                <UserPlus className="h-4 w-4" /> Add to bracket
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ReadyList({
   matches, onPick, onPostpone, busy,
 }: { matches: BracketMatch[]; onPick: (m: BracketMatch) => void; onPostpone: (m: BracketMatch, on: boolean) => void; busy: string | null }) {
