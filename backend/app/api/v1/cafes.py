@@ -190,7 +190,9 @@ async def get_cafe_availability(
         .where(
             Booking.hardware_tier_id == tier_id,
             Booking.session_date == parsed_date,
-            Booking.status.in_([BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED]),
+            # Checked-in seats stay taken until the session ends.
+            Booking.status.in_([BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED,
+                                BookingStatus.CHECKED_IN, BookingStatus.ACTIVE]),
         )
     )
     res = await db.execute(stmt)

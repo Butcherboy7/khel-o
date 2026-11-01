@@ -34,6 +34,16 @@ REDEEMED_STATUSES = (
 )
 
 
+# A paid booking keeps its seat from payment until the session ends, including
+# after check-in. Capacity checks must count all three, or a checked-in seat
+# looks free for the rest of the session and gets sold twice.
+SEAT_HOLDING_STATUSES = (
+    BookingStatus.CONFIRMED,
+    BookingStatus.CHECKED_IN,
+    BookingStatus.ACTIVE,
+)
+
+
 class Booking(Base):
     __tablename__ = "bookings"
 

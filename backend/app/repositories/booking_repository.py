@@ -5,7 +5,7 @@ from datetime import date, time, datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import Booking, BookingStatus, SEAT_HOLDING_STATUSES
 from app.models.user import User
 from app.models.cafe import Cafe
 from app.models.hardware_tier import HardwareTier
@@ -134,7 +134,7 @@ class BookingRepository(BaseRepository[Booking]):
             Booking.hardware_tier_id == tier_id,
             Booking.session_date == session_date,
             or_(
-                Booking.status == BookingStatus.CONFIRMED,
+                Booking.status.in_(SEAT_HOLDING_STATUSES),
                 and_(
                     Booking.status == BookingStatus.PENDING_PAYMENT,
                     Booking.created_at >= ttl_threshold
@@ -208,7 +208,7 @@ class BookingRepository(BaseRepository[Booking]):
             Booking.hardware_tier_id == tier_id,
             Booking.session_date >= today,
             or_(
-                Booking.status == BookingStatus.CONFIRMED,
+                Booking.status.in_(SEAT_HOLDING_STATUSES),
                 and_(
                     Booking.status == BookingStatus.PENDING_PAYMENT,
                     Booking.created_at >= now_utc - timedelta(minutes=15)
@@ -265,7 +265,7 @@ class BookingRepository(BaseRepository[Booking]):
             Booking.cafe_id == cafe_id,
             Booking.session_date == session_date,
             or_(
-                Booking.status == BookingStatus.CONFIRMED,
+                Booking.status.in_(SEAT_HOLDING_STATUSES),
                 and_(
                     Booking.status == BookingStatus.PENDING_PAYMENT,
                     Booking.created_at >= ttl_threshold
