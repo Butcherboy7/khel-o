@@ -1,0 +1,284 @@
+'use client';
+
+import { use, useState } from 'react';
+import Link from 'next/link';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Bell, CheckCircle2, Download, ExternalLink, KeyRound, QrCode } from 'lucide-react';
+import { Button, Card, CardContent, SkeletonCard } from '@/components/ui';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
+import { checkInDropPass, downloadDropCsv, getOwnerDrop, updateDrop, type OwnerDrop } from '@/lib/api/drops';
+import { blockTimes, dayLabel, rupees, whenText } from '@/lib/drops';
+
+const STATUS_LABEL: Record<string, string> = {
+  pending_payment: 'Paying now',
+  confirmed: 'Paid',
+  checked_in: 'Here',
+  refunded: 'Refunded',
+};
+
+export default function OwnerDropPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const qc = useQueryClient();
+  const key = ['owner', 'drop', id];
+  const { data: d, isLoading, error, refetch } = useQuery({ queryKey: key, queryFn: () => getOwnerDrop(id), refetchInterval: 30_000 });
+  const refresh = () => qc.invalidateQueries({ queryKey: key });
+
+  if (isLoading) return <SkeletonCard />;
+  if (error || !d) return <OwnerLoadError error={error} title="Couldn’t load this drop" onRetry={() => refetch()} />;
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Link href="/owner/drops" className="inline-flex items-center gap-1 text-body font-semibold text-text-secondary hover:text-text-primary">
+        <ArrowLeft className="h-4 w-4" /> All drops
+      </Link>
+      <OwnerPageHeader
+        title={d.title}
+        description={`${d.cafe.name} · ${rupees(d.pricePerHour)} an hour · ${rupees(d.deposit)} deposit a seat`}
+        action={
+          <a
+            href={`/drops/${d.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-border px-4 font-semibold text-text-primary hover:bg-surface sm:w-auto"
+          >
+            <ExternalLink className="h-4 w-4" /> Public page
+          </a>
+        }
+      />
+
+      <StatusCard d={d} onChanged={refresh} />
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Seats sold" value={`${d.totals.seatsSold} of ${d.seatsTotal}`} />
+        <Stat label="Here" value={String(d.totals.checkedIn)} />
+        <Stat label="Paid online" value={rupees(d.totals.depositsCollected)} />
+        <Stat label="To collect at café" value={rupees(d.totals.balanceToCollect)} />
+      </div>
+
+      <CheckInBox onDone={refresh} />
+
+      {d.blocks.map((b) => (
+        <Card key={b.id} elevation="resting">
+          <CardContent className="flex flex-col gap-3 p-5">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="font-heading text-h3 font-bold text-text-primary">{dayLabel(b.date)}</h2>
+              <p className="text-body font-semibold text-text-primary">
+                {b.seatsTotal - b.seatsLeft} of {b.seatsTotal} taken
+              </p>
+            </div>
+            <p className="-mt-2 text-body text-text-secondary">{blockTimes(b)} · {rupees(b.pricePerSeat)} a seat</p>
+            {b.reservations.length === 0 ? (
+              <p className="text-caption text-text-secondary">No reservations yet.</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
+                {b.reservations.map((r) => (
+                  <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold text-text-primary">
+                        {r.name} · {r.seats} {r.seats === 1 ? 'seat' : 'seats'}
+                      </span>
+                      <span className="block text-caption text-text-secondary">
+                        {r.reference}
+                        {r.phone ? ` · ${r.phone}` : ''}
+                        {r.earlyAccess ? ' · early access' : ''}
+                        {r.status === 'confirmed' || r.status === 'checked_in' ? ` · collect ${rupees(r.balanceDue)}` : ''}
+                      </span>
+                    </span>
+                    {r.status === 'confirmed' && r.checkinToken ? (
+                      <RowCheckIn token={r.checkinToken} onDone={refresh} />
+                    ) : (
+                      <span
+                        className={`text-caption font-semibold ${r.status === 'checked_in' ? 'text-success' : r.status === 'refunded' ? 'text-error' : 'text-text-secondary'}`}
+                      >
+                        {r.status === 'checked_in' && <CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />}
+                        {STATUS_LABEL[r.status] ?? r.status}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+
+      <Funnel d={d} />
+
+      <Button variant="secondary" onClick={() => downloadDropCsv(d.id, d.slug)} className="self-start">
+        <Download className="mr-1.5 h-4 w-4" /> Download the list (CSV)
+      </Button>
+    </div>
+  );
+}
+
+function StatusCard({ d, onChanged }: { d: OwnerDrop; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await updateDrop(d.id, { status: d.status === 'live' ? 'draft' : 'live' });
+      onChanged();
+    } catch (e) {
+      setError((e as Error)?.message || 'Could not change it.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card elevation="flat">
+      <CardContent className="flex flex-col gap-2 p-4 text-body text-text-primary">
+        <p className="font-semibold">
+          {d.status === 'draft'
+            ? 'Draft: only you can see it.'
+            : d.status === 'cancelled'
+            ? 'Cancelled.'
+            : d.state === 'open'
+            ? 'Open: anyone can reserve.'
+            : d.state === 'early'
+            ? 'Early access: only people with the code can reserve.'
+            : 'Live, but reservations haven’t opened yet.'}
+        </p>
+        <p className="text-text-secondary">Everyone can reserve from {whenText(d.publicStartsAt)}.</p>
+        {d.earlyAccessCode && (
+          <p className="flex items-center gap-1.5 text-text-secondary">
+            <KeyRound className="h-4 w-4" /> Early access from {whenText(d.earlyAccessStartsAt)} with code{' '}
+            <span className="font-mono font-bold text-text-primary">{d.earlyAccessCode}</span>
+          </p>
+        )}
+        <p className="flex items-center gap-1.5 text-text-secondary">
+          <Bell className="h-4 w-4" /> {d.waitlistCount} {d.waitlistCount === 1 ? 'person' : 'people'} asked to be told when it opens
+        </p>
+        {d.status !== 'cancelled' && (
+          <Button variant={d.status === 'live' ? 'secondary' : 'primary'} onClick={toggle} disabled={busy} className="mt-1 self-start">
+            {d.status === 'live' ? 'Hide it (back to draft)' : 'Put it live'}
+          </Button>
+        )}
+        {error && <p className="text-error">{error}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CheckInBox({ onDone }: { onDone: () => void }) {
+  const [value, setValue] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    if (!value.trim()) return;
+    setBusy(true);
+    try {
+      const r = await checkInDropPass(value.trim());
+      setMsg({
+        ok: true,
+        text: `${r.outcome === 'already' ? 'Already checked in' : 'Checked in'}: ${r.holderName}, ${r.seats} ${r.seats === 1 ? 'seat' : 'seats'}. Collect ${rupees(r.balanceDue)}.`,
+      });
+      setValue('');
+      onDone();
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error)?.message || 'That pass didn’t work.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card elevation="resting">
+      <CardContent className="flex flex-col gap-3 p-5">
+        <h2 className="flex items-center gap-2 font-heading text-h3 font-bold text-text-primary">
+          <QrCode className="h-5 w-5" /> Check someone in
+        </h2>
+        <p className="text-body text-text-secondary">
+          Scan their pass in{' '}
+          <Link href="/owner/scanner" className="font-semibold text-primary underline-offset-2 hover:underline">
+            Scan &amp; Check-in
+          </Link>
+          , or point your phone camera at it and tap Check in. You can also paste the pass link here.
+        </p>
+        <div className="flex gap-2">
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && go()}
+            placeholder="Pass link"
+            aria-label="Pass link"
+            className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-card px-3 text-body text-text-primary"
+          />
+          <Button onClick={go} disabled={busy || !value.trim()}>
+            Check in
+          </Button>
+        </div>
+        {msg && <p className={`text-body font-semibold ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RowCheckIn({ token, onDone }: { token: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await checkInDropPass(token);
+          onDone();
+        } finally {
+          setBusy(false);
+        }
+      }}
+      className="h-11 rounded-lg bg-primary px-3 text-caption font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
+    >
+      {busy ? '…' : 'Check in'}
+    </button>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-3">
+      <p className="text-caption text-text-secondary">{label}</p>
+      <p className="font-heading text-h3 font-bold text-text-primary">{value}</p>
+    </div>
+  );
+}
+
+function Funnel({ d }: { d: OwnerDrop }) {
+  const f = d.funnel;
+  const steps = [
+    ['Opened the page', f.pageViews],
+    ['Picked a time', f.blockSelected],
+    ['Started paying', f.paymentStarted],
+    ['Paid', f.paymentSuccess],
+  ] as const;
+  const top = Math.max(1, f.pageViews);
+  const channels = Object.entries(f.shareByChannel).sort((a, b) => b[1] - a[1]);
+  const names: Record<string, string> = { whatsapp: 'WhatsApp', copy_link: 'Copy link', map: 'Map', calendar: 'Calendar', story: 'Story pic' };
+  return (
+    <Card elevation="resting">
+      <CardContent className="flex flex-col gap-3 p-5">
+        <h2 className="font-heading text-h3 font-bold text-text-primary">How people got here</h2>
+        <ul className="flex flex-col gap-2">
+          {steps.map(([label, n]) => (
+            <li key={label}>
+              <div className="flex justify-between text-body text-text-primary">
+                <span>{label}</span>
+                <span className="font-semibold">{n}</span>
+              </div>
+              <div className="mt-1 h-2 rounded-full bg-surface">
+                <div className="h-2 rounded-full bg-primary" style={{ width: `${Math.min(100, (n / top) * 100)}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p className="text-body text-text-primary">
+          Shared {f.shareClicked} {f.shareClicked === 1 ? 'time' : 'times'}
+          {channels.length > 0 && <span className="text-text-secondary">: {channels.map(([c, n]) => `${names[c] ?? c} ${n}`).join(', ')}</span>}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}

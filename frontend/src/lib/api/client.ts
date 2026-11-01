@@ -32,6 +32,11 @@ apiClient.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+    } else if (process.env.DEV_GATE_USER && process.env.DEV_GATE_PASSWORD && !config.headers.Authorization) {
+      // Server-side render on the gated dev site (see src/middleware.ts): the
+      // page's own API calls go out through the public URL, so they pass the
+      // gate with basic auth. Server-only env, never sent to the browser.
+      config.headers.Authorization = `Basic ${btoa(`${process.env.DEV_GATE_USER}:${process.env.DEV_GATE_PASSWORD}`)}`;
     }
     return config;
   },

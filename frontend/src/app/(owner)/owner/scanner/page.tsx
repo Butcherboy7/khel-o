@@ -32,6 +32,7 @@ import { getOwnerPayoutAmount } from '@/lib/format';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Card, CardContent, Button, Input } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { checkInDropPass } from '@/lib/api/drops';
 import { checkinBooking } from '@/lib/api/owner';
 import { validateQRCode, searchCheckinCandidates, type QRValidationResponse, type CheckinCandidate } from '@/lib/api/scanner';
 import { ApiError } from '@/lib/api/errors';
@@ -428,6 +429,21 @@ export default function ScannerPage() {
     setCheckinSuccessMsg(null);
     setValidationResult(null);
 
+    // A launch-drop pass (its QR is the pass link): check it in straight away.
+    if (/\/drops\/[^/]+\/pass\/[\w-]+/.test(qrInput)) {
+      try {
+        const r = await checkInDropPass(qrInput.trim());
+        setCheckinSuccessMsg(
+          `${r.outcome === 'already' ? 'Already checked in' : 'Checked in'}: ${r.holderName}, ${r.seats} ${r.seats === 1 ? 'seat' : 'seats'} (${r.reference}). Collect ₹${Math.round(r.balanceDue).toLocaleString('en-IN')} at the counter.`,
+        );
+      } catch (err: unknown) {
+        applyApiError(err, 'This drop pass could not be checked in.');
+      } finally {
+        setIsValidating(false);
+      }
+      return;
+    }
+
     try {
       const res = await validateQRCode(qrInput);
       if (!res.valid || !res.booking) {
@@ -586,6 +602,8 @@ export default function ScannerPage() {
       if (errorStatus !== null && errorStatus >= 500) return 'server_error';
       return 'invalid_qr';
     }
+    // A drop pass has no booking: its message alone is the result.
+    if (checkinSuccessMsg && !validationResult) return 'checked_in_now';
     if (validationResult?.booking) {
       if (checkinSuccessMsg) return 'checked_in_now';
       if (validationResult.alreadyCheckedIn) return 'already_checked_in';

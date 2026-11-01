@@ -24,6 +24,7 @@ import {
   LifeBuoy,
   Bell,
   Swords,
+  Ticket,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -97,6 +98,7 @@ const ownerNavSections: NavSection[] = [
         hint: 'What customers can book, and the price per hour',
       },
       { label: 'Offers', href: '/owner/offers', icon: Tag, hint: 'Discounts and happy hours' },
+      { label: 'Launch drops', href: '/owner/drops', icon: Ticket, hint: 'Pre-sold seats for a big game launch' },
       { label: 'Reviews', href: '/owner/reviews', icon: Store, hint: 'What customers said' },
       { label: 'Insights', href: '/owner/analytics', icon: BarChart3, hint: 'Busy hours and trends' },
       { label: 'Alerts', href: '/owner/notifications', icon: Bell, hint: 'Updates from KHEL-O' },

@@ -76,6 +76,8 @@ def _reservation_out(drop: Drop, r: DropReservation, block: Optional[DropBlock])
         "deposit": float(r.deposit_amount),
         "balanceDue": float(r.balance_due),
         "expiresAt": _iso(r.expires_at),
+        # Lets the holder reopen the payment if they closed it inside the hold.
+        "orderId": r.razorpay_order_id if r.status == "pending_payment" else None,
         "checkedInAt": _iso(r.checked_in_at),
         "refundedAt": _iso(r.refunded_at),
         "passUrl": pass_url if paid else None,
