@@ -155,6 +155,8 @@ function RegisterForm() {
           <Input
             label="Phone Number *"
             type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             placeholder="+91 98765 43210"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}

@@ -11,7 +11,7 @@ class Review(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     cafe_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cafes.id"), nullable=False)
     gamer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    booking_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bookings.id"), unique=True, nullable=False)
+    booking_id: Mapped[uuid.UUID] = mapped_column(unique=True, nullable=False)  # no FK: walk-in reviews hold a placeholder id (migration 073r)
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_visible: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   title: 'How was AdamsDen? Rate it in 30 seconds',
   description: 'You were there for Tekken #01. Leave a star rating and one line. It helps the next gamer pick a good spot.',
   robots: { index: false, follow: true },
+  openGraph: {
+    title: 'How was AdamsDen? Rate it in 30 seconds',
+    description: 'You were there for Tekken #01. Leave a star rating and one line.',
+    url: 'https://khel-o.com/r/adamsden',
+  },
   alternates: { canonical: CAFE_PATH },
 };
 

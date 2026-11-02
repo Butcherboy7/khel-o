@@ -283,6 +283,19 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
   });
   const reviewsRequireBooking = reviewSettings?.requireBooking ?? true;
 
+  // A link ending in #write-review (the review QR, the Tekken rate link) can't
+  // rely on the browser's own anchor jump: the card only exists once the café
+  // has loaded. Scroll to it when it appears, and once more when the reviews
+  // list has loaded above it and pushed it down.
+  const reviewsLoaded = serverReviewsData !== undefined;
+  useEffect(() => {
+    if (isLoading || !data || window.location.hash !== '#write-review') return;
+    const t = window.setTimeout(() => {
+      document.getElementById('write-review')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [isLoading, data, reviewsLoaded]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6 max-w-4xl mx-auto py-4">

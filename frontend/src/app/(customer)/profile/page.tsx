@@ -685,7 +685,9 @@ export default function ProfilePage() {
             <div className="relative flex items-center">
               <span className="absolute left-3.5 text-caption font-bold text-text-secondary">+91</span>
               <input
-                type="text"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel-national"
                 value={phoneNumber}
                 maxLength={10}
                 onChange={(e) => handlePhoneChange(e.target.value)}

@@ -66,7 +66,7 @@ export default async function Image() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', fontSize: 30, fontWeight: 600 }}>Tap to rate · 30 seconds · helps the next gamer</div>
           <div style={{ display: 'flex', background: '#D0463C', color: '#fff', padding: '14px 28px', fontSize: 30, fontWeight: 800, borderRadius: 14 }}>
-            Rate it ★
+            Rate it now
           </div>
         </div>
       </div>
