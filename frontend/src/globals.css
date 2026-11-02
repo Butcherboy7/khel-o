@@ -668,6 +668,19 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
 @keyframes cm-shine { 0%, 55% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
 @media (prefers-reduced-motion: reduce) { .cm-float, .cm-join, .cm-shine { animation: none; } .cm-rise { opacity: 1; animation: none; } .cm-hidden { opacity: 1; transform: none; } }
 
+/* /community recap: hero photos crossfade with a slow zoom; the moments wall drifts in two rows. */
+.cm-kb { animation: cm-kb 7s ease-out both; }
+@keyframes cm-kb { from { transform: scale(1.02); } to { transform: scale(1.14); } }
+.cm-wall { display: flex; width: max-content; gap: 18px; animation: cm-wall var(--cm-speed, 48s) linear infinite; }
+.cm-wall.rev { animation-direction: reverse; }
+.cm-wall-wrap:hover .cm-wall { animation-play-state: paused; }
+@keyframes cm-wall { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .cm-kb { animation: none; }
+  .cm-wall { animation: none; }
+  .cm-wall-wrap { overflow-x: auto; }
+}
+
 /* "FREE" on the challenge banner: stamps down once, then pulses and wiggles every few seconds so the eye keeps landing on it. */
 .cm-free { animation: cm-stamp .5s .25s cubic-bezier(.2, 1.4, .4, 1) both, cm-free-loop 3.6s 1.6s ease-in-out infinite; transform-origin: 50% 60%; }
 @keyframes cm-stamp { from { opacity: 0; transform: scale(2.6) rotate(-8deg); } to { opacity: 1; transform: none; } }
