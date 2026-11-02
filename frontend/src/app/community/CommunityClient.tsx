@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, BarChart3, Check, CheckCheck, MessageCircle, Pin, Trophy } from 'lucide-react';
-import { fightFont } from '@/components/challenge/ChallengeHero';
+import { FightStage, fightFont } from '@/components/challenge/ChallengeHero';
 import { Celebration } from '@/components/challenge/Celebration';
 import { getBracket, getChallenge } from '@/lib/api/challenges';
 import { trackAction } from '@/lib/api/analyticsEvents';
@@ -14,7 +14,6 @@ import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openT
 const RECAP_SLUG = 'tekken-01';
 
 /** Real photos from Tekken #01 at AdamsDen (1 Nov 2026), in /public/community. */
-const HERO = ['full-house', 'prize', 'couch', 'headset'];
 const MOMENTS: { src: string; w: number; h: number; label: string }[] = [
   { src: 'full-house', w: 900, h: 457, label: 'Full house' },
   { src: 'locked-in', w: 900, h: 600, label: 'Focus mode' },
@@ -81,33 +80,6 @@ function Countdown({ to }: { to: string }) {
   );
 }
 
-/** The hero backdrop: the event photos one after another, each slowly zooming. */
-function HeroReel() {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    if (prefersReducedMotion()) return;
-    const t = setInterval(() => setI((n) => (n + 1) % HERO.length), 4800);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="absolute inset-0 overflow-hidden" aria-hidden>
-      {HERO.map((src, n) => (
-        // eslint-disable-next-line @next/next/no-img-element -- pre-sized webp in /public, no optimiser needed
-        <img
-          key={src}
-          src={`/community/${src}-lg.webp`}
-          alt=""
-          fetchPriority={n === 0 ? 'high' : 'low'}
-          loading={n === 0 ? 'eager' : 'lazy'}
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ${n === i ? 'cm-kb opacity-100' : 'opacity-0'}`}
-        />
-      ))}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0A0809]/70 via-[#0A0809]/35 to-[#0A0809]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_100%,rgba(176,24,44,0.35),transparent_60%)]" />
-    </div>
-  );
-}
-
 /** One polaroid on the moments wall. Height is fixed, width follows the photo. */
 function Polaroid({ m, n }: { m: (typeof MOMENTS)[number]; n: number }) {
   const tilt = [-2.2, 1.6, -0.8, 2.4, -1.6, 0.9][n % 6];
@@ -124,7 +96,7 @@ function Polaroid({ m, n }: { m: (typeof MOMENTS)[number]; n: number }) {
         loading="lazy"
         width={m.w}
         height={m.h}
-        className="block h-44 w-auto object-cover md:h-60"
+        className="block h-36 w-auto object-cover md:h-56"
         style={{ aspectRatio: `${m.w} / ${m.h}` }}
       />
       <figcaption className={`${fightFont.className} py-1.5 text-center text-lg font-bold uppercase tracking-wider text-[#17151A]`}>{m.label}</figcaption>
@@ -137,7 +109,7 @@ function MomentsWall() {
   const rowB = MOMENTS.filter((_, n) => n % 2 === 1);
   // Each row is drawn twice so the loop never shows a gap.
   const row = (items: typeof MOMENTS, rev: boolean, speed: string) => (
-    <div className="cm-wall-wrap overflow-hidden py-4">
+    <div className="cm-wall-wrap overflow-hidden py-2.5">
       <div className={`cm-wall ${rev ? 'rev' : ''}`} style={{ ['--cm-speed' as string]: speed }}>
         {[...items, ...items].map((m, n) => (
           <div key={`${m.src}-${n}`} className="relative" aria-hidden={n >= items.length}>
@@ -293,10 +265,10 @@ export function CommunityClient() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#0A0809] text-[#F4F1EC]">
-      {/* 1. The photos, full screen */}
-      <section className="relative isolate flex min-h-[92svh] flex-col">
-        <HeroReel />
-        <div className="relative mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 pb-10 pt-5 md:pb-16">
+      {/* 1. The album is the first thing you see */}
+      <section className="relative isolate overflow-hidden pb-6">
+        <FightStage />
+        <div className="relative mx-auto w-full max-w-4xl px-4 pt-5 md:px-8">
           <Link
             href="/"
             aria-label="Back to the KHEL-O home page"
@@ -304,55 +276,53 @@ export function CommunityClient() {
           >
             <ArrowLeft className="h-4 w-4" aria-hidden /> Home
           </Link>
-
-          <div className="mt-auto max-w-xl pt-24">
-            {upcoming ? (
-              <>
-                <p className="cm-rise text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">Next up</p>
-                <h1 className={`${fightFont.className} cm-rise mt-2 text-[3rem] font-bold uppercase leading-[0.92] md:text-[4.6rem]`}>
-                  Free event <span className="text-[#E8675D]">{challengeDay(upcoming.startsAt).split(',')[0]}.</span>
-                </h1>
-                <p className="cm-rise mt-3 max-w-md text-base text-[#DADCE3]" style={{ ['--cm-delay' as string]: '120ms' }}>
-                  Join the WhatsApp group and we&apos;ll send you the time, the place and your match. Anyone can come and watch.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="cm-rise text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">
-                  Tekken 8 · #01 · AdamsDen · 1 Nov
-                </p>
-                <h1 className={`${fightFont.className} cm-rise mt-2 text-[3.4rem] font-bold uppercase leading-[0.9] md:text-[5.2rem]`}>
-                  You had to <span className="text-[#E8675D]">be there.</span>
-                </h1>
-                <p className="cm-rise mt-3 max-w-md text-base text-[#DADCE3]" style={{ ['--cm-delay' as string]: '120ms' }}>
-                  A full house of Hyderabad gamers. Every match live on the big screen. Prizes handed out on the spot. <b className="text-[#F4F1EC]">#02 is coming, and the group hears first.</b>
-                </p>
-              </>
-            )}
-
-            <div className="cm-rise mt-5 max-w-md" style={{ ['--cm-delay' as string]: '240ms' }}>
-              <JoinButton where="hero" onJoin={join} btnRef={heroBtn} />
-              <p className="mt-2 text-center text-sm text-[#C9C4CF]">
-                Free · one tap · leave any time
-                {upcoming && (
-                  <>
-                    {' · starts in '}
-                    <Countdown to={upcoming.startsAt} />
-                  </>
-                )}
+          {upcoming ? (
+            <>
+              <p className="cm-rise mt-4 text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">Next up</p>
+              <h1 className={`${fightFont.className} cm-rise mt-1 text-[2.8rem] font-bold uppercase leading-[0.92] md:text-6xl`}>
+                Free event <span className="text-[#E8675D]">{challengeDay(upcoming.startsAt).split(',')[0]}.</span>
+              </h1>
+            </>
+          ) : (
+            <>
+              <p className="cm-rise mt-4 text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">Tekken 8 · #01 · AdamsDen · 1 Nov</p>
+              <h1 className={`${fightFont.className} cm-rise mt-1 text-[2.8rem] font-bold uppercase leading-[0.92] md:text-6xl`}>
+                Sunday at <span className="text-[#E8675D]">AdamsDen.</span>
+              </h1>
+              <p className="cm-rise mt-2 max-w-md text-[15px] text-[#C9C4CF]" style={{ ['--cm-delay' as string]: '100ms' }}>
+                A full house of Hyderabad gamers. <b className="text-[#F4F1EC]">#02 is coming, and the group hears first.</b>
               </p>
-              {tapped && (
-                <p className="mt-3 flex items-start gap-2 rounded-xl border border-[#3B6B4A] bg-[#13221A]/90 px-3 py-2.5 text-sm" role="status">
-                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FE0A0]" aria-hidden />
-                  <span>
-                    In WhatsApp, tap <b>Join</b>. Then open <b>Challengers</b> for the event updates.{' '}
-                    <a href={COMMUNITY_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#7FE0A0] underline">
-                      Didn&apos;t open? Try again
-                    </a>
-                  </span>
-                </p>
+            </>
+          )}
+        </div>
+
+        <div className="relative mt-3">
+          <MomentsWall />
+        </div>
+
+        <div className="relative mx-auto mt-3 w-full max-w-md px-4 md:px-8">
+          <div className="cm-rise" style={{ ['--cm-delay' as string]: '240ms' }}>
+            <JoinButton where="hero" onJoin={join} btnRef={heroBtn} />
+            <p className="mt-2 text-center text-sm text-[#C9C4CF]">
+              Free · one tap · leave any time
+              {upcoming && (
+                <>
+                  {' · starts in '}
+                  <Countdown to={upcoming.startsAt} />
+                </>
               )}
-            </div>
+            </p>
+            {tapped && (
+              <p className="mt-3 flex items-start gap-2 rounded-xl border border-[#3B6B4A] bg-[#13221A]/90 px-3 py-2.5 text-sm" role="status">
+                <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FE0A0]" aria-hidden />
+                <span>
+                  In WhatsApp, tap <b>Join</b>. Then open <b>Challengers</b> for the event updates.{' '}
+                  <a href={COMMUNITY_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#7FE0A0] underline">
+                    Didn&apos;t open? Try again
+                  </a>
+                </span>
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -375,14 +345,6 @@ export function CommunityClient() {
             ))}
           </dl>
         )}
-
-        {/* 3. The moments wall */}
-        <section className="pt-10">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">What you missed</p>
-          <h2 className={`${fightFont.className} mt-1 text-[2.4rem] font-bold uppercase leading-none md:text-5xl`}>Sunday at AdamsDen</h2>
-          <p className="mt-2 max-w-md text-[15px] text-[#C9C4CF]">Real photos from Tekken #01. Next time, you&apos;re in them.</p>
-          <MomentsWall />
-        </section>
 
         {/* 4. The crown */}
         {champ && finished && (

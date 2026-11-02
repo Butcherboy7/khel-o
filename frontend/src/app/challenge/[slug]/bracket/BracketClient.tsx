@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, Swords, Trophy } from 'lucide-react';
@@ -10,7 +11,20 @@ import { ShareCardButton } from '@/components/challenge/ShareCardButton';
 
 /** Refreshes on its own every few seconds, so the projector and phones
  *  follow the results as the referee enters them. */
+function useWide() {
+  const [wide, setWide] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px) and (min-height: 600px)');
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return wide;
+}
+
 export function BracketClient({ slug, projector }: { slug: string; projector: boolean }) {
+  const wide = useWide();
   const { data, error } = useQuery({
     queryKey: ['challenge', slug, 'bracket'],
     queryFn: () => getBracket(slug),
@@ -29,22 +43,28 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
   const finished = ch.status === 'finished';
 
   if (projector) {
+    // The big-screen sizes (vw/vh) only make sense on a real screen. On a phone
+    // or tablet the page scrolls and pinch-zooms like any other.
     return (
-      <div className="fixed inset-0 z-[200] flex flex-col overflow-hidden bg-black px-[4vw] py-[4vh] text-white">
-        <p className="text-[min(1.8vw,2.8vh)] font-bold uppercase tracking-[0.2em] text-[#E8675D]">{ch.title}</p>
+      <div
+        className={`fixed inset-0 z-[200] flex flex-col overscroll-contain bg-black text-white [touch-action:pan-x_pan-y_pinch-zoom] ${
+          wide ? 'overflow-hidden px-[4vw] py-[4vh]' : 'overflow-auto px-4 py-4'
+        }`}
+      >
+        <p className={`font-bold uppercase tracking-[0.2em] text-[#E8675D] ${wide ? 'text-[min(1.8vw,2.8vh)]' : 'text-xs'}`}>{ch.title}</p>
         {!data.drawn ? (
           <p className="mt-[20vh] text-center font-heading text-[min(4vw,7vh)] font-bold">The bracket is coming up</p>
         ) : (
           <>
-            {data.ready.length > 0 && !finished && <UpNext matches={data.ready} big />}
-            {finished && data.standings.length > 0 && <Celebration id={`projector-${slug}`} big />}
+            {data.ready.length > 0 && !finished && <UpNext matches={data.ready} big={wide} />}
+            {finished && data.standings.length > 0 && <Celebration id={`projector-${slug}`} big={wide} />}
             {data.standings.length > 0 && (finished || !data.upNext) && (
               <div className="mt-[2vh]">
-                <Podium bracket={data} big />
+                <Podium bracket={data} big={wide} />
               </div>
             )}
-            <div className="mt-[3vh] flex-1">
-              <BracketView bracket={data} big />
+            <div className={wide ? 'mt-[3vh] flex-1' : 'mt-4 pb-10'}>
+              <BracketView bracket={data} big={wide} />
             </div>
           </>
         )}
