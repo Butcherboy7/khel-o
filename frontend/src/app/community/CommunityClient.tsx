@@ -46,17 +46,18 @@ function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-/** True once the element has scrolled into view. */
-function useSeen<T extends Element>() {
+/** True once the element has scrolled into view. `ready`: the element is on
+ *  the page (it may appear only after data loads). */
+function useSeen<T extends Element>(ready: boolean) {
   const ref = useRef<T>(null);
   const [seen, setSeen] = useState(false);
   useEffect(() => {
     const el = ref.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return setSeen(true);
+    if (!ready || !el || typeof IntersectionObserver === 'undefined') return;
     const io = new IntersectionObserver(([e]) => e.isIntersecting && setSeen(true), { threshold: 0.35 });
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [ready]);
   return [ref, seen] as const;
 }
 
@@ -147,7 +148,8 @@ function MomentsWall() {
     </div>
   );
   return (
-    <div className="-mx-4 md:-mx-8">
+    // Full screen width, past the text column, with the edges fading out.
+    <div className="relative left-1/2 w-screen -translate-x-1/2 [mask-image:linear-gradient(90deg,transparent,#000_6%,#000_94%,transparent)]">
       {row(rowA, false, '46s')}
       {row(rowB, true, '54s')}
     </div>
@@ -255,7 +257,6 @@ export function CommunityClient() {
   const [tapped, setTapped] = useState(false);
   const [stickyOn, setStickyOn] = useState(false);
   const heroBtn = useRef<HTMLAnchorElement>(null);
-  const [crownRef, crownSeen] = useSeen<HTMLElement>();
   const { data: ch } = useQuery({
     queryKey: ['challenges', FEATURED_CHALLENGE_SLUG],
     queryFn: () => getChallenge(FEATURED_CHALLENGE_SLUG),
@@ -275,6 +276,7 @@ export function CommunityClient() {
     ? [...finished.rounds.flatMap((r) => r.matches), ...(finished.thirdPlace ? [finished.thirdPlace] : [])].filter((m) => m.winner && !m.bye).length
     : 0;
   const champ = finished?.standings.find((s) => s.place === 1);
+  const [crownRef, crownSeen] = useSeen<HTMLElement>(Boolean(champ));
 
   useEffect(() => {
     const el = heroBtn.current;
@@ -317,7 +319,7 @@ export function CommunityClient() {
             ) : (
               <>
                 <p className="cm-rise text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">
-                  Tekken 8 · Challenge #01 · AdamsDen · 1 Nov
+                  Tekken 8 · #01 · AdamsDen · 1 Nov
                 </p>
                 <h1 className={`${fightFont.className} cm-rise mt-2 text-[3.4rem] font-bold uppercase leading-[0.9] md:text-[5.2rem]`}>
                   You had to <span className="text-[#E8675D]">be there.</span>
