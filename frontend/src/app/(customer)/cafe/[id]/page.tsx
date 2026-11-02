@@ -6,6 +6,7 @@ import { getCafe, cafePath, isCafeUuid } from '@/lib/api/cafes';
 import { PLATFORMS } from '@/constants/platforms';
 import Link from 'next/link';
 import { getCafeLinks, getCafeWaitlistCount } from '@/lib/api/seo';
+import { listCafeReviews } from '@/lib/api/reviews';
 import { customerPrice, formatTime, titleCaseCity } from '@/lib/format';
 import { hourlyOffer } from '@/lib/offers';
 import { cleanName, venueArea, venueKind } from '@/lib/venueKind';
@@ -159,9 +160,13 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
 
   // Café → locality → game/hardware pages → nearby cafés, so every café is
   // linked into the rest of the site (no orphan pages) and vice versa.
-  const [links, waitlist] = await Promise.all([
+  const [links, waitlist, reviews] = await Promise.all([
     cafe ? getCafeLinksCached(cafe.id) : null,
     cafe?.isLeadListing ? getWaitlistCountCached(cafe.id) : null,
+    // The latest written reviews go into the page's structured data, so
+    // search engines and AI answer engines can read and quote them (the
+    // review list on screen loads in the browser, which they often skip).
+    cafe && cafe.totalReviews > 0 ? listCafeReviews(cafe.id, { limit: 10 }).catch(() => null) : null,
   ]);
 
   const kind = cafe ? venueKind({ name: cafe.name, tiers: cafe.tiers }) : null;
@@ -205,7 +210,18 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
                 '@type': 'AggregateRating',
                 ratingValue: cafe.averageRating,
                 reviewCount: cafe.totalReviews,
+                bestRating: 5,
+                worstRating: 1,
               },
+              review: (reviews?.items ?? [])
+                .filter((r) => r.comment && r.comment.trim().length > 0)
+                .map((r) => ({
+                  '@type': 'Review',
+                  author: { '@type': 'Person', name: r.gamerName },
+                  datePublished: r.createdAt.slice(0, 10),
+                  reviewRating: { '@type': 'Rating', ratingValue: r.rating, bestRating: 5, worstRating: 1 },
+                  reviewBody: r.comment,
+                })),
             }
           : {}),
         ...(cafe.tiers && cafe.tiers.length > 0

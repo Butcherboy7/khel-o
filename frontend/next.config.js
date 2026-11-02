@@ -103,7 +103,16 @@ const nextConfig = {
   },
   async redirects() {
     // The page was called Rewards before it became Achievements.
-    return [{ source: '/rewards', destination: '/achievements', permanent: true }];
+    return [
+      { source: '/rewards', destination: '/achievements', permanent: true },
+      // Short link for the Tekken #01 "review AdamsDen" ask: khel-o.com/r/adamsden
+      {
+        source: '/r/adamsden',
+        destination:
+          '/cafe/adamsden-gaming-lounge-kukatpally-hosuing-board-colony?utm_source=whatsapp&utm_medium=review&utm_campaign=tekken-01-reviews#write-review',
+        permanent: false,
+      },
+    ];
   },
   async rewrites() {
     // Thank-you pages for interns are plain HTML in public/thanks/ (built by marketing/certificates/).
