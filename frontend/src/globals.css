@@ -691,3 +691,13 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
 .cm-playpulse { animation: cm-playpulse 2s ease-out infinite; }
 @keyframes cm-playpulse { 0% { box-shadow: 0 0 0 0 rgb(242 201 76 / .6); } 70%, 100% { box-shadow: 0 0 0 18px rgb(242 201 76 / 0); } }
 @media (prefers-reduced-motion: reduce) { .cm-playpulse { animation: none; } }
+
+/* Typing a review (or any long text) on a phone: the keyboard already takes
+   half the screen, so the sticky booking bar and bottom nav step aside instead
+   of covering the box. Back as soon as the field loses focus. */
+@media (max-width: 767px) {
+  body:has(textarea:focus) .action-bar-fixed,
+  body:has(textarea:focus) nav[aria-label='Mobile navigation'] {
+    display: none;
+  }
+}
