@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, BarChart3, Check, CheckCheck, MessageCircle, Pin, Trophy } from 'lucide-react';
-import { FightStage, fightFont } from '@/components/challenge/ChallengeHero';
+import { ArrowRight, BarChart3, Camera, ChevronDown, Check, CheckCheck, Copy, Pin, RotateCcw, Trophy, X } from 'lucide-react';
+import { fightFont } from '@/components/challenge/ChallengeHero';
 import { Celebration } from '@/components/challenge/Celebration';
 import { getBracket, getChallenge } from '@/lib/api/challenges';
 import { trackAction } from '@/lib/api/analyticsEvents';
-import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll } from '@/lib/challenge';
+import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, isUpcoming, openToAll, whatsappShare } from '@/lib/challenge';
+import { communityScoreboard, type ScoreItem } from '@/lib/communityConfig';
+import { createShare } from '@/lib/share';
 
 /** The event the photos are from. Its bracket gives the real numbers and the podium. */
 const RECAP_SLUG = 'tekken-01';
@@ -24,14 +26,6 @@ const MOMENTS: { src: string; w: number; h: number; label: string }[] = [
   { src: 'the-crowd', w: 900, h: 600, label: 'The crowd' },
   { src: 'hands', w: 900, h: 600, label: 'Hands don’t lie' },
   { src: 'sofa', w: 900, h: 600, label: 'The squad' },
-];
-
-/** Plain words: what you get, in the order it happens. */
-const GETS = [
-  'The date of #02, before anyone else',
-  'A vote on which game we play next',
-  'The time, the place and your match',
-  'Results and photos after',
 ];
 
 /** What the chat looks like. Illustrative: the kind of posts the group gets. */
@@ -58,74 +52,6 @@ function useSeen<T extends Element>(ready: boolean) {
     return () => io.disconnect();
   }, [ready]);
   return [ref, seen] as const;
-}
-
-function Countdown({ to }: { to: string }) {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    setNow(Date.now());
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  if (now === null) return <span className="inline-block h-5" aria-hidden />;
-  const ms = Math.max(0, new Date(to).getTime() - now);
-  const d = Math.floor(ms / 86_400_000);
-  const h = Math.floor(ms / 3_600_000) % 24;
-  const m = Math.floor(ms / 60_000) % 60;
-  const s = Math.floor(ms / 1000) % 60;
-  return (
-    <span className="tabular-nums text-[#F2C94C]" role="timer" aria-label="Time until the event starts">
-      {d}d {String(h).padStart(2, '0')}h {String(m).padStart(2, '0')}m {String(s).padStart(2, '0')}s
-    </span>
-  );
-}
-
-/** One polaroid on the moments wall. Height is fixed, width follows the photo. */
-function Polaroid({ m, n }: { m: (typeof MOMENTS)[number]; n: number }) {
-  const tilt = [-2.2, 1.6, -0.8, 2.4, -1.6, 0.9][n % 6];
-  return (
-    <figure
-      className="flex-shrink-0 rounded-[4px] bg-[#F4F1EC] p-2 pb-0 shadow-[0_14px_30px_rgba(0,0,0,0.45)]"
-      style={{ transform: `rotate(${tilt}deg)` }}
-    >
-      {n % 3 === 0 && <span aria-hidden className="absolute -top-2 left-1/2 h-4 w-14 -translate-x-1/2 -rotate-3 bg-[#F2C94C]/80" />}
-      {/* eslint-disable-next-line @next/next/no-img-element -- pre-sized webp in /public, no optimiser needed */}
-      <img
-        src={`/community/${m.src}.webp`}
-        alt={m.label}
-        loading="lazy"
-        width={m.w}
-        height={m.h}
-        className="block h-36 w-auto object-cover md:h-56"
-        style={{ aspectRatio: `${m.w} / ${m.h}` }}
-      />
-      <figcaption className={`${fightFont.className} py-1.5 text-center text-lg font-bold uppercase tracking-wider text-[#17151A]`}>{m.label}</figcaption>
-    </figure>
-  );
-}
-
-function MomentsWall() {
-  const rowA = MOMENTS.filter((_, n) => n % 2 === 0);
-  const rowB = MOMENTS.filter((_, n) => n % 2 === 1);
-  // Each row is drawn twice so the loop never shows a gap.
-  const row = (items: typeof MOMENTS, rev: boolean, speed: string) => (
-    <div className="cm-wall-wrap overflow-hidden py-2.5">
-      <div className={`cm-wall ${rev ? 'rev' : ''}`} style={{ ['--cm-speed' as string]: speed }}>
-        {[...items, ...items].map((m, n) => (
-          <div key={`${m.src}-${n}`} className="relative" aria-hidden={n >= items.length}>
-            <Polaroid m={m} n={n} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-  return (
-    // Full screen width, past the text column, with the edges fading out.
-    <div className="relative left-1/2 w-screen -translate-x-1/2 [mask-image:linear-gradient(90deg,transparent,#000_6%,#000_94%,transparent)]">
-      {row(rowA, false, '46s')}
-      {row(rowB, true, '54s')}
-    </div>
-  );
 }
 
 function ChatDemo() {
@@ -205,30 +131,121 @@ function ChatDemo() {
   );
 }
 
-function JoinButton({ where, onJoin, big = true, btnRef }: { where: string; onJoin: (w: string) => void; big?: boolean; btnRef?: React.Ref<HTMLAnchorElement> }) {
+const TILTS = [-2, 2, -2, 3, -1, 2, -3, 2, -2];
+
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduced(mq.matches);
+    const on = () => setReduced(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return reduced;
+}
+
+/** Where the visitor came from: ?src= on the link (the ad uses ig_squad_ad), or "share" for a friend's link. */
+function visitSource(): string | undefined {
+  const q = new URLSearchParams(window.location.search);
+  return q.get('src') || (q.get('utm_source') === 'share' ? 'share' : undefined);
+}
+
+/** Real photos from Tekken #01 as stickers on two lanes drifting in opposite directions. The group photo leads.
+ *  Height comes from the space left on the screen, so the strip shrinks on short phones and nothing else moves. */
+function StickerStrip() {
+  const laneA = MOMENTS.filter((_, n) => n % 2 === 0);
+  const laneB = MOMENTS.filter((_, n) => n % 2 === 1);
+  const lane = (items: typeof MOMENTS, cls: 'a' | 'b', offset: number) => (
+    <div className="cm2-lane flex min-h-0 flex-1 items-center overflow-hidden">
+      <div className={`cm2-trk ${cls}`}>
+        {[...items, ...items].map((m, n) => (
+          // eslint-disable-next-line @next/next/no-img-element -- pre-sized webp in /public, no optimiser needed
+          <img
+            key={`${m.src}-${n}`}
+            src={`/community/${m.src}.webp`}
+            alt={n < items.length ? m.label : ''}
+            aria-hidden={n >= items.length}
+            width={m.w}
+            height={m.h}
+            loading={cls === 'a' && n === 0 ? 'eager' : 'lazy'}
+            fetchPriority={cls === 'a' && n === 0 ? 'high' : undefined}
+            className="cm2-stk"
+            style={{ aspectRatio: `${m.w} / ${m.h}`, ['--r' as string]: `${TILTS[(n + offset) % TILTS.length]}deg` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
   return (
-    <a
-      ref={btnRef}
-      href={COMMUNITY_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={() => onJoin(where)}
-      className={`cm-join ${fightFont.className} relative flex ${big ? 'h-16 text-[26px]' : 'h-14 text-2xl'} w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-[#25D366] font-bold uppercase tracking-wider text-[#06210F] transition-transform active:scale-[0.98]`}
-    >
-      <span className="cm-shine" aria-hidden />
-      <MessageCircle className="relative h-6 w-6" aria-hidden />
-      <span className="relative">Join the group</span>
-    </a>
+    <div className="cm2-strip -mx-3.5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+      {lane(laneA, 'a', 0)}
+      {lane(laneB, 'b', 3)}
+    </div>
   );
 }
 
-/** /community: the landing page for the WhatsApp Community ad and links.
- *  One job: get a tap on Join. After an event it leads with the real photos
- *  and results, so people see what they missed. */
+/** The scoreboard: one big line slides up to the next every 1.5s. With reduced motion every line shows, one per line. */
+function Scoreboard({ items, reduced }: { items: ScoreItem[]; reduced: boolean }) {
+  const n = items.length;
+  const [i, setI] = useState(0);
+  const [snap, setSnap] = useState(false);
+  const still = reduced || n < 2;
+
+  useEffect(() => {
+    if (still) return;
+    const t = setInterval(() => setI((v) => v + 1), 1500);
+    return () => clearInterval(t);
+  }, [still]);
+  // After the clone of the first line slides in, jump back to the real first line with no animation.
+  useEffect(() => {
+    if (still || i !== n) return;
+    const t = setTimeout(() => {
+      setSnap(true);
+      setI(0);
+    }, 540);
+    return () => clearTimeout(t);
+  }, [i, n, still]);
+  useEffect(() => {
+    if (!snap) return;
+    const t = setTimeout(() => setSnap(false), 40);
+    return () => clearTimeout(t);
+  }, [snap]);
+
+  const row = (it: ScoreItem, key: string) => (
+    <div key={key} className="cm2-rl">
+      <span className="cm2-dot" aria-hidden />
+      <span>
+        {it.a}
+        <em>{it.k}</em>
+        {it.b}
+      </span>
+    </div>
+  );
+  return (
+    <div className="flex-none border-y border-[#2C2833] py-1">
+      <span className="sr-only">{items.map((it) => `${it.a}${it.k}${it.b}`).join(' ')}</span>
+      <div className={still ? '' : 'cm2-roll'} aria-hidden>
+        {still ? (
+          items.map((it, k) => row(it, `s${k}`))
+        ) : (
+          <div className={`cm2-rt${snap ? ' snap' : ''}`} style={{ transform: `translateY(${-i * 30}px)` }}>
+            {[...items, items[0]].map((it, k) => row(it, `r${k}`))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** /community: one job, a tap on Join. The first screen is exactly one screen at any phone height.
+ *  Snapshots from #01 (results, the crown, the group chat) sit below it for anyone who scrolls. */
 export function CommunityClient() {
   const [tapped, setTapped] = useState(false);
-  const [stickyOn, setStickyOn] = useState(false);
-  const heroBtn = useRef<HTMLAnchorElement>(null);
+  const [pinned, setPinned] = useState(false);
+  const [copy, setCopy] = useState<'idle' | 'done' | 'failed'>('idle');
+  const reduced = useReducedMotion();
+  const items = useMemo(() => communityScoreboard(), []);
   const { data: ch } = useQuery({
     queryKey: ['challenges', FEATURED_CHALLENGE_SLUG],
     queryFn: () => getChallenge(FEATURED_CHALLENGE_SLUG),
@@ -251,104 +268,88 @@ export function CommunityClient() {
   const [crownRef, crownSeen] = useSeen<HTMLElement>(Boolean(champ));
 
   useEffect(() => {
-    const el = heroBtn.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver(([e]) => setStickyOn(!e.isIntersecting && e.boundingClientRect.top < 0), { threshold: 0 });
-    io.observe(el);
-    return () => io.disconnect();
+    trackAction('community_view', { src: visitSource() });
+  }, []);
+  useEffect(() => {
+    const on = () => setPinned(window.scrollY > 40);
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
   }, []);
 
   const join = (where: string) => {
-    trackAction('community_join_tap', { where });
+    trackAction('community_join_tap', { where, src: visitSource() });
     setTapped(true);
   };
+  const sendToSquad = () => {
+    const src = visitSource();
+    const link = createShare({ path: '/community', context: 'community', campaign: 'community' }, 'whatsapp');
+    trackAction('community_share_tap', { src, sid: new URL(link).searchParams.get('sid') });
+    window.open(whatsappShare(`Found Hyderabad's gaming community. Free challenges and teammates. Join here: ${link}`), '_blank', 'noopener');
+  };
+  const copyInvite = async () => {
+    trackAction('community_copy_tap', { src: visitSource() });
+    try {
+      await navigator.clipboard.writeText(COMMUNITY_URL);
+      setCopy('done');
+    } catch {
+      setCopy('failed');
+    }
+    setTimeout(() => setCopy('idle'), 1800);
+  };
+  const toSnapshots = () => {
+    trackAction('community_snapshots_tap', { src: visitSource() });
+    document.getElementById('snapshots')?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+  };
+
+  const joinClass = `${fightFont.className} flex h-14 w-full items-center justify-center whitespace-nowrap rounded-2xl bg-[#25D366] text-[26px] font-bold uppercase tracking-[0.04em] text-[#06210F] transition-[transform,background-color] hover:bg-[#2EE073] active:scale-[0.98] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-white`;
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#0A0809] text-[#F4F1EC]">
-      {/* 1. The album is the first thing you see */}
-      <section className="relative isolate overflow-hidden pb-6">
-        <FightStage />
-        <div className="relative mx-auto w-full max-w-4xl px-4 pt-5 md:px-8">
-          <Link
-            href="/"
-            aria-label="Back to the KHEL-O home page"
-            className="inline-flex h-11 w-fit items-center gap-1.5 rounded-full border border-white/20 bg-black/60 pl-3 pr-4 text-sm font-semibold text-[#F4F1EC] backdrop-blur hover:bg-black/80"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden /> Home
+      {/* 1. One screen: what it is, proof it is real, what you get, one button */}
+      <section
+        className="cm2-hero relative mx-auto flex w-full max-w-md flex-col gap-2 overflow-hidden px-3.5 pb-3 pt-3"
+        style={{ background: 'radial-gradient(120% 55% at 85% 0, rgba(232,103,93,.28), transparent 62%), #0A0809' }}
+      >
+        <div className="flex-none">
+          <Link href="/" aria-label="KHEL-O home" className="mb-2 inline-block">
+            {/* eslint-disable-next-line @next/next/no-img-element -- tiny pixel-art wordmark, must not be smoothed */}
+            <img src="/community/wordmark.png" alt="KHEL-O" width={120} height={20} className="h-5 w-auto [image-rendering:pixelated]" />
           </Link>
-          {upcoming ? (
-            <>
-              <p className="cm-rise mt-4 text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">Next up</p>
-              <h1 className={`${fightFont.className} cm-rise mt-1 text-[2.8rem] font-bold uppercase leading-[0.92] md:text-6xl`}>
-                Free event <span className="text-[#E8675D]">{challengeDay(upcoming.startsAt).split(',')[0]}.</span>
-              </h1>
-            </>
-          ) : (
-            <>
-              <p className="cm-rise mt-4 text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">Tekken 8 · #01 · AdamsDen · 1 Nov</p>
-              <h1 className={`${fightFont.className} cm-rise mt-1 text-[2.8rem] font-bold uppercase leading-[0.92] md:text-6xl`}>
-                Sunday at <span className="text-[#E8675D]">AdamsDen.</span>
-              </h1>
-              <p className="cm-rise mt-2 max-w-md text-[15px] text-[#C9C4CF]" style={{ ['--cm-delay' as string]: '100ms' }}>
-                A full house of Hyderabad gamers. <b className="text-[#F4F1EC]">#02 is coming, and the group hears first.</b>
-              </p>
-            </>
-          )}
+          <p className="text-[12.5px] font-extrabold text-[#F2C94C]">#02 is coming. The group hears first.</p>
+          <h1 className={`${fightFont.className} text-balance text-[2.25rem] font-bold uppercase leading-[0.95]`}>Hyderabad&apos;s gaming community</h1>
         </div>
-
-        <div className="relative mt-3">
-          <MomentsWall />
+        <StickerStrip />
+        <p className="-mt-0.5 flex-none text-[11.5px] font-bold text-[#D9D4DF]">From our last challenge, #01.</p>
+        <Scoreboard items={items} reduced={reduced} />
+        <div className="flex-none">
+          <a href={COMMUNITY_URL} target="_blank" rel="noopener noreferrer" onClick={() => join('community')} className={joinClass}>
+            Join the community
+          </a>
+          <p className="mt-1.5 text-center text-xs text-[#CFCAD6]">Free. One tap away.</p>
         </div>
-
-        <div className="relative mx-auto mt-3 w-full max-w-md px-4 md:px-8">
-          <div className="cm-rise" style={{ ['--cm-delay' as string]: '240ms' }}>
-            <JoinButton where="hero" onJoin={join} btnRef={heroBtn} />
-            <p className="mt-2 text-center text-sm text-[#C9C4CF]">
-              Free · one tap · leave any time
-              {upcoming && (
-                <>
-                  {' · starts in '}
-                  <Countdown to={upcoming.startsAt} />
-                </>
-              )}
-            </p>
-            {tapped && (
-              <p className="mt-3 flex items-start gap-2 rounded-xl border border-[#3B6B4A] bg-[#13221A]/90 px-3 py-2.5 text-sm" role="status">
-                <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FE0A0]" aria-hidden />
-                <span>
-                  In WhatsApp, tap <b>Join</b>. Then open <b>Challengers</b> for the event updates.{' '}
-                  <a href={COMMUNITY_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#7FE0A0] underline">
-                    Didn&apos;t open? Try again
-                  </a>
-                </span>
-              </p>
-            )}
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={toSnapshots}
+          className="-mt-0.5 flex flex-none flex-col items-center text-[#F2C94C] focus-visible:rounded-lg focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-white"
+        >
+          <Camera className="h-[18px] w-[18px]" aria-hidden />
+          <ChevronDown className="cm2-chev -mt-0.5 h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
+          <span className="text-[10.5px] font-bold tracking-[0.02em] text-[#CFCAD6]">Snapshots from #01</span>
+        </button>
       </section>
 
-      <div className="mx-auto w-full max-w-4xl px-4 md:px-8">
-        {/* 2. Real numbers, from the bracket */}
+      {/* 2. Only if someone scrolls: snapshots from #01 */}
+      <section id="snapshots" className="mx-auto w-full max-w-md scroll-mt-0 px-4 pb-28 pt-8 md:max-w-4xl md:px-8">
+        <h2 className={`${fightFont.className} text-[2.6rem] font-bold uppercase leading-[0.95] md:text-6xl`}>Snapshots from #01</h2>
         {finished && players > 0 && (
-          <dl className="grid grid-cols-4 gap-2 border-y border-[#262932] py-4 text-center">
-            {[
-              [String(players), 'fighters'],
-              [String(played), 'matches'],
-              ['1', 'champion'],
-              ['₹0', 'entry'],
-            ].map(([n, l]) => (
-              <div key={l}>
-                <dt className="sr-only">{l}</dt>
-                <dd className={`${fightFont.className} text-4xl font-bold leading-none text-[#F2C94C] md:text-5xl`}>{n}</dd>
-                <dd className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A39DAB]">{l}</dd>
-              </div>
-            ))}
-          </dl>
+          <p className={`${fightFont.className} mt-2 text-[1.6rem] font-bold uppercase leading-none text-[#E9E5EE] md:text-4xl`}>
+            {players} fighters. {played} matches. <span className="text-[#F2C94C]">1 champion.</span>
+          </p>
         )}
 
-        {/* 4. The crown */}
         {champ && finished && (
-          <section ref={crownRef} className="relative mt-8 overflow-hidden rounded-3xl border border-[#6B5A2A] bg-gradient-to-br from-[#2A2210] via-[#16120E] to-[#0E0F13] p-5 md:p-7">
+          <section ref={crownRef} className="relative mt-6 overflow-hidden rounded-3xl border border-[#6B5A2A] bg-gradient-to-br from-[#2A2210] via-[#16120E] to-[#0E0F13] p-5 md:p-7">
             {crownSeen && <Celebration id="community-crown-tekken-01" />}
             <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-1/3 animate-champ-shine bg-gradient-to-r from-transparent via-[#FFE29A]/20 to-transparent" />
             <div className="relative grid items-center gap-5 md:grid-cols-[0.9fr_1.1fr]">
@@ -365,7 +366,7 @@ export function CommunityClient() {
                 <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-[#F2C27A]">
                   <Trophy className="h-4 w-4" aria-hidden /> Champion · Tekken #01
                 </p>
-                <h2 className={`${fightFont.className} mt-1 text-[3.2rem] font-bold uppercase leading-[0.9] md:text-6xl`}>{champ.name}</h2>
+                <h3 className={`${fightFont.className} mt-1 text-[3.2rem] font-bold uppercase leading-[0.9] md:text-6xl`}>{champ.name}</h3>
                 <div className="mt-4 flex flex-col gap-2">
                   {finished.standings
                     .filter((s) => s.place > 1)
@@ -386,67 +387,82 @@ export function CommunityClient() {
           </section>
         )}
 
-        {/* 5. #02: decided in the group */}
-        <section className="mt-12 grid items-center gap-8 md:grid-cols-[1.1fr_0.9fr]">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">#02</p>
-            <h2 className={`${fightFont.className} mt-1 text-[2.6rem] font-bold uppercase leading-[0.92] md:text-6xl`}>
-              Don&apos;t miss <span className="text-[#F2C94C]">#02.</span>
-            </h2>
-            <p className="mt-3 max-w-md text-[15px] text-[#C9C4CF]">
-              The group votes on the next game, and the date drops there first. Everyone else finds out later.
-            </p>
-            <ul className="mt-5 max-w-md space-y-2">
-              {GETS.map((g) => (
-                <li key={g} className="flex items-start gap-2.5 text-[15px] text-[#DADCE3]">
-                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FE0A0]" aria-hidden />
-                  {g}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-6 max-w-md">
-              <JoinButton where="bottom" onJoin={join} />
-            </div>
-          </div>
+        <div className="mt-8">
           <ChatDemo />
-        </section>
+          <p className="mt-3 text-center text-xs text-[#8C8592]">Example of what the group posts.</p>
+        </div>
 
-        <div className="pb-28 pt-10">
-          {upcoming && (
-            <div className="flex flex-col gap-3 rounded-2xl border border-[#5A2A26] bg-[#1A1114] p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-[15px] text-[#DADCE3]">
-                <b className="text-[#F4F1EC]">Want to play, not just watch?</b> {openToAll(upcoming.capacity) ? 'Free to play' : `${upcoming.capacity} free spots`} at {upcoming.cafe.name}. Takes a minute.
-              </p>
-              <Link
-                href={`/challenge/${upcoming.slug}?join=1`}
-                onClick={() => trackAction('challenge_teaser_click', { challenge: upcoming.slug, where: 'community' })}
-                className="flex h-12 flex-shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#D0463C] px-5 font-semibold text-white hover:bg-[#E8675D]"
-              >
-                Sign up to play <ArrowRight className="h-4 w-4" aria-hidden />
-              </Link>
-            </div>
-          )}
-          <p className="mt-4 text-center text-xs text-[#8C8592]">
-            Others in the group can see your WhatsApp number. Be decent: no spam, no selling, no abuse.
-          </p>
+        {upcoming && (
+          <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-[#5A2A26] bg-[#1A1114] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[15px] text-[#DADCE3]">
+              <b className="text-[#F4F1EC]">Want to play, not just watch?</b> {openToAll(upcoming.capacity) ? 'Free to play' : `${upcoming.capacity} free spots`} at {upcoming.cafe.name}. Takes a minute.
+            </p>
+            <Link
+              href={`/challenge/${upcoming.slug}?join=1`}
+              onClick={() => trackAction('challenge_teaser_click', { challenge: upcoming.slug, where: 'community' })}
+              className="flex h-12 flex-shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#D0463C] px-5 font-semibold text-white hover:bg-[#E8675D]"
+            >
+              Sign up to play <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+          </div>
+        )}
+        <p className="mt-6 text-center text-xs text-[#8C8592]">Others in the group can see your WhatsApp number. Be decent: no spam, no selling, no abuse.</p>
+      </section>
+
+      {/* Join bar, pinned once someone scrolls past the first screen */}
+      <div
+        className={`fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-[#0A0809] from-45% to-transparent px-3.5 pb-3.5 pt-6 transition-transform duration-300 ${pinned && !tapped ? 'translate-y-0' : 'translate-y-[110%]'}`}
+        aria-hidden={!(pinned && !tapped)}
+        inert={!(pinned && !tapped)}
+      >
+        <div className="mx-auto max-w-md">
+          <a href={COMMUNITY_URL} target="_blank" rel="noopener noreferrer" onClick={() => join('community_pinned')} className={joinClass}>
+            Join the community
+          </a>
         </div>
       </div>
 
+      {/* After the tap: bring your squad */}
       <div
-        className={`fixed inset-x-0 bottom-0 z-40 border-t border-[#262932] bg-[#0A0809]/95 px-4 py-3 backdrop-blur transition-transform duration-300 ${stickyOn ? 'translate-y-0' : 'translate-y-full'}`}
-        aria-hidden={!stickyOn}
+        role="region"
+        aria-label="Bring your squad"
+        aria-hidden={!tapped}
+        inert={!tapped}
+        className={`fixed inset-x-0 bottom-0 z-50 mx-auto max-w-md rounded-t-[22px] border-t border-[#3B6B4A] bg-[#101A14] px-4 pb-4 pt-2.5 shadow-[0_-14px_30px_rgba(0,0,0,0.5)] transition-transform duration-[400ms] ease-[cubic-bezier(.2,.8,.2,1)] ${tapped ? 'translate-y-0' : 'translate-y-[105%]'}`}
       >
-        <div className="mx-auto max-w-md">
+        <div className="mx-auto mb-2.5 h-1 w-10 rounded bg-[#3B4A40]" aria-hidden />
+        <button
+          type="button"
+          onClick={() => setTapped(false)}
+          aria-label="Close"
+          className="absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full text-[#9DB0A3] hover:bg-white/10"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+        <h2 className={`${fightFont.className} mb-2 pr-8 text-balance text-[26px] font-bold uppercase leading-none`}>Tap Join in WhatsApp. Then bring your squad.</h2>
+        <p className="mb-2.5 rounded-xl rounded-br-sm bg-[#DCF8C6] px-3 py-2 text-xs text-[#17231A] [word-break:break-word]">
+          Found Hyderabad&apos;s gaming community. Free challenges and teammates. Join here: <u>khel-o.com/community?…</u>
+        </p>
+        <button type="button" onClick={sendToSquad} className={joinClass}>
+          Send to my squad
+        </button>
+        <div className="mt-2.5 flex items-center justify-between gap-2">
           <a
             href={COMMUNITY_URL}
             target="_blank"
             rel="noopener noreferrer"
-            tabIndex={stickyOn ? 0 : -1}
-            onClick={() => join('sticky')}
-            className={`${fightFont.className} flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-2xl font-bold uppercase tracking-wider text-[#06210F]`}
+            onClick={() => trackAction('community_retry_tap', { src: visitSource() })}
+            className="inline-flex min-h-[40px] items-center gap-1.5 text-[12.5px] font-bold text-[#7FE0A0] underline underline-offset-[3px]"
           >
-            <MessageCircle className="h-5 w-5" aria-hidden /> Join the group
+            <RotateCcw className="h-4 w-4" aria-hidden /> WhatsApp didn&apos;t open? Tap here
           </a>
+          <button
+            type="button"
+            onClick={copyInvite}
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-[#3B6B4A] px-3 text-[12.5px] font-bold text-[#7FE0A0]"
+          >
+            <Copy className="h-4 w-4" aria-hidden /> {copy === 'done' ? 'Copied' : copy === 'failed' ? 'Press and hold to copy' : 'Copy link'}
+          </button>
         </div>
       </div>
     </main>
