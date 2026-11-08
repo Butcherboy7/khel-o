@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Gamepad2 } from 'lucide-react';
+import { dropArt } from '@/components/customer/HomeTabs';
 import { listDrops } from '@/lib/api/drops';
 import { trackAction } from '@/lib/api/analyticsEvents';
 
@@ -13,21 +14,28 @@ export function CafeDropBanner({ cafeId }: { cafeId: string }) {
   const drop = data?.find((d) => d.cafe.id === cafeId);
   if (!drop) return null;
   const soon = drop.state === 'soon';
+  const art = dropArt(drop);
   return (
     <Link
       href={`/drops/${drop.slug}`}
       onClick={() => trackAction('cafe_drop_banner_tap', { drop: drop.slug })}
-      className="flex items-center gap-3 rounded-2xl border border-[#5A2A26] bg-[#1A1114] px-4 py-3 text-[#F4F1EC] transition-colors hover:border-[#E8675D]"
+      className="flex items-center gap-3 overflow-hidden rounded-2xl border border-primary/30 bg-card p-2.5 shadow-card transition-colors hover:border-primary"
     >
-      <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-[#D0463C]">
-        <Gamepad2 className="h-5 w-5" aria-hidden />
-      </span>
+      {art ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={art} alt="" className="h-14 w-24 flex-none rounded-xl object-cover" />
+      ) : (
+        <span className="flex h-14 w-14 flex-none items-center justify-center rounded-xl bg-primary text-white">
+          <Gamepad2 className="h-5 w-5" aria-hidden />
+        </span>
+      )}
       <span className="min-w-0 flex-1">
-        <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-[#E8675D]">{soon ? 'Coming soon' : 'Limited time'}</span>
-        <span className="block font-heading text-body-emphasis font-bold">This café has {drop.game}</span>
-        <span className="block text-caption text-[#C9CBD3]">{soon ? 'Be first to reserve a seat' : `${drop.seatsLeft} seats left. Reserve yours`}</span>
+        <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-primary">{soon ? 'Coming soon' : 'Limited time'}</span>
+        <span className="block truncate font-heading text-body-emphasis font-bold text-text-primary">{drop.game} is here</span>
+        <span className="block text-caption text-text-secondary">{soon ? 'Be first to reserve a seat' : `${drop.seatsLeft} seats left this week`}</span>
       </span>
-      <ArrowRight className="h-4 w-4 flex-none" aria-hidden />
+      <span className="flex-shrink-0 rounded-full bg-primary px-3.5 py-2 text-caption font-bold text-white">Reserve</span>
+      <ArrowRight className="hidden" aria-hidden />
     </Link>
   );
 }

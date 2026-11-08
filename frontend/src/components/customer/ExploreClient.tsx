@@ -22,7 +22,7 @@ import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SearchBarWithSuggestions } from '@/components/customer/SearchBarWithSuggestions';
 import { KonamiEgg } from '@/components/customer/KonamiEgg';
-import { HomeTabRow, DropsPanel, ChallengesPanel, CommunityPanel, type HomeTab } from '@/components/customer/HomeTabs';
+import { HomeTabRow, DropsPanel, DropSpotlight, ChallengesPanel, CommunityPanel, type HomeTab } from '@/components/customer/HomeTabs';
 import { getThisWeek } from '@/lib/api/community';
 import { MessageCircle } from 'lucide-react';
 import {
@@ -603,6 +603,7 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
           </a>
         }
       />
+      {tab === 'cafes' && <DropSpotlight />}
       {tab === 'cafes' && styleRow}
       {filterSheet}
 

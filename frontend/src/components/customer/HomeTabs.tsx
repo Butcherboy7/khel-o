@@ -75,6 +75,10 @@ const STATE_LABEL: Record<string, { text: string; cls: string }> = {
   soon: { text: 'Coming soon', cls: 'text-secondary' },
 };
 
+/** The official GTA VI art (Rockstar-approved) stands in as the cover for GTA drops. */
+export const dropArt = (d: { game: string; coverImageUrl: string | null }) =>
+  d.coverImageUrl || (/gta/i.test(d.game) ? '/drops/gta6-landscape.jpg' : null);
+
 function dropWhen(iso: string): string {
   return new Date(iso).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
 }
@@ -89,7 +93,7 @@ function DropCard({ d }: { d: DropListItem }) {
     >
       <div
         className="h-[88px] w-[88px] flex-none overflow-hidden rounded-xl bg-gradient-to-br from-[#5B1A2A] to-[#D0463C] md:h-36 md:w-full"
-        style={d.coverImageUrl ? { backgroundImage: `url(${d.coverImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+        style={dropArt(d) ? { backgroundImage: `url(${dropArt(d)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
         aria-hidden
       />
       <div className="flex min-w-0 flex-1 flex-col">
@@ -243,5 +247,44 @@ export function CommunityPanel() {
         </span>
       </Link>
     </div>
+  );
+}
+
+
+// -------------------------------------------------------- Booking spotlight
+
+/** The first thing on the home screen: the drop people can book right now, with its
+ *  art, a live seat count and one big button. Hidden when nothing is open. */
+export function DropSpotlight() {
+  const { data } = useQuery({ queryKey: ['home-drops'], queryFn: listDrops, staleTime: 60_000, retry: false });
+  const d = data?.find((x) => x.state === 'open' || x.state === 'early') ?? null;
+  if (!d) return null;
+  const art = dropArt(d);
+  return (
+    <Link
+      href={`/drops/${d.slug}`}
+      onClick={() => trackAction('home_spotlight_tap', { drop: d.slug })}
+      className="group relative block overflow-hidden rounded-2xl border border-border/70 shadow-card"
+    >
+      {art ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={art} alt={`${d.game} artwork`} className="aspect-[2/1] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02] md:aspect-[3/1]" />
+      ) : (
+        <div className="aspect-[2/1] w-full bg-gradient-to-br from-[#5B1A2A] to-[#D0463C] md:aspect-[3/1]" aria-hidden />
+      )}
+      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-10 text-white md:p-4">
+        <span className="min-w-0">
+          <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-[#FFB4AC]">
+            Live now · {d.seatsLeft} {d.seatsLeft === 1 ? 'seat' : 'seats'} left
+          </span>
+          <span className="block truncate font-heading text-body-emphasis font-bold md:text-h3">
+            Play {d.game} at {d.cafe.name}
+          </span>
+        </span>
+        <span className="flex-shrink-0 rounded-full bg-primary px-4 py-2.5 text-body font-extrabold shadow-lg transition-transform active:scale-95">
+          Reserve now
+        </span>
+      </div>
+    </Link>
   );
 }

@@ -29,7 +29,7 @@ const ACTIVITY_SEARCH_ALIASES: Record<string, string> = {
 
 /** Pages people type a name for: GTA 6, the challenge, the community. */
 const PAGE_RESULTS: { id: string; title: string; subtitle: string; href: string; keywords: string }[] = [
-  { id: 'gta6', title: 'GTA 6 Launch Drop', subtitle: 'Reserve a seat to play it on launch', href: '/gta6', keywords: 'gta gta6 6 launch drop early access rockstar' },
+  { id: 'gta6', title: 'GTA 6 Launch Drop', subtitle: 'Reserve your seat now · PS5 on a big screen', href: '/gta6', keywords: 'gta gta6 6 launch drop early access rockstar ps5 playstation book reserve play now' },
   { id: 'challenge', title: 'Tekken challenge', subtitle: 'Free fight night at a café', href: '/challenge/tekken-01', keywords: 'tekken challenge tournament fight event competition' },
   { id: 'community', title: 'KHEL-O Community', subtitle: 'Join the group, vote, get first dibs', href: '/community', keywords: 'community whatsapp group join vote gamers' },
 ];
@@ -100,6 +100,12 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
   }, []);
 
   const suggestions: SearchSuggestion[] = [];
+
+  if (!value.trim()) {
+    // Nothing typed yet: lead with what people are booking right now.
+    const g = PAGE_RESULTS[0];
+    suggestions.push({ id: `page-${g.id}`, title: g.title, subtitle: g.subtitle, type: 'page', href: g.href });
+  }
 
   if (value.trim()) {
     const queryLower = value.toLowerCase();
@@ -208,32 +214,37 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
           {cafeSuggestions.map((cafe) => {
             const photo = cafe.photos?.[0]?.url;
             return (
-              <button
-                key={cafe.id}
-                onClick={() => openCafe(cafe)}
-                className="flex items-center gap-3 p-2 rounded-2xl hover:bg-surface text-left transition-colors"
-              >
-                <div className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  {photo ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photo} alt="" className="h-full w-full object-cover" loading="lazy" />
-                  ) : (
-                    <MapPin className="h-4 w-4" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-heading text-body font-semibold text-text-primary truncate">{cafe.name}</div>
-                  <div className="text-caption text-text-secondary truncate">{cafeArea(cafe)}</div>
-                </div>
-                <span
-                  className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                    cafe.isLeadListing ? 'bg-surface text-text-secondary' : 'bg-primary/10 text-primary'
-                  }`}
-                >
-                  {cafe.isLeadListing ? 'Booking soon' : 'Book now'}
-                </span>
-                <ChevronRight className="h-4 w-4 flex-shrink-0 text-text-secondary" />
-              </button>
+              <div key={cafe.id} className="flex items-center gap-2 rounded-2xl p-2 transition-colors hover:bg-surface">
+                <button type="button" onClick={() => openCafe(cafe)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                  <div className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    {photo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={photo} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    ) : (
+                      <MapPin className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-heading text-body font-semibold text-text-primary truncate">{cafe.name}</div>
+                    <div className="text-caption text-text-secondary truncate">{cafeArea(cafe)}</div>
+                  </div>
+                </button>
+                {cafe.isLeadListing ? (
+                  <span className="flex-shrink-0 rounded-full bg-surface px-2 py-0.5 text-[11px] font-bold text-text-secondary">Booking soon</span>
+                ) : (
+                  // Straight to the booking page: one tap from search to picking a time.
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      router.push(`/bookings/new?cafeId=${cafe.id}`);
+                    }}
+                    className="flex min-h-[40px] flex-shrink-0 items-center rounded-full bg-primary px-3.5 text-[12px] font-bold text-white"
+                  >
+                    Book now
+                  </button>
+                )}
+              </div>
             );
           })}
           {suggestions.map((s) => (
@@ -242,13 +253,17 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
               onClick={() => handleSelectSuggestion(s)}
               className="flex items-center gap-3 p-2 rounded-2xl hover:bg-surface text-left transition-colors"
             >
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                {s.type === 'activity' ? <Monitor className="h-4 w-4" /> : s.type === 'page' ? (s.id === 'page-gta6' ? <Flame className="h-4 w-4" /> : s.id === 'page-challenge' ? <Swords className="h-4 w-4" /> : <Users className="h-4 w-4" />) : <MapPin className="h-4 w-4" />}
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
+                {s.id === 'page-gta6' ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src="/drops/gta6-square.jpg" alt="" className="h-full w-full object-cover" />
+                ) : s.type === 'activity' ? <Monitor className="h-4 w-4" /> : s.type === 'page' ? (s.id === 'page-gta6' ? <Flame className="h-4 w-4" /> : s.id === 'page-challenge' ? <Swords className="h-4 w-4" /> : <Users className="h-4 w-4" />) : <MapPin className="h-4 w-4" />}
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="font-heading text-body font-semibold text-text-primary">{s.title}</div>
                 <div className="text-caption text-text-secondary">{s.subtitle}</div>
               </div>
+              {s.id === 'page-gta6' && <span className="flex-shrink-0 rounded-full bg-primary px-3 py-1.5 text-[12px] font-bold text-white">Reserve now</span>}
             </button>
           ))}
         </div>
