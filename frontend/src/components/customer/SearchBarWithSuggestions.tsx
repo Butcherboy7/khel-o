@@ -175,7 +175,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
         {/* The rotating hint stands in for a placeholder. It is decoration: the
             input's aria-label already says what the field is for. */}
         {!value && (
-          <span aria-hidden="true" className="pointer-events-none absolute left-6 right-7 top-1/2 flex -translate-y-1/2 items-center gap-1.5 overflow-hidden whitespace-nowrap text-body text-text-secondary/80">
+          <span aria-hidden="true" className="pointer-events-none absolute left-6 right-0 top-1/2 flex -translate-y-1/2 items-center gap-1.5 overflow-hidden whitespace-nowrap text-body text-text-secondary/80">
             <span className="flex-none">Search</span>
             <span className="khelo-hint-rot relative h-[1.5em] min-w-0 flex-1 overflow-hidden font-semibold text-text-primary">
               {HINT_PHRASES.map((ph, i) => (

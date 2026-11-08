@@ -99,7 +99,7 @@ function CustomerHeader() {
             {/* Says what the site is on every visit, beside the Log in button.
                 Signed in, it greets by name instead. */}
             {pathname === '/' && (
-              <span className="max-w-[calc(100vw-176px)] truncate text-[11px] font-semibold text-text-secondary sm:max-w-none md:text-caption">
+              <span className="max-w-[calc(100vw-150px)] truncate text-[11px] font-semibold text-text-secondary sm:max-w-none md:text-caption">
                 {isAuthenticated && user?.fullName ? `Hey ${user.fullName.split(' ')[0]}` : 'Book gaming cafés & game zones near you'}
               </span>
             )}
