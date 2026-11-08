@@ -13,7 +13,7 @@ import { markChallengeSeen } from '@/lib/challengeNudge';
 import { SimpleMarkdown } from '@/components/challenge/SimpleMarkdown';
 import { ChallengeSignUpSheet } from '@/components/challenge/ChallengeSignUpSheet';
 import { ChallengeIntro } from '@/components/challenge/ChallengeIntro';
-import { NextOneBlock } from '@/components/challenge/NextOneBlock';
+import { FinishedRecap } from '@/components/challenge/FinishedRecap';
 import { ChallengeVideo, isVideoId } from '@/components/challenge/ChallengeVideo';
 import { FightHud, FightStage, PlayerSelect, RoundFight, fightFont } from '@/components/challenge/ChallengeHero';
 
@@ -154,6 +154,15 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
   const open = ch.status === 'open';
   const filled = Math.min(ch.confirmed, ch.capacity);
 
+  // Once it is over, the page is the recap and the way into the next one, not the sign-up promo.
+  if (ch.status === 'finished') {
+    return (
+      <Shell>
+        <FinishedRecap ch={ch} />
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       {ch.status === 'draft' && (
@@ -186,7 +195,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               Challenge {ch.title.match(/#\s?\d+/)?.[0] ?? ''}
             </span>
           </h1>
-          {ch.status !== 'finished' && ch.status !== 'cancelled' && (
+          {ch.status !== 'cancelled' && (
             <div className="cm-rise relative mt-4 -skew-x-[6deg] overflow-hidden bg-[#F2C94C] px-4 py-2 text-[#1A1306] shadow-[0_8px_20px_rgba(0,0,0,0.35)]">
               <span className="cm-shine" aria-hidden />
               <div className="relative skew-x-[6deg]">
@@ -337,17 +346,16 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
             {ch.finalBestOf !== ch.bestOf ? `, final best of ${ch.finalBestOf}` : ''}.
           </Step>
         </ol>
-        {(ch.drawnAt || ch.status === 'finished') && (
+        {ch.drawnAt && (
           <Link
             href={`/challenge/${ch.slug}/bracket`}
             className="mt-4 flex items-center gap-3 rounded-2xl border border-[#5A2A26] bg-[#1A1114] px-4 py-3 transition-colors hover:border-[#E8675D]"
           >
             <Trophy className="h-4 w-4 text-[#F2C27A]" />
-            <span className="flex-1 font-semibold">{ch.status === 'finished' ? 'See the results' : 'Follow the live bracket'}</span>
+            <span className="flex-1 font-semibold">Follow the live bracket</span>
             <ChevronRight className="h-4 w-4 text-[#A3A6B1]" />
           </Link>
         )}
-        {ch.status === 'finished' && <NextOneBlock />}
         <Link
           href={`/challenge/${ch.slug}/rules`}
           className="mt-4 flex items-center gap-3 rounded-2xl border border-[#262932] bg-[#16181E] px-4 py-3 transition-colors hover:border-[#3A3E4A]"
@@ -433,7 +441,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
             </button>
           ) : (
             <p className="flex h-14 items-center justify-center rounded-2xl bg-[#16181E] text-sm font-semibold text-[#A3A6B1]">
-              {ch.status === 'finished' ? 'This challenge has finished' : 'Sign-ups are closed'}
+              Sign-ups are closed
             </p>
           )}
         </div>

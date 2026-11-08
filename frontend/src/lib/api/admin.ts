@@ -623,3 +623,20 @@ export async function removeBookingSoonPhoto(cafeId: string, url: string): Promi
 export async function issueOwnerLogin(cafeId: string, reason: string): Promise<{ email: string; temporaryPassword: string }> {
   return call(() => apiClient.post(`/api/v1/admin/booking-soon/${cafeId}/owner-login`, { reason }));
 }
+
+// ------------------------------------------------------------ community email
+
+export interface CommunityEmailPreview {
+  subject: string;
+  recipients: number;
+  testedRecently: boolean;
+  html: string;
+}
+
+export async function getCommunityEmail(): Promise<CommunityEmailPreview> {
+  return call(() => apiClient.get('/api/v1/admin/community/email'));
+}
+
+export async function sendCommunityEmail(body: { test: boolean; confirmCount?: number }): Promise<{ sent: number | boolean; test: boolean; delivered?: boolean; to?: string }> {
+  return call(() => apiClient.post('/api/v1/admin/community/email', body));
+}

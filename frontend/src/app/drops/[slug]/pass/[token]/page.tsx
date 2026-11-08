@@ -6,7 +6,7 @@ import { ArrowLeft, Check, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { checkInDropPass, getDropPass, type DropPass } from '@/lib/api/drops';
 import { blockTimes, dayLabel, rupees } from '@/lib/drops';
-import { CommunityInviteCard } from '@/components/customer/CommunityInvite';
+import { CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 
 /** What the QR on a drop pass opens. The holder sees their pass; the café
  *  (owner, staff or admin) sees who it is and a Check in button; anyone else
@@ -130,8 +130,9 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
               </Link>
             )}
             {pass.valid && !pass.canCheckIn && (
-              <div className="mt-5">
+              <div className="mt-5 flex flex-col gap-3">
                 <CommunityInviteCard where="drop_pass" />
+                <LastChallengeLink where="drop_pass_challenge" />
               </div>
             )}
             {error && pass && <p className="mt-3 text-sm text-error">{error}</p>}

@@ -1,7 +1,7 @@
 'use client';
 
 import { ShareModal } from '@/components/customer/ShareModal';
-import { CommunityInviteCard } from '@/components/customer/CommunityInvite';
+import { CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 
 import { Hint } from '@/components/customer/Hint';
 
@@ -498,6 +498,7 @@ export default function BookingDetailPage() {
 
           {/* The moment someone has just booked is the best time to invite them in. */}
           <CommunityInviteCard where="booking_pass" />
+          <LastChallengeLink where="booking_pass_challenge" />
 
           {data.cafeId && (
             <ShareModal

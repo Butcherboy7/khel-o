@@ -1,12 +1,19 @@
 'use client';
 
+import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { trackAction } from '@/lib/api/analyticsEvents';
+import { getThisWeek } from '@/lib/api/community';
 import { COMMUNITY_URL } from '@/lib/challenge';
 import { cn } from '@/lib/cn';
 
 /** "Join the WhatsApp Community" card: hear about every challenge first. */
 export function CommunityInviteCard({ where }: { where: string }) {
+  // The real member count, only once it is big enough to mean something.
+  const { data } = useQuery({ queryKey: ['community', 'this-week'], queryFn: getThisWeek, staleTime: 120_000, retry: false });
+  const members = data?.members ?? 0;
   return (
     <a
       href={COMMUNITY_URL}
@@ -21,7 +28,7 @@ export function CommunityInviteCard({ where }: { where: string }) {
       <span className="min-w-0 flex-1">
         <span className="block font-heading text-body-emphasis font-bold">Join the KHEL-O WhatsApp Community</span>
         <span className="block text-caption text-[#C9CBD3]">
-          New challenges drop there first, plus café news and people to play with. Free, leave any time.
+          {members >= 10 ? `${members} gamers are in. ` : ''}New challenges drop there first, plus café news and people to play with. Free, leave any time.
         </span>
       </span>
     </a>
@@ -44,5 +51,28 @@ export function CommunityButton({ where, className }: { where: string; className
       <WhatsAppIcon className="h-4 w-4" aria-hidden />
       Join our WhatsApp Community
     </a>
+  );
+}
+
+/** After a booking: where the last challenge's photos and results are. */
+export function LastChallengeLink({ where }: { where: string }) {
+  return (
+    <Link
+      href="/challenge/tekken-01"
+      onClick={() => trackAction('community_page_tap', { where })}
+      className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 text-text-primary transition-colors hover:border-primary/50"
+    >
+      <span className="flex flex-shrink-0 -space-x-3" aria-hidden>
+        {['full-house', 'couch', 'prize'].map((n) => (
+          // eslint-disable-next-line @next/next/no-img-element -- small static photos from /public
+          <img key={n} src={`/community/${n}.webp`} alt="" loading="lazy" className="h-11 w-11 rounded-full border-2 border-card object-cover" />
+        ))}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-heading text-body-emphasis font-bold">See last month’s challenge</span>
+        <span className="block text-caption text-text-secondary">Tekken #01 at AdamsDen. The photos and who won.</span>
+      </span>
+      <ArrowRight className="h-4 w-4 flex-shrink-0 text-text-secondary" aria-hidden />
+    </Link>
   );
 }

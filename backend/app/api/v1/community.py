@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from sqlalchemy import func, select
@@ -206,3 +206,75 @@ async def set_contribution(cid: UUID, payload: ContributionStatus, db: AsyncSess
     row.status = payload.status
     await db.commit()
     return {"success": True, "data": {"ok": True}}
+
+
+# ---------------------------------------------------------------- the community email
+
+class CommunityEmailRequest(_Camel):
+    test: bool = False
+    # The recipient count the admin saw; a real send is refused if it changed.
+    confirm_count: Optional[int] = None
+
+
+@admin_router.get("/email")
+async def community_email_preview(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    from app.services import community_mailer as mailer
+    return {"success": True, "data": {
+        "subject": mailer.SUBJECT, "recipients": len(await mailer.recipients(db)),
+        "testedRecently": mailer.tested_recently(admin),
+        "html": mailer.email_html(admin.full_name.split()[0] if admin.full_name else None, admin.id),
+    }}
+
+
+@admin_router.post("/email")
+async def community_email_send(payload: CommunityEmailRequest, db: AsyncSession = Depends(get_db),
+                               admin: User = Depends(require_admin)):
+    from app.services import community_mailer as mailer
+    if payload.test:
+        return {"success": True, "data": {**await mailer.send_test(db, admin), "test": True}}
+    if not mailer.tested_recently(admin):
+        raise BadRequestException(message="Send a test to yourself first.", error_code="TEST_FIRST")
+    count = len(await mailer.recipients(db))
+    if payload.confirm_count != count:
+        raise BadRequestException(message=f"The list changed: it is {count} people now. Check and confirm again.", error_code="COUNT_CHANGED")
+    sent = await mailer.send_all(db)
+    return {"success": True, "data": {"sent": sent, "test": False}}
+
+
+_UNSUB_STYLE = "margin:0;background:#F1EFEA;font-family:Arial,sans-serif;color:#111318"
+
+
+@router.get("/unsubscribe")
+async def community_unsubscribe_page(u: UUID, t: str):
+    # A GET only shows the button: mail scanners open links and must not unsubscribe anyone.
+    import html as _h
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(
+        f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<meta name="robots" content="noindex"><title>Unsubscribe</title></head><body style="{_UNSUB_STYLE}">'
+        f'<div style="max-width:420px;margin:64px auto;padding:32px;background:#fff;border:1px solid #E8E6E2;border-radius:16px">'
+        f'<div style="font-weight:800;font-size:20px;margin-bottom:20px">KHEL<span style="color:#E54D42">-O</span></div>'
+        f'<h1 style="font-size:20px;margin:0 0 8px">Stop community emails?</h1>'
+        f'<p style="color:#5A5E6B;line-height:1.5">You will still get emails about your own bookings.</p>'
+        f'<form method="post"><input type="hidden" name="u" value="{_h.escape(str(u))}"><input type="hidden" name="t" value="{_h.escape(t)}">'
+        f'<button style="margin-top:12px;background:#E54D42;color:#fff;border:0;border-radius:10px;padding:12px 20px;font-weight:700;font-size:15px">Unsubscribe</button>'
+        f'</form></div></body></html>'
+    )
+
+
+@router.post("/unsubscribe")
+async def community_unsubscribe_do(request: Request, db: AsyncSession = Depends(get_db)):
+    from urllib.parse import parse_qs
+    from fastapi.responses import HTMLResponse
+    from app.services import community_mailer as mailer
+    fields = parse_qs((await request.body()).decode("utf-8", "ignore"))
+    try:
+        uid = UUID(fields.get("u", [""])[0])
+    except ValueError:
+        uid = None
+    ok = uid is not None and await mailer.unsubscribe(db, uid, fields.get("t", [""])[0][:64])
+    msg = "Done. No more community emails." if ok else "That link did not work."
+    return HTMLResponse(
+        f'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<body style="font-family:Arial,sans-serif;max-width:420px;margin:64px auto;padding:0 20px"><h1 style="font-size:20px">{msg}</h1></body>'
+    )

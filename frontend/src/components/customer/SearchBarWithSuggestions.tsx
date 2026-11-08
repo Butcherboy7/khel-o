@@ -14,6 +14,7 @@ interface SearchSuggestion {
   title: string;
   subtitle: string;
   type: 'city' | 'activity' | 'page';
+  group?: string;
   filterValue?: string;
   href?: string;
 }
@@ -28,14 +29,14 @@ const ACTIVITY_SEARCH_ALIASES: Record<string, string> = {
 };
 
 /** Pages people type a name for: GTA 6, the challenge, the community. */
-const PAGE_RESULTS: { id: string; title: string; subtitle: string; href: string; keywords: string }[] = [
-  { id: 'gta6', title: 'GTA 6 Launch Drop', subtitle: 'Reserve your seat now · PS5 on a big screen', href: '/gta6', keywords: 'gta gta6 6 launch drop early access rockstar ps5 playstation book reserve play now' },
-  { id: 'challenge', title: 'Tekken challenge', subtitle: 'Free fight night at a café', href: '/challenge/tekken-01', keywords: 'tekken challenge tournament fight event competition' },
-  { id: 'community', title: 'KHEL-O Community', subtitle: 'Join the group, vote, get first dibs', href: '/community', keywords: 'community whatsapp group join vote gamers' },
+const PAGE_RESULTS: { id: string; group: string; title: string; subtitle: string; href: string; keywords: string }[] = [
+  { id: 'gta6', group: 'Drops', title: 'GTA 6 Launch Drop', subtitle: 'Reserve your seat now · PS5 on a big screen', href: '/gta6', keywords: 'gta gta6 6 launch drop early access rockstar ps5 playstation book reserve play now' },
+  { id: 'challenge', group: 'Happening', title: 'Tekken challenge', subtitle: 'Free fight night at a café', href: '/challenge/tekken-01', keywords: 'tekken challenge tournament fight event competition' },
+  { id: 'community', group: 'Community', title: 'KHEL-O Community', subtitle: 'Join the group, vote, get first dibs', href: '/community', keywords: 'community whatsapp group join vote gamers' },
 ];
 
 /** Shown in turn in the empty search bar so a visitor sees what lives here. */
-const HINT_PHRASES = ['GTA 6 drop', 'Tekken #02', 'PS5 cafés', 'AdamsDen', 'Racing sims', 'Co-op games'];
+const HINT_PHRASES = ['games', 'challenges', 'GTA 6', 'cafés', 'PS5 cafés', 'Tekken #02'];
 
 const words = (text: string) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 
@@ -104,7 +105,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
   if (!value.trim()) {
     // Nothing typed yet: lead with what people are booking right now.
     const g = PAGE_RESULTS[0];
-    suggestions.push({ id: `page-${g.id}`, title: g.title, subtitle: g.subtitle, type: 'page', href: g.href });
+    suggestions.push({ id: `page-${g.id}`, group: g.group, title: g.title, subtitle: g.subtitle, type: 'page', href: g.href });
   }
 
   if (value.trim()) {
@@ -123,7 +124,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
 
     // Pages: GTA 6, the challenge, the community
     PAGE_RESULTS.filter((pg) => startsWords(`${pg.title} ${pg.keywords}`, value)).forEach((pg) => {
-      suggestions.push({ id: `page-${pg.id}`, title: pg.title, subtitle: pg.subtitle, type: 'page', href: pg.href });
+      suggestions.push({ id: `page-${pg.id}`, group: pg.group, title: pg.title, subtitle: pg.subtitle, type: 'page', href: pg.href });
     });
 
     // Activity matches (PC, console, snooker, ...) — not everyone is here for a rig
@@ -160,6 +161,26 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
     setIsOpen(false);
     router.push(cafePath(cafe));
   };
+
+  const renderSuggestion = (s: SearchSuggestion) => (
+    <button
+              key={s.id}
+              onClick={() => handleSelectSuggestion(s)}
+              className="flex items-center gap-3 p-2 rounded-2xl hover:bg-surface text-left transition-colors"
+            >
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
+                {s.id === 'page-gta6' ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src="/drops/gta6-square.jpg" alt="" className="h-full w-full object-cover" />
+                ) : s.type === 'activity' ? <Monitor className="h-4 w-4" /> : s.type === 'page' ? (s.id === 'page-gta6' ? <Flame className="h-4 w-4" /> : s.id === 'page-challenge' ? <Swords className="h-4 w-4" /> : <Users className="h-4 w-4" />) : <MapPin className="h-4 w-4" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-heading text-body font-semibold text-text-primary">{s.title}</div>
+                <div className="text-caption text-text-secondary">{s.subtitle}</div>
+              </div>
+              {s.id === 'page-gta6' && <span className="flex-shrink-0 rounded-full bg-primary px-3 py-1.5 text-[12px] font-bold text-white">Reserve now</span>}
+            </button>
+  );
 
   return (
     // Not `relative`: it sits inside the home page's search pill, and the
@@ -211,6 +232,13 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
           count and the empty state. */}
       {isOpen && (cafeSuggestions.length > 0 || suggestions.length > 0) && (
         <div className="absolute top-[calc(100%+8px)] left-0 right-0 z-overlay rounded-3xl bg-card border border-border/80 shadow-overlay p-2 flex flex-col gap-0.5 max-h-[22rem] overflow-y-auto animate-in fade-in">
+          {suggestions.filter((s) => s.type === 'page').map((s, i, arr) => (
+            <div key={s.id}>
+              {s.group && arr[i - 1]?.group !== s.group && <p className="px-2 pb-0.5 pt-1.5 text-[11px] font-bold uppercase tracking-wider text-text-secondary">{s.group}</p>}
+              {renderSuggestion(s)}
+            </div>
+          ))}
+          {cafeSuggestions.length > 0 && <p className="px-2 pb-0.5 pt-1.5 text-[11px] font-bold uppercase tracking-wider text-text-secondary">Cafés</p>}
           {cafeSuggestions.map((cafe) => {
             const photo = cafe.photos?.[0]?.url;
             return (
@@ -247,25 +275,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
               </div>
             );
           })}
-          {suggestions.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => handleSelectSuggestion(s)}
-              className="flex items-center gap-3 p-2 rounded-2xl hover:bg-surface text-left transition-colors"
-            >
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
-                {s.id === 'page-gta6' ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src="/drops/gta6-square.jpg" alt="" className="h-full w-full object-cover" />
-                ) : s.type === 'activity' ? <Monitor className="h-4 w-4" /> : s.type === 'page' ? (s.id === 'page-gta6' ? <Flame className="h-4 w-4" /> : s.id === 'page-challenge' ? <Swords className="h-4 w-4" /> : <Users className="h-4 w-4" />) : <MapPin className="h-4 w-4" />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-heading text-body font-semibold text-text-primary">{s.title}</div>
-                <div className="text-caption text-text-secondary">{s.subtitle}</div>
-              </div>
-              {s.id === 'page-gta6' && <span className="flex-shrink-0 rounded-full bg-primary px-3 py-1.5 text-[12px] font-bold text-white">Reserve now</span>}
-            </button>
-          ))}
+          {suggestions.filter((s) => s.type !== 'page').map(renderSuggestion)}
         </div>
       )}
     </div>

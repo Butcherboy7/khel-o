@@ -20,7 +20,7 @@ import {
 } from '@/lib/api/drops';
 import { blockEnd, blockStart, blockTimes, clock, dayLabel, rupees, whenText } from '@/lib/drops';
 import { calculateWindowRemainingSeats, timeToMinutes } from '@/lib/format';
-import { CommunityButton, CommunityInviteCard } from '@/components/customer/CommunityInvite';
+import { CommunityButton, CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 import { CustomerShell } from '@/components/layout/CustomerShell';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
 import { ShareIconRow, WhatsAppButton, type ShareChannel } from '@/components/shared/ShareActions';
@@ -797,6 +797,9 @@ function Confirmation({
           Every drop, challenge and café launch lands there first. A free tap is the best way to back us.
         </p>
         <CommunityButton where="drop_confirmation" className="mt-2" />
+      </div>
+      <div className="mt-3">
+        <LastChallengeLink where="drop_confirmation_challenge" />
       </div>
       <div className="mt-3">
         <WhatsAppButton
