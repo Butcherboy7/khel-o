@@ -421,6 +421,10 @@ function PhotosTab({ contributors }: { contributors: string[] }) {
           <p className="text-caption text-text-secondary">Share a link. Good ones go on the wall.</p>
           <button type="button" onClick={() => { trackAction('community_tile_tap', { tile: 'share_photos' }); setSheet('photos'); }} className="min-h-[46px] rounded-xl border border-border bg-card font-bold text-text-primary">Share photos</button>
         </div>
+        <Link href="/community/recap" className={cn(card, 'flex items-center justify-between gap-2 transition-colors hover:border-primary/50')}>
+          <span className="font-heading text-body-emphasis font-bold text-text-primary">Tekken #01 recap</span>
+          <ArrowRight className="h-4 w-4 text-text-secondary" aria-hidden />
+        </Link>
         {contributors.length > 0 && <p className="text-caption text-text-secondary">Thanks to {contributors.join(', ')}.</p>}
       </div>
       {sheet && <ContributeSheet kind={sheet} onClose={() => setSheet(null)} onDone={(m) => { setSheet(null); setThanks(m); }} />}

@@ -33,9 +33,9 @@ export function CookieConsentBanner() {
     }
   };
 
-  // Pages with their own bottom action bar (Book, Pay, Sign up): the notice
+  // Pages with their own bottom action bar (Book, Pay, Sign up, Join the community): the notice
   // waits for another page rather than cover the button.
-  const busyBottom = pathname.startsWith('/cafe/') || pathname.startsWith('/bookings/new') || pathname.startsWith('/challenge/');
+  const busyBottom = pathname.startsWith('/cafe/') || pathname.startsWith('/bookings/new') || pathname.startsWith('/challenge/') || pathname === '/community';
   if (!visible || busyBottom) return null;
 
   // A small floating note at the bottom (fixed, so nothing shifts), above the

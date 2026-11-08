@@ -711,3 +711,34 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
   .khelo-hint-rot > span { animation: none; }
   .khelo-hint-rot > span:first-child { opacity: 1; }
 }
+
+/* Typing a review (or any long text) on a phone: the keyboard already takes
+   half the screen, so the sticky booking bar and bottom nav step aside instead
+   of covering the box. Back as soon as the field loses focus. */
+@media (max-width: 767px) {
+  body:has(textarea:focus) .action-bar-fixed,
+  body:has(textarea:focus) nav[aria-label='Mobile navigation'] {
+    display: none;
+  }
+}
+
+/* /community on one screen: sticker photo strip, scoreboard line, snapshots cue. */
+.cm2-hero { height: 100vh; height: 100dvh; }
+.cm2-strip { -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+.cm2-lane { padding-left: 14px; }
+.cm2-trk { display: flex; height: 100%; width: max-content; padding: 5px 0; }
+.cm2-trk.a { animation: cm2-go 44s linear infinite; }
+.cm2-trk.b { animation: cm2-go 52s linear infinite reverse; }
+@keyframes cm2-go { to { transform: translateX(-50%); } }
+.cm2-stk { height: 100%; width: auto; flex: none; margin-right: 12px; border: 4px solid #F4F1EC; border-bottom-width: 9px; border-radius: 5px; transform: rotate(var(--r)); box-shadow: 0 7px 14px rgb(0 0 0 / .5); animation: cm2-rock 6s ease-in-out infinite alternate; }
+.cm2-stk:nth-child(odd) { animation-duration: 7.5s; }
+@keyframes cm2-rock { from { transform: rotate(var(--r)); } to { transform: rotate(calc(var(--r) * -1)) translateY(-3px); } }
+.cm2-roll { height: 30px; overflow: hidden; }
+.cm2-rt { transition: transform .5s cubic-bezier(.2, .8, .2, 1); will-change: transform; }
+.cm2-rt.snap { transition: none; }
+.cm2-rl { height: 30px; display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 23px; line-height: 1; white-space: nowrap; letter-spacing: -.01em; }
+.cm2-rl em { font-style: normal; color: #F2C94C; }
+.cm2-dot { width: 8px; height: 8px; flex: none; background: #25D366; box-shadow: 0 0 0 2px rgb(37 211 102 / .25); }
+.cm2-chev { animation: cm2-nudge 1.4s ease-in-out infinite; }
+@keyframes cm2-nudge { 0%, 100% { transform: translateY(-2px); opacity: .6; } 50% { transform: translateY(3px); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cm2-trk, .cm2-stk, .cm2-chev { animation: none; } .cm2-rt { transition: none; } }

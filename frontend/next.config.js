@@ -103,7 +103,9 @@ const nextConfig = {
   },
   async redirects() {
     // The page was called Rewards before it became Achievements.
-    return [{ source: '/rewards', destination: '/achievements', permanent: true }];
+    return [
+      { source: '/rewards', destination: '/achievements', permanent: true },
+    ];
   },
   async rewrites() {
     // Thank-you pages for interns are plain HTML in public/thanks/ (built by marketing/certificates/).
