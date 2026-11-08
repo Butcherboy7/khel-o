@@ -54,10 +54,16 @@ function saveRecent(q: string) {
  *  picture tiles, browse by game, then every café as a photo grid. */
 export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: string[] }) {
   const router = useRouter();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const storeAuth = useAuthStore((s) => s.isAuthenticated);
+  // The saved sign-in is only known in the browser; wait for it so the first paint matches the server.
+  const [mounted, setMounted] = useState(false);
+  const isAuthenticated = mounted && storeAuth;
   const [q, setQ] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
-  useEffect(() => setRecent(readRecent()), []);
+  useEffect(() => {
+    setMounted(true);
+    setRecent(readRecent());
+  }, []);
 
   const { data: drops } = useQuery({ queryKey: ['home-drops'], queryFn: listDrops, staleTime: 60_000, retry: false });
   const { data: challenge } = useQuery({ queryKey: ['challenges', FEATURED_CHALLENGE_SLUG], queryFn: () => getChallenge(FEATURED_CHALLENGE_SLUG), staleTime: 60_000, retry: false });
@@ -93,7 +99,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
   return (
     <div className="flex flex-col gap-6">
       {/* Search: the one thing at the top. */}
-      <div className="sticky top-0 z-30 -mx-4 bg-background/95 px-4 pb-2 pt-3 backdrop-blur">
+      <div className="sticky top-0 z-30 -mx-4 -mt-3 bg-background/95 px-4 pb-2 pt-2 backdrop-blur">
         <div className="relative flex h-[52px] items-center rounded-full border border-border bg-card px-4 shadow-card focus-within:border-primary">
           <SearchBarWithSuggestions
             value={q}
@@ -152,6 +158,9 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
         <section className="flex flex-col gap-3" aria-label="Happening now">
           <h2 className="font-heading text-h3 font-bold text-text-primary">Happening now</h2>
           <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+            {drops === undefined && (
+              <div className="aspect-[4/5] w-[72%] max-w-[300px] flex-none animate-pulse snap-start rounded-3xl bg-border/50 sm:w-[280px]" aria-hidden />
+            )}
             {liveDrop && (
               <Link
                 href={`/drops/${liveDrop.slug}`}
