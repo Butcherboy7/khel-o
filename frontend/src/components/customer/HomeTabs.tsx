@@ -51,7 +51,7 @@ export function HomeTabRow({ tab, onTab, joinPill }: { tab: HomeTab; onTab: (t: 
               aria-controls="home-panel"
               onClick={() => onTab(t.key)}
               className={cn(
-                'relative inline-flex flex-none items-center gap-1.5 px-2.5 pb-2.5 pt-2 text-[13.5px] transition-colors md:px-4 md:text-body',
+                'relative inline-flex flex-none items-center gap-1 px-2 pb-2.5 pt-2 text-[13px] transition-colors md:gap-1.5 md:px-4 md:text-body',
                 on ? 'font-extrabold text-text-primary' : 'font-semibold text-text-secondary hover:text-text-primary',
               )}
             >
