@@ -257,7 +257,8 @@ export function CommunityPanel() {
  *  art, a live seat count and one big button. Hidden when nothing is open. */
 export function DropSpotlight() {
   const { data } = useQuery({ queryKey: ['home-drops'], queryFn: listDrops, staleTime: 60_000, retry: false });
-  const d = data?.find((x) => x.state === 'open' || x.state === 'early') ?? null;
+  const live = data?.filter((x) => x.state === 'open' || x.state === 'early') ?? [];
+  const d = live.find((x) => /gta\s*6/i.test(x.game)) ?? live[0] ?? null;
   if (!d) return null;
   const art = dropArt(d);
   return (
@@ -272,7 +273,7 @@ export function DropSpotlight() {
       ) : (
         <div className="aspect-[2/1] w-full bg-gradient-to-br from-[#5B1A2A] to-[#D0463C] md:aspect-[3/1]" aria-hidden />
       )}
-      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-10 text-white md:p-4">
+      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-3 pt-14 text-white md:p-4">
         <span className="min-w-0">
           <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-[#FFB4AC]">
             Live now · {d.seatsLeft} {d.seatsLeft === 1 ? 'seat' : 'seats'} left

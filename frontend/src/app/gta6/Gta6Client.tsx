@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, Check, ChevronDown, Loader2, MessageCircle, MessageSquareText, Phone, Plus, Share2, Star } from 'lucide-react';
 import { useBotGuard } from '@/components/auth/BotGuard';
 import { getLaunch, joinLaunch, type ReachBy } from '@/lib/api/launchList';
 import { listCafes, cafePath } from '@/lib/api/cafes';
 import { trackAction } from '@/lib/api/analyticsEvents';
+import { listDrops } from '@/lib/api/drops';
 import { isApiError } from '@/lib/api/errors';
 import { optimizedImg, fallBackToOriginal } from '@/lib/imageUrl';
 import type { CafeListItem } from '@/types';
@@ -179,6 +181,20 @@ function CafeThumb({ cafe, className }: { cafe: PlayCafe; className: string }) {
 }
 
 export function Gta6Client() {
+  const router = useRouter();
+  // A GTA 6 drop is taking seats: this link is the booking page, not a waitlist.
+  useEffect(() => {
+    let live = true;
+    listDrops()
+      .then((all) => {
+        const d = all.find((x) => /gta\s*6/i.test(x.game) && (x.state === 'open' || x.state === 'early'));
+        if (live && d) router.replace(`/drops/${d.slug}${window.location.search}`);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [router]);
   const countdown = useCountdown(LAUNCH_AT);
   const cafes = usePs5Cafes();
   const { guardFields, trap } = useBotGuard();

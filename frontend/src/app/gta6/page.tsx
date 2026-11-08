@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 export default async function Gta6Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   let slug: string | null = null;
   try {
-    const live = (await listDrops()).find((d) => /gta/i.test(d.game) && (d.state === 'open' || d.state === 'early'));
+    const live = (await listDrops()).find((d) => /gta\s*6/i.test(d.game) && (d.state === 'open' || d.state === 'early'));
     slug = live?.slug ?? null;
   } catch {
     slug = null;
