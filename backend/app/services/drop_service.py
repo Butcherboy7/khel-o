@@ -165,6 +165,9 @@ async def release_expired(db: AsyncSession, drop_id: Optional[UUID] = None) -> i
     return released
 
 
+STEP = 30  # minutes: seats are counted per half hour
+
+
 def _mins(t) -> int:
     return t.hour * 60 + t.minute
 
@@ -179,8 +182,8 @@ def res_window(res_or_none, block: DropBlock) -> tuple[int, int]:
 def _peak(windows: list[tuple[int, int, int]], block: DropBlock) -> int:
     """Most seats in use at any one hour of the session. windows = (start, end, seats)."""
     peak = 0
-    for h in range(_mins(block.start_time), _mins(block.end_time), 60):
-        used = sum(n for s, e, n in windows if s < h + 60 and e > h)
+    for h in range(_mins(block.start_time), _mins(block.end_time), STEP):
+        used = sum(n for s, e, n in windows if s < h + STEP and e > h)
         peak = max(peak, used)
     return peak
 
@@ -229,18 +232,23 @@ async def _give_back(db: AsyncSession, block_id: UUID, seats: int = 0) -> None:
 def seats_free(windows: list[tuple[int, int, int]], block: DropBlock) -> dict[str, int]:
     """Free seats for each hour of a session, keyed 'HH:MM'."""
     out = {}
-    for h in range(_mins(block.start_time), _mins(block.end_time), 60):
-        used = sum(n for s, e, n in windows if s < h + 60 and e > h)
+    for h in range(_mins(block.start_time), _mins(block.end_time), STEP):
+        used = sum(n for s, e, n in windows if s < h + STEP and e > h)
         out[f"{h // 60:02d}:{h % 60:02d}"] = max(0, block.seats_total - used)
     return out
 
 
-def fee_per_seat(drop: Drop, hours: int) -> Decimal:
+def fee_per_seat(drop: Drop, hours: float) -> Decimal:
     """₹100 up to 3 hours, ₹200 for 4 or 5 (owner can change both)."""
     short = Decimal(str(drop.deposit_amount))
     if hours <= 3:
         return money(short)
     return money(Decimal(str(drop.deposit_amount_long)) if drop.deposit_amount_long is not None else short * 2)
+
+
+def booked_windows(windows: list[tuple[int, int, int]]) -> list[dict]:
+    """The shape the booking slider already understands (who is not shown)."""
+    return [{"startTime": f"{s // 60:02d}:{s % 60:02d}", "endTime": f"{e // 60:02d}:{e % 60:02d}", "seatsCount": n} for s, e, n in windows]
 
 
 async def user_seats(db: AsyncSession, drop_id: UUID, user_id: UUID) -> int:
@@ -315,7 +323,7 @@ class Reserved:
 
 async def reserve(
     db: AsyncSession, drop: Drop, block_id: UUID, user: User, seats: int, code: Optional[str],
-    start: Optional[time] = None, hours: Optional[int] = None,
+    start: Optional[time] = None, hours: Optional[float] = None,
 ) -> Reserved:
     await release_expired(db, drop.id)
     st = state(drop)
@@ -350,11 +358,12 @@ async def reserve(
         # Flexible: a whole number of hours, starting on the hour inside the session.
         if hours is None or start is None:
             raise DropError("Pick when you want to start and how many hours.", "NEED_HOURS")
-        if hours < 1 or hours > drop.max_hours:
+        length = round(hours * 60)
+        if length < 60 or length > drop.max_hours * 60 or length % STEP:
             raise DropError(f"You can play 1 to {drop.max_hours} hours.", "BAD_HOURS")
         offset = _mins(start) - _mins(block.start_time)
-        end_min = _mins(start) + hours * 60
-        if offset < 0 or offset % 60 or end_min > _mins(block.end_time):
+        end_min = _mins(start) + length
+        if offset < 0 or offset % STEP or end_min > _mins(block.end_time):
             raise DropError("That time does not fit inside this session.", "BAD_HOURS")
         r_start = start
         r_end = time(end_min // 60, end_min % 60) if end_min < 1440 else time(23, 59)
@@ -366,7 +375,7 @@ async def reserve(
         raise DropError("Sorry, these seats just got taken. Pick another time.", "SOLD_OUT")
 
     if r_start is not None:
-        per_seat = money(Decimal(str(drop.price_per_hour)) * hours)
+        per_seat = money(Decimal(str(drop.price_per_hour)) * Decimal(length) / Decimal(60))
         deposit = money(fee_per_seat(drop, hours) * seats)
     else:
         per_seat = block_price_per_seat(drop, block)
@@ -378,7 +387,7 @@ async def reserve(
         balance_due=max(Decimal("0.00"), total - deposit),
         expires_at=now_utc() + timedelta(minutes=HOLD_MINUTES),
         checkin_token=secrets.token_urlsafe(18), used_early_access=early,
-        start_time=r_start, end_time=r_end, hours=hours if r_start is not None else None,
+        start_time=r_start, end_time=r_end, hours=length // 60 if r_start is not None else None,
     )
     db.add(reservation)
     await db.flush()

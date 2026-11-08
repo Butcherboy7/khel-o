@@ -51,7 +51,9 @@ async def test_hours_outside_1_to_5_or_the_session_are_refused():
         assert (await _book(c, drop, block, u, hours=6)).status_code == 400
         assert (await _book(c, drop, block, u, start="21:00", hours=3)).status_code == 400  # ends 00:00 > 23:00
         assert (await _book(c, drop, block, u, start="17:00", hours=1)).status_code == 400  # before the session
-        assert (await _book(c, drop, block, u, start="18:30", hours=1)).status_code == 400  # not on the hour
+        assert (await _book(c, drop, block, u, start="18:15", hours=1)).status_code == 400  # not on the half hour
+        assert (await _book(c, drop, block, u, start="18:00", hours=1.25)).status_code == 400  # odd length
+        assert (await _book(c, drop, block, u, start="18:30", hours=1.5)).status_code == 201  # half hours are fine
         r = await c.post(f"/api/v1/drops/{drop.slug}/reserve", headers=_h(u), json={"blockId": str(block.id), "seats": 1})
         assert r.status_code == 400  # flexible drops need hours
 

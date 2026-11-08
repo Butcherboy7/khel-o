@@ -166,7 +166,9 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
     data = _drop_out(drop, cafe, blocks)
     if drop.max_hours:
         for bd, blk in zip(data["blocks"], blocks):
-            bd["hourFree"] = svc.seats_free(await svc._holding_windows(db, blk), blk)
+            wins = await svc._holding_windows(db, blk)
+            bd["hourFree"] = svc.seats_free(wins, blk)
+            bd["bookedSlots"] = svc.booked_windows(wins)
     mine = []
     if user is not None:
         by_id = {b.id: b for b in blocks}
@@ -188,7 +190,7 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
 class ReserveRequest(_Camel):
     block_id: UUID
     start_time: Optional[time] = None  # flexible drops: the hour you start
-    hours: Optional[int] = Field(None, ge=1, le=12)
+    hours: Optional[float] = Field(None, ge=0.5, le=12)
     seats: int = Field(1, ge=1, le=10)
     code: Optional[str] = Field(None, max_length=40)
     phone: Optional[str] = Field(None, max_length=20)

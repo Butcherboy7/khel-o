@@ -244,7 +244,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
       </main>
 
       {/* Checkout is one focused screen with its own pay bar: no tab bar. */}
-      {pathname !== '/bookings/new' && <CustomerBottomNav />}
+      {pathname !== '/bookings/new' && !pathname.startsWith('/drops/') && <CustomerBottomNav />}
       <CampaignBadgeClaimer />
       <ChallengePopup />
     </div>

@@ -6,6 +6,7 @@ import { ArrowLeft, Check, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { checkInDropPass, getDropPass, type DropPass } from '@/lib/api/drops';
 import { blockTimes, dayLabel, rupees } from '@/lib/drops';
+import { CommunityInviteCard } from '@/components/customer/CommunityInvite';
 
 /** What the QR on a drop pass opens. The holder sees their pass; the café
  *  (owner, staff or admin) sees who it is and a Check in button; anyone else
@@ -42,7 +43,7 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
 
   const b = pass?.block;
   return (
-    <div className="min-h-screen bg-[#0A0809] text-[#F4F1EC]">
+    <div className="min-h-screen bg-surface/40 text-text-primary">
       <header className="mx-auto flex max-w-md items-center px-4 pt-4">
         <Link
           href={`/drops/${slug}`}
@@ -53,16 +54,16 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
       </header>
       <main className="mx-auto max-w-md px-4 pb-16 pt-6">
         {error && !pass && (
-          <p className="flex items-center gap-2 rounded-2xl border border-[#5A2A26] bg-[#1A1114] p-4 font-semibold">
-            <ShieldAlert className="h-5 w-5 text-[#E8675D]" /> {error}
+          <p className="flex items-center gap-2 rounded-2xl border border-error/30 bg-error/10 p-4 font-semibold">
+            <ShieldAlert className="h-5 w-5 text-error" /> {error}
           </p>
         )}
-        {!pass && !error && <p className="text-center text-[#A3A6B1]">Loading…</p>}
+        {!pass && !error && <p className="text-center text-text-secondary">Loading…</p>}
         {pass && (
           <>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#F6C25B]">{pass.dropTitle}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">{pass.dropTitle}</p>
             <h1 className="mt-1 flex items-center gap-2 font-heading text-2xl font-bold">
-              {pass.valid ? <ShieldCheck className="h-6 w-6 text-[#7FE0A0]" /> : <ShieldAlert className="h-6 w-6 text-[#E8675D]" />}
+              {pass.valid ? <ShieldCheck className="h-6 w-6 text-success" /> : <ShieldAlert className="h-6 w-6 text-error" />}
               {pass.status === 'checked_in'
                 ? 'Checked in'
                 : pass.valid
@@ -81,12 +82,12 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
               </p>
             )}
             {b && (
-              <p className="mt-2 text-[15px] text-[#DADCE3]">
+              <p className="mt-2 text-[15px] text-text-primary">
                 {dayLabel(b.date)} · {pass.hours && pass.startTime && pass.endTime ? `${pass.startTime} to ${pass.endTime}` : blockTimes(b)} · {pass.seats} {pass.seats === 1 ? 'seat' : 'seats'}
               </p>
             )}
             {pass.arriveFrom && pass.arriveUntil && pass.status === 'confirmed' && (
-              <p className="mt-3 rounded-xl bg-[#221D11] px-3 py-2 text-sm text-[#F3E3B5]">
+              <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-sm text-text-primary">
                 Arrive between {new Date(pass.arriveFrom).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })} and{' '}
                 {new Date(pass.arriveUntil).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}. After that the seat can be given away and the fee is not refunded.
               </p>
@@ -99,14 +100,14 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
               </div>
             )}
             {pass.balanceDue !== undefined && pass.valid && (
-              <div className="mt-5 rounded-2xl border border-[#6B5A2A] bg-[#221D11] p-4">
-                <p className="text-sm text-[#DADCE3]">To pay at the café</p>
+              <div className="mt-5 rounded-2xl border border-warning/40 bg-warning/10 p-4">
+                <p className="text-sm text-text-primary">To pay at the café</p>
                 <p className="text-3xl font-extrabold">{rupees(pass.balanceDue)}</p>
-                <p className="mt-1 text-xs text-[#A3A6B1]">Already paid online: {rupees(pass.depositPaid ?? 0)}</p>
+                <p className="mt-1 text-xs text-text-secondary">Already paid online: {rupees(pass.depositPaid ?? 0)}</p>
               </div>
             )}
             {done && (
-              <p className="mt-5 flex items-center gap-2 rounded-2xl bg-[#13201A] p-4 font-semibold text-[#9BF0B9]">
+              <p className="mt-5 flex items-center gap-2 rounded-2xl bg-success/10 p-4 font-semibold text-success">
                 <Check className="h-5 w-5" /> {done}
               </p>
             )}
@@ -123,12 +124,17 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
             {!isAuthenticated && isHydrated && (
               <Link
                 href={`/login?redirect=${encodeURIComponent(`/drops/${slug}/pass/${token}`)}`}
-                className="mt-5 block text-center text-sm font-semibold text-[#E8675D]"
+                className="mt-5 block text-center text-sm font-semibold text-error"
               >
                 Your pass, or you work at the café? Sign in to see more
               </Link>
             )}
-            {error && pass && <p className="mt-3 text-sm text-[#FFB4AC]">{error}</p>}
+            {pass.valid && !pass.canCheckIn && (
+              <div className="mt-5">
+                <CommunityInviteCard where="drop_pass" />
+              </div>
+            )}
+            {error && pass && <p className="mt-3 text-sm text-error">{error}</p>}
           </>
         )}
       </main>

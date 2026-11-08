@@ -18,6 +18,8 @@ export interface DropBlock {
   started: boolean;
   /** Flexible drops: free seats for each hour of the session, keyed 'HH:MM'. */
   hourFree?: Record<string, number>;
+  /** Flexible drops: who holds which half hours (no names), for the slider. */
+  bookedSlots?: { startTime: string; endTime: string; seatsCount: number }[];
 }
 
 export interface DropReservation {
