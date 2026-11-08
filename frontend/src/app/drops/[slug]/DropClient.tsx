@@ -34,6 +34,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const [missing, setMissing] = useState(false);
   const [blockId, setBlockId] = useState<string | null>(params.get('block'));
   const [seats, setSeats] = useState(Math.max(1, Number(params.get('seats')) || 1));
+  const [startHour, setStartHour] = useState<string | null>(null);
+  const [hours, setHours] = useState(2);
+  const [agreed, setAgreed] = useState(false);
   const [code, setCode] = useState('');
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
@@ -111,12 +114,34 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     .reduce((n, r) => n + r.seats, 0);
   const seatsAllowed = Math.max(0, drop.maxSeatsPerUser - seatsHeld);
   const block = drop.blocks.find((b) => b.id === blockId) ?? null;
-  const maxSeats = Math.max(1, Math.min(seatsAllowed, block?.seatsLeft ?? drop.maxSeatsPerUser));
+  const maxSeats = Math.max(1, Math.min(seatsAllowed, block ? (drop.maxHours && block.hourFree ? Math.max(0, ...Object.values(block.hourFree)) : block.seatsLeft) : drop.maxSeatsPerUser));
   const seatCount = Math.min(seats, maxSeats);
   const firstBlock = paid[0]?.block ?? block ?? drop.blocks.find((b) => !b.started) ?? drop.blocks[0];
 
+  const flex = !!drop.maxHours;
+  // Flexible drops: a session is only sold out when no single hour has a free seat.
+  const leftOf = (b: DropBlock) => (flex && b.hourFree ? Math.max(0, ...Object.values(b.hourFree)) : b.seatsLeft);
+  const hourKeys = block?.hourFree ? Object.keys(block.hourFree).sort() : [];
+  const maxHours = drop.maxHours ?? 1;
+  const endOf = (start: string, n: number) => {
+    const [h, m] = start.split(':').map(Number);
+    return `${String(h + n).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+  const hourPassed = (key: string) => (block ? new Date(`${block.date}T${key}:00+05:30`).getTime() <= Date.now() : false);
+  // A start hour works when every hour it covers still has a seat for this many people.
+  const fits = (key: string, n: number) => {
+    if (!block?.hourFree || hourPassed(key)) return false;
+    const i = hourKeys.indexOf(key);
+    if (i < 0 || i + n > hourKeys.length) return false;
+    return hourKeys.slice(i, i + n).every((k) => (block.hourFree?.[k] ?? 0) >= seatCount);
+  };
+  const chosenStart = flex ? (startHour && fits(startHour, hours) ? startHour : hourKeys.find((k) => fits(k, hours)) ?? null) : null;
+  const feePerSeat = flex ? (hours <= 3 ? drop.deposit : drop.depositLong) : drop.deposit;
+  const totalPerSeat = flex ? drop.pricePerHour * hours : block?.pricePerSeat ?? 0;
+  const payNow = feePerSeat * seatCount;
+
   const pick = (b: DropBlock) => {
-    if (b.started || b.seatsLeft === 0) return;
+    if (b.started || leftOf(b) === 0) return;
     setBlockId(b.id);
     setError(null);
     track('drop_block_selected', { block: b.id, date: b.date });
@@ -170,6 +195,14 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
       setError('Type the early access code first.');
       return;
     }
+    if (flex && !chosenStart) {
+      setError('Pick a start time that still has a free seat.');
+      return;
+    }
+    if (flex && !agreed) {
+      setError('Please tick the box to say you have read the rules.');
+      return;
+    }
     if (drop.needsPhone && phone.replace(/\D/g, '').length < 10) {
       setError('Type your 10-digit mobile number so the café can reach you.');
       return;
@@ -181,6 +214,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         blockId: block.id,
         seats: seatCount,
         code: code.trim() || undefined,
+        startTime: flex ? chosenStart ?? undefined : undefined,
+        hours: flex ? hours : undefined,
         phone: drop.needsPhone ? phone : undefined,
       });
       pay(done.reservation, done.order);
@@ -264,7 +299,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
       <div className="mt-3 rounded-2xl border border-[#262932] bg-[#16181E] px-4 py-3">
         <p className="font-semibold">{rupees(drop.pricePerHour)} an hour for each seat</p>
         <p className="mt-1 text-sm text-[#A3A6B1]">
-          Pay {rupees(drop.deposit)} a seat now to hold it. Pay the rest at the café. Up to {drop.maxSeatsPerUser} seats each. No coupons on drops.
+          {flex
+            ? `Play 1 to ${drop.maxHours} hours. A reservation fee of ${rupees(drop.deposit)} (up to 3 hours) or ${rupees(drop.depositLong)} (4 or 5 hours) holds your seat and is taken off your bill at the café. It is not refunded. No coupons on drops.`
+            : `Pay ${rupees(drop.deposit)} a seat now to hold it. Pay the rest at the café. Up to ${drop.maxSeatsPerUser} seats each. No coupons on drops.`}
         </p>
       </div>
 
@@ -291,7 +328,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         <h2 className="font-heading text-xl font-bold">{canReserve ? 'Pick a time' : 'Times'}</h2>
         <div className="mt-3 flex flex-col gap-2.5" role="radiogroup" aria-label="Times">
           {drop.blocks.map((b) => {
-            const gone = b.started || b.seatsLeft === 0;
+            const gone = b.started || leftOf(b) === 0;
             const on = b.id === blockId;
             return (
               <button
@@ -310,11 +347,11 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                   <span className="mt-0.5 flex items-center gap-1 text-sm text-[#A3A6B1]">
                     <Clock className="h-3.5 w-3.5" /> {blockTimes(b)}
                   </span>
-                  <span className="mt-0.5 block text-sm text-[#DADCE3]">{rupees(b.pricePerSeat)} a seat</span>
+                  <span className="mt-0.5 block text-sm text-[#DADCE3]">{flex ? `${rupees(drop.pricePerHour)} an hour` : `${rupees(b.pricePerSeat)} a seat`}</span>
                 </span>
                 <span className="flex flex-col items-end gap-1.5">
-                  <span className={`text-sm font-bold ${b.seatsLeft === 0 ? 'text-[#E8675D]' : 'text-[#F4F1EC]'}`}>
-                    {b.started ? 'Started' : b.seatsLeft === 0 ? 'Sold out' : `${b.seatsLeft} of ${b.seatsTotal} left`}
+                  <span className={`text-sm font-bold ${leftOf(b) === 0 ? 'text-[#E8675D]' : 'text-[#F4F1EC]'}`}>
+                    {b.started ? 'Started' : leftOf(b) === 0 ? 'Sold out' : flex ? `Seats from ${b.startTime}` : `${leftOf(b)} of ${b.seatsTotal} left`}
                   </span>
                   <span className="flex gap-1" aria-hidden>
                     {Array.from({ length: Math.min(b.seatsTotal, 12) }, (_, i) => (
@@ -335,6 +372,54 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <p className="text-sm">You already have {drop.maxSeatsPerUser} seats for this drop. That’s the most one person can reserve.</p>
           ) : (
             <>
+              {flex && block && (
+                <div className="mb-5">
+                  <div className="flex items-baseline justify-between">
+                    <label htmlFor="drop-hours" className="font-semibold">How long?</label>
+                    <span className="text-lg font-bold text-[#F6C25B]" aria-live="polite">{hours} {hours === 1 ? 'hour' : 'hours'}</span>
+                  </div>
+                  <input
+                    id="drop-hours"
+                    type="range"
+                    min={1}
+                    max={maxHours}
+                    step={1}
+                    value={hours}
+                    onChange={(e) => setHours(Number(e.target.value))}
+                    className="mt-2 h-8 w-full accent-[#F6C25B]"
+                  />
+                  <div className="flex justify-between px-1 text-xs text-[#A3A6B1]" aria-hidden>
+                    {Array.from({ length: maxHours }, (_, i) => <span key={i}>{i + 1}h</span>)}
+                  </div>
+                  <p className="mt-4 font-semibold">Start at</p>
+                  <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Start time">
+                    {hourKeys.map((k) => {
+                      const ok = fits(k, hours);
+                      const on = ok && chosenStart === k;
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          disabled={!ok}
+                          onClick={() => setStartHour(k)}
+                          className={`min-h-[44px] rounded-full border px-4 text-sm font-semibold ${
+                            on ? 'border-[#F6C25B] bg-[#241D10] text-[#F6C25B]' : ok ? 'border-[#3A3E4A]' : 'border-[#262932] text-[#5C6070] line-through'
+                          }`}
+                        >
+                          {k}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {chosenStart ? (
+                    <p className="mt-2 text-sm text-[#DADCE3]">You play {chosenStart} to {endOf(chosenStart, hours)}. Come between 15 minutes before and 15 minutes after {chosenStart}.</p>
+                  ) : (
+                    <p className="mt-2 text-sm text-[#FFB4AC]">No start time fits {hours} {hours === 1 ? 'hour' : 'hours'} for {seatCount} {seatCount === 1 ? 'seat' : 'seats'}. Try fewer hours.</p>
+                  )}
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="font-semibold">Seats</span>
                 <span className="flex items-center gap-3">
@@ -389,10 +474,20 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 </label>
               )}
               <dl className="mt-4 space-y-1 text-sm">
-                <Row k={`Pay now (${rupees(drop.deposit)} × ${seatCount})`} v={rupees(drop.deposit * seatCount)} strong />
-                <Row k="Pay at the café" v={rupees(block.balancePerSeat * seatCount)} />
-                <Row k="Total" v={rupees(block.pricePerSeat * seatCount)} />
+                <Row k={`${flex ? 'Reservation fee' : 'Pay now'} (${rupees(feePerSeat)} × ${seatCount})`} v={rupees(payNow)} strong />
+                <Row k="Pay at the café" v={rupees(Math.max(0, totalPerSeat * seatCount - payNow))} />
+                <Row k="Total bill" v={rupees(totalPerSeat * seatCount)} />
               </dl>
+              {flex && (
+                <label className="mt-4 flex items-start gap-3 rounded-xl border border-[#3A3E4A] bg-[#0E0F13] p-3 text-sm">
+                  <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-5 w-5 flex-none accent-[#F6C25B]" />
+                  <span>
+                    <span className="font-semibold">The rules, in plain words.</span> The reservation fee is <b>not refunded</b>, and it comes off your bill when you play.
+                    Arrive between <b>15 minutes before and 15 minutes after</b> your start time. After that the café can give your seat to someone waiting, and you do not get the fee back.
+                    If the café cancels, you get everything back.
+                  </span>
+                </label>
+              )}
               <p className="mt-2 text-xs text-[#A3A6B1]">We hold your seats for 10 minutes while you pay.</p>
             </>
           )}
@@ -422,11 +517,12 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
       <section className="mt-8">
         <h2 className="font-heading text-xl font-bold">Questions</h2>
         <dl className="mt-3 flex flex-col divide-y divide-[#262932] rounded-2xl border border-[#262932] bg-[#16181E]">
-          <Faq q="What do I pay now?" a={`${rupees(drop.deposit)} for each seat. It holds your seat. You pay the rest at the café on the day.`} />
+          <Faq q="What do I pay now?" a={flex ? `A reservation fee of ${rupees(drop.deposit)} a seat for up to 3 hours, or ${rupees(drop.depositLong)} for 4 or 5 hours. It is taken off your bill at the café.` : `${rupees(drop.deposit)} for each seat. It holds your seat. You pay the rest at the café on the day.`} />
           <Faq q="How do I get in?" a="After you pay, you get a QR pass here. Show it at the café." />
           <Faq q="Can I bring friends?" a={`Yes. You can reserve up to ${drop.maxSeatsPerUser} seats. Friends can also reserve their own.`} />
           <Faq q="Can I use a coupon?" a="No. Drop prices are fixed. Coupons and café offers don’t work on drops." />
           <Faq q="What if the café cancels?" a="You get your deposit back in full." />
+          {flex && <Faq q="What if I am late or cannot come?" a="Arrive between 15 minutes before and 15 minutes after your start time. After that the café can give your seat away and the reservation fee is not refunded." />}
         </dl>
       </section>
 
@@ -443,7 +539,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               {busy
                 ? 'Opening payment…'
                 : isAuthenticated || !isHydrated
-                ? `Pay ${rupees(drop.deposit * seatCount)} to hold ${seatCount === 1 ? 'your seat' : `${seatCount} seats`}`
+                ? `Pay ${rupees(payNow)} to hold ${seatCount === 1 ? 'your seat' : `${seatCount} seats`}`
                 : 'Sign in to reserve'}
             </button>
           ) : (
@@ -498,8 +594,17 @@ function Confirmation({
       </p>
       {b && (
         <p className="mt-1 text-[15px]">
-          {dayLabel(b.date)} · {blockTimes(b)} · {r.seats} {r.seats === 1 ? 'seat' : 'seats'}
+          {dayLabel(b.date)} · {r.hours && r.startTime && r.endTime ? `${r.startTime} to ${r.endTime}` : blockTimes(b)} · {r.seats} {r.seats === 1 ? 'seat' : 'seats'}
         </p>
+      )}
+      {r.hours && r.arriveFrom && r.arriveUntil && r.status === 'confirmed' && (
+        <p className="mt-2 rounded-xl bg-[#0E2016] px-3 py-2 text-sm text-[#CFF5DC]">
+          Be there between {new Date(r.arriveFrom).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })} and{' '}
+          {new Date(r.arriveUntil).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}. After that your seat can go to someone else.
+        </p>
+      )}
+      {r.status === 'given_away' && (
+        <p className="mt-2 rounded-xl bg-[#2A1513] px-3 py-2 text-sm text-[#FFB4AC]">The café gave this seat to someone else because you were more than 15 minutes late. The reservation fee is not refunded.</p>
       )}
       {r.qr && (
         <div className="mt-4 flex flex-col items-center rounded-2xl bg-white p-4 text-[#0E0F13]">
@@ -510,7 +615,7 @@ function Confirmation({
         </div>
       )}
       <dl className="mt-4 space-y-1 text-sm">
-        <Row k="Paid now" v={rupees(r.depositPaid)} />
+        <Row k={r.hours ? 'Reservation fee paid' : 'Paid now'} v={rupees(r.depositPaid)} />
         <Row k="Pay at the café" v={rupees(r.balanceDue)} strong />
       </dl>
       {r.passUrl && (

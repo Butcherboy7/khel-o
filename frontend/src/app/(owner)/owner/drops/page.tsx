@@ -106,7 +106,9 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
   const [tagline, setTagline] = useState('');
   const [cover, setCover] = useState('');
   const [price, setPrice] = useState(String(low));
-  const [deposit, setDeposit] = useState('99');
+  const [deposit, setDeposit] = useState('100');
+  const [depositLong, setDepositLong] = useState('200');
+  const [maxHours, setMaxHours] = useState('5');
   const [code, setCode] = useState('');
   const [earlyAt, setEarlyAt] = useState('');
   const [publicAt, setPublicAt] = useState('');
@@ -140,6 +142,8 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
       coverImageUrl: cover.trim() || undefined,
       pricePerHour: priceNum,
       depositAmount: Number(deposit),
+      maxHours: Number(maxHours) || undefined,
+      depositAmountLong: maxHours ? Number(depositLong) : undefined,
       earlyAccessCode: code.trim() || undefined,
       earlyAccessStartsAt: istIso(earlyAt || publicAt),
       publicStartsAt: istIso(publicAt),
@@ -197,11 +201,25 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
             error={priceNum && (priceNum < low || priceNum > high) ? `Suggested: ${rupees(low)}–${rupees(high)}` : undefined}
           />
           <Input
-            label="Deposit a seat (₹)"
+            label="Fee for 1 to 3 hours (₹)"
             inputMode="numeric"
             value={deposit}
             onChange={(e) => setDeposit(e.target.value.replace(/\D/g, ''))}
-            hint="Paid online to hold the seat."
+            hint="Paid online to hold the seat. Taken off the bill. Not refunded."
+          />
+          <Input
+            label="Fee for 4 or 5 hours (₹)"
+            inputMode="numeric"
+            value={depositLong}
+            onChange={(e) => setDepositLong(e.target.value.replace(/\D/g, ''))}
+            hint="Same rules, for longer stays."
+          />
+          <Input
+            label="Longest stay (hours)"
+            inputMode="numeric"
+            value={maxHours}
+            onChange={(e) => setMaxHours(e.target.value.replace(/\D/g, '').slice(0, 2))}
+            hint="People pick 1 up to this many hours. Leave empty to sell the whole time as one."
           />
         </div>
 

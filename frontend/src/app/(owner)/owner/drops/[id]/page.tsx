@@ -7,7 +7,8 @@ import { ArrowLeft, Bell, CheckCircle2, Download, ExternalLink, KeyRound, QrCode
 import { Button, Card, CardContent, SkeletonCard } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
-import { checkInDropPass, downloadDropCsv, getOwnerDrop, updateDrop, type OwnerDrop } from '@/lib/api/drops';
+import { checkInDropPass, downloadDropCsv, getOwnerDrop, giveAwayReservation, updateDrop, type OwnerDrop } from '@/lib/api/drops';
+import { DropHowItWorks } from '@/components/owner/DropHowItWorks';
 import { blockTimes, dayLabel, rupees, whenText } from '@/lib/drops';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -15,7 +16,40 @@ const STATUS_LABEL: Record<string, string> = {
   confirmed: 'Paid',
   checked_in: 'Here',
   refunded: 'Refunded',
+  given_away: 'Seat given away',
 };
+
+const GRACE_MS = 15 * 60_000;
+
+function GiveAway({ id, onDone }: { id: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={busy}
+        onClick={async () => {
+          if (!window.confirm('Give this seat to someone else? The customer does not get their fee back.')) return;
+          setBusy(true);
+          setErr(null);
+          try {
+            await giveAwayReservation(id);
+            onDone();
+          } catch (e) {
+            setErr((e as Error)?.message || 'Could not do that.');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        Give seat away
+      </Button>
+      {err && <span className="text-caption text-error">{err}</span>}
+    </span>
+  );
+}
 
 export default function OwnerDropPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -32,6 +66,7 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
       <Link href="/owner/drops" className="inline-flex items-center gap-1 text-body font-semibold text-text-secondary hover:text-text-primary">
         <ArrowLeft className="h-4 w-4" /> All drops
       </Link>
+      <DropHowItWorks />
       <OwnerPageHeader
         title={d.title}
         description={`${d.cafe.name} · ${rupees(d.pricePerHour)} an hour · ${rupees(d.deposit)} deposit a seat`}
@@ -80,13 +115,17 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
                       </span>
                       <span className="block text-caption text-text-secondary">
                         {r.reference}
+                        {r.hours && r.startTime && r.endTime ? ` · ${r.startTime}–${r.endTime} (${r.hours}h)` : ''}
                         {r.phone ? ` · ${r.phone}` : ''}
                         {r.earlyAccess ? ' · early access' : ''}
                         {r.status === 'confirmed' || r.status === 'checked_in' ? ` · collect ${rupees(r.balanceDue)}` : ''}
                       </span>
                     </span>
                     {r.status === 'confirmed' && r.checkinToken ? (
-                      <RowCheckIn token={r.checkinToken} onDone={refresh} />
+                      <span className="flex items-center gap-2">
+                        {Date.now() >= new Date(`${b.date}T${r.startTime ?? b.startTime}:00+05:30`).getTime() + GRACE_MS && <GiveAway id={r.id} onDone={refresh} />}
+                        <RowCheckIn token={r.checkinToken} onDone={refresh} />
+                      </span>
                     ) : (
                       <span
                         className={`text-caption font-semibold ${r.status === 'checked_in' ? 'text-success' : r.status === 'refunded' ? 'text-error' : 'text-text-secondary'}`}

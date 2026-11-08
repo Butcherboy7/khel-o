@@ -16,13 +16,21 @@ export interface DropBlock {
   pricePerSeat: number;
   balancePerSeat: number;
   started: boolean;
+  /** Flexible drops: free seats for each hour of the session, keyed 'HH:MM'. */
+  hourFree?: Record<string, number>;
 }
 
 export interface DropReservation {
   id: string;
   reference: string;
-  status: 'pending_payment' | 'confirmed' | 'checked_in' | 'expired' | 'cancelled' | 'refunded';
+  status: 'pending_payment' | 'confirmed' | 'checked_in' | 'expired' | 'cancelled' | 'refunded' | 'given_away';
   seats: number;
+  hours?: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  arriveFrom?: string | null;
+  arriveUntil?: string | null;
+  givenAwayAt?: string | null;
   blockId: string;
   block: DropBlock | null;
   blockPrice: number;
@@ -46,6 +54,10 @@ export interface Drop {
   coverImageUrl: string | null;
   pricePerHour: number;
   deposit: number;
+  /** Fee for 4-5 hours (flexible drops). */
+  depositLong: number;
+  /** Set on flexible drops: people pick 1..maxHours. */
+  maxHours: number | null;
   maxSeatsPerUser: number;
   earlyAccessStartsAt: string;
   publicStartsAt: string;
@@ -72,7 +84,7 @@ export async function getDrop(slug: string): Promise<Drop> {
 
 export async function reserveDrop(
   slug: string,
-  body: { blockId: string; seats: number; code?: string; phone?: string },
+  body: { blockId: string; seats: number; code?: string; phone?: string; startTime?: string; hours?: number },
 ): Promise<ReserveResult> {
   return call(() => apiClient.post(`/api/v1/drops/${encodeURIComponent(slug)}/reserve`, body));
 }
@@ -118,6 +130,9 @@ export interface OwnerReservationRow {
   paidAt: string | null;
   earlyAccess: boolean;
   checkinToken: string | null;
+  hours?: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
 }
 
 export interface OwnerDrop extends Omit<Drop, 'blocks' | 'myReservations'> {
@@ -148,6 +163,8 @@ export interface NewDrop {
   coverImageUrl?: string;
   pricePerHour: number;
   depositAmount: number;
+  maxHours?: number;
+  depositAmountLong?: number;
   earlyAccessCode?: string;
   earlyAccessStartsAt: string;
   publicStartsAt: string;
@@ -211,4 +228,8 @@ export interface DropListItem {
 
 export async function listDrops(): Promise<DropListItem[]> {
   return call(() => apiClient.get('/api/v1/drops'));
+}
+
+export async function giveAwayReservation(id: string): Promise<DropReservation> {
+  return call(() => apiClient.post(`/api/v1/owner/drops/reservations/${encodeURIComponent(id)}/give-away`, {}));
 }

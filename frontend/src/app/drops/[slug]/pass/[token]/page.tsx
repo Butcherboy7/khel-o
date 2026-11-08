@@ -69,6 +69,8 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
                 ? 'Valid pass'
                 : pass.status === 'refunded'
                 ? 'Refunded: not valid'
+                : pass.status === 'given_away'
+                ? 'Seat given away'
                 : 'Not valid'}
             </h1>
             <p className="mt-1 font-mono text-lg">{pass.reference}</p>
@@ -80,7 +82,13 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
             )}
             {b && (
               <p className="mt-2 text-[15px] text-[#DADCE3]">
-                {dayLabel(b.date)} · {blockTimes(b)} · {pass.seats} {pass.seats === 1 ? 'seat' : 'seats'}
+                {dayLabel(b.date)} · {pass.hours && pass.startTime && pass.endTime ? `${pass.startTime} to ${pass.endTime}` : blockTimes(b)} · {pass.seats} {pass.seats === 1 ? 'seat' : 'seats'}
+              </p>
+            )}
+            {pass.arriveFrom && pass.arriveUntil && pass.status === 'confirmed' && (
+              <p className="mt-3 rounded-xl bg-[#221D11] px-3 py-2 text-sm text-[#F3E3B5]">
+                Arrive between {new Date(pass.arriveFrom).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })} and{' '}
+                {new Date(pass.arriveUntil).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}. After that the seat can be given away and the fee is not refunded.
               </p>
             )}
             {pass.qr && pass.valid && !pass.canCheckIn && (
