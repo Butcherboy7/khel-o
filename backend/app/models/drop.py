@@ -40,6 +40,13 @@ class Drop(Base):
     # it is counted toward the bill but never refunded (unless the café cancels).
     max_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
     deposit_amount_long: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    # Rolling schedule: one block a day, made on demand for the next 7 days, until ends_on
+    # (starts_on + 13 at most). After ends_on the drop is over and café booking is normal.
+    daily_start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    daily_end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    daily_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    starts_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    ends_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     max_seats_per_user: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
     # Before public_starts_at, reserving needs this code (shared in the community).
     early_access_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
@@ -58,6 +65,7 @@ class DropBlock(Base):
     __tablename__ = "drop_blocks"
     __table_args__ = (
         CheckConstraint("end_time > start_time", name="ck_drop_blocks_same_day"),
+        UniqueConstraint("drop_id", "session_date", "start_time", name="uq_drop_blocks_day"),
         CheckConstraint("seats_taken >= 0 AND seats_taken <= seats_total", name="ck_drop_blocks_seats"),
     )
 

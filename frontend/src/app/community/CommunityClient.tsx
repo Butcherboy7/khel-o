@@ -275,7 +275,7 @@ export function CommunityClient() {
       {/* 1. The album is the first thing you see */}
       <section className="relative isolate overflow-hidden pb-6">
         <FightStage />
-        <div className="relative mx-auto w-full max-w-4xl px-4 pt-5 md:px-8">
+        <div className="relative mx-auto w-full max-w-4xl lg:max-w-6xl px-4 pt-5 md:px-8">
           <Link
             href="/"
             aria-label="Back to the KHEL-O home page"
@@ -286,17 +286,17 @@ export function CommunityClient() {
           {upcoming ? (
             <>
               <p className="cm-rise mt-4 text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">Next up</p>
-              <h1 className={`${fightFont.className} cm-rise mt-1 text-[2.8rem] font-bold uppercase leading-[0.92] md:text-6xl`}>
+              <h1 className={`${fightFont.className} cm-rise mt-1 text-[2.8rem] font-bold uppercase leading-[0.92] md:text-6xl lg:text-7xl`}>
                 Free event <span className="text-[#E8675D]">{challengeDay(upcoming.startsAt).split(',')[0]}.</span>
               </h1>
             </>
           ) : (
             <>
               <p className="cm-rise mt-4 text-xs font-bold uppercase tracking-[0.2em] text-[#E8675D]">Tekken 8 · #01 · AdamsDen · 1 Nov</p>
-              <h1 className={`${fightFont.className} cm-rise mt-1 text-[2.8rem] font-bold uppercase leading-[0.92] md:text-6xl`}>
+              <h1 className={`${fightFont.className} cm-rise mt-1 text-[2.8rem] font-bold uppercase leading-[0.92] md:text-6xl lg:text-7xl`}>
                 Sunday at <span className="text-[#E8675D]">AdamsDen.</span>
               </h1>
-              <p className="cm-rise mt-2 max-w-md text-[15px] text-[#C9C4CF]" style={{ ['--cm-delay' as string]: '100ms' }}>
+              <p className="cm-rise mt-2 max-w-md text-[15px] lg:text-lg text-[#C9C4CF]" style={{ ['--cm-delay' as string]: '100ms' }}>
                 A full house of Hyderabad gamers. <b className="text-[#F4F1EC]">#02 is coming, and the group hears first.</b>
               </p>
             </>
@@ -355,7 +355,7 @@ export function CommunityClient() {
         </div>
       </section>
 
-      <div className="mx-auto w-full max-w-4xl px-4 md:px-8">
+      <div className="mx-auto w-full max-w-4xl lg:max-w-6xl px-4 md:px-8">
         {/* 2. Real numbers, from the bracket */}
         {finished && players > 0 && (
           <dl className="grid grid-cols-4 gap-2 border-y border-[#262932] py-4 text-center">
@@ -382,7 +382,7 @@ export function CommunityClient() {
           <section ref={crownRef} className="relative mt-8 overflow-hidden rounded-3xl border border-[#6B5A2A] bg-gradient-to-br from-[#2A2210] via-[#16120E] to-[#0E0F13] p-5 md:p-7">
             {crownSeen && <Celebration id="community-crown-tekken-01" />}
             <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-1/3 animate-champ-shine bg-gradient-to-r from-transparent via-[#FFE29A]/20 to-transparent" />
-            <div className="relative grid items-center gap-5 md:grid-cols-[0.9fr_1.1fr]">
+            <div className={`relative grid items-center gap-5 md:gap-8 ${finished.challenge.championPhotoUrl ? 'md:grid-cols-[0.9fr_1.1fr]' : 'md:grid-cols-2'}`}>
               {finished.challenge.championPhotoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element -- the champion photo from our S3, any size
                 <img

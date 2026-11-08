@@ -21,6 +21,60 @@ const STATUS_LABEL: Record<string, string> = {
 
 const GRACE_MS = 15 * 60_000;
 
+const ymd = (dt: Date) => dt.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+const addDays = (iso: string, n: number) => ymd(new Date(new Date(`${iso}T12:00:00+05:30`).getTime() + n * 86_400_000));
+
+/** Rolling drops run by themselves for up to 2 weeks. The owner can add days or stop it. */
+function RunControl({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const hardEnd = addDays(d.startsOn!, 13);
+  const today = ymd(new Date());
+  const over = d.endsOn! < today;
+  const set = async (endsOn: string) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await updateDrop(d.id, { endsOn });
+      onDone();
+    } catch (e) {
+      setErr((e as Error)?.message || 'Could not change it.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const nice = (iso: string) => new Date(`${iso}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
+  return (
+    <Card elevation="flat">
+      <CardContent className="flex flex-col gap-2 p-4">
+        <p className="font-heading text-body-emphasis font-bold text-text-primary">
+          {over ? `This drop ended on ${nice(d.endsOn!)}` : `Runs until ${nice(d.endsOn!)}`}
+        </p>
+        <p className="text-caption text-text-secondary">
+          New days appear by themselves (players see the next 7). The longest a drop can run is until {nice(hardEnd)}. After it ends, booking is normal.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {d.endsOn! < hardEnd && !over && (
+            <Button variant="secondary" disabled={busy} onClick={() => set(hardEnd < addDays(d.endsOn!, 7) ? hardEnd : addDays(d.endsOn!, 7))}>
+              Add a week
+            </Button>
+          )}
+          {!over && (
+            <Button
+              variant="secondary"
+              disabled={busy}
+              onClick={() => window.confirm('Stop this drop after today? People who already reserved keep their seats.') && set(today)}
+            >
+              Stop after today
+            </Button>
+          )}
+        </div>
+        {err && <p className="text-caption text-error">{err}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
 function GiveAway({ id, onDone }: { id: string; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -67,6 +121,7 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
         <ArrowLeft className="h-4 w-4" /> All drops
       </Link>
       <DropHowItWorks />
+      {d.rolling && d.endsOn && d.startsOn && <RunControl d={d} onDone={refresh} />}
       <OwnerPageHeader
         title={d.title}
         description={`${d.cafe.name} · ${rupees(d.pricePerHour)} an hour · ${rupees(d.deposit)} deposit a seat`}

@@ -53,7 +53,7 @@ export function CommunityHub({ tapped }: { tapped: boolean }) {
   const card = 'rounded-2xl border border-[#2A2C34] bg-[#16171C] p-4';
 
   return (
-    <section aria-labelledby="hub-week" className="mt-10 grid gap-8 md:grid-cols-2 md:gap-6">
+    <section aria-labelledby="hub-week" className="mt-10 grid gap-8 md:grid-cols-2 md:gap-6 lg:grid-cols-[1fr_1.4fr] lg:gap-10">
       {/* This week */}
       <div className="flex flex-col gap-3">
         <h2 id="hub-week" className={`${fightFont.className} flex items-center gap-2 text-3xl font-bold uppercase leading-none`}>
@@ -145,7 +145,7 @@ export function CommunityHub({ tapped }: { tapped: boolean }) {
       {/* Help build KHEL-O */}
       <div className="flex flex-col gap-3">
         <h2 className={`${fightFont.className} text-3xl font-bold uppercase leading-none`}>Help build KHEL-O</h2>
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-2.5 lg:gap-4">
           <Tile icon={<Store className="h-5 w-5" aria-hidden />} title="Suggest a café" body="Know a spot we are missing? Add it in 20 seconds." reward="Scout" onClick={() => setSheet('cafe')} />
           <Tile icon={<Handshake className="h-5 w-5" aria-hidden />} title="Know a café owner?" body="Introduce us. We will reach out and say you sent us." reward="Connector" href="/know-the-owner" />
           <Tile icon={<Camera className="h-5 w-5" aria-hidden />} title="Share your photos" body="Got a shot from a challenge? Put it on the wall." reward="Credit on the wall" onClick={() => setSheet('photos')} />

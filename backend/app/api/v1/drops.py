@@ -104,6 +104,9 @@ def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
         "deposit": float(drop.deposit_amount),
         "depositLong": float(drop.deposit_amount_long if drop.deposit_amount_long is not None else svc.money(drop.deposit_amount) * 2),
         "maxHours": drop.max_hours,
+        "startsOn": drop.starts_on.isoformat() if drop.starts_on else None,
+        "endsOn": drop.ends_on.isoformat() if drop.ends_on else None,
+        "rolling": drop.daily_start_time is not None,
         "maxSeatsPerUser": drop.max_seats_per_user,
         "earlyAccessStartsAt": _iso(drop.early_access_starts_at),
         "publicStartsAt": _iso(drop.public_starts_at),
@@ -139,6 +142,9 @@ async def list_drops(db: AsyncSession = Depends(get_db), user: Optional[User] = 
     )).scalars().all()
     out = []
     for drop in drops:
+        await svc.ensure_blocks(db, drop)
+        if svc.state(drop) == "ended":
+            continue
         blocks = await svc.blocks_of(db, drop.id)
         upcoming = [b for b in blocks if svc.block_starts_at(b) > svc.now_utc()]
         if not upcoming:
@@ -162,7 +168,8 @@ async def list_drops(db: AsyncSession = Depends(get_db), user: Optional[User] = 
 async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional[User] = Depends(get_optional_user)):
     drop, cafe = await _public_drop(db, slug, user)
     await svc.release_expired(db, drop.id)
-    blocks = await svc.blocks_of(db, drop.id)
+    await svc.ensure_blocks(db, drop)
+    blocks = [b for b in await svc.blocks_of(db, drop.id) if drop.ends_on is None or b.session_date <= drop.ends_on]
     data = _drop_out(drop, cafe, blocks)
     if drop.max_hours:
         for bd, blk in zip(data["blocks"], blocks):
@@ -181,6 +188,9 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
         mine = [_reservation_out(drop, r, by_id.get(r.block_id)) for r in rows]
         data["needsPhone"] = not bool(user.phone_number)
     data["myReservations"] = mine
+    # Real number of people who hold a paid seat (shown once it is worth saying).
+    data["reservedCount"] = (await db.execute(select(func.count(func.distinct(DropReservation.user_id))).where(
+        DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.PAID)))).scalar_one()
     data["waitlistCount"] = (await db.execute(
         select(func.count()).select_from(DropWaitlist).where(DropWaitlist.drop_id == drop.id)
     )).scalar_one()
@@ -306,7 +316,13 @@ class DropCreate(_Camel):
     early_access_starts_at: datetime
     public_starts_at: datetime
     status: Literal["draft", "live"] = "draft"
-    blocks: list[BlockIn] = Field(..., min_length=1, max_length=40)
+    blocks: list[BlockIn] = Field(default_factory=list, max_length=40)
+    # Rolling schedule (the easy way): the same hours every day for up to 14 days.
+    daily_start_time: Optional[time] = None
+    daily_end_time: Optional[time] = None
+    daily_seats: Optional[int] = Field(None, ge=1, le=100)
+    starts_on: Optional[date] = None
+    days: int = Field(14, ge=1, le=14)
 
     @field_validator("cover_image_url")
     @classmethod
@@ -319,6 +335,14 @@ class DropCreate(_Camel):
     def _check(self):
         if self.early_access_starts_at > self.public_starts_at:
             raise ValueError("Early access must start before (or when) everyone can reserve")
+        if self.daily_start_time is not None:
+            if self.daily_end_time is None or self.daily_end_time <= self.daily_start_time or not self.daily_seats or not self.starts_on:
+                raise ValueError("Set the daily hours, the seats and the first day")
+            hrs = ((self.daily_end_time.hour * 60 + self.daily_end_time.minute) - (self.daily_start_time.hour * 60 + self.daily_start_time.minute)) / 60
+            if self.deposit_amount > self.price_per_hour * hrs:
+                raise ValueError("The fee can't be more than the price of a day's hours")
+        elif not self.blocks:
+            raise ValueError("Add at least one time, or set the daily hours")
         for b in self.blocks:
             hours = ((b.end_time.hour * 60 + b.end_time.minute) - (b.start_time.hour * 60 + b.start_time.minute)) / 60
             if self.deposit_amount > self.price_per_hour * hours:
@@ -367,6 +391,8 @@ async def create_drop(payload: DropCreate, db: AsyncSession = Depends(get_db), u
         tagline=(payload.tagline or "").strip() or None, cover_image_url=payload.cover_image_url,
         price_per_hour=payload.price_per_hour, deposit_amount=payload.deposit_amount,
         max_hours=payload.max_hours, deposit_amount_long=payload.deposit_amount_long,
+        daily_start_time=payload.daily_start_time, daily_end_time=payload.daily_end_time, daily_seats=payload.daily_seats,
+        starts_on=payload.starts_on, ends_on=(payload.starts_on + timedelta(days=payload.days - 1)) if payload.starts_on else None,
         max_seats_per_user=payload.max_seats_per_user,
         early_access_code=(payload.early_access_code or "").strip().upper() or None,
         early_access_starts_at=payload.early_access_starts_at, public_starts_at=payload.public_starts_at,
@@ -377,6 +403,7 @@ async def create_drop(payload: DropCreate, db: AsyncSession = Depends(get_db), u
     for b in payload.blocks:
         db.add(DropBlock(drop_id=drop.id, session_date=b.date, start_time=b.start_time, end_time=b.end_time, seats_total=b.seats))
     await db.commit()
+    await svc.ensure_blocks(db, drop)
     return {"success": True, "data": _drop_out(drop, cafe, await svc.blocks_of(db, drop.id))}
 
 
@@ -391,6 +418,7 @@ class DropUpdate(_Camel):
     early_access_starts_at: Optional[datetime] = None
     public_starts_at: Optional[datetime] = None
     status: Optional[Literal["draft", "live"]] = None
+    ends_on: Optional[date] = None
     add_blocks: list[BlockIn] = Field(default_factory=list, max_length=40)
 
 
@@ -409,6 +437,11 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
         raise svc.DropError("The picture link must start with https://", "BAD_IMAGE")
     if "early_access_code" in fields:
         fields["early_access_code"] = (fields["early_access_code"] or "").strip().upper() or None
+    if "ends_on" in fields and fields["ends_on"] is not None:
+        if drop.starts_on is None:
+            raise svc.DropError("This drop has no daily schedule to extend.", "NOT_ROLLING")
+        if fields["ends_on"] > drop.starts_on + timedelta(days=svc.MAX_DAYS - 1):
+            raise svc.DropError("A drop runs for 2 weeks at most. After that it is normal booking.", "TOO_LONG")
     for k, v in fields.items():
         setattr(drop, k, v)
     if svc._aware(drop.early_access_starts_at) > svc._aware(drop.public_starts_at):

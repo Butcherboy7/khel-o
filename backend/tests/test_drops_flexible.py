@@ -114,3 +114,28 @@ async def test_give_away_waits_15_minutes_keeps_the_fee_and_frees_the_seat():
     async with AsyncSessionLocal() as db:
         res = await db.get(DropReservation, rid)
         assert res.refund_id is None and res.status == "given_away"
+
+
+@pytest.mark.asyncio
+async def test_rolling_drop_makes_the_next_7_days_and_ends_after_its_end_date():
+    from datetime import date
+    from app.models.drop import Drop as D
+    drop, _b, _b2, owner, cafe = await _drop(seats=2)
+    today = datetime.now(IST).date()
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(D).where(D.id == drop.id).values(
+            max_hours=5, daily_start_time=time(12, 0), daily_end_time=time(23, 0), daily_seats=3,
+            starts_on=today - timedelta(days=1), ends_on=today + timedelta(days=2)))
+        await db.commit()
+    async with _client() as c:
+        d = (await c.get(f"/api/v1/drops/{drop.slug}")).json()["data"]
+        dates = {b["date"] for b in d["blocks"]}
+        # Today, +1, +2 exist (ends_on caps it); the earlier hand-made blocks are still there.
+        assert {str(today), str(today + timedelta(days=1)), str(today + timedelta(days=2))} <= dates
+        assert str(today + timedelta(days=3)) not in dates and d["rolling"] is True and d["state"] != "ended"
+        # Past its end date: over, reservations refused.
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(D).where(D.id == drop.id).values(ends_on=today - timedelta(days=1)))
+            await db.commit()
+        d = (await c.get(f"/api/v1/drops/{drop.slug}")).json()["data"]
+        assert d["state"] == "ended"

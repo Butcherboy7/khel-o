@@ -5,6 +5,7 @@ import { Check, Copy, ExternalLink, X } from 'lucide-react';
 import { isInAppBrowser } from '@/lib/campaign';
 
 const DISMISS_KEY = 'khelo_inapp_bar_dismissed';
+const AUTO_KEY = 'khelo_inapp_auto_open';
 
 /**
  * Instagram and Facebook open links in their own browser. It keeps its own
@@ -26,7 +27,24 @@ export function OpenInBrowserBar() {
     }
     const ua = navigator.userAgent;
     if (!isInAppBrowser(ua)) return;
-    setMode(/Android/i.test(ua) ? 'android' : 'other');
+    const android = /Android/i.test(ua);
+    setMode(android ? 'android' : 'other');
+    // Android: ask the phone once, right away, to open this page in its own browser.
+    // Most phones do it; if not, the page simply stays and the bar below is the way out.
+    // (iPhone gives pages no way to do this, so it only gets the bar.)
+    if (android) {
+      let tried = false;
+      try {
+        tried = !!sessionStorage.getItem(AUTO_KEY);
+        sessionStorage.setItem(AUTO_KEY, '1');
+      } catch {
+        tried = true;
+      }
+      if (!tried) {
+        const { host, pathname, search, hash, href } = window.location;
+        window.location.replace(`intent://${host}${pathname}${search}${hash}#Intent;scheme=https;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(href)};end`);
+      }
+    }
   }, []);
 
   if (!mode) return null;

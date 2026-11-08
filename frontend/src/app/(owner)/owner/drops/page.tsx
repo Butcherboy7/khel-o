@@ -112,26 +112,28 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
   const [code, setCode] = useState('');
   const [earlyAt, setEarlyAt] = useState('');
   const [publicAt, setPublicAt] = useState('');
-  const [blocks, setBlocks] = useState<BlockRow[]>([{ date: '', startTime: '18:00', endTime: '23:00', seats: 4 }]);
+  const [startsOn, setStartsOn] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [dayStart, setDayStart] = useState('12:00');
+  const [dayEnd, setDayEnd] = useState('23:00');
+  const [daySeats, setDaySeats] = useState(4);
   const [live, setLive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const priceNum = Number(price);
-  const setBlock = (i: number, patch: Partial<BlockRow>) => setBlocks((bs) => bs.map((b, j) => (j === i ? { ...b, ...patch } : b)));
 
   const submit = async () => {
     setError(null);
-    if (!cafeId || !title.trim() || !game.trim() || !publicAt) {
-      setError('Fill in the café, title, game and when everyone can reserve.');
+    if (!cafeId || !title.trim() || !game.trim()) {
+      setError('Fill in the café, title and game.');
       return;
     }
-    if (blocks.some((b) => !b.date || !b.startTime || !b.endTime || b.seats < 1)) {
-      setError('Each time needs a date, a start, an end and at least 1 seat.');
+    if (!startsOn || !dayStart || !dayEnd || daySeats < 1) {
+      setError('Set the first day, the opening and closing time, and the seats.');
       return;
     }
-    if (blocks.some((b) => b.endTime <= b.startTime)) {
-      setError('Each time has to end later the same day, before midnight.');
+    if (dayEnd <= dayStart) {
+      setError('It has to close later the same day, before midnight.');
       return;
     }
     const body: NewDrop = {
@@ -145,10 +147,15 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
       maxHours: Number(maxHours) || undefined,
       depositAmountLong: maxHours ? Number(depositLong) : undefined,
       earlyAccessCode: code.trim() || undefined,
-      earlyAccessStartsAt: istIso(earlyAt || publicAt),
-      publicStartsAt: istIso(publicAt),
+      earlyAccessStartsAt: istIso(earlyAt || publicAt || nowIst()),
+      publicStartsAt: istIso(publicAt || nowIst()),
       status: live ? 'live' : 'draft',
-      blocks,
+      blocks: [],
+      dailyStartTime: dayStart,
+      dailyEndTime: dayEnd,
+      dailySeats: daySeats,
+      startsOn,
+      days: 14,
     };
     setBusy(true);
     try {
@@ -223,62 +230,35 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
           />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <p className="text-body font-semibold text-text-primary">Times</p>
-          <p className="text-caption text-text-secondary">Each time ends before midnight.</p>
-          {blocks.map((b, i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 rounded-xl border border-border p-3 sm:grid-cols-[1.4fr_1fr_1fr_0.8fr_auto]">
-              <label className="col-span-2 flex flex-col gap-1 text-caption text-text-secondary sm:col-span-1">
-                Date
-                <input type="date" value={b.date} onChange={(e) => setBlock(i, { date: e.target.value })} className="h-11 rounded-lg border border-border bg-card px-2 text-body text-text-primary" />
-              </label>
-              <label className="flex flex-col gap-1 text-caption text-text-secondary">
-                Starts
-                <input type="time" value={b.startTime} onChange={(e) => setBlock(i, { startTime: e.target.value })} className="h-11 rounded-lg border border-border bg-card px-2 text-body text-text-primary" />
-              </label>
-              <label className="flex flex-col gap-1 text-caption text-text-secondary">
-                Ends
-                <input type="time" value={b.endTime} onChange={(e) => setBlock(i, { endTime: e.target.value })} className="h-11 rounded-lg border border-border bg-card px-2 text-body text-text-primary" />
-              </label>
-              <label className="flex flex-col gap-1 text-caption text-text-secondary">
-                Seats
-                <input
-                  type="number"
-                  min={1}
-                  value={b.seats}
-                  onChange={(e) => setBlock(i, { seats: Math.max(1, Number(e.target.value) || 1) })}
-                  className="h-11 rounded-lg border border-border bg-card px-2 text-body text-text-primary"
-                />
-              </label>
-              <button
-                type="button"
-                aria-label="Remove this time"
-                disabled={blocks.length === 1}
-                onClick={() => setBlocks((bs) => bs.filter((_, j) => j !== i))}
-                className="flex h-11 items-center justify-center self-end rounded-lg text-text-secondary hover:bg-surface disabled:opacity-30"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-              {b.date && b.endTime > b.startTime && (
-                <p className="col-span-2 text-caption text-text-secondary sm:col-span-5">
-                  {dayLabel(b.date)} · {blockTimes({ ...b, hours: hoursBetween(b.startTime, b.endTime) })} ·{' '}
-                  {rupees(priceNum * hoursBetween(b.startTime, b.endTime))} a seat
-                </p>
-              )}
-            </div>
-          ))}
-          <Button
-            variant="secondary"
-            onClick={() => setBlocks((bs) => [...bs, { ...bs[bs.length - 1], date: '' }])}
-            className="self-start"
-          >
-            <Plus className="mr-1.5 h-4 w-4" /> Add a time
-          </Button>
+        <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
+          <p className="text-body font-semibold text-text-primary">Hours, every day</p>
+          <p className="text-caption text-text-secondary">
+            Set it once. Players see the next 7 days, and it adds a new day by itself each morning for 2 weeks. After that the drop ends and booking goes back to normal.
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <label className="col-span-2 flex flex-col gap-1 text-caption text-text-secondary sm:col-span-1">
+              First day
+              <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} className="h-11 rounded-lg border border-border bg-card px-2 text-body text-text-primary" />
+            </label>
+            <label className="flex flex-col gap-1 text-caption text-text-secondary">
+              Opens
+              <input type="time" value={dayStart} onChange={(e) => setDayStart(e.target.value)} className="h-11 rounded-lg border border-border bg-card px-2 text-body text-text-primary" />
+            </label>
+            <label className="flex flex-col gap-1 text-caption text-text-secondary">
+              Closes
+              <input type="time" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} className="h-11 rounded-lg border border-border bg-card px-2 text-body text-text-primary" />
+            </label>
+            <label className="flex flex-col gap-1 text-caption text-text-secondary">
+              Seats at once
+              <input type="number" min={1} value={daySeats} onChange={(e) => setDaySeats(Math.max(1, Number(e.target.value) || 1))} className="h-11 rounded-lg border border-border bg-card px-2 text-body text-text-primary" />
+            </label>
+          </div>
+          {dayEnd > dayStart && <p className="text-caption text-text-secondary">{rupees(priceNum * hoursBetween(dayStart, dayEnd))} for a full day on one seat · Ends before midnight.</p>}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-body font-medium text-text-primary">
-            Everyone can reserve from
+            Everyone can reserve from (empty = now)
             <input type="datetime-local" value={publicAt} onChange={(e) => setPublicAt(e.target.value)} className="h-11 rounded-xl border border-border bg-card px-3 text-body" />
           </label>
           <label className="flex flex-col gap-1.5 text-body font-medium text-text-primary">
@@ -312,6 +292,11 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
       </CardContent>
     </Card>
   );
+}
+
+// Now, as the 'YYYY-MM-DDTHH:mm' text the date inputs use (café time).
+function nowIst(): string {
+  return new Date(Date.now() - 60_000).toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }).replace(' ', 'T').slice(0, 16);
 }
 
 function hoursBetween(a: string, b: string): number {

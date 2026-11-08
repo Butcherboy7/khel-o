@@ -3,7 +3,7 @@ import { apiClient, call, getApiUrl } from './client';
 /** Drops: limited pre-booked launch events (e.g. GTA 6 Launch Drop).
  *  See backend app/api/v1/drops.py and app/services/drop_service.py. */
 
-export type DropState = 'draft' | 'cancelled' | 'soon' | 'early' | 'open';
+export type DropState = 'draft' | 'cancelled' | 'soon' | 'early' | 'open' | 'ended';
 
 export interface DropBlock {
   id: string;
@@ -60,6 +60,10 @@ export interface Drop {
   depositLong: number;
   /** Set on flexible drops: people pick 1..maxHours. */
   maxHours: number | null;
+  startsOn?: string | null;
+  endsOn?: string | null;
+  rolling?: boolean;
+  reservedCount?: number;
   maxSeatsPerUser: number;
   earlyAccessStartsAt: string;
   publicStartsAt: string;
@@ -167,6 +171,11 @@ export interface NewDrop {
   depositAmount: number;
   maxHours?: number;
   depositAmountLong?: number;
+  dailyStartTime?: string;
+  dailyEndTime?: string;
+  dailySeats?: number;
+  startsOn?: string;
+  days?: number;
   earlyAccessCode?: string;
   earlyAccessStartsAt: string;
   publicStartsAt: string;
@@ -182,7 +191,7 @@ export async function createDrop(body: NewDrop): Promise<Drop> {
   return call(() => apiClient.post('/api/v1/owner/drops', body));
 }
 
-export async function updateDrop(id: string, body: Partial<Omit<NewDrop, 'cafeId' | 'blocks'>> & { addBlocks?: NewDrop['blocks'] }): Promise<Drop> {
+export async function updateDrop(id: string, body: Partial<Omit<NewDrop, 'cafeId' | 'blocks'>> & { addBlocks?: NewDrop['blocks']; endsOn?: string }): Promise<Drop> {
   return call(() => apiClient.patch(`/api/v1/owner/drops/${id}`, body));
 }
 

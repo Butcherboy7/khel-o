@@ -88,6 +88,8 @@ def state(drop: Drop, at: Optional[datetime] = None) -> str:
         return "cancelled"
     if drop.status != "live":
         return "draft"
+    if drop.ends_on is not None and at.astimezone(IST).date() > drop.ends_on:
+        return "ended"
     if at < _aware(drop.early_access_starts_at):
         return "soon"
     if at < _aware(drop.public_starts_at):
@@ -129,6 +131,35 @@ async def get_drop_by_slug(db: AsyncSession, slug: str) -> Drop:
     if drop is None:
         raise NotFoundException(message="We couldn't find this drop.", error_code="DROP_NOT_FOUND")
     return drop
+
+
+VISIBLE_DAYS = 7
+MAX_DAYS = 14
+
+
+async def ensure_blocks(db: AsyncSession, drop: Drop) -> None:
+    """Rolling drops: make sure each of the next 7 days (not past ends_on) has its day.
+    Safe to call on every read; a race on the same day is stopped by the unique key."""
+    from sqlalchemy.exc import IntegrityError
+    if drop.daily_start_time is None or drop.status != "live" or drop.starts_on is None:
+        return
+    today = now_utc().astimezone(IST).date()
+    first = max(today, drop.starts_on)
+    last = min(today + timedelta(days=VISIBLE_DAYS - 1), drop.ends_on or drop.starts_on + timedelta(days=MAX_DAYS - 1))
+    have = set((await db.execute(select(DropBlock.session_date).where(DropBlock.drop_id == drop.id))).scalars().all())
+    made = False
+    d = first
+    while d <= last:
+        if d not in have:
+            db.add(DropBlock(drop_id=drop.id, session_date=d, start_time=drop.daily_start_time,
+                             end_time=drop.daily_end_time, seats_total=drop.daily_seats or 1))
+            made = True
+        d += timedelta(days=1)
+    if made:
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
 
 
 async def blocks_of(db: AsyncSession, drop_id: UUID) -> list[DropBlock]:
@@ -326,7 +357,10 @@ async def reserve(
     start: Optional[time] = None, hours: Optional[float] = None,
 ) -> Reserved:
     await release_expired(db, drop.id)
+    await ensure_blocks(db, drop)
     st = state(drop)
+    if st == "ended":
+        raise DropError("This drop is over. You can still book a normal slot at the café.", "DROP_ENDED")
     if st in ("draft", "cancelled"):
         raise DropError("This drop isn't taking reservations.", "DROP_CLOSED")
     if st == "soon":
@@ -342,6 +376,8 @@ async def reserve(
         raise NotFoundException(message="We couldn't find that time.", error_code="BLOCK_NOT_FOUND")
     if block_starts_at(block) <= now_utc():
         raise DropError("This time has already started.", "BLOCK_STARTED")
+    if drop.ends_on is not None and block.session_date > drop.ends_on:
+        raise DropError("This drop has ended for that day.", "DROP_ENDED")
 
     # One reservation at a time per person: lock their row so two taps (or two
     # tabs) can't both pass the 2-seat check.

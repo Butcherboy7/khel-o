@@ -44,7 +44,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const [seats, setSeats] = useState(Math.max(1, Number(params.get('seats')) || 1));
   const [startTime, setStartTime] = useState<string | null>(params.get('start'));
   const [hours, setHours] = useState(Number(params.get('hours')) || 1);
-  const [agreed, setAgreed] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [code, setCode] = useState('');
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
@@ -129,13 +129,17 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     if (b.started || sessionLeft(b) === 0) return;
     setBlockId(b.id);
     setError(null);
-    // First start that still has a seat for one hour.
-    const first = b.bookedSlots
-      ? hourRange(b).find((m) => m + 60 <= timeToMinutes(b.endTime) && b.seatsTotal - peakIn(b, m, m + 60) >= 1 && new Date(`${b.date}T${hhmm(m)}:00+05:30`).getTime() > Date.now())
-      : undefined;
+    // Pre-pick the best open slot so one tap reserves: an evening 2-hour slot if there is one.
+    const ok = (m: number, len: number) =>
+      m + len <= timeToMinutes(b.endTime) && b.seatsTotal - peakIn(b, m, m + len) >= 1 && new Date(`${b.date}T${hhmm(m)}:00+05:30`).getTime() > Date.now();
+    const slots = b.bookedSlots ? hourRange(b) : [];
+    const evening = slots.find((m) => m >= 18 * 60 && ok(m, 120));
+    const any2 = slots.find((m) => ok(m, 120));
+    const any1 = slots.find((m) => ok(m, 60));
     if (flex) {
-      setStartTime(first != null ? hhmm(first) : b.startTime);
-      setHours(1);
+      const m = evening ?? any2 ?? any1;
+      setStartTime(m != null ? hhmm(m) : b.startTime);
+      setHours(evening != null || any2 != null ? 2 : 1);
     }
     track('drop_block_selected', { block: b.id, date: b.date });
   };
@@ -172,6 +176,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const pageUrl = typeof window !== 'undefined' ? window.location.href.split('?')[0] : `/drops/${drop.slug}`;
   const shareText = `${drop.title} at ${drop.cafe.name}. ${drop.seatsLeft} seats left. Reserve yours:`;
   const canReserve = drop.state === 'open' || drop.state === 'early';
+  const ended = drop.state === 'ended';
   const needsCode = drop.state === 'early' && drop.hasEarlyAccessCode;
   const paid = drop.myReservations.filter((r) => r.status === 'confirmed' || r.status === 'checked_in');
   const pending = drop.myReservations.find((r) => r.status === 'pending_payment' && r.expiresAt && new Date(r.expiresAt) > new Date());
@@ -241,10 +246,6 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
       setError('Pick a time that still has a free seat.');
       return;
     }
-    if (flex && !agreed) {
-      setError('Please tick the box to say you have read the rules.');
-      return;
-    }
     if (drop.needsPhone && phone.replace(/\D/g, '').length < 10) {
       setError('Type your 10-digit mobile number so the café can reach you.');
       return;
@@ -295,6 +296,16 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
               {rupees(drop.pricePerHour)} an hour
             </span>
+            {(drop.reservedCount ?? 0) >= 3 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-success/40 bg-success/10 px-3 py-1.5 text-success">
+                {drop.reservedCount} gamers reserved
+              </span>
+            )}
+            {drop.endsOn && drop.state !== 'ended' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-error/30 bg-error/10 px-3 py-1.5 text-error">
+                Until {new Date(`${drop.endsOn}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })} only
+              </span>
+            )}
           </div>
           {art === GTA_ART && <p className="mt-2 text-[11px] text-text-secondary">Grand Theft Auto VI artwork © Rockstar Games.</p>}
         </section>
@@ -306,8 +317,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         {pending && !busy && (
           <div className="rounded-2xl border border-warning/40 bg-warning/10 p-4">
             <p className="font-semibold text-text-primary">
-              {pending.seats} {pending.seats === 1 ? 'seat' : 'seats'} on hold until{' '}
-              {new Date(pending.expiresAt!).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+              {pending.seats} {pending.seats === 1 ? 'seat' : 'seats'} held for you · <Countdown to={pending.expiresAt!} />
             </p>
             <p className="mt-1 text-body text-text-secondary">Pay {rupees(pending.deposit)} to keep them. If you don’t, they go back to everyone.</p>
             {pending.orderId && (
@@ -337,6 +347,15 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             </p>
           </div>
         )}
+        {ended && (
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <p className="font-heading text-body-emphasis font-bold text-text-primary">The launch drop is over</p>
+            <p className="mt-1 text-body text-text-secondary">You can still play it. Book a normal slot at {drop.cafe.name}.</p>
+            <Link href={`/cafe/${drop.cafe.slug || drop.cafe.id}`} className="mt-3 inline-flex h-12 w-full items-center justify-center rounded-xl bg-primary font-bold text-white">
+              Book a slot at {drop.cafe.name}
+            </Link>
+          </div>
+        )}
         {drop.state === 'cancelled' && (
           <p className="rounded-2xl border border-error/30 bg-error/10 px-4 py-3 text-body text-text-primary">
             This drop was cancelled. Anyone who paid gets their money back.
@@ -344,6 +363,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         )}
 
         {/* Day */}
+        {!ended && (
         <section>
           <h2 className="font-heading text-h2 font-semibold text-text-primary">{canReserve ? 'Pick a day' : 'Days'}</h2>
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide" role="radiogroup" aria-label="Days">
@@ -371,6 +391,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             })}
           </div>
         </section>
+        )}
 
         {/* Time and length: the same slider as a normal booking */}
         {canReserve && block && flex && startTime && (
@@ -489,25 +510,29 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 <span className="flex-shrink-0 font-semibold text-text-primary">{rupees(total)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span>Reservation fee, paid now (taken off the bill)</span>
-                <span className="flex-shrink-0 font-semibold text-text-primary">{rupees(payNow)}</span>
+                <span>Seat deposit, taken off your bill</span>
+                <span className="flex-shrink-0 font-semibold text-success">− {rupees(payNow)}</span>
               </div>
               <div className="mt-1 flex items-center justify-between gap-3 border-t border-border/70 pt-2">
-                <span className="font-semibold text-text-primary">Pay at the café</span>
+                <span className="font-semibold text-text-primary">Left to pay at the café</span>
                 <span className="font-heading text-body-emphasis font-bold text-text-primary">{rupees(Math.max(0, total - payNow))}</span>
               </div>
-              <p className="pt-1">We hold your seats for 10 minutes while you pay. No coupons on drops.</p>
+              <p className="pt-1">{rupees(payNow)} of your {rupees(total)} is paid now to lock the seat. We hold it for 10 minutes while you pay.</p>
             </div>
 
             {flex && (
-              <label className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3.5 text-body text-text-secondary">
-                <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-5 w-5 flex-none accent-[var(--primary)]" />
-                <span>
-                  <span className="font-semibold text-text-primary">The rules, in plain words.</span> The reservation fee is <b>not refunded</b> and
-                  comes off your bill when you play. Arrive between <b>15 minutes before and 15 minutes after</b> your start time. After that the
-                  café can give your seat to someone waiting and you do not get the fee back. If the café cancels, you get everything back.
-                </span>
-              </label>
+              <p className="px-1 text-caption text-text-secondary">
+                Arrive within 15 min of your start. The deposit isn’t refunded if you don’t show.{' '}
+                <button type="button" onClick={() => setRulesOpen((o) => !o)} className="font-semibold text-primary underline-offset-2 hover:underline">
+                  {rulesOpen ? 'Hide' : 'Details'}
+                </button>
+                {rulesOpen && (
+                  <span className="mt-2 block rounded-xl border border-border bg-card p-3 text-body">
+                    The deposit comes off your bill when you play and is not refunded. Arrive from 15 minutes before to 15 minutes after your start time.
+                    After that the café can give your seat to someone waiting and you do not get the deposit back. If the café cancels, you get everything back.
+                  </span>
+                )}
+              </p>
             )}
           </>
         )}
@@ -530,8 +555,18 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           </div>
         </section>
 
+        {/* Not ready yet: keep them close instead of letting them drift off */}
+        {canReserve && paid.length === 0 && (
+          <Waitlist drop={drop} onJoined={load} text="Not today? Get a nudge when seats open up." quiet />
+        )}
+
         {/* Community: the page always ends on it */}
         <CommunityInviteCard where="drop_page" />
+        <Link href="/community" className="rounded-2xl border border-border bg-card p-4 text-body text-text-secondary transition-colors hover:border-primary/40">
+          <span className="block font-heading text-body-emphasis font-bold text-text-primary">Help build KHEL-O</span>
+          Know a great café, or got game photos? Add them in a minute and get a shout-out.
+          <span className="mt-1 block font-semibold text-primary">Contribute →</span>
+        </Link>
 
         {/* Questions */}
         <section>
@@ -557,22 +592,35 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         </section>
       </div>
 
-      {/* Pay bar, like checkout's */}
-      <div className="fixed bottom-0 left-0 right-0 z-overlay border-t border-border bg-card px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-overlay">
+      {/* Pay bar: one big button, the seat count and what it costs, in plain words */}
+      <div className="fixed bottom-0 left-0 right-0 z-overlay border-t border-border bg-card px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2.5 shadow-overlay">
         <div className="mx-auto max-w-xl">
           {canReserve && block && seatsAllowed > 0 ? (
-            <button
-              type="button"
-              onClick={reserve}
-              disabled={busy}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[17px] font-bold text-white transition-colors hover:bg-primary-dark disabled:opacity-60"
-            >
-              {busy
-                ? 'Opening payment…'
-                : isAuthenticated || !isHydrated
-                ? `Pay ${rupees(payNow)} to hold ${seatCount === 1 ? 'your seat' : `${seatCount} seats`}`
-                : `Sign in to pay ${rupees(payNow)}`}
-            </button>
+            <>
+              <p className="mb-1.5 flex items-center justify-between gap-2 text-caption">
+                <span className="min-w-0 truncate font-semibold text-text-primary">
+                  {flex && startTime ? `${dayLabel(block.date)} · ${clock(startTime)} – ${clock(endLabel)}` : dayLabel(block.date)}
+                </span>
+                <span className={`flex-shrink-0 font-bold ${windowFree <= 2 ? 'text-error' : 'text-success'}`}>
+                  {flex ? (windowFree <= 0 ? 'Full at this time' : windowFree <= 2 ? `Only ${windowFree} ${windowFree === 1 ? 'seat' : 'seats'} left` : `${windowFree} seats open`) : ''}
+                </span>
+              </p>
+              <button
+                type="button"
+                onClick={reserve}
+                disabled={busy}
+                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[18px] font-extrabold text-white shadow-[0_6px_18px_-6px_var(--primary)] transition-transform active:scale-[0.98] hover:bg-primary-dark disabled:opacity-60"
+              >
+                {busy ? 'Opening payment…' : 'Reserve now'}
+              </button>
+              <p className="mt-1.5 text-center text-[11px] text-text-secondary">
+                {rupees(payNow)} of your {rupees(total)} locks it · the rest at the café · no card needed to look
+              </p>
+            </>
+          ) : ended ? (
+            <Link href={`/cafe/${drop.cafe.slug || drop.cafe.id}`} className="flex h-14 w-full items-center justify-center rounded-2xl bg-primary text-[17px] font-bold text-white">
+              Book a slot at {drop.cafe.name}
+            </Link>
           ) : (
             <WhatsAppButton text={shareText} url={pageUrl} label="Share with friends on WhatsApp" onShare={(c) => onShare(c, 'sticky')} />
           )}
@@ -704,6 +752,20 @@ function Confirmation({
         </div>
       </div>
     </section>
+  );
+}
+
+function Countdown({ to }: { to: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const left = Math.max(0, Math.floor((new Date(to).getTime() - now) / 1000));
+  return (
+    <span className="font-mono text-error" aria-live="off">
+      {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')} left
+    </span>
   );
 }
 
