@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -10,6 +10,7 @@ import {
   Compass,
   CalendarDays,
   UserCircle,
+  Users,
   Bell,
   type LucideIcon,
 } from 'lucide-react';
@@ -22,6 +23,8 @@ import { CampaignBadgeClaimer } from '@/components/customer/CampaignBadgeClaimer
 import { ChallengePopup } from '@/components/customer/ChallengePopup';
 import { useChallengeNudge } from '@/lib/challengeNudge';
 import { apiClient } from '@/lib/api/client';
+import { getThisWeek } from '@/lib/api/community';
+import { SEEN_POST_KEY } from '@/lib/communityJoin';
 
 interface NavItem {
   label: string;
@@ -34,6 +37,7 @@ const customerNavItems: NavItem[] = [
   { label: 'Home', href: '/', icon: Home, matchPrefix: false },
   { label: 'Explore', href: '/browse', icon: Compass, matchPrefix: true },
   { label: 'Bookings', href: '/bookings', icon: CalendarDays, matchPrefix: true },
+  { label: 'Community', href: '/community', icon: Users, matchPrefix: true },
   { label: 'Me', href: '/profile', icon: UserCircle, matchPrefix: false },
 ];
 
@@ -47,6 +51,25 @@ function useProfileNav() {
     showNew,
     href: (item: NavItem) => (item.href === '/profile' && showNew && !isAuthenticated ? '/my-challenges' : item.href),
   };
+}
+
+/** Red dot on Community while this week's post has not been opened on this phone. */
+function useCommunityDot(): boolean {
+  const { data } = useQuery({ queryKey: ['community-week'], queryFn: getThisWeek, staleTime: 300_000, retry: false });
+  const [seen, setSeen] = useState<string | null | undefined>(undefined);
+  const pathname = usePathname();
+  useEffect(() => {
+    try {
+      setSeen(localStorage.getItem(SEEN_POST_KEY));
+    } catch {
+      setSeen(null);
+    }
+  }, [pathname]);
+  return Boolean(data?.post && seen !== undefined && seen !== data.post.id && pathname !== '/community');
+}
+
+function Dot({ className }: { className?: string }) {
+  return <span aria-label="New post" className={cn('h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card', className)} />;
 }
 
 function NewTag({ className }: { className?: string }) {
@@ -63,6 +86,7 @@ function CustomerHeader() {
   const prefetch = usePageLoaded() ? undefined : false;
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const communityDot = useCommunityDot();
 
   const { data: unreadData } = useQuery<{ unreadCount: number }>({
     queryKey: ['unread-count'],
@@ -127,6 +151,7 @@ function CustomerHeader() {
               >
                 {item.label}
                 {item.href === '/profile' && profileNav.showNew && <NewTag className="absolute -right-1 -top-1" />}
+                {item.href === '/community' && communityDot && <Dot className="absolute right-1 top-1" />}
                 {isActive && (
                   <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-4 rounded-full bg-primary" />
                 )}
@@ -175,6 +200,7 @@ function CustomerBottomNav() {
   const pathname = usePathname();
   const prefetch = usePageLoaded() ? undefined : false;
   const profileNav = useProfileNav();
+  const communityDot = useCommunityDot();
 
   return (
     <nav
@@ -210,6 +236,7 @@ function CustomerBottomNav() {
               <item.icon className="h-5 w-5" />
             </span>
             {item.href === '/profile' && profileNav.showNew && <NewTag className="absolute right-1 top-0" />}
+            {item.href === '/community' && communityDot && <Dot className="absolute right-3 top-0.5" />}
             <span className="text-badge">{item.label}</span>
           </Link>
         );

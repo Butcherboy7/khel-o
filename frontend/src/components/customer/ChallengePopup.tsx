@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CalendarDays, MapPin, MessageCircle, Swords, Users, X } from 'lucide-react';
 import { trackAction } from '@/lib/api/analyticsEvents';
+import { recordJoin } from '@/lib/communityJoin';
 import { COMMUNITY_URL, challengeDay, challengeTimeRange, openToAll, startsInWords } from '@/lib/challenge';
 import { markChallengeSeen, useChallengeNudge, writeNudge } from '@/lib/challengeNudge';
 
@@ -204,7 +205,7 @@ export function ChallengePopup() {
             href={COMMUNITY_URL}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => trackAction('community_join_tap', { where: 'popup' })}
+            onClick={() => recordJoin('popup')}
             className="flex min-h-[48px] items-center justify-center gap-2 rounded-2xl border border-[#3B6B4A] text-sm font-semibold text-[#7FE0A0] hover:bg-[#13221A]"
           >
             <MessageCircle className="h-4 w-4" aria-hidden /> Join our WhatsApp Community

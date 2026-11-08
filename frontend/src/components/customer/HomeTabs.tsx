@@ -7,7 +7,8 @@ import { ArrowRight, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { listDrops, type DropListItem } from '@/lib/api/drops';
 import { getChallenge, type Challenge } from '@/lib/api/challenges';
-import { getThisWeek, markJoined } from '@/lib/api/community';
+import { recordJoin } from '@/lib/communityJoin';
+import { getThisWeek } from '@/lib/api/community';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll } from '@/lib/challenge';
 import { useAuthStore } from '@/store/authStore';
@@ -220,13 +221,7 @@ export function CommunityPanel() {
   const poll = data?.poll;
   const top = poll ? [...poll.options].sort((a, b) => b.votes - a.votes)[0] : null;
   const onJoin = () => {
-    trackAction('community_join_tap', { where: 'home_tab' });
-    if (isAuthenticated) markJoined().catch(() => undefined);
-    try {
-      localStorage.setItem('khelo_community_tapped', '1');
-    } catch {
-      /* ignore */
-    }
+    recordJoin('home_tab');
   };
   return (
     <div className="grid gap-3 md:grid-cols-2">

@@ -1,25 +1,50 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { trackAction } from '@/lib/api/analyticsEvents';
+import { joinedHere, recordJoin, suggestedHere, votedHere } from '@/lib/communityJoin';
 import { getThisWeek } from '@/lib/api/community';
 import { COMMUNITY_URL } from '@/lib/challenge';
 import { cn } from '@/lib/cn';
 
-/** "Join the WhatsApp Community" card: hear about every challenge first. */
+/** One next step after a win. Not in the group yet: the invite. In it: the first thing still undone
+ *  (vote, suggest a café), else nothing. Same card on every confirmation screen. */
 export function CommunityInviteCard({ where }: { where: string }) {
   // The real member count, only once it is big enough to mean something.
-  const { data } = useQuery({ queryKey: ['community', 'this-week'], queryFn: getThisWeek, staleTime: 120_000, retry: false });
+  const { data } = useQuery({ queryKey: ['community-week'], queryFn: getThisWeek, staleTime: 120_000, retry: false });
   const members = data?.members ?? 0;
+  const [step, setStep] = useState<'join' | 'vote' | 'suggest' | 'done' | null>(null);
+  useEffect(() => {
+    setStep(!joinedHere() ? 'join' : !votedHere() && data?.poll && !data.poll.closed ? 'vote' : !suggestedHere() ? 'suggest' : 'done');
+  }, [data?.poll]);
+  if (step === null || step === 'done') return null;
+  if (step !== 'join') {
+    const vote = step === 'vote';
+    return (
+      <Link
+        href={vote ? '/community#vote' : '/community#photos'}
+        onClick={() => trackAction('community_next_step_tap', { where, step })}
+        className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-text-primary transition-colors hover:border-primary/50"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-error">Your next step</span>
+          <span className="block font-heading text-body-emphasis font-bold">{vote ? 'Help pick the next challenge' : 'Know a café we are missing?'}</span>
+          <span className="block text-caption text-text-secondary">{vote ? 'One tap. Your vote counts.' : 'Tell us the name. We reach out to the owner.'}</span>
+        </span>
+        <ArrowRight className="h-4 w-4 flex-shrink-0 text-text-secondary" aria-hidden />
+      </Link>
+    );
+  }
   return (
     <a
       href={COMMUNITY_URL}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={() => trackAction('community_join_tap', { where })}
+      onClick={() => recordJoin(where)}
       className="flex items-center gap-3 rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-4 text-[#F4F1EC] transition-colors hover:border-[#7FE0A0]"
     >
       <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#25D366] text-[#0B1F12]">
@@ -42,7 +67,7 @@ export function CommunityButton({ where, className }: { where: string; className
       href={COMMUNITY_URL}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={() => trackAction('community_join_tap', { where })}
+      onClick={() => recordJoin(where)}
       className={cn(
         'inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#25D366] px-4 text-caption font-bold text-[#0B1F12] transition-colors hover:bg-[#2EE073]',
         className,

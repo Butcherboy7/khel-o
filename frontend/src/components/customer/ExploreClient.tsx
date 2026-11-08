@@ -17,6 +17,7 @@ import { SUPPORTED_CITIES } from '@/constants/cities';
 import { SocialLinks } from '@/components/layout/SocialLinks';
 import { CommunityButton } from '@/components/customer/CommunityInvite';
 import { useAuthStore } from '@/store/authStore';
+import { recordJoin } from '@/lib/communityJoin';
 import { COMMUNITY_URL } from '@/lib/challenge';
 import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
@@ -600,7 +601,7 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
             href={COMMUNITY_URL}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => trackAction('community_join_tap', { where: 'home_pill' })}
+            onClick={() => recordJoin('home_pill')}
             className="mb-1.5 hidden flex-none items-center gap-2 rounded-full border border-border bg-card py-1 pl-3 pr-1 text-caption font-bold text-text-primary md:inline-flex"
           >
             {weekData && weekData.members >= 10 ? `${weekData.members} gamers in the community` : 'Join the community'}

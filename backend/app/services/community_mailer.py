@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.models.community import CommunityLead
 from app.models.user import User
 
 logger = structlog.get_logger()
@@ -35,11 +36,12 @@ def unsubscribe_token(user_id: uuid.UUID) -> str:
     return hmac.new(settings.SECRET_KEY.encode(), f"community-unsub:{user_id}".encode(), hashlib.sha256).hexdigest()[:32]
 
 
-def unsubscribe_url(user_id: uuid.UUID) -> str:
-    return f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/community/unsubscribe?u={user_id}&t={unsubscribe_token(user_id)}"
+def unsubscribe_url(user_id: uuid.UUID, lead: bool = False) -> str:
+    extra = "&k=lead" if lead else ""
+    return f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/community/unsubscribe?u={user_id}&t={unsubscribe_token(user_id)}{extra}"
 
 
-def email_html(first_name: str | None, user_id: uuid.UUID) -> str:
+def email_html(first_name: str | None, user_id: uuid.UUID, lead: bool = False) -> str:
     from app.services.notification_service import _email_button, _email_wrapper
 
     front = settings.FRONTEND_URL.rstrip("/")
@@ -61,8 +63,8 @@ def email_html(first_name: str | None, user_id: uuid.UUID) -> str:
         </div>
         <div style="margin:22px 0 8px">{_email_button(f"{front}/community", "Join the community")}</div>
         <p style="margin:24px 0 0;font-size:12px;color:#8A8F9C">
-          You get this because you have a KHEL-O account.
-          <a href="{unsubscribe_url(user_id)}" style="color:#8A8F9C">Unsubscribe in one tap</a>
+          You get this because {"you asked for KHEL-O updates" if lead else "you have a KHEL-O account"}.
+          <a href="{unsubscribe_url(user_id, lead)}" style="color:#8A8F9C">Unsubscribe in one tap</a>
         </p>
     """)
 
@@ -80,6 +82,23 @@ async def recipients(db: AsyncSession) -> list[User]:
             continue
         seen.add(email)
         out.append(u)
+    return out
+
+
+async def lead_recipients(db: AsyncSession) -> list[CommunityLead]:
+    """People who left an email and ticked the box for promotions, once each, not already an account."""
+    accounts = {(u.email or "").strip().lower() for u in await recipients(db)}
+    rows = (await db.execute(
+        select(CommunityLead).where(CommunityLead.marketing_ok.is_(True), CommunityLead.unsubscribed.is_(False),
+                                    CommunityLead.email.is_not(None))
+    )).scalars().all()
+    seen, out = set(), []
+    for ld in rows:
+        email = (ld.email or "").strip().lower()
+        if not email or email.endswith(_PLACEHOLDER_DOMAINS) or email in seen or email in accounts:
+            continue
+        seen.add(email)
+        out.append(ld)
     return out
 
 
@@ -113,13 +132,25 @@ async def send_all(db: AsyncSession) -> int:
         if await NotificationService()._send_resend_email(u.email, SUBJECT, body, "community-email"):
             sent += 1
         await asyncio.sleep(_GAP)
+    for ld in await lead_recipients(db):
+        body = email_html(None, ld.id, lead=True)
+        if await NotificationService()._send_resend_email(ld.email, SUBJECT, body, "community-email"):
+            sent += 1
+        await asyncio.sleep(_GAP)
     logger.info("community_email_sent", emails=sent)
     return sent
 
 
-async def unsubscribe(db: AsyncSession, user_id: uuid.UUID, token: str) -> bool:
+async def unsubscribe(db: AsyncSession, user_id: uuid.UUID, token: str, lead: bool = False) -> bool:
     if not hmac.compare_digest(token, unsubscribe_token(user_id)):
         return False
+    if lead:
+        row = await db.get(CommunityLead, user_id)
+        if row is None:
+            return False
+        row.unsubscribed = True
+        await db.commit()
+        return True
     user = await db.get(User, user_id)
     if user is None:
         return False

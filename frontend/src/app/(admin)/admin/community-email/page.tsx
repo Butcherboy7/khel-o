@@ -45,14 +45,14 @@ export default function AdminCommunityEmailPage() {
       <div>
         <h1 className="flex items-center gap-2 font-heading text-h2 font-bold text-text-primary"><Mail className="h-6 w-6" /> Community email</h1>
         <p className="mt-1 text-body text-text-secondary">
-          One email to everyone with a KHEL-O account: what the community gets first, and a button into it. Send a test to yourself first. It has a one-tap unsubscribe.
+          One email to everyone with a KHEL-O account, plus people who left their email on the Community page and ticked the promotions box: what the community gets first, and a button into it. Send a test to yourself first. It has a one-tap unsubscribe.
         </p>
       </div>
 
       <Card elevation="raised">
         <CardContent className="flex flex-col gap-3 p-4">
           <p className="text-body text-text-primary">Subject: <b>{data.subject}</b></p>
-          <p className="text-body text-text-primary">Would go to <b>{data.recipients}</b> people (real addresses, once each, not unsubscribed).</p>
+          <p className="text-body text-text-primary">Would go to <b>{data.recipients}</b> people ({data.accounts ?? 0} accounts + {data.leads ?? 0} who left their email; real addresses, once each, not unsubscribed).</p>
           <iframe title="Email preview" srcDoc={data.html} className="h-[520px] w-full rounded-xl border border-border bg-white" />
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button onClick={() => run(true)} disabled={busy !== null} variant="secondary" fullWidth className="sm:w-auto">

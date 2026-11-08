@@ -34,11 +34,16 @@ class CommunityPoll(Base):
 
 class CommunityPollVote(Base):
     __tablename__ = "community_poll_votes"
-    __table_args__ = (UniqueConstraint("poll_id", "user_id", name="uq_poll_vote_user"),)
+    __table_args__ = (
+        UniqueConstraint("poll_id", "user_id", name="uq_poll_vote_user"),
+        UniqueConstraint("poll_id", "device_id", name="uq_poll_vote_device"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     poll_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("community_polls.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    # A vote comes from a signed-in person or, with no login, from one phone (device_id).
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     option_index: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
@@ -59,5 +64,58 @@ class CommunityContribution(Base):
     title: Mapped[str] = mapped_column(String(120), nullable=False)  # café name, or event the photos are from
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)  # area + why, or a photo link
     show_name: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)  # credit on the wall
+    # Sent without an account: who to thank and reach.
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    submitter_name: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    contact: Mapped[str | None] = mapped_column(String(160), nullable=True)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="new")  # new | approved | declined
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class CommunityJoin(Base):
+    """One phone that tapped Join (which opens the WhatsApp group). We cannot see
+    inside WhatsApp, so this is "tapped Join", counted once per phone."""
+    __tablename__ = "community_joins"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    device_id: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    source: Mapped[str | None] = mapped_column(String(60), nullable=True, index=True)  # ad / campaign slug
+    in_app: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class CommunityLead(Base):
+    """An email and/or phone someone chose to leave, and whether we may send promotions."""
+    __tablename__ = "community_leads"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    email: Mapped[str | None] = mapped_column(String(254), nullable=True, index=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    source: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    marketing_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    unsubscribed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class CommunityPost(Base):
+    """The one thing the team types each week."""
+    __tablename__ = "community_posts"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    headline: Mapped[str] = mapped_column(String(120), nullable=False)
+    line: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    button_label: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    button_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False, index=True)
+
+
+class CommunityGroupSize(Base):
+    """The WhatsApp group size, typed in by an admin (websites cannot read it)."""
+    __tablename__ = "community_group_sizes"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

@@ -629,6 +629,8 @@ export async function issueOwnerLogin(cafeId: string, reason: string): Promise<{
 export interface CommunityEmailPreview {
   subject: string;
   recipients: number;
+  accounts?: number;
+  leads?: number;
   testedRecently: boolean;
   html: string;
 }
@@ -644,12 +646,62 @@ export async function sendCommunityEmail(body: { test: boolean; confirmCount?: n
 
 // ------------------------------------------------------------ community + drops (admin)
 
+export interface CommunityFunnelRow {
+  source: string;
+  inApp: number;
+  community_landed: number;
+  community_join_tap: number;
+  community_poll_vote: number;
+  community_contribution: number;
+  community_lead: number;
+}
+
 export interface CommunityOverview {
   members: number;
   joinedThisWeek: number;
   contributionsNew: number;
+  leads: number;
+  promoOk: number;
+  funnel: CommunityFunnelRow[];
+  post: { headline: string; line: string | null; createdAt: string } | null;
+  postIsStale: boolean;
+  groupSize: { size: number; at: string } | null;
   poll: { question: string; closesAt: string | null; membersCode: string | null; options: { label: string; votes: number }[]; total: number } | null;
-  recent: { name: string | null; email: string | null; phone: string | null; joinedAt: string }[];
+  recent: { name: string | null; email: string | null; phone: string | null; joinedAt: string; source: string | null; inApp: boolean }[];
+}
+
+export interface CommunityPerson {
+  kind: 'account' | 'lead';
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  source: string | null;
+  promoOk: boolean;
+  at: string;
+}
+
+export async function getCommunityPeople(): Promise<CommunityPerson[]> {
+  return call(() => apiClient.get('/api/v1/admin/community/people'));
+}
+
+export async function downloadCommunityPeopleCsv(): Promise<void> {
+  const res = await apiClient.get('/api/v1/admin/community/people.csv', { responseType: 'blob' });
+  const href = URL.createObjectURL(res.data as Blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = 'community-people.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(href);
+}
+
+export async function publishCommunityPost(body: { headline: string; line?: string; imageUrl?: string; buttonLabel?: string; buttonUrl?: string }): Promise<{ ok: boolean }> {
+  return call(() => apiClient.post('/api/v1/admin/community/post', body));
+}
+
+export async function setCommunityGroupSize(size: number): Promise<{ ok: boolean }> {
+  return call(() => apiClient.post('/api/v1/admin/community/group-size', { size }));
 }
 
 export interface CommunityContributionRow {
@@ -663,6 +715,7 @@ export interface CommunityContributionRow {
   name: string | null;
   email: string | null;
   phone: string | null;
+  contact: string | null;
 }
 
 export async function getCommunityOverview(): Promise<CommunityOverview> {

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { CommunityClient } from './CommunityClient';
+import { CommunityPage } from './CommunityPage';
 
 export const metadata: Metadata = {
   title: 'KHEL-O Community on WhatsApp',
@@ -14,6 +14,6 @@ export const metadata: Metadata = {
   },
 };
 
-export default function CommunityPage() {
-  return <CommunityClient />;
+export default function Page() {
+  return <CommunityPage />;
 }
