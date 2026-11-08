@@ -46,8 +46,6 @@ export default function OwnerDropsPage() {
         }
       />
 
-      {!creating && <DropHowItWorks />}
-
       {creating && data && (
         <NewDropForm
           list={data}
@@ -100,6 +98,7 @@ export default function OwnerDropsPage() {
           </Card>
         );
       })}
+      {!creating && <DropHowItWorks />}
     </div>
   );
 }

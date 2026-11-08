@@ -178,7 +178,7 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
             instead of stretching to the flex parent's width, leaving a wide
             blank strip beside the photo in production. */}
         <CardImage
-          aspectClass="aspect-[2/1] sm:aspect-[16/9]"
+          aspectClass="aspect-[5/2] sm:aspect-[16/9]"
           className="relative w-full flex-shrink-0"
           // The photo's own main colour while it loads (from the API), so
           // the card is coloured from the first frame instead of grey.
