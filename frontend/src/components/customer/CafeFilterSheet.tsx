@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { BottomSheet, Button } from '@/components/ui';
 import { normalizeAmenityKey } from '@/lib/amenities';
+import { ActivityIcon } from '@/components/icons/PlatformIcons';
 import type { CafeListItem } from '@/types';
 
 export type OpenStatusFilter = 'any' | 'open_now' | 'opening_soon';
@@ -113,6 +114,13 @@ interface CafeFilterSheetProps {
       to guarantee an empty result. */
   showPrice?: boolean;
   onClearAll: () => void;
+  /** "What are you playing?": PC, console, snooker... from the city's real list. */
+  activities?: { key: string; label: string }[];
+  activity?: string | null;
+  onActivityChange?: (key: string | null) => void;
+  styleOptions?: { key: string; label: string }[];
+  style?: string | null;
+  onStyleChange?: (key: string | null) => void;
 }
 
 /** The "Filters" bottom sheet — open now, sort, price, distance
@@ -140,6 +148,12 @@ export function CafeFilterSheet({
   hasAdvancedFilters,
   showPrice = true,
   onClearAll,
+  activities = [],
+  activity = null,
+  onActivityChange,
+  styleOptions = [],
+  style = null,
+  onStyleChange,
 }: CafeFilterSheetProps) {
   const toggleAmenity = (id: string) => {
     onAmenitiesChange(
@@ -184,6 +198,42 @@ export function CafeFilterSheet({
             </button>
           )}
         </div>
+
+        {/* What are you playing? First, because it is the filter most people
+            came for (it used to be a chip row on the home page). */}
+        {activities.length > 1 && onActivityChange && (
+          <div className="flex flex-col gap-2.5">
+            <SectionLabel>What are you playing?</SectionLabel>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Activity">
+              {[{ key: null, label: 'All' } as { key: string | null; label: string }, ...activities].map(({ key, label }) => {
+                const on = activity === key;
+                return (
+                  <button
+                    key={key ?? 'all'}
+                    type="button"
+                    onClick={() => onActivityChange(key)}
+                    aria-pressed={on}
+                    className={`flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-2xl border-2 px-1.5 py-2 text-center text-caption font-semibold transition-colors ${
+                      on ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-border bg-card text-text-primary hover:bg-surface'
+                    }`}
+                  >
+                    {key ? <ActivityIcon activity={key} className="h-6 w-6" /> : <span className="text-lg font-bold leading-6" aria-hidden>✦</span>}
+                    <span className="leading-tight">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {activity && styleOptions.length > 0 && onStyleChange && (
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Type">
+                {[{ key: null, label: 'Any type' } as { key: string | null; label: string }, ...styleOptions].map(({ key, label }) => (
+                  <ChipButton key={key ?? 'any'} isSelected={style === key} onClick={() => onStyleChange(key)}>
+                    {label}
+                  </ChipButton>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Open now — first, because "can I go right now?" is the question
             most people open the filters to answer. */}

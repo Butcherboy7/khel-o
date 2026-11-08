@@ -400,13 +400,15 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
     setOpenStatus('any');
     setPriceRange([PRICE_MIN, PRICE_MAX]);
     setSelectedAmenities([]);
+    setActivity(null);
   };
 
   const advancedFilterCount =
     (distance !== 'any' ? 1 : 0) +
     (openStatus === 'open_now' ? 1 : 0) +
     (minPrice !== undefined || maxPrice !== undefined ? 1 : 0) +
-    selectedAmenities.length;
+    selectedAmenities.length +
+    (activity ? 1 : 0);
 
   const cityDropdownPanel = showCityDropdown && (
     <div className="absolute top-10 left-0 z-50 w-52 rounded-2xl bg-card border border-border/80 shadow-overlay p-2 flex flex-col gap-1 animate-in fade-in">
@@ -481,6 +483,12 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
       onPriceRangeChange={setPriceRange}
       selectedAmenities={selectedAmenities}
       onAmenitiesChange={setSelectedAmenities}
+      activities={activities}
+      activity={activity}
+      onActivityChange={setActivity}
+      styleOptions={styleOptions}
+      style={style}
+      onStyleChange={setStyle}
       resultCount={sortedCafes.length}
       hasAdvancedFilters={advancedFilterCount > 0}
       showPrice={facets.price}
