@@ -18,7 +18,7 @@ export default function SupportPage() {
   if (isAuthenticated) return <SupportView />;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-5 px-4 pb-12 pt-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-5 px-4 pb-12 pt-6">
       <div className="flex flex-col gap-1">
         <h1 className="flex items-center gap-2 font-heading text-h1 text-text-primary">
           <LifeBuoy className="h-5 w-5 text-primary" aria-hidden />

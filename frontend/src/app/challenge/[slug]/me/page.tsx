@@ -498,12 +498,12 @@ function Rewards({ rewards, slug }: { rewards: MyReward[]; slug: string }) {
 function Page({ slug, children }: { slug: string; children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#0E0F13] text-[#F4F1EC]">
-      <header className="mx-auto flex max-w-xl items-center gap-2 px-4 pt-4">
+      <header className="mx-auto flex max-w-xl md:max-w-3xl items-center gap-2 px-4 pt-4">
         <Link href={`/challenge/${slug}`} className="flex items-center gap-1 text-sm font-semibold text-[#A3A6B1] hover:text-[#F4F1EC]">
           <ChevronLeft className="h-4 w-4" /> Challenge
         </Link>
       </header>
-      <main className="mx-auto max-w-xl px-4 pb-16 pt-5">{children}</main>
+      <main className="mx-auto max-w-xl md:max-w-3xl px-4 pb-16 pt-5">{children}</main>
     </div>
   );
 }

@@ -189,7 +189,7 @@ export default function BookingDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-6 max-w-md mx-auto py-8">
+      <div className="flex flex-col gap-6 max-w-md md:max-w-2xl mx-auto py-8">
         <Skeleton className="h-8 w-32 rounded-xl" />
         <Skeleton className="h-96 w-full rounded-3xl" />
       </div>
@@ -252,7 +252,7 @@ export default function BookingDetailPage() {
   const qrCodeSrc = getQrSrc();
 
   return (
-    <div className="flex flex-col gap-6 max-w-md mx-auto pb-16">
+    <div className="flex flex-col gap-6 max-w-md md:max-w-2xl mx-auto pb-16">
       {/* Top Action Bar */}
       <div className="flex items-center justify-between">
         <Link href="/bookings">

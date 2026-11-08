@@ -166,7 +166,7 @@ export default function CampaignLandingPage() {
 
   if (!viewPrices || page.isLoading) {
     return (
-      <div className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-6">
+      <div className="mx-auto flex max-w-xl md:max-w-2xl flex-col gap-4 px-4 py-6">
         <Skeleton className="h-56 rounded-3xl" />
         <Skeleton className="h-64 rounded-3xl" />
       </div>
@@ -194,7 +194,7 @@ export default function CampaignLandingPage() {
   const shares = claim.data?.shares;
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-5 px-4 pb-8 pt-4">
+    <div className="mx-auto flex max-w-xl md:max-w-2xl flex-col gap-5 px-4 pb-8 pt-4">
       <section
         aria-label={campaign.name}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-secondary via-secondary to-[#2B2D42] p-5 text-white"

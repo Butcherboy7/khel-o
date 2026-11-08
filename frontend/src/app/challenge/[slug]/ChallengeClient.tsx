@@ -419,7 +419,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
       {/* Sticky action: the player's status, the closed message, or (once the hero button is out of sight) the sign-up button */}
       {(active || !open || heroGone) && (
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#262932] bg-[#0E0F13]/95 px-4 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 backdrop-blur">
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-xl md:max-w-3xl">
           {active ? (
             <button
               type="button"
@@ -461,12 +461,12 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#0A0809] text-[#F4F1EC] selection:bg-[#D0463C] selection:text-white">
-      <header className="mx-auto flex max-w-xl items-center justify-between px-4 pt-4">
+      <header className="mx-auto flex max-w-xl md:max-w-3xl items-center justify-between px-4 pt-4">
         <Link href="/" aria-label="Back to the KHEL-O home page" className="relative z-10 inline-flex h-11 items-center gap-1.5 rounded-full border border-white/20 bg-black/60 pl-3 pr-4 text-sm font-semibold text-[#F4F1EC] backdrop-blur hover:bg-black/80">
           <ArrowLeft className="h-4 w-4" aria-hidden /> Home
         </Link>
       </header>
-      <main className="mx-auto max-w-xl px-4 pb-32 pt-6">{children}</main>
+      <main className="mx-auto max-w-xl md:max-w-3xl px-4 pb-32 pt-6">{children}</main>
     </div>
   );
 }

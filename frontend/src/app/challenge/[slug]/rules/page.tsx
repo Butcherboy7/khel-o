@@ -59,7 +59,7 @@ export default async function ChallengeRulesPage({ params, searchParams }: PageP
 
   return (
     <div className="min-h-screen bg-[#0E0F13] text-[#F4F1EC]">
-      <main className="mx-auto max-w-xl px-4 pb-16 pt-6">
+      <main className="mx-auto max-w-xl md:max-w-3xl px-4 pb-16 pt-6">
         <Link href={`/challenge/${ch.slug}`} className="text-sm font-semibold text-[#A3A6B1] hover:text-[#F4F1EC]">
           ← {ch.title}
         </Link>

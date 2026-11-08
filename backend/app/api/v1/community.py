@@ -183,14 +183,48 @@ async def set_poll(payload: PollRequest, db: AsyncSession = Depends(get_db), adm
 @admin_router.get("/contributions")
 async def list_contributions(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
     rows = (await db.execute(
-        select(CommunityContribution, User.full_name, User.email)
+        select(CommunityContribution, User.full_name, User.email, User.phone_number)
         .outerjoin(User, User.id == CommunityContribution.user_id)
         .order_by(CommunityContribution.created_at.desc()).limit(200)
     )).all()
     return {"success": True, "data": [{
         "id": str(c.id), "kind": c.kind, "title": c.title, "detail": c.detail, "showName": c.show_name,
-        "status": c.status, "createdAt": c.created_at.isoformat(), "name": name, "email": email,
-    } for c, name, email in rows]}
+        "status": c.status, "createdAt": c.created_at.isoformat(), "name": name, "email": email, "phone": phone,
+    } for c, name, email, phone in rows]}
+
+
+@admin_router.get("/overview")
+async def community_overview(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    """What the community has done: who tapped Join, the live poll's votes, what people sent in."""
+    members = (await db.execute(select(func.count()).select_from(CommunityMember))).scalar_one()
+    week = (await db.execute(
+        select(func.count()).select_from(CommunityMember).where(CommunityMember.joined_at >= _now() - timedelta(days=7))
+    )).scalar_one()
+    recent = (await db.execute(
+        select(User.full_name, User.email, User.phone_number, CommunityMember.joined_at)
+        .join(User, User.id == CommunityMember.user_id).order_by(CommunityMember.joined_at.desc()).limit(25)
+    )).all()
+    poll = await _active_poll(db)
+    poll_out = None
+    if poll is not None:
+        counts = dict((await db.execute(
+            select(CommunityPollVote.option_index, func.count()).where(CommunityPollVote.poll_id == poll.id)
+            .group_by(CommunityPollVote.option_index)
+        )).all())
+        poll_out = {
+            "question": poll.question, "closesAt": poll.closes_at.isoformat() if poll.closes_at else None,
+            "membersCode": poll.members_code,
+            "options": [{"label": o, "votes": counts.get(i, 0)} for i, o in enumerate(poll.options)],
+            "total": sum(counts.values()),
+        }
+    by_status = dict((await db.execute(
+        select(CommunityContribution.status, func.count()).group_by(CommunityContribution.status)
+    )).all())
+    return {"success": True, "data": {
+        "members": members, "joinedThisWeek": week, "poll": poll_out,
+        "contributionsNew": by_status.get("new", 0),
+        "recent": [{"name": n, "email": e, "phone": ph, "joinedAt": j.isoformat()} for n, e, ph, j in recent],
+    }}
 
 
 class ContributionStatus(_Camel):

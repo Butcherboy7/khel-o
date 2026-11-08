@@ -19,7 +19,7 @@ from pydantic.alias_generators import to_camel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_active_user, get_optional_user, get_user_roles
+from app.api.deps import get_current_active_user, get_optional_user, get_user_roles, require_admin
 from app.config import settings
 from app.core.exceptions import ForbiddenException, NotFoundException
 from app.database import get_db
@@ -691,3 +691,39 @@ async def give_away(reservation_id: UUID, db: AsyncSession = Depends(get_db), us
     drop = await db.get(Drop, res.drop_id)
     block = await db.get(DropBlock, res.block_id)
     return {"success": True, "data": _reservation_out(drop, res, block)}
+
+
+# ---------------------------------------------------------------- admin
+
+admin_router = APIRouter(prefix="/admin/drops", tags=["Admin Drops"])
+
+
+@admin_router.get("")
+async def admin_drops(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    """Every drop with how it is doing: paid seats, money taken, waitlist."""
+    drops = (await db.execute(
+        select(Drop, Cafe.name).join(Cafe, Cafe.id == Drop.cafe_id).order_by(Drop.created_at.desc())
+    )).all()
+    paid = {r[0]: r for r in (await db.execute(
+        select(DropReservation.drop_id, func.count(), func.coalesce(func.sum(DropReservation.seats), 0),
+               func.coalesce(func.sum(DropReservation.deposit_amount), 0))
+        .where(DropReservation.paid_at.is_not(None), DropReservation.refunded_at.is_(None))
+        .group_by(DropReservation.drop_id)
+    )).all()}
+    refunded = dict((await db.execute(
+        select(DropReservation.drop_id, func.count()).where(DropReservation.refunded_at.is_not(None))
+        .group_by(DropReservation.drop_id)
+    )).all())
+    waiting = dict((await db.execute(select(DropWaitlist.drop_id, func.count()).group_by(DropWaitlist.drop_id))).all())
+    out = []
+    for d, cafe_name in drops:
+        p = paid.get(d.id)
+        out.append({
+            "id": str(d.id), "slug": d.slug, "title": d.title, "game": d.game, "cafe": cafe_name, "status": d.status,
+            "startsOn": d.starts_on.isoformat() if d.starts_on else None,
+            "endsOn": d.ends_on.isoformat() if d.ends_on else None,
+            "reservations": p[1] if p else 0, "seats": int(p[2]) if p else 0,
+            "feesTaken": float(p[3]) if p else 0.0,
+            "refunded": refunded.get(d.id, 0), "waitlist": waiting.get(d.id, 0),
+        })
+    return {"success": True, "data": out}

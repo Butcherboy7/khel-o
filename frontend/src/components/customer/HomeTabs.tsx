@@ -154,15 +154,22 @@ export function DropsPanel() {
 function ChallengeCard({ c }: { c: Challenge }) {
   const upcoming = isUpcoming(c);
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 shadow-card">
-      <p className={cn('text-[10.5px] font-extrabold uppercase tracking-wider', upcoming ? 'text-error' : 'text-text-secondary')}>
-        {upcoming ? 'Next challenge' : 'Last challenge'}
-      </p>
-      <h3 className="font-heading text-h3 font-bold text-text-primary">{c.title}</h3>
-      <p className="text-caption text-text-secondary">
-        {c.cafe.name} · {challengeDay(c.startsAt)} · {upcoming ? (openToAll(c.capacity) ? 'Free to play' : `${c.spotsLeft} of ${c.capacity} spots left`) : `${c.confirmed} players`}
-      </p>
-      <div className="mt-1 flex flex-wrap gap-2">
+    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+      <Link href={`/challenge/${c.slug}`} className="relative block aspect-[16/10] overflow-hidden bg-[#0b0708]">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static photo from /public */}
+        <img src="/community/full-house.webp" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
+        <span className={cn('absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-wider', upcoming ? 'bg-error text-white' : 'bg-black/60 text-white backdrop-blur')}>
+          {upcoming ? 'Next challenge' : 'Last challenge'}
+        </span>
+        <span className="absolute inset-x-3 bottom-3 text-white">
+          <span className="block font-heading text-h3 font-bold leading-tight">{c.title}</span>
+          <span className="block text-caption text-white/80">
+            {c.cafe.name} · {challengeDay(c.startsAt)} · {upcoming ? (openToAll(c.capacity) ? 'Free to play' : `${c.spotsLeft} of ${c.capacity} spots left`) : `${c.confirmed} players`}
+          </span>
+        </span>
+      </Link>
+      <div className="flex flex-wrap gap-2 p-3">
         {upcoming ? (
           <Link
             href={`/challenge/${c.slug}?join=1`}
@@ -172,12 +179,12 @@ function ChallengeCard({ c }: { c: Challenge }) {
             Sign up to play <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         ) : (
-          <Link href="/community" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-caption font-bold text-white">
+          <Link href={`/challenge/${c.slug}`} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-caption font-bold text-white">
             See the photos and results <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         )}
-        <Link href={`/challenge/${c.slug}`} className="inline-flex min-h-[44px] items-center rounded-full border border-border px-4 text-caption font-bold text-text-primary">
-          Details
+        <Link href="/community" className="inline-flex min-h-[44px] items-center rounded-full border border-border px-4 text-caption font-bold text-text-primary">
+          Community
         </Link>
       </div>
     </div>
@@ -223,15 +230,18 @@ export function CommunityPanel() {
   };
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      <div className="flex flex-col gap-3 rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-4 text-[#F4F1EC]">
-        <p className="font-heading text-body-emphasis font-bold">The KHEL-O community</p>
-        <p className="text-caption text-[#C9CBD3]">New drops and challenges land here first. Free, leave any time.</p>
+      <div className="relative flex min-h-[260px] flex-col justify-end gap-3 overflow-hidden rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-4 text-[#F4F1EC]">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static photo from /public */}
+        <img src="/community/the-crowd.webp" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0b150f] via-[#0b150f]/60 to-transparent" />
+        <p className="relative font-heading text-h3 font-bold">The KHEL-O community</p>
+        <p className="relative text-caption text-[#E3E5EA]">New drops and challenges land here first. Free, leave any time.</p>
         <a
           href={COMMUNITY_URL}
           target="_blank"
           rel="noopener noreferrer"
           onClick={onJoin}
-          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 font-bold text-[#06210F]"
+          className="relative inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 font-bold text-[#06210F]"
         >
           <MessageCircle className="h-4 w-4" aria-hidden /> Join the WhatsApp group
         </a>

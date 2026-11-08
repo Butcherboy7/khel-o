@@ -640,3 +640,63 @@ export async function getCommunityEmail(): Promise<CommunityEmailPreview> {
 export async function sendCommunityEmail(body: { test: boolean; confirmCount?: number }): Promise<{ sent: number | boolean; test: boolean; delivered?: boolean; to?: string }> {
   return call(() => apiClient.post('/api/v1/admin/community/email', body));
 }
+
+
+// ------------------------------------------------------------ community + drops (admin)
+
+export interface CommunityOverview {
+  members: number;
+  joinedThisWeek: number;
+  contributionsNew: number;
+  poll: { question: string; closesAt: string | null; membersCode: string | null; options: { label: string; votes: number }[]; total: number } | null;
+  recent: { name: string | null; email: string | null; phone: string | null; joinedAt: string }[];
+}
+
+export interface CommunityContributionRow {
+  id: string;
+  kind: 'cafe' | 'photos';
+  title: string;
+  detail: string | null;
+  showName: boolean;
+  status: 'new' | 'approved' | 'declined';
+  createdAt: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+export async function getCommunityOverview(): Promise<CommunityOverview> {
+  return call(() => apiClient.get('/api/v1/admin/community/overview'));
+}
+
+export async function getCommunityContributions(): Promise<CommunityContributionRow[]> {
+  return call(() => apiClient.get('/api/v1/admin/community/contributions'));
+}
+
+export async function setContributionStatus(id: string, status: 'new' | 'approved' | 'declined'): Promise<{ ok: boolean }> {
+  return call(() => apiClient.patch(`/api/v1/admin/community/contributions/${id}`, { status }));
+}
+
+export async function startCommunityPoll(body: { question: string; options: string[]; membersCode?: string; membersCodeNote?: string }): Promise<{ ok: boolean }> {
+  return call(() => apiClient.put('/api/v1/admin/community/poll', body));
+}
+
+export interface AdminDropRow {
+  id: string;
+  slug: string;
+  title: string;
+  game: string;
+  cafe: string;
+  status: string;
+  startsOn: string | null;
+  endsOn: string | null;
+  reservations: number;
+  seats: number;
+  feesTaken: number;
+  refunded: number;
+  waitlist: number;
+}
+
+export async function getAdminDrops(): Promise<AdminDropRow[]> {
+  return call(() => apiClient.get('/api/v1/admin/drops'));
+}

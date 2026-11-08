@@ -52,7 +52,7 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
           <ArrowLeft className="h-4 w-4" aria-hidden /> Drop page
         </Link>
       </header>
-      <main className="mx-auto max-w-md px-4 pb-16 pt-6">
+      <main className="mx-auto max-w-md md:max-w-2xl px-4 pb-16 pt-6">
         {error && !pass && (
           <p className="flex items-center gap-2 rounded-2xl border border-error/30 bg-error/10 p-4 font-semibold">
             <ShieldAlert className="h-5 w-5 text-error" /> {error}

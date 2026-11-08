@@ -13,7 +13,7 @@ const WHY = [
  *  aren't on KHEL-O at all yet (lead cafés have it on their own page). */
 export default function KnowTheOwnerPage() {
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-6 pb-24">
+    <div className="mx-auto flex w-full max-w-lg md:max-w-2xl flex-col gap-6 pb-24">
       <div className="flex flex-col gap-2">
         <span className="text-[40px] leading-none" aria-hidden>👀</span>
         <h1 className="font-heading text-h1 text-text-primary">Know a gaming café owner?</h1>

@@ -53,12 +53,12 @@ export default async function ChampionPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-[#0E0F13] text-[#F4F1EC]">
-      <header className="mx-auto flex max-w-xl items-center gap-2 px-4 pt-4">
+      <header className="mx-auto flex max-w-xl md:max-w-3xl items-center gap-2 px-4 pt-4">
         <Link href={`/challenge/${slug}/bracket`} className="flex items-center gap-1 text-sm font-semibold text-[#A3A6B1] hover:text-[#F4F1EC]">
           <ChevronLeft className="h-4 w-4" /> Results
         </Link>
       </header>
-      <main className="mx-auto max-w-xl px-4 pb-16 pt-5 text-center">
+      <main className="mx-auto max-w-xl md:max-w-3xl px-4 pb-16 pt-5 text-center">
         <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#E8675D]">{ch.title} · Champion</p>
         {ch.championPhotoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- one photo, from our own storage
