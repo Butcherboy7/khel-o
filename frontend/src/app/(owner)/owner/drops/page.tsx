@@ -203,7 +203,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
   const field = 'h-11 rounded-lg border border-border bg-card px-2 text-body text-text-primary';
 
   return (
-    <Card elevation="raised">
+    <Card elevation="raised" data-tour="drops-new">
       <CardContent className="flex flex-col gap-6 p-4 sm:p-5">
         <h2 className="font-heading text-h3 font-bold text-text-primary">New launch drop</h2>
 
