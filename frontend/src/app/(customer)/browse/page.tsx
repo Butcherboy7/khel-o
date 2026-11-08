@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { listCafes, cafePath } from '@/lib/api/cafes';
 import { getSeoPages, FACET_GROUP_LABELS, type SeoIndexEntry } from '@/lib/api/seo';
 import type { CafeListItem } from '@/types';
-import { DropSpotlight } from '@/components/customer/HomeTabs';
+import { ExploreHub } from '@/components/customer/ExploreHub';
 
 // HTML sitemap: one crawlable page linking every indexable landing page and
 // every café, so nothing is an orphan even if no other page links to it.
@@ -46,40 +46,12 @@ export default async function BrowsePage() {
 
   return (
     <div className="max-w-5xl mx-auto w-full flex flex-col gap-8 py-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-heading text-h1 text-text-primary">Explore gaming cafés</h1>
-        <p className="text-body text-text-secondary">
-          {cafes.length} venue{cafes.length === 1 ? '' : 's'} across {cities.length} cit{cities.length === 1 ? 'y' : 'ies'}.
-        </p>
-      </header>
+      <h1 className="sr-only">Explore gaming cafés, drops, challenges and the community on KHEL-O</h1>
+      <ExploreHub cafes={cafes} cities={cities.map((c) => c.city)} />
 
-      <DropSpotlight />
-
-      <section className="flex flex-col gap-3" aria-label="Book a café">
-        <h2 className="font-heading text-h2 text-text-primary">Book a café now</h2>
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {cafes.map((c) => (
-            <li key={c.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
-              <Link href={cafePath(c)} className="min-w-0 flex-1">
-                <span className="block truncate font-heading text-body-emphasis font-bold text-text-primary">{c.name}</span>
-                <span className="block truncate text-caption text-text-secondary">{c.city}</span>
-              </Link>
-              {c.isLeadListing ? (
-                <Link href={cafePath(c)} className="flex h-11 flex-shrink-0 items-center rounded-xl border border-border px-4 text-body font-semibold text-text-secondary">
-                  Booking soon
-                </Link>
-              ) : (
-                <Link
-                  href={`/bookings/new?cafeId=${c.id}`}
-                  className="flex h-11 flex-shrink-0 items-center rounded-xl bg-primary px-4 text-body font-bold text-white"
-                >
-                  Book now
-                </Link>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <p className="text-body text-text-secondary">
+        {cafes.length} venue{cafes.length === 1 ? '' : 's'} across {cities.length} cit{cities.length === 1 ? 'y' : 'ies'}.
+      </p>
 
       <h2 className="font-heading text-h2 text-text-primary">Find by city, game or price</h2>
 

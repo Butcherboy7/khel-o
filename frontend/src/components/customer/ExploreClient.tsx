@@ -143,6 +143,13 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
 
   const debouncedQuery = useDebounce(searchQuery, 300);
 
+  // ?activity=console from the Explore tab opens the list on that game.
+  useEffect(() => {
+    const a = searchParams.get('activity');
+    if (a) setActivity(a);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   useEffect(() => {
     const cityParam = searchParams.get('city');
     if (cityParam && KNOWN_CITIES.includes(cityParam)) {
