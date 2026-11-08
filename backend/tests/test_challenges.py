@@ -47,7 +47,7 @@ async def _player(db_session, name="Player"):
 async def _challenge(async_client, db_session, capacity=3, status="open", **over):
     admin = await _admin(db_session)
     cafe = await _make_cafe(db_session, f"Den {uuid.uuid4().hex[:6]}")
-    start = datetime(2026, 11, 1, 15, 0, tzinfo=timezone(timedelta(hours=5, minutes=30)))
+    start = (datetime.now(timezone(timedelta(hours=5, minutes=30))) + timedelta(days=30)).replace(hour=15, minute=0, second=0, microsecond=0)
     body = {
         "slug": f"tekken-{uuid.uuid4().hex[:6]}",
         "title": "KHELO Tekken Challenge #01",
