@@ -157,7 +157,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
       {!q && (
         <section className="flex flex-col gap-3" aria-label="Happening now">
           <h2 className="font-heading text-h3 font-bold text-text-primary">Happening now</h2>
-          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:px-0 xl:grid-cols-4">
+          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:px-0">
             {drops === undefined && (
               <div className="aspect-[4/5] w-[72%] max-w-[300px] flex-none lg:w-auto lg:max-w-none animate-pulse snap-start rounded-3xl bg-border/50 sm:w-[280px] lg:w-auto" aria-hidden />
             )}
