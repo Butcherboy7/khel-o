@@ -176,15 +176,16 @@ async def test_forged_signature_does_not_confirm():
 
 
 @pytest.mark.asyncio
-async def test_two_seats_per_person_per_drop_across_blocks():
+async def test_two_seats_per_person_per_day():
     drop, block, block2, *_ = await _drop()
     gamer = await _user()
     async with _client() as c:
         assert (await _reserve(c, drop, block, gamer, seats=3)).status_code == 400
         assert (await _reserve(c, drop, block, gamer, seats=1)).status_code == 201
-        assert (await _reserve(c, drop, block2, gamer, seats=1)).status_code == 201
-        r = await _reserve(c, drop, block2, gamer, seats=1)
+        assert (await _reserve(c, drop, block, gamer, seats=1)).status_code == 201
+        r = await _reserve(c, drop, block, gamer, seats=1)  # a third seat the same day
         assert r.status_code == 400 and r.json()["error"]["code"] == "SEAT_LIMIT"
+        assert (await _reserve(c, drop, block2, gamer, seats=2)).status_code == 201  # another day is fine
 
 
 @pytest.mark.asyncio

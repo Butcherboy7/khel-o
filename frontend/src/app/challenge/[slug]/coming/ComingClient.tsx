@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, MessageCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { fightFont } from '@/components/challenge/ChallengeHero';
 import { useBotGuard } from '@/components/auth/BotGuard';
 import { comingYesByPhone, getChallenge, type Challenge } from '@/lib/api/challenges';
@@ -66,7 +67,7 @@ export function ComingClient({ slug }: { slug: string }) {
             rel="noopener noreferrer"
             className="flex h-14 items-center justify-center gap-2 rounded-xl bg-[#25D366] text-base font-bold text-[#06140B]"
           >
-            <MessageCircle className="h-5 w-5" aria-hidden /> Bring a friend to watch
+            <WhatsAppIcon className="h-5 w-5" aria-hidden /> Bring a friend to watch
           </a>
           {ch && (
             <a

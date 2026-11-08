@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageCircle } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { COMMUNITY_URL } from '@/lib/challenge';
 import { cn } from '@/lib/cn';
@@ -16,7 +16,7 @@ export function CommunityInviteCard({ where }: { where: string }) {
       className="flex items-center gap-3 rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-4 text-[#F4F1EC] transition-colors hover:border-[#7FE0A0]"
     >
       <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#25D366] text-[#0B1F12]">
-        <MessageCircle className="h-5 w-5" aria-hidden />
+        <WhatsAppIcon className="h-5 w-5" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-heading text-body-emphasis font-bold">Join the KHEL-O WhatsApp Community</span>
@@ -41,7 +41,7 @@ export function CommunityButton({ where, className }: { where: string; className
         className,
       )}
     >
-      <MessageCircle className="h-4 w-4" aria-hidden />
+      <WhatsAppIcon className="h-4 w-4" aria-hidden />
       Join our WhatsApp Community
     </a>
   );

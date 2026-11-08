@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CalendarDays, Clock, Hourglass, MapPin, ScrollText, Users, MessageCircle, ChevronRight, Check, Trophy, Play } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Clock, Hourglass, MapPin, ScrollText, Users, ChevronRight, Check, Trophy, Play } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { trackAction } from '@/lib/api/analyticsEvents';
@@ -247,7 +247,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
               rel="noopener noreferrer"
               className="flex min-h-[52px] items-center justify-center gap-1.5 whitespace-nowrap border border-[#25D366]/50 bg-[#25D366]/15 px-2 text-[13px] font-semibold text-[#9BF0B9] transition-colors hover:bg-[#25D366]/25"
             >
-              <MessageCircle className="h-4 w-4" /> Join the community
+              <WhatsAppIcon className="h-4 w-4" /> Join the community
             </a>
           </div>
           <p className="mt-4 text-[15px] text-[#C9C0C4]">Remember those 1v1s with your friends at home? This time it&apos;s on the big screen.</p>
@@ -399,7 +399,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
           onClick={() => trackAction('challenge_community_click', { challenge: slug, where: 'page' })}
           className="mt-8 flex items-center gap-3 rounded-2xl border border-[#25D366]/30 bg-[#25D366]/10 px-4 py-3 text-sm"
         >
-          <MessageCircle className="h-4 w-4 text-[#25D366]" />
+          <WhatsAppIcon className="h-4 w-4 text-[#25D366]" />
           <span className="flex-1">
             <span className="block font-semibold">Join the KHELO community on WhatsApp</span>
             <span className="block text-xs text-[#A3A6B1]">Hear about every challenge first. Optional.</span>

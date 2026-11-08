@@ -3,6 +3,8 @@
 import { use, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ImagePlus } from 'lucide-react';
+import { uploadCafePhoto } from '@/lib/api/settings';
 import { ArrowLeft, Bell, CheckCircle2, Download, ExternalLink, KeyRound, QrCode } from 'lucide-react';
 import { Button, Card, CardContent, SkeletonCard } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
@@ -70,6 +72,56 @@ function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
         <p className="text-caption text-text-secondary">You can change these any time, even while the drop is live. People who already reserved keep the price they booked at.</p>
         <div className="flex items-center gap-3">
           <Button onClick={save} disabled={busy || !changed || !Number(price)}>Save prices</Button>
+          {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** The café's own photo (people playing) is what customers see first, so each café looks different. */
+function CoverPhoto({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const own = !!d.coverImageUrl;
+  const set = async (url: string) => {
+    await updateDrop(d.id, { coverImageUrl: url });
+    onDone();
+  };
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) return setMsg({ ok: false, text: 'That photo is over 8 MB. Pick a smaller one.' });
+    setBusy(true);
+    setMsg(null);
+    try {
+      const url = await uploadCafePhoto(d.cafe.id, file, 'play_area');
+      await set(url);
+      setMsg({ ok: true, text: 'Saved. It is live on your page and on the home Drops tab.' });
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error)?.message || 'Could not upload. Try again.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card elevation="flat">
+      <CardContent className="flex flex-col gap-3 p-4">
+        <p className="font-heading text-body-emphasis font-bold text-text-primary">Your photo</p>
+        <p className="text-caption text-text-secondary">
+          Add a photo of people playing GTA 6 at your café. It replaces the Rockstar picture on your page and on the home Drops tab, so people see your place.
+        </p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {own && <img src={d.coverImageUrl!} alt="Your drop photo" className="aspect-[16/9] w-full rounded-xl object-cover" />}
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white">
+            <ImagePlus className="h-4 w-4" /> {busy ? 'Uploading…' : own ? 'Change photo' : 'Add a photo'}
+            <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
+          </label>
+          {own && (
+            <button type="button" disabled={busy} onClick={() => set('').then(() => setMsg({ ok: true, text: 'Back to the Rockstar picture.' }))} className="text-body font-semibold text-text-secondary underline">
+              Use the Rockstar picture
+            </button>
+          )}
           {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
         </div>
       </CardContent>
@@ -175,6 +227,7 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
       </Link>
       <DropHowItWorks />
       <EditPrices d={d} onDone={refresh} />
+      <CoverPhoto d={d} onDone={refresh} />
       {d.rolling && d.endsOn && d.startsOn && <RunControl d={d} onDone={refresh} />}
       <OwnerPageHeader
         title={d.title}

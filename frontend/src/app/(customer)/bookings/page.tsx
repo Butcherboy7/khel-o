@@ -6,6 +6,8 @@ import { Calendar, CalendarX, AlertCircle } from 'lucide-react';
 import { listBookings } from '@/lib/api/bookings';
 import { queryKeys } from '@/hooks/queries/keys';
 import { BookingCard } from '@/components/customer/BookingCard';
+import { DropPassCard } from '@/components/customer/DropPassCard';
+import { listMyDropPasses } from '@/lib/api/drops';
 import { SkeletonBookingRow, ErrorState, EmptyState, Button } from '@/components/ui';
 import type { BookingStatus } from '@/types';
 
@@ -36,6 +38,18 @@ export default function BookingsListPage() {
         status: selectedStatus !== 'all' ? (selectedStatus as BookingStatus) : undefined,
       }),
     staleTime: 0, // Always fresh
+  });
+
+  // Launch-drop reservations live here too, so a reserved seat is never "lost".
+  const { data: dropPassData, isLoading: passesLoading } = useQuery({
+    queryKey: ['drop-passes'],
+    queryFn: listMyDropPasses,
+    staleTime: 0,
+  });
+  const dropPasses = (dropPassData ?? []).filter((p) => {
+    if (selectedStatus === 'all') return true;
+    if (selectedStatus === 'cancelled') return p.status === 'refunded' || p.status === 'given_away';
+    return p.status === selectedStatus;
   });
 
   const rawBookings = data?.items || [];
@@ -87,7 +101,11 @@ export default function BookingsListPage() {
 
       {/* 4-State System Content */}
       <div className="flex flex-col gap-4">
-        {isLoading && (
+        {dropPasses.map((p) => (
+          <DropPassCard key={p.id} pass={p} />
+        ))}
+
+        {(isLoading || passesLoading) && dropPasses.length === 0 && (
           <>
             <SkeletonBookingRow />
             <SkeletonBookingRow />
@@ -103,7 +121,7 @@ export default function BookingsListPage() {
           />
         )}
 
-        {!isLoading && !isError && bookings.length === 0 && (
+        {!isLoading && !passesLoading && !isError && bookings.length === 0 && dropPasses.length === 0 && (
           <EmptyState
             title={selectedStatus !== 'all' ? 'Nothing here' : 'No bookings yet'}
             description={

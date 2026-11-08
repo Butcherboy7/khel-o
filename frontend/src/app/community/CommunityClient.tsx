@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, BarChart3, Check, CheckCheck, MessageCircle, Pin, Trophy } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, Check, CheckCheck, Pin, Trophy } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { FightStage, fightFont } from '@/components/challenge/ChallengeHero';
 import { Celebration } from '@/components/challenge/Celebration';
 import { getBracket, getChallenge } from '@/lib/api/challenges';
@@ -219,7 +220,7 @@ function JoinButton({ where, onJoin, big = true, btnRef }: { where: string; onJo
       className={`cm-join ${fightFont.className} relative flex ${big ? 'h-16 text-[26px]' : 'h-14 text-2xl'} w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-[#25D366] font-bold uppercase tracking-wider text-[#06210F] transition-transform active:scale-[0.98]`}
     >
       <span className="cm-shine" aria-hidden />
-      <MessageCircle className="relative h-6 w-6" aria-hidden />
+      <WhatsAppIcon className="relative h-6 w-6" aria-hidden />
       <span className="relative">Join the group</span>
     </a>
   );
@@ -476,7 +477,7 @@ export function CommunityClient() {
             onClick={() => join('sticky')}
             className={`${fightFont.className} flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-2xl font-bold uppercase tracking-wider text-[#06210F]`}
           >
-            <MessageCircle className="h-5 w-5" aria-hidden /> Join the group
+            <WhatsAppIcon className="h-5 w-5" aria-hidden /> Join the group
           </a>
         </div>
       </div>

@@ -146,7 +146,8 @@ async def list_drops(db: AsyncSession = Depends(get_db), user: Optional[User] = 
         await svc.ensure_blocks(db, drop)
         if svc.state(drop) == "ended":
             continue
-        blocks = await svc.blocks_of(db, drop.id)
+        blocks = [b for b in await svc.blocks_of(db, drop.id)
+                  if (drop.ends_on is None or b.session_date <= drop.ends_on) and (drop.starts_on is None or b.session_date >= drop.starts_on)]
         upcoming = [b for b in blocks if svc.block_starts_at(b) > svc.now_utc()]
         if not upcoming:
             continue  # every session has started: nothing left to book
@@ -162,6 +163,29 @@ async def list_drops(db: AsyncSession = Depends(get_db), user: Optional[User] = 
             )
         )).scalar_one())
         out.append(data)
+    return {"success": True, "data": out}
+
+
+@public_router.get("/me/reservations")
+async def my_reservations(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    """Everything this person has reserved across all drops, for the Bookings tab."""
+    rows = (await db.execute(
+        select(DropReservation, Drop, Cafe)
+        .join(Drop, Drop.id == DropReservation.drop_id).join(Cafe, Cafe.id == Drop.cafe_id)
+        .where(DropReservation.user_id == user.id,
+               DropReservation.status.in_(("confirmed", "checked_in", "refunded", "given_away")))
+        .order_by(DropReservation.created_at.desc())
+    )).all()
+    out = []
+    for r, drop, cafe in rows:
+        block = await db.get(DropBlock, r.block_id)
+        d = _reservation_out(drop, r, block)
+        d.pop("qr", None)  # the QR lives on the pass page
+        d.pop("block", None)
+        d.update({"date": block.session_date.isoformat() if block else None, "dropSlug": drop.slug,
+                  "dropTitle": drop.title, "game": drop.game, "cafeName": cafe.name,
+                  "passPath": f"/drops/{drop.slug}/pass/{r.checkin_token}"})
+        out.append(d)
     return {"success": True, "data": out}
 
 

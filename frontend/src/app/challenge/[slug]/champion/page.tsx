@@ -2,7 +2,8 @@ import { cache } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, MessageCircle, Trophy } from 'lucide-react';
+import { ChevronLeft, Trophy } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { getBracket, type Bracket } from '@/lib/api/challenges';
 import { challengeDay, handle } from '@/lib/challenge';
 
@@ -95,7 +96,7 @@ export default async function ChampionPage({ params }: PageProps) {
             rel="noopener noreferrer"
             className="mt-8 flex items-center gap-3 rounded-2xl bg-[#25D366] px-4 py-4 text-left font-semibold text-[#0B2E17]"
           >
-            <MessageCircle className="h-5 w-5" />
+            <WhatsAppIcon className="h-5 w-5" />
             <span className="flex-1">
               <span className="block">Want in on the next challenge?</span>
               <span className="block text-xs font-medium opacity-80">Join the KHELO WhatsApp community. Free.</span>

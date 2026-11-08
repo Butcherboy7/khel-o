@@ -4,9 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import {
-  CalendarDays, Clock, MapPin, MessageCircle, QrCode, ChevronLeft, PartyPopper, Hourglass, CheckCircle2, Trophy, Gift, UserPlus,
+  CalendarDays, Clock, MapPin, QrCode, ChevronLeft, PartyPopper, Hourglass, CheckCircle2, Trophy, Gift, UserPlus,
 } from 'lucide-react';
 import { AuthGuard } from '@/components/layout/AuthGuard';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { BottomSheet, Button } from '@/components/ui';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import {
@@ -145,7 +146,7 @@ function MyChallenge() {
             onClick={() => trackAction('challenge_community_click', { challenge: slug, where: entry.out ? 'out' : 'guest' })}
             className="mt-2 flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#25D366] font-semibold text-[#0B2E17]"
           >
-            <MessageCircle className="h-5 w-5" /> Join the community
+            <WhatsAppIcon className="h-5 w-5" /> Join the community
           </a>
         </section>
       )}
@@ -309,7 +310,7 @@ function MyChallenge() {
             isNew ? 'border border-[#25D366]/50 bg-[#25D366]/10 text-[#9BF0B9]' : 'bg-[#25D366] text-[#0B2E17]'
           }`}
         >
-          <MessageCircle className="h-5 w-5" />
+          <WhatsAppIcon className="h-5 w-5" />
           <span className="flex-1">
             <span className="block">{communityDone ? 'Open the community again' : 'Step 2 · Join the WhatsApp community'}</span>
             <span className="block text-xs font-medium opacity-80">We send check-in and match updates only here.</span>

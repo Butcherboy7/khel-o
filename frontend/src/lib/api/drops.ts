@@ -118,6 +118,28 @@ export interface DropPass extends Partial<Omit<DropReservation, 'status' | 'refe
   holderPhone?: string | null;
 }
 
+export interface MyDropPass {
+  id: string;
+  reference: string;
+  status: 'confirmed' | 'checked_in' | 'refunded' | 'given_away';
+  seats: number;
+  hours: number | null;
+  startTime: string | null;
+  endTime: string | null;
+  date: string | null;
+  balanceDue: number;
+  depositPaid: number;
+  dropSlug: string;
+  dropTitle: string;
+  game: string;
+  cafeName: string;
+  passPath: string;
+}
+
+export async function listMyDropPasses(): Promise<MyDropPass[]> {
+  return call(() => apiClient.get('/api/v1/drops/me/reservations'));
+}
+
 export async function getDropPass(slug: string, token: string): Promise<DropPass> {
   return call(() => apiClient.get(`/api/v1/drops/${encodeURIComponent(slug)}/pass/${encodeURIComponent(token)}`));
 }

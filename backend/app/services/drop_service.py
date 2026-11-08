@@ -284,14 +284,17 @@ def booked_windows(windows: list[tuple[int, int, int]]) -> list[dict]:
     return [{"startTime": f"{s // 60:02d}:{s % 60:02d}", "endTime": f"{e // 60:02d}:{e % 60:02d}", "seatsCount": n} for s, e, n in windows]
 
 
-async def user_seats(db: AsyncSession, drop_id: UUID, user_id: UUID) -> int:
-    total = (await db.execute(
-        select(func.coalesce(func.sum(DropReservation.seats), 0)).where(
-            DropReservation.drop_id == drop_id,
-            DropReservation.user_id == user_id,
-            DropReservation.status.in_(HOLDING),
-        )
-    )).scalar_one()
+async def user_seats(db: AsyncSession, drop_id: UUID, user_id: UUID, block_id: Optional[UUID] = None) -> int:
+    """Seats this person holds. The per-person cap is per day (block), so booking a
+    second night is never blocked by the first."""
+    q = select(func.coalesce(func.sum(DropReservation.seats), 0)).where(
+        DropReservation.drop_id == drop_id,
+        DropReservation.user_id == user_id,
+        DropReservation.status.in_(HOLDING),
+    )
+    if block_id is not None:
+        q = q.where(DropReservation.block_id == block_id)
+    total = (await db.execute(q)).scalar_one()
     return int(total or 0)
 
 
@@ -386,11 +389,11 @@ async def reserve(
     # One reservation at a time per person: lock their row so two taps (or two
     # tabs) can't both pass the 2-seat check.
     await db.execute(select(User.id).where(User.id == user.id).with_for_update())
-    have = await user_seats(db, drop.id, user.id)
+    have = await user_seats(db, drop.id, user.id, block.id)
     if have + seats > drop.max_seats_per_user:
         left = max(0, drop.max_seats_per_user - have)
-        msg = (f"You already have {have} seat{'s' if have != 1 else ''} in this drop. "
-               + (f"You can add {left} more." if left else f"The most is {drop.max_seats_per_user} per person."))
+        msg = (f"You already have {have} seat{'s' if have != 1 else ''} on this day. "
+               + (f"You can add {left} more." if left else f"The most is {drop.max_seats_per_user} a day. Pick another day to book more."))
         raise DropError(msg, "SEAT_LIMIT")
 
     r_start = r_end = None

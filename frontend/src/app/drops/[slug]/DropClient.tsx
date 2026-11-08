@@ -54,6 +54,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const reserveAfterSignIn = useRef(false);
   const reserveRef = useRef<() => void>(() => {});
   const viewed = useRef(false);
+  const daysRef = useRef<HTMLElement | null>(null);
+  const scrolled = useRef(false);
 
   const track = useCallback(
     (action: string, meta: Record<string, unknown> = {}) => trackAction(action, { drop: slug, ...meta }, drop?.cafe.id),
@@ -101,10 +103,21 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     track('drop_page_view', { state: drop.state });
   }, [drop, track]);
 
+  // Opening a live drop lands on the day and time picker, where the booking happens.
+  useEffect(() => {
+    if (scrolled.current || !drop || !(drop.state === 'open' || drop.state === 'early')) return;
+    if (window.location.hash || drop.myReservations.length > 0) return;
+    scrolled.current = true;
+    const t = setTimeout(() => daysRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 600);
+    return () => clearTimeout(t);
+  }, [drop]);
+
   const flex = !!drop?.maxHours;
   const block = drop?.blocks.find((b) => b.id === blockId) ?? null;
   const booked = useMemo(() => block?.bookedSlots ?? [], [block]);
+  // The cap is per day: seats on one night never stop you booking another night.
   const seatsHeld = (drop?.myReservations ?? [])
+    .filter((r) => r.blockId === block?.id)
     .filter((r) => r.status === 'confirmed' || r.status === 'checked_in' || r.status === 'pending_payment')
     .reduce((n, r) => n + r.seats, 0);
   const seatsAllowed = drop ? Math.max(0, drop.maxSeatsPerUser - seatsHeld) : 0;
@@ -327,9 +340,10 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         </section>
 
         {/* Your seats */}
-        {paid.map((r) => (
-          <Confirmation key={r.id} drop={drop} r={r} fresh={r.id === justPaid} onShare={onShare} pageUrl={pageUrl} />
+        {paid.filter((r) => r.id === justPaid).map((r) => (
+          <Confirmation key={r.id} drop={drop} r={r} fresh onShare={onShare} pageUrl={pageUrl} />
         ))}
+        {paid.some((r) => r.id !== justPaid) && <MySeats drop={drop} list={paid.filter((r) => r.id !== justPaid)} />}
         {pending && !busy && (
           <div className="rounded-2xl border border-warning/40 bg-warning/10 p-4">
             <p className="font-semibold text-text-primary">
@@ -392,7 +406,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
 
         {/* Day */}
         {!ended && (
-        <section>
+        <section ref={daysRef} className="scroll-mt-20">
           <h2 className="font-heading text-h2 font-semibold text-text-primary">{canReserve ? 'Pick a day' : 'Days'}</h2>
           {flex && drop.blocks[0] && (
             <p className="text-caption text-text-secondary">Open {clock(drop.blocks[0].startTime)} – {clock(drop.blocks[0].endTime)}, every day</p>
@@ -454,7 +468,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <div className="flex items-center justify-between gap-3 py-1.5">
               <div className="min-w-0">
                 <span className="font-heading text-body font-bold text-text-primary">How many seats?</span>
-                <p className="truncate text-caption text-text-secondary">Up to {drop.maxSeatsPerUser} · {windowFree} free at this time</p>
+                <p className="truncate text-caption text-text-secondary">Up to {drop.maxSeatsPerUser} a day · {windowFree} free at this time</p>
               </div>
               <span className="flex items-center gap-3">
                 <button
@@ -502,7 +516,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
 
         {canReserve && block && seatsAllowed === 0 && (
           <p className="rounded-2xl border border-border bg-card p-4 text-body text-text-primary">
-            You already have {drop.maxSeatsPerUser} seats for this drop. That’s the most one person can reserve.
+            You have {drop.maxSeatsPerUser} seats on {dayLabel(block.date)}, the most for one day. Pick another day above to book more.
           </p>
         )}
 
@@ -615,7 +629,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 : `${rupees(drop.deposit)} for each seat. It holds your seat. You pay the rest at the café on the day.`}
             />
             <Faq q="How do I get in?" a="After you pay, you get a QR pass here. Show it at the café." />
-            <Faq q="Can I bring friends?" a={`Yes. You can reserve up to ${drop.maxSeatsPerUser} seats. Friends can also reserve their own.`} />
+            <Faq q="Can I bring friends?" a={`Yes. You can reserve up to ${drop.maxSeatsPerUser} seats a day, on as many days as you like. Friends can also reserve their own.`} />
             <Faq q="Can I use a coupon?" a="No. Drop prices are fixed. Coupons and café offers don’t work on drops." />
             <Faq q="What if the café cancels?" a="You get your deposit back in full." />
             {flex && (
@@ -653,6 +667,14 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 {rupees(payNow)} of your {rupees(total)} locks it · the rest at the café · no card needed to look
               </p>
             </>
+          ) : canReserve && block && seatsAllowed === 0 ? (
+            <button
+              type="button"
+              onClick={() => daysRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="flex h-14 w-full items-center justify-center rounded-2xl bg-primary text-[18px] font-extrabold text-white"
+            >
+              Reserve another day
+            </button>
           ) : ended ? (
             <Link href={`/cafe/${drop.cafe.slug || drop.cafe.id}`} className="flex h-14 w-full items-center justify-center rounded-2xl bg-primary text-[17px] font-bold text-white">
               Book a slot at {drop.cafe.name}
@@ -787,6 +809,40 @@ function Confirmation({
           />
         </div>
       </div>
+    </section>
+  );
+}
+
+/** Every seat you already hold, one short row each. The QR lives on the pass page and in My Bookings. */
+function MySeats({ drop, list }: { drop: Drop; list: DropReservation[] }) {
+  return (
+    <section className="rounded-2xl border border-success/40 bg-success/5 p-4">
+      <p className="flex items-center gap-2 text-lg font-bold text-success">
+        <Check className="h-5 w-5" /> You have {list.length} {list.length === 1 ? 'booking' : 'bookings'}
+      </p>
+      <ul className="mt-2 divide-y divide-border">
+        {list.map((r) => {
+          const b = r.block;
+          return (
+            <li key={r.id}>
+              <Link href={new URL(r.passUrl || `${window.location.origin}/drops/${drop.slug}`).pathname} className="flex items-center justify-between gap-3 py-2.5">
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-text-primary">
+                    {b ? dayLabel(b.date) : drop.title} · {r.hours && r.startTime && r.endTime ? `${clock(r.startTime)} – ${clock(r.endTime)}` : b ? blockTimes(b) : ''}
+                  </span>
+                  <span className="block text-caption text-text-secondary">
+                    {r.seats} {r.seats === 1 ? 'seat' : 'seats'} · {r.reference}
+                  </span>
+                </span>
+                <span className="flex-shrink-0 text-body font-semibold text-primary">Show QR</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <Link href="/bookings" className="mt-1 block text-center text-body font-semibold text-primary underline-offset-2 hover:underline">
+        See all in My Bookings
+      </Link>
     </section>
   );
 }
