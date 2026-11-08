@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search, MapPin, Monitor, ChevronRight, X } from 'lucide-react';
+import { Search, MapPin, Monitor, ChevronRight, X, Flame, Swords, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { listCafes, cafePath } from '@/lib/api/cafes';
@@ -13,8 +13,9 @@ interface SearchSuggestion {
   id: string;
   title: string;
   subtitle: string;
-  type: 'city' | 'activity';
+  type: 'city' | 'activity' | 'page';
   filterValue?: string;
+  href?: string;
 }
 
 /** Cafés shown in the dropdown before the rest are left to the grid below. */
@@ -25,6 +26,16 @@ const ACTIVITY_SEARCH_ALIASES: Record<string, string> = {
   console: 'ps5 ps4 playstation xbox switch',
   pool: '8 ball billiards',
 };
+
+/** Pages people type a name for: GTA 6, the challenge, the community. */
+const PAGE_RESULTS: { id: string; title: string; subtitle: string; href: string; keywords: string }[] = [
+  { id: 'gta6', title: 'GTA 6 Launch Drop', subtitle: 'Reserve a seat to play it on launch', href: '/gta6', keywords: 'gta gta6 6 launch drop early access rockstar' },
+  { id: 'challenge', title: 'Tekken challenge', subtitle: 'Free fight night at a café', href: '/challenge/tekken-01', keywords: 'tekken challenge tournament fight event competition' },
+  { id: 'community', title: 'KHEL-O Community', subtitle: 'Join the group, vote, get first dibs', href: '/community', keywords: 'community whatsapp group join vote gamers' },
+];
+
+/** Shown in turn in the empty search bar so a visitor sees what lives here. */
+const HINT_PHRASES = ['GTA 6 drop', 'Tekken #02', 'PS5 cafés', 'AdamsDen', 'Racing sims', 'Co-op games'];
 
 const words = (text: string) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 
@@ -104,6 +115,11 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
       });
     });
 
+    // Pages: GTA 6, the challenge, the community
+    PAGE_RESULTS.filter((pg) => startsWords(`${pg.title} ${pg.keywords}`, value)).forEach((pg) => {
+      suggestions.push({ id: `page-${pg.id}`, title: pg.title, subtitle: pg.subtitle, type: 'page', href: pg.href });
+    });
+
     // Activity matches (PC, console, snooker, ...) — not everyone is here for a rig
     activities
       .filter((a) => startsWords(`${a.label} ${a.key} ${ACTIVITY_SEARCH_ALIASES[a.key] ?? ''}`, value))
@@ -119,6 +135,11 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
   }
 
   const handleSelectSuggestion = (s: SearchSuggestion) => {
+    if (s.type === 'page' && s.href) {
+      setIsOpen(false);
+      router.push(s.href);
+      return;
+    }
     if (s.type === 'city') {
       onSelectCity(s.title);
       onChange('');
@@ -143,7 +164,6 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
         <input
           type="text"
           aria-label="Search cafés, cities, activities or games"
-          placeholder="Search games or cafés"
           value={value}
           onFocus={() => setIsOpen(true)}
           onChange={(e) => {
@@ -152,6 +172,20 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
           }}
           className="h-11 w-full bg-transparent pl-6 pr-7 text-body text-text-primary placeholder:text-text-secondary/70 focus:outline-none"
         />
+        {/* The rotating hint stands in for a placeholder. It is decoration: the
+            input's aria-label already says what the field is for. */}
+        {!value && (
+          <span aria-hidden="true" className="pointer-events-none absolute left-6 right-7 top-1/2 flex -translate-y-1/2 items-center gap-1.5 overflow-hidden whitespace-nowrap text-body text-text-secondary/80">
+            <span className="flex-none">Search</span>
+            <span className="khelo-hint-rot relative h-[1.5em] min-w-0 flex-1 overflow-hidden font-semibold text-text-primary">
+              {HINT_PHRASES.map((ph, i) => (
+                <span key={ph} className="absolute left-0 top-0 leading-[1.5em]" style={{ animationDelay: `${i * 2.4}s` }}>
+                  {ph}
+                </span>
+              ))}
+            </span>
+          </span>
+        )}
         {value && (
           <button
             onClick={() => {
@@ -209,7 +243,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
               className="flex items-center gap-3 p-2 rounded-2xl hover:bg-surface text-left transition-colors"
             >
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                {s.type === 'activity' ? <Monitor className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
+                {s.type === 'activity' ? <Monitor className="h-4 w-4" /> : s.type === 'page' ? (s.id === 'page-gta6' ? <Flame className="h-4 w-4" /> : s.id === 'page-challenge' ? <Swords className="h-4 w-4" /> : <Users className="h-4 w-4" />) : <MapPin className="h-4 w-4" />}
               </div>
               <div>
                 <div className="font-heading text-body font-semibold text-text-primary">{s.title}</div>

@@ -691,3 +691,23 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
 .cm-playpulse { animation: cm-playpulse 2s ease-out infinite; }
 @keyframes cm-playpulse { 0% { box-shadow: 0 0 0 0 rgb(242 201 76 / .6); } 70%, 100% { box-shadow: 0 0 0 18px rgb(242 201 76 / 0); } }
 @media (prefers-reduced-motion: reduce) { .cm-playpulse { animation: none; } }
+
+/* Red number badges (home tabs, bell, Me): one pop on appearing, nothing looping. */
+@keyframes khelo-badge-pop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.khelo-badge-pop { animation: khelo-badge-pop 0.22s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@media (prefers-reduced-motion: reduce) { .khelo-badge-pop { animation: none; } }
+
+/* Rotating search hint: each phrase slides up, holds, slides out. 6 phrases x 2.4s. */
+@keyframes khelo-hint-rot {
+  0% { opacity: 0; transform: translateY(70%); }
+  3%, 14% { opacity: 1; transform: none; }
+  17%, 100% { opacity: 0; transform: translateY(-70%); }
+}
+.khelo-hint-rot > span { animation: khelo-hint-rot 14.4s infinite; opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .khelo-hint-rot > span { animation: none; }
+  .khelo-hint-rot > span:first-child { opacity: 1; }
+}

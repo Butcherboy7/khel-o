@@ -122,6 +122,33 @@ async def _public_drop(db: AsyncSession, slug: str, user: Optional[User]) -> tup
 
 # ---------------------------------------------------------------- public
 
+@public_router.get("")
+async def list_drops(db: AsyncSession = Depends(get_db), user: Optional[User] = Depends(get_optional_user)):
+    """Live drops that still have an upcoming session, for the home Drops tab."""
+    drops = (await db.execute(
+        select(Drop).where(Drop.status == "live").order_by(Drop.early_access_starts_at)
+    )).scalars().all()
+    out = []
+    for drop in drops:
+        blocks = await svc.blocks_of(db, drop.id)
+        upcoming = [b for b in blocks if svc.block_starts_at(b) > svc.now_utc()]
+        if not upcoming:
+            continue  # every session has started: nothing left to book
+        cafe = await db.get(Cafe, drop.cafe_id)
+        data = _drop_out(drop, cafe, blocks)
+        data.pop("blocks", None)
+        data["nextStartsAt"] = _iso(min(svc.block_starts_at(b) for b in upcoming))
+        # A drop you already hold a seat in never counts as "new" on the home tab.
+        data["iHold"] = bool(user is not None and (await db.execute(
+            select(func.count()).select_from(DropReservation).where(
+                DropReservation.drop_id == drop.id, DropReservation.user_id == user.id,
+                DropReservation.status.in_(("pending_payment", "confirmed", "checked_in")),
+            )
+        )).scalar_one())
+        out.append(data)
+    return {"success": True, "data": out}
+
+
 @public_router.get("/{slug}")
 async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional[User] = Depends(get_optional_user)):
     drop, cafe = await _public_drop(db, slug, user)

@@ -6,9 +6,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Search,
+  Home,
+  Compass,
   CalendarDays,
-  Trophy,
   UserCircle,
   Bell,
   type LucideIcon,
@@ -17,7 +17,8 @@ import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { usePageLoaded } from '@/hooks/usePageLoaded';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
-import { PhoneNumberPrompt } from '@/components/layout/PhoneNumberPrompt';
+import { RedBadge } from '@/components/customer/RedBadge';
+import { useHomeBadges } from '@/lib/homeBadges';
 import { CampaignBadgeClaimer } from '@/components/customer/CampaignBadgeClaimer';
 import { ChallengePopup } from '@/components/customer/ChallengePopup';
 import { useChallengeNudge } from '@/lib/challengeNudge';
@@ -31,10 +32,10 @@ interface NavItem {
 }
 
 const customerNavItems: NavItem[] = [
-  { label: 'Find Café', href: '/', icon: Search, matchPrefix: false },
-  { label: 'My Bookings', href: '/bookings', icon: CalendarDays, matchPrefix: true },
-  { label: 'Achievements', href: '/achievements', icon: Trophy, matchPrefix: false },
-  { label: 'Profile', href: '/profile', icon: UserCircle, matchPrefix: false },
+  { label: 'Home', href: '/', icon: Home, matchPrefix: false },
+  { label: 'Explore', href: '/browse', icon: Compass, matchPrefix: true },
+  { label: 'Bookings', href: '/bookings', icon: CalendarDays, matchPrefix: true },
+  { label: 'Me', href: '/profile', icon: UserCircle, matchPrefix: false },
 ];
 
 /** Profile is where the challenge pop-up tucks itself away. While its "New"
@@ -76,6 +77,7 @@ function CustomerHeader() {
   });
 
   const profileNav = useProfileNav();
+  const { meDot } = useHomeBadges();
   const initial = user?.fullName ? user.fullName[0].toUpperCase() : 'A';
   const unreadCount = unreadData?.unreadCount || 0;
 
@@ -92,8 +94,15 @@ function CustomerHeader() {
             className="h-9 w-9 rounded-xl shadow-card"
             priority
           />
-          <span className="font-heading text-h2 font-bold tracking-tight text-text-primary">
-            KHEL-O
+          <span className="flex min-w-0 flex-col leading-tight">
+            <span className="font-heading text-h2 font-bold tracking-tight text-text-primary">KHEL-O</span>
+            {/* Says what the site is on every visit, beside the Log in button.
+                Signed in, it greets by name instead. */}
+            {pathname === '/' && (
+              <span className="max-w-[200px] truncate text-[11px] font-semibold text-text-secondary sm:max-w-none md:text-caption">
+                {isAuthenticated && user?.fullName ? `Hey ${user.fullName.split(' ')[0]}` : 'Book gaming cafés & game zones near you'}
+              </span>
+            )}
           </span>
         </Link>
 
@@ -119,7 +128,8 @@ function CustomerHeader() {
                 aria-current={isActive ? 'page' : undefined}
               >
                 {item.label}
-                {item.href === '/profile' && profileNav.showNew && <NewTag className="absolute -right-1 -top-1" />}
+                {item.href === '/profile' && meDot && <RedBadge dot className="absolute right-1 top-1.5" />}
+                {item.href === '/profile' && !meDot && profileNav.showNew && <NewTag className="absolute -right-1 -top-1" />}
                 {isActive && (
                   <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-4 rounded-full bg-primary" />
                 )}
@@ -140,11 +150,7 @@ function CustomerHeader() {
                 aria-label="Notifications"
               >
                 <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-accent text-white text-badge font-bold">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
+                <RedBadge count={unreadCount} className="absolute -right-1 -top-1" />
               </Link>
 
               <Link prefetch={prefetch} href="/profile">
@@ -172,6 +178,7 @@ function CustomerBottomNav() {
   const pathname = usePathname();
   const prefetch = usePageLoaded() ? undefined : false;
   const profileNav = useProfileNav();
+  const { meDot } = useHomeBadges();
 
   return (
     <nav
@@ -206,7 +213,8 @@ function CustomerBottomNav() {
             >
               <item.icon className="h-5 w-5" />
             </span>
-            {item.href === '/profile' && profileNav.showNew && <NewTag className="absolute right-1 top-0" />}
+            {item.href === '/profile' && meDot && <RedBadge dot className="absolute right-3.5 top-1" />}
+            {item.href === '/profile' && !meDot && profileNav.showNew && <NewTag className="absolute right-1 top-0" />}
             <span className="text-badge">{item.label}</span>
           </Link>
         );
@@ -242,7 +250,6 @@ export function CustomerShell({ children }: { children: ReactNode }) {
 
       {/* Checkout is one focused screen with its own pay bar: no tab bar. */}
       {pathname !== '/bookings/new' && <CustomerBottomNav />}
-      <PhoneNumberPrompt />
       <CampaignBadgeClaimer />
       <ChallengePopup />
     </div>

@@ -2,12 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, BarChart3, Check, CheckCheck, MessageCircle, Pin, Trophy } from 'lucide-react';
 import { FightStage, fightFont } from '@/components/challenge/ChallengeHero';
 import { Celebration } from '@/components/challenge/Celebration';
 import { getBracket, getChallenge } from '@/lib/api/challenges';
 import { trackAction } from '@/lib/api/analyticsEvents';
+import { markJoined } from '@/lib/api/community';
+import { useAuthStore } from '@/store/authStore';
+import { CommunityHub } from './CommunityHub';
 import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll } from '@/lib/challenge';
 
 /** The event the photos are from. Its bracket gives the real numbers and the podium. */
@@ -226,6 +229,7 @@ function JoinButton({ where, onJoin, big = true, btnRef }: { where: string; onJo
  *  One job: get a tap on Join. After an event it leads with the real photos
  *  and results, so people see what they missed. */
 export function CommunityClient() {
+  const qc = useQueryClient();
   const [tapped, setTapped] = useState(false);
   const [stickyOn, setStickyOn] = useState(false);
   const heroBtn = useRef<HTMLAnchorElement>(null);
@@ -258,9 +262,12 @@ export function CommunityClient() {
     return () => io.disconnect();
   }, []);
 
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const join = (where: string) => {
     trackAction('community_join_tap', { where });
     setTapped(true);
+    // Logged in: remember the tap, which unlocks the members-only code.
+    if (isAuthenticated) markJoined().then(() => qc.invalidateQueries({ queryKey: ['community-week'] })).catch(() => undefined);
   };
 
   return (
@@ -345,6 +352,9 @@ export function CommunityClient() {
             ))}
           </dl>
         )}
+
+        {/* 3. This week + Help build KHEL-O: the reasons to come back */}
+        <CommunityHub tapped={tapped} />
 
         {/* 4. The crown */}
         {champ && finished && (

@@ -32,6 +32,7 @@ from app.models.launch_signup import LaunchSignup
 from app.models.photo_color import PhotoColor
 from app.models.challenge import Challenge, ChallengeEntry, ChallengeMatch
 from app.models.drop import Drop, DropBlock, DropReservation, DropWaitlist
+from app.models.community import CommunityPoll, CommunityPollVote, CommunityMember, CommunityContribution
 
 __all__ = [
     "User",

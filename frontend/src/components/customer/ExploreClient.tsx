@@ -9,7 +9,7 @@ import { MapPin, Navigation, SlidersHorizontal, ChevronDown, ArrowUpDown } from 
 import { listCafes, listActivities } from '@/lib/api/cafes';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useTaxonomy } from '@/lib/taxonomy';
-import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
+import { fireAnalyticsEvent, trackAction } from '@/lib/api/analyticsEvents';
 import { useDebounce } from '@/hooks/useDebounce';
 import { calculateDistance, isCafeOpenNow, getCafeOpenStatus } from '@/lib/format';
 import { ActivityIcon } from '@/components/icons/PlatformIcons';
@@ -17,10 +17,14 @@ import { SUPPORTED_CITIES } from '@/constants/cities';
 import { SocialLinks } from '@/components/layout/SocialLinks';
 import { CommunityButton } from '@/components/customer/CommunityInvite';
 import { useAuthStore } from '@/store/authStore';
+import { COMMUNITY_URL } from '@/lib/challenge';
 import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SearchBarWithSuggestions } from '@/components/customer/SearchBarWithSuggestions';
 import { KonamiEgg } from '@/components/customer/KonamiEgg';
+import { HomeTabRow, DropsPanel, ChallengesPanel, CommunityPanel, type HomeTab } from '@/components/customer/HomeTabs';
+import { getThisWeek } from '@/lib/api/community';
+import { MessageCircle } from 'lucide-react';
 import {
   CafeFilterSheet,
   AMENITY_BUCKETS,
@@ -77,9 +81,7 @@ interface ExploreClientProps {
 }
 
 export function ExploreClient({ initialCafes, initialActivities, children }: ExploreClientProps) {
-  const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const firstName = user?.fullName ? user.fullName.split(' ')[0] : null;
 
   const {
     selectedCity: persistedCity,
@@ -96,6 +98,22 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
   const pathname = usePathname();
 
   const [searchQuery, setSearchQuery] = useState('');
+  // Cafés | Drops | Challenges | Community. Kept in the URL (?tab=) so a link
+  // or a refresh lands on the same tab; the café list is the default.
+  const [tab, setTabState] = useState<HomeTab>('cafes');
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'drops' || t === 'challenges' || t === 'community') setTabState(t);
+  }, [searchParams]);
+  const setTab = (t: HomeTab) => {
+    setTabState(t);
+    const params = new URLSearchParams(window.location.search);
+    if (t === 'cafes') params.delete('tab');
+    else params.set('tab', t);
+    const qs = params.toString();
+    window.history.replaceState(null, '', qs ? `${pathname}?${qs}` : pathname);
+  };
+  const { data: weekData } = useQuery({ queryKey: ['community-week', isAuthenticated], queryFn: getThisWeek, staleTime: 60_000, retry: false });
   const [selectedCity, setSelectedCity] = useState(persistedCity || 'All Cities');
   // Activity key from /cafes/activities ('pc-gaming', 'console', 'snooker',
   // ...). The list is data-driven, so a new activity needs no code here.
@@ -470,37 +488,6 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
     />
   );
 
-  // "What are you playing today?" — the primary filter, built from what the
-  // city actually offers (GET /cafes/activities; gaming comes back first).
-  // It scrolls sideways and runs to the screen edge, so a chip cut off at
-  // the edge reads as "swipe for more"; the fade makes that explicit.
-  const activityRow = activities.length > 1 && (
-    <div className="relative -mx-4 md:mx-0">
-      <nav aria-label="Activity" className="flex gap-2 overflow-x-auto scrollbar-hide px-4 pr-10 md:px-0">
-        {[{ key: null, label: 'All' } as { key: string | null; label: string }, ...activities].map(({ key, label }) => {
-          const isSelected = activity === key;
-          return (
-            <button
-              key={key ?? 'all'}
-              type="button"
-              onClick={() => setActivity(key)}
-              aria-pressed={isSelected}
-              className={`flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 min-h-[40px] text-caption font-semibold transition-colors ${
-                isSelected
-                  ? 'border-secondary bg-secondary text-white font-bold'
-                  : 'border-border bg-card text-text-primary hover:bg-surface'
-              }`}
-            >
-              {key && <ActivityIcon activity={key} className="h-4 w-4" />}
-              {label}
-            </button>
-          );
-        })}
-      </nav>
-      <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface to-transparent" />
-    </div>
-  );
-
   const styleRow = activity && styleOptions.length > 0 && (
     <nav aria-label="Type" className="flex gap-2 overflow-x-auto scrollbar-hide px-4 md:px-0 -mt-1">
       {[{ key: null, label: 'Any type' } as { key: string | null; label: string }, ...styleOptions].map(({ key, label }) => (
@@ -535,17 +522,10 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
   return (
     <div className="flex flex-col gap-3.5 max-w-wide mx-auto">
       <KonamiEgg />
-      {/* The first thing the eye lands on says what KHEL-O is (book gaming
-          cafés) and how it works (live slots, pay, walk in). Signed-in users
-          get their name as a small line above, never instead of it. This
-          page is public, so a first-time visitor or crawler lands here. */}
-      <div className="flex flex-col gap-1">
-        {firstName && <span className="text-caption font-semibold text-text-secondary">Hey {firstName}</span>}
-        <h1 className="font-heading text-h2 md:text-h1 font-bold text-text-primary tracking-tight text-balance">
-          Book gaming cafés &amp; game zones near you
-        </h1>
-        <p className="text-body text-text-secondary">PCs, consoles, VR, snooker and bowling. See free slots live, pay online, walk in and play.</p>
-      </div>
+      {/* What KHEL-O is now lives in the header tagline (beside Log in), so
+          the first screen is search, tabs, then cafés. The h1 stays for
+          crawlers and screen readers. */}
+      <h1 className="sr-only">Book gaming cafés &amp; game zones near you. PCs, consoles, VR, snooker and bowling. See free slots live, pay online, walk in and play.</h1>
 
       {/* One bar: where (city), what (search), and how (filters). */}
       <div className="relative flex h-[52px] items-center gap-2.5 rounded-full border border-border bg-card pl-3.5 pr-1.5 shadow-card focus-within:border-primary">
@@ -571,7 +551,10 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
         <span aria-hidden="true" className="h-6 w-px flex-shrink-0 bg-border" />
         <SearchBarWithSuggestions
           value={searchQuery}
-          onChange={setSearchQuery}
+          onChange={(v) => {
+            setSearchQuery(v);
+            if (v && tab !== 'cafes') setTab('cafes');
+          }}
           onSelectCity={setSelectedCity}
           onSelectTag={setActivity}
           cities={SUPPORTED_CITIES}
@@ -594,9 +577,32 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
         </button>
       </div>
 
-      {activityRow}
-      {styleRow}
+      <HomeTabRow
+        tab={tab}
+        onTab={setTab}
+        joinPill={
+          <a
+            href={COMMUNITY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => trackAction('community_join_tap', { where: 'home_pill' })}
+            className="mb-1.5 hidden flex-none items-center gap-2 rounded-full border border-border bg-card py-1 pl-3 pr-1 text-caption font-bold text-text-primary md:inline-flex"
+          >
+            {weekData && weekData.members >= 10 ? `${weekData.members} gamers in the community` : 'Join the community'}
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#25D366] px-3 py-1 text-[#06210F]">
+              <MessageCircle className="h-3.5 w-3.5" aria-hidden /> Join
+            </span>
+          </a>
+        }
+      />
+      {tab === 'cafes' && styleRow}
       {filterSheet}
+
+      <div id="home-panel" role="tabpanel" aria-labelledby={`home-tab-${tab}`} className={tab === 'cafes' ? 'contents' : undefined}>
+      {tab === 'drops' && <DropsPanel />}
+      {tab === 'challenges' && <ChallengesPanel />}
+      {tab === 'community' && <CommunityPanel />}
+      {tab === 'cafes' && (<>
 
       <div className="flex items-center justify-between gap-2 -mb-1">
         <p className="text-caption font-semibold text-text-secondary truncate" aria-live="polite">
@@ -690,7 +696,10 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
         )}
       </section>
 
-      {!isAuthenticated && (
+      </>)}
+      </div>
+
+      {!isAuthenticated && tab === 'cafes' && (
         <p className="text-center text-caption text-text-secondary -mt-2">
           <Link href={`/login?redirect=${encodeURIComponent(pathname)}`} className="font-semibold text-primary-dark hover:underline">
             Log in

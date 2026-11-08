@@ -187,3 +187,28 @@ export async function downloadDropCsv(id: string, slug: string): Promise<void> {
 }
 
 export { getApiUrl };
+
+// ------------------------------------------------------------ home Drops tab
+
+export interface DropListItem {
+  id: string;
+  slug: string;
+  title: string;
+  game: string;
+  tagline: string | null;
+  coverImageUrl: string | null;
+  pricePerHour: number;
+  state: DropState;
+  cafe: Drop['cafe'];
+  seatsLeft: number;
+  seatsTotal: number;
+  nextStartsAt: string;
+  earlyAccessStartsAt: string;
+  publicStartsAt: string;
+  /** You already hold a seat in this drop. */
+  iHold: boolean;
+}
+
+export async function listDrops(): Promise<DropListItem[]> {
+  return call(() => apiClient.get('/api/v1/drops'));
+}

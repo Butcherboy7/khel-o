@@ -11,6 +11,7 @@ import { apiClient } from '@/lib/api/client';
 import { SpecialAccessBadge, OG_BADGE_NAME } from '@/components/customer/SpecialAccessBadge';
 import { OgBadgeSheet } from '@/components/customer/OgBadgeSheet';
 import { HelperEmblem, isHelperBadgeKey } from '@/components/customer/HelperEmblem';
+import { PhoneCaptureCard } from '@/components/layout/PhoneNumberPrompt';
 import { useChallengeNudge } from '@/lib/challengeNudge';
 import {
   Avatar,
@@ -299,6 +300,8 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-4 max-w-2xl mx-auto pb-24">
+      {/* Signed in with no phone number: ask here, in context (the Me tab carries a red dot until it is saved). */}
+      <PhoneCaptureCard where="profile" />
       {/* Profile Header Card */}
       <Card elevation="raised" className="overflow-hidden border border-primary/20">
         <CardContent className="p-4 sm:p-5 flex flex-row items-center gap-4">
