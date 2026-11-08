@@ -24,6 +24,59 @@ const GRACE_MS = 15 * 60_000;
 const ymd = (dt: Date) => dt.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 const addDays = (iso: string, n: number) => ymd(new Date(new Date(`${iso}T12:00:00+05:30`).getTime() + n * 86_400_000));
 
+/** Prices can change any time, even live. Reservations already made keep the price they were made at. */
+function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
+  const [price, setPrice] = useState(String(d.pricePerHour));
+  const [short, setShort] = useState(String(d.deposit));
+  const [long, setLong] = useState(String(d.depositLong));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const changed = Number(price) !== d.pricePerHour || Number(short) !== d.deposit || Number(long) !== d.depositLong;
+  const save = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await updateDrop(d.id, { pricePerHour: Number(price), depositAmount: Number(short), depositAmountLong: Number(long) });
+      setMsg({ ok: true, text: 'Saved. New reservations use these prices.' });
+      onDone();
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error)?.message || 'Could not save.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const num = (v: string) => v.replace(/\D/g, '').slice(0, 5);
+  return (
+    <Card elevation="flat">
+      <CardContent className="flex flex-col gap-3 p-4">
+        <p className="font-heading text-body-emphasis font-bold text-text-primary">Prices</p>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ['Per hour (₹)', price, setPrice],
+            ['Deposit 1–3 hr (₹)', short, setShort],
+            ['Deposit 4–5 hr (₹)', long, setLong],
+          ].map(([label, val, set]) => (
+            <label key={label as string} className="flex flex-col gap-1 text-caption text-text-secondary">
+              {label as string}
+              <input
+                inputMode="numeric"
+                value={val as string}
+                onChange={(e) => (set as (v: string) => void)(num(e.target.value))}
+                className="h-11 rounded-lg border border-border bg-card px-2 text-body text-text-primary"
+              />
+            </label>
+          ))}
+        </div>
+        <p className="text-caption text-text-secondary">You can change these any time, even while the drop is live. People who already reserved keep the price they booked at.</p>
+        <div className="flex items-center gap-3">
+          <Button onClick={save} disabled={busy || !changed || !Number(price)}>Save prices</Button>
+          {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 /** Rolling drops run by themselves for up to 2 weeks. The owner can add days or stop it. */
 function RunControl({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -121,6 +174,7 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
         <ArrowLeft className="h-4 w-4" /> All drops
       </Link>
       <DropHowItWorks />
+      <EditPrices d={d} onDone={refresh} />
       {d.rolling && d.endsOn && d.startsOn && <RunControl d={d} onDone={refresh} />}
       <OwnerPageHeader
         title={d.title}

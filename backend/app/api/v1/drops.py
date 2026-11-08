@@ -431,8 +431,8 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
     paid = (await db.execute(select(func.count()).select_from(DropReservation).where(
         DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.HOLDING)))).scalar_one()
     fields = payload.model_dump(exclude_unset=True, exclude={"add_blocks"})
-    if paid and ({"price_per_hour", "deposit_amount", "deposit_amount_long"} & fields.keys()):
-        raise svc.DropError("People have already reserved, so the price and deposit can't change now.", "PRICE_LOCKED")
+    # Prices can change any time, live or not: every reservation keeps the amounts it was made at,
+    # so only new reservations see the new price.
     if "cover_image_url" in fields and fields["cover_image_url"] and not fields["cover_image_url"].startswith("https://"):
         raise svc.DropError("The picture link must start with https://", "BAD_IMAGE")
     if "early_access_code" in fields:

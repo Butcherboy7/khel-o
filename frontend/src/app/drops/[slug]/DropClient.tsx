@@ -362,6 +362,18 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           </p>
         )}
 
+        {/* How it works: three taps, shown before anything else asks for effort */}
+        {canReserve && (
+          <ol className="grid grid-cols-3 gap-2 text-center text-caption font-semibold text-text-primary" aria-label="How to reserve">
+            {['Pick a day', 'Drag your hours', 'Tap Reserve now'].map((t, i) => (
+              <li key={t} className="flex flex-col items-center gap-1 rounded-xl border border-border bg-card px-2 py-2.5">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[12px] font-extrabold text-white">{i + 1}</span>
+                {t}
+              </li>
+            ))}
+          </ol>
+        )}
+
         {/* Day */}
         {!ended && (
         <section>
@@ -410,7 +422,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             totalSeats={block.seatsTotal}
             requestedSeats={seatCount}
             remainingSeats={windowFree}
-            skipCoachmark
+            skipCoachmark={false}
             minDurationMinutes={60}
             maxDurationMinutes={(drop.maxHours ?? 5) * 60}
             stepMinutes={30}

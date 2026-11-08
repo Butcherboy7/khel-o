@@ -432,8 +432,11 @@ async def test_owner_creates_a_drop_and_blocks_must_end_before_midnight():
                      json={"blockId": drop["blocks"][0]["id"], "seats": 2, "code": "KHELO6"})
         r = await c.patch(f"/api/v1/owner/drops/{d['id']}/blocks/{drop['blocks'][0]['id']}", json={"seats": 1}, headers=_h(owner))
         assert r.status_code == 400
+        # Prices can change while live; the existing reservation keeps the price it was made at.
         r = await c.patch(f"/api/v1/owner/drops/{d['id']}", json={"pricePerHour": 200}, headers=_h(owner))
-        assert r.status_code == 400 and r.json()["error"]["code"] == "PRICE_LOCKED"
+        assert r.status_code == 200, r.text
+        mine = (await c.get(f"/api/v1/drops/{d['slug']}", headers=_h(gamer))).json()["data"]
+        assert mine["pricePerHour"] == 200 and mine["myReservations"][0]["blockPrice"] == 3000  # made at 300 an hour
 
 
 # ---------------------------------------------------------------- refunds

@@ -7,6 +7,7 @@ import { ChevronRight, ExternalLink, Plus, Ticket, Trash2 } from 'lucide-react';
 import { Button, Card, CardContent, EmptyState, Input, SkeletonCard } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
+import { DropHowItWorks } from '@/components/owner/DropHowItWorks';
 import { createDrop, listOwnerDrops, type NewDrop, type OwnerDropList } from '@/lib/api/drops';
 import { blockTimes, dayLabel, rupees } from '@/lib/drops';
 
@@ -32,7 +33,7 @@ export default function OwnerDropsPage() {
     <div className="flex flex-col gap-6">
       <OwnerPageHeader
         title="Launch drops"
-        description="Sell a few seats ahead of a big game launch. People pay a small deposit online and the rest at your café."
+        description="Sell a few seats ahead of a big game launch. People reserve with a small deposit that comes off their bill, and pay the rest at your café."
         action={
           !creating && (
             <Button onClick={() => setCreating(true)} fullWidth className="sm:w-auto">
@@ -41,6 +42,8 @@ export default function OwnerDropsPage() {
           )
         }
       />
+
+      {!creating && <DropHowItWorks />}
 
       {creating && data && (
         <NewDropForm
