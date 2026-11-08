@@ -56,7 +56,7 @@ export function HomeTabRow({ tab, onTab, joinPill }: { tab: HomeTab; onTab: (t: 
               )}
             >
               {t.label}
-              {n > 0 && <RedBadge count={n} />}
+              {n > 0 && <RedBadge dot />}
               {on && <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-full bg-primary" />}
             </button>
           );

@@ -18,7 +18,6 @@ import { useAuthStore } from '@/store/authStore';
 import { usePageLoaded } from '@/hooks/usePageLoaded';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 import { RedBadge } from '@/components/customer/RedBadge';
-import { useHomeBadges } from '@/lib/homeBadges';
 import { CampaignBadgeClaimer } from '@/components/customer/CampaignBadgeClaimer';
 import { ChallengePopup } from '@/components/customer/ChallengePopup';
 import { useChallengeNudge } from '@/lib/challengeNudge';
@@ -77,7 +76,6 @@ function CustomerHeader() {
   });
 
   const profileNav = useProfileNav();
-  const { meDot } = useHomeBadges();
   const initial = user?.fullName ? user.fullName[0].toUpperCase() : 'A';
   const unreadCount = unreadData?.unreadCount || 0;
 
@@ -128,8 +126,7 @@ function CustomerHeader() {
                 aria-current={isActive ? 'page' : undefined}
               >
                 {item.label}
-                {item.href === '/profile' && meDot && <RedBadge dot className="absolute right-1 top-1.5" />}
-                {item.href === '/profile' && !meDot && profileNav.showNew && <NewTag className="absolute -right-1 -top-1" />}
+                {item.href === '/profile' && profileNav.showNew && <NewTag className="absolute -right-1 -top-1" />}
                 {isActive && (
                   <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-4 rounded-full bg-primary" />
                 )}
@@ -178,7 +175,6 @@ function CustomerBottomNav() {
   const pathname = usePathname();
   const prefetch = usePageLoaded() ? undefined : false;
   const profileNav = useProfileNav();
-  const { meDot } = useHomeBadges();
 
   return (
     <nav
@@ -213,8 +209,7 @@ function CustomerBottomNav() {
             >
               <item.icon className="h-5 w-5" />
             </span>
-            {item.href === '/profile' && meDot && <RedBadge dot className="absolute right-3.5 top-1" />}
-            {item.href === '/profile' && !meDot && profileNav.showNew && <NewTag className="absolute right-1 top-0" />}
+            {item.href === '/profile' && profileNav.showNew && <NewTag className="absolute right-1 top-0" />}
             <span className="text-badge">{item.label}</span>
           </Link>
         );

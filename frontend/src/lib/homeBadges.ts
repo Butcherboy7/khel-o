@@ -4,17 +4,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listDrops } from '@/lib/api/drops';
 import { getChallenge } from '@/lib/api/challenges';
-import { getThisWeek } from '@/lib/api/community';
 import { FEATURED_CHALLENGE_SLUG, isUpcoming } from '@/lib/challenge';
-import { useAuthStore } from '@/store/authStore';
 
 /**
- * The red numbers on the home tabs. A number means "something here you have
- * not opened yet". It clears when the tab is opened (not on a timer), and a
- * new drop / challenge / vote brings it back. What was seen is stored per
- * device, so logged-out visitors get the badges too.
- *
- * The dot on Me is separate: "finish setting up" (no phone number saved).
+ * The red dot on a home tab: something you can act on now that you have not
+ * opened yet (a drop open for booking, a challenge you can still join). Only
+ * one tab shows it at a time, it clears when the tab is opened (not on a
+ * timer), and the next new drop / challenge brings it back. Seen state is
+ * per device. The bell keeps its number for real notifications; nothing else
+ * is badged.
  */
 export type BadgeTab = 'drops' | 'challenges' | 'community';
 
@@ -66,22 +64,16 @@ export function snoozePhoneAsk() {
 
 export interface HomeBadges {
   counts: Record<BadgeTab, number>;
-  /** Logged in, no phone number, not snoozed. */
-  meDot: boolean;
   /** Mark everything currently in this tab as seen. */
   markSeen: (tab: BadgeTab) => void;
 }
 
 export function useHomeBadges(): HomeBadges {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const user = useAuthStore((s) => s.user);
   const [seen, setSeen] = useState<Seen>(EMPTY);
-  const [snooze, setSnooze] = useState(false);
 
   useEffect(() => {
     const sync = () => {
       setSeen(readSeen());
-      setSnooze(isPhoneAskSnoozed());
     };
     sync();
     window.addEventListener(EVENT, sync);
@@ -99,20 +91,22 @@ export function useHomeBadges(): HomeBadges {
     staleTime: 60_000,
     retry: false,
   });
-  const { data: week } = useQuery({ queryKey: ['community-week', isAuthenticated], queryFn: getThisWeek, staleTime: 60_000, retry: false });
 
   // What is in each tab right now, as stable tokens.
   const tokens: Record<BadgeTab, string[]> = {
-    drops: (drops ?? []).filter((d) => !d.iHold).map((d) => d.id),
-    challenges: ch ? [`${ch.slug}:${isUpcoming(ch) ? 'up' : ch.status}`] : [],
-    community: week?.poll && !week.poll.closed ? [`poll:${week.poll.id}`] : [],
+    // Only drops you can act on now: open or early access, seats left, not already yours.
+    drops: (drops ?? []).filter((d) => !d.iHold && (d.state === 'open' || d.state === 'early') && d.seatsLeft > 0).map((d) => d.id),
+    // Only a challenge you can still join. A finished one's recap is not an alert.
+    challenges: ch && isUpcoming(ch) ? [`${ch.slug}:up`] : [],
+    // The community is an invitation, not an alert: it never gets a badge.
+    community: [],
   };
 
-  const counts: Record<BadgeTab, number> = {
-    drops: tokens.drops.filter((t) => !seen.drops.includes(t)).length,
-    challenges: tokens.challenges.filter((t) => !seen.challenges.includes(t)).length,
-    community: tokens.community.filter((t) => !seen.community.includes(t)).length,
-  };
+  // One signal at a time. Several red marks at once read as noise, so only the
+  // first tab (in priority order) with something unseen shows a dot.
+  const first = (['drops', 'challenges', 'community'] as BadgeTab[]).find((t) => tokens[t].some((x) => !seen[t].includes(x)));
+  const counts: Record<BadgeTab, number> = { drops: 0, challenges: 0, community: 0 };
+  if (first) counts[first] = 1;
 
   const markSeen = useCallback(
     (tab: BadgeTab) => {
@@ -124,5 +118,5 @@ export function useHomeBadges(): HomeBadges {
     [JSON.stringify(tokens)],
   );
 
-  return { counts, meDot: Boolean(isAuthenticated && user && !user.phoneNumber && !snooze), markSeen };
+  return { counts, markSeen };
 }

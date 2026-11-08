@@ -8,14 +8,12 @@ import { fightFont } from '@/components/challenge/ChallengeHero';
 import { getThisWeek, sendContribution, voteInPoll, type ContributionBody } from '@/lib/api/community';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { useAuthStore } from '@/store/authStore';
-import { useHomeBadges } from '@/lib/homeBadges';
 
 /** "This week" (a vote and a members-only code) and "Help build KHEL-O".
  *  The reasons to come back to the community page every week. */
 export function CommunityHub({ tapped }: { tapped: boolean }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const qc = useQueryClient();
-  const { counts, markSeen } = useHomeBadges();
   const { data, isLoading } = useQuery({ queryKey: ['community-week', isAuthenticated], queryFn: getThisWeek, staleTime: 30_000, retry: false });
   const [voting, setVoting] = useState<number | null>(null);
   const [voteError, setVoteError] = useState('');
@@ -23,14 +21,8 @@ export function CommunityHub({ tapped }: { tapped: boolean }) {
   const [sheet, setSheet] = useState<null | 'cafe' | 'photos'>(null);
   const [thanks, setThanks] = useState('');
 
-  // Opening the page is what clears the red number on the Community tab.
-  useEffect(() => {
-    markSeen('community');
-  }, [markSeen, data?.poll?.id]);
-
   const poll = data?.poll ?? null;
   const isMember = Boolean(data?.isMember);
-  const newCount = counts.community;
 
   const vote = async (i: number) => {
     if (!poll || poll.closed) return;
@@ -66,7 +58,6 @@ export function CommunityHub({ tapped }: { tapped: boolean }) {
       <div className="flex flex-col gap-3">
         <h2 id="hub-week" className={`${fightFont.className} flex items-center gap-2 text-3xl font-bold uppercase leading-none`}>
           This week
-          {newCount > 0 && <span className="rounded-full bg-[#E5322D] px-2 py-1 font-sans text-[11px] font-extrabold normal-case leading-none tracking-normal text-white">{newCount} new</span>}
         </h2>
 
         {isLoading && <div className="h-40 animate-pulse rounded-2xl bg-[#16171C]" aria-label="Loading this week" />}
