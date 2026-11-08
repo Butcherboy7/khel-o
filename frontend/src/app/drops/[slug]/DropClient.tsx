@@ -322,6 +322,11 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
               <Ticket className="h-3.5 w-3.5 text-primary" /> {drop.seatsPerSlot ? `${drop.seatsPerSlot} seats at a time, every night` : `${drop.seatsLeft} of ${drop.seatsTotal} seats left`}
             </span>
+            {drop.playsOn && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-primary">
+                Play on {drop.playsOn}
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
               {rupees(drop.pricePerHour)} an hour
             </span>

@@ -49,6 +49,7 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
       'Pick a date, then use “Show” to see only paid, playing, finished or cancelled bookings.',
       '“Paid, not arrived” means the money is in. Let them play when they turn up.',
       '“Not paid yet” bookings aren’t guaranteed. You can free up that seat if nobody pays.',
+      'Tap “Coming up” to see everything from today onwards, including launch drop reservations.',
     ],
   },
   availability: {
@@ -103,7 +104,8 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
   drops: {
     info: 'Launch drops are a few seats sold ahead of a big game. Customers pay a small fee now and the rest at your café.',
     tips: [
-      'Tap New drop to start one. Your café, the game and the days are the only things to fill in.',
+      'Tap New drop and follow the five steps: the game, which rig (PS5, Xbox, PC) and how many, the days and hours, the price, a photo.',
+      'The rigs you give a drop show as taken for normal bookings during its hours. Make the hours shorter to free them.',
       'Open a drop to change prices, seats and your photo, even while it is live.',
       'Check people in with their QR pass when they arrive.',
     ],

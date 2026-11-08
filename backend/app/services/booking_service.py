@@ -92,9 +92,10 @@ class BookingService:
         now_ist = datetime.now(IST)
         start_datetime = datetime.combine(booking_in.session_date, booking_in.start_time).replace(tzinfo=IST)
 
-        if start_datetime - now_ist < timedelta(minutes=30):
+        # A slot can be booked right up to its start (11:30 PM at 11:29 PM): no lead time.
+        if start_datetime <= now_ist:
             raise ValidationException(
-                message="Booking start time must be at least 30 minutes in the future",
+                message="That start time has already passed. Pick a later time.",
                 error_code="INVALID_START_TIME"
             )
 

@@ -456,7 +456,7 @@ function BookingWizardContent() {
     let minValidStart = openMin;
     if (selectedDate === today) {
       const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-      minValidStart = Math.max(openMin, Math.ceil((nowMin + 30) / 30) * 30);
+      minValidStart = Math.max(openMin, Math.ceil((nowMin + 1) / 30) * 30);
     }
 
     // Find the first 2-hour continuous available slot

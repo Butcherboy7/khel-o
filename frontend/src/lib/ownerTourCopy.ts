@@ -105,6 +105,11 @@ export const TOUR_LESSONS: TourLesson[] = [
         title: 'Find one kind of booking',
         body: '“Paid, not arrived”: the money is in. “Not paid yet”: not confirmed. “Never showed up”: paid but didn’t come.',
       },
+      {
+        kind: 'look', page: '/owner/bookings', target: 'bookings-days',
+        title: 'See what is coming',
+        body: 'Tap “Coming up” to see every booking from today onwards. Launch drop reservations are listed at the top, with a Check in button.',
+      },
     ],
   },
   {
@@ -191,7 +196,7 @@ export const TOUR_LESSONS: TourLesson[] = [
       {
         kind: 'look', page: '/owner/drops', target: 'drops-new',
         title: 'Start a drop here',
-        body: 'Pick your café, the game, the first day, your hours and how many seats. Everything else is already set for you.',
+        body: 'Pick the game, which of your rigs it runs on and how many, the first day, your hours and a photo. Those rigs show as taken for normal bookings during the drop hours.',
       },
       {
         kind: 'look', page: '/owner/drops', target: 'drops-list',

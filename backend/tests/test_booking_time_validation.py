@@ -3,7 +3,7 @@ Regression lock for the post-midnight booking lead-time validator in
 booking_service.create_booking (booking_service.py ~92-100).
 
 This validator combines `session_date + start_time` as IST and compares it
-against `datetime.now(IST)`, requiring at least 30 minutes of lead time. That
+against `datetime.now(IST)`, requiring only that the start is still in the future (a 11:30 PM slot can be booked at 11:29 PM). That
 math is correct; the bug this guards against was in the FRONTEND, which used
 to submit the wrong `session_date` for slots after midnight (see
 frontend/src/lib/format.ts minutesToTimeString and bookings/new/page.tsx).
@@ -125,10 +125,12 @@ MATRIX = [
     (time(22, 0), BASE_DATE, "22:30:00", True, "20aug_2200_now__20aug_2230_start__accepted"),
     (time(23, 0), NEXT_DATE, "00:00:00", True, "20aug_2300_now__21aug_0000_start__accepted"),
     (time(23, 0), NEXT_DATE, "00:30:00", True, "20aug_2300_now__21aug_0030_start__accepted"),
-    (time(23, 45), NEXT_DATE, "00:00:00", False, "20aug_2345_now__21aug_0000_start__rejected_15min"),
+    (time(23, 45), NEXT_DATE, "00:00:00", True, "20aug_2345_now__21aug_0000_start__accepted_15min_before"),
     (time(23, 45), NEXT_DATE, "00:15:00", True, "20aug_2345_now__21aug_0015_start__accepted_exactly_30"),
     (time(23, 59), NEXT_DATE, "00:30:00", True, "20aug_2359_now__21aug_0030_start__accepted"),
-    (time(10, 0), BASE_DATE, "10:10:00", False, "20aug_1000_now__20aug_1010_start__rejected_10min"),
+    (time(10, 0), BASE_DATE, "10:10:00", True, "20aug_1000_now__20aug_1010_start__accepted_10min_before"),
+    (time(10, 0), BASE_DATE, "10:00:00", False, "20aug_1000_now__20aug_1000_start__rejected_already_started"),
+    (time(10, 0), BASE_DATE, "10:05:00", True, "20aug_1000_now__20aug_1005_start__accepted_5min_before"),
     (time(23, 0), BASE_DATE, "00:30:00", False, "20aug_2300_now__20aug_0030_start__rejected_same_day_past_time_regression"),
 ]
 

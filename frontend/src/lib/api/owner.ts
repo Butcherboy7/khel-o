@@ -21,6 +21,10 @@ export interface AvailabilityTierSummary {
   blockedSeats: number;
   appBookableSeats: number;
   pricePerHour: number;
+  /** Launch drops only: first day, last day and the rig it runs on. */
+  startsOn?: string | null;
+  endsOn?: string | null;
+  playsOn?: string | null;
 }
 
 export interface AvailabilityTimelineSlot {

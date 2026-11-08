@@ -206,6 +206,11 @@ async def get_cafe_availability(
             "seatsCount": b.seats_count or 1
         })
 
+    # Seats kept for a launch drop show as booked during the drop's hours.
+    from app.services import drop_service as dsvc
+    for ds, de, n, _title in await dsvc.dedicated_windows(db, tier_id, parsed_date):
+        booked_slots.append({"startTime": f"{ds // 60:02d}:{ds % 60:02d}:00", "endTime": f"{de // 60:02d}:{de % 60:02d}:00", "seatsCount": n})
+
     app_bookable_seats = tier.app_bookable_seats or tier.total_seats or 10
 
     # Gaming tiers never get hardware_tier_units rows (units only exist for

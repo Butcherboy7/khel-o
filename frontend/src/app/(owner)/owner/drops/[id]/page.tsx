@@ -307,7 +307,7 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
       <OwnerPageHeader
         guide="drop"
         title={d.title}
-        description={`${d.cafe.name} · ${rupees(d.pricePerHour)} an hour · ${rupees(d.deposit)} deposit a seat`}
+        description={`${d.cafe.name} · ${d.playsOn ? `on ${d.playsOn} · ` : ''}${rupees(d.pricePerHour)} an hour · ${rupees(d.deposit)} deposit a seat`}
         action={
           <a
             href={`/drops/${d.slug}`}

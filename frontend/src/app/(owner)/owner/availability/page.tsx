@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   Monitor,
@@ -64,6 +64,7 @@ export default function OwnerAvailabilityPage() {
   const [error, setError] = useState<string | null>(null);
   const [isUpdatingBlocked, setIsUpdatingBlocked] = useState(false);
 
+  const tierRef = useRef<string | null>(null);
   const isToday = selectedDate === getTodayString();
 
   const load = useCallback(async () => {
@@ -72,9 +73,10 @@ export default function OwnerAvailabilityPage() {
     try {
       const res = await getOwnerAvailabilityTimeline({
         date: selectedDate,
-        tierId: selectedTierId || undefined,
+        tierId: tierRef.current || undefined,
       });
       setData(res);
+      tierRef.current = res.selectedTierId;
       setSelectedTierId(res.selectedTierId);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load availability.');
@@ -125,6 +127,13 @@ export default function OwnerAvailabilityPage() {
   const handleSelectTier = (tierId: string) => {
     if (tierId === selectedTierId) return;
     setSelectedTierId(tierId);
+    tierRef.current = tierId;
+    // A launch drop has no seats before its first day, so open on that day.
+    const picked = data?.tiers.find((t) => t.id === tierId);
+    if (picked?.startsOn && picked.startsOn > selectedDate) {
+      setSelectedDate(picked.startsOn);
+      return;
+    }
     (async () => {
       setIsLoading(true);
       try {
@@ -301,7 +310,7 @@ export default function OwnerAvailabilityPage() {
                 <span className={`text-caption font-bold text-center leading-tight ${isActive ? 'text-primary' : 'text-text-primary'}`}>
                   {t.name}
                 </span>
-                <span className="text-xs text-text-secondary">{t.id.startsWith('drop-') ? `Launch drop · ${t.totalSeats} seats` : `${t.totalSeats} Stations`}</span>
+                <span className="text-xs text-text-secondary">{t.id.startsWith('drop-') ? `Launch drop · ${t.playsOn ? `on ${t.playsOn} · ` : ''}${t.totalSeats} seats` : `${t.totalSeats} Stations`}</span>
               </button>
             );
           })}

@@ -1447,6 +1447,9 @@ async def get_owner_availability_timeline(
             "id": f"drop-{d.id}", "name": d.title, "platform": None, "model": "launch drop",
             "totalSeats": seats, "activeSeatsCount": seats, "blockedSeats": 0, "appBookableSeats": seats,
             "pricePerHour": float(d.price_per_hour),
+            "startsOn": d.starts_on.isoformat() if d.starts_on else None,
+            "endsOn": d.ends_on.isoformat() if d.ends_on else None,
+            "playsOn": next((t.model or t.name for t in tiers if t.id == d.hardware_tier_id), None),
         })
 
     if not tiers and not live_drops:
@@ -1482,7 +1485,10 @@ async def get_owner_availability_timeline(
         ]),
     )
     res = await db.execute(stmt)
-    rows = res.all()
+    real_rows = list(res.all())
+    # Seats kept for a launch drop on this rig count as taken during its hours.
+    dedicated = await dsvc.dedicated_windows(db, selected_tier.id, parsed_date)
+    rows = real_rows + [(time(ds // 60, ds % 60), time(de // 60, de % 60), n, BookingStatus.CONFIRMED) for ds, de, n, _t in dedicated]
 
     total_seats = selected_tier.total_seats
     blocked_seats = max(0, total_seats - selected_tier.active_seats_count)
@@ -1549,7 +1555,11 @@ async def get_owner_availability_timeline(
             "seatsCount": seats or 1,
             "status": st.value,
         }
-        for start_t, end_t, seats, st in sorted(rows, key=lambda r: r[0])
+        for start_t, end_t, seats, st in sorted(real_rows, key=lambda r: r[0])
+    ] + [
+        {"startTime": f"{ds // 60:02d}:{ds % 60:02d}", "endTime": f"{de // 60:02d}:{de % 60:02d}",
+         "seatsCount": n, "status": "confirmed", "name": f"Kept for {title}"}
+        for ds, de, n, title in dedicated
     ]
 
     return {

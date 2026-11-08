@@ -146,7 +146,14 @@ class BookingRepository(BaseRepository[Booking]):
             )
         )
         result = await self.db.execute(stmt)
-        return int(result.scalar() or 0)
+        count = int(result.scalar() or 0)
+        # Seats a live launch drop keeps on this rig are taken for normal booking too.
+        from app.services import drop_service as dsvc
+        s, e = start_time.hour * 60 + start_time.minute, end_time.hour * 60 + end_time.minute
+        for ds, de, n, _title in await dsvc.dedicated_windows(self.db, tier_id, session_date):
+            if ds < e and de > s:
+                count += n
+        return count
 
     async def get_overlapping_bookings_count_with_lock(
         self,

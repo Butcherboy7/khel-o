@@ -29,7 +29,7 @@ from typing import Optional
 from urllib.parse import quote_plus
 from uuid import UUID
 
-from sqlalchemy import and_, func, literal_column, select, update
+from sqlalchemy import and_, func, literal_column, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -541,6 +541,16 @@ async def can_manage(db: AsyncSession, user: User, cafe_id: UUID) -> bool:
         return True
     cafe = await db.get(Cafe, cafe_id)
     return cafe is not None and cafe.owner_id == user.id
+
+
+async def dedicated_windows(db: AsyncSession, tier_id: UUID, day) -> list[tuple[int, int, int, str]]:
+    """Seats of a rig kept for a live drop on this day: (start_min, end_min, seats, title).
+    Normal booking sees these seats as taken during the drop's daily hours."""
+    rows = (await db.execute(select(Drop).where(
+        Drop.hardware_tier_id == tier_id, Drop.status == "live", Drop.daily_start_time.is_not(None),
+        Drop.starts_on <= day, or_(Drop.ends_on.is_(None), Drop.ends_on >= day),
+    ))).scalars().all()
+    return [(_mins(d.daily_start_time), _mins(d.daily_end_time), d.daily_seats or 0, d.title) for d in rows]
 
 
 async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict], list[dict], Optional[dict]]:

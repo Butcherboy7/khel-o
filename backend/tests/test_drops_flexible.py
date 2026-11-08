@@ -217,3 +217,43 @@ async def test_owner_free_slots_grid_shows_the_drop_like_a_setup(fake_razorpay):
         by = {t["startTime"]: t for t in data["timeline"]}
         assert by["18:00"]["booked"] == 2 and by["18:00"]["available"] == 2 and by["19:00"]["booked"] == 2
         assert data["bookings"][0]["seatsCount"] == 2 and data["bookings"][0]["status"] == "confirmed" and data["bookings"][0]["name"]
+
+
+@pytest.mark.asyncio
+async def test_drop_seats_are_kept_from_normal_booking_during_its_hours():
+    from app.models.hardware_tier import HardwareTier
+    drop, block, owner = await _flex(seats=2)
+    async with AsyncSessionLocal() as db:
+        cafe_id = (await db.get(Drop, drop.id)).cafe_id
+        tier = HardwareTier(cafe_id=cafe_id, name="PS5", total_seats=3, app_bookable_seats=3, price_per_hour=150)
+        db.add(tier)
+        await db.commit()
+        day = (await db.get(DropBlock, block.id)).session_date
+        await db.execute(update(Drop).where(Drop.id == drop.id).values(
+            hardware_tier_id=tier.id, daily_start_time=time(12, 0), daily_end_time=time(23, 0), daily_seats=2,
+            starts_on=day, ends_on=day))
+        await db.execute(update(HardwareTier).where(HardwareTier.id == tier.id).values(total_seats=3, app_bookable_seats=3))
+        await db.commit()
+        from app.services import drop_service as dsvc
+        wins = await dsvc.dedicated_windows(db, tier.id, day)
+        assert wins and wins[0][2] == 2
+        from app.repositories.booking_repository import BookingRepository
+        n = await BookingRepository(db).get_overlapping_bookings_count(tier.id, day, time(18, 0), time(19, 0))
+        assert n >= 2  # the two kept seats count as taken at 18:00
+        n_early = await BookingRepository(db).get_overlapping_bookings_count(tier.id, day, time(9, 0), time(10, 0))
+        assert n_early == 0  # not during other hours
+
+
+@pytest.mark.asyncio
+async def test_owner_sees_upcoming_drop_reservations_in_one_list(fake_razorpay):
+    drop, block, owner = await _flex(seats=3)
+    a = await _user()
+    async with _client() as c:
+        order = (await _book(c, drop, block, a, start="18:00", hours=2)).json()["data"]["order"]["orderId"]
+        await _pay(c, a, order)
+        r = await c.get("/api/v1/owner/drops/reservations", headers=_h(owner))
+        assert r.status_code == 200, r.text
+        rows = r.json()["data"]
+        assert len(rows) == 1 and rows[0]["status"] == "confirmed" and rows[0]["startTime"] == "18:00" and rows[0]["checkinToken"]
+        stranger = await _user(UserRole.GAMER)
+        assert (await c.get("/api/v1/owner/drops/reservations", headers=_h(stranger))).json()["data"] == []

@@ -45,6 +45,8 @@ class Drop(Base):
     daily_start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     daily_end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     daily_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # The cafe's rig (PS5, Xbox, PC...) this drop runs on. daily_seats of it are kept for the drop.
+    hardware_tier_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hardware_tiers.id", ondelete="SET NULL"), nullable=True)
     starts_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     ends_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     max_seats_per_user: Mapped[int] = mapped_column(Integer, nullable=False, default=2)

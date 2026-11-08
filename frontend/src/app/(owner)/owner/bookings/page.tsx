@@ -30,6 +30,7 @@ import { InfoTip } from '@/components/shared/InfoTip';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { cn } from '@/lib/cn';
 import { addDaysToDateString, formatSessionDate, formatSessionDateShort, formatTime, getOwnerPayoutAmount, getTodayString } from '@/lib/format';
+import { checkInDropPass, listOwnerDropBookings, type OwnerDropBooking } from '@/lib/api/drops';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 
 export default function OwnerBookingsPage() {
@@ -46,21 +47,30 @@ export default function OwnerBookingsPage() {
   const tomorrow = addDaysToDateString(today, 1);
   const [selectedDate, setSelectedDate] = useState(() => (searchParams.get('ref') ? '' : today));
   const datePickerRef = useRef<HTMLInputElement>(null);
-  const pickedOther = selectedDate !== '' && selectedDate !== today && selectedDate !== tomorrow;
+  const pickedOther = selectedDate !== '' && selectedDate !== 'upcoming' && selectedDate !== today && selectedDate !== tomorrow;
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+
+  // 'Coming up' has no single day: ask for every day, then keep today onwards.
+  const apiDate = selectedDate === 'upcoming' ? '' : selectedDate;
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.owner.bookings({
-      date: selectedDate || undefined,
+      date: apiDate || undefined,
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
     }),
     queryFn: () =>
       listOwnerBookings({
-        date: selectedDate || undefined,
+        date: apiDate || undefined,
         status: selectedStatus !== 'all' ? selectedStatus : undefined,
       }),
     staleTime: 0, // Always fresh for staff desk operations
     refetchInterval: 30_000,
+  });
+
+  const dropQuery = useQuery({ queryKey: ['owner', 'drop-bookings'], queryFn: listOwnerDropBookings, staleTime: 0, refetchInterval: 30_000 });
+  const dropCheckin = useMutation({
+    mutationFn: (token: string) => checkInDropPass(token),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['owner', 'drop-bookings'] }),
   });
 
   const checkinMutation = useMutation({
@@ -93,10 +103,19 @@ export default function OwnerBookingsPage() {
 
   const actionError =
     (checkinMutation.error as Error | null)?.message ||
+    (dropCheckin.error as Error | null)?.message ||
     (updateStatusMutation.error as Error | null)?.message ||
     null;
 
-  const rawBookings = data?.items || [];
+  const rawBookings = (data?.items || []).filter((b) => selectedDate !== 'upcoming' || b.sessionDate >= today);
+  const dropStatus = (st: string) => (st === 'refunded' || st === 'given_away' ? 'cancelled' : st);
+  const q = searchRef.toLowerCase();
+  const dropRows = (dropQuery.data || []).filter(
+    (d) =>
+      (selectedDate === '' || selectedDate === 'upcoming' || d.date === selectedDate) &&
+      (selectedStatus === 'all' || dropStatus(d.status) === selectedStatus) &&
+      (!q || d.reference.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)),
+  );
   const bookings = searchRef
     ? rawBookings.filter((b) =>
         b.bookingReference.toLowerCase().includes(searchRef.toLowerCase()) ||
@@ -159,6 +178,14 @@ export default function OwnerBookingsPage() {
               </label>
               <button
                 type="button"
+                aria-pressed={selectedDate === 'upcoming'}
+                onClick={() => setSelectedDate('upcoming')}
+                className={dayChip(selectedDate === 'upcoming')}
+              >
+                Coming up
+              </button>
+              <button
+                type="button"
                 aria-pressed={selectedDate === ''}
                 onClick={() => setSelectedDate('')}
                 className={dayChip(selectedDate === '')}
@@ -219,15 +246,25 @@ export default function OwnerBookingsPage() {
           />
         )}
 
-        {!isLoading && !isError && bookings.length === 0 && (
+        {!isLoading && !isError && bookings.length === 0 && dropRows.length === 0 && (
           <EmptyState
             title="Nothing here"
             description="No bookings match what you searched for. Try a different date, or set Show to Everything."
           />
         )}
 
+        {dropRows.length > 0 && (
+          <div className="flex flex-col gap-3" data-tour="bookings-drops">
+            <h2 className="font-heading text-h4 text-text-primary">Launch drop reservations</h2>
+            {dropRows.map((d) => (
+              <DropBookingCard key={d.id} d={d} onCheckIn={() => d.checkinToken && dropCheckin.mutate(d.checkinToken)} busy={dropCheckin.isPending} />
+            ))}
+          </div>
+        )}
+
         {!isLoading && !isError && bookings.length > 0 && (
           <div className="flex flex-col gap-3">
+            {dropRows.length > 0 && <h2 className="font-heading text-h4 text-text-primary">Normal bookings</h2>}
             {bookings.map((booking) => (
               <Card key={booking.id} elevation="resting">
                 {/* The customer's name leads. Previously the booking reference —
@@ -324,5 +361,52 @@ function dayChip(active: boolean): string {
     'inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-4 text-caption font-semibold transition-colors',
     'focus-within:outline-none focus-within:ring-2 focus-within:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
     active ? 'border-secondary bg-secondary text-white' : 'border-border bg-card text-text-primary hover:border-text-secondary',
+  );
+}
+
+const DROP_STATUS: Record<string, string> = {
+  pending_payment: 'Not paid yet',
+  confirmed: 'Paid, not arrived',
+  checked_in: 'Checked in',
+  refunded: 'Refunded',
+  given_away: 'Given away',
+};
+
+function DropBookingCard({ d, onCheckIn, busy }: { d: OwnerDropBooking; onCheckIn: () => void; busy: boolean }) {
+  return (
+    <Card elevation="resting">
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="flex min-w-0 items-center gap-2 font-heading text-h3 text-text-primary">
+              <User className="h-4 w-4 flex-shrink-0 text-primary" aria-hidden="true" />
+              <span className="truncate">{d.name}</span>
+            </h3>
+            <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-caption font-semibold text-primary">{DROP_STATUS[d.status] ?? d.status}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-text-secondary">
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+              {formatSessionDate(d.date)}
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+              {formatTime(d.startTime)} · {d.hours ?? ''}h
+            </span>
+            <span className="font-semibold text-text-primary">{d.dropTitle}</span>
+          </div>
+          <span className="font-data text-ref uppercase text-text-secondary">{d.reference}</span>
+        </div>
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-border pt-3 sm:justify-end sm:border-0 sm:pt-0">
+          <span className="text-caption text-text-secondary">Pays at café: <strong className="text-text-primary">₹{Math.round(d.balanceDue)}</strong></span>
+          {d.status === 'confirmed' && d.checkinToken && (
+            <Button variant="primary" size="sm" onClick={onCheckIn} isLoading={busy} loadingText="Checking in" className="gap-1.5">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              <span>Check in</span>
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

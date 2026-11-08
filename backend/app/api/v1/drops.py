@@ -25,6 +25,7 @@ from app.core.exceptions import ForbiddenException, NotFoundException
 from app.database import get_db
 from app.models.cafe import Cafe
 from app.models.drop import Drop, DropBlock, DropReservation, DropWaitlist
+from app.models.hardware_tier import HardwareTier
 from app.models.user import User
 from app.services import drop_service as svc
 from app.services.challenge_day import qr_data_url
@@ -92,6 +93,16 @@ def _reservation_out(drop: Drop, r: DropReservation, block: Optional[DropBlock])
     }
 
 
+async def _out(db: AsyncSession, drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
+    """_drop_out plus the rig (PS5, Xbox, PC...) the drop runs on."""
+    data = _drop_out(drop, cafe, blocks)
+    tier = await db.get(HardwareTier, drop.hardware_tier_id) if drop.hardware_tier_id else None
+    data["tierId"] = str(tier.id) if tier else None
+    data["playsOn"] = (tier.model or tier.name) if tier else None
+    data["platform"] = tier.platform.value if tier is not None and tier.platform else None
+    return data
+
+
 def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
     return {
         "id": str(drop.id),
@@ -152,7 +163,7 @@ async def list_drops(db: AsyncSession = Depends(get_db), user: Optional[User] = 
         if not upcoming:
             continue  # every session has started: nothing left to book
         cafe = await db.get(Cafe, drop.cafe_id)
-        data = _drop_out(drop, cafe, blocks)
+        data = await _out(db, drop, cafe, blocks)
         data.pop("blocks", None)
         data["nextStartsAt"] = _iso(min(svc.block_starts_at(b) for b in upcoming))
         # A drop you already hold a seat in never counts as "new" on the home tab.
@@ -196,7 +207,7 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
     await svc.ensure_blocks(db, drop)
     blocks = [b for b in await svc.blocks_of(db, drop.id)
               if (drop.ends_on is None or b.session_date <= drop.ends_on) and (drop.starts_on is None or b.session_date >= drop.starts_on)]
-    data = _drop_out(drop, cafe, blocks)
+    data = await _out(db, drop, cafe, blocks)
     if drop.max_hours:
         for bd, blk in zip(data["blocks"], blocks):
             wins = await svc._holding_windows(db, blk)
@@ -328,6 +339,7 @@ class BlockIn(_Camel):
 
 class DropCreate(_Camel):
     cafe_id: UUID
+    hardware_tier_id: Optional[UUID] = None
     title: str = Field(..., min_length=3, max_length=120)
     game: str = Field(..., min_length=1, max_length=80)
     slug: Optional[str] = Field(None, max_length=60)
@@ -390,7 +402,7 @@ async def list_my_drops(db: AsyncSession = Depends(get_db), user: User = Depends
     out = []
     for drop, cafe in rows:
         blocks = await svc.blocks_of(db, drop.id)
-        item = _drop_out(drop, cafe, blocks)
+        item = await _out(db, drop, cafe, blocks)
         item["paidReservations"] = (await db.execute(select(func.count()).select_from(DropReservation).where(
             DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.PAID)))).scalar_one()
         out.append(item)
@@ -398,6 +410,12 @@ async def list_my_drops(db: AsyncSession = Depends(get_db), user: User = Depends
     if "admin" not in roles:
         cafes_stmt = cafes_stmt.where(Cafe.owner_id == user.id)
     cafes = [{"id": str(i), "name": n} for i, n in (await db.execute(cafes_stmt)).all()]
+    for c in cafes:
+        c["tiers"] = [
+            {"id": str(t.id), "name": t.model or t.name, "totalSeats": t.total_seats}
+            for t in (await db.execute(select(HardwareTier).where(
+                HardwareTier.cafe_id == UUID(c["id"]), HardwareTier.is_active.is_(True)).order_by(HardwareTier.name))).scalars().all()
+        ]
     return {"success": True, "data": {"drops": out, "cafes": cafes, "suggestedPrice": list(svc.SUGGESTED_PRICE)}}
 
 
@@ -412,12 +430,21 @@ async def create_drop(payload: DropCreate, db: AsyncSession = Depends(get_db), u
     base, n = slug, 2
     while (await db.execute(select(Drop.id).where(Drop.slug == slug))).first():
         slug, n = f"{base}-{n}", n + 1
+    if payload.hardware_tier_id is not None:
+        tier = await db.get(HardwareTier, payload.hardware_tier_id)
+        if tier is None or tier.cafe_id != cafe.id or not tier.is_active:
+            raise svc.DropError("Pick one of your own rigs.", "BAD_RIG")
+        if payload.daily_seats and payload.daily_seats > tier.total_seats:
+            raise svc.DropError(f"You only have {tier.total_seats} of that rig.", "TOO_MANY_SEATS")
+    elif payload.daily_start_time is not None:
+        raise svc.DropError("Pick which of your rigs this drop runs on.", "NEED_RIG")
     drop = Drop(
         slug=slug, cafe_id=cafe.id, title=payload.title.strip(), game=payload.game.strip(),
         tagline=(payload.tagline or "").strip() or None, cover_image_url=payload.cover_image_url,
         price_per_hour=payload.price_per_hour, deposit_amount=payload.deposit_amount,
         max_hours=payload.max_hours, deposit_amount_long=payload.deposit_amount_long,
         daily_start_time=payload.daily_start_time, daily_end_time=payload.daily_end_time, daily_seats=payload.daily_seats,
+        hardware_tier_id=payload.hardware_tier_id,
         starts_on=payload.starts_on, ends_on=(payload.starts_on + timedelta(days=payload.days - 1)) if payload.starts_on else None,
         max_seats_per_user=payload.max_seats_per_user,
         early_access_code=(payload.early_access_code or "").strip().upper() or None,
@@ -430,7 +457,7 @@ async def create_drop(payload: DropCreate, db: AsyncSession = Depends(get_db), u
         db.add(DropBlock(drop_id=drop.id, session_date=b.date, start_time=b.start_time, end_time=b.end_time, seats_total=b.seats))
     await db.commit()
     await svc.ensure_blocks(db, drop)
-    return {"success": True, "data": _drop_out(drop, cafe, await svc.blocks_of(db, drop.id))}
+    return {"success": True, "data": await _out(db, drop, cafe, await svc.blocks_of(db, drop.id))}
 
 
 class DropUpdate(_Camel):
@@ -485,7 +512,7 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
     for b in payload.add_blocks:
         db.add(DropBlock(drop_id=drop.id, session_date=b.date, start_time=b.start_time, end_time=b.end_time, seats_total=b.seats))
     await db.commit()
-    return {"success": True, "data": _drop_out(drop, cafe, await svc.blocks_of(db, drop.id))}
+    return {"success": True, "data": await _out(db, drop, cafe, await svc.blocks_of(db, drop.id))}
 
 
 class BlockSeats(_Camel):
@@ -506,7 +533,7 @@ async def cancel_drop(drop_id: UUID, db: AsyncSession = Depends(get_db), user: U
     for r in rows:
         out = await svc.refund(db, r, "The café cancelled the drop")
         results["refunded" if out == "refunded" else "failed"] += 1
-    return {"success": True, "data": {"drop": _drop_out(drop, cafe, await svc.blocks_of(db, drop.id)), **results}}
+    return {"success": True, "data": {"drop": await _out(db, drop, cafe, await svc.blocks_of(db, drop.id)), **results}}
 
 
 @owner_router.patch("/{drop_id}/blocks/{block_id}")
@@ -542,7 +569,7 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
             "checkedInAt": _iso(r.checked_in_at), "paidAt": _iso(r.paid_at), "earlyAccess": r.used_early_access,
             "checkinToken": r.checkin_token if r.status in svc.PAID else None,
         })
-    data = _drop_out(drop, cafe, blocks)
+    data = await _out(db, drop, cafe, blocks)
     data["earlyAccessCode"] = drop.early_access_code
     for b in data["blocks"]:
         b["reservations"] = by_block.get(UUID(b["id"]), [])
@@ -557,6 +584,44 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
         "checkedIn": sum(1 for r in paid if r.status == "checked_in"),
     }
     return data
+
+
+@owner_router.get("/reservations")
+async def owner_reservations(since: Optional[date] = None, db: AsyncSession = Depends(get_db),
+                             user: User = Depends(get_current_active_user)):
+    """Every launch-drop reservation at the owner's cafes from `since` (default today), for the Bookings screen."""
+    from app.api.deps import get_user_roles
+    roles = await get_user_roles(user.id, db)
+    day = since or svc.now_utc().astimezone(svc.IST).date()
+    stmt = (
+        select(DropReservation, Drop, DropBlock, User)
+        .join(Drop, Drop.id == DropReservation.drop_id)
+        .join(DropBlock, DropBlock.id == DropReservation.block_id)
+        .join(User, User.id == DropReservation.user_id)
+        .join(Cafe, Cafe.id == Drop.cafe_id)
+        .where(DropBlock.session_date >= day,
+               DropReservation.status.in_(("pending_payment", "confirmed", "checked_in", "refunded", "given_away")))
+        .order_by(DropBlock.session_date, DropReservation.start_time)
+        .limit(500)
+    )
+    if "admin" not in roles:
+        stmt = stmt.where(Cafe.owner_id == user.id)
+    now = svc.now_utc()
+    out = []
+    for r, drop, blk, holder in (await db.execute(stmt)).all():
+        if r.status == "pending_payment" and not (r.expires_at is not None and svc._aware(r.expires_at) > now):
+            continue
+        start, end = svc.res_window(r, blk)
+        out.append({
+            "id": str(r.id), "reference": r.reference, "status": r.status, "seats": r.seats,
+            "name": holder.full_name, "phone": holder.phone_number,
+            "date": blk.session_date.isoformat(),
+            "startTime": f"{start // 60:02d}:{start % 60:02d}", "endTime": f"{min(end, 1439) // 60:02d}:{min(end, 1439) % 60:02d}",
+            "hours": r.hours, "balanceDue": float(r.balance_due), "depositPaid": float(r.deposit_amount),
+            "dropId": str(drop.id), "dropTitle": drop.title, "dropSlug": drop.slug,
+            "checkinToken": r.checkin_token if r.status == "confirmed" else None,
+        })
+    return {"success": True, "data": out}
 
 
 @owner_router.get("/{drop_id}")

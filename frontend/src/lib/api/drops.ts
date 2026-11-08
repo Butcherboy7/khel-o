@@ -54,6 +54,10 @@ export interface Drop {
   game: string;
   tagline: string | null;
   coverImageUrl: string | null;
+  /** The rig it runs on, e.g. "PS5" or "Xbox Series X". */
+  playsOn?: string | null;
+  platform?: string | null;
+  tierId?: string | null;
   pricePerHour: number;
   deposit: number;
   /** Fee for 4-5 hours (flexible drops). */
@@ -184,12 +188,13 @@ export interface OwnerDrop extends Omit<Drop, 'blocks' | 'myReservations'> {
 
 export interface OwnerDropList {
   drops: (Omit<Drop, 'myReservations'> & { paidReservations: number })[];
-  cafes: { id: string; name: string }[];
+  cafes: { id: string; name: string; tiers: { id: string; name: string; totalSeats: number }[] }[];
   suggestedPrice: [number, number];
 }
 
 export interface NewDrop {
   cafeId: string;
+  hardwareTierId?: string;
   title: string;
   game: string;
   tagline?: string;
@@ -222,6 +227,29 @@ export async function updateDrop(id: string, body: Partial<Omit<NewDrop, 'cafeId
   return call(() => apiClient.patch(`/api/v1/owner/drops/${id}`, body));
 }
 
+export interface OwnerDropBooking {
+  id: string;
+  reference: string;
+  status: string;
+  seats: number;
+  name: string;
+  phone: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  hours: number | null;
+  balanceDue: number;
+  depositPaid: number;
+  dropId: string;
+  dropTitle: string;
+  dropSlug: string;
+  checkinToken: string | null;
+}
+
+export async function listOwnerDropBookings(): Promise<OwnerDropBooking[]> {
+  return call(() => apiClient.get('/api/v1/owner/drops/reservations'));
+}
+
 export async function getOwnerDrop(id: string): Promise<OwnerDrop> {
   return call(() => apiClient.get(`/api/v1/owner/drops/${id}`));
 }
@@ -252,6 +280,7 @@ export interface DropListItem {
   game: string;
   tagline: string | null;
   coverImageUrl: string | null;
+  playsOn?: string | null;
   pricePerHour: number;
   state: DropState;
   cafe: Drop['cafe'];

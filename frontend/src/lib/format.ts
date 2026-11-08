@@ -243,7 +243,7 @@ export function getCafeOpenStatus(
   return minutesUntilOpen <= 180 ? 'opening_soon' : 'closed';
 }
 
-/** Check if a time slot is in the past (with 30min buffer) */
+/** Check if a time slot has already started */
 export function isSlotInPast(dateStr: string, timeStr: string, openingTimeStr?: string): boolean {
   const now = new Date();
   const slotDate = new Date(`${dateStr}T${timeStr}`);
@@ -258,8 +258,8 @@ export function isSlotInPast(dateStr: string, timeStr: string, openingTimeStr?: 
     }
   }
 
-  const buffer = 30 * 60 * 1000; // 30 minutes in ms
-  return slotDate.getTime() - now.getTime() < buffer;
+  // No lead time: a slot stays bookable until the minute it starts.
+  return slotDate.getTime() <= now.getTime();
 }
 
 // ── String Helpers ──────────────────────────────────────────────────────────
