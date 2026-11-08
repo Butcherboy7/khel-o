@@ -240,6 +240,11 @@ async def get_cafe_availability(
             "appBookableSeats": app_bookable_seats,
             "remainingSeats": app_bookable_seats,
             "bookedSlots": booked_slots,
+            "keptForDrops": [
+                {"title": d.title, "slug": d.slug, "game": d.game, "seats": d.daily_seats or 0,
+                 "startTime": d.daily_start_time.strftime("%H:%M"), "endTime": d.daily_end_time.strftime("%H:%M")}
+                for d in await dsvc.dedicated_drops(db, tier_id, parsed_date)
+            ],
             "bookingsPaused": cafe_obj.bookings_paused if cafe_obj else False,
             "isEmergencyMode": cafe_obj.is_emergency_mode if cafe_obj else False,
         }

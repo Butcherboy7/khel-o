@@ -21,7 +21,8 @@ import {
   Eye,
   X,
 } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { listOwnerDropBookings } from '@/lib/api/drops';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useAuthStore } from '@/store/authStore';
 import { useOwnerTourAutoStart } from '@/hooks/useOwnerGuide';
@@ -29,7 +30,7 @@ import type { OwnerDashboard, OwnerBookingItem } from '@/types';
 import { getOwnerStatus, getOwnerDashboard, getOwnerBookings, checkinBooking, updateOwnerBookingStatus } from '@/lib/api/owner';
 import { getOwnerOccupancy, type TierOccupancy } from '@/lib/api/scanner';
 import { getOwnerSettings, toggleBookingsPaused, updateBookingControls } from '@/lib/api/settings';
-import { formatCurrency, getOwnerPayoutAmount } from '@/lib/format';
+import { formatCurrency, getOwnerPayoutAmount, getTodayString } from '@/lib/format';
 import { Card, CardContent, Button, Badge, BookingStatusBadge, Modal, PageSpinner } from '@/components/ui';
 import { PendingApprovalView } from '@/components/owner/PendingApprovalView';
 import { DraftApplicationView } from '@/components/owner/DraftApplicationView';
@@ -217,6 +218,8 @@ export default function OwnerDashboardPage() {
   }, []);
 
   const queryClient = useQueryClient();
+  const dropToday = useQuery({ queryKey: ['owner', 'drop-bookings'], queryFn: listOwnerDropBookings, refetchInterval: 60_000 });
+  const dropArrivals = (dropToday.data || []).filter((d) => d.date === getTodayString() && (d.status === 'confirmed' || d.status === 'checked_in'));
 
   const handleUpdateSeatCap = async (newCap: number) => {
     setIsUpdatingCap(true);
@@ -565,6 +568,16 @@ export default function OwnerDashboardPage() {
         ]}
       />
       </div>
+
+      {dropArrivals.length > 0 && (
+        <Link href="/owner/bookings" className="flex items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+          <span className="text-body text-text-primary">
+            <strong>{dropArrivals.reduce((n, d) => n + d.seats, 0)} launch drop {dropArrivals.reduce((n, d) => n + d.seats, 0) === 1 ? 'seat' : 'seats'} today</strong>
+            {' '}from {dropArrivals.length} {dropArrivals.length === 1 ? 'person' : 'people'}. {dropArrivals.filter((d) => d.status === 'checked_in').length} here so far.
+          </span>
+          <span className="flex-shrink-0 text-caption font-bold text-primary">See them</span>
+        </Link>
+      )}
 
       {/* TODAY'S ARRIVALS — the actionable list, right under the hero, no scrolling needed */}
       {(

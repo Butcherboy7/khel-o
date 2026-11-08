@@ -6,7 +6,7 @@ import { Bell, X } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { shouldAlert } from '@/lib/alerts/dedupe';
 
-const CHIME_SRC = '/sounds/booking-chime.mp3';
+const CHIME_SRC = '/sounds/booking-chime.wav';
 const CHIME_REPEAT_MS = 4000;
 /** An empty café should not be left ringing all night if nobody acknowledges. */
 const MAX_CHIME_REPEATS = 10;

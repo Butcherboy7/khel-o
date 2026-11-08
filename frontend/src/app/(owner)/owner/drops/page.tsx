@@ -244,6 +244,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
               ))}
             </div>
           )}
+          <p className="text-caption text-text-secondary">One drop runs on one rig. Want GTA 6 on both PS5 and Xbox? Make two drops.</p>
           {tier && (
             <>
               <label className="flex items-center justify-between gap-3 text-body font-medium text-text-primary">

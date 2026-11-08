@@ -2442,7 +2442,15 @@ async def delete_tier(
     
     if not tier or str(tier.cafe_id) != str(cafe_id):
         raise ForbiddenException("This tier does not belong to your café", error_code="TIER_NOT_OWNED")
-    
+
+    from app.models.drop import Drop as _Drop
+    live_drop = (await db.execute(select(_Drop.title).where(
+        _Drop.hardware_tier_id == tier_id, _Drop.status == "live").limit(1))).scalar_one_or_none()
+    if live_drop:
+        raise BadRequestException(
+            message=f'"{live_drop}" runs on this setup. Cancel or end that launch drop first, then remove the setup.',
+            error_code="TIER_HAS_DROP")
+
     await tier_repo.update(tier_id, {"is_active": False})
     await db.commit()
     

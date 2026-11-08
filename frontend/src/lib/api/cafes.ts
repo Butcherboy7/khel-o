@@ -59,6 +59,8 @@ export interface CafeAvailabilityResponse {
   appBookableSeats: number;
   remainingSeats?: number;
   bookedSlots: Array<{ startTime: string; endTime: string }>;
+  /** Seats of this setup kept for a launch drop on this day. */
+  keptForDrops?: Array<{ title: string; slug: string; game: string; seats: number; startTime: string; endTime: string }>;
 }
 
 export async function getCafeAvailability(cafeId: string, tierId: string, date: string): Promise<CafeAvailabilityResponse> {

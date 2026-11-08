@@ -970,6 +970,20 @@ function BookingWizardContent() {
         </div>
       )}
 
+      {/* Seats a launch drop keeps on this setup show as taken below; say why, and offer the drop. */}
+      {(availabilityData?.keptForDrops || []).map((k) => (
+        <a
+          key={k.slug}
+          href={`/drops/${k.slug}`}
+          className="flex items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-3.5 text-caption text-text-primary"
+        >
+          <span>
+            <strong>{k.seats} {activeTier?.name}</strong> {k.seats === 1 ? 'is' : 'are'} kept for the <strong>{k.title}</strong>, {formatTime(k.startTime)} to {formatTime(k.endTime)}. Want a seat for {k.game}?
+          </span>
+          <span className="flex-shrink-0 font-bold text-primary">Reserve it</span>
+        </a>
+      ))}
+
       {/* Time + duration + availability — one unified component (the
           Playo-style drag slider already combines all of these). */}
       <TimelineRangePicker

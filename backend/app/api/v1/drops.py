@@ -438,6 +438,9 @@ async def create_drop(payload: DropCreate, db: AsyncSession = Depends(get_db), u
             raise svc.DropError(f"You only have {tier.total_seats} of that rig.", "TOO_MANY_SEATS")
     elif payload.daily_start_time is not None:
         raise svc.DropError("Pick which of your rigs this drop runs on.", "NEED_RIG")
+    if payload.status == "live" and payload.hardware_tier_id is not None and payload.daily_start_time is not None and payload.starts_on:
+        await svc.check_rig_free(db, cafe, tier, payload.starts_on, payload.starts_on + timedelta(days=payload.days - 1),
+                                 payload.daily_start_time, payload.daily_end_time, payload.daily_seats or 1)
     drop = Drop(
         slug=slug, cafe_id=cafe.id, title=payload.title.strip(), game=payload.game.strip(),
         tagline=(payload.tagline or "").strip() or None, cover_image_url=payload.cover_image_url,
@@ -505,6 +508,15 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
             if fields["daily_seats"] < blk.seats_taken:
                 raise svc.DropError(f"{blk.seats_taken} seats are already reserved on {blk.session_date.day} {blk.session_date:%b}, so it can't go below that.", "SEATS_BELOW_TAKEN")
             blk.seats_total = fields["daily_seats"]
+    wants_live = (fields.get("status") or drop.status) == "live"
+    seats_up = fields.get("daily_seats") is not None and fields["daily_seats"] > (drop.daily_seats or 0)
+    went_live = fields.get("status") == "live" and drop.status != "live"
+    if drop.hardware_tier_id and drop.daily_start_time and wants_live and (seats_up or went_live or fields.get("ends_on")):
+        tier = await db.get(HardwareTier, drop.hardware_tier_id)
+        today = svc.now_utc().astimezone(svc.IST).date()
+        await svc.check_rig_free(db, cafe, tier, max(today, drop.starts_on), fields.get("ends_on") or drop.ends_on,
+                                 drop.daily_start_time, drop.daily_end_time, fields.get("daily_seats") or drop.daily_seats or 1,
+                                 ignore_drop_id=drop.id)
     for k, v in fields.items():
         setattr(drop, k, v)
     if svc._aware(drop.early_access_starts_at) > svc._aware(drop.public_starts_at):

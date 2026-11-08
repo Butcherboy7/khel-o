@@ -257,3 +257,68 @@ async def test_owner_sees_upcoming_drop_reservations_in_one_list(fake_razorpay):
         assert len(rows) == 1 and rows[0]["status"] == "confirmed" and rows[0]["startTime"] == "18:00" and rows[0]["checkinToken"]
         stranger = await _user(UserRole.GAMER)
         assert (await c.get("/api/v1/owner/drops/reservations", headers=_h(stranger))).json()["data"] == []
+
+
+async def _rig_and_owner(seats=3):
+    from app.models.hardware_tier import HardwareTier
+    drop, block, owner = await _flex(seats=2)
+    async with AsyncSessionLocal() as db:
+        cafe_id = (await db.get(Drop, drop.id)).cafe_id
+        tier = HardwareTier(cafe_id=cafe_id, name="PS5", total_seats=seats, app_bookable_seats=seats, price_per_hour=150)
+        db.add(tier)
+        await db.commit()
+        return cafe_id, tier.id, owner
+
+
+def _new_drop_body(cafe_id, tier_id, day, start="12:00", end="22:00", seats=2):
+    now = datetime.now(timezone.utc)
+    return {
+        "cafeId": str(cafe_id), "hardwareTierId": str(tier_id), "title": "Clash test drop", "game": "GTA 6",
+        "pricePerHour": 250, "depositAmount": 100, "maxHours": 5, "depositAmountLong": 200,
+        "earlyAccessStartsAt": (now - timedelta(days=1)).isoformat(), "publicStartsAt": (now - timedelta(hours=1)).isoformat(),
+        "status": "live", "blocks": [], "dailyStartTime": start, "dailyEndTime": end, "dailySeats": seats,
+        "startsOn": day.isoformat(), "days": 3,
+    }
+
+
+@pytest.mark.asyncio
+async def test_new_drop_is_refused_when_normal_bookings_already_use_the_seats():
+    from uuid import uuid4
+    from app.models.booking import Booking, BookingStatus
+    cafe_id, tier_id, owner = await _rig_and_owner(seats=3)
+    gamer = await _user(UserRole.GAMER, phone="9876500011")
+    day = datetime.now(IST).date() + timedelta(days=20)
+    async with AsyncSessionLocal() as db:
+        db.add(Booking(
+            id=uuid4(), booking_reference=f"GC-{uuid4().hex[:8].upper()}", gamer_id=gamer.id, cafe_id=cafe_id,
+            hardware_tier_id=tier_id, session_date=day, start_time=time(15, 0), end_time=time(17, 0), duration_hours=2.0,
+            seats_count=2, base_amount=300.0, discount_amount=0.0, gateway_fee=0.0, total_amount=300.0,
+            convenience_fee=0.0, status=BookingStatus.CONFIRMED))
+        await db.commit()
+    async with _client() as c:
+        r = await c.post("/api/v1/owner/drops", headers=_h(owner), json=_new_drop_body(cafe_id, tier_id, day, seats=2))
+        assert r.status_code == 400 and r.json()["error"]["code"] == "SEATS_CLASH", r.text
+        assert "20" in r.text or "free" in r.text
+        # one seat fits next to the 2 already booked
+        ok = await c.post("/api/v1/owner/drops", headers=_h(owner), json=_new_drop_body(cafe_id, tier_id, day, seats=1))
+        assert ok.status_code == 201, ok.text
+
+
+@pytest.mark.asyncio
+async def test_drop_hours_must_sit_inside_the_cafe_hours():
+    cafe_id, tier_id, owner = await _rig_and_owner()
+    day = datetime.now(IST).date() + timedelta(days=20)
+    async with _client() as c:
+        r = await c.post("/api/v1/owner/drops", headers=_h(owner), json=_new_drop_body(cafe_id, tier_id, day, start="08:00", end="20:00"))
+        assert r.status_code == 400 and r.json()["error"]["code"] == "OUTSIDE_CAFE_HOURS", r.text
+
+
+@pytest.mark.asyncio
+async def test_a_rig_with_a_live_drop_cannot_be_removed():
+    cafe_id, tier_id, owner = await _rig_and_owner()
+    day = datetime.now(IST).date() + timedelta(days=20)
+    async with _client() as c:
+        ok = await c.post("/api/v1/owner/drops", headers=_h(owner), json=_new_drop_body(cafe_id, tier_id, day))
+        assert ok.status_code == 201, ok.text
+        r = await c.delete(f"/api/v1/owner/cafes/{cafe_id}/tiers/{tier_id}", headers=_h(owner))
+        assert r.status_code == 400 and r.json()["error"]["code"] == "TIER_HAS_DROP", r.text

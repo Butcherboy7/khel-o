@@ -546,11 +546,59 @@ async def can_manage(db: AsyncSession, user: User, cafe_id: UUID) -> bool:
 async def dedicated_windows(db: AsyncSession, tier_id: UUID, day) -> list[tuple[int, int, int, str]]:
     """Seats of a rig kept for a live drop on this day: (start_min, end_min, seats, title).
     Normal booking sees these seats as taken during the drop's daily hours."""
+    return [(_mins(d.daily_start_time), _mins(d.daily_end_time), d.daily_seats or 0, d.title) for d in await dedicated_drops(db, tier_id, day)]
+
+
+async def dedicated_drops(db: AsyncSession, tier_id: UUID, day) -> list[Drop]:
     rows = (await db.execute(select(Drop).where(
         Drop.hardware_tier_id == tier_id, Drop.status == "live", Drop.daily_start_time.is_not(None),
         Drop.starts_on <= day, or_(Drop.ends_on.is_(None), Drop.ends_on >= day),
     ))).scalars().all()
-    return [(_mins(d.daily_start_time), _mins(d.daily_end_time), d.daily_seats or 0, d.title) for d in rows]
+    return list(rows)
+
+
+async def check_rig_free(db: AsyncSession, cafe: Cafe, tier, day_from: date, day_to: date,
+                         start: time, end: time, seats: int, ignore_drop_id: Optional[UUID] = None) -> None:
+    """Refuse a drop whose kept seats would not fit next to normal bookings already made.
+    Also keeps the drop hours inside the cafe's opening hours."""
+    from app.models.booking import Booking, BookingStatus, SEAT_HOLDING_STATUSES
+    s_min, e_min = _mins(start), _mins(end)
+    if cafe.opening_time and cafe.closing_time and cafe.closing_time > cafe.opening_time:
+        if s_min < _mins(cafe.opening_time) or e_min > _mins(cafe.closing_time):
+            raise DropError(
+                f"Your café is open {cafe.opening_time:%H:%M} to {cafe.closing_time:%H:%M}. Keep the drop hours inside that.",
+                "OUTSIDE_CAFE_HOURS")
+    cap = tier.app_bookable_seats or tier.total_seats
+    ttl = datetime.now(timezone.utc) - timedelta(minutes=15)
+    rows = (await db.execute(select(Booking).where(
+        Booking.hardware_tier_id == tier.id,
+        Booking.session_date >= day_from, Booking.session_date <= day_to,
+        or_(Booking.status.in_(SEAT_HOLDING_STATUSES),
+            and_(Booking.status == BookingStatus.PENDING_PAYMENT, Booking.created_at >= ttl)),
+        Booking.start_time < end, Booking.end_time > start))).scalars().all()
+    others = (await db.execute(select(Drop).where(
+        Drop.hardware_tier_id == tier.id, Drop.status == "live", Drop.daily_start_time.is_not(None),
+        Drop.starts_on <= day_to, or_(Drop.ends_on.is_(None), Drop.ends_on >= day_from),
+        *( [Drop.id != ignore_drop_id] if ignore_drop_id else [] )))).scalars().all()
+    by_day: dict = {}
+    for b in rows:
+        by_day.setdefault(b.session_date, []).append(b)
+    days = set(by_day) | ({day_from} if others else set())
+    for day in sorted(days):
+        bks = by_day.get(day, [])
+        points = {s_min} | {_mins(b.start_time) for b in bks if s_min <= _mins(b.start_time) < e_min}
+        worst = 0
+        for t in points:
+            used = sum(b.seats_count for b in bks if _mins(b.start_time) <= t < _mins(b.end_time))
+            used += sum(d.daily_seats or 0 for d in others
+                        if d.starts_on <= day and (d.ends_on is None or d.ends_on >= day) and _mins(d.daily_start_time) <= t < _mins(d.daily_end_time))
+            worst = max(worst, used)
+        if worst + seats > cap:
+            free = max(0, cap - worst)
+            raise DropError(
+                f"On {day.day} {day:%b} only {free} of your {tier.model or tier.name} {'is' if free == 1 else 'are'} free in those hours "
+                f"({worst} already booked). Keep fewer seats, move the hours, or sort those bookings out first.",
+                "SEATS_CLASH")
 
 
 async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict], list[dict], Optional[dict]]:
