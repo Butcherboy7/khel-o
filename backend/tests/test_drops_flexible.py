@@ -197,3 +197,23 @@ async def test_owner_can_change_seats_per_day_but_not_below_whats_reserved():
         assert r.status_code == 200
     async with AsyncSessionLocal() as db:
         assert (await db.get(DropBlock, block.id)).seats_total == 5
+
+
+@pytest.mark.asyncio
+async def test_owner_free_slots_grid_shows_the_drop_like_a_setup(fake_razorpay):
+    drop, block, owner = await _flex(seats=4)
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(Drop).where(Drop.id == drop.id).values(daily_start_time=time(12, 0), daily_end_time=time(23, 0), daily_seats=4))
+        await db.commit()
+        day = (await db.get(DropBlock, block.id)).session_date
+    a = await _user()
+    async with _client() as c:
+        order = (await _book(c, drop, block, a, start="18:00", hours=2, seats=2)).json()["data"]["order"]["orderId"]
+        await _pay(c, a, order)
+        r = await c.get("/api/v1/owner/availability-timeline", headers=_h(owner), params={"date": day.isoformat(), "tierId": f"drop-{drop.id}"})
+        assert r.status_code == 200, r.text
+        data = r.json()["data"]
+        assert any(t["id"] == f"drop-{drop.id}" for t in data["tiers"]) and data["selectedTierId"] == f"drop-{drop.id}"
+        by = {t["startTime"]: t for t in data["timeline"]}
+        assert by["18:00"]["booked"] == 2 and by["18:00"]["available"] == 2 and by["19:00"]["booked"] == 2
+        assert data["bookings"][0]["seatsCount"] == 2 and data["bookings"][0]["status"] == "confirmed" and data["bookings"][0]["name"]

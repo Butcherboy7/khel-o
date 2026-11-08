@@ -543,6 +543,60 @@ async def can_manage(db: AsyncSession, user: User, cafe_id: UUID) -> bool:
     return cafe is not None and cafe.owner_id == user.id
 
 
+async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict], list[dict], Optional[dict]]:
+    """One day of a drop in the same shape as the normal Free slots grid:
+    hour by hour (total, booked, pending, available), who is behind it, and the
+    live "right now" counts when the day is today."""
+    block = (await db.execute(select(DropBlock).where(DropBlock.drop_id == drop.id, DropBlock.session_date == day))).scalars().first()
+    if block is None:
+        return [], [], None
+    rows = (await db.execute(
+        select(DropReservation, User.full_name).join(User, User.id == DropReservation.user_id)
+        .where(DropReservation.block_id == block.id, DropReservation.status.in_(HOLDING))
+        .order_by(DropReservation.created_at)
+    )).all()
+    now = now_utc()
+    live = [(r, n) for r, n in rows if r.status in PAID or (r.expires_at is not None and _aware(r.expires_at) > now)]
+
+    def clock(m: int) -> str:
+        m = min(m, 24 * 60 - 1)
+        return f"{m // 60:02d}:{m % 60:02d}"
+
+    def counts(lo: int, hi: int) -> tuple[int, int]:
+        booked = pending = 0
+        for r, _ in live:
+            s, e = res_window(r, block)
+            if s < hi and e > lo:
+                if r.status in PAID:
+                    booked += r.seats
+                else:
+                    pending += r.seats
+        return booked, pending
+
+    timeline = []
+    for h in range(_mins(block.start_time), _mins(block.end_time), 60):
+        booked, pending = counts(h, h + 60)
+        timeline.append({
+            "label": clock(h), "startTime": clock(h), "endTime": clock(h + 60),
+            "available": max(0, block.seats_total - booked - pending),
+            "booked": booked, "pending": pending, "blocked": 0, "total": block.seats_total,
+        })
+    bookings = []
+    for r, name in live:
+        s, e = res_window(r, block)
+        bookings.append({"startTime": clock(s), "endTime": clock(e), "seatsCount": r.seats, "status": r.status,
+                         "name": name, "reference": r.reference})
+    bookings.sort(key=lambda b: b["startTime"])
+    now_stats = None
+    ist_now = now.astimezone(IST)
+    if day == ist_now.date():
+        m = ist_now.hour * 60 + ist_now.minute
+        booked, pending = counts(m, m + 1)
+        now_stats = {"available": max(0, block.seats_total - booked - pending), "occupied": booked,
+                     "pending": pending, "blocked": 0, "total": block.seats_total}
+    return timeline, bookings, now_stats
+
+
 async def check_in(db: AsyncSession, token: str, staff: User) -> tuple[DropReservation, str]:
     res = (await db.execute(
         select(DropReservation).where(DropReservation.checkin_token == token).with_for_update()

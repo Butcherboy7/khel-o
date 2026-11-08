@@ -7,7 +7,6 @@ import { ChevronRight, ExternalLink, Plus, Ticket, Trash2 } from 'lucide-react';
 import { Button, Card, CardContent, EmptyState, Input, SkeletonCard } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
-import { DropHowItWorks } from '@/components/owner/DropHowItWorks';
 import { createDrop, listOwnerDrops, type NewDrop, type OwnerDropList } from '@/lib/api/drops';
 import { blockTimes, dayLabel, rupees } from '@/lib/drops';
 
@@ -98,7 +97,6 @@ export default function OwnerDropsPage() {
           </Card>
         );
       })}
-      {!creating && <DropHowItWorks />}
     </div>
   );
 }

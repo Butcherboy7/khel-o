@@ -54,7 +54,8 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
   availability: {
     info: "Hour by hour, how many stations of each setup are booked and how many are free.",
     tips: [
-      'Each row is one setup, like PCs or PS5s. Each block is an hour.',
+      'Each button is one setup, like PCs or PS5s. A launch drop like GTA 6 is a button too.',
+      'Each block is an hour.',
       'Coloured blocks are booked; empty blocks are free for customers to book.',
       'Check this before promising a walk-in a seat for later in the day.',
     ],
@@ -110,8 +111,9 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
   drop: {
     info: 'Everything for one drop: who is coming, the money, and the buttons to run it.',
     tips: [
-      'The numbers at the top show seats sold, who is here, and the money.',
-      'Prices, seats, your photo and the end date are under Run your drop. You can change them any time.',
+      'The numbers at the top show seats sold, who is here, and what you collect at the café.',
+      'Who is coming lists each day that has reservations. Hour by hour opens the same grid as Free slots.',
+      'Prices, seats, your photo and the end date are under Settings. You can change them any time.',
       'Scan a pass or type the code to check someone in. After 15 minutes late you can give the seat away.',
       'Cancel drop at the very bottom refunds everyone in full.',
     ],
@@ -129,6 +131,7 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
     tips: [
       'Add your UPI ID or bank account in Café Settings first. Nothing can be sent until you do.',
       '“Still clearing” = the customer paid and the bank is moving it (2–3 working days). “Ready to pay you” = cleared, KHEL-O sends it next.',
+      'Launch drop money (GTA 6 and similar) is at the bottom, in English, Hindi and Telugu.',
       'Every transfer is listed with its UTR number. “Failed” means contact support.',
     ],
   },

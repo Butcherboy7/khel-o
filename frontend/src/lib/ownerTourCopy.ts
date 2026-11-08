@@ -120,7 +120,7 @@ export const TOUR_LESSONS: TourLesson[] = [
       {
         kind: 'look', page: '/owner/availability', target: 'slots-tiers',
         title: 'One setup at a time',
-        body: 'Tap PS5, PC or any setup to see its hours. Look here before you promise a walk-in a time later in the day.',
+        body: 'Tap PS5, PC or any setup to see its hours. A launch drop like GTA 6 is one more button here, with the same colours. Look here before you promise a walk-in a time later in the day.',
       },
     ],
   },
@@ -207,12 +207,17 @@ export const TOUR_LESSONS: TourLesson[] = [
       {
         kind: 'look', page: '*', target: 'drop-stats',
         title: 'The numbers',
-        body: 'Seats sold, people who are here, what was paid online, and what you collect at the café.',
+        body: 'Seats sold, people who are here, and the money you collect at the café.',
       },
       {
         kind: 'look', page: '*', target: 'drop-checkin',
         title: 'Check people in',
         body: 'When someone arrives, scan their QR pass or type the code. After 15 minutes late you can give the seat away.',
+      },
+      {
+        kind: 'look', page: '*', target: 'drop-who',
+        title: 'Who is coming',
+        body: 'Every day that has reservations, with the name, seats and time. Empty days are hidden. Tap Hour by hour to see the same green, red and amber grid as your other setups.',
       },
       {
         kind: 'look', page: '*', target: 'drop-prices',
@@ -260,6 +265,11 @@ export const TOUR_LESSONS: TourLesson[] = [
         kind: 'look', page: '/owner/payouts', target: 'payout-where',
         title: 'Where it is sent',
         body: 'Your UPI ID or bank account. Add it in Café Settings first. Nothing can be sent until you do.',
+      },
+      {
+        kind: 'look', page: '/owner/payouts', target: 'payout-drop-money',
+        title: 'Launch drop money',
+        body: 'Only for launch drops like GTA 6: what the customer pays online, what they pay at your café, and what happens if someone does not come. Tap Show, then pick English, हिन्दी or తెలుగు.',
       },
     ],
   },

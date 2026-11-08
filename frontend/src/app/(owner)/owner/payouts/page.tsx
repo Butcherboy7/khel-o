@@ -96,8 +96,6 @@ export default function OwnerPayoutsPage() {
         </Card>
       )}
 
-      <MoneyExplained pricePerHour={250} deposit={100} />
-
       {/* Four numbers that mirror the actual money flow — customer pays,
           Razorpay settles to KHEL-O, it becomes available, then it's paid
           out — so an owner can tell at a glance which stage their money is
@@ -299,6 +297,15 @@ export default function OwnerPayoutsPage() {
           )}
         </CardContent>
       </Card>
+      <details data-tour="payout-drop-money" className="group rounded-2xl border border-border bg-card p-4">
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 font-heading text-body-emphasis font-bold text-text-primary">
+          Launch drop money
+          <span className="text-caption font-semibold text-primary group-open:hidden">Show</span>
+          <span className="hidden text-caption font-semibold text-primary group-open:inline">Hide</span>
+        </summary>
+        <p className="mt-1 text-caption text-text-secondary">Only for launch drops like GTA 6. Normal bookings work as shown above.</p>
+        <MoneyExplained pricePerHour={250} deposit={100} className="mt-3 border-0 p-0" />
+      </details>
     </div>
   );
 }

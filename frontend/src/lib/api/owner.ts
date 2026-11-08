@@ -47,6 +47,9 @@ export interface AvailabilityBooking {
   endTime: string;
   seatsCount: number;
   status: string;
+  /** Launch drops only: who reserved. */
+  name?: string;
+  reference?: string;
 }
 
 export interface OwnerAvailabilityTimeline {

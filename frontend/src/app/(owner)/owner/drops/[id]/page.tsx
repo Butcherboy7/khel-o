@@ -9,9 +9,7 @@ import { ArrowLeft, Bell, CheckCircle2, Download, ExternalLink, KeyRound, QrCode
 import { Button, Card, CardContent, SkeletonCard } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
-import { MoneyExplained } from '@/components/owner/MoneyExplained';
 import { cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, giveAwayReservation, updateDrop, type OwnerDrop } from '@/lib/api/drops';
-import { DropHowItWorks } from '@/components/owner/DropHowItWorks';
 import { blockTimes, dayLabel, rupees, whenText } from '@/lib/drops';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -324,31 +322,27 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
 
       <StatusCard d={d} onChanged={refresh} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-tour="drop-stats">
+      <div className="grid grid-cols-3 gap-2" data-tour="drop-stats">
         <Stat label="Seats sold" value={`${d.totals.seatsSold} of ${d.seatsTotal}`} />
         <Stat label="Here" value={String(d.totals.checkedIn)} />
-        <Stat label="Paid online" value={rupees(d.totals.depositsCollected)} />
-        <Stat label="To collect at café" value={rupees(d.totals.balanceToCollect)} />
+        <Stat label="Collect at café" value={rupees(d.totals.balanceToCollect)} />
       </div>
 
       <div data-tour="drop-checkin">
         <CheckInBox onDone={refresh} />
       </div>
 
-      <MoneyExplained pricePerHour={d.pricePerHour} deposit={d.deposit} />
-
-      <h2 className="font-heading text-h2 font-semibold text-text-primary">Run your drop</h2>
-      <div className="grid gap-4 md:grid-cols-2">
-        <EditPrices d={d} onDone={refresh} />
-        {d.rolling && <SeatsPerDay d={d} onDone={refresh} />}
-        <CoverPhoto d={d} onDone={refresh} />
-        {d.rolling && d.endsOn && d.startsOn && <RunControl d={d} onDone={refresh} />}
+      <div className="flex items-center justify-between gap-3" data-tour="drop-who">
+        <h2 className="font-heading text-h2 font-semibold text-text-primary">Who is coming</h2>
+        <Link href="/owner/availability" className="text-body font-semibold text-primary">Hour by hour</Link>
       </div>
-      <DropHowItWorks />
+      {d.blocks.every((b) => b.reservations.length === 0) && (
+        <p className="rounded-2xl border border-border bg-card p-4 text-body text-text-secondary">
+          No reservations yet. Share your drop link: tap “See what customers see” above and copy it.
+        </p>
+      )}
 
-      <h2 className="font-heading text-h2 font-semibold text-text-primary">Who is coming</h2>
-
-      {d.blocks.map((b) => (
+      {d.blocks.filter((b) => b.reservations.length > 0).map((b) => (
         <Card key={b.id} elevation="resting">
           <CardContent className="flex flex-col gap-3 p-5">
             <div className="flex items-baseline justify-between gap-3">
@@ -396,6 +390,14 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
           </CardContent>
         </Card>
       ))}
+
+      <h2 className="font-heading text-h2 font-semibold text-text-primary">Settings</h2>
+      <div className="grid gap-4 md:grid-cols-2">
+        <EditPrices d={d} onDone={refresh} />
+        {d.rolling && <SeatsPerDay d={d} onDone={refresh} />}
+        <CoverPhoto d={d} onDone={refresh} />
+        {d.rolling && d.endsOn && d.startsOn && <RunControl d={d} onDone={refresh} />}
+      </div>
 
       <Funnel d={d} />
 

@@ -1403,7 +1403,7 @@ async def _resolve_owner_cafe(current_user: User, db: AsyncSession) -> Optional[
 @router.get("/availability-timeline", status_code=status.HTTP_200_OK)
 async def get_owner_availability_timeline(
     session_date: Optional[str] = Query(None, alias="date"),
-    tier_id: Optional[UUID] = Query(None, alias="tierId"),
+    tier_id: Optional[str] = Query(None, alias="tierId"),
     current_user: User = Depends(require_staff_or_owner),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1435,17 +1435,41 @@ async def get_owner_availability_timeline(
         for t in tiers
     ]
 
-    if not tiers:
-        return {"success": True, "data": {"cafeId": str(cafe.id), "tiers": [], "date": None, "selectedTierId": None, "now": None, "timeline": [], "bookings": []}}
+    # Launch drops show up as one more button next to the setups, drawn with the same grid.
+    from app.models.drop import Drop
+    from app.services import drop_service as dsvc
+    live_drops = (await db.execute(
+        select(Drop).where(Drop.cafe_id == cafe.id, Drop.status == "live").order_by(Drop.created_at)
+    )).scalars().all()
+    for d in live_drops:
+        seats = d.daily_seats or 1
+        tiers_summary.append({
+            "id": f"drop-{d.id}", "name": d.title, "platform": None, "model": "launch drop",
+            "totalSeats": seats, "activeSeatsCount": seats, "blockedSeats": 0, "appBookableSeats": seats,
+            "pricePerHour": float(d.price_per_hour),
+        })
 
-    selected_tier = next((t for t in tiers if str(t.id) == str(tier_id)), None) if tier_id else tiers[0]
-    if not selected_tier:
-        selected_tier = tiers[0]
+    if not tiers and not live_drops:
+        return {"success": True, "data": {"cafeId": str(cafe.id), "tiers": [], "date": None, "selectedTierId": None, "now": None, "timeline": [], "bookings": []}}
 
     try:
         parsed_date = datetime.strptime(session_date, "%Y-%m-%d").date() if session_date else datetime.now(IST).date()
     except ValueError:
         parsed_date = datetime.now(IST).date()
+
+    wanted_drop = next((d for d in live_drops if tier_id == f"drop-{d.id}"), None)
+    if wanted_drop is None and not tiers:
+        wanted_drop = live_drops[0]
+    if wanted_drop is not None:
+        timeline, bookings, now_stats = await dsvc.owner_day_grid(db, wanted_drop, parsed_date)
+        return {"success": True, "data": {
+            "cafeId": str(cafe.id), "tiers": tiers_summary, "date": parsed_date.isoformat(),
+            "selectedTierId": f"drop-{wanted_drop.id}", "now": now_stats, "timeline": timeline, "bookings": bookings,
+        }}
+
+    selected_tier = next((t for t in tiers if str(t.id) == str(tier_id)), None) if tier_id else tiers[0]
+    if not selected_tier:
+        selected_tier = tiers[0]
 
     stmt = select(Booking.start_time, Booking.end_time, Booking.seats_count, Booking.status).where(
         Booking.hardware_tier_id == selected_tier.id,

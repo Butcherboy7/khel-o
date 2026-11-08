@@ -301,7 +301,7 @@ export default function OwnerAvailabilityPage() {
                 <span className={`text-caption font-bold text-center leading-tight ${isActive ? 'text-primary' : 'text-text-primary'}`}>
                   {t.name}
                 </span>
-                <span className="text-xs text-text-secondary">{t.totalSeats} Stations</span>
+                <span className="text-xs text-text-secondary">{t.id.startsWith('drop-') ? `Launch drop · ${t.totalSeats} seats` : `${t.totalSeats} Stations`}</span>
               </button>
             );
           })}
@@ -437,6 +437,7 @@ export default function OwnerAvailabilityPage() {
                       {formatMinutesTo12h(timeToMinutes(b.startTime))}–{formatMinutesTo12h(timeToMinutes(b.endTime))}
                     </span>
                     <span className="text-xs text-text-secondary">{b.seatsCount} seat{b.seatsCount > 1 ? 's' : ''}</span>
+                    {b.name && <span className="text-xs font-semibold text-text-primary">· {b.name}</span>}
                   </div>
                   <Badge
                     variant={b.status === 'pending_payment' ? 'warning' : 'success'}
@@ -452,7 +453,7 @@ export default function OwnerAvailabilityPage() {
       )}
 
       {/* Blocked / maintenance control */}
-      {selectedTier && (
+      {selectedTier && !selectedTier.id.startsWith('drop-') && (
         <Card elevation="flat" className="p-4 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-xl bg-gray-500/10 text-gray-500 flex items-center justify-center flex-shrink-0">
