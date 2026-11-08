@@ -1,6 +1,7 @@
 'use client';
 
 import { ShareModal } from '@/components/customer/ShareModal';
+import { CommunityInviteCard } from '@/components/customer/CommunityInvite';
 
 import { Hint } from '@/components/customer/Hint';
 
@@ -494,6 +495,9 @@ export default function BookingDetailPage() {
             <ShieldCheck className="h-4 w-4 text-primary flex-shrink-0" />
             <span>Show this QR code at the café desk for instant check-in.</span>
           </div>
+
+          {/* The moment someone has just booked is the best time to invite them in. */}
+          <CommunityInviteCard where="booking_pass" />
 
           {data.cafeId && (
             <ShareModal

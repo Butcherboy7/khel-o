@@ -58,6 +58,7 @@ import { optimizedImg, fallBackToOriginal } from '@/lib/imageUrl';
 import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 
 import { useAuthStore } from '@/store/authStore';
+import { CafeDropBanner } from '@/components/customer/CafeDropBanner';
 import { useLocationStore } from '@/store/locationStore';
 import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity, noBreakHyphens, customerPrice } from '@/lib/format';
 import { firstBookingOfferLive } from '@/lib/pricing';
@@ -487,6 +488,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
       {/* Title and the facts that decide "can I go?" on one line each —
           hours, area, directions — so the setups and prices below make the
           first screen instead of a grid of badges. */}
+      <CafeDropBanner cafeId={cafe.id} />
       <div className="flex flex-col gap-1.5 -mt-2">
         <div className="flex items-baseline justify-between gap-3">
           <h1 className="font-heading text-h1 text-text-primary">{cafe.name}</h1>

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { RoleSyncProvider } from '@/components/providers/RoleSyncProvider';
 import { PwaUpdatePrompt } from '@/components/PwaUpdatePrompt';
 import { PageViewTracker } from '@/components/layout/PageViewTracker';
+import { OpenInBrowserBar } from '@/components/layout/OpenInBrowserBar';
 
 /* ── QueryClient Factory ─────────────────────────────────────────── */
 
@@ -68,6 +69,7 @@ export function Providers({ children }: { children: ReactNode }) {
           {/* No AnimatePresence here: the page tree under it never changes key,
               so it animated nothing, and it put framer-motion in every page's
               first download. */}
+          <OpenInBrowserBar />
           {children}
           <PwaUpdatePrompt />
           <PageViewTracker />

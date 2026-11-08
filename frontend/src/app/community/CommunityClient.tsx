@@ -330,6 +330,27 @@ export function CommunityClient() {
                 </span>
               </p>
             )}
+            {tapped && (
+              <div className="mt-3 rounded-xl border border-[#262932] bg-[#16181E] p-3" role="region" aria-label="What to do next">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#F2C94C]">Next, two quick things</p>
+                <div className="mt-2 grid gap-2">
+                  <a
+                    href="#hub-week"
+                    onClick={() => trackAction('community_next_step', { step: 'vote' })}
+                    className="flex min-h-[44px] items-center justify-between gap-2 rounded-lg bg-[#0E0F13] px-3 text-sm font-semibold hover:bg-[#1A1C21]"
+                  >
+                    Vote for #02 and get the members code <ArrowRight className="h-4 w-4 flex-none" aria-hidden />
+                  </a>
+                  <Link
+                    href="/?tab=drops"
+                    onClick={() => trackAction('community_next_step', { step: 'drops' })}
+                    className="flex min-h-[44px] items-center justify-between gap-2 rounded-lg bg-[#0E0F13] px-3 text-sm font-semibold hover:bg-[#1A1C21]"
+                  >
+                    Reserve a GTA 6 seat <ArrowRight className="h-4 w-4 flex-none" aria-hidden />
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>

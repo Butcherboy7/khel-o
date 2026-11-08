@@ -18,6 +18,7 @@ import {
   type DropReservation,
 } from '@/lib/api/drops';
 import { blockEnd, blockStart, blockTimes, dayLabel, rupees, whenText } from '@/lib/drops';
+import { CommunityInviteCard } from '@/components/customer/CommunityInvite';
 import { ShareIconRow, WhatsAppButton, type ShareChannel } from '@/components/shared/ShareActions';
 
 const REFRESH_MS = 20_000;
@@ -531,6 +532,10 @@ function Confirmation({
             story={{ src: story, fileName: `${drop.slug}-story.png`, text: `I got my ${drop.game} seat at ${drop.cafe.name}` }}
             onShare={(c) => onShare(c, 'confirmation')}
           />
+        </div>
+        {/* Just booked: the best moment to invite them into the community. */}
+        <div className="mt-3">
+          <CommunityInviteCard where="drop_confirmation" />
         </div>
       </div>
     </section>

@@ -13,6 +13,7 @@ import { markChallengeSeen } from '@/lib/challengeNudge';
 import { SimpleMarkdown } from '@/components/challenge/SimpleMarkdown';
 import { ChallengeSignUpSheet } from '@/components/challenge/ChallengeSignUpSheet';
 import { ChallengeIntro } from '@/components/challenge/ChallengeIntro';
+import { NextOneBlock } from '@/components/challenge/NextOneBlock';
 import { ChallengeVideo, isVideoId } from '@/components/challenge/ChallengeVideo';
 import { FightHud, FightStage, PlayerSelect, RoundFight, fightFont } from '@/components/challenge/ChallengeHero';
 
@@ -346,6 +347,7 @@ export function ChallengeClient({ slug, initial, showIntro = false }: { slug: st
             <ChevronRight className="h-4 w-4 text-[#A3A6B1]" />
           </Link>
         )}
+        {ch.status === 'finished' && <NextOneBlock />}
         <Link
           href={`/challenge/${ch.slug}/rules`}
           className="mt-4 flex items-center gap-3 rounded-2xl border border-[#262932] bg-[#16181E] px-4 py-3 transition-colors hover:border-[#3A3E4A]"
