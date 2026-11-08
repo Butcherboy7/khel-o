@@ -32,7 +32,7 @@ export function CafeDropBanner({ cafeId }: { cafeId: string }) {
       <span className="min-w-0 flex-1">
         <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-primary">{soon ? 'Coming soon' : 'Limited time'}</span>
         <span className="block truncate font-heading text-body-emphasis font-bold text-text-primary">{drop.game} is here</span>
-        <span className="block text-caption text-text-secondary">{soon ? 'Be first to reserve a seat' : `${drop.seatsLeft} seats left this week`}</span>
+        <span className="block text-caption text-text-secondary">{soon ? 'Be first to reserve a seat' : drop.seatsPerSlot ? `Only ${drop.seatsPerSlot} seats a night` : `${drop.seatsLeft} seats left`}</span>
       </span>
       <span className="flex-shrink-0 rounded-full bg-primary px-3.5 py-2 text-caption font-bold text-white">Reserve</span>
       <ArrowRight className="hidden" aria-hidden />

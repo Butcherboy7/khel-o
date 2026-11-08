@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Bell, Check, Clock, KeyRound, Minus, Plus, Ticket } from 'lucide-react';
+import { Bell, Check, Clock, KeyRound, MapPin, Minus, Plus, Ticket } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useRazorpay } from '@/hooks/useRazorpay';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
@@ -174,7 +174,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   }
 
   const pageUrl = typeof window !== 'undefined' ? window.location.href.split('?')[0] : `/drops/${drop.slug}`;
-  const shareText = `${drop.title} at ${drop.cafe.name}. ${drop.seatsLeft} seats left. Reserve yours:`;
+  const shareText = `${drop.title} at ${drop.cafe.name}. ${drop.seatsPerSlot ? `Only ${drop.seatsPerSlot} seats a night` : `${drop.seatsLeft} seats left`}. Reserve yours:`;
   const canReserve = drop.state === 'open' || drop.state === 'early';
   const ended = drop.state === 'ended';
   const needsCode = drop.state === 'early' && drop.hasEarlyAccessCode;
@@ -286,12 +286,28 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               <div className="aspect-video w-full bg-gradient-to-br from-primary/80 to-secondary/70" aria-hidden />
             )}
           </div>
-          <p className="mt-3 text-caption font-bold uppercase tracking-wider text-primary">Launch drop · {drop.cafe.name}</p>
+          <p className="mt-3 text-caption font-bold uppercase tracking-wider text-primary">Launch drop</p>
           <h1 className="font-heading text-h1 font-bold text-text-primary">{drop.title}</h1>
+          {/* Where it happens, big: people book the game and miss which café it is */}
+          <a
+            href={drop.cafe.mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-3.5 py-3"
+          >
+            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-primary text-white">
+              <MapPin className="h-5 w-5" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-heading text-h2 font-bold leading-tight text-text-primary">{drop.cafe.name}</span>
+              <span className="block truncate text-caption text-text-secondary">{drop.cafe.address || drop.cafe.city}</span>
+            </span>
+            <span className="flex-shrink-0 text-caption font-bold text-primary">Map</span>
+          </a>
           {drop.tagline && <p className="mt-1 text-body text-text-secondary">{drop.tagline}</p>}
           <div className="mt-3 flex flex-wrap gap-2 text-caption font-semibold text-text-primary">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
-              <Ticket className="h-3.5 w-3.5 text-primary" /> {drop.seatsLeft} of {drop.seatsTotal} seats left
+              <Ticket className="h-3.5 w-3.5 text-primary" /> {drop.seatsPerSlot ? `${drop.seatsPerSlot} seats at a time, every night` : `${drop.seatsLeft} of ${drop.seatsTotal} seats left`}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
               {rupees(drop.pricePerHour)} an hour
@@ -378,7 +394,10 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         {!ended && (
         <section>
           <h2 className="font-heading text-h2 font-semibold text-text-primary">{canReserve ? 'Pick a day' : 'Days'}</h2>
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide" role="radiogroup" aria-label="Days">
+          {flex && drop.blocks[0] && (
+            <p className="text-caption text-text-secondary">Open {clock(drop.blocks[0].startTime)} – {clock(drop.blocks[0].endTime)}, every day</p>
+          )}
+          <div className="mt-2 grid grid-cols-4 gap-2" role="radiogroup" aria-label="Days">
             {drop.blocks.map((b) => {
               const gone = b.started || sessionLeft(b) === 0;
               const on = b.id === blockId;
@@ -390,13 +409,18 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                   aria-checked={on}
                   disabled={!canReserve || gone}
                   onClick={() => pick(b)}
-                  className={`min-h-[64px] min-w-[104px] flex-none rounded-xl border px-3 py-2 text-left transition-colors ${
+                  className={`min-h-[64px] rounded-xl border px-1.5 py-2 text-center transition-colors ${
                     on ? 'border-primary bg-primary/10' : 'border-border bg-card'
                   } ${gone ? 'opacity-50' : canReserve ? 'hover:border-primary/50' : ''}`}
                 >
-                  <span className="block text-body font-bold text-text-primary">{dayLabel(b.date)}</span>
-                  <span className="block text-caption text-text-secondary">
-                    {b.started ? 'Started' : sessionLeft(b) === 0 ? 'Sold out' : `${clock(b.startTime)} – ${clock(b.endTime)}`}
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
+                    {new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'Asia/Kolkata' })}
+                  </span>
+                  <span className="block font-heading text-body-emphasis font-bold leading-tight text-text-primary">
+                    {new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}
+                  </span>
+                  <span className={`block text-[11px] ${gone ? 'text-error' : 'text-text-secondary'}`}>
+                    {b.started ? 'Started' : sessionLeft(b) === 0 ? 'Full' : flex ? ' ' : `${clock(b.startTime)}`}
                   </span>
                 </button>
               );

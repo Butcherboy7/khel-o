@@ -103,7 +103,7 @@ function DropCard({ d }: { d: DropListItem }) {
           {d.cafe.name} · {dropWhen(d.nextStartsAt)}
         </p>
         <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-          <span className="text-caption font-bold text-error">{soon ? 'Not open yet' : `${d.seatsLeft} of ${d.seatsTotal} left`}</span>
+          <span className="text-caption font-bold text-error">{soon ? 'Not open yet' : d.seatsPerSlot ? `${d.seatsPerSlot} seats a night` : `${d.seatsLeft} of ${d.seatsTotal} left`}</span>
           <span className="rounded-full bg-primary px-3.5 py-1.5 text-caption font-bold text-white">
             {d.iHold ? 'You are in' : soon ? 'Tell me' : 'Reserve'}
           </span>
@@ -276,7 +276,7 @@ export function DropSpotlight() {
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-3 pt-14 text-white md:p-4">
         <span className="min-w-0">
           <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-[#FFB4AC]">
-            Live now · {d.seatsLeft} {d.seatsLeft === 1 ? 'seat' : 'seats'} left
+            Live now · {d.seatsPerSlot ? `only ${d.seatsPerSlot} seats a night` : `${d.seatsLeft} ${d.seatsLeft === 1 ? 'seat' : 'seats'} left`}
           </span>
           <span className="block truncate font-heading text-body-emphasis font-bold md:text-h3">
             Play {d.game} at {d.cafe.name}

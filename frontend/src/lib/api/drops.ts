@@ -63,6 +63,7 @@ export interface Drop {
   startsOn?: string | null;
   endsOn?: string | null;
   rolling?: boolean;
+  seatsPerSlot?: number | null;
   reservedCount?: number;
   maxSeatsPerUser: number;
   earlyAccessStartsAt: string;
@@ -230,6 +231,7 @@ export interface DropListItem {
   cafe: Drop['cafe'];
   seatsLeft: number;
   seatsTotal: number;
+  seatsPerSlot?: number | null;
   nextStartsAt: string;
   earlyAccessStartsAt: string;
   publicStartsAt: string;

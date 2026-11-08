@@ -145,7 +145,9 @@ async def ensure_blocks(db: AsyncSession, drop: Drop) -> None:
         return
     today = now_utc().astimezone(IST).date()
     first = max(today, drop.starts_on)
-    last = min(today + timedelta(days=VISIBLE_DAYS - 1), drop.ends_on or drop.starts_on + timedelta(days=MAX_DAYS - 1))
+    # Before launch the first week from launch day is already open for booking; after launch the
+    # window rolls: today plus the next 6 days.
+    last = min(first + timedelta(days=VISIBLE_DAYS - 1), drop.ends_on or drop.starts_on + timedelta(days=MAX_DAYS - 1))
     have = set((await db.execute(select(DropBlock.session_date).where(DropBlock.drop_id == drop.id))).scalars().all())
     made = False
     d = first
@@ -378,6 +380,8 @@ async def reserve(
         raise DropError("This time has already started.", "BLOCK_STARTED")
     if drop.ends_on is not None and block.session_date > drop.ends_on:
         raise DropError("This drop has ended for that day.", "DROP_ENDED")
+    if drop.starts_on is not None and block.session_date < drop.starts_on:
+        raise DropError(f"This drop starts on {drop.starts_on.day} {drop.starts_on.strftime('%b')}. Pick a later day.", "BEFORE_LAUNCH")
 
     # One reservation at a time per person: lock their row so two taps (or two
     # tabs) can't both pass the 2-seat check.

@@ -139,3 +139,27 @@ async def test_rolling_drop_makes_the_next_7_days_and_ends_after_its_end_date():
             await db.commit()
         d = (await c.get(f"/api/v1/drops/{drop.slug}")).json()["data"]
         assert d["state"] == "ended"
+
+
+@pytest.mark.asyncio
+async def test_before_launch_only_the_first_week_from_launch_day_is_bookable():
+    from app.models.drop import Drop as D
+    drop, early_block, _b2, owner, cafe = await _drop(seats=2)   # hand-made blocks, days away
+    today = datetime.now(IST).date()
+    launch = today + timedelta(days=5)
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(D).where(D.id == drop.id).values(
+            max_hours=5, daily_start_time=time(12, 0), daily_end_time=time(23, 0), daily_seats=3,
+            starts_on=launch, ends_on=launch + timedelta(days=13)))
+        # A block before launch, as if made by hand earlier.
+        await db.execute(update(DropBlock).where(DropBlock.id == early_block.id).values(session_date=today + timedelta(days=1)))
+        await db.commit()
+    u = await _user()
+    async with _client() as c:
+        d = (await c.get(f"/api/v1/drops/{drop.slug}")).json()["data"]
+        dates = sorted(b["date"] for b in d["blocks"])
+        assert dates[0] == str(launch) and str(today + timedelta(days=1)) not in dates
+        assert dates[:7] == [str(launch + timedelta(days=i)) for i in range(7)] and d["seatsPerSlot"] == 3
+        # The server refuses the pre-launch day even if someone sends its id.
+        r = await _book(c, drop, early_block, u, start="18:00", hours=2)
+        assert r.status_code == 400 and r.json()["error"]["code"] == "BEFORE_LAUNCH"

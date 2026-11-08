@@ -107,6 +107,7 @@ def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
         "startsOn": drop.starts_on.isoformat() if drop.starts_on else None,
         "endsOn": drop.ends_on.isoformat() if drop.ends_on else None,
         "rolling": drop.daily_start_time is not None,
+        "seatsPerSlot": drop.daily_seats,
         "maxSeatsPerUser": drop.max_seats_per_user,
         "earlyAccessStartsAt": _iso(drop.early_access_starts_at),
         "publicStartsAt": _iso(drop.public_starts_at),
@@ -169,7 +170,8 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
     drop, cafe = await _public_drop(db, slug, user)
     await svc.release_expired(db, drop.id)
     await svc.ensure_blocks(db, drop)
-    blocks = [b for b in await svc.blocks_of(db, drop.id) if drop.ends_on is None or b.session_date <= drop.ends_on]
+    blocks = [b for b in await svc.blocks_of(db, drop.id)
+              if (drop.ends_on is None or b.session_date <= drop.ends_on) and (drop.starts_on is None or b.session_date >= drop.starts_on)]
     data = _drop_out(drop, cafe, blocks)
     if drop.max_hours:
         for bd, blk in zip(data["blocks"], blocks):
