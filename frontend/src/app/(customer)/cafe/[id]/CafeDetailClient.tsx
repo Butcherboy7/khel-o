@@ -286,7 +286,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-6 max-w-4xl mx-auto py-4">
+      <div className="flex flex-col gap-6 max-w-6xl mx-auto py-4">
         <Skeleton className="h-80 w-full rounded-3xl" />
         <div className="flex flex-col gap-3">
           <Skeleton className="h-8 w-2/3 rounded-xl" />
@@ -412,9 +412,9 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
     // into the Reviews section whenever it grew taller (or even at its
     // shortest, on some viewports — this was reported as unreadable overlap
     // on ordinary bookable cafés too, not just the lead-listing variant).
-    <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-40 md:pb-20">
+    <div className="grid grid-cols-1 gap-6 max-w-6xl mx-auto pb-40 md:pb-20 lg:grid-cols-2 lg:gap-x-10">
       {/* Hero Header Image with Gallery Arrows */}
-      <div ref={heroRef} className="relative h-48 sm:h-64 md:h-96 w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4" style={photoBg(photoIndex)}>
+      <div ref={heroRef} className="relative h-48 sm:h-64 md:h-96 lg:col-span-2 lg:h-[26rem] w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4" style={photoBg(photoIndex)}>
         {currentPhoto ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -485,6 +485,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
         )}
       </div>
 
+      <div className="flex min-w-0 flex-col gap-6">
       {/* Title and the facts that decide "can I go?" on one line each —
           hours, area, directions — so the setups and prices below make the
           first screen instead of a grid of badges. */}
@@ -783,7 +784,9 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           </>
       </section>
       )}
+      </div>
 
+      <div className="flex min-w-0 flex-col gap-6">
       {/* About */}
       {cafe.description && (
         <section className="flex flex-col gap-2">
@@ -951,12 +954,13 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           />
         </div>
       </section>
+      </div>
 
       {/* Reviews — id+scroll-mt so a QR code / direct link can jump straight
           here (#reviews), same pattern as heroRef's scroll-mt-4 above. */}
       {/* A café that isn't bookable yet has had no sessions, so nothing to review. */}
       {!isLead && (
-      <section id="reviews" className="flex flex-col gap-4 scroll-mt-4">
+      <section id="reviews" className="flex flex-col gap-4 scroll-mt-4 lg:col-span-2">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-heading text-h2 text-text-primary">Reviews</h2>
           {cafe.totalReviews > 0 && (
@@ -1213,7 +1217,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
              has not agreed to take bookings yet, so there is no price to show
              and nothing to book. Deliberately no directions or call button —
              those route the visitor straight past KHEL-O to the venue. */
-          <div className="max-w-content mx-auto flex flex-col gap-2">
+          <div className="max-w-6xl mx-auto flex flex-col gap-2">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <span className="text-overline text-text-secondary">{joined ? 'You voted 🫶' : 'Not on KHEL-O yet'}</span>
@@ -1278,7 +1282,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
             </div>
           </div>
         ) : (
-        <div className="max-w-content mx-auto flex items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
           <div className="min-w-0">
 
             <div className="font-data text-price-lg font-bold text-text-primary">

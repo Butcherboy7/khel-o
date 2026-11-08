@@ -288,9 +288,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
 
   return (
     <CustomerShell>
-      <div className="mx-auto flex max-w-xl flex-col gap-4 pb-28">
+      <div className="mx-auto flex max-w-xl flex-col gap-4 pb-28 lg:grid lg:max-w-5xl lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:gap-x-10">
         {/* Banner */}
-        <section>
+        <section className="lg:sticky lg:top-20">
           <div className="overflow-hidden rounded-2xl border border-border/70 shadow-card">
             {art ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -344,6 +344,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           {art === GTA_ART && <p className="mt-2 text-[11px] text-text-secondary">Grand Theft Auto VI artwork © Rockstar Games.</p>}
         </section>
 
+        <div className="flex min-w-0 flex-col gap-4">
         {/* Your seats */}
         {paid.filter((r) => r.id === justPaid).map((r) => (
           <Confirmation key={r.id} drop={drop} r={r} fresh onShare={onShare} pageUrl={pageUrl} />
@@ -645,6 +646,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             )}
           </dl>
         </section>
+        </div>
       </div>
 
       {/* Pay bar: one big button, the seat count and what it costs, in plain words */}

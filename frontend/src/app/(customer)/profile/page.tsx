@@ -299,7 +299,9 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="flex flex-col gap-4 max-w-4xl mx-auto pb-24">
+    <div className="flex flex-col gap-4 max-w-5xl mx-auto pb-24">
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6">
+      <div className="flex min-w-0 flex-col gap-4">
       {/* Signed in with no phone number: ask here, in context (the Me tab carries a red dot until it is saved). */}
       <PhoneCaptureCard where="profile" />
       {/* Profile Header Card */}
@@ -522,6 +524,8 @@ export default function ProfilePage() {
         </Card>
       )}
 
+      </div>
+      <div className="flex min-w-0 flex-col gap-4">
       {/* Navigation Quick Links */}
       <Card elevation="resting">
         <CardContent className="p-1 flex flex-col divide-y divide-border/60">
@@ -642,6 +646,8 @@ export default function ProfilePage() {
         <LogOut className="h-4 w-4" />
         <span>Sign Out</span>
       </Button>
+      </div>
+      </div>
 
       {/* Edit Profile Modal */}
       <Modal

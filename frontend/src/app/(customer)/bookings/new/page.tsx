@@ -829,7 +829,7 @@ function BookingWizardContent() {
       {/* One screen on an average phone (390x664): header, dates, the time +
           players card and the price card all sit above the pay bar, with no
           bottom nav on this page. pb clears the pay bar (~76px + safe area). */}
-      <div className="flex flex-col gap-2 max-w-2xl mx-auto pb-28">
+      <div className="flex flex-col gap-2 max-w-5xl mx-auto pb-28">
       {/* Header: back, the café, and the setup being booked as a chip. The
           setup is picked on the café page; the chip is for changing your
           mind here without losing the date and time already chosen. */}
@@ -921,6 +921,8 @@ function BookingWizardContent() {
         </div>
       )}
 
+      <div className="flex flex-col gap-2 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start lg:gap-8">
+      <div className="flex min-w-0 flex-col gap-2">
       {/* Date — compact strip, no instructional heading; the layout order
           (tier → date → time → players → price) already communicates the
           sequence. */}
@@ -1109,6 +1111,8 @@ function BookingWizardContent() {
           </div>
         )}
       </TimelineRangePicker>
+      </div>
+      <div className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-20">
 
       {/* Price: what it costs, the offer in use (tap to change or enter a
           code), the fee, and the total. Every amount sits in the right-hand
@@ -1280,6 +1284,8 @@ function BookingWizardContent() {
           </a>
         </div>
       )}
+      </div>
+      </div>
 
       <BottomSheet isOpen={offersOpen} onClose={() => setOffersOpen(false)} title="Offers for this slot">
         <OffersPanel
@@ -1318,7 +1324,7 @@ function BookingWizardContent() {
         {/* Compact on purpose: the total, what it's made of, and the pay
             button in one row, so the slider above keeps the screen. The
             Razorpay line lives in the price summary above, not here. */}
-        <div className="max-w-content mx-auto flex items-center justify-between gap-3">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="font-heading text-h2 font-bold leading-tight text-text-primary">
               <span className="rupee-symbol">₹</span>{money(finalTotal)}
