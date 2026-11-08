@@ -122,7 +122,7 @@ export function CommunityPage() {
           Drops, challenges and café news land in our WhatsApp group first.{' '}
           {showMembers ? <b className="text-white">{members} gamers are already in.</b> : 'Free to join, leave any time.'}
         </p>
-        <div className="mt-4 hidden md:block">{mounted && !member && <JoinButton where="community_page_top" onJoin={onJoin} />}</div>
+        <div className="mt-4 hidden self-start md:block">{mounted && !member && <JoinButton where="community_page_top" onJoin={onJoin} />}</div>
       </section>
 
       {/* Joined: a short thanks and an optional contact. Not joined: the sticky button below. */}

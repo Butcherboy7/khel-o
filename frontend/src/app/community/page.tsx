@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { CommunityPage } from './CommunityPage';
+import { CustomerShell } from '@/components/layout/CustomerShell';
 
 export const metadata: Metadata = {
   title: 'KHEL-O Community on WhatsApp',
@@ -15,5 +16,9 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <CommunityPage />;
+  return (
+    <CustomerShell>
+      <CommunityPage />
+    </CustomerShell>
+  );
 }
