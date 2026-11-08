@@ -35,6 +35,11 @@ class Drop(Base):
     price_per_hour: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     # Paid online per seat to hold it. The rest of the block price is paid at the café.
     deposit_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=99)
+    # Flexible hours: when set, people pick 1..max_hours inside a session. The
+    # fee is deposit_amount up to 3 hours and deposit_amount_long for 4+ hours;
+    # it is counted toward the bill but never refunded (unless the café cancels).
+    max_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    deposit_amount_long: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     max_seats_per_user: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
     # Before public_starts_at, reserving needs this code (shared in the community).
     early_access_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
@@ -77,7 +82,12 @@ class DropReservation(Base):
     block_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("drop_blocks.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     seats: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    # pending_payment | confirmed | checked_in | expired | cancelled | refunded
+    # Flexible-hours reservations only (null = the whole session, the old way).
+    start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    given_away_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # pending_payment | confirmed | checked_in | expired | cancelled | refunded | given_away
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending_payment", index=True)
     # Money, all for the whole reservation (every seat):
     block_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)

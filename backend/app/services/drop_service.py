@@ -165,21 +165,82 @@ async def release_expired(db: AsyncSession, drop_id: Optional[UUID] = None) -> i
     return released
 
 
-async def _take(db: AsyncSession, block_id: UUID, seats: int) -> bool:
-    res = await db.execute(
-        update(DropBlock)
-        .where(DropBlock.id == block_id, DropBlock.seats_taken + seats <= DropBlock.seats_total)
-        .values(seats_taken=DropBlock.seats_taken + seats)
-    )
-    return res.rowcount == 1
+def _mins(t) -> int:
+    return t.hour * 60 + t.minute
 
 
-async def _give_back(db: AsyncSession, block_id: UUID, seats: int) -> None:
-    await db.execute(
-        update(DropBlock)
-        .where(DropBlock.id == block_id, DropBlock.seats_taken >= seats)
-        .values(seats_taken=DropBlock.seats_taken - seats)
-    )
+def res_window(res_or_none, block: DropBlock) -> tuple[int, int]:
+    """Minutes-from-midnight window a reservation occupies (whole session if not flexible)."""
+    if res_or_none is not None and res_or_none.start_time is not None:
+        return _mins(res_or_none.start_time), _mins(res_or_none.end_time)
+    return _mins(block.start_time), _mins(block.end_time)
+
+
+def _peak(windows: list[tuple[int, int, int]], block: DropBlock) -> int:
+    """Most seats in use at any one hour of the session. windows = (start, end, seats)."""
+    peak = 0
+    for h in range(_mins(block.start_time), _mins(block.end_time), 60):
+        used = sum(n for s, e, n in windows if s < h + 60 and e > h)
+        peak = max(peak, used)
+    return peak
+
+
+async def _holding_windows(db: AsyncSession, block: DropBlock) -> list[tuple[int, int, int]]:
+    rows = (await db.execute(
+        select(DropReservation).where(DropReservation.block_id == block.id, DropReservation.status.in_(HOLDING))
+        .execution_options(populate_existing=True)
+    )).scalars().all()
+    return [(*res_window(r, block), r.seats) for r in rows]
+
+
+async def _take(db: AsyncSession, block_id: UUID, seats: int, start: Optional[time] = None, end: Optional[time] = None) -> bool:
+    """Claim seats for [start, end) of a session (the whole session if omitted).
+    The block row is locked first so two people can't both take the last seat
+    of an hour; seats_taken then holds the busiest hour."""
+    if start is None:
+        # The whole session adds to every hour, so the busiest hour grows by the same amount.
+        res = await db.execute(
+            update(DropBlock)
+            .where(DropBlock.id == block_id, DropBlock.seats_taken + seats <= DropBlock.seats_total)
+            .values(seats_taken=DropBlock.seats_taken + seats)
+        )
+        return res.rowcount == 1
+    block = (await db.execute(select(DropBlock).where(DropBlock.id == block_id).with_for_update())).scalars().first()
+    if block is None:
+        return False
+    windows = await _holding_windows(db, block)
+    s, e = (_mins(start), _mins(end)) if start is not None else (_mins(block.start_time), _mins(block.end_time))
+    peak = _peak(windows + [(s, e, seats)], block)
+    if peak > block.seats_total:
+        return False
+    await db.execute(update(DropBlock).where(DropBlock.id == block_id).values(seats_taken=peak))
+    return True
+
+
+async def _give_back(db: AsyncSession, block_id: UUID, seats: int = 0) -> None:
+    """Recount after a reservation stops holding (its status is already changed)."""
+    await db.flush()
+    block = (await db.execute(select(DropBlock).where(DropBlock.id == block_id).with_for_update())).scalars().first()
+    if block is None:
+        return
+    await db.execute(update(DropBlock).where(DropBlock.id == block_id).values(seats_taken=_peak(await _holding_windows(db, block), block)))
+
+
+def seats_free(windows: list[tuple[int, int, int]], block: DropBlock) -> dict[str, int]:
+    """Free seats for each hour of a session, keyed 'HH:MM'."""
+    out = {}
+    for h in range(_mins(block.start_time), _mins(block.end_time), 60):
+        used = sum(n for s, e, n in windows if s < h + 60 and e > h)
+        out[f"{h // 60:02d}:{h % 60:02d}"] = max(0, block.seats_total - used)
+    return out
+
+
+def fee_per_seat(drop: Drop, hours: int) -> Decimal:
+    """₹100 up to 3 hours, ₹200 for 4 or 5 (owner can change both)."""
+    short = Decimal(str(drop.deposit_amount))
+    if hours <= 3:
+        return money(short)
+    return money(Decimal(str(drop.deposit_amount_long)) if drop.deposit_amount_long is not None else short * 2)
 
 
 async def user_seats(db: AsyncSession, drop_id: UUID, user_id: UUID) -> int:
@@ -254,6 +315,7 @@ class Reserved:
 
 async def reserve(
     db: AsyncSession, drop: Drop, block_id: UUID, user: User, seats: int, code: Optional[str],
+    start: Optional[time] = None, hours: Optional[int] = None,
 ) -> Reserved:
     await release_expired(db, drop.id)
     st = state(drop)
@@ -283,12 +345,32 @@ async def reserve(
                + (f"You can add {left} more." if left else f"The most is {drop.max_seats_per_user} per person."))
         raise DropError(msg, "SEAT_LIMIT")
 
-    if not await _take(db, block.id, seats):
+    r_start = r_end = None
+    if drop.max_hours:
+        # Flexible: a whole number of hours, starting on the hour inside the session.
+        if hours is None or start is None:
+            raise DropError("Pick when you want to start and how many hours.", "NEED_HOURS")
+        if hours < 1 or hours > drop.max_hours:
+            raise DropError(f"You can play 1 to {drop.max_hours} hours.", "BAD_HOURS")
+        offset = _mins(start) - _mins(block.start_time)
+        end_min = _mins(start) + hours * 60
+        if offset < 0 or offset % 60 or end_min > _mins(block.end_time):
+            raise DropError("That time does not fit inside this session.", "BAD_HOURS")
+        r_start = start
+        r_end = time(end_min // 60, end_min % 60) if end_min < 1440 else time(23, 59)
+        if datetime.combine(block.session_date, r_start).replace(tzinfo=IST) <= now_utc():
+            raise DropError("That hour has already started.", "BLOCK_STARTED")
+
+    if not await _take(db, block.id, seats, r_start, r_end):
         await db.rollback()
         raise DropError("Sorry, these seats just got taken. Pick another time.", "SOLD_OUT")
 
-    per_seat = block_price_per_seat(drop, block)
-    deposit = money(Decimal(str(drop.deposit_amount)) * seats)
+    if r_start is not None:
+        per_seat = money(Decimal(str(drop.price_per_hour)) * hours)
+        deposit = money(fee_per_seat(drop, hours) * seats)
+    else:
+        per_seat = block_price_per_seat(drop, block)
+        deposit = money(Decimal(str(drop.deposit_amount)) * seats)
     total = money(per_seat * seats)
     reservation = DropReservation(
         reference=_reference(), drop_id=drop.id, block_id=block.id, user_id=user.id, seats=seats,
@@ -296,6 +378,7 @@ async def reserve(
         balance_due=max(Decimal("0.00"), total - deposit),
         expires_at=now_utc() + timedelta(minutes=HOLD_MINUTES),
         checkin_token=secrets.token_urlsafe(18), used_early_access=early,
+        start_time=r_start, end_time=r_end, hours=hours if r_start is not None else None,
     )
     db.add(reservation)
     await db.flush()
@@ -329,7 +412,7 @@ async def mark_paid(db: AsyncSession, res: DropReservation, payment_id: str) -> 
     if res.status == "pending_payment":
         res.status = "confirmed"
         outcome = "confirmed"
-    elif res.status == "expired" and await _take(db, res.block_id, res.seats):
+    elif res.status == "expired" and await _take(db, res.block_id, res.seats, res.start_time, res.end_time):
         # Paid after the hold ran out, but a seat was still free.
         res.status = "confirmed"
         outcome = "confirmed_late"
@@ -419,6 +502,8 @@ async def check_in(db: AsyncSession, token: str, staff: User) -> tuple[DropReser
         raise ForbiddenException(message="Only the café can check people in.", error_code="FORBIDDEN")
     if res.status == "checked_in":
         return res, "already"
+    if res.status == "given_away":
+        raise DropError("This seat was given to someone else after the 15-minute wait.", "GIVEN_AWAY")
     if res.status != "confirmed":
         raise DropError("This reservation isn't paid, so it can't be checked in.", "NOT_PAID")
     res.status, res.checked_in_at, res.checked_in_by = "checked_in", now_utc(), staff.id
@@ -465,3 +550,29 @@ async def funnel(db: AsyncSession, drop: Drop) -> dict:
         "paymentStarted": out["drop_payment_started"], "paymentSuccess": out["drop_payment_success"],
         "shareClicked": out["drop_share_clicked"], "shareByChannel": channels,
     }
+
+
+GRACE_MINUTES = 15
+
+
+def reservation_start(res: DropReservation, block: DropBlock) -> datetime:
+    t = res.start_time or block.start_time
+    return datetime.combine(block.session_date, t).replace(tzinfo=IST)
+
+
+async def give_away(db: AsyncSession, res: DropReservation, staff: User) -> DropReservation:
+    """The cafe frees a seat after the 15-minute wait. The fee is kept, no refund."""
+    drop = await db.get(Drop, res.drop_id)
+    if not await can_manage(db, staff, drop.cafe_id):
+        raise ForbiddenException(message="Only the café can do this.", error_code="FORBIDDEN")
+    res = (await db.execute(select(DropReservation).where(DropReservation.id == res.id).with_for_update())).scalars().one()
+    if res.status != "confirmed":
+        raise DropError("Only a paid seat that has not arrived can be given away.", "NOT_GIVABLE")
+    block = await db.get(DropBlock, res.block_id)
+    if now_utc() < reservation_start(res, block) + timedelta(minutes=GRACE_MINUTES):
+        raise DropError("Wait until 15 minutes after the start time before giving this seat away.", "TOO_EARLY")
+    res.status, res.given_away_at = "given_away", now_utc()
+    await _give_back(db, res.block_id)
+    await db.commit()
+    await db.refresh(res)
+    return res

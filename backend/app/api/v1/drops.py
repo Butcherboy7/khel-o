@@ -45,7 +45,7 @@ def _site() -> str:
     return settings.FRONTEND_URL.rstrip("/")
 
 
-def _block_out(drop: Drop, b: DropBlock) -> dict:
+def _block_out(drop: Drop, b: DropBlock, hour_free: Optional[dict] = None) -> dict:
     per_seat = svc.block_price_per_seat(drop, b)
     return {
         "id": str(b.id),
@@ -57,6 +57,7 @@ def _block_out(drop: Drop, b: DropBlock) -> dict:
         "seatsLeft": max(0, b.seats_total - b.seats_taken),
         "pricePerSeat": float(per_seat),
         "balancePerSeat": float(max(0, per_seat - svc.money(drop.deposit_amount))),
+        "hourFree": hour_free or {},
         "started": svc.block_starts_at(b) <= svc.now_utc(),
     }
 
@@ -75,6 +76,12 @@ def _reservation_out(drop: Drop, r: DropReservation, block: Optional[DropBlock])
         "depositPaid": float(r.deposit_amount) if paid or r.status == "refunded" else 0,
         "deposit": float(r.deposit_amount),
         "balanceDue": float(r.balance_due),
+        "hours": r.hours,
+        "startTime": (r.start_time or block.start_time).strftime("%H:%M") if (r.start_time or block) else None,
+        "endTime": (r.end_time or block.end_time).strftime("%H:%M") if (r.end_time or block) else None,
+        "arriveFrom": _iso(svc.reservation_start(r, block) - timedelta(minutes=svc.GRACE_MINUTES)) if block else None,
+        "arriveUntil": _iso(svc.reservation_start(r, block) + timedelta(minutes=svc.GRACE_MINUTES)) if block else None,
+        "givenAwayAt": _iso(r.given_away_at),
         "expiresAt": _iso(r.expires_at),
         # Lets the holder reopen the payment if they closed it inside the hold.
         "orderId": r.razorpay_order_id if r.status == "pending_payment" else None,
@@ -95,6 +102,8 @@ def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
         "coverImageUrl": drop.cover_image_url,
         "pricePerHour": float(drop.price_per_hour),
         "deposit": float(drop.deposit_amount),
+        "depositLong": float(drop.deposit_amount_long if drop.deposit_amount_long is not None else svc.money(drop.deposit_amount) * 2),
+        "maxHours": drop.max_hours,
         "maxSeatsPerUser": drop.max_seats_per_user,
         "earlyAccessStartsAt": _iso(drop.early_access_starts_at),
         "publicStartsAt": _iso(drop.public_starts_at),
@@ -155,6 +164,9 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
     await svc.release_expired(db, drop.id)
     blocks = await svc.blocks_of(db, drop.id)
     data = _drop_out(drop, cafe, blocks)
+    if drop.max_hours:
+        for bd, blk in zip(data["blocks"], blocks):
+            bd["hourFree"] = svc.seats_free(await svc._holding_windows(db, blk), blk)
     mine = []
     if user is not None:
         by_id = {b.id: b for b in blocks}
@@ -175,6 +187,8 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
 
 class ReserveRequest(_Camel):
     block_id: UUID
+    start_time: Optional[time] = None  # flexible drops: the hour you start
+    hours: Optional[int] = Field(None, ge=1, le=12)
     seats: int = Field(1, ge=1, le=10)
     code: Optional[str] = Field(None, max_length=40)
     phone: Optional[str] = Field(None, max_length=20)
@@ -189,7 +203,8 @@ async def reserve(slug: str, payload: ReserveRequest, db: AsyncSession = Depends
             raise svc.DropError("Add your mobile number so the café can reach you.", "NEED_PHONE")
         user.phone_number = svc.clean_phone(payload.phone)
         await db.flush()
-    done = await svc.reserve(db, drop, payload.block_id, user, payload.seats, payload.code)
+    done = await svc.reserve(db, drop, payload.block_id, user, payload.seats, payload.code,
+                             start=payload.start_time, hours=payload.hours)
     block = await db.get(DropBlock, done.reservation.block_id)
     return {"success": True, "data": {
         "reservation": _reservation_out(drop, done.reservation, block),
@@ -282,6 +297,8 @@ class DropCreate(_Camel):
     cover_image_url: Optional[str] = Field(None, max_length=1000)
     price_per_hour: float = Field(..., gt=0, le=10000)
     deposit_amount: float = Field(99, ge=1, le=10000)
+    max_hours: Optional[int] = Field(None, ge=1, le=12)
+    deposit_amount_long: Optional[float] = Field(None, ge=1, le=10000)
     max_seats_per_user: int = Field(2, ge=1, le=2)
     early_access_code: Optional[str] = Field(None, max_length=40)
     early_access_starts_at: datetime
@@ -347,6 +364,7 @@ async def create_drop(payload: DropCreate, db: AsyncSession = Depends(get_db), u
         slug=slug, cafe_id=cafe.id, title=payload.title.strip(), game=payload.game.strip(),
         tagline=(payload.tagline or "").strip() or None, cover_image_url=payload.cover_image_url,
         price_per_hour=payload.price_per_hour, deposit_amount=payload.deposit_amount,
+        max_hours=payload.max_hours, deposit_amount_long=payload.deposit_amount_long,
         max_seats_per_user=payload.max_seats_per_user,
         early_access_code=(payload.early_access_code or "").strip().upper() or None,
         early_access_starts_at=payload.early_access_starts_at, public_starts_at=payload.public_starts_at,
@@ -366,6 +384,7 @@ class DropUpdate(_Camel):
     cover_image_url: Optional[str] = Field(None, max_length=1000)
     price_per_hour: Optional[float] = Field(None, gt=0, le=10000)
     deposit_amount: Optional[float] = Field(None, ge=1, le=10000)
+    deposit_amount_long: Optional[float] = Field(None, ge=1, le=10000)
     early_access_code: Optional[str] = Field(None, max_length=40)
     early_access_starts_at: Optional[datetime] = None
     public_starts_at: Optional[datetime] = None
@@ -382,7 +401,7 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
     paid = (await db.execute(select(func.count()).select_from(DropReservation).where(
         DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.HOLDING)))).scalar_one()
     fields = payload.model_dump(exclude_unset=True, exclude={"add_blocks"})
-    if paid and ({"price_per_hour", "deposit_amount"} & fields.keys()):
+    if paid and ({"price_per_hour", "deposit_amount", "deposit_amount_long"} & fields.keys()):
         raise svc.DropError("People have already reserved, so the price and deposit can't change now.", "PRICE_LOCKED")
     if "cover_image_url" in fields and fields["cover_image_url"] and not fields["cover_image_url"].startswith("https://"):
         raise svc.DropError("The picture link must start with https://", "BAD_IMAGE")
@@ -496,3 +515,14 @@ async def check_in(payload: CheckInRequest, db: AsyncSession = Depends(get_db), 
     out = _reservation_out(drop, res, block)
     out.update({"outcome": outcome, "holderName": holder.full_name})
     return {"success": True, "data": out}
+
+
+@owner_router.post("/reservations/{reservation_id}/give-away")
+async def give_away(reservation_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    res = await db.get(DropReservation, reservation_id)
+    if res is None:
+        raise NotFoundException(message="We couldn't find this reservation.", error_code="RESERVATION_NOT_FOUND")
+    res = await svc.give_away(db, res, user)
+    drop = await db.get(Drop, res.drop_id)
+    block = await db.get(DropBlock, res.block_id)
+    return {"success": True, "data": _reservation_out(drop, res, block)}
