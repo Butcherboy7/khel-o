@@ -299,7 +299,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="flex flex-col gap-4 max-w-2xl mx-auto pb-24">
+    <div className="flex flex-col gap-4 max-w-4xl mx-auto pb-24">
       {/* Signed in with no phone number: ask here, in context (the Me tab carries a red dot until it is saved). */}
       <PhoneCaptureCard where="profile" />
       {/* Profile Header Card */}

@@ -59,7 +59,7 @@ export default function BookingsListPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-12">
+    <div className="flex flex-col gap-6 w-full pb-12">
       {/* Header */}
       <div>
         <h1 className="font-heading text-h1 text-text-primary">My Booking Passes</h1>
@@ -100,7 +100,7 @@ export default function BookingsListPage() {
       </div>
 
       {/* 4-State System Content */}
-      <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 xl:grid-cols-3 [&>*:only-child]:col-span-full">
         {dropPasses.map((p) => (
           <DropPassCard key={p.id} pass={p} />
         ))}
@@ -136,7 +136,7 @@ export default function BookingsListPage() {
         )}
 
         {!isLoading && !isError && bookings.length > 0 && (
-          <div className="flex flex-col gap-4">
+          <div className="contents">
             {bookings.map((booking) => (
               <BookingCard key={booking.id} booking={booking} />
             ))}

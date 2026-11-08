@@ -10,7 +10,7 @@ import { FEATURED_CHALLENGE_SLUG } from '@/lib/challenge';
 import { markChallengeSeen, useChallengeToNudge } from '@/lib/challengeNudge';
 import { useAuthStore } from '@/store/authStore';
 import { ChallengeTeaser } from '@/components/customer/ChallengeTeaser';
-import { CommunityInviteCard } from '@/components/customer/CommunityInvite';
+import { CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 import { Card, CardContent, ErrorState, SkeletonCard } from '@/components/ui';
 
 /** The plain-words state of one sign-up. */
@@ -74,7 +74,7 @@ export default function MyChallengesPage() {
   const past = (data ?? []).filter((c) => !c.upcoming);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-6">
       <h1 className="font-heading text-h1 font-bold text-text-primary">My challenges</h1>
 
       {isAuthenticated && isLoading && <SkeletonCard />}
@@ -114,6 +114,13 @@ export default function MyChallengesPage() {
         <section className="flex flex-col gap-2" aria-label="Open challenges">
           <h2 className="font-heading text-h3 font-semibold text-text-primary">Open now</h2>
           <ChallengeTeaser where="my_challenges" className="w-full" />
+        </section>
+      )}
+
+      {!(data ?? []).some((c) => c.slug === FEATURED_CHALLENGE_SLUG) && (
+        <section className="flex flex-col gap-2" aria-label="Last challenge">
+          <h2 className="font-heading text-h3 font-semibold text-text-primary">Last challenge</h2>
+          <LastChallengeLink where="my_challenges_last" />
         </section>
       )}
 

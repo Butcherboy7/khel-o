@@ -157,15 +157,15 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
       {!q && (
         <section className="flex flex-col gap-3" aria-label="Happening now">
           <h2 className="font-heading text-h3 font-bold text-text-primary">Happening now</h2>
-          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:px-0 xl:grid-cols-4">
             {drops === undefined && (
-              <div className="aspect-[4/5] w-[72%] max-w-[300px] flex-none animate-pulse snap-start rounded-3xl bg-border/50 sm:w-[280px]" aria-hidden />
+              <div className="aspect-[4/5] w-[72%] max-w-[300px] flex-none lg:w-auto lg:max-w-none animate-pulse snap-start rounded-3xl bg-border/50 sm:w-[280px] lg:w-auto" aria-hidden />
             )}
             {liveDrop && (
               <Link
                 href={`/drops/${liveDrop.slug}`}
                 onClick={() => trackAction('explore_happening_tap', { what: 'drop' })}
-                className="relative aspect-[4/5] w-[72%] max-w-[300px] flex-none snap-start overflow-hidden rounded-3xl bg-gradient-to-br from-[#5B1A2A] to-[#D0463C] shadow-card sm:w-[280px]"
+                className="relative aspect-[4/5] w-[72%] max-w-[300px] flex-none lg:w-auto lg:max-w-none snap-start overflow-hidden rounded-3xl bg-gradient-to-br from-[#5B1A2A] to-[#D0463C] shadow-card sm:w-[280px] lg:w-auto"
               >
                 {dropArt(liveDrop) && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -187,7 +187,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
             <Link
               href={`/challenge/${FEATURED_CHALLENGE_SLUG}`}
               onClick={() => trackAction('explore_happening_tap', { what: 'challenge' })}
-              className="relative aspect-[4/5] w-[72%] max-w-[300px] flex-none snap-start overflow-hidden rounded-3xl bg-[#0b0708] shadow-card sm:w-[280px]"
+              className="relative aspect-[4/5] w-[72%] max-w-[300px] flex-none lg:w-auto lg:max-w-none snap-start overflow-hidden rounded-3xl bg-[#0b0708] shadow-card sm:w-[280px] lg:w-auto"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/community/full-house.webp" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
@@ -207,7 +207,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
             <Link
               href="/community"
               onClick={() => trackAction('explore_happening_tap', { what: 'community' })}
-              className="relative aspect-[4/5] w-[72%] max-w-[300px] flex-none snap-start overflow-hidden rounded-3xl bg-[#13221A] shadow-card sm:w-[280px]"
+              className="relative aspect-[4/5] w-[72%] max-w-[300px] flex-none lg:w-auto lg:max-w-none snap-start overflow-hidden rounded-3xl bg-[#13221A] shadow-card sm:w-[280px] lg:w-auto"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/community/the-crowd.webp" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
@@ -230,7 +230,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
       {!q && activities.length > 0 && (
         <section className="flex flex-col gap-3" aria-label="Browse by game">
           <h2 className="font-heading text-h3 font-bold text-text-primary">Browse by game</h2>
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5 lg:grid-cols-9">
             {activities.slice(0, 9).map((a) => (
               <Link
                 key={a.key}
@@ -258,7 +258,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
         {shown.length === 0 ? (
           <p className="rounded-2xl border border-border bg-card p-4 text-center text-body text-text-secondary">No café by that name yet. Try a city or a game.</p>
         ) : (
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4" onClick={() => q && saveRecent(q)}>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4 xl:grid-cols-5 2xl:grid-cols-6" onClick={() => q && saveRecent(q)}>
             {shown.map((c, i) => (
               <CafeTile key={c.id} c={c} tall={i % 5 === 0} />
             ))}

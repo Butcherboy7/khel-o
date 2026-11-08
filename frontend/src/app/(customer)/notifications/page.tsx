@@ -98,7 +98,7 @@ export default function NotificationsPage() {
   const unreadCount = data?.unreadCount || 0;
 
   return (
-    <div className="max-w-3xl mx-auto pb-24">
+    <div className="max-w-4xl mx-auto pb-24">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border/60 px-4 py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

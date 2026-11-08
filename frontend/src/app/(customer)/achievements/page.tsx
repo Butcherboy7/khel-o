@@ -77,7 +77,7 @@ export default function AchievementsPage() {
 
   if (isError) {
     return (
-      <div className="max-w-2xl mx-auto pb-24">
+      <div className="max-w-4xl mx-auto pb-24">
         <ErrorState
           title="Couldn't load your achievements"
           message={(error as Error)?.message || 'Failed to fetch your XP and badges. Please check your connection.'}
@@ -88,7 +88,7 @@ export default function AchievementsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-24">
+    <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-24">
       {/* Level & XP Banner */}
       <Card elevation="raised" className="overflow-hidden border border-accent/30 bg-gradient-to-r from-secondary via-secondary to-[#2B2D42] text-white">
         <CardContent className="p-5 flex flex-col gap-4">

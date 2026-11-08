@@ -69,7 +69,7 @@ export function LastChallengeLink({ where }: { where: string }) {
         ))}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-heading text-body-emphasis font-bold">See last month’s challenge</span>
+        <span className="block font-heading text-body-emphasis font-bold">See the last challenge</span>
         <span className="block text-caption text-text-secondary">Tekken #01 at AdamsDen. The photos and who won.</span>
       </span>
       <ArrowRight className="h-4 w-4 flex-shrink-0 text-text-secondary" aria-hidden />

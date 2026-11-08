@@ -45,7 +45,7 @@ export default async function BrowsePage() {
     .sort((a, b) => b.cafeCount - a.cafeCount || a.city.localeCompare(b.city));
 
   return (
-    <div className="max-w-5xl mx-auto w-full flex flex-col gap-8 py-6">
+    <div className="w-full flex flex-col gap-8 py-6">
       <h1 className="sr-only">Explore gaming cafés, drops, challenges and the community on KHEL-O</h1>
       <ExploreHub cafes={cafes} cities={cities.map((c) => c.city)} />
 
