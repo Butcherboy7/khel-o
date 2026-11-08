@@ -14,7 +14,10 @@ export type GuidePage =
   | 'notifications'
   | 'payouts'
   | 'staff'
-  | 'settings';
+  | 'settings'
+  | 'drops'
+  | 'drop'
+  | 'money';
 
 interface PageGuide {
   /** Shown in the ⓘ beside the page title — one or two lines, always available. */
@@ -94,6 +97,31 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
       'Every new booking, cancellation and payment problem lands here.',
       'Dismiss an alert once you’ve dealt with it to keep this list short.',
       'Turn on phone notifications so you don’t have to keep checking this page.',
+    ],
+  },
+  drops: {
+    info: 'Launch drops are a few seats sold ahead of a big game. Customers pay a small fee now and the rest at your café.',
+    tips: [
+      'Tap New drop to start one. Your café, the game and the days are the only things to fill in.',
+      'Open a drop to change prices, seats and your photo, even while it is live.',
+      'Check people in with their QR pass when they arrive.',
+    ],
+  },
+  drop: {
+    info: 'Everything for one drop: who is coming, the money, and the buttons to run it.',
+    tips: [
+      'The numbers at the top show seats sold, who is here, and the money.',
+      'Prices, seats, your photo and the end date are under Run your drop. You can change them any time.',
+      'Scan a pass or type the code to check someone in. After 15 minutes late you can give the seat away.',
+      'Cancel drop at the very bottom refunds everyone in full.',
+    ],
+  },
+  money: {
+    info: 'The money of a drop in simple words: what the customer pays now, what they pay at your café, and how you are paid.',
+    tips: [
+      'The customer pays a small fee online. The rest is paid at your café.',
+      'If the customer does not come, the fee is not returned. If you cancel, everyone is refunded.',
+      'Use the language buttons for Hindi or Telugu.',
     ],
   },
   payouts: {

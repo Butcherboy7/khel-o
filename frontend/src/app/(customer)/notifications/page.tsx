@@ -101,7 +101,7 @@ export default function NotificationsPage() {
     <div className="max-w-3xl mx-auto pb-24">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border/60 px-4 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
@@ -117,7 +117,7 @@ export default function NotificationsPage() {
           </div>
           
           {notifications.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1">
               <button
                 onClick={() => refetch()}
                 aria-label="Refresh notifications"
@@ -132,7 +132,7 @@ export default function NotificationsPage() {
                 className="flex items-center gap-1 text-caption font-medium text-primary hover:text-primary/80 transition-colors px-3 py-2 rounded-full hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <CheckCheck className="h-4 w-4" />
-                <span>Mark all read</span>
+                <span className="whitespace-nowrap">Mark all read</span>
               </button>
 
               <button
@@ -141,7 +141,7 @@ export default function NotificationsPage() {
                 className="flex items-center gap-1 text-caption font-medium text-red-600 hover:text-red-500 transition-colors px-3 py-2 rounded-full hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Trash2 className="h-4 w-4" />
-                <span>Clear all</span>
+                <span className="whitespace-nowrap">Clear all</span>
               </button>
             </div>
           )}

@@ -32,13 +32,16 @@ export default function OwnerDropsPage() {
   return (
     <div className="flex flex-col gap-6">
       <OwnerPageHeader
+        guide="drops"
         title="Launch drops"
         description="Sell a few seats ahead of a big game launch. People reserve with a small deposit that comes off their bill, and pay the rest at your café."
         action={
           !creating && (
-            <Button onClick={() => setCreating(true)} fullWidth className="sm:w-auto">
-              <Plus className="mr-1.5 h-4 w-4" /> New drop
-            </Button>
+            <div data-tour="drops-new" className="w-full sm:w-auto">
+              <Button onClick={() => setCreating(true)} fullWidth className="sm:w-auto">
+                <Plus className="mr-1.5 h-4 w-4" /> New drop
+              </Button>
+            </div>
           )
         }
       />
@@ -61,10 +64,10 @@ export default function OwnerDropsPage() {
       {data && !data.drops.length && !creating && (
         <EmptyState icon={<Ticket className="h-6 w-6" />} title="No drops yet" description="Tap New drop to make your first one." />
       )}
-      {data?.drops.map((d) => {
+      {data?.drops.map((d, i) => {
         const sold = d.seatsTotal - d.blocks.reduce((n, b) => n + b.seatsLeft, 0);
         return (
-          <Card key={d.id} elevation="resting">
+          <Card key={d.id} elevation="resting" data-tour={i === 0 ? 'drops-list' : undefined}>
             <CardContent className="flex flex-col gap-3 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">

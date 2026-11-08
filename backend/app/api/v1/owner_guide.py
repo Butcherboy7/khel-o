@@ -14,7 +14,7 @@ router = APIRouter()
 # Must match the page keys in frontend/src/lib/ownerGuideCopy.ts.
 GuidePage = Literal[
     "dashboard", "scanner", "bookings", "availability", "tiers", "offers",
-    "reviews", "analytics", "notifications", "payouts", "staff", "settings",
+    "reviews", "analytics", "notifications", "payouts", "staff", "settings", "drops", "drop", "money",
 ]
 
 

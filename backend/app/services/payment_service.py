@@ -38,6 +38,18 @@ class PaymentService:
         self.booking_repo = booking_repo
         self.db = db_session
 
+    async def _booking_message(self, booking) -> str:
+        """"You're all set at AdamsDen on Mon 9 Nov, 11 AM." in words, not database values."""
+        try:
+            cafe = (await self.payment_repo.db.execute(select(Cafe).where(Cafe.id == booking.cafe_id))).scalars().first()
+            day = f"{booking.session_date:%a} {booking.session_date.day} {booking.session_date:%b}"
+            t = booking.start_time
+            clock = f"{t.hour % 12 or 12}{f':{t.minute:02d}' if t.minute else ''} {'PM' if t.hour >= 12 else 'AM'}"
+            where = f" at {cafe.name}" if cafe else ""
+            return f"You're all set{where} on {day}, {clock}. Show your QR pass at the café."
+        except Exception:
+            return "You're all set. Show your QR pass at the café."
+
     async def _notify_customer(self, booking, title: str, message: str, notification_type: str = "system") -> None:
         """Best-effort in-app notification for the gamer who made the booking.
 
@@ -491,7 +503,7 @@ class PaymentService:
         await self._notify_customer(
             booking,
             title="Booking confirmed",
-            message=f"You're all set for {booking.session_date} at {booking.start_time}. Show your QR pass at the café.",
+            message=await self._booking_message(booking),
             notification_type="booking_confirmed"
         )
 
@@ -650,7 +662,7 @@ class PaymentService:
                         await self._notify_customer(
                             booking,
                             title="Booking confirmed",
-                            message=f"You're all set for {booking.session_date} at {booking.start_time}. Show your QR pass at the café.",
+                            message=await self._booking_message(booking),
                             notification_type="booking_confirmed"
                         )
                         await self._create_route_transfer(booking, payment_id)

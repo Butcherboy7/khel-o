@@ -163,3 +163,37 @@ async def test_before_launch_only_the_first_week_from_launch_day_is_bookable():
         # The server refuses the pre-launch day even if someone sends its id.
         r = await _book(c, drop, early_block, u, start="18:00", hours=2)
         assert r.status_code == 400 and r.json()["error"]["code"] == "BEFORE_LAUNCH"
+
+
+@pytest.mark.asyncio
+async def test_owner_cancel_refunds_everyone_and_stops_new_reservations(fake_razorpay):
+    drop, block, owner = await _flex(seats=3)
+    a = await _user()
+    async with _client() as c:
+        order = (await _book(c, drop, block, a, hours=2)).json()["data"]["order"]["orderId"]
+        await _pay(c, a, order)
+        stranger = await _user(UserRole.GAMER)
+        assert (await c.post(f"/api/v1/owner/drops/{drop.id}/cancel", headers=_h(stranger))).status_code == 403
+        r = await c.post(f"/api/v1/owner/drops/{drop.id}/cancel", headers=_h(owner))
+        assert r.status_code == 200 and r.json()["data"]["refunded"] == 1 and r.json()["data"]["failed"] == 0
+        assert any(p.endswith("/refund") for p, _ in fake_razorpay)
+        b = await _user()
+        assert (await _book(c, drop, block, b)).status_code == 400  # cancelled drops take no reservations
+    assert await _taken(block.id) == 0
+
+
+@pytest.mark.asyncio
+async def test_owner_can_change_seats_per_day_but_not_below_whats_reserved():
+    drop, block, owner = await _flex(seats=3)
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(Drop).where(Drop.id == drop.id).values(daily_start_time=time(12, 0), daily_end_time=time(23, 0), daily_seats=3))
+        await db.commit()
+    a = await _user()
+    async with _client() as c:
+        assert (await _book(c, drop, block, a, hours=2, seats=2)).status_code == 201
+        r = await c.patch(f"/api/v1/owner/drops/{drop.id}", headers=_h(owner), json={"dailySeats": 1})
+        assert r.status_code == 400
+        r = await c.patch(f"/api/v1/owner/drops/{drop.id}", headers=_h(owner), json={"dailySeats": 5})
+        assert r.status_code == 200
+    async with AsyncSessionLocal() as db:
+        assert (await db.get(DropBlock, block.id)).seats_total == 5

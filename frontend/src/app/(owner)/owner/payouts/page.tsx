@@ -9,6 +9,7 @@ import { queryKeys } from '@/hooks/queries/keys';
 import { getOwnerPayoutSummary, getOwnerCafePayouts } from '@/lib/api/owner';
 import { Card, CardContent, Badge, Button, EmptyState, PageSpinner } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { MoneyExplained } from '@/components/owner/MoneyExplained';
 import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
 import { useAuthStore } from '@/store/authStore';
 import { isCafeSuspended, SuspendedNotice } from '@/components/owner/OwnerLoadError';
@@ -68,9 +69,12 @@ export default function OwnerPayoutsPage() {
     return (
       <div className="flex flex-col gap-8">
         <OwnerPageHeader
-        guide="payouts"
-        title="Payouts"
-        description="Where the money from your bookings is, and what has already reached you."
+        guide="payouts"
+
+        title="Payouts"
+
+        description="Where the money from your bookings is, and what has already reached you."
+
       />
         <SuspendedNotice />
       </div>
@@ -91,6 +95,8 @@ export default function OwnerPayoutsPage() {
           </CardContent>
         </Card>
       )}
+
+      <MoneyExplained pricePerHour={250} deposit={100} />
 
       {/* Four numbers that mirror the actual money flow — customer pays,
           Razorpay settles to KHEL-O, it becomes available, then it's paid

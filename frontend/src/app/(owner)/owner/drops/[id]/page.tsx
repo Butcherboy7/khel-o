@@ -9,7 +9,8 @@ import { ArrowLeft, Bell, CheckCircle2, Download, ExternalLink, KeyRound, QrCode
 import { Button, Card, CardContent, SkeletonCard } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
-import { checkInDropPass, downloadDropCsv, getOwnerDrop, giveAwayReservation, updateDrop, type OwnerDrop } from '@/lib/api/drops';
+import { MoneyExplained } from '@/components/owner/MoneyExplained';
+import { cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, giveAwayReservation, updateDrop, type OwnerDrop } from '@/lib/api/drops';
 import { DropHowItWorks } from '@/components/owner/DropHowItWorks';
 import { blockTimes, dayLabel, rupees, whenText } from '@/lib/drops';
 
@@ -49,7 +50,7 @@ function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
   };
   const num = (v: string) => v.replace(/\D/g, '').slice(0, 5);
   return (
-    <Card elevation="flat">
+    <Card elevation="flat" data-tour="drop-prices">
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Prices</p>
         <div className="grid grid-cols-3 gap-2">
@@ -104,7 +105,7 @@ function CoverPhoto({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
     }
   };
   return (
-    <Card elevation="flat">
+    <Card elevation="flat" data-tour="drop-photo">
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Your photo</p>
         <p className="text-caption text-text-secondary">
@@ -122,6 +123,86 @@ function CoverPhoto({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
               Use the Rockstar picture
             </button>
           )}
+          {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** How many people can play at once. New days use it, and days not yet played change too. */
+function SeatsPerDay({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
+  const [seats, setSeats] = useState(String(d.seatsPerSlot ?? ''));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const changed = Number(seats) > 0 && Number(seats) !== d.seatsPerSlot;
+  const save = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await updateDrop(d.id, { dailySeats: Number(seats) });
+      setMsg({ ok: true, text: 'Saved. It applies to every day that has not been played yet.' });
+      onDone();
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error)?.message || 'Could not save.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card elevation="flat" data-tour="drop-seats">
+      <CardContent className="flex flex-col gap-3 p-4">
+        <p className="font-heading text-body-emphasis font-bold text-text-primary">Seats at one time</p>
+        <p className="text-caption text-text-secondary">How many people can play together. This is how many consoles you give to the drop.</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            inputMode="numeric"
+            aria-label="Seats at one time"
+            value={seats}
+            onChange={(e) => setSeats(e.target.value.replace(/\D/g, '').slice(0, 3))}
+            className="h-11 w-24 rounded-lg border border-border bg-card px-2 text-body text-text-primary"
+          />
+          <Button onClick={save} disabled={busy || !changed}>Save seats</Button>
+          {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** The one big button that stops everything. It asks first, because it refunds real money. */
+function CancelDrop({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  if (d.state === 'cancelled') return <p className="rounded-xl bg-surface p-3 text-body text-text-secondary">This drop was cancelled. Everyone was refunded.</p>;
+  return (
+    <Card elevation="flat" className="border-error/30" data-tour="drop-cancel">
+      <CardContent className="flex flex-col gap-2 p-4">
+        <p className="font-heading text-body-emphasis font-bold text-text-primary">Cancel this drop</p>
+        <p className="text-caption text-text-secondary">
+          Use this only if you cannot run it. Every person who paid gets all their money back, by themselves. It cannot be undone.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="secondary"
+            disabled={busy}
+            onClick={async () => {
+              if (!window.confirm(`Cancel "${d.title}" and refund ${d.totals.paidReservations} paid ${d.totals.paidReservations === 1 ? 'booking' : 'bookings'}? This cannot be undone.`)) return;
+              setBusy(true);
+              setMsg(null);
+              try {
+                const r = await cancelDrop(d.id);
+                setMsg({ ok: r.failed === 0, text: r.failed ? `${r.refunded} refunded, ${r.failed} need help. Contact KHEL-O support.` : `Done. ${r.refunded} refunded.` });
+                onDone();
+              } catch (e) {
+                setMsg({ ok: false, text: (e as Error)?.message || 'Could not cancel.' });
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Cancel drop and refund everyone
+          </Button>
           {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
         </div>
       </CardContent>
@@ -150,7 +231,7 @@ function RunControl({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
   };
   const nice = (iso: string) => new Date(`${iso}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
   return (
-    <Card elevation="flat">
+    <Card elevation="flat" data-tour="drop-run">
       <CardContent className="flex flex-col gap-2 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">
           {over ? `This drop ended on ${nice(d.endsOn!)}` : `Runs until ${nice(d.endsOn!)}`}
@@ -225,11 +306,8 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
       <Link href="/owner/drops" className="inline-flex items-center gap-1 text-body font-semibold text-text-secondary hover:text-text-primary">
         <ArrowLeft className="h-4 w-4" /> All drops
       </Link>
-      <DropHowItWorks />
-      <EditPrices d={d} onDone={refresh} />
-      <CoverPhoto d={d} onDone={refresh} />
-      {d.rolling && d.endsOn && d.startsOn && <RunControl d={d} onDone={refresh} />}
       <OwnerPageHeader
+        guide="drop"
         title={d.title}
         description={`${d.cafe.name} · ${rupees(d.pricePerHour)} an hour · ${rupees(d.deposit)} deposit a seat`}
         action={
@@ -239,21 +317,36 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
             rel="noopener noreferrer"
             className="flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-border px-4 font-semibold text-text-primary hover:bg-surface sm:w-auto"
           >
-            <ExternalLink className="h-4 w-4" /> Public page
+            <ExternalLink className="h-4 w-4" /> See what customers see
           </a>
         }
       />
 
       <StatusCard d={d} onChanged={refresh} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-tour="drop-stats">
         <Stat label="Seats sold" value={`${d.totals.seatsSold} of ${d.seatsTotal}`} />
         <Stat label="Here" value={String(d.totals.checkedIn)} />
         <Stat label="Paid online" value={rupees(d.totals.depositsCollected)} />
         <Stat label="To collect at café" value={rupees(d.totals.balanceToCollect)} />
       </div>
 
-      <CheckInBox onDone={refresh} />
+      <div data-tour="drop-checkin">
+        <CheckInBox onDone={refresh} />
+      </div>
+
+      <MoneyExplained pricePerHour={d.pricePerHour} deposit={d.deposit} />
+
+      <h2 className="font-heading text-h2 font-semibold text-text-primary">Run your drop</h2>
+      <div className="grid gap-4 md:grid-cols-2">
+        <EditPrices d={d} onDone={refresh} />
+        {d.rolling && <SeatsPerDay d={d} onDone={refresh} />}
+        <CoverPhoto d={d} onDone={refresh} />
+        {d.rolling && d.endsOn && d.startsOn && <RunControl d={d} onDone={refresh} />}
+      </div>
+      <DropHowItWorks />
+
+      <h2 className="font-heading text-h2 font-semibold text-text-primary">Who is coming</h2>
 
       {d.blocks.map((b) => (
         <Card key={b.id} elevation="resting">
@@ -309,6 +402,8 @@ export default function OwnerDropPage({ params }: { params: Promise<{ id: string
       <Button variant="secondary" onClick={() => downloadDropCsv(d.id, d.slug)} className="self-start">
         <Download className="mr-1.5 h-4 w-4" /> Download the list (CSV)
       </Button>
+
+      <CancelDrop d={d} onDone={refresh} />
     </div>
   );
 }

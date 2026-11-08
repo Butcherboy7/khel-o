@@ -445,6 +445,7 @@ class DropUpdate(_Camel):
     public_starts_at: Optional[datetime] = None
     status: Optional[Literal["draft", "live"]] = None
     ends_on: Optional[date] = None
+    daily_seats: Optional[int] = Field(None, ge=1, le=100)
     add_blocks: list[BlockIn] = Field(default_factory=list, max_length=40)
 
 
@@ -468,6 +469,15 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
             raise svc.DropError("This drop has no daily schedule to extend.", "NOT_ROLLING")
         if fields["ends_on"] > drop.starts_on + timedelta(days=svc.MAX_DAYS - 1):
             raise svc.DropError("A drop runs for 2 weeks at most. After that it is normal booking.", "TOO_LONG")
+    if fields.get("daily_seats") is not None:
+        if drop.daily_start_time is None:
+            raise svc.DropError("This drop has no daily seats to change.", "NOT_ROLLING")
+        today = svc.now_utc().astimezone(svc.IST).date()
+        for blk in (await db.execute(select(DropBlock).where(
+                DropBlock.drop_id == drop.id, DropBlock.session_date >= today).with_for_update())).scalars().all():
+            if fields["daily_seats"] < blk.seats_taken:
+                raise svc.DropError(f"{blk.seats_taken} seats are already reserved on {blk.session_date.day} {blk.session_date:%b}, so it can't go below that.", "SEATS_BELOW_TAKEN")
+            blk.seats_total = fields["daily_seats"]
     for k, v in fields.items():
         setattr(drop, k, v)
     if svc._aware(drop.early_access_starts_at) > svc._aware(drop.public_starts_at):
@@ -480,6 +490,23 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
 
 class BlockSeats(_Camel):
     seats: int = Field(..., ge=0, le=100)
+
+
+@owner_router.post("/{drop_id}/cancel")
+async def cancel_drop(drop_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
+    """Stop the drop and give every paid person their deposit back in full."""
+    drop, cafe = await _managed(db, user, drop_id)
+    if drop.status == "cancelled":
+        raise svc.DropError("This drop is already cancelled.", "ALREADY_CANCELLED")
+    drop.status = "cancelled"
+    await db.commit()
+    rows = (await db.execute(select(DropReservation).where(
+        DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.PAID)))).scalars().all()
+    results = {"refunded": 0, "failed": 0}
+    for r in rows:
+        out = await svc.refund(db, r, "The café cancelled the drop")
+        results["refunded" if out == "refunded" else "failed"] += 1
+    return {"success": True, "data": {"drop": _drop_out(drop, cafe, await svc.blocks_of(db, drop.id)), **results}}
 
 
 @owner_router.patch("/{drop_id}/blocks/{block_id}")

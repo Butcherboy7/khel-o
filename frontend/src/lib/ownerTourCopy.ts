@@ -184,6 +184,64 @@ export const TOUR_LESSONS: TourLesson[] = [
     ],
   },
   {
+    page: 'drops',
+    name: 'Launch drops',
+    steps: [
+      ...navTo('/owner/drops', 'Launch drops', true),
+      {
+        kind: 'look', page: '/owner/drops', target: 'drops-new',
+        title: 'Start a drop here',
+        body: 'Pick your café, the game, the first day, your hours and how many seats. Everything else is already set for you.',
+      },
+      {
+        kind: 'look', page: '/owner/drops', target: 'drops-list',
+        title: 'Your drops',
+        body: 'Tap a drop to run it: prices, seats, photo, check-ins and money.',
+      },
+    ],
+  },
+  {
+    page: 'drop',
+    name: 'Running a drop',
+    steps: [
+      {
+        kind: 'look', page: '*', target: 'drop-stats',
+        title: 'The numbers',
+        body: 'Seats sold, people who are here, what was paid online, and what you collect at the café.',
+      },
+      {
+        kind: 'look', page: '*', target: 'drop-checkin',
+        title: 'Check people in',
+        body: 'When someone arrives, scan their QR pass or type the code. After 15 minutes late you can give the seat away.',
+      },
+      {
+        kind: 'look', page: '*', target: 'drop-prices',
+        title: 'Change prices any time',
+        body: 'Price per hour and the two fees. People who already reserved keep the price they booked at.',
+      },
+      {
+        kind: 'look', page: '*', target: 'drop-seats',
+        title: 'Seats at one time',
+        body: 'How many people can play together. You can raise or lower it, but never below what is already reserved.',
+      },
+      {
+        kind: 'look', page: '*', target: 'drop-photo',
+        title: 'Your own photo',
+        body: 'Add a photo of people playing at your café. Customers see it first, so your place looks different from others.',
+      },
+      {
+        kind: 'look', page: '*', target: 'drop-run',
+        title: 'How long it runs',
+        body: 'It starts with a week and can run up to 2 weeks. Add a week, or stop after today.',
+      },
+      {
+        kind: 'look', page: '*', target: 'drop-cancel',
+        title: 'If you must cancel',
+        body: 'This gives everyone their money back, in full, by itself. It cannot be undone.',
+      },
+    ],
+  },
+  {
     page: 'payouts',
     name: 'Payouts',
     steps: [

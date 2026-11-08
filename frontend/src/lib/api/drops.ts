@@ -140,6 +140,10 @@ export async function listMyDropPasses(): Promise<MyDropPass[]> {
   return call(() => apiClient.get('/api/v1/drops/me/reservations'));
 }
 
+export async function cancelDrop(id: string): Promise<{ refunded: number; failed: number }> {
+  return call(() => apiClient.post(`/api/v1/owner/drops/${id}/cancel`));
+}
+
 export async function getDropPass(slug: string, token: string): Promise<DropPass> {
   return call(() => apiClient.get(`/api/v1/drops/${encodeURIComponent(slug)}/pass/${encodeURIComponent(token)}`));
 }
