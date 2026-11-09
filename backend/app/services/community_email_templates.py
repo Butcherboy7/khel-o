@@ -20,20 +20,20 @@ VARIANTS = ("a", "b", "c")
 
 # What the admin page shows. The real subject comes from subject_for(), which uses the first name.
 SUBJECTS = {
-    "a": "{name}, you get a say in what KHEL-O does next",
-    "b": "{name}, your vote picks Challenge #02",
-    "c": "{name}, what should KHEL-O build next?",
+    "a": "{name}, 12 players showed up. Your controller stayed home.",
+    "b": "{name}, settle it: which game gets Challenge #02?",
+    "c": "{name}, you're our product manager now (unpaid, sorry)",
 }
 # Same hooks when we do not know the name (people who only left an email).
 SUBJECTS_NO_NAME = {
-    "a": "You get a say in what KHEL-O does next",
-    "b": "Your vote picks Challenge #02",
-    "c": "What should KHEL-O build next?",
+    "a": "12 players showed up. Your controller stayed home.",
+    "b": "Settle it: which game gets Challenge #02?",
+    "c": "You're our product manager now (unpaid, sorry)",
 }
 PREHEADERS = {
-    "a": "Something that is happening outside the app, and a seat for you.",
-    "b": "30 seconds. Most votes decides.",
-    "c": "You use the app, so you see what we miss.",
+    "a": "The next one goes to the community first. Don't miss that one too.",
+    "b": "One tap. Most votes wins. No recounts.",
+    "c": "Tell us what to build next. We actually read it.",
 }
 
 _RED = "#D0463C"
