@@ -131,7 +131,6 @@ def render(variant: str, first_name: str | None, unsub_url: str, poll_options: l
         url = community_link("a", "link")
         paras = [
             f"Hi {name},",
-            f'<img src="{_front()}/community/email-full-house.jpg" width="520" height="264" alt="Players at Tekken Challenge #01 at AdamsDen" style="display:block;width:100%;max-width:520px;height:auto;border:0;border-radius:6px;">',
             "On 1 Nov we ran our first free Tekken challenge at AdamsDen. 12 players, 12 matches and one champion. You were not there, and I would like to see you at the next one.",
             "The next one, and anything else we run, goes to our WhatsApp community first. It is free and you can leave any time.",
             f"You can join here: {link(url, _e(_front()) + '/community')}",
