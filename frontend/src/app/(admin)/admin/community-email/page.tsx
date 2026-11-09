@@ -10,9 +10,12 @@ import {
 import { Badge, Button, Card, CardContent, ErrorState, PageSpinner } from '@/components/ui';
 
 const LABEL: Record<string, string> = {
-  a: 'Email A: you missed it',
-  b: 'Email B: you pick Challenge #02',
-  c: 'Email C: a quick note',
+  c1: 'Email 1: the confession',
+  c2: 'Email 2: roast KHEL-O',
+  c3: 'Email 3: are we the problem?',
+  c4: 'Email 4: one question',
+  c5: 'Email 5: your Tekken rival',
+  c6: "Email 6: you've been promoted",
 };
 
 const STATUS: Record<EmailCampaign['status'], { text: string; tone: 'success' | 'warning' | 'error' | 'default' | 'primary' }> = {
@@ -62,7 +65,7 @@ function CampaignCard({ c, onChanged }: { c: EmailCampaign; onChanged: () => voi
     <Card elevation="raised">
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-heading text-h3 font-bold text-text-primary">{LABEL[c.variant]}</h2>
+          <h2 className="font-heading text-h3 font-bold text-text-primary">{LABEL[c.variant] ?? `Email ${c.variant.toUpperCase()}`}</h2>
           <Badge variant={st.tone}>{st.text}</Badge>
         </div>
         <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-body text-text-primary sm:grid-cols-2">
@@ -137,7 +140,7 @@ export default function AdminCommunityEmailPage() {
       <div>
         <h1 className="flex items-center gap-2 font-heading text-h2 font-bold text-text-primary"><Mail className="h-6 w-6" /> Community emails</h1>
         <p className="mt-1 text-body text-text-secondary">
-          Three emails from Abdullah, Founder, spaced over a week. Each goes out by itself at its time (shown in IST) once you have sent yourself a test. Real accounts and people who ticked the promotions box only, once each. Everyone gets a one-tap unsubscribe. Email C skips anyone who already voted.
+          Six emails from Abdullah, Founder, two days apart. Each goes out by itself at its time (shown in IST) once you have sent yourself a test. Real accounts and people who ticked the promotions box only, once each. Everyone gets a one-tap unsubscribe.
         </p>
       </div>
       {data.map((c) => (

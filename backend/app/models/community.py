@@ -149,12 +149,12 @@ class CommunitySettings(Base):
 
 
 class CommunityEmailCampaign(Base):
-    """One scheduled community email (variant a, b or c). The runner sends it once,
+    """One scheduled community email (variant a, b, c or c1..c6). The runner sends it once,
     at scheduled_for, and only after the admin has sent themselves a test."""
     __tablename__ = "community_email_campaigns"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    variant: Mapped[str] = mapped_column(String(1), nullable=False, unique=True)
+    variant: Mapped[str] = mapped_column(String(4), nullable=False, unique=True)
     subject: Mapped[str] = mapped_column(String(160), nullable=False)
     scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     # scheduled | sending | sent | paused | cancelled | missed

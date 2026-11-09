@@ -646,7 +646,7 @@ export async function sendCommunityEmail(body: { test: boolean; confirmCount?: n
 
 export interface EmailCampaign {
   id: string;
-  variant: 'a' | 'b' | 'c';
+  variant: string;
   subject: string;
   status: 'scheduled' | 'sending' | 'sent' | 'paused' | 'cancelled' | 'missed';
   scheduledFor: string;

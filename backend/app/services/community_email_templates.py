@@ -160,7 +160,7 @@ def render(variant: str, first_name: str | None, unsub_url: str, poll_options: l
         ]
     else:
         key = C_DEFAULT if variant == "c" else variant
-        url = community_link("c", "link" if key == C_DEFAULT else key)
+        url = community_link(key, "link")
         reply = "And you can reply to this email any time, it comes straight to us."
         if key == "c1":
             parts = [

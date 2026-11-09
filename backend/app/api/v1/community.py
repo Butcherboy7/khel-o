@@ -992,9 +992,17 @@ class EmailSchedulePatch(_Camel):
     scheduled_for: Optional[datetime] = None
 
 
+def _campaign_subject(c) -> str:
+    from app.services import community_email_templates as tpl
+    try:
+        return tpl.subject_for(c.variant, None)
+    except KeyError:
+        return c.subject
+
+
 def _campaign_json(c, audience: int) -> dict:
     return {
-        "id": str(c.id), "variant": c.variant, "subject": __import__("app.services.community_email_templates", fromlist=["x"]).SUBJECTS.get(c.variant, c.subject), "status": c.status,
+        "id": str(c.id), "variant": c.variant, "subject": _campaign_subject(c), "status": c.status,
         "scheduledFor": c.scheduled_for.isoformat(), "testedAt": c.tested_at.isoformat() if c.tested_at else None,
         "sentCount": c.sent_count, "failedCount": c.failed_count, "audience": audience,
         "startedAt": c.started_at.isoformat() if c.started_at else None,
@@ -1013,7 +1021,7 @@ async def email_schedule(db: AsyncSession = Depends(get_db), admin: User = Depen
 @admin_router.get("/email-schedule/{variant}/preview")
 async def email_schedule_preview(variant: str, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
     from app.services import community_email_templates as tpl, community_mailer as mailer
-    if variant not in tpl.VARIANTS:
+    if variant not in tpl.TEST_VARIANTS:
         raise NotFoundException(message="No such email.")
     r = tpl.render(variant, admin.full_name.split()[0] if admin.full_name else None,
                    mailer.unsubscribe_url(admin.id), await mailer.active_poll_options(db))
@@ -1023,7 +1031,7 @@ async def email_schedule_preview(variant: str, db: AsyncSession = Depends(get_db
 @admin_router.post("/email-schedule/{variant}/test")
 async def email_schedule_test(variant: str, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
     from app.services import community_email_templates as tpl, community_mailer as mailer
-    if variant not in tpl.VARIANTS:
+    if variant not in tpl.TEST_VARIANTS:
         raise NotFoundException(message="No such email.")
     return {"success": True, "data": await mailer.send_variant_test(db, admin, variant)}
 
