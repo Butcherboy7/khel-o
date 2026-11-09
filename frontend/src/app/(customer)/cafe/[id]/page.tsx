@@ -63,6 +63,44 @@ function promoSummary(promos: CafeDetail['activePromotions']): string {
   return parts.length ? ` Offers: ${parts.join('; ')}.` : '';
 }
 
+/**
+ * The lowest hourly price a player can really get from a recurring offer (a weekday-morning
+ * ₹80 off, a 25% happy hour), whether or not its window is open right now. The title says
+ * "from ₹99/hr" only together with when that price applies, never as the all-day price.
+ * Offers are not stacked; each applies to its own setup (or all setups) for a 1-hour booking.
+ */
+function lowestOfferPrice(
+  tiers: CafeDetail['tiers'],
+  promos: CafeDetail['activePromotions'],
+): { price: number; when: string | null } | null {
+  let best: { price: number; when: string | null } | null = null;
+  for (const t of tiers ?? []) {
+    const regular = t.pricePerHour;
+    if (!(regular > 0)) continue;
+    for (const p of promos ?? []) {
+      if (p.isActive === false || p.slotsRemaining === 0) continue;
+      if (p.applicableTierId && p.applicableTierId !== t.id) continue;
+      if ((p.minBookingMinutes ?? 0) > 60) continue;
+      let raw: number | null = null;
+      if (p.promotionType === 'percentage' && (p.discountPercentage ?? 0) > 0) {
+        raw = Math.round(regular * (1 - (p.discountPercentage as number) / 100));
+      } else if (p.promotionType === 'fixed_amount' && (p.fixedDiscountAmount ?? 0) > 0) {
+        raw = regular - Number(p.fixedDiscountAmount);
+      } else if (
+        p.promotionType === 'fixed_price' &&
+        Math.round(Number(p.minDurationHours ?? 0) * 60) === 60 &&
+        p.fixedPriceAmount != null
+      ) {
+        raw = Number(p.fixedPriceAmount);
+      }
+      if (raw == null || !(raw > 0) || raw >= regular) continue;
+      const price = customerPrice(raw);
+      if (best == null || price < best.price) best = { price, when: p.when ? p.when.replace(' · ', ' ') : null };
+    }
+  }
+  return best;
+}
+
 const getCafeLinksCached = cache((cafeId: string) => getCafeLinks(cafeId).catch(() => null));
 const getWaitlistCountCached = cache((cafeId: string) => getCafeWaitlistCount(cafeId).catch(() => null));
 
@@ -88,6 +126,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       ? t.pricePerHour
       : customerPrice(hourlyOffer(t.pricePerHour, t.activePromotion)?.price ?? t.pricePerHour))))
     : null;
+  // The cheapest true price from a recurring offer, shown with when it applies.
+  const deal = cafe.isLeadListing ? null : lowestOfferPrice(cafe.tiers, cafe.activePromotions);
+  const headlinePrice = deal && minPrice != null && deal.price < minPrice ? deal : null;
   // Human labels ("PlayStation, PC Gaming"), not raw enum values.
   const platformLabels = Array.from(new Set((cafe.tiers ?? []).map((t) => t.platform).filter(Boolean)))
     .map((p) => PLATFORMS.find((x) => x.value === p)?.label)
@@ -101,7 +142,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const kind = venueKind({ name, tiers: cafe.tiers });
   const where = area ? `${area}, ${city}` : city;
   const facts = [
-    minPrice ? `From ₹${minPrice}/hr` : null,
+    headlinePrice
+      ? `From ₹${headlinePrice.price}/hr${headlinePrice.when ? ` (${headlinePrice.when})` : ' in off-peak slots'}, ₹${minPrice}/hr otherwise`
+      : minPrice ? `From ₹${minPrice}/hr` : null,
     cafe.openingTime && cafe.closingTime ? `open ${formatTime(cafe.openingTime)}–${formatTime(cafe.closingTime)}` : null,
     platformLabels.length > 0 ? platformLabels.join(', ') : null,
     // Reviews left on KHEL-O itself, so quoting them is ours to make.
@@ -120,7 +163,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const place = `${name}${area ? `, ${area}` : ''}`;
   const title = cafe.isLeadListing
     ? `${place} — ${kind.label} in ${city}`
-    : `${place} — Book Online${minPrice ? ` from ₹${minPrice}/hr` : ''}`;
+    : `${place} — Book Online${headlinePrice ? ` from ₹${headlinePrice.price}/hr` : minPrice ? ` from ₹${minPrice}/hr` : ''}`;
   // A Booking Soon listing can't be booked yet; never say it can.
   const description = `${kind.label} at ${name}, ${where}.${factLine}${offerLine} ${
     cafe.isLeadListing
