@@ -36,6 +36,25 @@ PREHEADERS = {
     "c": "Tell us what to build next. We actually read it.",
 }
 
+# Candidates for email C. "c" (what gets scheduled) points at one of them; the rest are for tests.
+C_CHOICES = {
+    "c1": ("{name}, we have a confession", "We have a confession",
+           "We're a small team and we're winging some of it. You can help."),
+    "c2": ("Roast KHEL-O, {name}. Seriously.", "Roast KHEL-O. Seriously.",
+           "Tell us what's annoying. We'll fix what we can."),
+    "c3": ("{name}, are we the problem?", "Are we the problem?",
+           "Tell us what to fix. We promise not to cry."),
+    "c4": ("One question, {name}. Zero wrong answers.", "One question. Zero wrong answers.",
+           "Ten seconds. We read every reply."),
+    "c5": ("Who's your Tekken rival, {name}?", "Who's your Tekken rival?",
+           "Send them this. Settle it at the next challenge."),
+    "c6": ("{name}, you've been promoted. No raise.", "You've been promoted. No raise.",
+           "Product manager, effective now. Unpaid, sorry."),
+}
+C_DEFAULT = "c2"
+SUBJECTS["c"], SUBJECTS_NO_NAME["c"], PREHEADERS["c"] = C_CHOICES[C_DEFAULT]
+TEST_VARIANTS = VARIANTS + tuple(C_CHOICES)
+
 _RED = "#D0463C"
 _MUTED = "#63676F"
 _FONT = "Arial,Helvetica,sans-serif"
@@ -60,6 +79,9 @@ def clean_first_name(full_name: str | None) -> str:
 
 def subject_for(variant: str, first_name: str | None) -> str:
     name = clean_first_name(first_name)
+    if variant in C_CHOICES:
+        with_name, without, _pre = C_CHOICES[variant]
+        return with_name.replace("{name}", name) if name else without
     return SUBJECTS[variant].replace("{name}", name) if name else SUBJECTS_NO_NAME[variant]
 
 
@@ -101,11 +123,12 @@ def _link(url: str, label: str) -> str:
 
 def render(variant: str, first_name: str | None, unsub_url: str, poll_options: list[str] | None = None,
            lead: bool = False) -> Rendered:
-    if variant not in VARIANTS:
+    if variant not in TEST_VARIANTS:
         raise ValueError(f"unknown variant {variant!r}")
     name = clean_first_name(first_name) or "there"
     reason = "You get this because you asked for KHEL-O updates." if lead else "You get this because you have a KHEL-O account."
-    subject, pre = subject_for(variant, first_name), PREHEADERS[variant]
+    subject = subject_for(variant, first_name)
+    pre = C_CHOICES[variant][2] if variant in C_CHOICES else PREHEADERS[variant]
     unsub_line = f"{reason} Unsubscribe in one tap: {unsub_url}\nKHEL-O, Hyderabad, India"
     sign = "Abdullah\nFounder, KHEL-O"
     greeting = f"Hi {name},"
@@ -136,14 +159,56 @@ def render(variant: str, first_name: str | None, unsub_url: str, poll_options: l
             ("Cast your vote", url),
         ]
     else:
-        url = community_link("c", "link")
-        parts = [
-            greeting,
-            "You use KHEL-O, so you see things we miss. That's why I'd rather ask you than guess.",
-            "On our community page you can suggest a game or a cafe we should bring in, vote on the next challenge, or share a photo from a night out. We read every suggestion.",
-            ("Tell us what to build next", url),
-            "If a friend would enjoy it too, pass the link on. And you can reply to this email any time, it comes straight to us.",
-        ]
+        key = C_DEFAULT if variant == "c" else variant
+        url = community_link("c", "link" if key == C_DEFAULT else key)
+        reply = "And you can reply to this email any time, it comes straight to us."
+        if key == "c1":
+            parts = [
+                greeting,
+                "We have a confession: we're a small team, and we're winging some of it.",
+                "The good news is you use KHEL-O, so you see what we miss. Tell us what to add, what to fix, or which cafe we should bring in. We read every suggestion.",
+                ("Help us stop winging it", url),
+                reply,
+            ]
+        elif key == "c2":
+            parts = [
+                greeting,
+                "Roast KHEL-O. Seriously. What's annoying, what's missing, what did we get wrong?",
+                "We're a small team and we'd rather hear it from you than find out later. We'll fix what we can, and we read every reply.",
+                ("Tell us everything", url),
+                reply,
+            ]
+        elif key == "c3":
+            parts = [
+                greeting,
+                "Be honest: are we the problem? If something about KHEL-O annoys you, like booking, prices or a cafe that's missing, we want to hear it.",
+                "We promise not to cry. We'll fix what we can.",
+                ("Tell us what to fix", url),
+                reply,
+            ]
+        elif key == "c4":
+            parts = [
+                greeting,
+                "One question: what's the one thing you wish KHEL-O did that it doesn't yet? There are zero wrong answers.",
+                "Hit reply with a line, or add it on our community page where you can also vote on Challenge #02. It takes ten seconds.",
+                ("Add your answer", url),
+            ]
+        elif key == "c5":
+            parts = [
+                greeting,
+                "Quick one: who's the friend you'd actually beat at Tekken?",
+                "Send them this link. Our community is free, it's on WhatsApp, and it's where we announce every challenge first. You can both vote on the game for Challenge #02 while you're there.",
+                ("Send it to your rival", url),
+                reply,
+            ]
+        else:
+            parts = [
+                greeting,
+                "Congratulations, you're our product manager now. Effective immediately, and unpaid, sorry.",
+                "Your job: tell us what to build next. On our community page you can suggest a game or a cafe, vote on the next challenge, or share a photo from a night out. We read every suggestion.",
+                ("Start your first day", url),
+                "If a friend would enjoy it too, pass the link on. " + reply,
+            ]
 
     paras = [_link(p[1], p[0]) if isinstance(p, tuple) else _e(p) for p in parts]
     text_parts = [f"{p[0]}: {p[1]}" if isinstance(p, tuple) else p for p in parts]
