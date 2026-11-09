@@ -18,21 +18,21 @@ VARIANTS = ("a", "b", "c")
 
 # What the admin page shows. The real subject is subject_for(), which can use the first name.
 SUBJECTS = {
-    "a": "12 of us played Tekken at AdamsDen. You weren't there.",
-    "b": "30 seconds to pick our next challenge",
-    "c": "Quick question, {name}",
+    "a": "One person walked out of AdamsDen as champion",
+    "b": "We let you pick the next game. One vote each.",
+    "c": "{name}, something you can't see in the app",
 }
 PREHEADERS = {
-    "a": "Free to play, 12 players, one champion. The next one is announced to the community first.",
-    "b": "Tekken, VALORANT or EA FC? Your vote decides.",
-    "c": "It takes one tap to say yes.",
+    "a": "12 players, 12 matches, free to enter. The next one goes to the community first.",
+    "b": "Your vote decides what we play next.",
+    "c": "One tap and you are in.",
 }
 
 
 def subject_for(variant: str, first_name: str | None) -> str:
     name = (first_name or "").strip()
     if variant == "c" and not name:
-        return "Quick question"
+        return "Something you can't see in the app"
     return SUBJECTS[variant].replace("{name}", name)
 
 _RED = "#D0463C"
