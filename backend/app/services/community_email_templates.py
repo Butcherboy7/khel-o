@@ -20,18 +20,18 @@ VARIANTS = ("a", "b", "c")
 
 # What the admin page shows. The real subject comes from subject_for(), which uses the first name.
 SUBJECTS = {
-    "a": "{name}, we saved you a seat (it's imaginary, but still)",
-    "b": "{name}, we need a tiebreaker for Challenge #02 (that's you)",
+    "a": "{name}, we need to talk about AdamsDen",
+    "b": "Pick a side, {name}. Neutral is not an option.",
     "c": "{name}, you're our product manager now (unpaid, sorry)",
 }
 # Same hooks when we do not know the name (people who only left an email).
 SUBJECTS_NO_NAME = {
-    "a": "We saved you a seat (it's imaginary, but still)",
-    "b": "We need a tiebreaker for Challenge #02 (that's you)",
+    "a": "We need to talk about AdamsDen",
+    "b": "Pick a side. Neutral is not an option.",
     "c": "You're our product manager now (unpaid, sorry)",
 }
 PREHEADERS = {
-    "a": "The chair is imaginary. The free community is very real.",
+    "a": "Good news, mostly. And a seat with your name on it.",
     "b": "One tap. Most votes wins. No recounts.",
     "c": "Tell us what to build next. We actually read it.",
 }
