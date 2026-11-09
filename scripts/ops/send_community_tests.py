@@ -15,7 +15,7 @@ from app.models.user import User
 from app.services import community_mailer as m
 
 OWNER = "uzair042005@gmail.com"
-TO = [(OWNER, "Uzair"), ("ashwithreddy406@gmail.com", None)]
+TO = [(OWNER, "Uzair"), ("ashwithreddy406@gmail.com", "ashwith")]
 
 
 async def main() -> None:
