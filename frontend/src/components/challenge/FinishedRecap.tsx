@@ -38,7 +38,9 @@ export function FinishedRecap({ ch }: { ch: Challenge }) {
               key={n}
               src={`/community/${n}.webp`}
               alt=""
-              loading="lazy"
+              // Eager: inside the 3D ring, iPhone browsers never start a lazy load, so only the white frames showed.
+              loading="eager"
+              decoding="async"
               className="absolute left-[-56px] top-[-71px] h-[142px] w-[112px] rounded-[10px] border-[3px] border-[#F4EFE7] object-cover"
               style={{ transform: `rotateY(${(360 / PHOTOS.length) * i}deg) translateZ(150px)`, backfaceVisibility: 'hidden' }}
             />

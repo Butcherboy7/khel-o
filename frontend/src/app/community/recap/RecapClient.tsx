@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, BarChart3, Camera, ChevronDown, Check, CheckCheck, Copy, Pin, RotateCcw, Trophy, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, Camera, ChevronDown, Check, CheckCheck, Copy, Pin, RotateCcw, Trophy, X } from 'lucide-react';
 import { fightFont } from '@/components/challenge/ChallengeHero';
 import { Celebration } from '@/components/challenge/Celebration';
 import { getBracket, getChallenge } from '@/lib/api/challenges';
@@ -315,10 +315,18 @@ export function RecapClient() {
         style={{ background: 'radial-gradient(120% 55% at 85% 0, rgba(232,103,93,.28), transparent 62%), #0A0809' }}
       >
         <div className="flex-none">
-          <Link href="/" aria-label="KHEL-O home" className="mb-2 inline-block">
-            {/* eslint-disable-next-line @next/next/no-img-element -- tiny pixel-art wordmark, must not be smoothed */}
-            <img src="/community/wordmark.png" alt="KHEL-O" width={120} height={20} className="h-5 w-auto [image-rendering:pixelated]" />
-          </Link>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <Link
+              href="/community"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-white/25 bg-black/40 px-3.5 text-sm font-bold text-[#F4EFE7] transition-colors hover:border-white/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden /> Community
+            </Link>
+            <Link href="/" aria-label="KHEL-O home">
+              {/* eslint-disable-next-line @next/next/no-img-element -- tiny pixel-art wordmark, must not be smoothed */}
+              <img src="/community/wordmark.png" alt="KHEL-O" width={120} height={20} className="h-5 w-auto [image-rendering:pixelated]" />
+            </Link>
+          </div>
           <p className="text-[12.5px] font-extrabold text-[#F2C94C]">#02 is coming. The group hears first.</p>
           <h1 className={`${fightFont.className} text-balance text-[2.25rem] font-bold uppercase leading-[0.95]`}>Hyderabad&apos;s gaming community</h1>
         </div>
