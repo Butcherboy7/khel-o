@@ -25,28 +25,28 @@ export function FinishedRecap({ ch }: { ch: Challenge }) {
   return (
     <div className="flex flex-col gap-5" data-testid="finished-recap">
       <style>{`
-        @keyframes recap-spin { from { transform: translateY(-6px) rotateX(-7deg) rotateY(0deg); } to { transform: translateY(-6px) rotateX(-7deg) rotateY(360deg); } }
-        .recap-ring { animation: recap-spin 28s linear infinite; transform-style: preserve-3d; }
-        @media (prefers-reduced-motion: reduce) { .recap-ring { animation: none; } }
+        @keyframes recap-slide { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
+        .recap-strip { animation: recap-slide 40s linear infinite; }
+        @media (prefers-reduced-motion: reduce) { .recap-strip { animation: none; } }
       `}</style>
 
-      <div className="relative -mx-4 -mt-2 h-[250px] overflow-hidden" style={{ perspective: 800, background: 'radial-gradient(circle at 50% 45%, #3a1620, #0A0809 70%)' }} aria-hidden>
-        <div className="recap-ring absolute left-1/2 top-1/2 h-0 w-0">
-          {PHOTOS.map((n, i) => (
+      {/* A flat sliding strip of photos. (It was a 3D ring; iPhone browsers drew only the frame edges.) */}
+      <div className="relative -mx-4 -mt-2 h-[230px] overflow-hidden" style={{ background: 'radial-gradient(circle at 50% 45%, #3a1620, #0A0809 70%)' }} aria-hidden>
+        <div className="recap-strip flex h-full w-max items-center gap-3 px-3">
+          {[...PHOTOS, ...PHOTOS].map((n, i) => (
             // eslint-disable-next-line @next/next/no-img-element -- small static photos from /public
             <img
-              key={n}
+              key={`${n}-${i}`}
               src={`/community/${n}.webp`}
               alt=""
-              // Eager: inside the 3D ring, iPhone browsers never start a lazy load, so only the white frames showed.
-              loading="eager"
-              decoding="async"
-              className="absolute left-[-56px] top-[-71px] h-[142px] w-[112px] rounded-[10px] border-[3px] border-[#F4EFE7] object-cover"
-              style={{ transform: `rotateY(${(360 / PHOTOS.length) * i}deg) translateZ(150px)`, backfaceVisibility: 'hidden' }}
+              width={124}
+              height={158}
+              className="h-[158px] w-[124px] flex-shrink-0 rounded-[10px] border-[3px] border-[#F4EFE7] object-cover shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+              style={{ transform: `rotate(${i % 2 ? 3 : -3}deg)` }}
             />
           ))}
         </div>
-        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0A0809] to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-[#0A0809] to-transparent" />
       </div>
 
       <div>
