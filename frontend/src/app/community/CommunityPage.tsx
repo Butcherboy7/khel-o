@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Check, Copy, Lock, X } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
@@ -12,7 +12,7 @@ import { listDrops } from '@/lib/api/drops';
 import { getBracket, getChallenge } from '@/lib/api/challenges';
 import { QuickSignIn } from '@/components/auth/QuickSignIn';
 import { useAuthStore } from '@/store/authStore';
-import { getThisWeek, leaveContact, removeVote, sendContribution, voteInPoll } from '@/lib/api/community';
+import { DEFAULT_SETTINGS, getThisWeek, leaveContact, removeVote, sendContribution, voteInPoll, type CommunityPost } from '@/lib/api/community';
 import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll } from '@/lib/challenge';
 import {
   SEEN_POST_KEY,
@@ -51,6 +51,7 @@ function takePending(): Pending | null {
 
 /** The finished challenge the photos are from. */
 const RECAP_SLUG = 'tekken-01';
+const TAB_LABEL: Record<Tab, string> = { week: 'This week', vote: 'Vote', next: 'Next up', photos: 'Photos' };
 const TABS: { key: Tab; label: string }[] = [
   { key: 'week', label: 'This week' },
   { key: 'vote', label: 'Vote' },
@@ -84,6 +85,16 @@ export function CommunityPage() {
   });
 
   const member = joinedLocal || Boolean(data?.isMember);
+  const st = { ...DEFAULT_SETTINGS, ...(data?.settings ?? {}) };
+  const tabs = st.tabs.map((k) => ({ key: k, label: TAB_LABEL[k] }));
+  // The admin picks which tab opens first; a #tab in the link still wins.
+  const chosen = useRef(false);
+  useEffect(() => {
+    if (!data?.settings || chosen.current) return;
+    if (!st.tabs.includes(tab)) setTab(st.tabs[0]);
+    else if (!window.location.hash) setTab(st.tabs[0]);
+    chosen.current = true;
+  }, [data?.settings]); // eslint-disable-line react-hooks/exhaustive-deps
   const liveDrop = (drops ?? []).filter((d) => d.state === 'open' || d.state === 'early').sort((a, b) => Number(/gta\s*6/i.test(b.game)) - Number(/gta\s*6/i.test(a.game)))[0] ?? null;
   const nextChallenge = challenge && isUpcoming(challenge) ? challenge : null;
 
@@ -93,7 +104,10 @@ export function CommunityPage() {
     setLeadDone(leadLeftHere());
     const fromHash = () => {
       const h = window.location.hash.replace('#', '') as Tab;
-      if (TABS.some((t) => t.key === h)) setTab(h);
+      if (TABS.some((t) => t.key === h)) {
+        setTab(h);
+        chosen.current = true;
+      }
     };
     fromHash();
     window.addEventListener('hashchange', fromHash);
@@ -136,22 +150,22 @@ export function CommunityPage() {
   };
 
   const members = data?.members ?? 0;
-  const showMembers = members >= 10;
+  const showMembers = st.showMemberCount && members >= 10;
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 pb-36 md:pb-8">
       {/* Top: the reason, the real number, one button. */}
       <section className="relative isolate flex min-h-[220px] flex-col justify-end overflow-hidden rounded-3xl bg-secondary p-5 text-white md:min-h-[280px] md:p-8">
         {/* eslint-disable-next-line @next/next/no-img-element -- static photo from /public */}
-        <img src="/community/full-house.webp" alt="" className="absolute inset-0 -z-10 h-full w-full object-cover" />
+        <img src={data?.heroUrl || '/community/full-house.webp'} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
-        <p className="text-[10.5px] font-extrabold uppercase tracking-wider text-[#FFB4AC]">KHEL-O Community · Hyderabad</p>
-        <h1 className="mt-1 font-heading text-[30px] font-bold leading-[1.05] md:text-[44px]">Be there when it drops.</h1>
+        <p className="text-[10.5px] font-extrabold uppercase tracking-wider text-[#FFB4AC]">{st.kicker}</p>
+        <h1 className="mt-1 font-heading text-[30px] font-bold leading-[1.05] md:text-[44px]">{st.headline}</h1>
         <p className="mt-2 max-w-xl text-body text-white/85">
-          Drops, challenges and café news land in our WhatsApp group first.{' '}
+          {st.line}{' '}
           {showMembers ? <b className="text-white">{members} gamers are already in.</b> : 'Free to join, leave any time.'}
         </p>
-        <div className="mt-4 hidden self-start md:block">{mounted && !member && <JoinButton where="community_page_top" onJoin={onJoin} />}</div>
+        <div className="mt-4 hidden self-start md:block">{mounted && !member && <JoinButton where="community_page_top" onJoin={onJoin} label={st.joinLabel} />}</div>
       </section>
 
       {/* Joined: a short thanks and an optional contact. Not joined: the sticky button below. */}
@@ -179,7 +193,7 @@ export function CommunityPage() {
 
       {/* Tabs: each one fits a screen, so nothing is a long scroll. */}
       <div role="tablist" aria-label="Community" className="sticky top-16 z-20 -mx-1 flex gap-1 rounded-2xl bg-[#E9E6DF] p-1">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.key}
             role="tab"
@@ -198,9 +212,10 @@ export function CommunityPage() {
 
       {tab === 'week' && (
         <div className="grid gap-4 md:grid-cols-2">
-          {data?.post ? <WeekPost post={data.post} /> : <RecapCard recap={recap ?? null} />}
-          <MembersCode code={data?.poll?.code ?? null} hasCode={Boolean(data?.poll?.hasCode)} note={data?.poll?.codeNote ?? null} member={member} />
-          <div className={cn(card, 'md:col-span-2')}>
+          {data?.post ? <WeekPost post={data.post} /> : st.showRecap ? <RecapCard recap={recap ?? null} /> : <QuietCard />}
+          {st.showMembersCode && <MembersCode code={data?.poll?.code ?? null} hasCode={Boolean(data?.poll?.hasCode)} note={data?.poll?.codeNote ?? null} member={member} />}
+          {(data?.earlierPosts?.length ?? 0) > 0 && <EarlierPosts posts={data!.earlierPosts!} />}
+          {st.showHappeningNow && <div className={cn(card, 'md:col-span-2')}>
             <p className={label}>Happening now</p>
             <div className="mt-2 flex flex-col divide-y divide-border">
               {liveDrop && (
@@ -212,7 +227,7 @@ export function CommunityPage() {
               {challenge && !nextChallenge && <Row href={`/challenge/${challenge.slug}`} title={challenge.title} line="Finished. See the photos and results." cta="See" />}
               {!liveDrop && !challenge && <p className="py-2 text-body text-text-secondary">Nothing live right now. The next one lands in the group first.</p>}
             </div>
-          </div>
+          </div>}
         </div>
       )}
 
@@ -238,12 +253,12 @@ export function CommunityPage() {
         </div>
       )}
 
-      {tab === 'photos' && <PhotosTab contributors={data?.contributors ?? []} />}
+      {tab === 'photos' && <PhotosTab contributors={data?.contributors ?? []} photos={data?.photos ?? WALL.map((n) => ({ url: `/community/${n}.webp`, caption: null }))} />}
 
       {/* Not joined yet: one big button that follows you down the page on phones. */}
       {mounted && !member && (
         <div className="fixed inset-x-0 bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom))] z-30 bg-gradient-to-t from-surface via-surface to-transparent px-4 pb-3 pt-6 md:hidden">
-          <JoinButton where="community_page_sticky" onJoin={onJoin} />
+          <JoinButton where="community_page_sticky" onJoin={onJoin} label={st.joinLabel} />
           <p className="mt-1 text-center text-[11px] text-text-secondary">10 seconds. Free. Leave any time.</p>
         </div>
       )}
@@ -251,7 +266,7 @@ export function CommunityPage() {
   );
 }
 
-function JoinButton({ where, onJoin }: { where: string; onJoin: (where: string) => void }) {
+function JoinButton({ where, onJoin, label }: { where: string; onJoin: (where: string) => void; label: string }) {
   return (
     <a
       href={COMMUNITY_URL}
@@ -260,7 +275,7 @@ function JoinButton({ where, onJoin }: { where: string; onJoin: (where: string) 
       onClick={() => onJoin(where)}
       className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-6 font-heading text-body-emphasis font-bold text-[#06210F] shadow-float transition-transform active:scale-[0.99] md:w-auto"
     >
-      <WhatsAppIcon className="h-5 w-5" aria-hidden /> Join the community · free
+      <WhatsAppIcon className="h-5 w-5" aria-hidden /> {label}
     </a>
   );
 }
@@ -293,6 +308,50 @@ function DropCard({ d }: { d: NonNullable<Awaited<ReturnType<typeof listDrops>>>
 type Recap = Awaited<ReturnType<typeof getBracket>>;
 
 /** Tekken #01 at AdamsDen: the real podium from its bracket, and the photos. */
+/** No post, recap switched off: one quiet line instead of an empty box. */
+function QuietCard() {
+  return (
+    <div className={card}>
+      <p className={label}>This week</p>
+      <p className="mt-1 font-heading text-body-emphasis font-bold text-text-primary">The next post lands in the group first.</p>
+      <p className="text-caption text-text-secondary">Join so you do not miss it.</p>
+    </div>
+  );
+}
+
+/** The posts under the one on top (newest first, up to 3). */
+function EarlierPosts({ posts }: { posts: CommunityPost[] }) {
+  return (
+    <div className={cn(card, 'md:col-span-2')}>
+      <p className={label}>Earlier</p>
+      <ul className="mt-2 flex flex-col divide-y divide-border">
+        {posts.map((p) => {
+          const inner = (
+            <span className="flex items-center gap-3">
+              {p.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- admin-supplied photo
+                <img src={p.imageUrl} alt="" loading="lazy" className="h-12 w-16 flex-shrink-0 rounded-lg object-cover" />
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-heading text-body-emphasis font-bold text-text-primary">{p.headline}</span>
+                {p.line && <span className="block truncate text-caption text-text-secondary">{p.line}</span>}
+              </span>
+              {p.buttonUrl && <ArrowRight className="h-4 w-4 flex-shrink-0 text-text-secondary" aria-hidden />}
+            </span>
+          );
+          return (
+            <li key={p.id} className="py-2.5 first:pt-0 last:pb-0">
+              {p.buttonUrl ? (
+                p.buttonUrl.startsWith('/') ? <Link href={p.buttonUrl}>{inner}</Link> : <a href={p.buttonUrl} target="_blank" rel="noopener noreferrer">{inner}</a>
+              ) : inner}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 /** A vote lands: the choice pops, "+1" rises, and pixel sparks fly out in KHEL-O colours. */
 const SPARKS = [
   [-46, -30, '#D0463C'], [-30, -44, '#F2C94C'], [-8, -50, '#25D366'], [16, -46, '#D0463C'], [38, -34, '#F2C94C'],
@@ -558,7 +617,7 @@ function VoteTab({ poll, closed, onVoted }: { poll: NonNullable<Awaited<ReturnTy
   );
 }
 
-function PhotosTab({ contributors }: { contributors: string[] }) {
+function PhotosTab({ contributors, photos }: { contributors: string[]; photos: { url: string; caption: string | null }[] }) {
   const [sheet, setSheet] = useState<null | 'cafe' | 'photos'>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   // Back from an email sign-in with a half-written suggestion: open it again, filled in.
@@ -577,9 +636,10 @@ function PhotosTab({ contributors }: { contributors: string[] }) {
   return (
     <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
       <div className="grid grid-cols-3 gap-1.5 md:gap-2">
-        {WALL.map((n) => (
-          // eslint-disable-next-line @next/next/no-img-element -- small static photos from /public
-          <img key={n} src={`/community/${n}.webp`} alt="" loading="lazy" className="aspect-square w-full rounded-xl object-cover" />
+        {photos.length === 0 && <p className="col-span-3 text-body text-text-secondary">Photos from the next challenge land here.</p>}
+        {photos.map((ph) => (
+          // eslint-disable-next-line @next/next/no-img-element -- photo wall, any size
+          <img key={ph.url} src={ph.url} alt={ph.caption ?? ''} title={ph.caption ?? undefined} loading="lazy" className="aspect-square w-full rounded-xl object-cover" />
         ))}
       </div>
       <div className="flex flex-col gap-3">

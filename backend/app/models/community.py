@@ -109,6 +109,11 @@ class CommunityPost(Base):
     image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     button_label: Mapped[str | None] = mapped_column(String(40), nullable=True)
     button_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # The pinned post sits on top; hidden ones stay in admin only; show_from/until schedule a post.
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    show_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    show_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False, index=True)
 
 
@@ -119,3 +124,25 @@ class CommunityGroupSize(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class CommunityPhoto(Base):
+    """The photo wall on the community page. Admin uploads, orders, captions, hides, and picks the top photo."""
+    __tablename__ = "community_photos"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    caption: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_hero: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class CommunitySettings(Base):
+    """One row (id=1): the page's top text, Join button text, tab order, which sections show."""
+    __tablename__ = "community_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    data: Mapped[dict] = mapped_column(JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)

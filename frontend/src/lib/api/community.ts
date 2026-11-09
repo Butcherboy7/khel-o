@@ -39,12 +39,41 @@ export interface CommunityPost {
   buttonLabel: string | null;
   buttonUrl: string | null;
   createdAt: string;
+  pinned?: boolean;
 }
+
+export interface CommunitySettings {
+  kicker: string;
+  headline: string;
+  line: string;
+  joinLabel: string;
+  tabs: ('week' | 'vote' | 'next' | 'photos')[];
+  showMembersCode: boolean;
+  showHappeningNow: boolean;
+  showRecap: boolean;
+  showMemberCount: boolean;
+}
+
+export const DEFAULT_SETTINGS: CommunitySettings = {
+  kicker: 'KHEL-O Community · Hyderabad',
+  headline: 'Be there when it drops.',
+  line: 'Drops, challenges and café news land in our WhatsApp group first.',
+  joinLabel: 'Join the community · free',
+  tabs: ['week', 'vote', 'next', 'photos'],
+  showMembersCode: true,
+  showHappeningNow: true,
+  showRecap: true,
+  showMemberCount: true,
+};
 
 export interface ThisWeek {
   poll: CommunityPoll | null;
   closedPolls: ClosedPoll[];
   post: CommunityPost | null;
+  earlierPosts?: CommunityPost[];
+  photos?: { url: string; caption: string | null }[];
+  heroUrl?: string | null;
+  settings?: CommunitySettings;
   isMember: boolean;
   members: number;
   contributors: string[];

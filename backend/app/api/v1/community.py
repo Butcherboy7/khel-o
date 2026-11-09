@@ -22,7 +22,7 @@ from app.database import get_db
 from app.models.analytics_event import AnalyticsEvent
 from app.models.community import (
     CommunityContribution, CommunityGroupSize, CommunityJoin, CommunityLead, CommunityMember,
-    CommunityPoll, CommunityPollVote, CommunityPost,
+    CommunityPhoto, CommunityPoll, CommunityPollVote, CommunityPost, CommunitySettings,
 )
 from app.models.user import User
 
@@ -114,7 +114,12 @@ async def this_week(device_id: Optional[str] = Query(None, alias="deviceId"), db
         top = max(range(len(p.options)), key=lambda i: counts.get(i, 0))
         closed_out.append({"question": p.question, "winner": p.options[top], "votes": total})
 
-    post = (await db.execute(select(CommunityPost).order_by(CommunityPost.created_at.desc()).limit(1))).scalar_one_or_none()
+    posts = await _visible_posts(db)
+    post = posts[0] if posts else None
+    photos = (await db.execute(
+        select(CommunityPhoto).where(CommunityPhoto.hidden.is_(False)).order_by(CommunityPhoto.position, CommunityPhoto.created_at)
+    )).scalars().all()
+    hero = next((ph for ph in photos if ph.is_hero), photos[0] if photos else None)
     members = await _joined_count(db)
     since = _now() - timedelta(days=30)
     names = (await db.execute(
@@ -126,14 +131,54 @@ async def this_week(device_id: Optional[str] = Query(None, alias="deviceId"), db
     return {"success": True, "data": {
         "poll": poll_out,
         "closedPolls": closed_out,
-        "post": None if post is None else {
-            "id": str(post.id), "headline": post.headline, "line": post.line, "imageUrl": post.image_url,
-            "buttonLabel": post.button_label, "buttonUrl": post.button_url, "createdAt": post.created_at.isoformat(),
-        },
+        "post": None if post is None else _post_out(post),
+        "earlierPosts": [_post_out(x) for x in posts[1:4]],
+        "photos": [{"url": ph.url, "caption": ph.caption} for ph in photos],
+        "heroUrl": hero.url if hero else None,
+        "settings": await _settings(db),
         "isMember": is_member,
         "members": members,
         "contributors": [_first_name(n) for n in names],
     }}
+
+
+SETTINGS_DEFAULTS: dict = {
+    "kicker": "KHEL-O Community · Hyderabad",
+    "headline": "Be there when it drops.",
+    "line": "Drops, challenges and café news land in our WhatsApp group first.",
+    "joinLabel": "Join the community · free",
+    # Tabs in the order shown; a tab left out is hidden. The first one opens first.
+    "tabs": ["week", "vote", "next", "photos"],
+    "showMembersCode": True,
+    "showHappeningNow": True,
+    "showRecap": True,
+    "showMemberCount": True,
+}
+TAB_KEYS = {"week", "vote", "next", "photos"}
+
+
+async def _settings(db: AsyncSession) -> dict:
+    row = await db.get(CommunitySettings, 1)
+    return {**SETTINGS_DEFAULTS, **((row.data or {}) if row else {})}
+
+
+def _post_out(post: CommunityPost) -> dict:
+    return {
+        "id": str(post.id), "headline": post.headline, "line": post.line, "imageUrl": post.image_url,
+        "buttonLabel": post.button_label, "buttonUrl": post.button_url, "createdAt": post.created_at.isoformat(),
+        "pinned": post.pinned,
+    }
+
+
+async def _visible_posts(db: AsyncSession) -> list[CommunityPost]:
+    """What visitors see now: not hidden, inside its show window, pinned first, then newest."""
+    now = _now()
+    rows = (await db.execute(
+        select(CommunityPost).where(CommunityPost.hidden.is_(False)).order_by(CommunityPost.created_at.desc()).limit(50)
+    )).scalars().all()
+    live = [p for p in rows
+            if (p.show_from is None or _aware(p.show_from) <= now) and (p.show_until is None or _aware(p.show_until) > now)]
+    return sorted(live, key=lambda p: not p.pinned)
 
 
 async def _poll_view(db: AsyncSession, poll: CommunityPoll, user: Optional[User], device: Optional[str], is_member: bool) -> dict:
@@ -354,13 +399,13 @@ async def set_poll(payload: PollRequest, db: AsyncSession = Depends(get_db), adm
 FUNNEL_ACTIONS = ["community_landed", "community_join_tap", "community_poll_vote", "community_contribution", "community_lead"]
 
 
-async def _funnel(db: AsyncSession) -> list[dict]:
-    """Per ad source, how many different phones reached each step (last 60 days)."""
+async def _funnel(db: AsyncSession, days: int = 60) -> list[dict]:
+    """Per ad source, how many different phones reached each step."""
     action = AnalyticsEvent.event_metadata["action"].as_string()
     rows = (await db.execute(
         select(AnalyticsEvent.session_id, AnalyticsEvent.event_metadata)
         .where(AnalyticsEvent.event_type == "ui_action", action.in_(FUNNEL_ACTIONS),
-               AnalyticsEvent.created_at >= _now() - timedelta(days=60))
+               AnalyticsEvent.created_at >= _now() - timedelta(days=days))
         .limit(200000)
     )).all()
     seen: dict[str, dict[str, set]] = {}
@@ -507,19 +552,355 @@ class PostRequest(_Camel):
     image_url: Optional[str] = Field(None, max_length=1000)
     button_label: Optional[str] = Field(None, max_length=40)
     button_url: Optional[str] = Field(None, max_length=300)
+    pinned: bool = False
+    hidden: bool = False
+    show_from: Optional[datetime] = None
+    show_until: Optional[datetime] = None
+
+
+def _link(raw: Optional[str], what: str) -> Optional[str]:
+    v = (raw or "").strip() or None
+    if v and not v.startswith(("https://", "http://", "/")):
+        raise BadRequestException(message=f"The {what} must start with https:// or /", error_code="BAD_URL")
+    return v
+
+
+async def _unpin_others(db: AsyncSession, keep: Optional[UUID]) -> None:
+    for other in (await db.execute(select(CommunityPost).where(CommunityPost.pinned.is_(True)))).scalars():
+        if other.id != keep:
+            other.pinned = False
+
+
+def _apply_post(post: CommunityPost, payload: PostRequest) -> None:
+    post.headline = payload.headline.strip()
+    post.line = (payload.line or "").strip() or None
+    post.image_url = _link(payload.image_url, "photo link")
+    post.button_label = (payload.button_label or "").strip() or None
+    post.button_url = _link(payload.button_url, "button link")
+    post.pinned = payload.pinned
+    post.hidden = payload.hidden
+    post.show_from = payload.show_from
+    post.show_until = payload.show_until
+    if post.show_from and post.show_until and post.show_until <= post.show_from:
+        raise BadRequestException(message="'Show until' must be after 'show from'.", error_code="BAD_WINDOW")
+
+
+def _admin_post(p: CommunityPost) -> dict:
+    now = _now()
+    if p.hidden:
+        state = "hidden"
+    elif p.show_from is not None and _aware(p.show_from) > now:
+        state = "scheduled"
+    elif p.show_until is not None and _aware(p.show_until) <= now:
+        state = "ended"
+    else:
+        state = "live"
+    return {**_post_out(p), "hidden": p.hidden, "state": state,
+            "showFrom": p.show_from.isoformat() if p.show_from else None,
+            "showUntil": p.show_until.isoformat() if p.show_until else None}
+
+
+@admin_router.get("/posts")
+async def list_posts(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    rows = (await db.execute(select(CommunityPost).order_by(CommunityPost.pinned.desc(), CommunityPost.created_at.desc()).limit(200))).scalars().all()
+    on_top = await _visible_posts(db)
+    return {"success": True, "data": {"posts": [_admin_post(p) for p in rows], "onTopId": str(on_top[0].id) if on_top else None}}
+
+
+@admin_router.patch("/posts/{pid}")
+async def edit_post(pid: UUID, payload: PostRequest, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    post = await db.get(CommunityPost, pid)
+    if post is None:
+        raise NotFoundException(message="Post not found.", error_code="POST_NOT_FOUND")
+    _apply_post(post, payload)
+    if post.pinned:
+        await _unpin_others(db, post.id)
+    await db.commit()
+    return {"success": True, "data": _admin_post(post)}
+
+
+@admin_router.delete("/posts/{pid}")
+async def delete_post(pid: UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    post = await db.get(CommunityPost, pid)
+    if post is None:
+        raise NotFoundException(message="Post not found.", error_code="POST_NOT_FOUND")
+    await db.delete(post)
+    await db.commit()
+    return {"success": True, "data": {"ok": True}}
+
+
+# ---- admin: photo wall
+
+class PhotoRequest(_Camel):
+    url: str = Field(min_length=2, max_length=1000)
+    caption: Optional[str] = Field(None, max_length=120)
+
+
+class PhotoEdit(_Camel):
+    caption: Optional[str] = Field(None, max_length=120)
+    hidden: Optional[bool] = None
+    is_hero: Optional[bool] = None
+
+
+class PhotoOrder(_Camel):
+    ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class PresignRequest(_Camel):
+    content_type: str
+
+
+def _photo_out(ph: CommunityPhoto) -> dict:
+    return {"id": str(ph.id), "url": ph.url, "caption": ph.caption, "position": ph.position,
+            "isHero": ph.is_hero, "hidden": ph.hidden, "createdAt": ph.created_at.isoformat()}
+
+
+@admin_router.get("/photos")
+async def list_photos(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    rows = (await db.execute(select(CommunityPhoto).order_by(CommunityPhoto.position, CommunityPhoto.created_at))).scalars().all()
+    return {"success": True, "data": [_photo_out(p) for p in rows]}
+
+
+@admin_router.post("/photos/presign")
+async def presign_photo(payload: PresignRequest, admin: User = Depends(require_admin)):
+    from app.services.storage_service import create_presigned_upload_at
+    return {"success": True, "data": create_presigned_upload_at("community", payload.content_type)}
+
+
+@admin_router.post("/photos", status_code=201)
+async def add_photo(payload: PhotoRequest, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    url = _link(payload.url, "photo link")
+    last = (await db.execute(select(func.max(CommunityPhoto.position)))).scalar_one_or_none()
+    has_hero = (await db.execute(select(CommunityPhoto.id).where(CommunityPhoto.is_hero.is_(True)))).first() is not None
+    ph = CommunityPhoto(url=url, caption=(payload.caption or "").strip() or None, position=(last or 0) + 1, is_hero=not has_hero)
+    db.add(ph)
+    await db.commit()
+    return {"success": True, "data": _photo_out(ph)}
+
+
+@admin_router.patch("/photos/{phid}")
+async def edit_photo(phid: UUID, payload: PhotoEdit, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    ph = await db.get(CommunityPhoto, phid)
+    if ph is None:
+        raise NotFoundException(message="Photo not found.", error_code="PHOTO_NOT_FOUND")
+    if payload.caption is not None:
+        ph.caption = payload.caption.strip() or None
+    if payload.hidden is not None:
+        ph.hidden = payload.hidden
+    if payload.is_hero:
+        for other in (await db.execute(select(CommunityPhoto).where(CommunityPhoto.is_hero.is_(True)))).scalars():
+            other.is_hero = False
+        ph.is_hero = True
+        ph.hidden = False
+    await db.commit()
+    return {"success": True, "data": _photo_out(ph)}
+
+
+@admin_router.put("/photos/order")
+async def order_photos(payload: PhotoOrder, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    rows = {p.id: p for p in (await db.execute(select(CommunityPhoto))).scalars()}
+    for n, pid in enumerate(payload.ids):
+        if pid in rows:
+            rows[pid].position = n
+    await db.commit()
+    return {"success": True, "data": {"ok": True}}
+
+
+@admin_router.delete("/photos/{phid}")
+async def delete_photo(phid: UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    ph = await db.get(CommunityPhoto, phid)
+    if ph is None:
+        raise NotFoundException(message="Photo not found.", error_code="PHOTO_NOT_FOUND")
+    url, was_hero = ph.url, ph.is_hero
+    await db.delete(ph)
+    await db.flush()
+    if was_hero:
+        nxt = (await db.execute(select(CommunityPhoto).order_by(CommunityPhoto.position).limit(1))).scalar_one_or_none()
+        if nxt is not None:
+            nxt.is_hero = True
+    await db.commit()
+    from app.services.storage_service import delete_object, key_from_url
+    try:
+        key = key_from_url(url)
+    except Exception:  # storage not configured (tests, local)
+        key = None
+    if key and key.startswith("community/"):
+        delete_object(key)
+    return {"success": True, "data": {"ok": True}}
+
+
+# ---- admin: page settings
+
+class SettingsRequest(_Camel):
+    kicker: Optional[str] = Field(None, max_length=60)
+    headline: Optional[str] = Field(None, min_length=3, max_length=80)
+    line: Optional[str] = Field(None, max_length=200)
+    join_label: Optional[str] = Field(None, min_length=3, max_length=40)
+    tabs: Optional[list[str]] = Field(None, min_length=1, max_length=4)
+    show_members_code: Optional[bool] = None
+    show_happening_now: Optional[bool] = None
+    show_recap: Optional[bool] = None
+    show_member_count: Optional[bool] = None
+
+
+@admin_router.get("/settings")
+async def get_settings(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    return {"success": True, "data": {**await _settings(db), "defaults": SETTINGS_DEFAULTS}}
+
+
+@admin_router.put("/settings")
+async def put_settings(payload: SettingsRequest, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    changes = payload.model_dump(by_alias=True, exclude_none=True)
+    if "tabs" in changes:
+        tabs = [t for t in dict.fromkeys(changes["tabs"]) if t in TAB_KEYS]
+        if not tabs:
+            raise BadRequestException(message="Keep at least one tab.", error_code="NO_TABS")
+        changes["tabs"] = tabs
+    for k in ("kicker", "headline", "line", "joinLabel"):
+        if k in changes:
+            changes[k] = changes[k].strip()
+    row = await db.get(CommunitySettings, 1)
+    if row is None:
+        row = CommunitySettings(id=1, data={})
+        db.add(row)
+    row.data = {**(row.data or {}), **changes}
+    await db.commit()
+    return {"success": True, "data": await _settings(db)}
+
+
+@admin_router.post("/settings/reset")
+async def reset_settings(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    row = await db.get(CommunitySettings, 1)
+    if row is not None:
+        row.data = {}
+        await db.commit()
+    return {"success": True, "data": SETTINGS_DEFAULTS}
+
+
+# ---- admin: poll history
+
+@admin_router.get("/polls")
+async def poll_history(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    rows = (await db.execute(select(CommunityPoll).order_by(CommunityPoll.created_at.desc()).limit(50))).scalars().all()
+    out = []
+    for p in rows:
+        counts = dict((await db.execute(
+            select(CommunityPollVote.option_index, func.count()).where(CommunityPollVote.poll_id == p.id)
+            .group_by(CommunityPollVote.option_index))).all())
+        total = sum(counts.values())
+        top = max(range(len(p.options)), key=lambda i: counts.get(i, 0)) if total else None
+        out.append({"id": str(p.id), "question": p.question, "status": p.status, "total": total,
+                    "winner": p.options[top] if top is not None else None,
+                    "options": [{"label": o, "votes": counts.get(i, 0)} for i, o in enumerate(p.options)],
+                    "createdAt": p.created_at.isoformat(), "closesAt": p.closes_at.isoformat() if p.closes_at else None})
+    return {"success": True, "data": out}
+
+
+@admin_router.delete("/polls/{poll_id}")
+async def delete_poll(poll_id: UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    """For a test or a mistake: removes the poll and its votes."""
+    poll = await db.get(CommunityPoll, poll_id)
+    if poll is None:
+        raise NotFoundException(message="Poll not found.", error_code="POLL_NOT_FOUND")
+    await db.execute(delete(CommunityPollVote).where(CommunityPollVote.poll_id == poll.id))
+    await db.delete(poll)
+    await db.commit()
+    return {"success": True, "data": {"ok": True}}
+
+
+@admin_router.delete("/contributions/{cid}")
+async def delete_contribution(cid: UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    row = await db.get(CommunityContribution, cid)
+    if row is None:
+        raise NotFoundException(message="Not found.", error_code="CONTRIB_NOT_FOUND")
+    await db.delete(row)
+    await db.commit()
+    return {"success": True, "data": {"ok": True}}
+
+
+# ---- admin: page analytics
+
+ALL_ACTIONS = [
+    "community_landed", "community_tab", "community_join_tap", "community_poll_vote", "community_poll_unvote",
+    "community_contribution", "community_lead", "community_sign_in_ask", "community_tile_tap", "community_next_step_tap",
+]
+
+
+@admin_router.get("/analytics")
+async def community_analytics(days: int = Query(30, ge=1, le=365), db: AsyncSession = Depends(get_db),
+                              admin: User = Depends(require_admin)):
+    """Everything people did on the community page, from our own events (internal/test visits left out)."""
+    since = _now() - timedelta(days=days)
+    action = AnalyticsEvent.event_metadata["action"].as_string()
+    rows = (await db.execute(
+        select(AnalyticsEvent.session_id, AnalyticsEvent.event_metadata, AnalyticsEvent.created_at)
+        .where(AnalyticsEvent.event_type == "ui_action", action.in_(ALL_ACTIONS), AnalyticsEvent.created_at >= since)
+        .limit(300000)
+    )).all()
+    people: dict[str, set] = {a: set() for a in ALL_ACTIONS}
+    taps: dict[str, int] = {a: 0 for a in ALL_ACTIONS}
+    tabs: dict[str, int] = {}
+    join_where: dict[str, int] = {}
+    in_app: set = set()
+    daily: dict[str, dict[str, set]] = {}
+    for sid, md, at in rows:
+        if not isinstance(md, dict) or md.get("internal"):
+            continue
+        act = md.get("action")
+        people[act].add(sid)
+        taps[act] += 1
+        day = (_aware(at) + timedelta(hours=5, minutes=30)).date().isoformat()
+        d = daily.setdefault(day, {"visits": set(), "joins": set(), "votes": set()})
+        if act == "community_landed":
+            d["visits"].add(sid)
+            if md.get("iab") in ("instagram", "facebook") or md.get("inApp"):
+                in_app.add(sid)
+        elif act == "community_join_tap":
+            d["joins"].add(sid)
+            w = str(md.get("where") or "unknown")[:40]
+            join_where[w] = join_where.get(w, 0) + 1
+        elif act == "community_poll_vote":
+            d["votes"].add(sid)
+        elif act == "community_tab":
+            t = str(md.get("tab") or "?")[:12]
+            tabs[t] = tabs.get(t, 0) + 1
+    start = (since + timedelta(hours=5, minutes=30)).date()
+    series = []
+    for n in range(days + 1):
+        day = (start + timedelta(days=n)).isoformat()
+        d = daily.get(day, {})
+        series.append({"day": day, **{k: len(d.get(k, ())) for k in ("visits", "joins", "votes")}})
+    visits = len(people["community_landed"])
+    return {"success": True, "data": {
+        "days": days,
+        "totals": {
+            "visits": visits, "inApp": len(in_app),
+            "joined": len(people["community_join_tap"]), "voted": len(people["community_poll_vote"]),
+            "suggested": len(people["community_contribution"]), "leftContact": len(people["community_lead"]),
+            "askedToSignIn": len(people["community_sign_in_ask"]), "removedVote": taps["community_poll_unvote"],
+            "nextStepTaps": taps["community_next_step_tap"],
+        },
+        "joinRate": round(100 * len(people["community_join_tap"]) / visits) if visits else 0,
+        "tabs": tabs, "joinWhere": dict(sorted(join_where.items(), key=lambda kv: -kv[1])),
+        "series": series[-days:] if days < len(series) else series,
+        "sources": await _funnel(db, days),
+    }}
+
+
+
 
 
 @admin_router.post("/post", status_code=201)
 async def publish_post(payload: PostRequest, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
-    """The weekly post on the community page (the newest one is shown)."""
-    img = (payload.image_url or "").strip() or None
-    if img and not img.startswith(("https://", "http://", "/")):
-        raise BadRequestException(message="The photo link must start with https://", error_code="BAD_URL")
-    db.add(CommunityPost(
-        headline=payload.headline.strip(), line=(payload.line or "").strip() or None, image_url=img,
-        button_label=(payload.button_label or "").strip() or None, button_url=(payload.button_url or "").strip() or None))
+    """A post on the community page. The pinned one sits on top, else the newest live one."""
+    post = CommunityPost()
+    _apply_post(post, payload)
+    db.add(post)
+    await db.flush()
+    if post.pinned:
+        await _unpin_others(db, post.id)
     await db.commit()
-    return {"success": True, "data": {"ok": True}}
+    return {"success": True, "data": {"ok": True, "id": str(post.id)}}
 
 
 class GroupSizeRequest(_Camel):

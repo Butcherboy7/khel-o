@@ -70,6 +70,16 @@ def create_presigned_upload(cafe_id: uuid.UUID, content_type: str) -> dict[str, 
     }
 
 
+def create_presigned_upload_at(prefix: str, content_type: str) -> dict[str, str]:
+    """Same as create_presigned_upload, under any folder (e.g. "community")."""
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        raise BadRequestException("Only JPEG, PNG, or WebP images are allowed")
+    key = f"{prefix.strip('/')}/{uuid.uuid4().hex}.{ALLOWED_CONTENT_TYPES[content_type]}"
+    upload_url = _get_client().generate_presigned_url(
+        "put_object", Params={"Bucket": settings.AWS_S3_BUCKET, "Key": key, "ContentType": content_type}, ExpiresIn=300)
+    return {"uploadUrl": upload_url, "publicUrl": build_public_url(key), "key": key}
+
+
 def delete_object(key: str) -> None:
     """Delete one object. Never raises — callers have already committed the
     database change, and a failed cleanup must not fail the user's request.

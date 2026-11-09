@@ -761,3 +761,165 @@ export interface AdminDropRow {
 export async function getAdminDrops(): Promise<AdminDropRow[]> {
   return call(() => apiClient.get('/api/v1/admin/drops'));
 }
+
+// ------------------------------------------------------------ community page control (admin)
+
+export interface AdminCommunityPost {
+  id: string;
+  headline: string;
+  line: string | null;
+  imageUrl: string | null;
+  buttonLabel: string | null;
+  buttonUrl: string | null;
+  createdAt: string;
+  pinned: boolean;
+  hidden: boolean;
+  state: 'live' | 'hidden' | 'scheduled' | 'ended';
+  showFrom: string | null;
+  showUntil: string | null;
+}
+
+export interface CommunityPostBody {
+  headline: string;
+  line?: string;
+  imageUrl?: string;
+  buttonLabel?: string;
+  buttonUrl?: string;
+  pinned?: boolean;
+  hidden?: boolean;
+  showFrom?: string | null;
+  showUntil?: string | null;
+}
+
+export async function getCommunityPosts(): Promise<{ posts: AdminCommunityPost[]; onTopId: string | null }> {
+  return call(() => apiClient.get('/api/v1/admin/community/posts'));
+}
+
+export async function createCommunityPost(body: CommunityPostBody): Promise<{ ok: boolean; id: string }> {
+  return call(() => apiClient.post('/api/v1/admin/community/post', body));
+}
+
+export async function updateCommunityPost(id: string, body: CommunityPostBody): Promise<AdminCommunityPost> {
+  return call(() => apiClient.patch(`/api/v1/admin/community/posts/${id}`, body));
+}
+
+export async function deleteCommunityPost(id: string): Promise<{ ok: boolean }> {
+  return call(() => apiClient.delete(`/api/v1/admin/community/posts/${id}`));
+}
+
+export interface CommunityPhotoRow {
+  id: string;
+  url: string;
+  caption: string | null;
+  position: number;
+  isHero: boolean;
+  hidden: boolean;
+  createdAt: string;
+}
+
+export async function getCommunityPhotos(): Promise<CommunityPhotoRow[]> {
+  return call(() => apiClient.get('/api/v1/admin/community/photos'));
+}
+
+/** Uploads an image to our storage and returns its link (not added to the wall). */
+export async function uploadCommunityImage(file: File): Promise<string> {
+  const { uploadUrl, publicUrl } = await call<{ uploadUrl: string; publicUrl: string }>(() =>
+    apiClient.post('/api/v1/admin/community/photos/presign', { contentType: file.type }),
+  );
+  await putToPresignedUrl(uploadUrl, file);
+  return publicUrl;
+}
+
+/** Uploads a photo, then adds it to the end of the wall. */
+export async function uploadCommunityPhoto(file: File, caption?: string): Promise<CommunityPhotoRow> {
+  return addCommunityPhoto(await uploadCommunityImage(file), caption);
+}
+
+export async function addCommunityPhoto(url: string, caption?: string): Promise<CommunityPhotoRow> {
+  return call(() => apiClient.post('/api/v1/admin/community/photos', { url, caption }));
+}
+
+export async function editCommunityPhoto(id: string, body: { caption?: string; hidden?: boolean; isHero?: boolean }): Promise<CommunityPhotoRow> {
+  return call(() => apiClient.patch(`/api/v1/admin/community/photos/${id}`, body));
+}
+
+export async function orderCommunityPhotos(ids: string[]): Promise<{ ok: boolean }> {
+  return call(() => apiClient.put('/api/v1/admin/community/photos/order', { ids }));
+}
+
+export async function deleteCommunityPhoto(id: string): Promise<{ ok: boolean }> {
+  return call(() => apiClient.delete(`/api/v1/admin/community/photos/${id}`));
+}
+
+export type CommunityTabKey = 'week' | 'vote' | 'next' | 'photos';
+
+export interface CommunityPageSettings {
+  kicker: string;
+  headline: string;
+  line: string;
+  joinLabel: string;
+  tabs: CommunityTabKey[];
+  showMembersCode: boolean;
+  showHappeningNow: boolean;
+  showRecap: boolean;
+  showMemberCount: boolean;
+}
+
+export async function getCommunitySettings(): Promise<CommunityPageSettings & { defaults: CommunityPageSettings }> {
+  return call(() => apiClient.get('/api/v1/admin/community/settings'));
+}
+
+export async function saveCommunitySettings(body: Partial<CommunityPageSettings>): Promise<CommunityPageSettings> {
+  return call(() => apiClient.put('/api/v1/admin/community/settings', body));
+}
+
+export async function resetCommunitySettings(): Promise<CommunityPageSettings> {
+  return call(() => apiClient.post('/api/v1/admin/community/settings/reset'));
+}
+
+export interface CommunityPollHistoryRow {
+  id: string;
+  question: string;
+  status: 'active' | 'closed';
+  total: number;
+  winner: string | null;
+  options: { label: string; votes: number }[];
+  createdAt: string;
+  closesAt: string | null;
+}
+
+export async function getCommunityPolls(): Promise<CommunityPollHistoryRow[]> {
+  return call(() => apiClient.get('/api/v1/admin/community/polls'));
+}
+
+export async function deleteCommunityPoll(id: string): Promise<{ ok: boolean }> {
+  return call(() => apiClient.delete(`/api/v1/admin/community/polls/${id}`));
+}
+
+export async function deleteContribution(id: string): Promise<{ ok: boolean }> {
+  return call(() => apiClient.delete(`/api/v1/admin/community/contributions/${id}`));
+}
+
+export interface CommunityAnalytics {
+  days: number;
+  totals: {
+    visits: number;
+    inApp: number;
+    joined: number;
+    voted: number;
+    suggested: number;
+    leftContact: number;
+    askedToSignIn: number;
+    removedVote: number;
+    nextStepTaps: number;
+  };
+  joinRate: number;
+  tabs: Record<string, number>;
+  joinWhere: Record<string, number>;
+  series: { day: string; visits: number; joins: number; votes: number }[];
+  sources: CommunityFunnelRow[];
+}
+
+export async function getCommunityAnalytics(days: number): Promise<CommunityAnalytics> {
+  return call(() => apiClient.get('/api/v1/admin/community/analytics', { params: { days } }));
+}
