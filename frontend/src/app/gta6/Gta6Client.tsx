@@ -15,6 +15,7 @@ import type { CafeListItem } from '@/types';
 import { customerPrice } from '@/lib/format';
 import { firstBookingOfferLive } from '@/lib/pricing';
 import { Gta6Scene } from './Gta6Scene';
+import { PREORDERED_CAFE_IDS } from '@/constants/gta6';
 
 const LAUNCH_KEY = 'gta6';
 // 19 Nov 2026, midnight in Hyderabad.
@@ -23,17 +24,6 @@ const LAUNCH_AT = new Date('2026-11-19T00:00:00+05:30').getTime();
 const COUNT_REFRESH_MS = 30_000;
 // Long enough for the title card and the first countdown ticks to be seen.
 const AUTOSCROLL_AFTER_MS = 2200;
-// Cafés that told us they have pre-ordered GTA 6 (confirmed by KHEL-O,
-// 2026-10-17). Only these get the "Pre-ordered" stamp; a PS5 café that joins
-// later shows without it until it's confirmed and added here.
-const PREORDERED_CAFE_IDS = new Set([
-  '73484598-b6a8-4118-82b9-7df16d03ed05', // DG Gaming Cafe
-  '69a24177-fc5f-4c07-a792-dacf7c2d147b', // Rockstar Gaming Cafe
-  // AdamsDen Gaming Lounge (told KHEL-O 2026-10-18). Still a draft application:
-  // the page lists only live cafés with a PlayStation, so it shows once approved.
-  '596ebec6-7dd5-480a-bf40-327d7f4c1e7e',
-]);
-
 const REACH: { value: ReachBy; label: string; icon: typeof Phone; said: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, said: 'WhatsApp you' },
   { value: 'text', label: 'Text', icon: MessageSquareText, said: 'text you' },

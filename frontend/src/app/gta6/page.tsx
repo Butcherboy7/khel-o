@@ -1,13 +1,14 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { listDrops } from '@/lib/api/drops';
 import { Gta6Client } from './Gta6Client';
 
 export const metadata: Metadata = {
-  title: 'GTA 6 launch list',
+  title: 'Play GTA 6 in Hyderabad, Bengaluru & India: PS5 Cafés',
   description:
-    'GTA 6 drops 19 Nov on PS5 and Xbox. No console at home? PS5 cafés on KHEL-O in Hyderabad have pre-ordered it. Reserve a launch-week seat now.',
-  alternates: { canonical: '/gta6' },
+    'GTA 6 releases 19 Nov 2026 on PS5 and Xbox. No console at home? Play it at a PS5 gaming café: compare cafés and prices in Hyderabad, Bengaluru and across India, and book on KHEL-O.',
+  alternates: { canonical: '/gta6', languages: { 'en-IN': '/gta6' } },
   openGraph: {
     title: 'GTA 6 drops 19 Nov. No PS5? Play it at a café.',
     description: 'Hyderabad PS5 cafés have pre-ordered it. Reserve your KHEL-O launch-week seat.',
@@ -32,5 +33,14 @@ export default async function Gta6Page({ searchParams }: { searchParams: Promise
     }
     redirect(`/drops/${slug}${qs.size ? `?${qs.toString()}` : ''}`);
   }
-  return <Gta6Client />;
+  return (
+    <>
+      <Gta6Client />
+      <nav aria-label="GTA 6 by city" className="mx-auto flex max-w-3xl flex-wrap justify-center gap-x-5 gap-y-2 px-4 py-6 text-body">
+        <Link href="/gta6/hyderabad" className="underline underline-offset-2">Where to play GTA 6 in Hyderabad</Link>
+        <Link href="/gta6/bengaluru" className="underline underline-offset-2">GTA 6 in Bengaluru</Link>
+        <Link href="/gta6/india" className="underline underline-offset-2">GTA 6 in India</Link>
+      </nav>
+    </>
+  );
 }
