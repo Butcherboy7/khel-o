@@ -16,16 +16,24 @@ from app.config import settings
 
 VARIANTS = ("a", "b", "c")
 
+# What the admin page shows. The real subject is subject_for(), which can use the first name.
 SUBJECTS = {
-    "a": "12 players, 1 champion. You missed it.",
-    "b": "Which game should Challenge #02 be?",
-    "c": "Quick one from KHEL-O",
+    "a": "12 of us played Tekken at AdamsDen. You weren't there.",
+    "b": "30 seconds to pick our next challenge",
+    "c": "Quick question, {name}",
 }
 PREHEADERS = {
-    "a": "Tekken Challenge #01 at AdamsDen. #02 reaches the community first.",
-    "b": "Your vote picks our next challenge.",
-    "c": "We ran our first Tekken night. Want in on the next?",
+    "a": "Free to play, 12 players, one champion. The next one is announced to the community first.",
+    "b": "Tekken, VALORANT or EA FC? Your vote decides.",
+    "c": "It takes one tap to say yes.",
 }
+
+
+def subject_for(variant: str, first_name: str | None) -> str:
+    name = (first_name or "").strip()
+    if variant == "c" and not name:
+        return "Quick question"
+    return SUBJECTS[variant].replace("{name}", name)
 
 _RED = "#D0463C"
 _INK = "#1F2430"
@@ -115,7 +123,7 @@ def render(variant: str, first_name: str | None, unsub_url: str, poll_options: l
     plain_name = (first_name or "").strip() or "there"
     name = _e(plain_name)
     reason = "You get this because you asked for KHEL-O updates." if lead else "You get this because you have a KHEL-O account."
-    subject, pre = SUBJECTS[variant], PREHEADERS[variant]
+    subject, pre = subject_for(variant, first_name), PREHEADERS[variant]
     unsub_line = f"{reason} Unsubscribe in one tap: {unsub_url}\nKHEL-O, Hyderabad, India"
     link = lambda url, label: f'<a href="{_e(url)}" style="color:{_RED};">{label}</a>'  # noqa: E731
 
@@ -123,6 +131,7 @@ def render(variant: str, first_name: str | None, unsub_url: str, poll_options: l
         url = community_link("a", "link")
         paras = [
             f"Hi {name},",
+            f'<img src="{_front()}/community/email-full-house.jpg" width="520" height="264" alt="Players at Tekken Challenge #01 at AdamsDen" style="display:block;width:100%;max-width:520px;height:auto;border:0;border-radius:6px;">',
             "On 1 Nov we ran our first free Tekken challenge at AdamsDen. 12 players, 12 matches and one champion. You were not there, and I would like to see you at the next one.",
             "The next one, and anything else we run, goes to our WhatsApp community first. It is free and you can leave any time.",
             f"You can join here: {link(url, _e(_front()) + '/community')}",

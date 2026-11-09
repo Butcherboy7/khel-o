@@ -994,7 +994,7 @@ class EmailSchedulePatch(_Camel):
 
 def _campaign_json(c, audience: int) -> dict:
     return {
-        "id": str(c.id), "variant": c.variant, "subject": c.subject, "status": c.status,
+        "id": str(c.id), "variant": c.variant, "subject": __import__("app.services.community_email_templates", fromlist=["x"]).SUBJECTS.get(c.variant, c.subject), "status": c.status,
         "scheduledFor": c.scheduled_for.isoformat(), "testedAt": c.tested_at.isoformat() if c.tested_at else None,
         "sentCount": c.sent_count, "failedCount": c.failed_count, "audience": audience,
         "startedAt": c.started_at.isoformat() if c.started_at else None,
