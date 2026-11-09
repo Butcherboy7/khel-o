@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Users, Check, X, Download } from 'lucide-react';
 import {
@@ -8,12 +8,19 @@ import {
   getCommunityContributions,
   setContributionStatus,
   startCommunityPoll,
+  editCommunityPoll,
+  closeCommunityPoll,
   publishCommunityPost,
   setCommunityGroupSize,
   getCommunityPeople,
   downloadCommunityPeopleCsv,
 } from '@/lib/api/admin';
 import { Button, Card, CardContent, ErrorState, PageSpinner } from '@/components/ui';
+
+/** yyyy-mm-dd, N days from today. */
+const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+/** The end of that day in India: a poll "closing on Sunday" takes votes all Sunday. */
+const endOfDayIst = (day: string) => `${day}T23:59:00+05:30`;
 
 const when = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
 
@@ -47,9 +54,15 @@ export default function AdminCommunityPage() {
     mutationFn: (v: { id: string; status: 'approved' | 'declined' | 'new' }) => setContributionStatus(v.id, v.status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin'] }),
   });
+  const [closesOn, setClosesOn] = useState(() => inDays(7));
   const newPoll = useMutation({
     mutationFn: () =>
-      startCommunityPoll({ question, options: options.split('\n').map((o) => o.trim()).filter(Boolean), membersCode: code.trim() || undefined }),
+      startCommunityPoll({
+        question,
+        options: options.split('\n').map((o) => o.trim()).filter(Boolean),
+        membersCode: code.trim() || undefined,
+        closesAt: closesOn ? endOfDayIst(closesOn) : undefined,
+      }),
     onSuccess: () => {
       setQuestion('');
       setOptions('');
@@ -57,6 +70,23 @@ export default function AdminCommunityPage() {
       qc.invalidateQueries({ queryKey: ['admin'] });
     },
   });
+  // Edit the running poll in place (fix a typo, add a choice, move the closing day).
+  const [edit, setEdit] = useState<{ question: string; options: string; closesOn: string; code: string } | null>(null);
+  const live = overview.data?.poll ?? null;
+  useEffect(() => {
+    setEdit(live ? { question: live.question, options: live.options.map((o) => o.label).join('\n'), closesOn: live.closesAt ? live.closesAt.slice(0, 10) : '', code: live.membersCode ?? '' } : null);
+  }, [live?.id, live?.question, live?.closesAt, live?.membersCode, live?.options.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const saveEdit = useMutation({
+    mutationFn: () =>
+      editCommunityPoll({
+        question: edit!.question.trim(),
+        options: edit!.options.split('\n').map((o) => o.trim()).filter(Boolean),
+        ...(edit!.closesOn ? { closesAt: endOfDayIst(edit!.closesOn) } : { clearClose: true }),
+        membersCode: edit!.code.trim(),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+  });
+  const closeNow = useMutation({ mutationFn: closeCommunityPoll, onSuccess: () => qc.invalidateQueries({ queryKey: ['admin'] }) });
 
   if (overview.isLoading || contribs.isLoading) return <PageSpinner />;
   if (overview.error || !overview.data) return <ErrorState title="Could not load the community" message={(overview.error as Error)?.message} onRetry={() => overview.refetch()} />;
@@ -98,25 +128,54 @@ export default function AdminCommunityPage() {
         <Card elevation="raised">
           <CardContent className="flex flex-col gap-3 p-4">
             <h2 className="font-heading text-h3 font-bold text-text-primary">This week&apos;s poll</h2>
-            {o.poll ? (
-              <>
-                <p className="text-body font-semibold text-text-primary">{o.poll.question}</p>
-                {o.poll.options.map((x) => (
-                  <div key={x.label} className="flex items-center justify-between gap-3 text-body">
-                    <span>{x.label}</span>
-                    <b>{x.votes}</b>
-                  </div>
-                ))}
-                {o.poll.membersCode && <p className="text-caption text-text-secondary">Members code: <b>{o.poll.membersCode}</b></p>}
-              </>
+            <p className="text-caption text-text-secondary">How it is decided: one vote per signed-in person, they can change it until it closes. When it closes (on the day you set, or when you tap Close now) the choice with the most votes wins and shows on the Community page under Closed votes.</p>
+            {o.poll && edit ? (
+              <div className="flex flex-col gap-2 rounded-2xl border border-border p-3">
+                <div className="flex flex-col gap-1">
+                  {o.poll.options.map((x) => (
+                    <div key={x.label} className="flex items-center justify-between gap-3 text-body">
+                      <span>{x.label}</span>
+                      <b>{x.votes} {x.votes === 1 ? 'vote' : 'votes'}</b>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-caption font-bold text-text-primary">Change it</p>
+                <input value={edit.question} onChange={(e) => setEdit({ ...edit, question: e.target.value })} className="min-h-[44px] rounded-xl border border-border bg-card px-3 text-body" aria-label="Question" />
+                <textarea value={edit.options} onChange={(e) => setEdit({ ...edit, options: e.target.value })} rows={3} className="rounded-xl border border-border bg-card px-3 py-2 text-body" aria-label="Choices, one per line" />
+                <p className="text-[11px] text-text-secondary">Votes stay with the choice in the same line. Removing a line removes its votes.</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="text-caption text-text-secondary">Closes on
+                    <input type="date" value={edit.closesOn} onChange={(e) => setEdit({ ...edit, closesOn: e.target.value })} className="mt-1 min-h-[44px] w-full rounded-xl border border-border bg-card px-3 text-body" />
+                  </label>
+                  <label className="text-caption text-text-secondary">Members-only code
+                    <input value={edit.code} onChange={(e) => setEdit({ ...edit, code: e.target.value })} className="mt-1 min-h-[44px] w-full rounded-xl border border-border bg-card px-3 text-body" />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => saveEdit.mutate()} disabled={saveEdit.isPending || edit.question.trim().length < 3 || edit.options.split('\n').filter((l) => l.trim()).length < 2}>{saveEdit.isPending ? 'Saving…' : 'Save changes'}</Button>
+                  <Button variant="secondary" onClick={() => closeNow.mutate()} disabled={closeNow.isPending}>{closeNow.isPending ? 'Closing…' : 'Close now and show the winner'}</Button>
+                </div>
+                {(saveEdit.isError || closeNow.isError) && <p className="text-caption text-error">{((saveEdit.error || closeNow.error) as Error).message}</p>}
+                {saveEdit.isSuccess && <p className="text-caption text-success">Saved. It is live on the Community page.</p>}
+              </div>
             ) : (
               <p className="text-body text-text-secondary">No poll running.</p>
             )}
             <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
-              <p className="text-caption font-bold text-text-primary">Start a new poll (closes the old one)</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-caption font-bold text-text-primary">Start a new poll (closes the old one)</p>
+                <button type="button" onClick={() => { setQuestion('Which game for the next challenge?'); setOptions('Tekken 8\nStreet Fighter 6\nEA FC 26\nValorant'); }} className="rounded-full border border-border px-3 py-1 text-caption font-bold text-text-secondary">Fill: next challenge game</button>
+              </div>
               <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Question" className="min-h-[44px] rounded-xl border border-border bg-card px-3 text-body" />
               <textarea value={options} onChange={(e) => setOptions(e.target.value)} placeholder="One choice per line (2 to 6)" rows={3} className="rounded-xl border border-border bg-card px-3 py-2 text-body" />
-              <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Members-only code (optional)" className="min-h-[44px] rounded-xl border border-border bg-card px-3 text-body" />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="text-caption text-text-secondary">Closes on
+                  <input type="date" value={closesOn} onChange={(e) => setClosesOn(e.target.value)} className="mt-1 min-h-[44px] w-full rounded-xl border border-border bg-card px-3 text-body" />
+                </label>
+                <label className="text-caption text-text-secondary">Members-only code (optional)
+                  <input value={code} onChange={(e) => setCode(e.target.value)} className="mt-1 min-h-[44px] w-full rounded-xl border border-border bg-card px-3 text-body" />
+                </label>
+              </div>
               <Button onClick={() => newPoll.mutate()} disabled={newPoll.isPending || question.trim().length < 3 || options.split('\n').filter((l) => l.trim()).length < 2}>
                 {newPoll.isPending ? 'Starting…' : 'Start poll'}
               </Button>

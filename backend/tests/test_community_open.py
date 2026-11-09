@@ -42,15 +42,35 @@ async def test_join_counts_once_per_phone_and_unlocks_the_code_without_login():
 
 
 @pytest.mark.asyncio
-async def test_vote_without_login_is_one_per_phone_and_can_change():
+async def test_vote_needs_a_quick_sign_in_then_is_one_per_person_and_can_change():
     pid = await _poll()
+    a = await _user(UserRole.GAMER, phone="9876500210")
+    b = await _user(UserRole.GAMER, phone="9876500211")
     async with _client() as c:
-        assert (await c.post(f"/api/v1/community/polls/{pid}/vote", json={"optionIndex": 0, "deviceId": DEV})).status_code == 200
-        assert (await c.post(f"/api/v1/community/polls/{pid}/vote", json={"optionIndex": 1, "deviceId": DEV})).status_code == 200
-        assert (await c.post(f"/api/v1/community/polls/{pid}/vote", json={"optionIndex": 1, "deviceId": DEV2})).status_code == 200
-        poll = (await c.get("/api/v1/community/this-week", params={"deviceId": DEV})).json()["data"]["poll"]
+        anon = await c.post(f"/api/v1/community/polls/{pid}/vote", json={"optionIndex": 0, "deviceId": DEV})
+        assert anon.status_code == 401 and anon.json()["error"]["code"] == "SIGN_IN_TO_VOTE"
+        assert (await c.post(f"/api/v1/community/polls/{pid}/vote", json={"optionIndex": 0}, headers=_h(a))).status_code == 200
+        assert (await c.post(f"/api/v1/community/polls/{pid}/vote", json={"optionIndex": 1}, headers=_h(a))).status_code == 200
+        assert (await c.post(f"/api/v1/community/polls/{pid}/vote", json={"optionIndex": 1}, headers=_h(b))).status_code == 200
+        poll = (await c.get("/api/v1/community/this-week", headers=_h(a))).json()["data"]["poll"]
         assert poll["total"] == 2 and poll["myVote"] == 1
-        assert (await c.post(f"/api/v1/community/polls/{pid}/vote", json={"optionIndex": 1})).status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_admin_can_edit_and_close_the_poll():
+    pid = await _poll()
+    admin = await _user(UserRole.ADMIN, phone="9876500212")
+    voter = await _user(UserRole.GAMER, phone="9876500213")
+    async with _client() as c:
+        assert (await c.post(f"/api/v1/community/polls/{pid}/vote", json={"optionIndex": 1}, headers=_h(voter))).status_code == 200
+        r = await c.patch("/api/v1/admin/community/poll", headers=_h(admin), json={"question": "Which game for #02?", "options": ["Tekken 8", "SF6", "FC 26"], "closesAt": "2030-01-01T18:00:00+05:30"})
+        assert r.status_code == 200, r.text
+        poll = (await c.get("/api/v1/community/this-week", headers=_h(voter))).json()["data"]["poll"]
+        assert poll["question"] == "Which game for #02?" and [o["label"] for o in poll["options"]] == ["Tekken 8", "SF6", "FC 26"]
+        assert poll["myVote"] == 1 and poll["closesAt"].startswith("2030")
+        assert (await c.post("/api/v1/admin/community/poll/close", headers=_h(admin))).status_code == 200
+        week = (await c.get("/api/v1/community/this-week")).json()["data"]
+        assert week["poll"] is None and week["closedPolls"][0]["winner"] == "SF6"
 
 
 @pytest.mark.asyncio
@@ -74,11 +94,12 @@ async def test_lead_needs_a_valid_contact_and_admin_gets_people_and_csv():
 async def test_suggestion_without_login_and_weekly_post_and_funnel():
     admin = await _user(UserRole.ADMIN, phone="9876500203")
     async with _client() as c:
-        r = await c.post("/api/v1/community/contributions", json={
-            "kind": "cafe", "title": "Pixel Arena", "detail": "Banjara Hills", "deviceId": DEV, "name": "Ravi", "contact": "ravi@x.com"})
+        body = {"kind": "cafe", "title": "Pixel Arena", "detail": "Banjara Hills", "deviceId": DEV, "name": "Ravi", "contact": "ravi@x.com"}
+        assert (await c.post("/api/v1/community/contributions", json=body)).status_code == 401
+        r = await c.post("/api/v1/community/contributions", json=body, headers=_h(await _user(UserRole.GAMER, phone="9876500214")))
         assert r.status_code == 201, r.text
         rows = (await c.get("/api/v1/admin/community/contributions", headers=_h(admin))).json()["data"]
-        assert any(x["title"] == "Pixel Arena" and x["contact"] == "ravi@x.com" and x["name"] == "Ravi" for x in rows)
+        assert any(x["title"] == "Pixel Arena" and x["contact"] == "ravi@x.com" for x in rows)
         p = await c.post("/api/v1/admin/community/post", headers=_h(admin), json={"headline": "Challenge 2 is Street Fighter", "buttonLabel": "Vote", "buttonUrl": "/community#vote"})
         assert p.status_code == 201
         week = (await c.get("/api/v1/community/this-week")).json()["data"]

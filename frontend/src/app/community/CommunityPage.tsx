@@ -9,7 +9,9 @@ import { dropArt } from '@/components/customer/HomeTabs';
 import { cn } from '@/lib/cn';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { listDrops } from '@/lib/api/drops';
-import { getChallenge } from '@/lib/api/challenges';
+import { getBracket, getChallenge } from '@/lib/api/challenges';
+import { QuickSignIn } from '@/components/auth/QuickSignIn';
+import { useAuthStore } from '@/store/authStore';
 import { getThisWeek, leaveContact, sendContribution, voteInPoll } from '@/lib/api/community';
 import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll } from '@/lib/challenge';
 import {
@@ -24,6 +26,31 @@ import {
 import { isInAppBrowser } from '@/lib/campaign';
 
 type Tab = 'week' | 'vote' | 'next' | 'photos';
+
+type Draft = { kind: 'cafe' | 'photos'; title: string; detail: string; showName: boolean };
+type Pending = { type: 'vote'; pollId: string; option: number } | { type: 'suggest'; draft: Draft };
+const PENDING_KEY = 'khelo.community.pending';
+
+function savePending(p: Pending): void {
+  try {
+    sessionStorage.setItem(PENDING_KEY, JSON.stringify(p));
+  } catch {
+    /* private window: the sheet still finishes it */
+  }
+}
+
+function takePending(): Pending | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    sessionStorage.removeItem(PENDING_KEY);
+    return raw ? (JSON.parse(raw) as Pending) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The finished challenge the photos are from. */
+const RECAP_SLUG = 'tekken-01';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'week', label: 'This week' },
   { key: 'vote', label: 'Vote' },
@@ -45,7 +72,9 @@ export function CommunityPage() {
   const [joinedLocal, setJoinedLocal] = useState(false);
   const [leadDone, setLeadDone] = useState(false);
 
-  const { data } = useQuery({ queryKey: ['community-week'], queryFn: getThisWeek, staleTime: 30_000, retry: false });
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { data } = useQuery({ queryKey: ['community-week', isAuthenticated], queryFn: getThisWeek, staleTime: 30_000, retry: false });
+  const { data: recap } = useQuery({ queryKey: ['challenges', RECAP_SLUG, 'bracket'], queryFn: () => getBracket(RECAP_SLUG), staleTime: 300_000, retry: false });
   const { data: drops } = useQuery({ queryKey: ['home-drops'], queryFn: listDrops, staleTime: 60_000, retry: false });
   const { data: challenge } = useQuery({
     queryKey: ['challenges', FEATURED_CHALLENGE_SLUG],
@@ -169,7 +198,7 @@ export function CommunityPage() {
 
       {tab === 'week' && (
         <div className="grid gap-4 md:grid-cols-2">
-          <WeekPost post={data?.post ?? null} />
+          {data?.post ? <WeekPost post={data.post} /> : <RecapCard recap={recap ?? null} />}
           <MembersCode code={data?.poll?.code ?? null} hasCode={Boolean(data?.poll?.hasCode)} note={data?.poll?.codeNote ?? null} member={member} />
           <div className={cn(card, 'md:col-span-2')}>
             <p className={label}>Happening now</p>
@@ -188,6 +217,7 @@ export function CommunityPage() {
       )}
 
       {tab === 'vote' && <VoteTab poll={data?.poll ?? null} closed={data?.closedPolls ?? []} onVoted={() => qc.invalidateQueries({ queryKey: ['community-week'] })} />}
+      {mounted && <PendingFinisher onTab={pick} />}
 
       {tab === 'next' && (
         <div className="grid gap-4 md:grid-cols-2">
@@ -260,16 +290,68 @@ function DropCard({ d }: { d: NonNullable<Awaited<ReturnType<typeof listDrops>>>
   );
 }
 
-function WeekPost({ post }: { post: { headline: string; line: string | null; imageUrl: string | null; buttonLabel: string | null; buttonUrl: string | null; createdAt: string } | null }) {
-  if (!post) {
-    return (
-      <div className={card}>
-        <p className={label}>This week</p>
-        <p className="mt-1 font-heading text-body-emphasis font-bold text-text-primary">The next post lands in the group first.</p>
-        <p className="text-caption text-text-secondary">Join above so you do not miss it.</p>
+type Recap = Awaited<ReturnType<typeof getBracket>>;
+
+/** Tekken #01 at AdamsDen: the real podium from its bracket, and the photos. */
+function RecapCard({ recap }: { recap: Recap | null }) {
+  const done = recap?.challenge.status === 'finished' ? recap : null;
+  const podium = done ? [1, 2, 3].map((n) => done.standings.find((x) => x.place === n)).filter(Boolean) : [];
+  const players = done?.rounds[0]?.matches.reduce((n, m) => n + (m.a ? 1 : 0) + (m.b ? 1 : 0), 0) ?? 0;
+  return (
+    <Link href="/community/recap" className={cn(card, 'overflow-hidden p-0 transition-colors hover:border-primary/50')}>
+      <div className="grid h-40 grid-cols-3 gap-0.5">
+        {['full-house', 'prize', 'locked-in'].map((n) => (
+          // eslint-disable-next-line @next/next/no-img-element -- static photos from /public
+          <img key={n} src={`/community/${n}.webp`} alt="" className="h-full w-full object-cover" />
+        ))}
       </div>
-    );
-  }
+      <div className="flex flex-col gap-1 p-4">
+        <p className={label}>Last challenge · Tekken #01 · AdamsDen · 1 Nov</p>
+        <p className="font-heading text-h3 font-bold leading-tight text-text-primary">
+          {podium[0] ? `${podium[0].name} took the crown.` : 'A full house at Tekken #01.'}
+        </p>
+        {podium.length > 1 && (
+          <p className="text-caption text-text-secondary">
+            {podium.slice(1).map((x, i) => `${i === 0 ? '2nd' : '3rd'} ${x!.name}`).join(' · ')}{players > 0 ? ` · ${players} players` : ''}
+          </p>
+        )}
+        <span className="mt-1 inline-flex items-center gap-1 text-caption font-bold text-primary">See all the photos <ArrowRight className="h-4 w-4" aria-hidden /></span>
+      </div>
+    </Link>
+  );
+}
+
+/** After an email sign-in round trip: finish the vote, or reopen the half-written suggestion. */
+function PendingFinisher({ onTab }: { onTab: (t: Tab) => void }) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let p: Pending | null = null;
+    try {
+      p = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null');
+    } catch {
+      p = null;
+    }
+    if (!p) return;
+    if (p.type === 'vote') {
+      takePending();
+      onTab('vote');
+      voteInPoll(p.pollId, p.option)
+        .then(() => {
+          markVoted();
+          trackAction('community_poll_vote', { poll: p!.type === 'vote' ? p!.pollId : '', after: 'sign_in' });
+        })
+        .catch(() => undefined)
+        .finally(() => qc.invalidateQueries({ queryKey: ['community-week'] }));
+    } else {
+      onTab('photos');
+    }
+  }, [isAuthenticated, onTab, qc]);
+  return null;
+}
+
+function WeekPost({ post }: { post: { headline: string; line: string | null; imageUrl: string | null; buttonLabel: string | null; buttonUrl: string | null; createdAt: string } }) {
   const internal = post.buttonUrl?.startsWith('/');
   const posted = new Date(post.createdAt).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
   return (
@@ -330,8 +412,17 @@ function MembersCode({ code, hasCode, note, member }: { code: string | null; has
 function VoteTab({ poll, closed, onVoted }: { poll: NonNullable<Awaited<ReturnType<typeof getThisWeek>>['poll']> | null; closed: { question: string; winner: string; votes: number }[]; onVoted: () => void }) {
   const [busy, setBusy] = useState<number | null>(null);
   const [err, setErr] = useState('');
-  const vote = async (i: number) => {
+  const [ask, setAsk] = useState<number | null>(null);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const vote = async (i: number, signedIn = isAuthenticated) => {
     if (!poll || poll.closed) return;
+    if (!signedIn) {
+      savePending({ type: 'vote', pollId: poll.id, option: i });
+      trackAction('community_sign_in_ask', { for: 'vote' });
+      setAsk(i);
+      return;
+    }
+    takePending();
     setErr('');
     setBusy(i);
     try {
@@ -371,8 +462,21 @@ function VoteTab({ poll, closed, onVoted }: { poll: NonNullable<Awaited<ReturnTy
                 </button>
               );
             })}
-            <p className="text-caption text-text-secondary">{poll.total} {poll.total === 1 ? 'vote' : 'votes'} · {poll.myVote === null ? 'tap a choice to vote, no login needed' : 'you can change your vote until it closes'}</p>
+            <p className="text-caption text-text-secondary">{poll.total} {poll.total === 1 ? 'vote' : 'votes'} · {poll.myVote === null ? 'tap a choice to vote' : 'you can change your vote until it closes'}</p>
+            <p className="text-caption text-text-secondary">Most votes {closes ? `on ${closes}` : 'when it closes'} wins. The winner shows under Closed votes.</p>
             {err && <p role="alert" className="text-caption text-error">{err}</p>}
+            {ask !== null && (
+              <QuickSignIn
+                title={`Vote for ${poll.options[ask]?.label ?? 'this'}`}
+                line="One tap with Google and your vote is in. You stay right here."
+                onClose={() => setAsk(null)}
+                onSignedIn={() => {
+                  const i = ask;
+                  setAsk(null);
+                  vote(i, true);
+                }}
+              />
+            )}
           </div>
         ) : (
           <div>
@@ -400,6 +504,19 @@ function VoteTab({ poll, closed, onVoted }: { poll: NonNullable<Awaited<ReturnTy
 
 function PhotosTab({ contributors }: { contributors: string[] }) {
   const [sheet, setSheet] = useState<null | 'cafe' | 'photos'>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  // Back from an email sign-in with a half-written suggestion: open it again, filled in.
+  useEffect(() => {
+    try {
+      const p = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null') as Pending | null;
+      if (p?.type === 'suggest') {
+        setDraft(p.draft);
+        setSheet(p.draft.kind);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [thanks, setThanks] = useState('');
   return (
     <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
@@ -427,18 +544,18 @@ function PhotosTab({ contributors }: { contributors: string[] }) {
         </Link>
         {contributors.length > 0 && <p className="text-caption text-text-secondary">Thanks to {contributors.join(', ')}.</p>}
       </div>
-      {sheet && <ContributeSheet kind={sheet} onClose={() => setSheet(null)} onDone={(m) => { setSheet(null); setThanks(m); }} />}
+      {sheet && <ContributeSheet kind={sheet} draft={draft} onClose={() => { setSheet(null); setDraft(null); takePending(); }} onDone={(m) => { setSheet(null); setDraft(null); setThanks(m); }} />}
     </div>
   );
 }
 
-function ContributeSheet({ kind, onClose, onDone }: { kind: 'cafe' | 'photos'; onClose: () => void; onDone: (msg: string) => void }) {
+function ContributeSheet({ kind, draft, onClose, onDone }: { kind: 'cafe' | 'photos'; draft: Draft | null; onClose: () => void; onDone: (msg: string) => void }) {
   const cafe = kind === 'cafe';
-  const [title, setTitle] = useState('');
-  const [detail, setDetail] = useState('');
-  const [name, setName] = useState('');
-  const [contact, setContact] = useState('');
-  const [showName, setShowName] = useState(true);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [title, setTitle] = useState(draft?.title ?? '');
+  const [detail, setDetail] = useState(draft?.detail ?? '');
+  const [showName, setShowName] = useState(draft?.showName ?? true);
+  const [ask, setAsk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -448,15 +565,22 @@ function ContributeSheet({ kind, onClose, onDone }: { kind: 'cafe' | 'photos'; o
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const submit = async () => {
+  const submit = async (signedIn = isAuthenticated) => {
     if (title.trim().length < 2) {
       setError(cafe ? 'Add the café name.' : 'Say which event the photos are from.');
       return;
     }
+    if (!signedIn) {
+      savePending({ type: 'suggest', draft: { kind, title, detail, showName } });
+      trackAction('community_sign_in_ask', { for: kind });
+      setAsk(true);
+      return;
+    }
+    takePending();
     setBusy(true);
     setError('');
     try {
-      await sendContribution({ kind, title: title.trim(), detail: detail.trim() || undefined, showName, name: name.trim() || undefined, contact: contact.trim() || undefined });
+      await sendContribution({ kind, title: title.trim(), detail: detail.trim() || undefined, showName });
       markSuggested();
       trackAction('community_contribution', { kind });
       onDone(cafe ? 'Thanks. We will check it out and reach out if it goes live.' : 'Thanks. We will look at it and add it to the wall.');
@@ -483,22 +607,25 @@ function ContributeSheet({ kind, onClose, onDone }: { kind: 'cafe' | 'photos'; o
             {cafe ? 'Where is it, and why should we add it?' : 'A link to the photos (Drive, Instagram, anything)'}
             <textarea className={cn(input, 'mt-1 min-h-[84px] py-2')} value={detail} maxLength={1000} onChange={(e) => setDetail(e.target.value)} placeholder={cafe ? 'Area, what they have, what you like' : 'Paste a link'} />
           </label>
-          <label className="text-caption font-bold text-text-secondary">
-            Your name (optional)
-            <input className={cn(input, 'mt-1')} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder="So we can say thanks" />
-          </label>
-          <label className="text-caption font-bold text-text-secondary">
-            Email or phone (optional)
-            <input className={cn(input, 'mt-1')} value={contact} maxLength={160} onChange={(e) => setContact(e.target.value)} placeholder="Only used to reach you about this" />
-          </label>
           <label className="flex items-center gap-2 text-body text-text-primary">
             <input type="checkbox" checked={showName} onChange={(e) => setShowName(e.target.checked)} className="h-4 w-4 accent-primary" />
             Put my first name on the contributors list
           </label>
           {error && <p role="alert" className="text-caption text-error">{error}</p>}
-          <button type="button" onClick={submit} disabled={busy} className="min-h-[48px] rounded-xl bg-primary font-extrabold text-white disabled:opacity-60">{busy ? 'Sending…' : 'Send'}</button>
+          <button type="button" onClick={() => submit()} disabled={busy} className="min-h-[48px] rounded-xl bg-primary font-extrabold text-white disabled:opacity-60">{busy ? 'Sending…' : 'Send'}</button>
         </div>
       </div>
+      {ask && (
+        <QuickSignIn
+          title="Sign in to send"
+          line="One tap with Google. What you typed stays here and goes out right after."
+          onClose={() => setAsk(false)}
+          onSignedIn={() => {
+            setAsk(false);
+            submit(true);
+          }}
+        />
+      )}
     </div>
   );
 }

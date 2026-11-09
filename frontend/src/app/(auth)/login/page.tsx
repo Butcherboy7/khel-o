@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/authStore';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { useBotGuard } from '@/components/auth/BotGuard';
 import { getBookingIntent, clearBookingIntent } from '@/lib/bookingIntent';
+import { returnTarget } from '@/lib/returnTo';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -21,7 +22,9 @@ const loginSchema = z.object({
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get('redirect');
+  const redirectParam = searchParams.get('redirect');
+  // The explicit ?redirect=, else the page they were on before tapping Log in.
+  const redirectPath = typeof window === 'undefined' ? redirectParam : returnTarget(redirectParam);
 
   const setAuth = useAuthStore((s) => s.setAuth);
 

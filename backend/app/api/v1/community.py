@@ -13,11 +13,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_optional_user, require_admin
-from app.core.exceptions import BadRequestException, NotFoundException
+from app.core.exceptions import AuthException, BadRequestException, NotFoundException
 from app.database import get_db
 from app.models.analytics_event import AnalyticsEvent
 from app.models.community import (
@@ -38,6 +38,10 @@ class _Camel(BaseModel):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 async def _active_poll(db: AsyncSession) -> Optional[CommunityPoll]:
@@ -149,7 +153,7 @@ async def _poll_view(db: AsyncSession, poll: CommunityPoll, user: Optional[User]
             select(CommunityPollVote.option_index).where(
                 CommunityPollVote.poll_id == poll.id, CommunityPollVote.device_id == device)
         )).scalar_one_or_none()
-    closed = poll.closes_at is not None and poll.closes_at <= _now()
+    closed = poll.closes_at is not None and _aware(poll.closes_at) <= _now()
     return {
         "id": str(poll.id),
         "question": poll.question,
@@ -256,13 +260,13 @@ async def vote(poll_id: UUID, payload: VoteRequest, db: AsyncSession = Depends(g
     poll = await db.get(CommunityPoll, poll_id)
     if poll is None or poll.status != "active":
         raise NotFoundException(message="This vote is closed.", error_code="POLL_CLOSED")
-    if poll.closes_at is not None and poll.closes_at <= _now():
+    if poll.closes_at is not None and _aware(poll.closes_at) <= _now():
         raise BadRequestException(message="This vote has closed.", error_code="POLL_CLOSED")
     if payload.option_index >= len(poll.options):
         raise BadRequestException(message="That choice is not on the list.", error_code="POLL_BAD_OPTION")
+    if user is None:
+        raise AuthException(message="Sign in to vote. One tap with Google.", error_code="SIGN_IN_TO_VOTE")
     device = _device(payload.device_id)
-    if user is None and device is None:
-        raise BadRequestException(message="Bad request.", error_code="BAD_DEVICE")
     # One vote per person (or per phone); voting again moves it to the new choice.
     if user is not None:
         existing = (await db.execute(
@@ -293,9 +297,9 @@ class ContributionRequest(_Camel):
 @router.post("/contributions", status_code=201)
 async def contribute(payload: ContributionRequest, db: AsyncSession = Depends(get_db),
                      user: Optional[User] = Depends(get_optional_user)):
+    if user is None:
+        raise AuthException(message="Sign in to send this. One tap with Google.", error_code="SIGN_IN_TO_SEND")
     device = _device(payload.device_id)
-    if user is None and device is None:
-        raise BadRequestException(message="Bad request.", error_code="BAD_DEVICE")
     since = _now() - timedelta(days=1)
     who = CommunityContribution.user_id == user.id if user is not None else CommunityContribution.device_id == device
     recent = (await db.execute(
@@ -361,6 +365,55 @@ async def _funnel(db: AsyncSession) -> list[dict]:
     return sorted(out, key=lambda r: r["community_landed"], reverse=True)
 
 
+class PollEditRequest(_Camel):
+    question: Optional[str] = Field(None, min_length=3, max_length=160)
+    options: Optional[list[str]] = Field(None, min_length=2, max_length=6)
+    closes_at: Optional[datetime] = None
+    clear_close: bool = False
+    members_code: Optional[str] = Field(None, max_length=40)
+    members_code_note: Optional[str] = Field(None, max_length=160)
+
+
+@admin_router.patch("/poll")
+async def edit_poll(payload: PollEditRequest, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    """Fix the running poll: wording, choices, closing day, code. Votes stay on their choice by position;
+    removing a choice drops the votes on it."""
+    poll = await _active_poll(db)
+    if poll is None:
+        raise NotFoundException(message="No poll is running.", error_code="NO_POLL")
+    if payload.question is not None:
+        poll.question = payload.question.strip()
+    if payload.options is not None:
+        opts = [o.strip() for o in payload.options if o.strip()]
+        if len(opts) < 2:
+            raise BadRequestException(message="Give at least 2 choices.", error_code="POLL_OPTIONS")
+        if len(opts) < len(poll.options):
+            await db.execute(delete(CommunityPollVote).where(
+                CommunityPollVote.poll_id == poll.id, CommunityPollVote.option_index >= len(opts)))
+        poll.options = opts
+    if payload.clear_close:
+        poll.closes_at = None
+    elif payload.closes_at is not None:
+        poll.closes_at = payload.closes_at
+    if payload.members_code is not None:
+        poll.members_code = payload.members_code.strip() or None
+    if payload.members_code_note is not None:
+        poll.members_code_note = payload.members_code_note.strip() or None
+    await db.commit()
+    return {"success": True, "data": {"ok": True}}
+
+
+@admin_router.post("/poll/close")
+async def close_poll(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    """Close the running poll now. The choice with the most votes wins and shows under Closed votes."""
+    poll = await _active_poll(db)
+    if poll is None:
+        raise NotFoundException(message="No poll is running.", error_code="NO_POLL")
+    poll.status = "closed"
+    await db.commit()
+    return {"success": True, "data": {"ok": True}}
+
+
 @admin_router.get("/overview")
 async def community_overview(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
     """What the community has done: who tapped Join, the poll, the ad funnel, what people sent in."""
@@ -383,8 +436,8 @@ async def community_overview(db: AsyncSession = Depends(get_db), admin: User = D
             .group_by(CommunityPollVote.option_index)
         )).all())
         poll_out = {
-            "question": poll.question, "closesAt": poll.closes_at.isoformat() if poll.closes_at else None,
-            "membersCode": poll.members_code,
+            "id": str(poll.id), "question": poll.question, "closesAt": poll.closes_at.isoformat() if poll.closes_at else None,
+            "membersCode": poll.members_code, "membersCodeNote": poll.members_code_note,
             "options": [{"label": o, "votes": counts.get(i, 0)} for i, o in enumerate(poll.options)],
             "total": sum(counts.values()),
         }

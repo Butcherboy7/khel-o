@@ -63,7 +63,7 @@ async def test_poll_one_vote_each_and_can_change():
         assert week["options"][0]["percent"] == 50
         # A choice that is not on the list is refused; a vote needs an account or a phone id.
         assert (await c.post(f"/api/v1/community/polls/{poll['id']}/vote", json={"optionIndex": 7}, headers=_h(a))).status_code == 400
-        assert (await c.post(f"/api/v1/community/polls/{poll['id']}/vote", json={"optionIndex": 0})).status_code == 400  # no login and no phone id
+        assert (await c.post(f"/api/v1/community/polls/{poll['id']}/vote", json={"optionIndex": 0})).status_code == 401  # needs a quick sign-in
 
 
 @pytest.mark.asyncio
@@ -103,7 +103,7 @@ async def test_contributions_need_login_are_limited_and_admin_can_approve():
     u = await _user(name="Asha Rao")
     body = {"kind": "cafe", "title": "Pixel Arena", "detail": "Madhapur, 6 PS5", "showName": True}
     async with _client() as c:
-        assert (await c.post("/api/v1/community/contributions", json=body)).status_code == 400  # no account and no phone id
+        assert (await c.post("/api/v1/community/contributions", json=body)).status_code == 401  # needs a quick sign-in
         assert (await c.post("/api/v1/community/contributions", json=body, headers=_h(u))).status_code == 201
         listing = (await c.get("/api/v1/admin/community/contributions", headers=_h(admin))).json()["data"]
         mine = next(r for r in listing if r["title"] == "Pixel Arena" and r["email"] == u.email)

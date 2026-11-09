@@ -7,6 +7,7 @@ import { RoleSyncProvider } from '@/components/providers/RoleSyncProvider';
 import { PwaUpdatePrompt } from '@/components/PwaUpdatePrompt';
 import { PageViewTracker } from '@/components/layout/PageViewTracker';
 import { OpenInBrowserBar } from '@/components/layout/OpenInBrowserBar';
+import { PageMemory } from '@/components/layout/PageMemory';
 
 /* ── QueryClient Factory ─────────────────────────────────────────── */
 
@@ -73,6 +74,7 @@ export function Providers({ children }: { children: ReactNode }) {
           {children}
           <PwaUpdatePrompt />
           <PageViewTracker />
+          <PageMemory />
         </RoleSyncProvider>
       </AuthInitializer>
     </QueryClientProvider>

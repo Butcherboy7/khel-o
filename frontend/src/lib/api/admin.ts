@@ -666,7 +666,7 @@ export interface CommunityOverview {
   post: { headline: string; line: string | null; createdAt: string } | null;
   postIsStale: boolean;
   groupSize: { size: number; at: string } | null;
-  poll: { question: string; closesAt: string | null; membersCode: string | null; options: { label: string; votes: number }[]; total: number } | null;
+  poll: { id: string; question: string; closesAt: string | null; membersCode: string | null; membersCodeNote: string | null; options: { label: string; votes: number }[]; total: number } | null;
   recent: { name: string | null; email: string | null; phone: string | null; joinedAt: string; source: string | null; inApp: boolean }[];
 }
 
@@ -730,8 +730,16 @@ export async function setContributionStatus(id: string, status: 'new' | 'approve
   return call(() => apiClient.patch(`/api/v1/admin/community/contributions/${id}`, { status }));
 }
 
-export async function startCommunityPoll(body: { question: string; options: string[]; membersCode?: string; membersCodeNote?: string }): Promise<{ ok: boolean }> {
+export async function startCommunityPoll(body: { question: string; options: string[]; closesAt?: string; membersCode?: string; membersCodeNote?: string }): Promise<{ ok: boolean }> {
   return call(() => apiClient.put('/api/v1/admin/community/poll', body));
+}
+
+export async function editCommunityPoll(body: { question?: string; options?: string[]; closesAt?: string; clearClose?: boolean; membersCode?: string; membersCodeNote?: string }): Promise<{ ok: boolean }> {
+  return call(() => apiClient.patch('/api/v1/admin/community/poll', body));
+}
+
+export async function closeCommunityPoll(): Promise<{ ok: boolean }> {
+  return call(() => apiClient.post('/api/v1/admin/community/poll/close'));
 }
 
 export interface AdminDropRow {

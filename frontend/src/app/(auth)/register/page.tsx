@@ -13,6 +13,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { useAnalyticsStore } from '@/store/analyticsStore';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { returnTarget } from '@/lib/returnTo';
 import { getBookingIntent, clearBookingIntent } from '@/lib/bookingIntent';
 
 const registerSchema = z.object({
@@ -28,7 +29,8 @@ const registerSchema = z.object({
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get('redirect');
+  const redirectParam = searchParams.get('redirect');
+  const redirectPath = typeof window === 'undefined' ? redirectParam : returnTarget(redirectParam);
 
   const setAuth = useAuthStore((s) => s.setAuth);
   const selectedCity = useLocationStore((s) => s.selectedCity);

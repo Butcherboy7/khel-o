@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
 import { InAppBrowserNotice } from '@/components/auth/InAppBrowserNotice';
+import { returnTarget } from '@/lib/returnTo';
 // google-identity.d.ts is a global ambient type augmentation, picked up
 // automatically via tsconfig.json's `include` -- it has no runtime module
 // to import, so a value import of it breaks the production webpack build.
@@ -36,8 +37,9 @@ export function GoogleSignInButton({ redirectPath, onError, onSuccess, inAppKeep
           onSuccess();
           return;
         }
-        if (redirectPath) {
-          router.push(redirectPath);
+        const back = returnTarget(redirectPath);
+        if (back) {
+          router.push(back);
           return;
         }
         switch (res.user.role) {

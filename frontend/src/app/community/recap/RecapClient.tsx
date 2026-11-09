@@ -169,7 +169,9 @@ function StickerStrip() {
             aria-hidden={n >= items.length}
             width={m.w}
             height={m.h}
-            loading={cls === 'a' && n === 0 ? 'eager' : 'lazy'}
+            // Not lazy: on iPhone a lazy sticker has no width until it loads, so it never
+            // counts as on screen and never loads, leaving only its white border.
+            loading="eager"
             fetchPriority={cls === 'a' && n === 0 ? 'high' : undefined}
             className="cm2-stk"
             style={{ aspectRatio: `${m.w} / ${m.h}`, ['--r' as string]: `${TILTS[(n + offset) % TILTS.length]}deg` }}
