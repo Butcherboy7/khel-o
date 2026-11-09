@@ -245,7 +245,7 @@ export default function AdminBookingsPage() {
           />
         </div>
 
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface border border-border overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-surface border border-border">
           <Filter className="h-4 w-4 text-text-tertiary ml-1 flex-shrink-0" />
           {STATUS_FILTERS.map((f) => (
             <button

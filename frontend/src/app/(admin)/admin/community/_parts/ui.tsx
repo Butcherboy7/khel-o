@@ -14,7 +14,7 @@ export const whenTime = (iso: string) =>
 /** A titled block on the admin page: what it is, one line on how to use it, then the controls. */
 export function Panel({ title, hint, action, children, className }: { title: string; hint?: ReactNode; action?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cn('flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-card md:p-5', className)}>
+    <section className={cn('flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-card md:p-5', className)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-heading text-h3 font-bold text-text-primary">{title}</h2>

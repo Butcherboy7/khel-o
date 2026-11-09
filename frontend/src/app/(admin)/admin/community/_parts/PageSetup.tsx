@@ -100,14 +100,17 @@ export function PageSetup() {
           <Toggle checked={s.showHappeningNow} onChange={(v) => setS({ ...s, showHappeningNow: v })} label="Happening now" hint="This week tab: the live drop and the next challenge." />
           <Toggle checked={s.showRecap} onChange={(v) => setS({ ...s, showRecap: v })} label="Tekken #01 recap card" hint="Shown on This week while there is no post." />
         </div>
+        <div className="flex justify-end border-t border-border pt-3">
+          <ConfirmButton onConfirm={() => reset.mutate()} armed="Tap again to reset everything">Reset whole page to the original</ConfirmButton>
+        </div>
       </Panel>
 
-      <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-float">
-        <Button onClick={() => save.mutate()} disabled={save.isPending || !dirty}>{save.isPending ? 'Saving…' : dirty ? 'Save page setup' : 'Saved'}</Button>
-        <a href="/community" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center rounded-xl border border-border px-4 font-bold text-text-primary">View live page</a>
-        <ConfirmButton onConfirm={() => reset.mutate()} armed="Tap again to reset everything" className="ml-auto">Reset to the original</ConfirmButton>
-        <ErrorLine error={save.error || reset.error} />
+      {/* Only floats while there is something to save, so it never covers the form for nothing. */}
+      <div className={cn('z-10 flex items-center gap-2 rounded-2xl border border-border bg-card p-2 shadow-float', dirty && 'sticky bottom-3')}>
+        <Button onClick={() => save.mutate()} disabled={save.isPending || !dirty} className="flex-1 sm:flex-none">{save.isPending ? 'Saving…' : dirty ? 'Save page setup' : 'Saved'}</Button>
+        <a href="/community" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center rounded-xl border border-border px-4 font-bold text-text-primary">Live page</a>
       </div>
+      <ErrorLine error={save.error || reset.error} />
     </div>
   );
 }
