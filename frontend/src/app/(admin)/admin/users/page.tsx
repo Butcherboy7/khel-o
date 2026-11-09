@@ -194,12 +194,12 @@ export default function AdminUsersPage() {
       {!isLoading && !isError && users.length > 0 && (
         <div className="rounded-2xl border border-border overflow-hidden bg-surface">
           {/* Table header */}
-          <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-5 py-2.5 bg-surface-hover text-xs font-semibold text-text-secondary border-b border-border">
+          <div className="hidden lg:grid grid-cols-[minmax(0,1fr)_76px_72px_84px_340px] gap-4 px-5 py-2.5 bg-surface-hover text-xs font-semibold text-text-secondary border-b border-border">
             <span>User</span>
             <span>Role</span>
             <span>Joined</span>
             <span>Status</span>
-            <span>Actions</span>
+            <span className="text-right">Actions</span>
           </div>
 
           <div className="divide-y divide-border">
@@ -211,7 +211,7 @@ export default function AdminUsersPage() {
               return (
                 <div
                   key={u.id}
-                  className="px-4 sm:px-5 py-3 flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_76px_72px_84px_auto] gap-2 sm:gap-4 sm:items-center hover:bg-surface-hover transition-colors"
+                  className="px-4 lg:px-5 py-3 flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_76px_72px_84px_340px] gap-2 lg:gap-4 lg:items-center hover:bg-surface-hover transition-colors"
                 >
                   {/* User info */}
                   <div className="flex items-center gap-3 min-w-0">
@@ -225,7 +225,7 @@ export default function AdminUsersPage() {
                   </div>
 
                   {/* Role, joined, status: one line on a phone, their own columns from sm up */}
-                  <div className="flex flex-wrap items-center gap-2 sm:contents">
+                  <div className="flex flex-wrap items-center gap-2 lg:contents">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wide w-fit ${roleColor(u.role)}`}>
                     {roleLabel(u.role)}
                   </span>
@@ -245,7 +245,7 @@ export default function AdminUsersPage() {
                       never shows on a touch device, so a first-time admin
                       on a phone would otherwise have no way to know what
                       these buttons do without risking a click. */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap lg:justify-end">
                     {u.isActive ? (
                       <button
                         type="button"

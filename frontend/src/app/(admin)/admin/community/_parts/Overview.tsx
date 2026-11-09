@@ -168,9 +168,9 @@ function DailyChart({ series }: { series: CommunityAnalytics['series'] }) {
           </div>
         ))}
       </div>
-      <div className="flex gap-[3px] text-[10px] text-text-secondary">
+      <div className="flex h-4 gap-[3px] text-[10px] text-text-secondary">
         {series.map((s, i) => (
-          <span key={s.day} className="flex-1 truncate text-center">{i % every === 0 ? label(s.day) : ''}</span>
+          <span key={s.day} className="relative flex-1"><span className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap">{i % every === 0 ? label(s.day) : ''}</span></span>
         ))}
       </div>
       <p className="text-caption text-text-secondary">Busiest day: {(() => { const b = [...series].sort((x, y) => y.visits - x.visits)[0]; return `${label(b.day)} with ${b.visits} visitors and ${b.joins} Join taps`; })()}.</p>
