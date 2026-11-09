@@ -58,6 +58,22 @@ const getRows = cache(async (slug: string): Promise<Row[]> => {
   );
 });
 
+/** When no PS5 café is confirmed in a place yet: the cafés KHEL-O does list there (real listings, no GTA 6 claim). */
+const getOtherCafes = cache(async (slug: string): Promise<{ id: string; name: string; area: string | null; cafe: CafeListItem }[]> => {
+  const place = GTA6_PLACES[slug];
+  if (!place) return [];
+  const out: { id: string; name: string; area: string | null; cafe: CafeListItem }[] = [];
+  for (const city of place.cities) {
+    try {
+      const res = await listCafes({ city, limit: 12 });
+      for (const cafe of res.items) out.push({ id: cafe.id, name: cleanName(cafe.name), area: venueArea(cafe.addressLine2), cafe });
+    } catch {
+      // Left out rather than failing the page.
+    }
+  }
+  return out.slice(0, 12);
+});
+
 const list = (items: string[]) =>
   items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -119,22 +135,23 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const place = GTA6_PLACES[slug];
   if (!place) return { title: 'Not found' };
   const rows = await getRows(slug);
+  const listed = rows.length === 0 ? await getOtherCafes(slug) : [];
   const f = facts(rows);
   const where = slug === 'india' ? 'India' : place.name;
-  const title = `Where to Play GTA 6 in ${where}: PS5 Cafés & Booking`;
+  const title = rows.length > 0 ? `Where to Play GTA 6 in ${where}: PS5 Cafés & Booking` : `GTA 6 in ${where}: Launch List & PS5 Cafés Coming Soon`;
   const description =
     rows.length > 0
       ? `GTA 6 releases ${GTA6_RELEASE.label} on PS5 and Xbox. ${plural(rows.length, 'PS5 gaming café', 'PS5 gaming cafés')} in ${where} on KHEL-O${
           f.min != null ? `, from ₹${f.min}/hr` : ''
         }. Compare cafés and book your launch-week slot.`
-      : `GTA 6 releases ${GTA6_RELEASE.label} on PS5 and Xbox. Join the KHEL-O GTA 6 launch list for ${where}.`;
+      : `GTA 6 releases ${GTA6_RELEASE.label} on PS5 and Xbox only. No PS5 café is confirmed in ${where} on KHEL-O yet: join the launch list and we will tell you the moment one is.`;
   const url = `${SITE_URL}/gta6/${slug}`;
   return {
     title,
     description,
     alternates: { canonical: `/gta6/${slug}`, languages: { 'en-IN': url } },
-    // A page with no café to show is thin: keep it out of search until it has one.
-    robots: rows.length > 0 ? { index: true, follow: true } : { index: false, follow: true },
+    // Kept out of search only if there is nothing real to show: neither a PS5 café nor any listed café.
+    robots: rows.length > 0 || listed.length > 0 ? { index: true, follow: true } : { index: false, follow: true },
     openGraph: {
       title,
       description,
@@ -152,6 +169,7 @@ export default async function Gta6PlacePage({ params }: PageProps) {
   const place = GTA6_PLACES[slug];
   if (!place) notFound();
   const rows = await getRows(slug);
+  const listed = rows.length === 0 ? await getOtherCafes(slug) : [];
   const f = facts(rows);
   const where = slug === 'india' ? 'India' : place.name;
   const items = faq(where, rows);
@@ -263,13 +281,45 @@ export default async function Gta6PlacePage({ params }: PageProps) {
         </section>
       )}
 
+      {listed.length > 0 && (
+        <section aria-labelledby="others-h" className="flex flex-col gap-3">
+          <h2 id="others-h" className="font-heading text-h2 font-bold">Cafés KHEL-O lists in {where}</h2>
+          <p className="text-body text-text-secondary">
+            None of these has confirmed a PS5 for GTA 6 yet. Join the launch list and we will ask them and tell you.
+          </p>
+          <ul className="flex flex-col gap-2">
+            {listed.map((o) => (
+              <li key={o.id}>
+                <Link href={cafePath(o.cafe)} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
+                  <span className="flex min-w-0 flex-col">
+                    <span className="font-semibold">{o.name}</span>
+                    {o.area && <span className="text-caption text-text-secondary">{o.area}</span>}
+                  </span>
+                  <span className="shrink-0 text-caption text-text-secondary">Booking soon</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section aria-labelledby="how-h" className="flex flex-col gap-3">
-        <h2 id="how-h" className="font-heading text-h2 font-bold">How to play GTA 6 without a PS5</h2>
+        <h2 id="how-h" className="font-heading text-h2 font-bold">
+          {rows.length > 0 ? 'How to play GTA 6 without a PS5' : `How the ${where} GTA 6 launch list works`}
+        </h2>
+        {rows.length === 0 ? (
+          <ol className="list-decimal space-y-2 pl-5 text-body text-text-secondary">
+            <li>Join the launch list and tell us how to reach you.</li>
+            <li>We ask the cafés in {where} to get a PS5 ready for GTA 6, and save you a launch-week seat.</li>
+            <li>The moment one confirms, you hear first and can book a slot on KHEL-O.</li>
+          </ol>
+        ) : (
         <ol className="list-decimal space-y-2 pl-5 text-body text-text-secondary">
           <li>Pick a PS5 café in {where} from the list above.</li>
           <li>Choose a time on its KHEL-O page and pay online.</li>
           <li>Show the QR pass at the desk and play.</li>
         </ol>
+        )}
       </section>
 
       <section aria-labelledby="faq-h" className="flex flex-col gap-3">
