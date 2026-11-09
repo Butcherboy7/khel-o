@@ -73,7 +73,7 @@ export function Photos() {
             <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={!!uploading} onChange={(e) => e.target.files?.length && uploadMany(e.target.files)} />
           </label>
           <span className="text-caption text-text-secondary">or add by link</span>
-          <input className={cn(field, 'max-w-sm flex-1')} value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://… or /community/xyz.webp" />
+          <input className={cn(field, 'min-w-[200px] max-w-sm flex-1 basis-full sm:basis-auto')} value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://… or /community/xyz.webp" />
           <SmallButton onClick={() => addLink.mutate()} disabled={link.trim().length < 2 || addLink.isPending}>Add</SmallButton>
         </div>
         <ErrorLine error={uploadError || addLink.error} />
