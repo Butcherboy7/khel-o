@@ -251,7 +251,7 @@ export default async function Gta6PlacePage({ params }: PageProps) {
                       {[r.area, slug === 'india' ? r.city : null].filter(Boolean).join(', ') || r.city} · PS5
                       {!r.bookable && ' · Booking soon'}
                     </span>
-                    {r.preordered && <span className="w-fit rounded-full bg-primary/10 px-2 py-0.5 text-caption font-semibold text-primary">Pre-ordered GTA 6</span>}
+                    {r.preordered && <span className="w-fit rounded-full bg-primary/15 px-2 py-0.5 text-caption font-semibold text-text-primary">Pre-ordered GTA 6</span>}
                   </span>
                   <span className="shrink-0 text-right text-caption text-text-secondary">
                     {r.from != null ? <><b className="text-body text-text-primary">₹{r.from}</b>/hr</> : null}
@@ -285,11 +285,11 @@ export default async function Gta6PlacePage({ params }: PageProps) {
       </section>
 
       <nav aria-label="More GTA 6 pages" className="flex flex-wrap gap-x-4 gap-y-2 border-t border-border pt-4 text-body">
-        <Link href="/gta6" className="text-primary underline underline-offset-2">GTA 6 launch list</Link>
+        <Link href="/gta6" className="text-text-primary underline underline-offset-2">GTA 6 launch list</Link>
         {others.map(([s, p]) => (
-          <Link key={s} href={`/gta6/${s}`} className="text-primary underline underline-offset-2">GTA 6 in {p.name}</Link>
+          <Link key={s} href={`/gta6/${s}`} className="text-text-primary underline underline-offset-2">GTA 6 in {p.name}</Link>
         ))}
-        {slug !== 'india' && <Link href={`/cafes/${slug}`} className="text-primary underline underline-offset-2">All gaming cafés in {where}</Link>}
+        {slug !== 'india' && <Link href={`/cafes/${slug}`} className="text-text-primary underline underline-offset-2">All gaming cafés in {where}</Link>}
       </nav>
     </main>
   );
