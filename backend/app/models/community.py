@@ -146,3 +146,33 @@ class CommunitySettings(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     data: Mapped[dict] = mapped_column(JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
+
+
+class CommunityEmailCampaign(Base):
+    """One scheduled community email (variant a, b or c). The runner sends it once,
+    at scheduled_for, and only after the admin has sent themselves a test."""
+    __tablename__ = "community_email_campaigns"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    variant: Mapped[str] = mapped_column(String(1), nullable=False, unique=True)
+    subject: Mapped[str] = mapped_column(String(160), nullable=False)
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # scheduled | sending | sent | paused | cancelled | missed
+    status: Mapped[str] = mapped_column(String(12), nullable=False, default="scheduled")
+    tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sent_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class CommunityEmailDelivery(Base):
+    """One row per person per campaign: the guarantee nobody gets the same email twice."""
+    __tablename__ = "community_email_deliveries"
+    __table_args__ = (UniqueConstraint("campaign_id", "email", name="uq_email_delivery_once"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("community_email_campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

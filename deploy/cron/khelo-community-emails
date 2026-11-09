@@ -1,0 +1,9 @@
+# /etc/cron.d/khelo-community-emails: KHEL-O scheduled community emails (server clock is UTC)
+#
+# Source of truth for what SHOULD be installed on the production box at
+# /etc/cron.d/khelo-community-emails. Not applied automatically: copy it to the
+# server after any change. Production only: the script refuses to send on dev.
+#
+# Every 5 minutes: send any community email whose time has come and that has been
+# tested. flock skips a run if the previous one is still going.
+*/5 * * * * root flock -n /tmp/khelo-community-emails.lock docker exec -e PYTHONPATH=/app khel_o_backend python scripts/run_community_emails.py >> /var/log/khelo-community-emails.log 2>&1

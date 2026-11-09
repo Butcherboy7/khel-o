@@ -644,6 +644,37 @@ export async function sendCommunityEmail(body: { test: boolean; confirmCount?: n
 }
 
 
+export interface EmailCampaign {
+  id: string;
+  variant: 'a' | 'b' | 'c';
+  subject: string;
+  status: 'scheduled' | 'sending' | 'sent' | 'paused' | 'cancelled' | 'missed';
+  scheduledFor: string;
+  testedAt: string | null;
+  sentCount: number;
+  failedCount: number;
+  audience: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export async function getEmailSchedule(): Promise<EmailCampaign[]> {
+  return call(() => apiClient.get('/api/v1/admin/community/email-schedule'));
+}
+
+export async function getEmailSchedulePreview(variant: string): Promise<{ subject: string; preheader: string; html: string; text: string }> {
+  return call(() => apiClient.get(`/api/v1/admin/community/email-schedule/${variant}/preview`));
+}
+
+export async function testScheduledEmail(variant: string): Promise<{ sent: boolean; delivered: boolean; to: string }> {
+  return call(() => apiClient.post(`/api/v1/admin/community/email-schedule/${variant}/test`));
+}
+
+export async function updateScheduledEmail(variant: string, body: { action?: 'pause' | 'resume' | 'cancel'; scheduledFor?: string }): Promise<EmailCampaign> {
+  return call(() => apiClient.patch(`/api/v1/admin/community/email-schedule/${variant}`, body));
+}
+
+
 // ------------------------------------------------------------ community + drops (admin)
 
 export interface CommunityFunnelRow {

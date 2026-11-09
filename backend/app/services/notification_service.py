@@ -152,6 +152,61 @@ class NotificationService:
             logger.error("ses_email_send_failed", error=str(e), to_email=to_email, booking_ref=booking_ref)
             return False
 
+    async def send_rich_email(self, to_email: str, subject: str, html_body: str, text_body: str, *, from_email: str,
+                              reply_to: str | None, unsubscribe_url: str, ref: str) -> bool:
+        """HTML + plain text, a real From name, Reply-To and the one-click unsubscribe headers
+        Gmail looks for. SES first, Resend as the fallback. Held outside production."""
+        if not email_allowed(to_email):
+            logger.info("email_held_outside_production", subject=subject, booking_ref=ref)
+            return True
+        headers = [
+            {"Name": "List-Unsubscribe", "Value": f"<{unsubscribe_url}>"},
+            {"Name": "List-Unsubscribe-Post", "Value": "List-Unsubscribe=One-Click"},
+        ]
+        if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+            try:
+                import asyncio
+                import boto3
+
+                def _go() -> None:
+                    client = boto3.client(
+                        "sesv2", region_name=settings.AWS_REGION,
+                        aws_access_key_id=settings.AWS_ACCESS_KEY_ID, aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                    )
+                    kwargs: dict = {
+                        "FromEmailAddress": from_email,
+                        "Destination": {"ToAddresses": [to_email]},
+                        "Content": {"Simple": {
+                            "Subject": {"Data": subject, "Charset": "UTF-8"},
+                            "Body": {"Html": {"Data": html_body, "Charset": "UTF-8"}, "Text": {"Data": text_body, "Charset": "UTF-8"}},
+                            "Headers": headers,
+                        }},
+                    }
+                    if reply_to:
+                        kwargs["ReplyToAddresses"] = [reply_to]
+                    client.send_email(**kwargs)
+
+                await asyncio.to_thread(_go)
+                logger.info("ses_rich_email_sent", subject=subject, booking_ref=ref)
+                return True
+            except Exception as e:
+                logger.error("ses_rich_email_failed", error=str(e), booking_ref=ref)
+        if settings.RESEND_API_KEY:
+            try:
+                import httpx
+
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.post(
+                        "https://api.resend.com/emails",
+                        headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                        json={"from": from_email, "to": [to_email], "subject": subject, "html": html_body, "text": text_body,
+                              "reply_to": reply_to, "headers": {h["Name"]: h["Value"] for h in headers}},
+                    )
+                return response.status_code in (200, 201)
+            except Exception as e:
+                logger.error("resend_rich_email_failed", error=str(e), booking_ref=ref)
+        return False
+
     async def send_booking_confirmation(self, db: AsyncSession, booking_id: UUID):
         try:
             stmt = select(Booking, User, Cafe, HardwareTier).join(

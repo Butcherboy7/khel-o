@@ -13,15 +13,19 @@ import hashlib
 import hmac
 import html
 import uuid
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.community import CommunityLead
+from app.models.community import (
+    CommunityEmailCampaign, CommunityEmailDelivery, CommunityLead, CommunityPoll, CommunityPollVote,
+)
 from app.models.user import User
+from app.services import community_email_templates as tpl
 
 logger = structlog.get_logger()
 
@@ -157,3 +161,134 @@ async def unsubscribe(db: AsyncSession, user_id: uuid.UUID, token: str, lead: bo
     user.guide_state = {**(user.guide_state or {}), OFF_KEY: True}
     await db.commit()
     return True
+
+
+# ------------------------------------------------------------------ scheduled campaigns (a, b, c)
+
+STALE_AFTER = timedelta(hours=24)   # a campaign this late is marked missed, never sent out of season
+RESUME_AFTER = timedelta(minutes=10)  # a "sending" campaign with no progress this long is picked up again
+
+
+def _aware(dt: datetime | None) -> datetime | None:
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+@dataclass
+class Target:
+    email: str
+    first_name: str | None
+    id: uuid.UUID
+    lead: bool = False
+
+
+async def active_poll_options(db: AsyncSession) -> list[str]:
+    poll = (await db.execute(
+        select(CommunityPoll).where(CommunityPoll.status == "active").order_by(CommunityPoll.created_at.desc()).limit(1)
+    )).scalar_one_or_none()
+    return [str(o) for o in (poll.options or [])] if poll else []
+
+
+async def voter_ids(db: AsyncSession) -> set[uuid.UUID]:
+    rows = (await db.execute(select(CommunityPollVote.user_id).where(CommunityPollVote.user_id.is_not(None)))).scalars().all()
+    return set(rows)
+
+
+async def audience(db: AsyncSession, variant: str) -> list[Target]:
+    """Real, active, not-unsubscribed people, once each. Email c skips anyone who already voted."""
+    skip = await voter_ids(db) if variant == "c" else set()
+    out = [
+        Target((u.email or "").strip().lower(), (u.full_name or "").split()[0] if u.full_name else None, u.id)
+        for u in await recipients(db) if u.id not in skip
+    ]
+    out += [Target((ld.email or "").strip().lower(), None, ld.id, True) for ld in await lead_recipients(db)]
+    return out
+
+
+async def send_one(target: Target, variant: str, poll_options: list[str]) -> bool:
+    from app.services.notification_service import NotificationService
+
+    url = unsubscribe_url(target.id, target.lead)
+    r = tpl.render(variant, target.first_name, url, poll_options, target.lead)
+    return await NotificationService().send_rich_email(
+        target.email, r.subject, r.html, r.text,
+        from_email=settings.COMMUNITY_EMAIL_FROM, reply_to=settings.COMMUNITY_EMAIL_REPLY_TO or None,
+        unsubscribe_url=url, ref=f"community-{variant}",
+    )
+
+
+async def send_variant_test(db: AsyncSession, admin: User, variant: str) -> dict:
+    """The test goes through exactly the same code path as the real send, to the admin only."""
+    from app.services.notification_service import email_allowed
+
+    camp = (await db.execute(select(CommunityEmailCampaign).where(CommunityEmailCampaign.variant == variant))).scalar_one()
+    options = await active_poll_options(db)
+    target = Target((admin.email or "").strip().lower(), (admin.full_name or "").split()[0] if admin.full_name else None, admin.id)
+    sent = await send_one(target, variant, options)
+    if sent:
+        camp.tested_at = datetime.now(timezone.utc)
+        await db.commit()
+    return {"sent": bool(sent), "delivered": email_allowed(admin.email), "to": admin.email}
+
+
+async def run_due(db: AsyncSession, now: datetime | None = None, send=send_one, gap: float = _GAP) -> list[dict]:
+    """Send every campaign whose time has come. Safe to run every few minutes:
+    a campaign needs a test first, is claimed atomically, never goes out more than a day late,
+    and the delivery log means nobody gets the same email twice even if a run is cut short."""
+    from sqlalchemy import update
+
+    now = now or datetime.now(timezone.utc)
+    done: list[dict] = []
+    camps = (await db.execute(
+        select(CommunityEmailCampaign).where(CommunityEmailCampaign.status.in_(("scheduled", "sending")))
+        .order_by(CommunityEmailCampaign.scheduled_for)
+    )).scalars().all()
+    for camp in camps:
+        if _aware(camp.scheduled_for) > now:
+            continue
+        if camp.status == "scheduled":
+            if camp.tested_at is None:
+                logger.warning("community_email_blocked_untested", variant=camp.variant)
+                continue
+            if now - _aware(camp.scheduled_for) > STALE_AFTER:
+                camp.status = "missed"
+                await db.commit()
+                done.append({"variant": camp.variant, "status": "missed"})
+                continue
+            claim = await db.execute(update(CommunityEmailCampaign).where(
+                CommunityEmailCampaign.id == camp.id, CommunityEmailCampaign.status == "scheduled",
+            ).values(status="sending", started_at=now))
+        else:
+            if camp.started_at is not None and now - _aware(camp.started_at) < RESUME_AFTER:
+                continue
+            claim = await db.execute(update(CommunityEmailCampaign).where(
+                CommunityEmailCampaign.id == camp.id, CommunityEmailCampaign.status == "sending",
+            ).values(started_at=now))
+        await db.commit()
+        if claim.rowcount != 1:
+            continue
+        await db.refresh(camp)
+
+        options = await active_poll_options(db)
+        already = set((await db.execute(
+            select(CommunityEmailDelivery.email).where(CommunityEmailDelivery.campaign_id == camp.id)
+        )).scalars().all())
+        for target in await audience(db, camp.variant):
+            if target.email in already:
+                continue
+            if await send(target, camp.variant, options):
+                db.add(CommunityEmailDelivery(campaign_id=camp.id, email=target.email))
+                camp.sent_count += 1
+                already.add(target.email)
+            else:
+                camp.failed_count += 1
+            await db.commit()
+            if gap:
+                await asyncio.sleep(gap)
+        camp.status = "sent"
+        camp.finished_at = datetime.now(timezone.utc)
+        await db.commit()
+        logger.info("community_campaign_sent", variant=camp.variant, sent=camp.sent_count, failed=camp.failed_count)
+        done.append({"variant": camp.variant, "status": "sent", "sent": camp.sent_count, "failed": camp.failed_count})
+    return done

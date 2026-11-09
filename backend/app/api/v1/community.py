@@ -985,6 +985,74 @@ async def community_email_send(payload: CommunityEmailRequest, db: AsyncSession 
     return {"success": True, "data": {"sent": sent, "test": False}}
 
 
+# ---------------------------------------------------------------- the scheduled emails (a, b, c)
+
+class EmailSchedulePatch(_Camel):
+    action: Optional[Literal["pause", "resume", "cancel"]] = None
+    scheduled_for: Optional[datetime] = None
+
+
+def _campaign_json(c, audience: int) -> dict:
+    return {
+        "id": str(c.id), "variant": c.variant, "subject": c.subject, "status": c.status,
+        "scheduledFor": c.scheduled_for.isoformat(), "testedAt": c.tested_at.isoformat() if c.tested_at else None,
+        "sentCount": c.sent_count, "failedCount": c.failed_count, "audience": audience,
+        "startedAt": c.started_at.isoformat() if c.started_at else None,
+        "finishedAt": c.finished_at.isoformat() if c.finished_at else None,
+    }
+
+
+@admin_router.get("/email-schedule")
+async def email_schedule(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    from app.models.community import CommunityEmailCampaign
+    from app.services import community_mailer as mailer
+    rows = (await db.execute(select(CommunityEmailCampaign).order_by(CommunityEmailCampaign.scheduled_for))).scalars().all()
+    return {"success": True, "data": [_campaign_json(c, len(await mailer.audience(db, c.variant))) for c in rows]}
+
+
+@admin_router.get("/email-schedule/{variant}/preview")
+async def email_schedule_preview(variant: str, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    from app.services import community_email_templates as tpl, community_mailer as mailer
+    if variant not in tpl.VARIANTS:
+        raise NotFoundException(message="No such email.")
+    r = tpl.render(variant, admin.full_name.split()[0] if admin.full_name else None,
+                   mailer.unsubscribe_url(admin.id), await mailer.active_poll_options(db))
+    return {"success": True, "data": {"subject": r.subject, "preheader": r.preheader, "html": r.html, "text": r.text}}
+
+
+@admin_router.post("/email-schedule/{variant}/test")
+async def email_schedule_test(variant: str, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    from app.services import community_email_templates as tpl, community_mailer as mailer
+    if variant not in tpl.VARIANTS:
+        raise NotFoundException(message="No such email.")
+    return {"success": True, "data": await mailer.send_variant_test(db, admin, variant)}
+
+
+@admin_router.patch("/email-schedule/{variant}")
+async def email_schedule_update(variant: str, payload: EmailSchedulePatch, db: AsyncSession = Depends(get_db),
+                                admin: User = Depends(require_admin)):
+    from app.models.community import CommunityEmailCampaign
+    from app.services import community_mailer as mailer
+    c = (await db.execute(select(CommunityEmailCampaign).where(CommunityEmailCampaign.variant == variant))).scalar_one_or_none()
+    if c is None:
+        raise NotFoundException(message="No such email.")
+    if c.status in ("sent", "sending"):
+        raise BadRequestException(message="This one is already going out or done.", error_code="LOCKED")
+    if payload.action == "pause" and c.status == "scheduled":
+        c.status = "paused"
+    elif payload.action == "cancel":
+        c.status = "cancelled"
+    elif payload.action == "resume" and c.status in ("paused", "cancelled", "missed"):
+        c.status = "scheduled"
+    if payload.scheduled_for is not None:
+        when = payload.scheduled_for if payload.scheduled_for.tzinfo else payload.scheduled_for.replace(tzinfo=timezone.utc)
+        if when <= datetime.now(timezone.utc):
+            raise BadRequestException(message="Pick a time in the future.", error_code="PAST")
+        c.scheduled_for = when
+    await db.commit()
+    return {"success": True, "data": _campaign_json(c, len(await mailer.audience(db, c.variant)))}
+
+
 _UNSUB_STYLE = "margin:0;background:#F1EFEA;font-family:Arial,sans-serif;color:#111318"
 
 
@@ -1011,7 +1079,8 @@ async def community_unsubscribe_do(request: Request, db: AsyncSession = Depends(
     from urllib.parse import parse_qs
     from fastapi.responses import HTMLResponse
     from app.services import community_mailer as mailer
-    fields = parse_qs((await request.body()).decode("utf-8", "ignore"))
+    # One-click unsubscribe from a mail app posts to the link itself, so u/t/k can be in the URL.
+    fields = {**{k: [v] for k, v in request.query_params.items()}, **parse_qs((await request.body()).decode("utf-8", "ignore"))}
     try:
         uid = UUID(fields.get("u", [""])[0])
     except ValueError:
