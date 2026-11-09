@@ -18,9 +18,15 @@ VARIANTS = ("a", "b", "c")
 
 # What the admin page shows. The real subject is subject_for(), which can use the first name.
 SUBJECTS = {
+    "a": "{name}, one person walked out of AdamsDen as champion",
+    "b": "{name}, we let you pick the next game. One vote each.",
+    "c": "{name}, something you can't see in the app",
+}
+# Same hooks when we do not know the name (people who only left an email).
+SUBJECTS_NO_NAME = {
     "a": "One person walked out of AdamsDen as champion",
     "b": "We let you pick the next game. One vote each.",
-    "c": "{name}, something you can't see in the app",
+    "c": "Something you can't see in the app",
 }
 PREHEADERS = {
     "a": "12 players, 12 matches, free to enter. The next one goes to the community first.",
@@ -29,11 +35,19 @@ PREHEADERS = {
 }
 
 
+def clean_first_name(full_name: str | None) -> str:
+    """First name from the account, tidied: 'uzair' -> 'Uzair', never an email or a number."""
+    parts = (full_name or "").strip().split()
+    word = parts[0].strip(".,") if parts else ""
+    if not word or "@" in word or any(ch.isdigit() for ch in word) or len(word) > 20:
+        return ""
+    return word.capitalize() if (word.islower() or word.isupper()) else word
+
+
 def subject_for(variant: str, first_name: str | None) -> str:
-    name = (first_name or "").strip()
-    if variant == "c" and not name:
-        return "Something you can't see in the app"
-    return SUBJECTS[variant].replace("{name}", name)
+    name = clean_first_name(first_name)
+    return SUBJECTS[variant].replace("{name}", name) if name else SUBJECTS_NO_NAME[variant]
+
 
 _RED = "#D0463C"
 _INK = "#1F2430"
@@ -120,7 +134,7 @@ def render(variant: str, first_name: str | None, unsub_url: str, poll_options: l
            lead: bool = False) -> Rendered:
     if variant not in VARIANTS:
         raise ValueError(f"unknown variant {variant!r}")
-    plain_name = (first_name or "").strip() or "there"
+    plain_name = clean_first_name(first_name) or "there"
     name = _e(plain_name)
     reason = "You get this because you asked for KHEL-O updates." if lead else "You get this because you have a KHEL-O account."
     subject, pre = subject_for(variant, first_name), PREHEADERS[variant]
