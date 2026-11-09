@@ -214,7 +214,7 @@ async def send_one(target: Target, variant: str, poll_options: list[str]) -> boo
     return await NotificationService().send_rich_email(
         target.email, r.subject, r.html, r.text,
         from_email=settings.COMMUNITY_EMAIL_FROM, reply_to=settings.COMMUNITY_EMAIL_REPLY_TO or None,
-        unsubscribe_url=url, ref=f"community-{variant}",
+        unsubscribe_url="", ref=f"community-{variant}",
     )
 
 

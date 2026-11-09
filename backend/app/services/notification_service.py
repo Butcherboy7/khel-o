@@ -159,10 +159,12 @@ class NotificationService:
         if not email_allowed(to_email):
             logger.info("email_held_outside_production", subject=subject, booking_ref=ref)
             return True
+        # Empty url = a personal-style letter: the unsubscribe link stays in the body, but the
+        # bulk-mail header is left off because Gmail uses it to file mail under Promotions.
         headers = [
             {"Name": "List-Unsubscribe", "Value": f"<{unsubscribe_url}>"},
             {"Name": "List-Unsubscribe-Post", "Value": "List-Unsubscribe=One-Click"},
-        ]
+        ] if unsubscribe_url else []
         if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
             try:
                 import asyncio
@@ -182,6 +184,8 @@ class NotificationService:
                             "Headers": headers,
                         }},
                     }
+                    if not headers:
+                        del kwargs["Content"]["Simple"]["Headers"]
                     if reply_to:
                         kwargs["ReplyToAddresses"] = [reply_to]
                     client.send_email(**kwargs)
