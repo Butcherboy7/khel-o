@@ -20,18 +20,18 @@ VARIANTS = ("a", "b", "c")
 
 # What the admin page shows. The real subject comes from subject_for(), which uses the first name.
 SUBJECTS = {
-    "a": "{name}, 12 players showed up. Your controller stayed home.",
-    "b": "{name}, settle it: which game gets Challenge #02?",
+    "a": "{name}, we saved you a seat (it's imaginary, but still)",
+    "b": "{name}, we need a tiebreaker for Challenge #02 (that's you)",
     "c": "{name}, you're our product manager now (unpaid, sorry)",
 }
 # Same hooks when we do not know the name (people who only left an email).
 SUBJECTS_NO_NAME = {
-    "a": "12 players showed up. Your controller stayed home.",
-    "b": "Settle it: which game gets Challenge #02?",
+    "a": "We saved you a seat (it's imaginary, but still)",
+    "b": "We need a tiebreaker for Challenge #02 (that's you)",
     "c": "You're our product manager now (unpaid, sorry)",
 }
 PREHEADERS = {
-    "a": "The next one goes to the community first. Don't miss that one too.",
+    "a": "The chair is imaginary. The free community is very real.",
     "b": "One tap. Most votes wins. No recounts.",
     "c": "Tell us what to build next. We actually read it.",
 }
@@ -117,23 +117,22 @@ def render(variant: str, first_name: str | None, unsub_url: str, poll_options: l
         parts: list = [
             greeting,
             "Abdullah here from KHEL-O. " + ("You left your email with us" if lead else "You already know the app")
-            + ", so here's something you won't see in it.",
-            "On 1 Nov we ran our first Tekken challenge at AdamsDen: 12 players, 12 matches, one champion, free to enter. It worked, so there will be more.",
-            "We're a small team, so we decided the next ones shouldn't be only our call. Our community is where players pick the game, suggest cafes and nights, and hear about whatever we run first. It's free, it's on WhatsApp, and you can leave any time.",
-            "You already know KHEL-O, which is exactly who we want in there. Your ideas will shape what we do next.",
-            ("Take your seat", url),
+            + ", so I'll skip the introduction.",
+            "On 1 Nov we ran our first Tekken challenge at AdamsDen: 12 players, 12 matches, one champion, free to enter. It worked, so there will be more, and we saved you a seat. Okay, it's not a real chair. It's a spot in our WhatsApp community, but it's free, nobody can take it, and you can leave any time.",
+            "That's where players pick the game, suggest cafes and nights, and hear about whatever we run first. We're a small team, so your ideas will actually change what we do next.",
+            ("Take your imaginary seat", url),
         ]
     elif variant == "b":
         url = community_link("b", "vote", "#vote")
         opts = poll_options or []
         parts = [
             greeting,
-            "You know KHEL-O, so you probably have an opinion on this one. For Challenge #02, the community picks the game.",
+            "Challenge #02 needs a game, and we need a tiebreaker. You're it.",
         ]
         if opts:
             parts.append("The options right now: " + ", ".join(opts) + ".")
         parts += [
-            "Tap the one you'd play. It takes about 30 seconds, it's one vote each, and you can change it later. The most votes decides what we plan.",
+            "Tap the one you'd play. It takes about 30 seconds, it's one vote each, and you can change it later. The most votes decides what we plan. No recounts.",
             ("Cast your vote", url),
         ]
     else:
