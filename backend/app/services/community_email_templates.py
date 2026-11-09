@@ -20,20 +20,20 @@ VARIANTS = ("a", "b", "c")
 
 # What the admin page shows. The real subject comes from subject_for(), which uses the first name.
 SUBJECTS = {
-    "a": "{name}, a small startup in Hyderabad needs a favour",
-    "b": "{name}, you decide our next challenge",
-    "c": "{name}, can I ask you something?",
+    "a": "{name}, you get a say in what KHEL-O does next",
+    "b": "{name}, your vote picks Challenge #02",
+    "c": "{name}, what should KHEL-O build next?",
 }
 # Same hooks when we do not know the name (people who only left an email).
 SUBJECTS_NO_NAME = {
-    "a": "A small startup in Hyderabad needs a favour",
-    "b": "You decide our next challenge",
-    "c": "Can I ask you something?",
+    "a": "You get a say in what KHEL-O does next",
+    "b": "Your vote picks Challenge #02",
+    "c": "What should KHEL-O build next?",
 }
 PREHEADERS = {
-    "a": "A tiny team, a free community, and a reason to write to you myself.",
-    "b": "30 seconds, one tap.",
-    "c": "A couple of minutes of your time would mean a lot.",
+    "a": "Something that is happening outside the app, and a seat for you.",
+    "b": "30 seconds. Most votes decides.",
+    "c": "You use the app, so you see what we miss.",
 }
 
 _RED = "#D0463C"
@@ -116,37 +116,34 @@ def render(variant: str, first_name: str | None, unsub_url: str, poll_options: l
         url = community_link("a", "link")
         parts: list = [
             greeting,
-            "I'm Abdullah, one of the founders of KHEL-O. "
-            + ("You left your email with us, so" if lead else "You have an account with us, so")
-            + " I wanted to write to you myself instead of sending a newsletter.",
-            "We're a small startup in Hyderabad. On 1 Nov we ran our first Tekken challenge at AdamsDen: 12 players, 12 matches, one champion, free to enter. It went better than we hoped, and now we want to run more.",
-            "Here's the honest part: we can't pick the games, the cafés and the nights on our own. That's what our community is for. It's free, it lives on WhatsApp, you can leave any time, and whatever we run next goes there first.",
-            "Would you join us? It would really help.",
-            ("Join the community", url),
-            "Thank you for being here this early.",
+            "Abdullah here from KHEL-O. " + ("You left your email with us" if lead else "You already know the app")
+            + ", so here's something you won't see in it.",
+            "On 1 Nov we ran our first Tekken challenge at AdamsDen: 12 players, 12 matches, one champion, free to enter. It worked, so there will be more.",
+            "We're a small team, so we decided the next ones shouldn't be only our call. Our community is where players pick the game, suggest cafes and nights, and hear about whatever we run first. It's free, it's on WhatsApp, and you can leave any time.",
+            "You already know KHEL-O, which is exactly who we want in there. Your ideas will shape what we do next.",
+            ("Take your seat", url),
         ]
     elif variant == "b":
         url = community_link("b", "vote", "#vote")
         opts = poll_options or []
         parts = [
             greeting,
-            "Quick one, and it takes about 30 seconds. We're planning Challenge #02, and I don't want to guess which game you would actually turn up for.",
+            "You know KHEL-O, so you probably have an opinion on this one. For Challenge #02, the community picks the game.",
         ]
         if opts:
             parts.append("The options right now: " + ", ".join(opts) + ".")
         parts += [
-            "Tap the one you'd play. One vote each, and you can change it later.",
-            ("Vote here", url),
-            "Every single vote helps a tiny team make a better call. Thank you.",
+            "Tap the one you'd play. It takes about 30 seconds, it's one vote each, and you can change it later. The most votes decides what we plan.",
+            ("Cast your vote", url),
         ]
     else:
         url = community_link("c", "link")
         parts = [
             greeting,
-            "Can I ask you for some help? We're a startup, a few of us in Hyderabad, and honestly the best ideas so far haven't come from us. They've come from players.",
-            "If you have two minutes, our community page lets you vote on the next challenge, suggest a game or a café we should bring in, or send a photo from a night out. And if you know one friend who'd enjoy this, send them the link too.",
-            ("Tell us what you'd like to see", url),
-            "No pressure at all. And you can just reply to this email, it comes straight to us.",
+            "You use KHEL-O, so you see things we miss. That's why I'd rather ask you than guess.",
+            "On our community page you can suggest a game or a cafe we should bring in, vote on the next challenge, or share a photo from a night out. We read every suggestion.",
+            ("Tell us what to build next", url),
+            "If a friend would enjoy it too, pass the link on. And you can reply to this email any time, it comes straight to us.",
         ]
 
     paras = [_link(p[1], p[0]) if isinstance(p, tuple) else _e(p) for p in parts]
