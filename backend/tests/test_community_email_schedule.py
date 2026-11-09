@@ -145,3 +145,22 @@ async def test_schedule_endpoints_are_admin_only():
     gamer = await _user(UserRole.GAMER, phone="9876510010")
     async with _client() as c:
         assert (await c.get("/api/v1/admin/community/email-schedule", headers=_h(gamer))).status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_people_who_sign_up_before_the_send_are_added_automatically():
+    """The list is built when the email goes out, not when it was scheduled."""
+    await _real_user("9876510020", "early-signup1@gmail.com")
+    await _reset(variant="c1")  # the campaign already exists and is due
+    late_user = await _real_user("9876510021", "late-signup1@gmail.com")  # signs up after it was scheduled
+    async with AsyncSessionLocal() as db:
+        db.add(CommunityLead(device_id="dev-late-lead", email="late-lead1@gmail.com", marketing_ok=True, source="test"))
+        db.add(CommunityLead(device_id="dev-no-consent", email="no-consent1@gmail.com", marketing_ok=False, source="test"))
+        await db.commit()
+    box = Outbox()
+    await _run(box)
+    assert "early-signup1@gmail.com" in box.sent
+    assert "late-signup1@gmail.com" in box.sent
+    assert "late-lead1@gmail.com" in box.sent
+    assert "no-consent1@gmail.com" not in box.sent
+    assert late_user
