@@ -38,7 +38,7 @@ export default function RevenuePage() {
                 for the customer, so KHELO earns the fee and owes the café its share.
               </p>
               <div className="overflow-x-auto rounded-2xl border border-border">
-                <table className="w-full text-caption">
+                <table className="w-full min-w-[600px] text-caption">
                   <thead className="bg-surface-hover text-text-secondary">
                     <tr>
                       <th className="px-3 py-2 text-left font-semibold">Campaign</th>

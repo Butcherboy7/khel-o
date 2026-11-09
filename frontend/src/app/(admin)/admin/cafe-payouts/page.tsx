@@ -257,9 +257,9 @@ export default function AdminCafePayoutsPage() {
                 key={c.cafeId}
                 type="button"
                 onClick={() => setSelectedCafeId(c.cafeId)}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-hover transition-colors text-left"
+                className="w-full flex flex-col gap-2 px-4 py-3.5 hover:bg-surface-hover transition-colors text-left sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <span className="text-caption font-semibold text-text-primary">{c.cafeName}</span>
                   {!c.payoutDestinationSubmitted && (
                     <Badge variant="warning" size="sm">No payout details yet</Badge>
@@ -268,20 +268,20 @@ export default function AdminCafePayoutsPage() {
                     <Badge variant="error" size="sm">On hold</Badge>
                   )}
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex w-full items-center gap-4 sm:w-auto">
                   {c.pendingSettlementAmount > 0 && (
-                    <span className="text-right">
+                    <span className="sm:text-right">
                       <span className="block text-[10px] uppercase tracking-wide text-text-tertiary">Pending settlement</span>
                       <span className="text-caption font-data text-amber-600">₹{c.pendingSettlementAmount.toFixed(2)}</span>
                     </span>
                   )}
-                  <span className="text-right">
+                  <span className="sm:text-right">
                     <span className="block text-[10px] uppercase tracking-wide text-text-tertiary">Available to pay</span>
                     <span className="text-caption font-bold font-data text-text-primary">
                       ₹{c.outstandingAmount.toFixed(2)}
                     </span>
                   </span>
-                  <ChevronRight className="h-4 w-4 text-text-tertiary" />
+                  <ChevronRight className="ml-auto h-4 w-4 flex-shrink-0 text-text-tertiary sm:ml-0" />
                 </div>
               </button>
             ))}

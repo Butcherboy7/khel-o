@@ -239,7 +239,10 @@ export default function AdminPromotionsPage() {
                     {cafeNameById.get(p.cafeId) ?? p.cafeId.slice(0, 8)}
                   </span>
 
-                  <span className="text-xs font-bold font-data text-text-primary whitespace-nowrap">
+                  {/* Phone: the numbers sit on one labelled line. md+: their own columns under the header row. */}
+                  <div className="grid grid-cols-3 gap-2 rounded-xl bg-surface-hover px-3 py-2 md:contents">
+                  <span className="flex flex-col text-xs font-bold font-data text-text-primary whitespace-nowrap md:block">
+                    <span className="font-body text-[11px] font-medium text-text-tertiary md:hidden">Discount</span>
                     {p.promotionType === 'fixed_price'
                       ? `${p.minDurationHours}h/₹${p.fixedPriceAmount}`
                       : p.promotionType === 'fixed_amount'
@@ -247,13 +250,18 @@ export default function AdminPromotionsPage() {
                         : `${p.discountPercentage}%`}
                   </span>
 
-                  <span className={`text-xs font-data whitespace-nowrap ${exhausted ? 'text-red-600 font-bold' : 'text-text-secondary'}`}>
-                    {p.currentUses}{p.maxUses != null ? ` / ${p.maxUses}` : ''}
+                  <span className={`flex flex-col text-xs font-data whitespace-nowrap md:block ${exhausted ? 'text-red-600 font-bold' : 'text-text-secondary'}`}>
+                    <span className="font-body text-[11px] font-medium text-text-tertiary md:hidden">Times used</span>
+                    {p.currentUses}{p.maxUses != null ? ` of ${p.maxUses}` : ''}
                   </span>
 
-                  <span className={`text-xs whitespace-nowrap ${expired ? 'text-red-600' : 'text-text-secondary'}`}>
+                  <span className={`flex flex-col text-xs whitespace-nowrap md:block ${expired ? 'text-red-600' : 'text-text-secondary'}`}>
+                    <span className="text-[11px] font-medium text-text-tertiary md:hidden">Runs</span>
                     {formatDateRange(p.validFrom, p.validUntil)}
                   </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 md:contents">
 
                   <div className="flex items-center gap-1.5">
                     {p.isActive ? (
@@ -276,11 +284,13 @@ export default function AdminPromotionsPage() {
                         title="Deactivate promotion"
                         aria-label="Deactivate promotion"
                         onClick={() => setDeactivateTarget(p)}
-                        className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors"
+                        className="h-8 min-w-8 gap-1 px-2.5 md:px-0 md:w-8 rounded-lg border border-border bg-surface flex items-center justify-center text-xs font-semibold text-text-secondary hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors"
                       >
                         <Ban className="h-3.5 w-3.5" />
+                        <span className="md:hidden">Turn off</span>
                       </button>
                     )}
+                  </div>
                   </div>
                 </div>
               );

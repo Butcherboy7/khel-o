@@ -224,7 +224,8 @@ export default function AdminUsersPage() {
                     </div>
                   </div>
 
-                  {/* Role */}
+                  {/* Role, joined, status: one line on a phone, their own columns from sm up */}
+                  <div className="flex flex-wrap items-center gap-2 sm:contents">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wide w-fit ${roleColor(u.role)}`}>
                     {roleLabel(u.role)}
                   </span>
@@ -238,6 +239,7 @@ export default function AdminUsersPage() {
                   <Badge variant={u.isActive ? 'success' : 'error'} size="sm">
                     {u.isActive ? 'Active' : 'Suspended'}
                   </Badge>
+                  </div>
 
                   {/* Actions — labeled, not icon-only: a title-only tooltip
                       never shows on a touch device, so a first-time admin

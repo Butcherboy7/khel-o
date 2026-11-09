@@ -8,7 +8,7 @@ import type { BookingStatus, VerificationStatus } from '@/types';
 const badgeVariants = cva(
   // `whitespace-nowrap`: a status pill that wraps mid-label ("7 Walk-in / Reserved")
   // reads as two broken chips rather than one state.
-  'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md font-body text-badge font-semibold uppercase tracking-wide',
+  'inline-flex w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-md font-body text-badge font-semibold uppercase tracking-wide',
   {
     variants: {
       variant: {

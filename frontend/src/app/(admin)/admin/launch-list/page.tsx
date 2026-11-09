@@ -186,7 +186,7 @@ export default function AdminLaunchListPage() {
         />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full text-left text-caption">
+          <table className="w-full min-w-[560px] text-left text-caption">
             <thead className="border-b border-border text-text-secondary">
               <tr>
                 <th className="px-4 py-3 font-semibold">Name</th>

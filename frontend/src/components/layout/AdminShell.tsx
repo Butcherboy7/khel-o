@@ -17,7 +17,7 @@ import {
   ExternalLink,
   LifeBuoy,
   Settings,
-  Menu,
+  MoreHorizontal,
   X,
   Activity,
   TrendingUp,
@@ -215,6 +215,26 @@ function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+/* The four pages an admin opens most on a phone; everything else is under More. */
+const BOTTOM_ITEMS: NavItem[] = [
+  { label: 'Home', href: '/admin', icon: BarChart3 },
+  { label: 'Bookings', href: '/admin/bookings', icon: CalendarDays },
+  { label: 'Community', href: '/admin/community', icon: Users },
+  { label: 'Cafés', href: '/admin/cafes', icon: Store },
+];
+
+/** Name of the page you are on, for the phone top bar. Longest matching href wins. */
+function currentPageLabel(pathname: string): string {
+  let best: NavItem | null = null;
+  for (const g of adminNavGroups) {
+    for (const item of g.items) {
+      const hit = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
+      if (hit && (!best || item.href.length > best.href.length)) best = item;
+    }
+  }
+  return best?.label ?? 'KHEL-O Admin';
+}
+
 /* ── Admin Sidebar (desktop) ─────────────────────────────────────── */
 
 function AdminSidebar() {
@@ -271,21 +291,51 @@ function AdminMobileNav() {
 
   return (
     <>
-      <header className="sticky top-0 z-nav flex h-16 items-center justify-between border-b border-white/10 bg-secondary px-4 lg:hidden">
+      <header className="sticky top-0 z-nav flex h-12 items-center justify-between border-b border-white/10 bg-secondary px-4 lg:hidden">
         <div className="flex min-w-0 items-center gap-2">
-          <ShieldCheck className="h-5 w-5 flex-shrink-0 text-primary" />
-          <span className="truncate font-heading text-h3 text-white">KHEL-O Admin</span>
+          <ShieldCheck className="h-4 w-4 flex-shrink-0 text-primary" />
+          <span className="truncate font-heading text-body-emphasis font-bold text-white">{currentPageLabel(pathname)}</span>
         </div>
+      </header>
+
+      <nav
+        className="safe-bottom fixed bottom-0 left-0 right-0 z-nav flex min-h-bottom-nav items-stretch justify-around border-t border-border bg-card lg:hidden"
+        aria-label="Admin bottom navigation"
+      >
+        {BOTTOM_ITEMS.map((item) => {
+          const isActive = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors duration-fast',
+                isActive ? 'text-primary' : 'text-text-secondary hover:text-text-primary',
+              )}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              <span className={cn('flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast', isActive && 'bg-primary/12')}>
+                <item.icon className="h-5 w-5" />
+              </span>
+              <span className={cn('text-caption', isActive ? 'font-bold' : 'font-medium')}>{item.label}</span>
+            </Link>
+          );
+        })}
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          aria-label="Open admin menu"
-          aria-expanded={isOpen}
-          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
+          aria-label="All admin pages"
+          className={cn(
+            'flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors',
+            !BOTTOM_ITEMS.some((i) => (i.href === '/admin' ? pathname === '/admin' : pathname.startsWith(i.href))) ? 'text-primary' : 'text-text-secondary hover:text-text-primary',
+          )}
         >
-          <Menu className="h-5 w-5" />
+          <span className="flex items-center justify-center rounded-full px-3.5 py-1">
+            <MoreHorizontal className="h-5 w-5" />
+          </span>
+          <span className="text-caption font-medium">More</span>
         </button>
-      </header>
+      </nav>
 
       {isOpen && (
         <div className="fixed inset-0 z-overlay lg:hidden">
@@ -341,7 +391,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       {/* Main — offset by the sidebar on lg+; on mobile the sticky top bar
           above provides navigation instead. */}
       <main className="lg:pl-owner-sidebar">
-        <div className="mx-auto w-full max-w-admin px-4 py-6 lg:px-8 lg:py-8">
+        <div className="mx-auto w-full max-w-admin px-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] pt-4 lg:px-8 lg:py-8">
           {children}
         </div>
       </main>

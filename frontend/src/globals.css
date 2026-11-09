@@ -580,6 +580,11 @@ body:has(.gta6) [aria-label='Cookie notice'] { display: none; }
     bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 10px);
   }
 }
+@media (max-width: 1023px) {
+  body:has(nav[aria-label='Admin bottom navigation']) .cookie-notice {
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 10px);
+  }
+}
 
 /* Cookie notice already dismissed: hidden before first paint (no layout shift). */
 html[data-cookie-ok] .cookie-notice {
