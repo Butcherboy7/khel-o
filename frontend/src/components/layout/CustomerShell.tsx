@@ -263,7 +263,8 @@ export function CustomerShell({ children }: { children: ReactNode }) {
 
       <main
         className={cn(
-          'mx-auto w-full max-w-wide px-4 md:px-6 pb-24 md:pb-12',
+          // Mobile: clear the fixed bottom bar (64px + the phone's home-indicator space) and leave breathing room.
+          'mx-auto w-full max-w-wide px-4 md:px-6 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px)+2.5rem)] md:pb-12',
           skipGlobalHeader ? 'py-3 md:py-4' : 'py-6 md:py-8'
         )}
       >
