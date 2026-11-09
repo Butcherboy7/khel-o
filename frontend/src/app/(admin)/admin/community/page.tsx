@@ -132,12 +132,21 @@ export default function AdminCommunityPage() {
             {o.poll && edit ? (
               <div className="flex flex-col gap-2 rounded-2xl border border-border p-3">
                 <div className="flex flex-col gap-1">
-                  {o.poll.options.map((x) => (
-                    <div key={x.label} className="flex items-center justify-between gap-3 text-body">
-                      <span>{x.label}</span>
-                      <b>{x.votes} {x.votes === 1 ? 'vote' : 'votes'}</b>
-                    </div>
-                  ))}
+                  <p className="text-caption font-bold text-text-primary">Live results · {o.poll.total} {o.poll.total === 1 ? 'vote' : 'votes'}{o.poll.closesAt ? ` · closes ${when(o.poll.closesAt)}` : ''}</p>
+                  {o.poll.options.map((x) => {
+                    const top = Math.max(...o.poll!.options.map((y) => y.votes));
+                    const pct = o.poll!.total ? Math.round((x.votes / o.poll!.total) * 100) : 0;
+                    const leading = x.votes > 0 && x.votes === top;
+                    return (
+                      <div key={x.label} className="relative overflow-hidden rounded-xl border border-border px-3 py-2 text-body">
+                        <span className={`absolute inset-y-0 left-0 ${leading ? 'bg-primary/20' : 'bg-primary/8'}`} style={{ width: `${pct}%` }} aria-hidden />
+                        <span className="relative flex items-center justify-between gap-3">
+                          <span className={leading ? 'font-bold text-text-primary' : ''}>{x.label}{leading ? ' · leading' : ''}</span>
+                          <b>{x.votes} · {pct}%</b>
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
                 <p className="text-caption font-bold text-text-primary">Change it</p>
                 <input value={edit.question} onChange={(e) => setEdit({ ...edit, question: e.target.value })} className="min-h-[44px] rounded-xl border border-border bg-card px-3 text-body" aria-label="Question" />

@@ -62,6 +62,10 @@ export async function voteInPoll(pollId: string, optionIndex: number): Promise<{
   return call(() => apiClient.post(`/api/v1/community/polls/${pollId}/vote`, { optionIndex, deviceId: getDeviceId() }));
 }
 
+export async function removeVote(pollId: string): Promise<{ myVote: null }> {
+  return call(() => apiClient.delete(`/api/v1/community/polls/${pollId}/vote`));
+}
+
 export interface ContributionBody {
   kind: 'cafe' | 'photos';
   title: string;

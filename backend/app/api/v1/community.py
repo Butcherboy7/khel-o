@@ -284,6 +284,19 @@ async def vote(poll_id: UUID, payload: VoteRequest, db: AsyncSession = Depends(g
     return {"success": True, "data": {"myVote": payload.option_index}}
 
 
+@router.delete("/polls/{poll_id}/vote")
+async def remove_vote(poll_id: UUID, db: AsyncSession = Depends(get_db), user: Optional[User] = Depends(get_optional_user)):
+    """Take my vote back (tapped the wrong one). They can vote again any time before it closes."""
+    if user is None:
+        raise AuthException(message="Sign in first.", error_code="SIGN_IN_TO_VOTE")
+    poll = await db.get(CommunityPoll, poll_id)
+    if poll is None or poll.status != "active" or (poll.closes_at is not None and _aware(poll.closes_at) <= _now()):
+        raise BadRequestException(message="This vote has closed.", error_code="POLL_CLOSED")
+    await db.execute(delete(CommunityPollVote).where(CommunityPollVote.poll_id == poll.id, CommunityPollVote.user_id == user.id))
+    await db.commit()
+    return {"success": True, "data": {"myVote": None}}
+
+
 class ContributionRequest(_Camel):
     kind: Literal["cafe", "photos"]
     title: str = Field(min_length=2, max_length=120)

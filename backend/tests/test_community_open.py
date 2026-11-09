@@ -54,6 +54,10 @@ async def test_vote_needs_a_quick_sign_in_then_is_one_per_person_and_can_change(
         assert (await c.post(f"/api/v1/community/polls/{pid}/vote", json={"optionIndex": 1}, headers=_h(b))).status_code == 200
         poll = (await c.get("/api/v1/community/this-week", headers=_h(a))).json()["data"]["poll"]
         assert poll["total"] == 2 and poll["myVote"] == 1
+        assert (await c.delete(f"/api/v1/community/polls/{pid}/vote", headers=_h(a))).status_code == 200
+        poll = (await c.get("/api/v1/community/this-week", headers=_h(a))).json()["data"]["poll"]
+        assert poll["total"] == 1 and poll["myVote"] is None
+        assert (await c.delete(f"/api/v1/community/polls/{pid}/vote")).status_code == 401
 
 
 @pytest.mark.asyncio

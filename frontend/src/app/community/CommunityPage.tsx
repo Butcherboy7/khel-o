@@ -12,7 +12,7 @@ import { listDrops } from '@/lib/api/drops';
 import { getBracket, getChallenge } from '@/lib/api/challenges';
 import { QuickSignIn } from '@/components/auth/QuickSignIn';
 import { useAuthStore } from '@/store/authStore';
-import { getThisWeek, leaveContact, sendContribution, voteInPoll } from '@/lib/api/community';
+import { getThisWeek, leaveContact, removeVote, sendContribution, voteInPoll } from '@/lib/api/community';
 import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll } from '@/lib/challenge';
 import {
   SEEN_POST_KEY,
@@ -293,6 +293,28 @@ function DropCard({ d }: { d: NonNullable<Awaited<ReturnType<typeof listDrops>>>
 type Recap = Awaited<ReturnType<typeof getBracket>>;
 
 /** Tekken #01 at AdamsDen: the real podium from its bracket, and the photos. */
+/** A vote lands: the choice pops, "+1" rises, and pixel sparks fly out in KHEL-O colours. */
+const SPARKS = [
+  [-46, -30, '#D0463C'], [-30, -44, '#F2C94C'], [-8, -50, '#25D366'], [16, -46, '#D0463C'], [38, -34, '#F2C94C'],
+  [50, -10, '#25D366'], [-52, -6, '#25D366'], [-38, 18, '#F2C94C'], [42, 20, '#D0463C'], [6, 30, '#F2C94C'],
+] as const;
+
+function VoteBurst() {
+  return (
+    <span className="pointer-events-none absolute right-10 top-1/2 z-10" aria-hidden>
+      <span className="khelo-vote-ring absolute -left-5 -top-5 h-10 w-10 rounded-full border-2 border-primary" />
+      {SPARKS.map(([x, y, c], n) => (
+        <span
+          key={n}
+          className="khelo-vote-spark absolute h-1.5 w-1.5"
+          style={{ background: c, ['--x' as string]: `${x}px`, ['--y' as string]: `${y}px`, animationDelay: `${n * 12}ms` }}
+        />
+      ))}
+      <span className="khelo-vote-plus absolute -left-3 -top-4 font-heading text-body-emphasis font-bold text-primary">+1</span>
+    </span>
+  );
+}
+
 function RecapCard({ recap }: { recap: Recap | null }) {
   const done = recap?.challenge.status === 'finished' ? recap : null;
   const podium = done ? [1, 2, 3].map((n) => done.standings.find((x) => x.place === n)).filter(Boolean) : [];
@@ -413,9 +435,11 @@ function VoteTab({ poll, closed, onVoted }: { poll: NonNullable<Awaited<ReturnTy
   const [busy, setBusy] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const [ask, setAsk] = useState<number | null>(null);
+  // The choice that just got a vote: it plays the burst once (key restarts it on every tap).
+  const [burst, setBurst] = useState<{ i: number; key: number } | null>(null);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const vote = async (i: number, signedIn = isAuthenticated) => {
-    if (!poll || poll.closed) return;
+    if (!poll || poll.closed || poll.myVote === i) return;
     if (!signedIn) {
       savePending({ type: 'vote', pollId: poll.id, option: i });
       trackAction('community_sign_in_ask', { for: 'vote' });
@@ -428,10 +452,26 @@ function VoteTab({ poll, closed, onVoted }: { poll: NonNullable<Awaited<ReturnTy
     try {
       await voteInPoll(poll.id, i);
       markVoted();
-      trackAction('community_poll_vote', { poll: poll.id });
+      setBurst({ i, key: Date.now() });
+      trackAction('community_poll_vote', { poll: poll.id, changed: poll.myVote !== null });
       onVoted();
     } catch (e) {
       setErr((e as { message?: string })?.message || 'Could not save your vote. Try again.');
+    } finally {
+      setBusy(null);
+    }
+  };
+  const takeBack = async () => {
+    if (!poll) return;
+    setErr('');
+    setBusy(-1);
+    try {
+      await removeVote(poll.id);
+      setBurst(null);
+      trackAction('community_poll_unvote', { poll: poll.id });
+      onVoted();
+    } catch (e) {
+      setErr((e as { message?: string })?.message || 'Could not remove your vote. Try again.');
     } finally {
       setBusy(null);
     }
@@ -454,15 +494,31 @@ function VoteTab({ poll, closed, onVoted }: { poll: NonNullable<Awaited<ReturnTy
                   disabled={poll.closed || busy !== null}
                   onClick={() => vote(i)}
                   aria-pressed={mine}
-                  className={cn('relative flex min-h-[48px] items-center justify-between overflow-hidden rounded-xl border px-3 text-left text-body font-semibold transition-colors', mine ? 'border-primary' : 'border-border hover:border-primary/50')}
+                  className={cn(
+                    'relative flex min-h-[48px] items-center justify-between rounded-xl border px-3 text-left text-body font-semibold transition-colors',
+                    mine ? 'border-primary' : 'border-border hover:border-primary/50',
+                    burst?.i === i && 'khelo-vote-pop',
+                  )}
                 >
-                  {showPct && <span className={cn('absolute inset-y-0 left-0', mine ? 'bg-primary/25' : 'bg-primary/10')} style={{ width: `${o.percent}%` }} aria-hidden />}
-                  <span className="relative">{o.label}{mine ? ' · your vote' : ''}</span>
+                  <span className="absolute inset-0 overflow-hidden rounded-xl" aria-hidden>
+                    {showPct && <span className={cn('khelo-vote-bar absolute inset-y-0 left-0', mine ? 'bg-primary/25' : 'bg-primary/10')} style={{ width: `${o.percent}%` }} />}
+                  </span>
+                  <span className="relative flex items-center gap-1.5">
+                    {mine && <Check className="h-4 w-4 text-primary" aria-hidden />}
+                    {o.label}
+                    {mine ? <span className="text-caption font-bold text-primary">your vote</span> : null}
+                  </span>
                   {showPct && <span className="relative text-caption font-bold">{o.percent}%</span>}
+                  {burst?.i === i && <VoteBurst key={burst.key} />}
                 </button>
               );
             })}
-            <p className="text-caption text-text-secondary">{poll.total} {poll.total === 1 ? 'vote' : 'votes'} · {poll.myVote === null ? 'tap a choice to vote' : 'you can change your vote until it closes'}</p>
+            <p className="text-caption text-text-secondary">{poll.total} {poll.total === 1 ? 'vote' : 'votes'} · {poll.myVote === null ? 'tap a choice to vote' : 'tapped the wrong one? Tap another choice to move your vote'}</p>
+            {poll.myVote !== null && !poll.closed && (
+              <button type="button" onClick={takeBack} disabled={busy !== null} className="self-start text-caption font-bold text-text-secondary underline disabled:opacity-60">
+                {busy === -1 ? 'Removing…' : 'Remove my vote'}
+              </button>
+            )}
             <p className="text-caption text-text-secondary">Most votes {closes ? `on ${closes}` : 'when it closes'} wins. The winner shows under Closed votes.</p>
             {err && <p role="alert" className="text-caption text-error">{err}</p>}
             {ask !== null && (
