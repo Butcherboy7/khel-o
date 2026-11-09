@@ -240,7 +240,7 @@ export default function AdminPromotionsPage() {
                   </span>
 
                   {/* Phone: the numbers sit on one labelled line. md+: their own columns under the header row. */}
-                  <div className="grid grid-cols-3 gap-2 rounded-xl bg-surface-hover px-3 py-2 md:contents">
+                  <div className="grid grid-cols-[auto_auto_minmax(0,1fr)] gap-x-4 gap-y-1 rounded-xl bg-surface-hover px-3 py-2 md:contents">
                   <span className="flex flex-col text-xs font-bold font-data text-text-primary whitespace-nowrap md:block">
                     <span className="font-body text-[11px] font-medium text-text-tertiary md:hidden">Discount</span>
                     {p.promotionType === 'fixed_price'
@@ -255,7 +255,7 @@ export default function AdminPromotionsPage() {
                     {p.currentUses}{p.maxUses != null ? ` of ${p.maxUses}` : ''}
                   </span>
 
-                  <span className={`flex flex-col text-xs whitespace-nowrap md:block ${expired ? 'text-red-600' : 'text-text-secondary'}`}>
+                  <span className={`flex flex-col text-xs md:block md:whitespace-nowrap ${expired ? 'text-red-600' : 'text-text-secondary'}`}>
                     <span className="text-[11px] font-medium text-text-tertiary md:hidden">Runs</span>
                     {formatDateRange(p.validFrom, p.validUntil)}
                   </span>

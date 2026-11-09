@@ -775,7 +775,7 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
                 <Bars title="City browsed" rows={report.cities} />
               </div>
               {report.cafes.length > 0 && (
-                <div className="overflow-x-auto rounded-xl border border-border">
+                <div className="relative overflow-x-auto rounded-xl border border-border">
                   <table className="w-full text-caption">
                     <thead className="bg-surface text-text-secondary">
                       <tr>
@@ -1016,7 +1016,7 @@ export default function CampaignsPage() {
       )}
 
       {shown.length > 0 && (
-        <section className="overflow-x-auto rounded-2xl border border-border bg-card">
+        <section className="relative overflow-x-auto rounded-2xl border border-border bg-card">
           <table className="w-full min-w-[620px] text-caption">
             <thead className="bg-surface text-text-secondary">
               <tr>

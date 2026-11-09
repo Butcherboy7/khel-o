@@ -72,7 +72,7 @@ export default function AdminCommunityPage() {
               aria-selected={on}
               onClick={() => pick(t.key)}
               className={cn(
-                'relative flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-bold leading-tight transition-colors md:min-h-[40px] md:flex-row md:gap-1.5 md:px-3.5 md:text-caption',
+                'relative flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-bold leading-tight transition-colors md:min-h-[40px] md:flex-row md:gap-1.5 md:whitespace-nowrap md:px-2.5 md:text-caption lg:px-3.5',
                 on ? 'bg-card text-primary shadow-sm md:text-text-primary' : 'text-text-secondary hover:text-text-primary',
               )}
             >

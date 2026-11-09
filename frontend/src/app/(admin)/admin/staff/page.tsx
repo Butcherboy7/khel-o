@@ -139,7 +139,8 @@ export default function AdminStaffPage() {
                       </div>
                     </div>
 
-                    {/* Café */}
+                    {/* Café, joined, status, revoke: one line on a phone, own columns from md up */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:contents">
                     <span className="text-xs text-text-primary truncate">{s.cafeName ?? '—'}</span>
 
                     {/* Joined */}
@@ -165,10 +166,12 @@ export default function AdminStaffPage() {
                       }}
                       title="Revoke staff access"
                       aria-label="Revoke staff access"
-                      className="h-8 w-8 rounded-lg border border-border bg-surface flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors disabled:opacity-40"
+                      className="ml-auto h-8 min-w-8 gap-1 px-2.5 md:ml-0 md:w-8 md:px-0 rounded-lg border border-border bg-surface flex items-center justify-center text-xs font-semibold text-text-secondary hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition-colors disabled:opacity-40"
                     >
                       <ShieldX className="h-3.5 w-3.5" />
+                      <span className="md:hidden">Remove access</span>
                     </button>
+                    </div>
                   </div>
                 );
               })}

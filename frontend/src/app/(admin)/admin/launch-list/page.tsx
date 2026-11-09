@@ -120,8 +120,8 @@ export default function AdminLaunchListPage() {
           const { label, icon: Icon } = REACH_LABEL[m];
           return (
             <Card key={m}>
-              <CardContent className="flex items-center justify-between p-4">
-                <span className="flex items-center gap-2 text-caption font-semibold text-text-secondary">
+              <CardContent className="flex flex-col items-start gap-1 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                <span className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary">
                   <Icon className="h-4 w-4 text-primary" /> {label}
                 </span>
                 <span className="font-heading text-h2 text-text-primary tabular-nums">{data.byMethod[m] ?? 0}</span>

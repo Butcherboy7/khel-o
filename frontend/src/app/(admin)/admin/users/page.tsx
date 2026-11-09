@@ -211,7 +211,7 @@ export default function AdminUsersPage() {
               return (
                 <div
                   key={u.id}
-                  className="px-4 sm:px-5 py-3 flex flex-col sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] gap-2 sm:gap-4 sm:items-center hover:bg-surface-hover transition-colors"
+                  className="px-4 sm:px-5 py-3 flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_76px_72px_84px_auto] gap-2 sm:gap-4 sm:items-center hover:bg-surface-hover transition-colors"
                 >
                   {/* User info */}
                   <div className="flex items-center gap-3 min-w-0">

@@ -68,7 +68,7 @@ function NeighbourhoodTable({ report, onCopy, copied }: { report: AreaReport; on
   const maxLooked = Math.max(1, ...areas.map((a) => a.cafeViewers));
   const th = 'px-3 py-2.5 font-semibold';
   return (
-    <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+    <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
       <table className="w-full min-w-[760px] text-body">
         <thead className="bg-surface text-left text-caption text-text-secondary">
           <tr>
@@ -309,7 +309,7 @@ export default function AreasPage() {
             <h2 className="font-heading text-h3 text-text-primary">Every city, since launch</h2>
             <p className="text-caption text-text-secondary">Paid bookings only.</p>
           </div>
-          <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+          <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
             <table className="w-full text-body">
               <thead className="bg-surface text-caption text-text-secondary">
                 <tr>
