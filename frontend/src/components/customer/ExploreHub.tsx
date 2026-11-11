@@ -8,6 +8,7 @@ import { ArrowRight, Flame, Gamepad2, MapPin, MessageCircle, Monitor, Swords, Tr
 import { SearchBarWithSuggestions } from '@/components/customer/SearchBarWithSuggestions';
 import { dropArt } from '@/components/customer/HomeTabs';
 import { listDrops } from '@/lib/api/drops';
+import { dropDestination } from '@/lib/drops';
 import { getChallenge } from '@/lib/api/challenges';
 import { getThisWeek } from '@/lib/api/community';
 import { listBookings } from '@/lib/api/bookings';
@@ -81,6 +82,8 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
     const live = (drops ?? []).filter((x) => x.state === 'open' || x.state === 'early');
     return live.find((x) => /gta\s*6/i.test(x.game)) ?? live[0] ?? null;
   }, [drops]);
+  // Several cafés with the same game: send people to the pick-your-café screen.
+  const liveTo = useMemo(() => (liveDrop ? dropDestination(drops ?? [], liveDrop.game) : null), [drops, liveDrop]);
 
   const yourCafes = useMemo(() => {
     const ids = Array.from(new Set((myBookings?.items ?? []).map((b) => b.cafeId)));
@@ -163,7 +166,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
             )}
             {liveDrop && (
               <Link
-                href={`/drops/${liveDrop.slug}`}
+                href={liveTo?.href ?? `/drops/${liveDrop.slug}`}
                 onClick={() => trackAction('explore_happening_tap', { what: 'drop' })}
                 className="relative aspect-[4/5] w-[72%] max-w-[300px] flex-none lg:w-auto lg:max-w-none snap-start overflow-hidden rounded-3xl bg-gradient-to-br from-[#5B1A2A] to-[#D0463C] shadow-card sm:w-[280px] lg:w-auto"
               >
@@ -176,11 +179,15 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
                   <Flame className="h-3 w-3" aria-hidden /> Live
                 </span>
                 <div className="absolute inset-x-0 bottom-0 p-3.5 text-white">
-                  <p className="font-heading text-h3 font-bold leading-tight">{liveDrop.game} at {liveDrop.cafe.name}</p>
+                  <p className="font-heading text-h3 font-bold leading-tight">
+                    {(liveTo?.count ?? 1) > 1 ? `${liveDrop.game} at ${liveTo!.count} cafés` : `${liveDrop.game} at ${liveDrop.cafe.name}`}
+                  </p>
                   <p className="mt-0.5 text-caption text-white/80">
                     {liveDrop.seatsPerSlot ? `${liveDrop.seatsPerSlot} seats a night` : `${liveDrop.seatsLeft} of ${liveDrop.seatsTotal} seats left`}
                   </p>
-                  <span className="mt-2.5 inline-flex min-h-[40px] items-center rounded-full bg-white px-4 text-caption font-extrabold text-[#1c1c1e]">Reserve</span>
+                  <span className="mt-2.5 inline-flex min-h-[40px] items-center rounded-full bg-white px-4 text-caption font-extrabold text-[#1c1c1e]">
+                    {(liveTo?.count ?? 1) > 1 ? 'Pick a café' : 'Reserve'}
+                  </span>
                 </div>
               </Link>
             )}

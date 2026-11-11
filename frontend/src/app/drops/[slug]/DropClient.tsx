@@ -12,13 +12,14 @@ import { trackAction } from '@/lib/api/analyticsEvents';
 import {
   getDrop,
   joinDropWaitlist,
+  listDrops,
   reserveDrop,
   verifyDropPayment,
   type Drop,
   type DropBlock,
   type DropReservation,
 } from '@/lib/api/drops';
-import { blockEnd, blockStart, blockTimes, clock, dayLabel, rupees, whenText } from '@/lib/drops';
+import { blockEnd, blockStart, blockTimes, clock, dayLabel, gameKey, rupees, whenText } from '@/lib/drops';
 import { calculateWindowRemainingSeats, timeToMinutes } from '@/lib/format';
 import { CommunityButton, CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 import { CustomerShell } from '@/components/layout/CustomerShell';
@@ -53,6 +54,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const [signInOpen, setSignInOpen] = useState(false);
   const reserveAfterSignIn = useRef(false);
   const reserveRef = useRef<() => void>(() => {});
+  const [otherCafes, setOtherCafes] = useState(0);
   const viewed = useRef(false);
   const daysRef = useRef<HTMLElement | null>(null);
   const scrolled = useRef(false);
@@ -103,6 +105,20 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     track('drop_page_view', { state: drop.state });
   }, [drop, track]);
 
+  // The same game at other cafés: offer the pick-your-café screen so nobody books the far one by mistake.
+  const dropGame = drop?.game;
+  const dropId = drop?.id;
+  useEffect(() => {
+    if (!dropGame || !dropId) return;
+    let live = true;
+    listDrops()
+      .then((all) => live && setOtherCafes(all.filter((d) => d.id !== dropId && gameKey(d.game) === gameKey(dropGame)).length))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [dropGame, dropId]);
+
   // Opening a live drop lands on the day and time picker, where the booking happens.
   useEffect(() => {
     if (scrolled.current || !drop || !(drop.state === 'open' || drop.state === 'early')) return;
@@ -121,6 +137,10 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     .filter((r) => r.status === 'confirmed' || r.status === 'checked_in' || r.status === 'pending_payment')
     .reduce((n, r) => n + r.seats, 0);
   const seatsAllowed = drop ? Math.max(0, drop.maxSeatsPerUser - seatsHeld) : 0;
+  const heldOn = (id: string) =>
+    (drop?.myReservations ?? [])
+      .filter((r) => r.blockId === id && (r.status === 'confirmed' || r.status === 'checked_in' || r.status === 'pending_payment'))
+      .reduce((n, r) => n + r.seats, 0);
 
   // Flexible: free seats for the exact window picked, counted the same way the booking slider does.
   const windowFree = useMemo(() => {
@@ -168,7 +188,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   // Land on the first open day so the slider is already there.
   useEffect(() => {
     if (!drop || blockId || !drop.blocks.length) return;
-    const b = drop.blocks.find((x) => !x.started && sessionLeft(x) > 0);
+    // Skip days where they already hold the most seats allowed, so the page never opens on a dead end.
+    const free = (x: DropBlock) => !x.started && sessionLeft(x) > 0;
+    const b = drop.blocks.find((x) => free(x) && heldOn(x.id) < drop.maxSeatsPerUser) ?? drop.blocks.find(free);
     if (b && drop.maxHours) pick(b);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drop?.id]);
@@ -317,6 +339,15 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             </span>
             <span className="flex-shrink-0 text-caption font-bold text-primary">Map</span>
           </a>
+          {otherCafes > 0 && (
+            <Link
+              href={`/drops?game=${gameKey(drop.game)}`}
+              onClick={() => track('drop_other_cafes_tap', { others: otherCafes })}
+              className="mt-2 inline-flex min-h-[44px] items-center text-body font-semibold text-primary underline-offset-2 hover:underline"
+            >
+              Not near you? {otherCafes} more {otherCafes === 1 ? 'café has' : 'cafés have'} {drop.game} →
+            </Link>
+          )}
           {drop.tagline && <p className="mt-1 text-body text-text-secondary">{drop.tagline}</p>}
           <div className="mt-3 flex flex-wrap gap-2 text-caption font-semibold text-text-primary">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
@@ -355,7 +386,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <p className="font-semibold text-text-primary">
               {pending.seats} {pending.seats === 1 ? 'seat' : 'seats'} held for you · <Countdown to={pending.expiresAt!} />
             </p>
-            <p className="mt-1 text-body text-text-secondary">Pay {rupees(pending.deposit)} to keep them. If you don’t, they go back to everyone.</p>
+            <p className="mt-1 text-body text-text-secondary">Pay the {rupees(pending.deposit)} booking fee to keep them. If you don’t, they go back to everyone.</p>
             {pending.orderId && (
               <button
                 type="button"
@@ -566,26 +597,26 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 <span className="flex-shrink-0 font-semibold text-text-primary">{rupees(total)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span>Seat deposit, taken off your bill</span>
+                <span>Booking fee, paid now</span>
                 <span className="flex-shrink-0 font-semibold text-success">− {rupees(payNow)}</span>
               </div>
               <div className="mt-1 flex items-center justify-between gap-3 border-t border-border/70 pt-2">
                 <span className="font-semibold text-text-primary">Left to pay at the café</span>
                 <span className="font-heading text-body-emphasis font-bold text-text-primary">{rupees(Math.max(0, total - payNow))}</span>
               </div>
-              <p className="pt-1">{rupees(payNow)} of your {rupees(total)} is paid now to lock the seat. We hold it for 10 minutes while you pay.</p>
+              <p className="pt-1">The {rupees(payNow)} booking fee is part of your {rupees(total)}, not extra. We hold the seat for 10 minutes while you pay.</p>
             </div>
 
             {flex && (
               <p className="px-1 text-caption text-text-secondary">
-                Arrive within 15 min of your start. The deposit isn’t refunded if you don’t show.{' '}
+                Arrive within 15 min of your start. The booking fee isn’t refunded if you don’t show.{' '}
                 <button type="button" onClick={() => setRulesOpen((o) => !o)} className="font-semibold text-primary underline-offset-2 hover:underline">
                   {rulesOpen ? 'Hide' : 'Details'}
                 </button>
                 {rulesOpen && (
                   <span className="mt-2 block rounded-xl border border-border bg-card p-3 text-body">
-                    The deposit comes off your bill when you play and is not refunded. Arrive from 15 minutes before to 15 minutes after your start time.
-                    After that the café can give your seat to someone waiting and you do not get the deposit back. If the café cancels, you get everything back.
+                    The booking fee comes off your bill when you play and is not refunded. Arrive from 15 minutes before to 15 minutes after your start time.
+                    After that the café can give your seat to someone waiting and you do not get the booking fee back. If the café cancels, you get everything back.
                   </span>
                 )}
               </p>
@@ -631,17 +662,17 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <Faq
               q="What do I pay now?"
               a={flex
-                ? `A reservation fee of ${rupees(drop.deposit)} a seat for up to 3 hours, or ${rupees(drop.depositLong)} for 4 or 5 hours. It is taken off your bill at the café.`
-                : `${rupees(drop.deposit)} for each seat. It holds your seat. You pay the rest at the café on the day.`}
+                ? `A booking fee of ${rupees(drop.deposit)} a seat for up to 3 hours, or ${rupees(drop.depositLong)} for 4 or 5 hours. It is taken off your bill at the café.`
+                : `A booking fee of ${rupees(drop.deposit)} for each seat. It holds your seat and comes off your bill. You pay the rest at the café on the day.`}
             />
             <Faq q="How do I get in?" a="After you pay, you get a QR pass here. Show it at the café." />
             <Faq q="Can I bring friends?" a={`Yes. You can reserve up to ${drop.maxSeatsPerUser} seats a day, on as many days as you like. Friends can also reserve their own.`} />
             <Faq q="Can I use a coupon?" a="No. Drop prices are fixed. Coupons and café offers don’t work on drops." />
-            <Faq q="What if the café cancels?" a="You get your deposit back in full." />
+            <Faq q="What if the café cancels?" a="You get your booking fee back in full." />
             {flex && (
               <Faq
                 q="What if I am late or cannot come?"
-                a="Arrive between 15 minutes before and 15 minutes after your start time. After that the café can give your seat away and the reservation fee is not refunded."
+                a="Arrive between 15 minutes before and 15 minutes after your start time. After that the café can give your seat away and the booking fee is not refunded."
               />
             )}
           </dl>
@@ -671,7 +702,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 {busy ? 'Opening payment…' : 'Reserve now'}
               </button>
               <p className="mt-1.5 text-center text-[11px] text-text-secondary">
-                {rupees(payNow)} of your {rupees(total)} locks it · the rest at the café · no card needed to look
+                Pay {rupees(payNow)} now · {rupees(Math.max(0, total - payNow))} at the café
               </p>
             </>
           ) : canReserve && block && seatsAllowed === 0 ? (
@@ -783,7 +814,7 @@ function Confirmation({
         </div>
       )}
       <dl className="mt-4 space-y-1 text-body">
-        <Row k={r.hours ? 'Reservation fee paid' : 'Paid now'} v={rupees(r.depositPaid)} />
+        <Row k="Booking fee paid" v={rupees(r.depositPaid)} />
         <Row k="Pay at the café" v={rupees(r.balanceDue)} strong />
       </dl>
       {r.passUrl && (

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { listDrops } from '@/lib/api/drops';
+import { dropDestination } from '@/lib/drops';
 import { Gta6Client } from './Gta6Client';
 
 export const metadata: Metadata = {
@@ -19,19 +20,21 @@ export const metadata: Metadata = {
 // Once a GTA drop is taking seats, this link is the booking page: no waitlist step in between.
 // Campaign tags on the link are kept so ad tracking still works.
 export default async function Gta6Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  let slug: string | null = null;
+  let to: string | null = null;
   try {
-    const live = (await listDrops()).find((d) => /gta\s*6/i.test(d.game) && (d.state === 'open' || d.state === 'early'));
-    slug = live?.slug ?? null;
+    const live = (await listDrops()).filter((d) => /gta\s*6/i.test(d.game) && (d.state === 'open' || d.state === 'early'));
+    // One café: straight to its drop. Several: the pick-your-café screen, nearest first.
+    to = live.length ? dropDestination(live, live[0].game).href : null;
   } catch {
-    slug = null;
+    to = null;
   }
-  if (slug) {
-    const qs = new URLSearchParams();
+  if (to) {
+    const [path, own] = to.split('?');
+    const qs = new URLSearchParams(own ?? '');
     for (const [k, v] of Object.entries(await searchParams)) {
-      if (typeof v === 'string') qs.set(k, v);
+      if (typeof v === 'string' && !qs.has(k)) qs.set(k, v);
     }
-    redirect(`/drops/${slug}${qs.size ? `?${qs.toString()}` : ''}`);
+    redirect(`${path}${qs.size ? `?${qs.toString()}` : ''}`);
   }
   return (
     <>

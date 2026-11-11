@@ -129,6 +129,9 @@ def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
             "id": str(cafe.id), "name": cafe.name, "slug": cafe.slug,
             "address": ", ".join(p for p in (cafe.address_line1, cafe.address_line2, cafe.city) if p),
             "city": cafe.city, "mapsUrl": svc.maps_url(cafe),
+            # The café's public map pin, so the "pick a café" screen can put the nearest one first.
+            "lat": float(cafe.latitude) if cafe.latitude is not None else None,
+            "lng": float(cafe.longitude) if cafe.longitude is not None else None,
         },
         "blocks": [_block_out(drop, b) for b in blocks],
         "seatsLeft": sum(max(0, b.seats_total - b.seats_taken) for b in blocks if svc.block_starts_at(b) > svc.now_utc()),

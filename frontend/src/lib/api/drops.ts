@@ -75,7 +75,7 @@ export interface Drop {
   hasEarlyAccessCode: boolean;
   state: DropState;
   status: 'draft' | 'live' | 'cancelled';
-  cafe: { id: string; name: string; slug: string | null; address: string; city: string; mapsUrl: string };
+  cafe: { id: string; name: string; slug: string | null; address: string; city: string; mapsUrl: string; lat?: number | null; lng?: number | null };
   blocks: DropBlock[];
   seatsLeft: number;
   seatsTotal: number;

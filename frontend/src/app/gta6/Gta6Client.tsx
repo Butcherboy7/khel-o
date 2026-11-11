@@ -9,6 +9,7 @@ import { getLaunch, joinLaunch, type ReachBy } from '@/lib/api/launchList';
 import { listCafes, cafePath } from '@/lib/api/cafes';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { listDrops } from '@/lib/api/drops';
+import { dropDestination } from '@/lib/drops';
 import { isApiError } from '@/lib/api/errors';
 import { optimizedImg, fallBackToOriginal } from '@/lib/imageUrl';
 import type { CafeListItem } from '@/types';
@@ -177,8 +178,12 @@ export function Gta6Client() {
     let live = true;
     listDrops()
       .then((all) => {
-        const d = all.find((x) => /gta\s*6/i.test(x.game) && (x.state === 'open' || x.state === 'early'));
-        if (live && d) router.replace(`/drops/${d.slug}${window.location.search}`);
+        const open = all.filter((x) => /gta\s*6/i.test(x.game) && (x.state === 'open' || x.state === 'early'));
+        if (!live || !open.length) return;
+        const [path, own] = dropDestination(open, open[0].game).href.split('?');
+        const qs = new URLSearchParams(window.location.search);
+        new URLSearchParams(own ?? '').forEach((v, k) => qs.set(k, v));
+        router.replace(`${path}${qs.size ? `?${qs.toString()}` : ''}`);
       })
       .catch(() => undefined);
     return () => {
