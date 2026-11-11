@@ -260,6 +260,14 @@ class ReserveRequest(_Camel):
     phone: Optional[str] = Field(None, max_length=20)
 
 
+@public_router.get("/{slug}/walk-in-qr")
+async def walk_in_qr(slug: str, db: AsyncSession = Depends(get_db)):
+    """A QR for the drop's own page, for the café counter. It only encodes the public link."""
+    drop, _cafe = await _public_drop(db, slug, None)
+    link = f"{_site()}/drops/{drop.slug}?utm_source=counter&utm_medium=qr"
+    return {"success": True, "data": {"url": link, "qr": qr_data_url(link)}}
+
+
 @public_router.post("/{slug}/reserve", status_code=status.HTTP_201_CREATED)
 async def reserve(slug: str, payload: ReserveRequest, db: AsyncSession = Depends(get_db),
                   user: User = Depends(get_current_active_user)):

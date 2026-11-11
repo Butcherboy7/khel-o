@@ -126,6 +126,16 @@ async def test_page_needs_no_login_and_shows_prices_and_seats():
 
 
 @pytest.mark.asyncio
+async def test_counter_qr_encodes_only_the_public_page():
+    drop, *_ = await _drop()
+    async with _client() as c:
+        r = await c.get(f"/api/v1/drops/{drop.slug}/walk-in-qr")
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    assert d["qr"].startswith("data:image/png;base64,") and f"/drops/{drop.slug}?utm_source=counter" in d["url"]
+
+
+@pytest.mark.asyncio
 async def test_draft_drop_is_hidden_from_the_public():
     drop, *_ = await _drop()
     async with AsyncSessionLocal() as db:

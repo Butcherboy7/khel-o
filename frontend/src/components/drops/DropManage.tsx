@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus } from 'lucide-react';
@@ -10,7 +10,7 @@ import { Button, Card, CardContent, Input, Modal, SkeletonCard } from '@/compone
 import { ShareIconRow, WhatsAppButton } from '@/components/shared/ShareActions';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
-import { cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, giveAwayReservation, updateDrop, type OwnerDrop } from '@/lib/api/drops';
+import { cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, getWalkInQr, giveAwayReservation, updateDrop, type OwnerDrop } from '@/lib/api/drops';
 import { blockTimes, clockRange, dayLabel, rupees, whenText } from '@/lib/drops';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -369,8 +369,39 @@ function ShareDrop({ d }: { d: OwnerDrop }) {
           label="Send on WhatsApp"
         />
         <ShareIconRow url={url} />
+        {!hidden && <WalkInQr slug={d.slug} cafe={d.cafe.name} />}
       </CardContent>
     </Card>
+  );
+}
+
+/** A code for the counter: someone who walks in scans it and books a free seat through KHEL-O, so the booking is on the list. */
+function WalkInQr({ slug, cafe }: { slug: string; cafe: string }) {
+  const [src, setSrc] = useState('');
+  useEffect(() => {
+    let live = true;
+    getWalkInQr(slug)
+      .then((r) => live && setSrc(r.qr))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [slug]);
+  if (!src) return null;
+  return (
+    <div className="flex items-center gap-4 rounded-xl border border-border p-3">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="QR code to reserve a seat" className="h-28 w-28 flex-none rounded-lg" />
+      <div className="min-w-0">
+        <p className="font-semibold text-text-primary">Counter code for walk-ins</p>
+        <p className="text-caption text-text-secondary">
+          Someone walks in and wants a free seat? Show this. They scan, pay the booking fee, and the seat shows up on your list and is taken off for everyone else.
+        </p>
+        <a href={src} download={`${cafe.replace(/\W+/g, '-')}-walk-in-qr.png`} className="mt-1 inline-block text-body font-semibold text-primary underline">
+          Download to print
+        </a>
+      </div>
+    </div>
   );
 }
 
@@ -517,7 +548,7 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
                       <span className="block text-caption text-text-secondary">
                         {r.reference}
                         {r.hours && r.startTime && r.endTime ? ` · ${clockRange(r.startTime, r.endTime)} (${r.hours} hr)` : ''}
-                        {r.phone ? ` · ${r.phone}` : ''}
+                        {r.phone ? <> · <a href={`tel:${r.phone}`} className="font-semibold text-primary underline">Call {r.phone}</a></> : null}
                         {r.earlyAccess ? ' · early access' : ''}
                         {r.status === 'confirmed' || r.status === 'checked_in' ? ` · collect ${rupees(r.balanceDue)}` : ''}
                       </span>

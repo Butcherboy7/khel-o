@@ -93,6 +93,10 @@ export async function getDrop(slug: string): Promise<Drop> {
   return call(() => apiClient.get(`/api/v1/drops/${encodeURIComponent(slug)}`));
 }
 
+export async function getWalkInQr(slug: string): Promise<{ url: string; qr: string }> {
+  return call(() => apiClient.get(`/api/v1/drops/${encodeURIComponent(slug)}/walk-in-qr`));
+}
+
 export async function reserveDrop(
   slug: string,
   body: { blockId: string; seats: number; code?: string; phone?: string; startTime?: string; hours?: number },

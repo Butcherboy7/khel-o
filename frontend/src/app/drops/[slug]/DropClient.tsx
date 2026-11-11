@@ -328,9 +328,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           <div className="overflow-hidden rounded-2xl border border-border/70 shadow-card">
             {art ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={art} alt={`${drop.game} artwork`} className="aspect-video w-full object-cover" />
+              <img src={art} alt={`${drop.game} artwork`} className="aspect-[2.3/1] w-full object-cover sm:aspect-video" />
             ) : (
-              <div className="aspect-video w-full bg-gradient-to-br from-primary/80 to-secondary/70" aria-hidden />
+              <div className="aspect-[2.3/1] w-full bg-gradient-to-br sm:aspect-video from-primary/80 to-secondary/70" aria-hidden />
             )}
           </div>
           <p className="mt-3 text-caption font-bold uppercase tracking-wider text-primary">Launch drop</p>
@@ -441,18 +441,6 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           </p>
         )}
 
-        {/* How it works: three taps, shown before anything else asks for effort */}
-        {canReserve && (
-          <ol className="grid grid-cols-3 gap-2 text-center text-caption font-semibold text-text-primary" aria-label="How to reserve">
-            {['Pick a day', 'Drag your hours', 'Tap Reserve now'].map((t, i) => (
-              <li key={t} className="flex flex-col items-center gap-1 rounded-xl border border-border bg-card px-2 py-2.5">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[12px] font-extrabold text-white">{i + 1}</span>
-                {t}
-              </li>
-            ))}
-          </ol>
-        )}
-
         {/* Day */}
         {!ended && (
         <section ref={daysRef} className="scroll-mt-20">
@@ -460,7 +448,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           {flex && drop.blocks[0] && (
             <p className="text-caption text-text-secondary">Open {clock(drop.blocks[0].startTime)} – {clock(drop.blocks[0].endTime)}, every day</p>
           )}
-          <div className="mt-2 grid grid-cols-4 gap-2" role="radiogroup" aria-label="Days">
+          <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="radiogroup" aria-label="Days">
             {drop.blocks.map((b) => {
               const gone = b.started || sessionLeft(b) === 0;
               const on = b.id === blockId;
@@ -475,7 +463,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                     pickedByHand.current = true;
                     pick(b);
                   }}
-                  className={`min-h-[64px] rounded-xl border px-1.5 py-2 text-center transition-colors ${
+                  className={`min-h-[56px] w-[64px] flex-none rounded-xl border px-1 py-1.5 text-center transition-colors ${
                     on ? 'border-primary bg-primary/10' : 'border-border bg-card'
                   } ${gone ? 'opacity-50' : canReserve ? 'hover:border-primary/50' : ''}`}
                 >
@@ -483,10 +471,10 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                     {new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'Asia/Kolkata' })}
                   </span>
                   <span className="block font-heading text-body-emphasis font-bold leading-tight text-text-primary">
-                    {new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}
+                    {new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', timeZone: 'Asia/Kolkata' })}
                   </span>
                   <span className={`block text-[11px] ${gone ? 'text-error' : 'text-text-secondary'}`}>
-                    {b.started ? 'Started' : sessionLeft(b) === 0 ? 'Full' : flex ? ' ' : `${clock(b.startTime)}`}
+                    {b.started ? 'Started' : sessionLeft(b) === 0 ? 'Full' : flex ? new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' }) : `${clock(b.startTime)}`}
                   </span>
                 </button>
               );
@@ -619,7 +607,6 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 <span className="font-semibold text-text-primary">Left to pay at the café</span>
                 <span className="font-heading text-body-emphasis font-bold text-text-primary">{rupees(Math.max(0, total - payNow))}</span>
               </div>
-              <p className="pt-1">The {rupees(payNow)} booking fee is part of your {rupees(total)}, not extra. We hold the seat for 10 minutes while you pay.</p>
             </div>
 
             {flex && (
@@ -643,9 +630,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         {drop.state === 'early' && <Waitlist drop={drop} onJoined={load} text="No code? Get a message when everyone can reserve." quiet />}
 
         {/* Share */}
-        <section className="mt-2">
-          <h2 className="font-heading text-h2 font-semibold text-text-primary">Tell your friends</h2>
-          <p className="mt-1 text-body text-text-secondary">Seats are few. Send it to the people you want to play with.</p>
+        <section className="mt-1">
+          <h2 className="font-heading text-body-emphasis font-bold text-text-primary">Tell your friends</h2>
           <WhatsAppButton text={shareText} url={pageUrl} onShare={(c) => onShare(c, 'share_section')} className="mt-3" />
           <div className="mt-2">
             <ShareIconRow
@@ -664,16 +650,13 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
 
         {/* Community: the page always ends on it */}
         <CommunityInviteCard where="drop_page" />
-        <Link href="/community" className="rounded-2xl border border-border bg-card p-4 text-body text-text-secondary transition-colors hover:border-primary/40">
-          <span className="block font-heading text-body-emphasis font-bold text-text-primary">Help build KHEL-O</span>
-          Know a great café, or got game photos? Add them in a minute and get a shout-out.
-          <span className="mt-1 block font-semibold text-primary">Contribute →</span>
-        </Link>
 
         {/* Questions */}
-        <section>
-          <h2 className="font-heading text-h2 font-semibold text-text-primary">Questions</h2>
-          <dl className="mt-2 flex flex-col divide-y divide-border rounded-2xl border border-border bg-card">
+        <details className="group rounded-2xl border border-border bg-card px-4">
+          <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between font-heading text-body-emphasis font-bold text-text-primary">
+            Questions <span className="text-text-secondary transition-transform group-open:rotate-180" aria-hidden>⌄</span>
+          </summary>
+          <dl className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card">
             <Faq
               q="What do I pay now?"
               a={flex
@@ -691,7 +674,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               />
             )}
           </dl>
-        </section>
+        </details>
         </div>
       </div>
 
