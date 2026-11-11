@@ -58,6 +58,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const viewed = useRef(false);
   const daysRef = useRef<HTMLElement | null>(null);
   const scrolled = useRef(false);
+  const pickedByHand = useRef(Boolean(params.get('block')));
 
   const track = useCallback(
     (action: string, meta: Record<string, unknown> = {}) => trackAction(action, { drop: slug, ...meta }, drop?.cafe.id),
@@ -194,6 +195,17 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     if (b && drop.maxHours) pick(b);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drop?.id]);
+
+  // Their own seats arrive a moment after the page (the first paint is signed out). If the day
+  // we opened on turns out to be one they have maxed, move to the next day they can book.
+  const heldCount = drop?.myReservations.length ?? 0;
+  useEffect(() => {
+    if (!drop || !drop.maxHours || pickedByHand.current || !blockId) return;
+    if (heldOn(blockId) < drop.maxSeatsPerUser) return;
+    const next = drop.blocks.find((x) => !x.started && sessionLeft(x) > 0 && heldOn(x.id) < drop.maxSeatsPerUser);
+    if (next) pick(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heldCount]);
 
   if (!drop) {
     return (
@@ -459,7 +471,10 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                   role="radio"
                   aria-checked={on}
                   disabled={!canReserve || gone}
-                  onClick={() => pick(b)}
+                  onClick={() => {
+                    pickedByHand.current = true;
+                    pick(b);
+                  }}
                   className={`min-h-[64px] rounded-xl border px-1.5 py-2 text-center transition-colors ${
                     on ? 'border-primary bg-primary/10' : 'border-border bg-card'
                   } ${gone ? 'opacity-50' : canReserve ? 'hover:border-primary/50' : ''}`}
