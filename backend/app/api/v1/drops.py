@@ -431,10 +431,14 @@ async def list_my_drops(db: AsyncSession = Depends(get_db), user: User = Depends
         item["paidReservations"] = (await db.execute(select(func.count()).select_from(DropReservation).where(
             DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.PAID)))).scalar_one()
         out.append(item)
-    cafes_stmt = select(Cafe.id, Cafe.name).order_by(Cafe.name)
+    cafes_stmt = select(Cafe.id, Cafe.name, Cafe.opening_time, Cafe.closing_time).order_by(Cafe.name)
     if "admin" not in roles:
         cafes_stmt = cafes_stmt.where(Cafe.owner_id == user.id)
-    cafes = [{"id": str(i), "name": n} for i, n in (await db.execute(cafes_stmt)).all()]
+    # opening/closing let the form offer "the whole day, whenever you're open" without the owner typing hours.
+    cafes = [{"id": str(i), "name": n,
+              "openingTime": o.strftime("%H:%M") if o else None,
+              "closingTime": c_.strftime("%H:%M") if c_ else None}
+             for i, n, o, c_ in (await db.execute(cafes_stmt)).all()]
     for c in cafes:
         c["tiers"] = [
             {"id": str(t.id), "name": t.model or t.name, "totalSeats": t.total_seats}

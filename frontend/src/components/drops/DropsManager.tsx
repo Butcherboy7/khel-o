@@ -136,6 +136,44 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   );
 }
 
+const mins = (t: string) => {
+  const [h, m] = t.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+/** Shows, in plain words and as a bar, what other players will see: how many of this system
+ *  are kept for the drop, in which hours, and how many stay open for normal booking. */
+function KeptPreview({ game, tierName, total, kept, start, end, openAt, closeAt }: {
+  game: string; tierName: string; total: number; kept: number; start: string; end: string; openAt: string | null; closeAt: string | null;
+}) {
+  const rest = Math.max(0, total - kept);
+  const lo = Math.min(mins(openAt ?? start), mins(start));
+  const hi = Math.max(mins(closeAt ?? end), mins(end), lo + 60);
+  const span = hi - lo;
+  const left = Math.max(0, ((mins(start) - lo) / span) * 100);
+  const width = Math.max(2, ((mins(end) - mins(start)) / span) * 100);
+  const full = left < 0.5 && left + width > 99.5;
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3" aria-live="polite">
+      <p className="text-caption font-semibold uppercase tracking-wide text-text-secondary">What other players will see</p>
+      <div className="relative h-8 overflow-hidden rounded-lg bg-success/15" role="img" aria-label={`${kept} of ${total} ${tierName} kept for ${game} from ${start} to ${end}`}>
+        <div className="absolute inset-y-0 flex items-center justify-center bg-primary text-caption font-bold text-white" style={{ left: `${left}%`, width: `${width}%` }}>
+          {game}
+        </div>
+      </div>
+      <div className="flex justify-between text-caption text-text-secondary">
+        <span>{openAt ?? start}</span>
+        <span>{closeAt ?? end}</span>
+      </div>
+      <p className="text-body text-text-primary">
+        From <strong>{start}</strong> to <strong>{end}</strong>, {kept} of your {total} {tierName} {kept === 1 ? 'is' : 'are'} kept for {game} and show as taken for normal booking.
+        {rest > 0 ? <> The other {rest} stay open for normal players.</> : <> Nothing is left for normal players in those hours.</>}
+        {!full && <> Outside those hours all {total} are open for normal booking.</>}
+      </p>
+    </div>
+  );
+}
+
 function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCancel: () => void; onCreated: () => void }) {
   const [low, high] = list.suggestedPrice;
   const [cafeId, setCafeId] = useState(list.cafes[0]?.id ?? '');
@@ -156,6 +194,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
   const [dayStart, setDayStart] = useState('12:00');
   const [dayEnd, setDayEnd] = useState('23:00');
   const [daySeats, setDaySeats] = useState(2);
+  const [wholeDay, setWholeDay] = useState(true);
   const [live, setLive] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +202,14 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
   const priceNum = Number(price);
   const tiers = list.cafes.find((c) => c.id === cafeId)?.tiers ?? [];
   const tier = tiers.find((t) => t.id === tierId) ?? null;
+  const cafeRow = list.cafes.find((c) => c.id === cafeId);
+  const openAt = cafeRow?.openingTime ?? null;
+  const closeAt = cafeRow?.closingTime ?? null;
+  // "The whole day" = every hour the café is open. Only offered when the café's hours are set and end the same day.
+  const canWholeDay = !!openAt && !!closeAt && closeAt > openAt;
+  const whole = wholeDay && canWholeDay;
+  const startT = whole ? (openAt as string) : dayStart;
+  const endT = whole ? (closeAt as string) : dayEnd;
   const pickTier = (id: string) => {
     setTierId(id);
     const t = tiers.find((x) => x.id === id);
@@ -187,8 +234,8 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
     setError(null);
     if (!cafeId || !title.trim() || !game.trim()) return setError('Fill in the title and the game.');
     if (!tier) return setError('Pick which of your rigs this drop runs on.');
-    if (!startsOn || !dayStart || !dayEnd || daySeats < 1) return setError('Set the first day, the hours and the seats.');
-    if (dayEnd <= dayStart) return setError('It has to close later the same day, before midnight.');
+    if (!startsOn || !startT || !endT || daySeats < 1) return setError('Set the first day, the hours and the seats.');
+    if (endT <= startT) return setError('It has to close later the same day, before midnight.');
     const body: NewDrop = {
       cafeId,
       hardwareTierId: tier.id,
@@ -205,8 +252,8 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
       publicStartsAt: istIso(publicAt || nowIst()),
       status: live ? 'live' : 'draft',
       blocks: [],
-      dailyStartTime: dayStart,
-      dailyEndTime: dayEnd,
+      dailyStartTime: startT,
+      dailyEndTime: endT,
       dailySeats: daySeats,
       startsOn,
       days: 14,
@@ -244,13 +291,13 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
           <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />
         </Step>
 
-        <Step n={2} title="Which rig, and how many?">
+        <Step n={2} title={`Which of your systems run ${game || 'it'}?`}>
           {tiers.length === 0 ? (
             <p className="rounded-xl bg-surface p-3 text-body text-text-secondary">
               You have no setups yet. <Link href="/owner/tiers" className="font-semibold text-primary">Add one in Setups &amp; prices</Link>, then come back.
             </p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Rig">
+            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="System">
               {tiers.map((t) => (
                 <button
                   key={t.id}
@@ -266,43 +313,87 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
               ))}
             </div>
           )}
-          <p className="text-caption text-text-secondary">One drop runs on one rig. Want GTA 6 on both PS5 and Xbox? Make two drops.</p>
+          <p className="text-caption text-text-secondary">A drop runs on one kind of system. Want {game || 'it'} on both PS5 and Xbox? Make one drop for each.</p>
           {tier && (
-            <>
-              <label className="flex items-center justify-between gap-3 text-body font-medium text-text-primary">
-                How many {tier.name} for this drop?
-                <input
-                  type="number"
-                  min={1}
-                  max={tier.totalSeats}
-                  value={daySeats}
-                  onChange={(e) => setDaySeats(Math.min(tier.totalSeats, Math.max(1, Number(e.target.value) || 1)))}
-                  className={`${field} w-20 text-center`}
-                />
-              </label>
-              <p className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-caption text-text-primary">
-                These {daySeats} {tier.name} are kept for the drop from {dayStart} to {dayEnd}, every day it runs. During those hours they show as
-                taken for normal bookings. Outside those hours they are open for normal bookings again. Want them free for normal play? Make the drop hours shorter.
-              </p>
-            </>
+            <div className="flex flex-col gap-2">
+              <p className="text-body font-medium text-text-primary">How many of your {tier.totalSeats} {tier.name} run {game || 'it'}?</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
+                  <button
+                    type="button"
+                    aria-label="One fewer"
+                    disabled={daySeats <= 1}
+                    onClick={() => setDaySeats((n) => Math.max(1, n - 1))}
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-h3 font-bold text-text-primary hover:bg-surface disabled:opacity-40"
+                  >
+                    −
+                  </button>
+                  <span className="min-w-[3ch] text-center font-heading text-h3 font-bold text-text-primary" aria-live="polite">{daySeats}</span>
+                  <button
+                    type="button"
+                    aria-label="One more"
+                    disabled={daySeats >= tier.totalSeats}
+                    onClick={() => setDaySeats((n) => Math.min(tier.totalSeats, n + 1))}
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-h3 font-bold text-text-primary hover:bg-surface disabled:opacity-40"
+                  >
+                    +
+                  </button>
+                </div>
+                {tier.totalSeats > 1 && daySeats !== tier.totalSeats && (
+                  <button type="button" onClick={() => setDaySeats(tier.totalSeats)} className="h-11 rounded-xl border border-border px-4 text-body font-semibold text-text-primary hover:bg-surface">
+                    All {tier.totalSeats}
+                  </button>
+                )}
+              </div>
+            </div>
           )}
         </Step>
 
-        <Step n={3} title="When does it run?">
+        <Step n={3} title={`When are they kept for ${game || 'it'}?`}>
+          <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="When">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={whole}
+              disabled={!canWholeDay}
+              onClick={() => setWholeDay(true)}
+              className={`flex min-h-[64px] flex-col items-start justify-center rounded-xl border-2 px-3 text-left disabled:opacity-50 ${whole ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
+            >
+              <span className="font-semibold text-text-primary">The whole day</span>
+              <span className="text-caption text-text-secondary">{canWholeDay ? `Every hour you’re open (${openAt}–${closeAt})` : 'Set your opening hours first'}</span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!whole}
+              onClick={() => setWholeDay(false)}
+              className={`flex min-h-[64px] flex-col items-start justify-center rounded-xl border-2 px-3 text-left ${!whole ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
+            >
+              <span className="font-semibold text-text-primary">Only some hours</span>
+              <span className="text-caption text-text-secondary">The rest of the day stays open for normal play</span>
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <label className="col-span-2 flex flex-col gap-1 text-caption text-text-secondary sm:col-span-1">
               First day
               <input type="date" value={startsOn} min={new Date().toLocaleDateString('en-CA')} onChange={(e) => setStartsOn(e.target.value)} className={field} />
             </label>
-            <label className="flex flex-col gap-1 text-caption text-text-secondary">
-              Opens
-              <input type="time" value={dayStart} onChange={(e) => setDayStart(e.target.value)} className={field} />
-            </label>
-            <label className="flex flex-col gap-1 text-caption text-text-secondary">
-              Closes
-              <input type="time" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} className={field} />
-            </label>
+            {!whole && (
+              <>
+                <label className="flex flex-col gap-1 text-caption text-text-secondary">
+                  From
+                  <input type="time" value={dayStart} onChange={(e) => setDayStart(e.target.value)} className={field} />
+                </label>
+                <label className="flex flex-col gap-1 text-caption text-text-secondary">
+                  Until
+                  <input type="time" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} className={field} />
+                </label>
+              </>
+            )}
           </div>
+          {tier && (
+            <KeptPreview game={game || 'This game'} tierName={tier.name} total={tier.totalSeats} kept={daySeats} start={startT} end={endT} openAt={openAt} closeAt={closeAt} />
+          )}
           <p className="text-caption text-text-secondary">Nothing can be reserved before the first day. It runs for 2 weeks, then booking goes back to normal. Times are café time (India).</p>
         </Step>
 

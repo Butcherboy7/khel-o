@@ -471,3 +471,70 @@ async def test_bulk_refund_dry_run_then_real(fake_razorpay):
         assert [await svc.refund(db, r, "Game delayed") for r in rows] == ["already_refunded"] * 2
     assert sum(p.endswith("/refund") for p, _ in fake_razorpay) == 2
     assert await _taken(block.id) == 0
+
+
+# ---------------------------------------------------------------- a drop keeps seats of one rig from normal booking
+
+async def _cafe_with_rig(total=4):
+    from app.models.hardware_tier import HardwareTier
+    owner = await _user(UserRole.CAFE_OWNER)
+    async with AsyncSessionLocal() as db:
+        cafe = Cafe(id=uuid4(), owner_id=owner.id, name=f"Rig Cafe {uuid4().hex[:4]}", address_line1="1 Rd", city="Hyderabad",
+                    state="Telangana", pincode="500072", phone_number="+919000000004",
+                    verification_status=VerificationStatus.VERIFIED, is_active=True,
+                    opening_time=time(10, 0), closing_time=time(23, 0), bookable_stations=total)
+        db.add(cafe)
+        await db.flush()
+        tier = HardwareTier(id=uuid4(), cafe_id=cafe.id, name="PS5", price_per_hour=100.0, total_seats=total,
+                            app_bookable_seats=total, active_seats_count=total, is_active=True)
+        db.add(tier)
+        await db.commit()
+    return owner, cafe, tier
+
+
+def _rig_body(cafe, tier, start="18:00", end="23:00", seats=2, first=None, days=3):
+    return {"cafeId": str(cafe.id), "hardwareTierId": str(tier.id), "title": "GTA 6 Launch Drop", "game": "GTA 6",
+            "pricePerHour": 250, "depositAmount": 100, "earlyAccessStartsAt": NOW().isoformat(),
+            "publicStartsAt": NOW().isoformat(), "status": "live", "blocks": [],
+            "dailyStartTime": start, "dailyEndTime": end, "dailySeats": seats,
+            "startsOn": str(first or DAY), "days": days}
+
+
+@pytest.mark.asyncio
+async def test_kept_rig_seats_show_as_taken_to_normal_players_only_in_the_drop_hours():
+    owner, cafe, tier = await _cafe_with_rig(total=4)
+    async with _client() as c:
+        r = await c.post("/api/v1/owner/drops", json=_rig_body(cafe, tier, seats=2), headers=_h(owner))
+        assert r.status_code == 201, r.text
+        on = (await c.get(f"/api/v1/cafes/{cafe.id}/availability", params={"tier_id": str(tier.id), "date": str(DAY)})).json()["data"]
+        assert {"startTime": "18:00:00", "endTime": "23:00:00", "seatsCount": 2} in on["bookedSlots"]
+        assert on["keptForDrops"][0]["seats"] == 2 and on["keptForDrops"][0]["game"] == "GTA 6"
+        # the day after the drop ends, normal booking has the rig back
+        after = (await c.get(f"/api/v1/cafes/{cafe.id}/availability", params={"tier_id": str(tier.id), "date": str(DAY + timedelta(days=5))})).json()["data"]
+        assert after["bookedSlots"] == [] and after["keptForDrops"] == []
+
+
+@pytest.mark.asyncio
+async def test_whole_day_drop_keeps_the_seats_all_through_opening_hours():
+    owner, cafe, tier = await _cafe_with_rig(total=3)
+    async with _client() as c:
+        listed = (await c.get("/api/v1/owner/drops", headers=_h(owner))).json()["data"]
+        mine = next(x for x in listed["cafes"] if x["id"] == str(cafe.id))
+        assert mine["openingTime"] == "10:00" and mine["closingTime"] == "23:00"
+        r = await c.post("/api/v1/owner/drops", json=_rig_body(cafe, tier, mine["openingTime"], mine["closingTime"], seats=3), headers=_h(owner))
+        assert r.status_code == 201, r.text
+        on = (await c.get(f"/api/v1/cafes/{cafe.id}/availability", params={"tier_id": str(tier.id), "date": str(DAY)})).json()["data"]
+        assert {"startTime": "10:00:00", "endTime": "23:00:00", "seatsCount": 3} in on["bookedSlots"]
+
+
+@pytest.mark.asyncio
+async def test_cannot_keep_more_seats_than_the_rig_has_free():
+    owner, cafe, tier = await _cafe_with_rig(total=4)
+    async with _client() as c:
+        assert (await c.post("/api/v1/owner/drops", json=_rig_body(cafe, tier, seats=3), headers=_h(owner))).status_code == 201
+        # a second drop on the same rig and hours wants 2 more, only 1 is left
+        r = await c.post("/api/v1/owner/drops", json=_rig_body(cafe, tier, seats=2), headers=_h(owner))
+        assert r.status_code == 400 and "free" in r.text
+        # hours outside the café's opening hours are refused
+        r = await c.post("/api/v1/owner/drops", json=_rig_body(cafe, tier, "08:00", "12:00", seats=1), headers=_h(owner))
+        assert r.status_code == 400 and "open" in r.text.lower()

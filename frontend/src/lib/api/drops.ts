@@ -192,7 +192,7 @@ export interface OwnerDrop extends Omit<Drop, 'blocks' | 'myReservations'> {
 
 export interface OwnerDropList {
   drops: (Omit<Drop, 'myReservations'> & { paidReservations: number })[];
-  cafes: { id: string; name: string; tiers: { id: string; name: string; totalSeats: number }[] }[];
+  cafes: { id: string; name: string; openingTime?: string | null; closingTime?: string | null; tiers: { id: string; name: string; totalSeats: number }[] }[];
   suggestedPrice: [number, number];
 }
 
