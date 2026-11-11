@@ -51,14 +51,14 @@ function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
   return (
     <Card elevation="flat" data-tour="drop-prices">
       <CardContent className="flex flex-col gap-3 p-4">
-        <p className="font-heading text-body-emphasis font-bold text-text-primary">Prices</p>
+        <p className="font-heading text-body-emphasis font-bold text-text-primary">Price and booking fee</p>
         <div className="grid grid-cols-3 gap-2">
           {[
             ['Per hour (₹)', price, setPrice],
-            ['Booking fee, 1–3 hr (₹)', short, setShort],
-            ['Booking fee, 4–5 hr (₹)', long, setLong],
+            ['Fee, 1–3 hr (₹)', short, setShort],
+            ['Fee, 4–5 hr (₹)', long, setLong],
           ].map(([label, val, set]) => (
-            <label key={label as string} className="flex flex-col gap-1 text-caption text-text-secondary">
+            <label key={label as string} className="flex flex-col justify-end gap-1 text-caption text-text-secondary">
               {label as string}
               <input
                 inputMode="numeric"
@@ -69,7 +69,7 @@ function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
             </label>
           ))}
         </div>
-        <p className="text-caption text-text-secondary">You can change these any time, even while the drop is live. People who already reserved keep the price they booked at.</p>
+        <p className="text-caption text-text-secondary">The booking fee is what people pay online to hold a seat. It comes off their bill. You can change these any time, even while the drop is live. People who already reserved keep the price they booked at.</p>
         <div className="flex items-center gap-3">
           <Button onClick={save} disabled={busy || !changed || !Number(price)}>Save prices</Button>
           {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}

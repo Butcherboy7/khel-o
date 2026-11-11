@@ -86,6 +86,9 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
 
   const title = picked ? `${picked.name}: pick your café` : 'Launch drops';
   const cafes = rows.length;
+  // Distances only work for cafés with a map pin. Never promise "nearest first" without one.
+  const sorted = rows.some((d) => d.km != null);
+  const canSort = rows.some((d) => d.cafe.lat != null && d.cafe.lng != null);
 
   return (
     <CustomerShell>
@@ -98,7 +101,7 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
               : cafes === 0
               ? 'No café is taking seats right now.'
               : picked
-              ? `${cafes} ${cafes === 1 ? 'café is' : 'cafés are'} taking seats. ${here ? 'Nearest to you first.' : 'Tap a café to see days and times.'}`
+              ? `${cafes} ${cafes === 1 ? 'café is' : 'cafés are'} taking seats. ${sorted ? 'Nearest to you first.' : 'Tap a café to see days and times.'}`
               : 'Reserve a seat with a small booking fee. You pay the rest at the café.'}
           </p>
         </header>
@@ -125,7 +128,7 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
         )}
 
         {/* Nearest first needs a location; one tap, and it is remembered */}
-        {cafes > 1 && !here && (
+        {cafes > 1 && !here && canSort && (
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-3.5 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-body text-text-primary">Want the closest one first?</p>
             <button
