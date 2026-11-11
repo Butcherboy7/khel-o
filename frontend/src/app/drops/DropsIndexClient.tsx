@@ -166,7 +166,7 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
 
         <ul className="flex flex-col gap-3">
           {rows.map((d, i) => {
-            const art = dropArt(d);
+            const art = d.coverImageUrl || d.cafe.photo || dropArt(d);
             const soon = d.state === 'soon';
             const nearest = i === 0 && d.km != null && cafes > 1;
             return (

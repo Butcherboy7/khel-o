@@ -103,6 +103,18 @@ async def _out(db: AsyncSession, drop: Drop, cafe: Cafe, blocks: list[DropBlock]
     return data
 
 
+def _cafe_photo(cafe: Cafe) -> Optional[str]:
+    """First https photo of the café, preferring the play area."""
+    items = cafe.photos if isinstance(cafe.photos, list) else []
+    urls = []
+    for it in items:
+        u = it.get("url") if isinstance(it, dict) else it
+        cat = it.get("category") if isinstance(it, dict) else None
+        if isinstance(u, str) and u.startswith("https://"):
+            urls.append((0 if cat == "play_area" else 1, u))
+    return sorted(urls, key=lambda x: x[0])[0][1] if urls else None
+
+
 def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
     return {
         "id": str(drop.id),
@@ -132,6 +144,8 @@ def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
             # The café's public map pin, so the "pick a café" screen can put the nearest one first.
             "lat": float(cafe.latitude) if cafe.latitude is not None else None,
             "lng": float(cafe.longitude) if cafe.longitude is not None else None,
+            # One of the café's own photos, so the "pick a café" list can tell cafés apart.
+            "photo": _cafe_photo(cafe),
         },
         "blocks": [_block_out(drop, b) for b in blocks],
         "seatsLeft": sum(max(0, b.seats_total - b.seats_taken) for b in blocks if svc.block_starts_at(b) > svc.now_utc()),
