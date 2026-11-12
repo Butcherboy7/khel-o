@@ -31,7 +31,7 @@ export default function OwnerPayoutsPage() {
 
   // Staff cannot see the venue's financials — bounce to the dashboard instead
   // of rendering a page whose data calls will just 403. Matches the same
-  // activeRole-based guard on Café Settings.
+  // activeRole-based guard on Café settings.
   useEffect(() => {
     if (activeRole === 'staff') {
       router.push('/owner/dashboard');
@@ -180,7 +180,7 @@ export default function OwnerPayoutsPage() {
             </dl>
           ) : (
             <p className="text-caption text-text-secondary bg-surface-hover p-4 rounded-2xl border border-border/80">
-              No payout details yet. Add your UPI ID or bank account in Café Settings so KHEL-O can send you your money.
+              No payout details yet. Add your UPI ID or bank account in Café settings so KHEL-O can send you your money.
             </p>
           )}
         </CardContent>

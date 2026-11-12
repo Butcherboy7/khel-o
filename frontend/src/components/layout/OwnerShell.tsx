@@ -69,7 +69,7 @@ const ownerNavSections: NavSection[] = [
         hint: "Today's takings and arrivals",
       },
       {
-        label: 'Scan & Check-in',
+        label: 'Scan & check in',
         href: '/owner/scanner',
         icon: QrCode,
         hint: "Scan a customer's booking pass",
@@ -108,8 +108,8 @@ const ownerNavSections: NavSection[] = [
     heading: 'Money & account',
     items: [
       { label: 'Payouts', href: '/owner/payouts', icon: Wallet, hint: 'What you have been paid' },
-      { label: 'Your Team', href: '/owner/staff', icon: Users, hint: 'Give staff their own login' },
-      { label: 'Café Settings', href: '/owner/settings', icon: Settings, hint: 'Details, hours and pausing' },
+      { label: 'Your team', href: '/owner/staff', icon: Users, hint: 'Give staff their own login' },
+      { label: 'Café settings', href: '/owner/settings', icon: Settings, hint: 'Details, hours and pausing' },
       { label: 'Help & Support', href: '/owner/support', icon: LifeBuoy, hint: 'Ask KHEL-O, or replay the tutorial' },
     ],
   },
@@ -141,7 +141,7 @@ function useOwnerSections(isStaff: boolean): NavSection[] {
 // Staff sees a dedicated operational view
 const staffNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard, hint: "Today's arrivals" },
-  { label: 'Scan & Check-in', href: '/owner/scanner', icon: QrCode, hint: "Scan a customer's booking pass" },
+  { label: 'Scan & check in', href: '/owner/scanner', icon: QrCode, hint: "Scan a customer's booking pass" },
   { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays, hint: 'Every booking, past and upcoming' },
   { label: 'Free slots', href: '/owner/availability', icon: CalendarClock, hint: "What's free right now" },
 ];

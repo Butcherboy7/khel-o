@@ -131,7 +131,7 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
   payouts: {
     info: 'Where your money is: still clearing, ready to pay you, or already paid to you.',
     tips: [
-      'Add your UPI ID or bank account in Café Settings first. Nothing can be sent until you do.',
+      'Add your UPI ID or bank account in Café settings first. Nothing can be sent until you do.',
       '“Still clearing” = the customer paid and the bank is moving it (2–3 working days). “Ready to pay you” = cleared, KHEL-O sends it next.',
       'Launch drop money (GTA 6 and similar) is at the bottom, in English, Hindi and Telugu.',
       'Every transfer is listed with its UTR number. “Failed” means contact support.',

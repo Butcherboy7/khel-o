@@ -269,7 +269,7 @@ export const TOUR_LESSONS: TourLesson[] = [
       {
         kind: 'look', page: '/owner/payouts', target: 'payout-where',
         title: 'Where it is sent',
-        body: 'Your UPI ID or bank account. Add it in Café Settings first. Nothing can be sent until you do.',
+        body: 'Your UPI ID or bank account. Add it in Café settings first. Nothing can be sent until you do.',
       },
       {
         kind: 'look', page: '/owner/payouts', target: 'payout-drop-money',
@@ -282,7 +282,7 @@ export const TOUR_LESSONS: TourLesson[] = [
     page: 'settings',
     name: 'Café settings',
     steps: [
-      ...navTo('/owner/settings', 'Café Settings', true),
+      ...navTo('/owner/settings', 'Café settings', true),
       {
         kind: 'look', page: '/owner/settings', target: 'settings-stop',
         title: 'The off switch',
@@ -301,7 +301,7 @@ const INTRO: TourStep = {
 const OUTRO: TourStep = {
   kind: 'look', page: D,
   title: 'You’re ready',
-  body: 'Reviews, Insights, Alerts and Your Team are in the menu too. Every page has a Tutorial button at the top if you want a lesson again.',
+  body: 'Reviews, Insights, Alerts and Your team are in the menu too. Every page has a Tutorial button at the top if you want a lesson again.',
 };
 
 /** One step as it plays, with its place in the lesson and the tour. */
