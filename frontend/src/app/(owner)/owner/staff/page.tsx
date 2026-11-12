@@ -7,6 +7,7 @@ import { listOwnerStaff, deleteOwnerStaff } from '@/lib/api/owner';
 import { createStaffInvitation, listStaffInvitations, cancelStaffInvitation, type StaffInvitation } from '@/lib/api/invitations';
 import { Card, CardContent, Button, Input, Badge, EmptyState, PageSpinner } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
+import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { useAuthStore } from '@/store/authStore';
@@ -23,7 +24,10 @@ export default function OwnerStaffPage() {
     }
   }, [activeRole, router]);
 
-  const [staffList, setStaffList] = useState<any[]>([]);
+  const [staffList, setStaffList] = useState<{ id: string; fullName: string; email: string }[]>([]);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  // Two-tap cancel for an invite, like Remove below.
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [invitations, setInvitations] = useState<StaffInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -37,14 +41,13 @@ export default function OwnerStaffPage() {
 
   const loadData = async () => {
     try {
-      const [staffRes, invRes] = await Promise.all([
-        listOwnerStaff().catch(() => ({ staff: [] })),
-        listStaffInvitations().catch(() => ({ invitations: [] }))
-      ]);
+      const [staffRes, invRes] = await Promise.all([listOwnerStaff(), listStaffInvitations()]);
       setStaffList(staffRes.staff || []);
       setInvitations(invRes.invitations || []);
-    } catch {
-      // Fallback
+      setLoadError(null);
+    } catch (e) {
+      // Say so: an empty list here would read as "nobody yet" when the load simply failed.
+      setLoadError(e ?? true);
     } finally {
       setIsLoading(false);
     }
@@ -53,6 +56,14 @@ export default function OwnerStaffPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Escape closes the invite window.
+  useEffect(() => {
+    if (!isInviteOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setIsInviteOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isInviteOpen]);
 
   const handleInviteSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -63,7 +74,7 @@ export default function OwnerStaffPage() {
       const res = await createStaffInvitation(formData);
       setMsg({
         type: 'success',
-        text: `Invitation sent to ${res.invitation.email}! Link copied to clipboard or ready to copy below.`
+        text: `Invite sent to ${res.invitation.email}. The link is below if you want to send it yourself.`
       });
       setFormData({ fullName: '', email: '', phoneNumber: '' });
       setIsInviteOpen(false);
@@ -83,10 +94,11 @@ export default function OwnerStaffPage() {
   const handleCancelInvitation = async (invId: string) => {
     try {
       await cancelStaffInvitation(invId);
-      setMsg({ type: 'success', text: 'Staff invitation cancelled.' });
+      setMsg({ type: 'success', text: 'Invite cancelled.' });
+      setConfirmCancelId(null);
       loadData();
     } catch (err: any) {
-      setMsg({ type: 'error', text: err?.message || 'Couldn’t cancel invitation. Please try again.' });
+      setMsg({ type: 'error', text: err?.message || 'Couldn’t cancel the invite. Please try again.' });
     }
   };
 
@@ -156,6 +168,10 @@ export default function OwnerStaffPage() {
         </div>
       )}
 
+      {Boolean(loadError) && (
+        <OwnerLoadError error={loadError} title="Couldn’t load your team" message="Check your connection and try again." onRetry={() => { setIsLoading(true); loadData(); }} />
+      )}
+
       {/* What staff can and can't see — said before anyone is invited, because
           "will they see my money?" is the question that stops an owner here. */}
       <Card elevation="resting" className="border border-border bg-surface">
@@ -178,7 +194,7 @@ export default function OwnerStaffPage() {
       </Card>
 
       {/* Pending Invitations Section */}
-      {openInvitations.length > 0 && (
+      {!loadError && openInvitations.length > 0 && (
         <Card elevation="raised" className="bg-surface border border-border">
           <CardContent className="p-6 flex flex-col gap-4">
             <div className="flex items-center justify-between">
@@ -209,12 +225,12 @@ export default function OwnerStaffPage() {
                   <div className="flex items-center flex-wrap gap-2">
                     <span className="text-caption text-text-tertiary flex items-center gap-1 mr-2">
                       <Clock className="h-3.5 w-3.5" />
-                      Expires: {new Date(inv.expiresAt).toLocaleDateString()}
+                      Link works until {new Date(inv.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                     </span>
 
                     {inv.status === 'pending' && (
                       <>
-                        <Badge variant="warning" size="sm">Pending</Badge>
+                        <Badge variant="warning" size="sm">Waiting</Badge>
                         <Button
                           variant="outline"
                           size="sm"
@@ -222,16 +238,23 @@ export default function OwnerStaffPage() {
                           className="gap-1.5 text-xs"
                         >
                           <Copy className="h-3.5 w-3.5" />
-                          <span>{copiedToken === inv.token ? 'Copied!' : 'Copy Link'}</span>
+                          <span>{copiedToken === inv.token ? 'Copied!' : 'Copy link'}</span>
                         </Button>
-                        <button
-                          onClick={() => handleCancelInvitation(inv.id)}
-                          className="text-rose-500 hover:text-rose-600 p-1.5"
-                          title="Cancel Invitation"
-                          aria-label="Cancel invitation"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </button>
+                        {confirmCancelId === inv.id ? (
+                          <span className="flex items-center gap-2" role="group" aria-label={`Cancel the invite for ${inv.fullName}?`}>
+                            <Button variant="destructive" size="sm" onClick={() => handleCancelInvitation(inv.id)}>Cancel invite</Button>
+                            <Button variant="ghost" size="sm" onClick={() => setConfirmCancelId(null)}>Keep</Button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmCancelId(inv.id)}
+                            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl px-2.5 text-caption font-semibold text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+                          >
+                            <XCircle className="h-4 w-4" aria-hidden="true" />
+                            Cancel invite
+                          </button>
+                        )}
                       </>
                     )}
 
@@ -244,7 +267,19 @@ export default function OwnerStaffPage() {
                     )}
 
                     {inv.status === 'expired' && (
-                      <Badge variant="error" size="sm">Expired</Badge>
+                      <>
+                        <Badge variant="error" size="sm">Expired</Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setFormData({ fullName: inv.fullName, email: inv.email, phoneNumber: '' });
+                            setIsInviteOpen(true);
+                          }}
+                        >
+                          Invite again
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -255,7 +290,7 @@ export default function OwnerStaffPage() {
       )}
 
       {/* Staff List */}
-      <Card elevation="raised" className="bg-surface border border-border">
+      {!loadError && <Card elevation="raised" className="bg-surface border border-border">
         <CardContent className="p-6 flex flex-col gap-4">
           <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
             People with a login
@@ -308,7 +343,7 @@ export default function OwnerStaffPage() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      <Badge variant="success" size="sm">Check-In Staff</Badge>
+                      <Badge variant="success" size="sm">Can check customers in</Badge>
                       <button
                         onClick={() => setConfirmRemoveId(member.id)}
                         className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl px-2.5 text-caption font-semibold text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
@@ -324,24 +359,28 @@ export default function OwnerStaffPage() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Invite Modal */}
       {isInviteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <Card elevation="raised" className="max-w-md w-full bg-surface border border-border p-6 flex flex-col gap-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onMouseDown={(e) => e.target === e.currentTarget && setIsInviteOpen(false)}
+        >
+          <Card role="dialog" aria-modal="true" aria-label="Invite someone to your team"
+             elevation="raised" className="max-w-md w-full bg-surface border border-border p-6 flex flex-col gap-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-heading text-h3 text-text-primary">Invite Venue Staff Member</h3>
-              <button onClick={() => setIsInviteOpen(false)} className="text-text-tertiary font-bold">✕</button>
+              <h3 className="font-heading text-h3 text-text-primary">Invite someone to your team</h3>
+              <button type="button" onClick={() => setIsInviteOpen(false)} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-xl text-text-tertiary font-bold hover:bg-surface-hover">✕</button>
             </div>
 
             <p className="text-caption text-text-secondary">
-              An invitation email with setup instructions will be sent via Resend. You can also copy the invitation link directly.
+              We’ll email them a link to set their own password. You can also copy the link and send it yourself.
             </p>
 
             <form onSubmit={handleInviteSubmit} className="flex flex-col gap-4">
               <Input
-                label="Staff Full Name *"
+                label="Their name"
                 placeholder="e.g. Rahul Sharma"
                 value={formData.fullName}
                 onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
@@ -349,16 +388,16 @@ export default function OwnerStaffPage() {
               />
 
               <Input
-                label="Staff Email Address *"
+                label="Their email"
                 type="email"
-                placeholder="staff@esportsarena.in"
+                placeholder="name@example.com"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
               />
 
               <Input
-                label="Phone Number (Optional)"
+                label="Their phone (optional)"
                 placeholder="+91 98765 43210"
                 value={formData.phoneNumber}
                 onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
