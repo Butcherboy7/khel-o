@@ -78,7 +78,7 @@ function findTarget(target: TourTarget): HTMLElement | null {
     return all[all.length - 1] ?? null;
   }
   const label = Array.from(document.querySelectorAll<HTMLLabelElement>('label')).filter(
-    (l) => l.textContent?.trim() === target.label && isShown(l),
+    (l) => Boolean(l.textContent?.trim().startsWith(target.label)) && isShown(l),
   );
   return (label[label.length - 1]?.parentElement as HTMLElement | undefined) ?? null;
 }

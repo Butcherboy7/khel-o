@@ -153,6 +153,7 @@ export default function OwnerStaffPage() {
           <Button
             variant="primary"
             onClick={() => setIsInviteOpen(true)}
+            data-tour="staff-invite"
             className="w-full justify-center gap-2 whitespace-nowrap sm:w-auto"
           >
             <UserPlus className="h-4 w-4" aria-hidden="true" />

@@ -60,7 +60,7 @@ export function PcChargeChoice({ config, onChange }: { config: TierConfig; onCha
   const sample = [1, 2, pcs].filter((n, i, a) => n <= pcs && a.indexOf(n) === i);
 
   return (
-    <div className="flex flex-col gap-3 sm:col-span-2">
+    <div className="flex flex-col gap-3 sm:col-span-2" data-tour="tier-charge">
       <div>
         <span className="mb-1.5 block text-overline font-semibold text-text-secondary">How do you charge?</span>
         <div role="radiogroup" aria-label="How do you charge for these PCs" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -149,7 +149,7 @@ export function PcSpeedFields({ config, onChange }: { config: TierConfig; onChan
   };
 
   return (
-    <div className="flex flex-col gap-3 sm:col-span-2">
+    <div className="flex flex-col gap-3 sm:col-span-2" data-tour="tier-hz">
       <div>
         <span className="mb-1.5 flex items-center gap-0.5 text-overline font-semibold text-text-secondary">
           Screen refresh rate

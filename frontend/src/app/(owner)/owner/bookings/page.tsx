@@ -439,11 +439,16 @@ function DropBookingCard({ d, onCheckIn, busy }: { d: OwnerDropBooking; onCheckI
               {formatTime(d.startTime)} · {d.hours ?? ''}h
             </span>
             <span className="font-semibold text-text-primary">{d.dropTitle}</span>
+            {d.seats > 1 && <span className="font-semibold text-text-primary">{d.seats} seats</span>}
           </div>
           <span className="font-data text-ref uppercase text-text-secondary">{d.reference}</span>
         </div>
         <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-border pt-3 sm:justify-end sm:border-0 sm:pt-0">
-          <span className="text-caption text-text-secondary">Pays at café: <strong className="text-text-primary">₹{Math.round(d.balanceDue)}</strong></span>
+          {d.source === 'offline' ? (
+            <span className="text-caption text-text-secondary">Sold at the café{d.price ? <>, <strong className="text-text-primary">₹{Math.round(d.price)}</strong> cash taken</> : null}</span>
+          ) : (
+            <span className="text-caption text-text-secondary">Pays at café: <strong className="text-text-primary">₹{Math.round(d.balanceDue)}</strong></span>
+          )}
           {d.status === 'confirmed' && d.checkinToken && (
             <Button variant="primary" size="sm" onClick={onCheckIn} isLoading={busy} loadingText="Checking in" className="gap-1.5">
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />

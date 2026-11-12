@@ -115,6 +115,12 @@ class DropReservation(Base):
     checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     checked_in_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     used_early_access: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 'online' = paid in the app. 'offline' = the café sold the seat and took the
+    # cash itself; user_id is then the staff member who wrote it down.
+    source: Mapped[str] = mapped_column(String(10), nullable=False, default="online", server_default="online")
+    guest_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    guest_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
 

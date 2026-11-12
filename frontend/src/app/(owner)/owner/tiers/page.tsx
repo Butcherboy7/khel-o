@@ -513,6 +513,7 @@ export default function HardwareTiersPage() {
                     <div className="border-t border-border pt-3">
                       <button
                         type="button"
+                        data-tour={i === 0 ? 'tier-broken' : undefined}
                         onClick={() => setExpandedUnitsTierId(expandedUnitsTierId === tier.id ? null : tier.id)}
                         className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-text-primary"
                       >

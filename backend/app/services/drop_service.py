@@ -290,6 +290,7 @@ async def user_seats(db: AsyncSession, drop_id: UUID, user_id: UUID, block_id: O
     q = select(func.coalesce(func.sum(DropReservation.seats), 0)).where(
         DropReservation.drop_id == drop_id,
         DropReservation.user_id == user_id,
+        DropReservation.source == "online",
         DropReservation.status.in_(HOLDING),
     )
     if block_id is not None:
@@ -445,6 +446,87 @@ async def reserve(
     await db.commit()
     await db.refresh(reservation)
     return Reserved(reservation, order_id, settings.RAZORPAY_KEY_ID)
+
+
+async def book_offline(
+    db: AsyncSession, drop: Drop, block_id: UUID, staff: User, seats: int, name: str, phone: Optional[str],
+    note: Optional[str], start: Optional[time] = None, hours: Optional[float] = None, amount: Optional[Decimal] = None,
+) -> DropReservation:
+    """The café sold these seats itself and took the cash. They hold the seats
+    exactly like a paid online reservation (so nobody else can book them), but
+    no money moves through the app and nothing is ever refunded by it."""
+    if not await can_manage(db, staff, drop.cafe_id):
+        raise ForbiddenException(message="This drop belongs to another café.", error_code="FORBIDDEN")
+    await release_expired(db, drop.id)
+    await ensure_blocks(db, drop)
+    if drop.status == "cancelled" or state(drop) == "ended":
+        raise DropError("This drop is over, so it can't take bookings.", "DROP_ENDED")
+    name = (name or "").strip()
+    if not name or len(name) > 120:
+        raise DropError("Write the customer's name (up to 120 letters).", "NEED_NAME")
+    phone = (phone or "").strip()
+    if phone:
+        try:
+            phone = clean_phone(phone)
+        except Exception:
+            raise DropError("That phone number doesn't look right. Leave it empty or fix it.", "BAD_PHONE")
+    if seats < 1 or seats > 20:
+        raise DropError("Choose 1 to 20 seats.", "BAD_SEATS")
+    block = await db.get(DropBlock, block_id)
+    if block is None or block.drop_id != drop.id:
+        raise NotFoundException(message="We couldn't find that time.", error_code="BLOCK_NOT_FOUND")
+    r_start = r_end = None
+    length = None
+    if drop.max_hours:
+        if hours is None or start is None:
+            raise DropError("Pick when it starts and how many hours.", "NEED_HOURS")
+        length = round(hours * 60)
+        if length < 60 or length > drop.max_hours * 60 or length % STEP:
+            raise DropError(f"Choose 1 to {drop.max_hours} hours.", "BAD_HOURS")
+        offset = _mins(start) - _mins(block.start_time)
+        end_min = _mins(start) + length
+        if offset < 0 or offset % STEP or end_min > _mins(block.end_time):
+            raise DropError("That time does not fit inside this session.", "BAD_HOURS")
+        r_start = start
+        r_end = time(end_min // 60, end_min % 60) if end_min < 1440 else time(23, 59)
+    if not await _take(db, block.id, seats, r_start, r_end):
+        await db.rollback()
+        raise DropError("Not enough seats are free at that time. Pick another time or fewer seats.", "SOLD_OUT")
+    if amount is not None:
+        total = money(amount)
+    elif r_start is not None:
+        total = money(Decimal(str(drop.price_per_hour)) * Decimal(length) / Decimal(60) * seats)
+    else:
+        total = money(block_price_per_seat(drop, block) * seats)
+    now = now_utc()
+    res = DropReservation(
+        reference=_reference(), drop_id=drop.id, block_id=block.id, user_id=staff.id, seats=seats,
+        status="confirmed", block_price=total, deposit_amount=Decimal("0.00"), balance_due=Decimal("0.00"),
+        expires_at=now, paid_at=now, checkin_token=secrets.token_urlsafe(18), used_early_access=False,
+        start_time=r_start, end_time=r_end, hours=length // 60 if length else None,
+        source="offline", guest_name=name, guest_phone=phone or None, note=(note or "").strip()[:200] or None,
+    )
+    db.add(res)
+    await db.commit()
+    await db.refresh(res)
+    return res
+
+
+async def cancel_offline(db: AsyncSession, res: DropReservation, staff: User) -> DropReservation:
+    """The café wrote it down by mistake or the customer called off. Frees the seats."""
+    drop = await db.get(Drop, res.drop_id)
+    if not await can_manage(db, staff, drop.cafe_id):
+        raise ForbiddenException(message="Only the café can do this.", error_code="FORBIDDEN")
+    res = (await db.execute(select(DropReservation).where(DropReservation.id == res.id).with_for_update())).scalars().one()
+    if res.source != "offline":
+        raise DropError("Only a booking you wrote down yourself can be removed here.", "NOT_OFFLINE")
+    if res.status not in HOLDING:
+        raise DropError("That booking is already closed.", "NOT_ACTIVE")
+    res.status = "cancelled"
+    await _give_back(db, res.block_id)
+    await db.commit()
+    await db.refresh(res)
+    return res
 
 
 async def _lock_by_order(db: AsyncSession, order_id: str) -> Optional[DropReservation]:
@@ -614,7 +696,8 @@ async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict],
         .order_by(DropReservation.created_at)
     )).all()
     now = now_utc()
-    live = [(r, n) for r, n in rows if r.status in PAID or (r.expires_at is not None and _aware(r.expires_at) > now)]
+    live = [(r, (r.guest_name if r.source == "offline" else n)) for r, n in rows
+            if r.status in PAID or (r.expires_at is not None and _aware(r.expires_at) > now)]
 
     def clock(m: int) -> str:
         m = min(m, 24 * 60 - 1)

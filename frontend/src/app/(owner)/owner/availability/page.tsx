@@ -444,7 +444,7 @@ export default function OwnerAvailabilityPage() {
       {/* Broken machines. Named by the owner ("PC 7"), and the same list the Setups
           page uses, so marking one here really stops customers booking it. */}
       {selectedTier && !selectedTier.id.startsWith('drop-') && data?.cafeId && (
-        <Card elevation="flat" className="flex flex-col gap-1 p-4">
+        <Card elevation="flat" data-tour="slots-broken" className="flex flex-col gap-1 p-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-500/10 text-gray-500">
               <Ban className="h-4 w-4" />

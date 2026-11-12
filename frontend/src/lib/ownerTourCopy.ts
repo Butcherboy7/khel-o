@@ -59,7 +59,7 @@ export const TOUR_LESSONS: TourLesson[] = [
       {
         kind: 'look', page: D, target: 'dash-stats',
         title: 'Your day in three numbers',
-        body: 'Money earned today, stations free right now, and customers who are late to check in.',
+        body: 'Money earned today, how many seats are free right now, and customers who are waiting to check in.',
       },
       {
         kind: 'look', page: D, target: 'dash-arrivals',
@@ -69,7 +69,7 @@ export const TOUR_LESSONS: TourLesson[] = [
       {
         kind: 'look', page: D, target: 'dash-seats',
         title: 'Keep seats for walk-ins',
-        body: 'Use − and + to choose how many stations people can book in the app. The rest stay for walk-ins.',
+        body: 'Use − and + to choose how many machines people can book in the app. The rest stay for walk-ins.',
       },
     ],
   },
@@ -120,12 +120,17 @@ export const TOUR_LESSONS: TourLesson[] = [
       {
         kind: 'look', page: '/owner/availability', target: 'slots-now',
         title: 'Free right now',
-        body: 'How many stations are free, in use, and waiting for payment.',
+        body: 'How many machines are free, in use, and waiting for payment.',
       },
       {
         kind: 'look', page: '/owner/availability', target: 'slots-tiers',
         title: 'One setup at a time',
         body: 'Tap PS5, PC or any setup to see its hours. A launch drop like GTA 6 is one more button here, with the same colours. Look here before you promise a walk-in a time later in the day.',
+      },
+      {
+        kind: 'look', page: '/owner/availability', target: 'slots-broken', onlyIfVisible: true,
+        title: 'Something broken?',
+        body: 'Type the machine as you know it, like “PC 7”, and tap Mark broken. Customers can’t book it and never see its name. Tap “It’s fixed” when it works again. For a cabin, type its name instead.',
       },
     ],
   },
@@ -150,14 +155,29 @@ export const TOUR_LESSONS: TourLesson[] = [
         body: 'Customers see ₹1 less on a round price (₹149 for ₹150). KHEL-O pays you that ₹1.',
       },
       {
-        kind: 'look', page: '/owner/tiers', target: { label: 'Bookable on KHEL-O app' }, afterTap: true,
+        kind: 'look', page: '/owner/tiers', target: 'tier-charge', afterTap: true, onlyIfVisible: true,
+        title: 'Per PC or private cabin',
+        body: 'Per PC: one price for each PC. Private cabin: a cabin fee, plus a price for each PC used inside. The example under it shows what a customer pays for 1 PC, 2 PCs and a full cabin.',
+      },
+      {
+        kind: 'look', page: '/owner/tiers', target: { label: 'Bookable on KHEL-O app' }, afterTap: true, onlyIfVisible: true,
         title: 'How many in the app',
-        body: 'How many of these customers can book online. Keep the rest for walk-ins.',
+        body: 'How many of these customers can book online. Keep the rest for walk-ins. A new setup puts all of them on the app.',
+      },
+      {
+        kind: 'look', page: '/owner/tiers', target: 'tier-hz', afterTap: true, onlyIfVisible: true,
+        title: 'Screen speed and FPS',
+        body: 'Tap your screen’s refresh rate, like 144 Hz. Under it you can type the FPS your PCs really get in popular games. Numbers we work out are marked “estimated” on your café page. Yours show without that word.',
       },
       {
         kind: 'tap', page: '/owner/tiers', target: 'tier-cancel', afterTap: true,
         title: 'Close without saving',
         body: 'This was practice. Tap Cancel and nothing changes.',
+      },
+      {
+        kind: 'look', page: '/owner/tiers', target: 'tier-broken', onlyIfVisible: true,
+        title: 'Mark a broken machine',
+        body: 'Tap “Something broken?” on a setup, type the machine like “PC 7” and tap Mark broken. Customers just see one machine fewer. Tap “It’s fixed” when it is back.',
       },
     ],
   },
@@ -194,6 +214,11 @@ export const TOUR_LESSONS: TourLesson[] = [
     steps: [
       ...navTo('/owner/drops', 'Launch drops', true),
       {
+        kind: 'look', page: '/owner/drops', target: 'drops-guide', onlyIfVisible: true,
+        title: 'The GTA 6 guide',
+        body: 'A short guide for GTA 6 reservations: how it works, how it helps you, and how to add seats you sold at the café. Tap it any time.',
+      },
+      {
         kind: 'look', page: '/owner/drops', target: 'drops-new',
         title: 'Start a drop here',
         body: 'Pick the game, which of your rigs it runs on and how many, the first day, your hours and a photo. Those rigs show as taken for normal bookings during the drop hours.',
@@ -218,6 +243,11 @@ export const TOUR_LESSONS: TourLesson[] = [
         kind: 'look', page: '*', target: 'drop-checkin',
         title: 'Check people in',
         body: 'When someone arrives, scan their QR pass or type the code. After 15 minutes late you can give the seat away.',
+      },
+      {
+        kind: 'look', page: '*', target: 'drop-offline', onlyIfVisible: true,
+        title: 'Sold a seat at the café?',
+        body: 'Someone paid you cash, or booked by phone? Pick the day and time, type their name and the cash you took, and tap Hold these seats. The app stops selling those seats. No app money is involved.',
       },
       {
         kind: 'look', page: '*', target: 'drop-who',
@@ -279,6 +309,18 @@ export const TOUR_LESSONS: TourLesson[] = [
     ],
   },
   {
+    page: 'staff',
+    name: 'Your team',
+    steps: [
+      ...navTo('/owner/staff', 'Your team', true),
+      {
+        kind: 'look', page: '/owner/staff', target: 'staff-invite',
+        title: 'Give staff their own login',
+        body: 'Tap Invite someone and type their email. They get an email to set their own password. They can check people in and mark machines broken. They can’t see your money.',
+      },
+    ],
+  },
+  {
     page: 'settings',
     name: 'Café settings',
     steps: [
@@ -295,13 +337,13 @@ export const TOUR_LESSONS: TourLesson[] = [
 const INTRO: TourStep = {
   kind: 'look', page: D,
   title: 'Welcome to KHEL-O',
-  body: 'This tutorial lights up the buttons you need, one at a time. About 3 minutes. Tap Skip any time, and replay a lesson from the Tutorial button on each page.',
+  body: 'This tutorial lights up the buttons you need, one at a time. About 4 minutes. Tap Skip any time, and replay a lesson from the Tutorial button on each page.',
 };
 
 const OUTRO: TourStep = {
   kind: 'look', page: D,
   title: 'You’re ready',
-  body: 'Reviews, Insights, Alerts and Your team are in the menu too. Every page has a Tutorial button at the top if you want a lesson again.',
+  body: 'Reviews, Insights and Alerts are in the menu too. Every page has a Tutorial button at the top if you want a lesson again. Selling GTA 6 seats? Open Launch drops and read the GTA 6 guide.',
 };
 
 /** One step as it plays, with its place in the lesson and the tour. */

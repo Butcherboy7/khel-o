@@ -56,6 +56,17 @@ export function DropsManager({ base = '/owner/drops', admin = false, extra }: { 
         }
       />
 
+      {!admin && !creating && (
+        <Link
+          href="/owner/gta6-guide"
+          data-tour="drops-guide"
+          className="flex min-h-[44px] items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-body font-semibold text-text-primary hover:bg-primary/10"
+        >
+          <span>New to GTA 6 reservations? Read the 2-minute guide, including how to add seats you sold at the café.</span>
+          <ChevronRight className="h-4 w-4 flex-shrink-0 text-primary" aria-hidden />
+        </Link>
+      )}
+
       {creating && data && (
         <NewDropForm
           list={data}

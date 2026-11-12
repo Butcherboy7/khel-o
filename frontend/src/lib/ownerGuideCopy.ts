@@ -53,7 +53,7 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
     ],
   },
   availability: {
-    info: "Hour by hour, how many stations of each setup are booked and how many are free.",
+    info: "Hour by hour, how many machines of each setup are booked and how many are free.",
     tips: [
       'Each button is one setup, like PCs or PS5s. A launch drop like GTA 6 is a button too.',
       'Each block is an hour.',
@@ -65,7 +65,7 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
     info: 'A setup is one kind of thing customers book, like “Gaming PCs”, “PS5” or “Snooker table”. Customers book a setup, not a specific machine.',
     tips: [
       'Add one setup per kind of thing you have, and set its price per hour.',
-      'The number of stations in a setup is how many customers can book it at the same time.',
+      'The number of machines in a setup is how many customers can book it at the same time.',
       'Hiding a setup stops new bookings for it. Nothing is deleted.',
     ],
   },
@@ -86,7 +86,7 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
     ],
   },
   analytics: {
-    info: 'Your busiest hours, which stations earn most, and how many customers come back.',
+    info: 'Your busiest hours, which setups earn most, and how many customers come back.',
     tips: [
       'Busy hours tell you when to have more staff on the desk.',
       'Station earnings show which machines are worth adding more of.',
@@ -141,7 +141,7 @@ export const PAGE_GUIDES: Record<GuidePage, PageGuide> = {
     info: 'Give the people who run your desk their own login, so nobody has to share yours.',
     tips: [
       'Tap “Invite someone” and enter their name and email. They’ll get a link to set up their login.',
-      'Staff only see Dashboard, Scan, Bookings and Free slots. They never see prices, payouts or settings.',
+      'Staff only see Dashboard, Scan, Bookings and Free slots, and can mark a machine broken from Free slots. They never see prices, payouts or settings.',
       'Deactivate someone’s login the day they stop working for you.',
     ],
   },

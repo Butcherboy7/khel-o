@@ -174,6 +174,10 @@ export interface OwnerReservationRow {
   hours?: number | null;
   startTime?: string | null;
   endTime?: string | null;
+  /** 'offline' = the café sold it and took the cash itself. */
+  source?: 'online' | 'offline';
+  price?: number;
+  note?: string | null;
 }
 
 export interface OwnerDrop extends Omit<Drop, 'blocks' | 'myReservations'> {
@@ -187,7 +191,7 @@ export interface OwnerDrop extends Omit<Drop, 'blocks' | 'myReservations'> {
     shareClicked: number;
     shareByChannel: Record<string, number>;
   };
-  totals: { paidReservations: number; seatsSold: number; depositsCollected: number; balanceToCollect: number; checkedIn: number };
+  totals: { paidReservations: number; seatsSold: number; depositsCollected: number; balanceToCollect: number; checkedIn: number; offlineBookings?: number; offlineSeats?: number; offlineCollected?: number };
 }
 
 export interface OwnerDropList {
@@ -248,6 +252,9 @@ export interface OwnerDropBooking {
   dropTitle: string;
   dropSlug: string;
   checkinToken: string | null;
+  source?: 'online' | 'offline';
+  price?: number;
+  note?: string | null;
 }
 
 export async function listOwnerDropBookings(): Promise<OwnerDropBooking[]> {
@@ -304,4 +311,26 @@ export async function listDrops(): Promise<DropListItem[]> {
 
 export async function giveAwayReservation(id: string): Promise<DropReservation> {
   return call(() => apiClient.post(`/api/v1/owner/drops/reservations/${encodeURIComponent(id)}/give-away`, {}));
+}
+
+export interface OfflineBookingInput {
+  blockId: string;
+  name: string;
+  phone?: string;
+  seats: number;
+  /** "HH:MM", flexible drops only. */
+  startTime?: string;
+  hours?: number;
+  /** What the customer paid at the café. Empty = the drop's usual price. */
+  amount?: number;
+  note?: string;
+}
+
+/** The café sold seats itself and took the cash: the app stops offering them. */
+export async function addOfflineBooking(dropId: string, body: OfflineBookingInput): Promise<DropReservation> {
+  return call(() => apiClient.post(`/api/v1/owner/drops/${dropId}/offline-bookings`, body));
+}
+
+export async function removeOfflineBooking(reservationId: string): Promise<{ id: string; status: string }> {
+  return call(() => apiClient.post(`/api/v1/owner/drops/reservations/${reservationId}/remove-offline`));
 }

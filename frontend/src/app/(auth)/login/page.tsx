@@ -23,6 +23,8 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get('redirect');
+  // A link made for café owners (…/owners/gta6) lands here with ?owner=1.
+  const forOwners = searchParams.get('owner') === '1';
   // The explicit ?redirect=, else the page they were on before tapping Log in.
   const redirectPath = typeof window === 'undefined' ? redirectParam : returnTarget(redirectParam);
 
@@ -96,9 +98,9 @@ function LoginForm() {
         <form onSubmit={handleSubmit} className="relative flex flex-col gap-4">
           {trap}
           <div>
-            <h2 className="font-heading text-h2 text-text-primary">Sign in</h2>
+            <h2 className="font-heading text-h2 text-text-primary">{forOwners ? 'Café owner sign in' : 'Sign in'}</h2>
             <p className="text-body text-text-secondary mt-0.5">
-              See your bookings and QR passes
+              {forOwners ? 'Use the account you run your café with. Your guide opens right after.' : 'See your bookings and QR passes'}
             </p>
           </div>
 

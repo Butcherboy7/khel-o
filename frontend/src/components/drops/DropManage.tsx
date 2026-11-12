@@ -12,6 +12,7 @@ import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 import { cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, getWalkInQr, giveAwayReservation, updateDrop, type OwnerDrop } from '@/lib/api/drops';
 import { blockTimes, clockRange, dayLabel, rupees, whenText } from '@/lib/drops';
+import { OfflineBooking, RemoveOffline } from '@/components/drops/OfflineBooking';
 
 const STATUS_LABEL: Record<string, string> = {
   pending_payment: 'Paying now',
@@ -505,11 +506,18 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
 
       {d.status !== 'cancelled' && <ShareDrop d={d} />}
 
+      <OfflineBooking d={d} onDone={refresh} />
+
       <div className="grid grid-cols-3 gap-2" data-tour="drop-stats">
         <Stat label="Seats sold" value={`${d.totals.seatsSold} of ${d.seatsTotal}`} />
         <Stat label="Here" value={String(d.totals.checkedIn)} />
         <Stat label="Collect at café" value={rupees(d.totals.balanceToCollect)} />
       </div>
+      {(d.totals.offlineSeats ?? 0) > 0 && (
+        <p className="-mt-3 text-caption text-text-secondary">
+          Includes {d.totals.offlineSeats} {d.totals.offlineSeats === 1 ? 'seat' : 'seats'} you sold at the café ({rupees(d.totals.offlineCollected ?? 0)} cash, already in your hand).
+        </p>
+      )}
 
       <div data-tour="drop-checkin">
         <CheckInBox onDone={refresh} />
@@ -550,11 +558,12 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
                         {r.hours && r.startTime && r.endTime ? ` · ${clockRange(r.startTime, r.endTime)} (${r.hours} hr)` : ''}
                         {r.phone ? <> · <a href={`tel:${r.phone}`} className="font-semibold text-primary underline">Call {r.phone}</a></> : null}
                         {r.earlyAccess ? ' · early access' : ''}
-                        {r.status === 'confirmed' || r.status === 'checked_in' ? ` · collect ${rupees(r.balanceDue)}` : ''}
+                        {r.source === 'offline' ? ` · sold at the café${r.price ? `, ${rupees(r.price)} cash taken` : ''}${r.note ? ` · ${r.note}` : ''}` : r.status === 'confirmed' || r.status === 'checked_in' ? ` · collect ${rupees(r.balanceDue)}` : ''}
                       </span>
                     </span>
                     {r.status === 'confirmed' && r.checkinToken ? (
                       <span className="flex items-center gap-2">
+                        {r.source === 'offline' && <RemoveOffline id={r.id} name={r.name} onDone={refresh} />}
                         {Date.now() >= new Date(`${b.date}T${r.startTime ?? b.startTime}:00+05:30`).getTime() + GRACE_MS && <GiveAway id={r.id} name={r.name} onDone={refresh} />}
                         <RowCheckIn token={r.checkinToken} onDone={refresh} />
                       </span>

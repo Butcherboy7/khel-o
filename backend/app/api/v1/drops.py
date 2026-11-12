@@ -200,7 +200,7 @@ async def my_reservations(db: AsyncSession = Depends(get_db), user: User = Depen
     rows = (await db.execute(
         select(DropReservation, Drop, Cafe)
         .join(Drop, Drop.id == DropReservation.drop_id).join(Cafe, Cafe.id == Drop.cafe_id)
-        .where(DropReservation.user_id == user.id,
+        .where(DropReservation.user_id == user.id, DropReservation.source == "online",
                DropReservation.status.in_(("confirmed", "checked_in", "refunded", "given_away")))
         .order_by(DropReservation.created_at.desc())
     )).all()
@@ -235,7 +235,7 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
         by_id = {b.id: b for b in blocks}
         rows = (await db.execute(
             select(DropReservation).where(
-                DropReservation.drop_id == drop.id, DropReservation.user_id == user.id,
+                DropReservation.drop_id == drop.id, DropReservation.user_id == user.id, DropReservation.source == "online",
                 DropReservation.status.in_(("pending_payment", "confirmed", "checked_in", "refunded")),
             ).order_by(DropReservation.created_at)
         )).scalars().all()
@@ -572,6 +572,8 @@ async def cancel_drop(drop_id: UUID, db: AsyncSession = Depends(get_db), user: U
         DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.PAID)))).scalars().all()
     results = {"refunded": 0, "failed": 0}
     for r in rows:
+        if r.source == "offline":
+            continue  # the café took that cash itself; nothing to give back through the app
         out = await svc.refund(db, r, "The café cancelled the drop")
         results["refunded" if out == "refunded" else "failed"] += 1
     return {"success": True, "data": {"drop": await _out(db, drop, cafe, await svc.blocks_of(db, drop.id)), **results}}
@@ -605,7 +607,10 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
         if r.status in ("expired", "cancelled"):
             continue
         by_block.setdefault(r.block_id, []).append({
-            "id": str(r.id), "reference": r.reference, "name": name, "phone": phone, "seats": r.seats,
+            "id": str(r.id), "reference": r.reference,
+            "name": r.guest_name if r.source == "offline" else name,
+            "phone": r.guest_phone if r.source == "offline" else phone, "seats": r.seats,
+            "source": r.source, "note": r.note, "price": float(r.block_price),
             "status": r.status, "deposit": float(r.deposit_amount), "balanceDue": float(r.balance_due),
             "checkedInAt": _iso(r.checked_in_at), "paidAt": _iso(r.paid_at), "earlyAccess": r.used_early_access,
             "checkinToken": r.checkin_token if r.status in svc.PAID else None,
@@ -618,11 +623,14 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
         select(func.count()).select_from(DropWaitlist).where(DropWaitlist.drop_id == drop.id))).scalar_one()
     data["funnel"] = await svc.funnel(db, drop)
     paid = [r for r, *_ in rows if r.status in svc.PAID]
+    offline = [r for r in paid if r.source == "offline"]
     data["totals"] = {
         "paidReservations": len(paid), "seatsSold": sum(r.seats for r in paid),
         "depositsCollected": float(sum(svc.money(r.deposit_amount) for r in paid)),
         "balanceToCollect": float(sum(svc.money(r.balance_due) for r in paid)),
         "checkedIn": sum(1 for r in paid if r.status == "checked_in"),
+        "offlineBookings": len(offline), "offlineSeats": sum(r.seats for r in offline),
+        "offlineCollected": float(sum(svc.money(r.block_price) for r in offline)),
     }
     return data
 
@@ -655,7 +663,9 @@ async def owner_reservations(since: Optional[date] = None, db: AsyncSession = De
         start, end = svc.res_window(r, blk)
         out.append({
             "id": str(r.id), "reference": r.reference, "status": r.status, "seats": r.seats,
-            "name": holder.full_name, "phone": holder.phone_number,
+            "name": r.guest_name if r.source == "offline" else holder.full_name,
+            "phone": r.guest_phone if r.source == "offline" else holder.phone_number,
+            "source": r.source, "price": float(r.block_price), "note": r.note,
             "date": blk.session_date.isoformat(),
             "startTime": f"{start // 60:02d}:{start % 60:02d}", "endTime": f"{min(end, 1439) // 60:02d}:{min(end, 1439) % 60:02d}",
             "hours": r.hours, "balanceDue": float(r.balance_due), "depositPaid": float(r.deposit_amount),
@@ -699,6 +709,43 @@ class CheckInRequest(_Camel):
     token: str = Field(..., min_length=8, max_length=200)
 
 
+class OfflineBookingIn(_Camel):
+    block_id: UUID
+    name: str = Field(..., min_length=1, max_length=120)
+    phone: Optional[str] = Field(None, max_length=20)
+    seats: int = Field(1, ge=1, le=20)
+    start_time: Optional[time] = None
+    hours: Optional[float] = Field(None, ge=1, le=24)
+    # What the customer paid at the café. Left empty = the drop's normal price.
+    amount: Optional[float] = Field(None, ge=0, le=1000000)
+    note: Optional[str] = Field(None, max_length=200)
+
+
+@owner_router.post("/{drop_id}/offline-bookings", status_code=status.HTTP_201_CREATED)
+async def add_offline_booking(drop_id: UUID, payload: OfflineBookingIn, db: AsyncSession = Depends(get_db),
+                              user: User = Depends(get_current_active_user)):
+    """The café sold seats itself and took the cash: hold them so the app stops offering them."""
+    drop, _ = await _managed(db, user, drop_id)
+    from decimal import Decimal
+    res = await svc.book_offline(
+        db, drop, payload.block_id, user, payload.seats, payload.name, payload.phone, payload.note,
+        start=payload.start_time, hours=payload.hours,
+        amount=Decimal(str(payload.amount)) if payload.amount is not None else None,
+    )
+    block = await db.get(DropBlock, res.block_id)
+    return {"success": True, "data": _reservation_out(drop, res, block)}
+
+
+@owner_router.post("/reservations/{reservation_id}/remove-offline")
+async def remove_offline_booking(reservation_id: UUID, db: AsyncSession = Depends(get_db),
+                                 user: User = Depends(get_current_active_user)):
+    res = await db.get(DropReservation, reservation_id)
+    if res is None:
+        raise NotFoundException(message="We couldn't find this booking.", error_code="RESERVATION_NOT_FOUND")
+    res = await svc.cancel_offline(db, res, user)
+    return {"success": True, "data": {"id": str(res.id), "status": res.status}}
+
+
 @owner_router.post("/check-in")
 async def check_in(payload: CheckInRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
     token = payload.token.strip().rstrip("/").split("/")[-1]  # a pasted pass link works too
@@ -707,7 +754,7 @@ async def check_in(payload: CheckInRequest, db: AsyncSession = Depends(get_db), 
     block = await db.get(DropBlock, res.block_id)
     holder = await db.get(User, res.user_id)
     out = _reservation_out(drop, res, block)
-    out.update({"outcome": outcome, "holderName": holder.full_name})
+    out.update({"outcome": outcome, "holderName": res.guest_name if res.source == "offline" else holder.full_name})
     return {"success": True, "data": out}
 
 
