@@ -1,3 +1,6 @@
 
 # Sentry
 .env.sentry-build-plugin
+
+public/fallback-*.js
+public/worker-*.js
