@@ -434,11 +434,15 @@ export default function HardwareTiersPage() {
                     </button>
                   )}
 
-                  {tier.model && (
+                  {(tier.model || tier.refreshRateHz) && (
                     <div className="flex items-center gap-1.5 rounded-xl bg-surface p-3 text-caption font-semibold text-text-primary">
                       <Zap className="h-3.5 w-3.5 flex-shrink-0 text-primary" aria-hidden="true" />
-                      <span>{tier.model}</span>
-                      {tier.refreshRateHz ? <span className="font-normal text-text-secondary">· {tier.refreshRateHz} Hz</span> : null}
+                      {tier.model && <span>{tier.model}</span>}
+                      {tier.refreshRateHz ? (
+                        <span className={tier.model ? 'font-normal text-text-secondary' : undefined}>
+                          {tier.model ? '· ' : ''}{tier.refreshRateHz} Hz
+                        </span>
+                      ) : null}
                     </div>
                   )}
 
