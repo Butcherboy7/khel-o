@@ -96,16 +96,15 @@ export default function OwnerBookingsPage() {
     },
   });
 
-  const handleRelease = (bookingId: string) => {
-    if (confirm('This will release the held slot and make it available for other customers. Continue?')) {
-      releaseMutation.mutate(bookingId);
-    }
-  };
+  // Two taps, asked on the page (not a browser pop-up): the first tap asks,
+  // the second does it. One id at a time, whichever action is being confirmed.
+  const [confirming, setConfirming] = useState<{ id: string; action: 'free' | 'noshow' } | null>(null);
 
   const actionError =
     (checkinMutation.error as Error | null)?.message ||
     (dropCheckin.error as Error | null)?.message ||
     (updateStatusMutation.error as Error | null)?.message ||
+    (releaseMutation.error as Error | null)?.message ||
     null;
 
   const rawBookings = (data?.items || []).filter((b) => selectedDate !== 'upcoming' || b.sessionDate >= today);
@@ -129,7 +128,7 @@ export default function OwnerBookingsPage() {
       <OwnerPageHeader
         guide="bookings"
         title="Bookings"
-        description="Find a booking, check someone in, or free up a seat nobody paid for."
+        description="Find a booking, check someone in, or free up a time nobody paid for."
       />
 
       {/* Filters stack on a phone: side by side, the date field and the status
@@ -242,7 +241,7 @@ export default function OwnerBookingsPage() {
         {isError && (
           <OwnerLoadError error={error}
             title="Couldn’t load bookings"
-            message={(error as Error)?.message || 'Could not fetch desk bookings.'}
+            message={(error as Error)?.message || 'Check your connection and try again.'}
             onRetry={() => refetch()}
           />
         )}
@@ -288,7 +287,7 @@ export default function OwnerBookingsPage() {
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock className="h-3.5 w-3.5 text-text-secondary" aria-hidden="true" />
-                        {formatTime(booking.startTime)} · {booking.durationHours}h
+                        {formatTime(booking.startTime)} to {formatTime(booking.endTime)}
                       </span>
                       <span className="font-semibold text-text-primary">{booking.tierName}</span>
                       {groupLabel(booking) && <span className="font-semibold text-text-primary">{groupLabel(booking)}</span>}
@@ -303,32 +302,70 @@ export default function OwnerBookingsPage() {
                   <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-border pt-3 sm:justify-end sm:border-0 sm:pt-0">
                     <PriceDisplay amount={getOwnerPayoutAmount(booking)} period="" size="md" />
 
-                    {booking.status === 'confirmed' && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => checkinMutation.mutate(booking.id)}
-                        isLoading={checkinMutation.isPending}
-                        loadingText="Checking in"
-                        className="gap-1.5"
-                      >
-                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                        <span>Check in</span>
-                      </Button>
+                    {booking.status === 'confirmed' && confirming?.id !== booking.id && (
+                      <>
+                        {hasStarted(booking) && (
+                          <button
+                            type="button"
+                            onClick={() => setConfirming({ id: booking.id, action: 'noshow' })}
+                            className="min-h-[44px] rounded-xl px-2.5 text-caption font-semibold text-text-secondary hover:bg-surface hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          >
+                            Never showed up
+                          </button>
+                        )}
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => checkinMutation.mutate(booking.id)}
+                          isLoading={checkinMutation.isPending && checkinMutation.variables === booking.id}
+                          loadingText="Checking in"
+                          className="gap-1.5"
+                        >
+                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                          <span>Check in</span>
+                        </Button>
+                      </>
                     )}
 
-                    {booking.status === 'pending_payment' && (
+                    {booking.status === 'pending_payment' && confirming?.id !== booking.id && (
                       <Button
                         variant="destructive-outline"
                         size="sm"
-                        onClick={() => handleRelease(booking.id)}
-                        isLoading={releaseMutation.isPending && releaseMutation.variables === booking.id}
-                        loadingText="Freeing"
+                        onClick={() => setConfirming({ id: booking.id, action: 'free' })}
                         className="gap-1.5"
                       >
                         <XCircle className="h-4 w-4" aria-hidden="true" />
-                        <span>Free the seat</span>
+                        <span>Free this time</span>
                       </Button>
+                    )}
+
+                    {confirming?.id === booking.id && (
+                      <div className="flex flex-wrap items-center justify-end gap-2" role="group" aria-label="Are you sure?">
+                        <span className="text-caption text-text-secondary">
+                          {confirming.action === 'free'
+                            ? 'Free this time for other customers?'
+                            : 'Mark them as never showed up?'}
+                        </span>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          isLoading={
+                            confirming.action === 'free'
+                              ? releaseMutation.isPending
+                              : updateStatusMutation.isPending
+                          }
+                          onClick={() => {
+                            const { id, action } = confirming;
+                            if (action === 'free') releaseMutation.mutate(id, { onSettled: () => setConfirming(null) });
+                            else updateStatusMutation.mutate({ bookingId: id, status: 'no_show' }, { onSettled: () => setConfirming(null) });
+                          }}
+                        >
+                          {confirming.action === 'free' ? 'Free it' : 'Yes'}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setConfirming(null)}>
+                          Keep
+                        </Button>
+                      </div>
                     )}
 
                     {(booking.status === 'checked_in' || booking.status === 'active') && (
@@ -341,6 +378,7 @@ export default function OwnerBookingsPage() {
                             status: 'completed',
                           })
                         }
+                        isLoading={updateStatusMutation.isPending && updateStatusMutation.variables?.bookingId === booking.id}
                         className="gap-1.5"
                       >
                         <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
@@ -356,6 +394,11 @@ export default function OwnerBookingsPage() {
       </div>
     </div>
   );
+}
+
+/** The booking's start has passed (café time), so "never showed up" is allowed. */
+function hasStarted(b: { sessionDate: string; startTime: string }): boolean {
+  return new Date(`${b.sessionDate}T${b.startTime.slice(0, 8)}+05:30`).getTime() <= Date.now();
 }
 
 function dayChip(active: boolean): string {
