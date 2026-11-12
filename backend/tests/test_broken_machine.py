@@ -110,3 +110,32 @@ async def test_staff_of_another_cafe_cannot_mark_my_machines_broken(db_session):
     staff = await _staff_for(db_session, other_cafe)
     r = await _call("POST", f"/api/v1/cafes/{cafe.id}/tiers/{tier.id}/broken", auth_headers(staff), json={"label": "PC 1"})
     assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_tier_update_clamps_fps_and_cabin_needs_pc(db_session):
+    from app.models.hardware_tier import PlatformType
+    cafe, tier, gamer = await _setup_cafe_and_gamer(db_session)
+    owner = await _owner(db_session, cafe)
+    url = f"/api/v1/cafes/{cafe.id}/tiers/{tier.id}"
+    r = await _call("PATCH", url, auth_headers(owner), json={"fpsOverrides": {"valorant": 5000, "fortnite": 140}})
+    assert r.status_code == 200, r.text
+    await db_session.refresh(tier)
+    assert tier.fps_overrides == {"fortnite": 140}
+    tier.platform = PlatformType.PLAYSTATION
+    await db_session.commit()
+    r = await _call("PATCH", url, auth_headers(owner), json={"isRoom": True})
+    assert r.status_code == 422, r.text
+
+
+def test_onboarding_extras_pass_cabin_and_speed_through():
+    from app.api.v1.owner import OnboardingHardwareTierItem, _onboarding_extras
+    from app.models.hardware_tier import PlatformType
+    item = OnboardingHardwareTierItem.model_validate({
+        "platform": "pc", "isRoom": True, "coopMaxPlayers": 5, "coopExtraPlayerPrice": 150,
+        "refreshRateHz": 144, "fpsOverrides": {"valorant": 260, "x": 9999}})
+    out = _onboarding_extras(item, PlatformType.PC)
+    assert out["is_room"] and out["coop_enabled"] and out["coop_max_players"] == 5
+    assert out["coop_extra_player_price"] == 150 and out["refresh_rate_hz"] == 144
+    assert out["fps_overrides"] == {"valorant": 260}
+    assert "is_room" not in _onboarding_extras(item, PlatformType.XBOX)

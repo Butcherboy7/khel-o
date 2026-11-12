@@ -115,6 +115,11 @@ class HardwareTierService:
             if missing:
                 raise ValidationException(message=f"Please fill in: {', '.join(missing)}", error_code="ATTRIBUTE_REQUIRED")
 
+        if tier_in.is_room:
+            plat = getattr(tier_in.platform, "value", tier_in.platform)
+            if tier_in.tier_type == TierType.ACTIVITY or plat != "pc":
+                raise ValidationException(message="A private cabin is only for PC setups.", error_code="ROOM_NEEDS_PC")
+
         tier_dict = {
             "id": uuid4(),
             "cafe_id": cafe_id,
@@ -133,7 +138,7 @@ class HardwareTierService:
             "activity_kind": tier_in.activity_kind,
             "taxonomy_key": taxonomy_key,
             "attributes": taxonomy_attrs,
-            "coop_enabled": tier_in.coop_enabled,
+            "coop_enabled": True if tier_in.is_room else tier_in.coop_enabled,
             "coop_max_players": tier_in.coop_max_players,
             "coop_extra_player_price": tier_in.coop_extra_player_price,
             "is_room": tier_in.is_room,
@@ -328,6 +333,18 @@ class HardwareTierService:
 
         update_dict = update_data.model_dump(exclude_unset=True)
 
+        if update_dict.get("fps_overrides") is not None:
+            update_dict["fps_overrides"] = {
+                k: int(v) for k, v in update_dict["fps_overrides"].items() if 1 <= int(v) <= 1000
+            }
+        eff_room = update_dict.get("is_room", tier.is_room)
+        if eff_room:
+            eff_plat = update_data.platform if update_data.platform is not None else tier.platform
+            eff_plat = getattr(eff_plat, "value", eff_plat)
+            if tier.tier_type == TierType.ACTIVITY or eff_plat != "pc":
+                raise ValidationException(message="A private cabin is only for PC setups.", error_code="ROOM_NEEDS_PC")
+            update_dict["coop_enabled"] = True
+
         if "taxonomy_key" in update_dict or "attributes" in update_dict:
             try:
                 new_key = taxonomy.validate_key(update_dict.get("taxonomy_key", tier.taxonomy_key))
@@ -407,7 +424,7 @@ class HardwareTierService:
             r = HardwareTierResponse.model_validate(t)
             r.performance_rating = rating
             r.warning = warning
-            r.tracking_mode = "individual" if units_by_tier.get(t.id) else "pooled"
+            r.tracking_mode = "individual" if (t.tier_type == TierType.ACTIVITY and units_by_tier.get(t.id)) else "pooled"
             
             matching_promo = PromotionService.pick_for_tier(active_promos, t.id, t.name)
             r.active_promotion = matching_promo

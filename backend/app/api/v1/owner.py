@@ -131,8 +131,34 @@ class OnboardingHardwareTierItem(BaseModel):
         None, max_length=80, validation_alias=AliasChoices("taxonomyKey", "taxonomy_key")
     )
     attributes: Optional[dict] = None
+    # Cabin / co-op / speed fields from the setup form (all optional).
+    is_room: bool = Field(False, validation_alias=AliasChoices("isRoom", "is_room"))
+    coop_enabled: bool = Field(False, validation_alias=AliasChoices("coopEnabled", "coop_enabled"))
+    coop_max_players: Optional[int] = Field(None, ge=2, le=8, validation_alias=AliasChoices("coopMaxPlayers", "coop_max_players"))
+    coop_extra_player_price: Optional[float] = Field(None, ge=0, validation_alias=AliasChoices("coopExtraPlayerPrice", "coop_extra_player_price"))
+    refresh_rate_hz: Optional[int] = Field(None, ge=24, le=540, validation_alias=AliasChoices("refreshRateHz", "refresh_rate_hz"))
+    fps_overrides: Optional[Dict[str, int]] = Field(None, validation_alias=AliasChoices("fpsOverrides", "fps_overrides"))
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+def _onboarding_extras(item, platform) -> dict:
+    """Cabin, co-op, refresh-rate and FPS fields for a setup made at onboarding."""
+    out: dict = {}
+    is_room = bool(item.is_room) and platform == PlatformType.PC
+    if is_room:
+        out["is_room"] = True
+    if is_room or item.coop_enabled:
+        out["coop_enabled"] = True
+        if item.coop_max_players:
+            out["coop_max_players"] = item.coop_max_players
+        if item.coop_extra_player_price is not None:
+            out["coop_extra_player_price"] = item.coop_extra_player_price
+    if item.refresh_rate_hz:
+        out["refresh_rate_hz"] = item.refresh_rate_hz
+    if item.fps_overrides:
+        out["fps_overrides"] = {k: int(v) for k, v in item.fps_overrides.items() if 1 <= int(v) <= 1000}
+    return out
 
 
 class OnboardingSubmitRequest(BaseModel):
@@ -1042,6 +1068,7 @@ async def submit_onboarding_application(
                 "model": model,
                 "taxonomy_key": tx_key or taxonomy.classify_gaming_tier(name, platform.value if platform else None),
                 "attributes": tx_attrs,
+                **_onboarding_extras(tier_item, platform),
                 "is_active": True
             })
 

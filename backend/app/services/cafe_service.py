@@ -72,7 +72,7 @@ class CafeService:
             if self.unit_repo and tiers_res:
                 units_by_tier = await self.unit_repo.list_by_tier_ids([t.id for t in tiers_res])
                 for t in tiers_res:
-                    t.tracking_mode = "individual" if units_by_tier.get(t.id) else "pooled"
+                    t.tracking_mode = "individual" if (getattr(t.tier_type, "value", t.tier_type) == "activity" and units_by_tier.get(t.id)) else "pooled"
 
         active_promos = []
         if self.promo_repo:

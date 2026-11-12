@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.config import settings

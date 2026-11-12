@@ -528,14 +528,14 @@ async def mark_machine_broken(
     if not label or len(label) > 50:
         raise ValidationException(message="Type which machine it is, like PC 7 (up to 50 letters)", error_code="INVALID_LABEL")
 
-    tier_repo = HardwareTierRepository(db)
-    tier = await tier_repo.get_by_id_with_lock(tier_id)
-    if not tier or str(tier.cafe_id) != str(cafe_id):
-        raise NotFoundException(message="Setup not found", error_code="TIER_NOT_FOUND")
     cafe = await CafeRepository(db).get_by_id(cafe_id)
     if not cafe:
         raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
     await _check_can_work_this_cafe(db, current_owner, cafe)
+    tier_repo = HardwareTierRepository(db)
+    tier = await tier_repo.get_by_id_with_lock(tier_id)
+    if not tier or str(tier.cafe_id) != str(cafe_id):
+        raise NotFoundException(message="Setup not found", error_code="TIER_NOT_FOUND")
     if tier.tier_type == TierType.ACTIVITY:
         raise ValidationException(message="Use the table list for activities", error_code="USE_UNIT_LIST")
 
@@ -574,13 +574,13 @@ async def mark_machine_fixed(
     again. Putting a machine back never needs a capacity check."""
     from app.core.exceptions import NotFoundException, ForbiddenException
 
-    tier = await HardwareTierRepository(db).get_by_id_with_lock(tier_id)
-    if not tier or str(tier.cafe_id) != str(cafe_id):
-        raise NotFoundException(message="Setup not found", error_code="TIER_NOT_FOUND")
     cafe = await CafeRepository(db).get_by_id(cafe_id)
     if not cafe:
         raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
     await _check_can_work_this_cafe(db, current_owner, cafe)
+    tier = await HardwareTierRepository(db).get_by_id_with_lock(tier_id)
+    if not tier or str(tier.cafe_id) != str(cafe_id):
+        raise NotFoundException(message="Setup not found", error_code="TIER_NOT_FOUND")
     unit_repo = HardwareTierUnitRepository(db)
     unit = await unit_repo.get_by_id(unit_id)
     if not unit or str(unit.tier_id) != str(tier_id) or tier.tier_type == TierType.ACTIVITY:
