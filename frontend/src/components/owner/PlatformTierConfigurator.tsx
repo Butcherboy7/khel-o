@@ -36,7 +36,10 @@ function makeDefaultConfig(platform: Platform): TierConfig {
     platform,
     model: platform === 'other' ? '' : models[0],
     totalSeats: 4,
-    appBookableSeats: 1, // 25% of 4, rounded — matches the per-field recompute below on edit
+    // Every machine is bookable on the app unless the owner chooses to keep
+    // some back for walk-ins. A silent 25% default used to hide three of
+    // every four machines from the app, and nobody told the owner.
+    appBookableSeats: 4,
     pricePerHour: 100,
     tierType: 'gaming',
   };
@@ -173,7 +176,8 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
           if (next.tierType === 'activity') {
             next.appBookableSeats = patch.totalSeats;
           } else if (!touchedSeatsIds.has(id)) {
-            next.appBookableSeats = Math.max(1, Math.round(patch.totalSeats * 0.25));
+            // Follows the total until the owner sets a walk-in reserve.
+            next.appBookableSeats = patch.totalSeats;
           }
         }
         return next;
@@ -340,9 +344,9 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
               <button
                 type="button"
                 onClick={() => collapseConfig(config.id)}
-                className="flex items-center gap-1 text-caption font-semibold text-white bg-primary hover:bg-primary/90 rounded-xl px-4 py-2"
+                className="flex items-center gap-1 text-caption font-semibold text-text-primary bg-surface border border-border hover:border-primary/60 rounded-xl px-4 py-2"
               >
-                Save
+                Done
               </button>
             </div>
           </div>
@@ -473,7 +477,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                 />
 
                 <NumericField
-                  label="Bookable on KHEL-O app"
+                  label={`Bookable on KHEL-O app (${Math.max(0, config.totalSeats - config.appBookableSeats)} kept for walk-ins)`}
                   min={0}
                   max={config.totalSeats}
                   value={config.appBookableSeats}
@@ -501,9 +505,9 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                   <button
                     type="button"
                     onClick={() => collapseConfig(config.id)}
-                    className="flex items-center gap-1 text-caption font-semibold text-white bg-primary hover:bg-primary/90 rounded-xl px-4 py-2"
+                    className="flex items-center gap-1 text-caption font-semibold text-text-primary bg-surface border border-border hover:border-primary/60 rounded-xl px-4 py-2"
                   >
-                    Save
+                    Done
                   </button>
                 </div>
               </div>

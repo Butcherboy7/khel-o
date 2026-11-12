@@ -498,7 +498,7 @@ export default function OnboardingWizardPage() {
               (c.platform !== 'other' && !PLATFORM_MODELS[c.platform]?.includes(c.model)),
             hourlyRate: Number(c.pricePerHour) || 100,
             totalSeats: Number(c.totalSeats) || 4,
-            appBookableSeats: Number(c.appBookableSeats) || Math.max(1, Math.round((Number(c.totalSeats) || 4) * 0.25)),
+            appBookableSeats: Number(c.appBookableSeats) || (Number(c.totalSeats) || 4),
           }
     );
 

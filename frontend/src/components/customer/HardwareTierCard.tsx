@@ -91,7 +91,7 @@ export function HardwareTierCard({
               size="sm"
               onClick={() => onSelect(tier)}
             >
-              {isSelected ? 'Selected' : 'Select Tier'}
+              {isSelected ? 'Selected' : 'Choose'}
             </Button>
           )}
         </div>

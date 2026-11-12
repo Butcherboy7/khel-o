@@ -473,16 +473,9 @@ function OwnerTopBar({
         <span className="truncate font-heading text-h3 text-text-primary">{sectionLabel}</span>
       </div>
 
-      <div className="hidden items-center gap-2 text-caption text-text-secondary lg:flex">
-        <span className="font-semibold text-text-primary">
-          {isStaff ? 'Café Staff Desk' : 'Café Owner Portal'}
-        </span>
-        <span>•</span>
-        <span>
-          {isStaff
-            ? 'Desk Operations & Station Check-In'
-            : 'Venue Operational Status & Live Management'}
-        </span>
+      {/* Desktop: say where you are, in the same words as the menu. */}
+      <div className="hidden min-w-0 items-center gap-2 lg:flex">
+        <span className="truncate font-heading text-h3 text-text-primary">{sectionLabel}</span>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">

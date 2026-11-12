@@ -359,7 +359,7 @@ export default function HardwareTiersPage() {
 
         {isError && (
           <OwnerLoadError error={error}
-            title="Failed to load resources"
+            title="Couldn’t load your setups"
             message={(error as Error)?.message || 'Couldn’t load your setups. Try again.'}
             onRetry={() => refetch()}
           />
@@ -367,7 +367,7 @@ export default function HardwareTiersPage() {
 
         {!isLoading && !isError && tiers.length === 0 && (
           <EmptyState
-            title="No resources set up yet"
+            title="No setups yet"
             description="Add a setup for each kind of thing you have, like “Gaming PCs” or “PS5”. Customers can’t book until you add one."
             actionLabel="Add your first setup"
             onAction={() => {
@@ -495,7 +495,7 @@ export default function HardwareTiersPage() {
                         ) : (
                           <ChevronDown className="h-3.5 w-3.5" />
                         )}
-                        <span>Manage Units</span>
+                        <span>Mark one broken or fixed</span>
                       </button>
                       {expandedUnitsTierId === tier.id && (
                         <ActivityUnitsManager
@@ -565,12 +565,12 @@ export default function HardwareTiersPage() {
       <Modal
         isOpen={!!deactivateTarget}
         onClose={() => setDeactivateTarget(null)}
-        title="Deactivate this tier?"
+        title="Turn this setup off?"
       >
         {deactivateTarget && (
           <div className="flex flex-col gap-4">
             <p className="text-caption text-text-secondary">
-              <strong className="text-text-primary">{deactivateTarget.name}</strong> will stop appearing to customers for new bookings. Existing bookings on this tier are unaffected, and you can reactivate it anytime.
+              <strong className="text-text-primary">{deactivateTarget.name}</strong> will stop showing to customers, so nobody can book it. Bookings already made are not affected, and you can turn it back on anytime.
             </p>
             <div className="flex items-center justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setDeactivateTarget(null)}>
@@ -582,7 +582,7 @@ export default function HardwareTiersPage() {
                 isLoading={deactivateMutation.isPending}
                 onClick={() => deactivateMutation.mutate(deactivateTarget.id)}
               >
-                Deactivate Tier
+                Turn off
               </Button>
             </div>
           </div>

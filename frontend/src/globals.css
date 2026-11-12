@@ -80,7 +80,7 @@
        is that fix. Matches --owner-max-width/--admin-max-width exactly so
        "wide" means one consistent thing across the whole app. */
     --content-wide-max-width: 1200px;
-    --owner-max-width: 1200px;
+    --owner-max-width: 1440px;
     --admin-max-width: 1200px;
     /* Browse surfaces keep growing past 1200px — see the step-ups below. */
     --nav-height: 56px;
