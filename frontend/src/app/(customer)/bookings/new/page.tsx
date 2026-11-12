@@ -1127,8 +1127,10 @@ function BookingWizardContent() {
             {activeTier?.name || 'Standard'} · {durationLabel} ·{' '}
             {isActivity
               ? `${seatsCount} ${seatsCount > 1 ? unit.many : unit.one}${groupShown ? ` · ${groupShown} player${groupShown > 1 ? 's' : ''}` : ''}`
+              : isRoom
+              ? `${seatsCount} PC${seatsCount > 1 ? 's' : ''}`
               : `${seatsCount} player${seatsCount > 1 ? 's' : ''}`}
-            {isCoop && ' · co-op'}
+            {isCoop && !isRoom && ' · co-op'}
           </span>
           <span className="flex-shrink-0 font-semibold text-text-primary"><span className="rupee-symbol">₹</span>{money(sessionLine)}</span>
         </div>
@@ -1390,7 +1392,7 @@ function BookingWizardContent() {
         isOpen={showLoginPrompt}
         onClose={() => setShowLoginPrompt(false)}
         amountLabel={`₹${money(finalTotal)}`}
-        summary={`${activeTier?.name || 'Setup'} · ${durationLabel} · ${seatsCount} player${seatsCount > 1 ? 's' : ''}`}
+        summary={`${activeTier?.name || 'Setup'} · ${durationLabel} · ${seatsCount} ${isRoom ? 'PC' : 'player'}${seatsCount > 1 ? 's' : ''}`}
         onSignedIn={() => {
           payAfterSignIn.current = finalTotal;
           setShowLoginPrompt(false);
