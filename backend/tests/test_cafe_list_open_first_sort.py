@@ -60,6 +60,6 @@ async def test_admin_cafe_list_sorts_open_cafes_first(db_session):
     await db_session.commit()
 
     repo = CafeRepository(db_session)
-    items, total = await repo.get_all_admin(limit=50)
+    items, total = await repo.get_all_admin(limit=1000)  # sort order is the point, not paging: the shared test DB holds every café the run created
     names = [c.name for c, _email in items]
     assert names.index("Open Cafe") < names.index("Closed Cafe")
