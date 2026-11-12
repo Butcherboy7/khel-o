@@ -71,6 +71,8 @@ interface TimelineRangePickerProps {
   totalSeats?: number;
   requestedSeats?: number;
   remainingSeats?: number;
+  /** What one bookable unit is called in the availability badge ('seat', or 'cabin'). */
+  unitName?: string;
   /** Skip the one-time slider coachmark (e.g. the user has booked before). */
   skipCoachmark?: boolean;
   /** Shortest session this setup allows (owner-set; VR is often 15). */
@@ -117,6 +119,7 @@ export function TimelineRangePicker({
   totalSeats = 10,
   requestedSeats = 1,
   remainingSeats,
+  unitName = 'seat',
   skipCoachmark = false,
   minDurationMinutes = MIN_DURATION_MIN,
   stepMinutes = 30,
@@ -580,13 +583,14 @@ export function TimelineRangePicker({
 
   const availabilityBadge = useMemo(() => {
     const seats = activeWindowRemainingSeats;
-    if (seats === 0) return { text: 'Sold Out', variant: 'sold_out' as const };
+    if (seats === 0) return { text: 'Sold out', variant: 'sold_out' as const };
     // A one-station setup is always "last 1 seat": that's fake urgency, not news.
     if (totalSeats <= 1) return null;
-    if (seats <= 2) return { text: `Last ${seats} seat${seats > 1 ? 's' : ''}!`, variant: 'critical' as const };
-    if (seats <= 10) return { text: `Only ${seats} seats left!`, variant: 'warning' as const };
-    return { text: `${seats} seats left`, variant: 'neutral' as const };
-  }, [activeWindowRemainingSeats, totalSeats]);
+    const noun = `${unitName}${seats > 1 ? 's' : ''}`;
+    if (seats <= 2) return { text: `Last ${seats} ${noun}!`, variant: 'critical' as const };
+    if (seats <= 10) return { text: `Only ${seats} ${noun} left!`, variant: 'warning' as const };
+    return { text: `${seats} ${noun} left`, variant: 'neutral' as const };
+  }, [activeWindowRemainingSeats, totalSeats, unitName]);
 
   const ticks = useMemo(() => {
     const list: { minutes: number; label: string; showLabel: boolean; isHour: boolean }[] = [];

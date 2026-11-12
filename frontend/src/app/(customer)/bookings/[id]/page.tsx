@@ -294,8 +294,10 @@ export default function BookingDetailPage() {
           </span>
           <h1 className="font-heading text-h2 text-white">{booking.cafeName || 'Gaming Café'}</h1>
           <p className="text-caption text-white/90">
-            {booking.tierName || 'Hardware Tier'}
-            {booking.playersCount && booking.playersCount > (booking.seatsCount ?? 1)
+            {booking.tierName || 'Your booking'}
+            {booking.isRoom
+              ? ` · Private cabin, ${booking.playersCount ?? 1} PC${(booking.playersCount ?? 1) === 1 ? '' : 's'}`
+              : booking.playersCount && booking.playersCount > (booking.seatsCount ?? 1)
               ? ` · Co-op, ${booking.playersCount} players`
               : ''}
           </p>

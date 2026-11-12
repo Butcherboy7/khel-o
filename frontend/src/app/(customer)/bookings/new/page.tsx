@@ -1002,6 +1002,7 @@ function BookingWizardContent() {
         totalSeats={totalSeatsForTier}
         requestedSeats={consolesCount}
         remainingSeats={windowRemainingSeats}
+        unitName={isRoom ? 'cabin' : 'seat'}
         skipCoachmark={hasBookedBefore}
         minDurationMinutes={minDurationMin}
         maxDurationMinutes={maxDurationMin}
@@ -1366,17 +1367,17 @@ function BookingWizardContent() {
             className="flex-shrink-0 min-h-btn rounded-2xl bg-primary px-6 py-3 font-heading text-btn font-bold text-white shadow-float hover:bg-primary-dark active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {isProcessing
-              ? 'Processing...'
+              ? 'Processing'
               : cafe.isEmergencyMode
-              ? 'Emergency Mode Active'
+              ? 'Closed for now'
               : cafe.bookingsPaused
               ? 'Bookings Paused'
               : noTimeLeftToday
               ? 'Pick another day'
               : windowRemainingSeats === 0
-              ? 'Sold Out'
+              ? (isRoom ? 'Cabins full at this time' : 'Sold out')
               : windowRemainingSeats < consolesCount
-              ? `Only ${windowRemainingSeats} Seat${windowRemainingSeats > 1 ? 's' : ''} Left`
+              ? `Only ${windowRemainingSeats} left`
               : `Pay ₹${money(finalTotal)}`}
           </button>
         </div>

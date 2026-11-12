@@ -343,7 +343,7 @@ class CafeRepository(BaseRepository[Cafe]):
                 "platforms": platforms,
                 "platforms_complete": platforms_complete,
                 "activity_kinds": activity_kinds,
-                "has_coop": any(getattr(t, 'coop_enabled', False) and t.is_active for t in cafe_tiers),
+                "has_coop": any(getattr(t, 'coop_enabled', False) and not getattr(t, 'is_room', False) and t.is_active for t in cafe_tiers),
                 "activities": sort_keys(cafe_activities(cafe_tiers)),
                 "styles": sorted({t.taxonomy_key for t in cafe_tiers if t.is_active and t.taxonomy_key and "." in t.taxonomy_key}),
                 "photos": photo_list,

@@ -152,3 +152,32 @@ async def test_a_hall_pc_booking_is_not_marked_as_a_cabin(db_session, monkeypatc
     row = listing.json()["data"]["items"][0]
     assert row["isRoom"] is False
     assert row["seatsCount"] == 2
+
+
+@pytest.mark.asyncio
+async def test_a_cabin_only_cafe_is_not_badged_co_op(db_session, monkeypatch):
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    cafe, tier, gamer = await _setup(db_session, monkeypatch, **CABIN)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get(f"/api/v1/cafes/{cafe.id}")
+    assert resp.status_code == 200, resp.text
+    # The café page lists its setups: the cabin says it is a room, and is not a co-op console.
+    tiers = resp.json()["data"]["cafe"].get("hardwareTiers") or resp.json()["data"]["cafe"].get("tiers") or []
+    cabin = [t for t in tiers if str(t["id"]) == str(tier.id)]
+    assert cabin and cabin[0]["isRoom"] is True
+
+
+@pytest.mark.asyncio
+async def test_cabin_does_not_make_a_cafe_show_the_co_op_badge(db_session, monkeypatch):
+    from app.repositories.cafe_repository import CafeRepository
+    cafe, tier, gamer = await _setup(db_session, monkeypatch, **CABIN)
+    rows, _total = await CafeRepository(db_session).flex_search_verified(query=cafe.name, limit=50)
+    mine = [r for r in rows if str(r["id"]) == str(cafe.id)]
+    assert mine, "café should be listed"
+    assert mine[0]["has_coop"] is False
+
+    tier.is_room = False  # the same setup as a shareable console does earn the badge
+    await db_session.commit()
+    rows, _total = await CafeRepository(db_session).flex_search_verified(query=cafe.name, limit=50)
+    assert [r for r in rows if str(r["id"]) == str(cafe.id)][0]["has_coop"] is True
