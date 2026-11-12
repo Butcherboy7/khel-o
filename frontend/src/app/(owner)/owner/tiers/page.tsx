@@ -144,7 +144,7 @@ export default function HardwareTiersPage() {
       setHighlightedTierId(res.hardwareTier?.id ?? null);
     },
     onError: (err: any) => {
-      setFormError(err?.message || 'Couldn’t create tier. Please try again.');
+      setFormError(err?.message || 'Couldn’t add this setup. Please try again.');
     },
   });
 
@@ -191,7 +191,7 @@ export default function HardwareTiersPage() {
       setHighlightedTierId(res.hardwareTier?.id ?? null);
     },
     onError: (err: any) => {
-      setFormError(err?.message || 'Couldn’t update tier. Please try again.');
+      setFormError(err?.message || 'Couldn’t save this setup. Please try again.');
     },
   });
 

@@ -400,7 +400,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Edit Café Profile"
+      title="Edit your café"
       description="Each section saves independently — switch tabs freely."
       size="full"
     >
@@ -443,7 +443,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
               rows={4}
               maxLength={2000}
             />
-            <Input label="Phone Number" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
+            <Input label="Phone number" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
             <Input label="Address" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} required />
             {/* State is locked once a city/location is chosen (city set),
                 same lock/unlock semantics as onboarding Step 1 — otherwise
@@ -498,7 +498,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
               />
             )}
             <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} required />
-            <SaveRow saving={basicSaving} saved={basicSaved} label="Save Basic Info" />
+            <SaveRow saving={basicSaving} saved={basicSaved} label="Save basics" />
           </form>
         )}
 
@@ -512,7 +512,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
               Open Google Maps, search your café by its address, tap <span className="font-semibold text-text-primary">Share → Copy link</span>, and paste it below. Customers will see a &quot;Show in Map&quot; button that opens this exact link.
             </p>
             <Input
-              label="Google Maps Link"
+              label="Google Maps link"
               placeholder="https://maps.app.goo.gl/..."
               value={googleMapsUrl}
               onChange={(e) => setGoogleMapsUrl(e.target.value)}
@@ -529,7 +529,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             )}
-            <SaveRow saving={locationSaving} saved={locationSaved} label="Save Location" onClick={handleLocationSave} />
+            <SaveRow saving={locationSaving} saved={locationSaved} label="Save location" onClick={handleLocationSave} />
           </div>
         )}
 
@@ -562,7 +562,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                 />
               </div>
             </div>
-            <SaveRow saving={hoursSaving} saved={hoursSaved} label="Save Hours" onClick={handleHoursSave} />
+            <SaveRow saving={hoursSaving} saved={hoursSaved} label="Save hours" onClick={handleHoursSave} />
           </div>
         )}
 
@@ -820,7 +820,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
               </div>
             </div>
 
-            <SaveRow saving={amenitiesSaving} saved={amenitiesSaved} label="Save Amenities" onClick={handleAmenitiesSave} />
+            <SaveRow saving={amenitiesSaving} saved={amenitiesSaved} label="Save amenities" onClick={handleAmenitiesSave} />
           </div>
         )}
 
@@ -905,7 +905,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
             )}
 
             {settings.gamingPlatforms.length > 0 && (
-              <SaveRow saving={gamesSaving} saved={gamesSaved} label="Save Games" onClick={handleGamesSave} />
+              <SaveRow saving={gamesSaving} saved={gamesSaved} label="Save games" onClick={handleGamesSave} />
             )}
           </div>
         )}

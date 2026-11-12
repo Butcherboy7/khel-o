@@ -272,14 +272,14 @@ export default function ScannerPage() {
 
   const startCamera = async (overrideCameraId?: string) => {
     if (!window.Html5Qrcode) {
-      setCameraError('Scanner library loading, please wait...');
+      setCameraError('The scanner is still loading. Try again in a moment.');
       setCameraState('loading');
       return;
     }
 
     const container = document.getElementById('qr-reader-target');
     if (!container) {
-      setCameraError('Camera viewport container not ready.');
+      setCameraError('The camera isn’t ready yet. Try again.');
       setCameraState('error');
       return;
     }
@@ -548,7 +548,7 @@ export default function ScannerPage() {
       await checkinBooking(bookingId, checkinMethod);
       queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
-      setCheckinSuccessMsg('Gamer checked in successfully!');
+      setCheckinSuccessMsg('Checked in.');
       if (validationResult?.booking) {
         setValidationResult({
           ...validationResult,
@@ -818,7 +818,7 @@ export default function ScannerPage() {
                   variant="outline"
                   size="sm"
                   isLoading={isProcessingFile}
-                  loadingText="Scanning..."
+                  loadingText="Scanning"
                   className="pointer-events-none mt-2"
                 >
                   Browse Image
@@ -831,7 +831,7 @@ export default function ScannerPage() {
             <div className="flex flex-col gap-4">
               <form onSubmit={handleManualSearchSubmit} className="flex flex-col gap-4">
                 <Input
-                  label="Name, Phone, or Booking Reference *"
+                  label="Name, phone or booking code"
                   placeholder="e.g. Rahul, 98765 43210, or GC-2026-6R0NZF"
                   value={manualQuery}
                   onChange={(e) => setManualQuery(e.target.value)}
@@ -842,11 +842,11 @@ export default function ScannerPage() {
                   type="submit"
                   variant="primary"
                   isLoading={isValidating}
-                  loadingText="Searching Booking..."
+                  loadingText="Searching"
                   className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold gap-2"
                 >
                   <Search className="h-4 w-4" />
-                  <span>Lookup Exact Reference</span>
+                  <span>Find this booking code</span>
                 </Button>
               </form>
 
@@ -1090,7 +1090,7 @@ export default function ScannerPage() {
                       className="min-h-[56px] font-bold gap-2"
                     >
                       <RefreshCw className="h-5 w-5" />
-                      <span>Try Again</span>
+                      <span>Try again</span>
                     </Button>
                   )}
 

@@ -285,7 +285,7 @@ export default function OwnerDashboardPage() {
       localStorage.setItem('khelo_seat_cap', JSON.stringify({ count: newGlobalCap, cafeId: statusState.cafe?.id, updatedAt: Date.now() }));
       window.dispatchEvent(new CustomEvent('khelo:seat-cap-updated', { detail: { count: newGlobalCap } }));
 
-      setActionMessage(`Saved. ${newGlobalCap} seat${newGlobalCap===1?'':'s'} bookable online in total.`);
+      setActionMessage(`Saved. ${newGlobalCap} machine${newGlobalCap===1?'':'s'} can be booked on the app in total.`);
       setActionIsError(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
     } catch (err: unknown) {
@@ -712,7 +712,7 @@ export default function OwnerDashboardPage() {
             <div className="min-w-0">
               <h2 className="flex items-center gap-1 font-heading text-h3 text-text-primary">
                 Seats open for online booking
-                <InfoTip text={INFO_TIPS.dashboardOnlineSeats} label="About online seats" />
+                <InfoTip text={INFO_TIPS.dashboardOnlineSeats} label="About machines on the app" />
               </h2>
               <p className="max-w-prose text-caption text-text-secondary">
                 Customers can book these through the KHEL-O app. The rest you keep for walk-ins.
@@ -740,7 +740,7 @@ export default function OwnerDashboardPage() {
                 type="button"
                 onClick={() => handleUpdateSeatCap(Math.max(0, appSeatCap - 1))}
                 disabled={isUpdatingCap || appSeatCap <= 0}
-                aria-label="One fewer seat bookable online"
+                aria-label="One fewer machine on the app"
                 className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-card text-h3 font-bold transition-colors hover:bg-surface disabled:opacity-40"
               >
                 −
@@ -750,7 +750,7 @@ export default function OwnerDashboardPage() {
                 type="button"
                 onClick={() => handleUpdateSeatCap(Math.min(totalSeatsCount, appSeatCap + 1))}
                 disabled={isUpdatingCap || appSeatCap >= totalSeatsCount}
-                aria-label="One more seat bookable online"
+                aria-label="One more machine on the app"
                 className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-card text-h3 font-bold transition-colors hover:bg-surface disabled:opacity-40"
               >
                 +
@@ -826,7 +826,7 @@ export default function OwnerDashboardPage() {
                                 onClick={() => handleUpdateSingleTier(t.id, Math.max(0, currentAppSeats - 1))}
                                 disabled={isUpdatingCap || currentAppSeats <= 0}
                                 className="h-8 w-8 rounded-lg bg-card border border-border flex items-center justify-center font-bold text-body hover:bg-surface-hover transition-colors disabled:opacity-30"
-                                title="One fewer bookable online"
+                                title="One fewer on the app"
                               >-</button>
                               <span className={`font-bold text-caption font-data px-1 ${currentAppSeats === 0 ? 'text-amber-500 font-bold' : 'text-primary font-bold'}`}>
                                 {currentAppSeats} Online
@@ -836,7 +836,7 @@ export default function OwnerDashboardPage() {
                                 onClick={() => handleUpdateSingleTier(t.id, Math.min(t.totalSeats, currentAppSeats + 1))}
                                 disabled={isUpdatingCap || currentAppSeats >= t.totalSeats}
                                 className="h-8 w-8 rounded-lg bg-card border border-border flex items-center justify-center font-bold text-body hover:bg-surface-hover transition-colors disabled:opacity-30"
-                                title="One more bookable online"
+                                title="One more on the app"
                               >+</button>
                             </div>
                             <span className="text-text-secondary text-xs font-semibold">{walkInSeats} Walk-in</span>
@@ -914,11 +914,11 @@ export default function OwnerDashboardPage() {
             <div className="flex items-center justify-between p-4 rounded-2xl bg-surface border border-border">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold text-lg">
-                  {selectedBooking.gamerName?.charAt(0) || 'G'}
+                  {selectedBooking.gamerName?.charAt(0) || 'C'}
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-heading text-body font-bold text-text-primary">{selectedBooking.gamerName || 'Gamer'}</span>
-                  <span className="text-caption text-text-secondary">{((selectedBooking as unknown as Record<string, unknown>).gamerEmail as string) || ((selectedBooking as unknown as Record<string, unknown>).gamerPhone as string) || 'Registered Gamer'}</span>
+                  <span className="font-heading text-body font-bold text-text-primary">{selectedBooking.gamerName || 'Customer'}</span>
+                  <span className="text-caption text-text-secondary">{(selectedBooking as { gamerEmail?: string }).gamerEmail || (selectedBooking as { gamerPhone?: string }).gamerPhone || 'KHEL-O customer'}</span>
                 </div>
               </div>
               <BookingStatusBadge status={selectedBooking.status} size="md" />

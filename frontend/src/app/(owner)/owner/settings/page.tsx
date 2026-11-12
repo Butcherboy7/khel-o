@@ -123,7 +123,7 @@ export default function OwnerSettingsPage() {
   if (!settings) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <p className="text-body text-text-secondary">No café configuration found for this account.</p>
+        <p className="text-body text-text-secondary">We couldn’t find a café on this account. Contact KHEL-O support.</p>
       </div>
     );
   }

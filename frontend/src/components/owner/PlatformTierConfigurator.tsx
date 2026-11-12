@@ -267,7 +267,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                 className="flex items-center justify-between w-full mb-3 p-3 rounded-xl bg-card border border-border/80 text-left hover:border-primary/60 transition-all"
               >
                 <span className="text-caption font-semibold text-text-primary">
-                  {config.activityKind || 'Activity'} · {config.totalSeats} {config.individualUnits ? 'units' : 'capacity'} · ₹{config.pricePerHour}/hr
+                  {config.activityKind || 'Activity'} · {config.totalSeats} {config.individualUnits ? 'units' : 'people at once'} · ₹{config.pricePerHour}/hr
                 </span>
                 <Pencil className="h-3.5 w-3.5 text-text-tertiary" />
               </button>
@@ -430,7 +430,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                   <label className="text-overline font-semibold text-text-secondary">Model</label>
                   {p.value === 'other' ? (
                     <Input
-                      placeholder="e.g. VR Arcade Pod"
+                      placeholder="e.g. VR arcade"
                       value={config.model}
                       onChange={(e) => updateConfig(config.id, { model: e.target.value })}
                     />

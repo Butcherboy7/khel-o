@@ -371,7 +371,8 @@ export default function OwnerOffersPage() {
     : allowedMinutes(15);
   const tierLongest = dealLengths[dealLengths.length - 1];
   // Play mode only matters where friends can actually share a console.
-  const coopOfferable = selectedTier ? !!selectedTier.coopEnabled : tiers.some((t) => t.coopEnabled);
+  // A cabin has no solo or co-op: its group size is PCs, not people sharing a console.
+  const coopOfferable = selectedTier ? !!selectedTier.coopEnabled && !selectedTier.isRoom : tiers.some((t) => t.coopEnabled && !t.isRoom);
   const regularPricePreview =
     form.promotionType === 'fixed_price' && selectedTier
       ? basePriceForMinutes(selectedTier, Math.round(form.minDurationHours * 60))
@@ -430,7 +431,7 @@ export default function OwnerOffersPage() {
     }
     if (form.promotionType === 'fixed_price') {
       if (!form.applicableTierId) {
-        setFormError('A fixed-price deal must apply to a specific setup — choose one.');
+        setFormError('A fixed-price deal must apply to one setup. Choose which.');
         return;
       }
       if (!form.fixedPriceAmount || Number(form.fixedPriceAmount) <= 0) {
@@ -479,7 +480,7 @@ export default function OwnerOffersPage() {
       <OwnerPageHeader
         guide="offers"
         title="Offers"
-        description="Run a discount, a fixed-price deal, or a flat amount off. It applies automatically at checkout — and each one also gets a code you can share or print as a QR."
+        description="Run a discount, a fixed-price deal, or a flat amount off. It applies automatically at checkout. Each one also gets a code you can share or print as a QR."
         action={
           <Button
             variant="primary"
@@ -513,7 +514,7 @@ export default function OwnerOffersPage() {
       {!isLoading && !isError && promotions.length === 0 && (
         <EmptyState
           title="No offers running"
-          description="A discount or a fixed-price deal is a good way to fill quiet hours — say 20% off weekday afternoons, or '4 hours for ₹360'. Customers see the lower price straight away."
+          description="A discount or a fixed-price deal is a good way to fill quiet hours, like 20% off weekday afternoons, or '4 hours for ₹360'. Customers see the lower price straight away."
           actionLabel="Create your first offer"
           onAction={openCreate}
         />
@@ -721,7 +722,7 @@ export default function OwnerOffersPage() {
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm(); }}
         title={editingId ? 'Edit Offer' : 'Create Offer'}
-        description="Applies automatically at checkout when the conditions below are met — no code needed."
+        description="Applies automatically at checkout when the conditions below are met. No code needed."
         size="lg"
       >
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -765,14 +766,14 @@ export default function OwnerOffersPage() {
           </div>
 
           <Input
-            label="Offer Title *"
+            label="Offer name"
             placeholder="e.g. 4 Hours Gaming Deal"
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
             required
           />
           <Input
-            label="Description (shown to gamers)"
+            label="Description (customers see this)"
             placeholder="e.g. Pay for 3 hours, get the 4th free"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -781,7 +782,7 @@ export default function OwnerOffersPage() {
           {form.promotionType === 'percentage' && (
             <div className="flex flex-col gap-3">
               <NumericField
-                label="Discount % (1-50) *"
+                label="Discount % (1 to 50)"
                 min={1}
                 max={50}
                 disabled={typeLocked}
@@ -795,7 +796,7 @@ export default function OwnerOffersPage() {
           {form.promotionType === 'fixed_amount' && (
             <div className="flex flex-col gap-3">
               <Input
-                label="Amount off (₹) *"
+                label="Amount off (₹)"
                 type="number"
                 min={1}
                 disabled={typeLocked}
@@ -829,7 +830,7 @@ export default function OwnerOffersPage() {
                   )}
                 </div>
                 <Input
-                  label="Deal Price (₹) *"
+                  label="Deal price (₹)"
                   type="number"
                   min={1}
                   disabled={typeLocked}
@@ -859,7 +860,7 @@ export default function OwnerOffersPage() {
 
           <div className="flex flex-col gap-1.5">
             <label className="text-caption font-semibold text-text-primary">
-              Applies To {form.promotionType === 'fixed_price' ? '*' : ''}
+              Applies to
             </label>
             <select
               value={form.applicableTierId}
@@ -867,14 +868,17 @@ export default function OwnerOffersPage() {
               onChange={(e) => setForm({ ...form, applicableTierId: e.target.value })}
               className="h-10 w-full rounded-xl border border-border bg-card px-3 text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
             >
-              {form.promotionType !== 'fixed_price' && <option value="">All hardware tiers</option>}
-              {form.promotionType === 'fixed_price' && <option value="">Choose a setup...</option>}
+              {form.promotionType !== 'fixed_price' && <option value="">All setups</option>}
+              {form.promotionType === 'fixed_price' && <option value="">Choose a setup</option>}
               {tiers.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
             {form.promotionType === 'fixed_price' && (
-              <p className="text-caption text-text-secondary">A fixed-price deal must apply to one specific setup, since its regular price is calculated from that setup&apos;s hourly rate.</p>
+              <p className="text-caption text-text-secondary">A fixed-price deal is for one setup, because its regular price comes from that setup&apos;s hourly rate.</p>
+            )}
+            {form.promotionType === 'fixed_price' && selectedTier?.isRoom && (
+              <p className="text-caption text-text-secondary">For a cabin, this deal applies when the group books 1 PC. Bigger groups pay the normal cabin price.</p>
             )}
           </div>
 
@@ -905,14 +909,14 @@ export default function OwnerOffersPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Start Date *"
+              label="Starts"
               type="date"
               value={form.validFrom}
               onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
               required
             />
             <Input
-              label="End Date *"
+              label="Ends"
               type="date"
               value={form.validUntil}
               onChange={(e) => setForm({ ...form, validUntil: e.target.value })}
@@ -947,7 +951,7 @@ export default function OwnerOffersPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-caption font-semibold text-text-primary">Time of day — from *</label>
+              <label className="text-caption font-semibold text-text-primary">Time of day, from</label>
               <select
                 value={form.startHour}
                 onChange={(e) => setForm({ ...form, startHour: Number(e.target.value) })}
@@ -1000,7 +1004,7 @@ export default function OwnerOffersPage() {
               <span className="flex items-center gap-0.5 text-caption font-semibold text-text-primary">
                 How it works out on {previewTier.name}
                 <InfoTip
-                  text="Exactly what this offer does to each booking length on this setup — 'Not eligible' means the length is too short (or, for a fixed-price deal, the wrong length) for this offer to apply."
+                  text="Exactly what this offer does to each booking length on this setup. 'Not eligible' means the length is too short (or, for a fixed-price deal, the wrong length) for this offer to apply."
                   label="About this preview"
                 />
               </span>
@@ -1024,7 +1028,7 @@ export default function OwnerOffersPage() {
           )}
 
           <Input
-            label="Max Redemptions (optional)"
+            label="Stop after this many uses (optional)"
             type="number"
             min={1}
             placeholder="Leave blank for unlimited"
@@ -1056,7 +1060,7 @@ export default function OwnerOffersPage() {
               </Button>
             </div>
             <p className="text-caption text-text-secondary">
-              Lets gamers redeem this offer by code or QR, in addition to it auto-applying at checkout. Uses the same validity window and redemption limit above. 4-20 letters/numbers.
+              Lets customers use this offer with a code or QR, as well as it applying by itself at checkout. It uses the same dates and limit as above. 4-20 letters/numbers.
             </p>
           </div>
 
@@ -1121,7 +1125,7 @@ export default function OwnerOffersPage() {
               </div>
             )}
             <p className="text-caption text-text-secondary">
-              <strong className="text-text-primary">{deleteTarget.title}</strong> will be permanently removed. This can&apos;t be undone — if you might want it back, use Pause instead.
+              <strong className="text-text-primary">{deleteTarget.title}</strong> will be permanently removed. This can&apos;t be undone. If you might want it back, use Pause instead.
             </p>
             <div className="flex items-center justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => { setDeleteTarget(null); setDeleteError(null); }}>

@@ -139,13 +139,13 @@ export function PayoutDetailsCard() {
                 onChange={(e) => setUpiVpa(e.target.value)}
               />
               <Input
-                label="Account Holder Name"
+                label="Account holder name"
                 placeholder="As per bank records"
                 value={accountHolderName}
                 onChange={(e) => setAccountHolderName(e.target.value)}
               />
               <Input
-                label="Bank Account Number"
+                label="Bank account number"
                 placeholder="Leave blank to keep unchanged"
                 value={bankAccountNumber}
                 onChange={(e) => setBankAccountNumber(e.target.value.replace(/\D/g, ''))}
@@ -158,7 +158,7 @@ export function PayoutDetailsCard() {
                 maxLength={11}
               />
               <Input
-                label="Current Password *"
+                label="Your current password"
                 type="password"
                 placeholder="Confirm it's you"
                 value={currentPassword}

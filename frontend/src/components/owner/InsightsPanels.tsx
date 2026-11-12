@@ -318,7 +318,7 @@ export function pickSteps(d: OwnerInsights): Step[] {
       title: `Your ${top.tierName} earn the most per seat`,
       body: `${inr(top.perSeat)} per seat against ${inr(next.perSeat)} for ${next.tierName}, and they’re ${top.percentFull}% full. Adding one more pays for itself fastest.`,
       href: "/owner/tiers",
-      cta: "See your stations",
+      cta: "See your setups",
     });
   }
   if (reviews.count < 10) {
@@ -712,7 +712,7 @@ export function StationsPanel({ data }: { data: OwnerInsights }) {
   const s = data.stations;
   return (
     <Section
-      title="Which stations earn most"
+      title="Which setups earn most"
       why="Compared per seat, so you know where one more machine, or a price change, would pay off."
       tip={INFO_TIPS.insightsStations}
     >

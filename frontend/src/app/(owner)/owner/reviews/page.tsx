@@ -89,7 +89,7 @@ export default function OwnerReviewsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <span className="font-heading text-body font-bold text-text-primary">
-                        {rev.gamerName || 'Gamer'}
+                        {rev.gamerName || 'Customer'}
                       </span>
                       <p className="text-xs text-text-secondary mt-0.5">
                         {new Date(rev.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -119,19 +119,19 @@ export default function OwnerReviewsPage() {
                       className="self-start gap-1.5"
                     >
                       {rev.ownerReply ? <Edit3 className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
-                      <span>{rev.ownerReply ? 'Edit Reply' : 'Reply to Review'}</span>
+                      <span>{rev.ownerReply ? 'Edit reply' : 'Reply'}</span>
                     </Button>
                   ) : (
                     <div className="flex flex-col gap-3 pt-1">
                       <Textarea
-                        placeholder="Write your public response to the gamer..."
+                        placeholder="Write your reply. Everyone can read it."
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
                         rows={3}
                         autoFocus
                       />
                       {replyMut.isError && thisMutPending === false && (
-                        <p className="text-caption text-error">Couldn&apos;t post your reply — please try again.</p>
+                        <p className="text-caption text-error">Couldn&apos;t post your reply. Please try again.</p>
                       )}
                       <div className="flex items-center gap-2">
                         <Button
@@ -139,12 +139,12 @@ export default function OwnerReviewsPage() {
                           size="sm"
                           disabled={!replyText.trim()}
                           isLoading={thisMutPending}
-                          loadingText="Posting..."
+                          loadingText="Posting"
                           onClick={() => replyMut.mutate({ reviewId: rev.id, reply: replyText.trim() })}
                           className="gap-1.5"
                         >
                           <CheckCircle2 className="h-4 w-4" />
-                          Post Reply
+                          Post reply
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => { setReplyingId(null); setReplyText(''); }}>
                           Cancel
