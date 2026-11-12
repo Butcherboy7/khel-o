@@ -213,14 +213,13 @@ async def get_cafe_availability(
 
     app_bookable_seats = tier.app_bookable_seats or tier.total_seats or 10
 
-    # Gaming tiers never get hardware_tier_units rows (units only exist for
-    # individual-unit activities), so count_in_maintenance would always
-    # return 0 for them — skip the query outright on this hot, per-search
-    # path rather than pay for a COUNT that can never matter.
-    if tier.tier_type == TierType.ACTIVITY:
-        unit_repo = HardwareTierUnitRepository(db)
-        maintenance_count = await unit_repo.count_in_maintenance(tier_id)
-        app_bookable_seats = max(0, app_bookable_seats - maintenance_count)
+    # A broken machine (owner-set, any kind of setup: a snooker table, or "PC 7")
+    # takes one seat out of what customers can book. Gaming setups only have such
+    # rows while something is broken, so the COUNT is almost always 0 and is one
+    # indexed lookup on tier_id.
+    unit_repo = HardwareTierUnitRepository(db)
+    maintenance_count = await unit_repo.count_in_maintenance(tier_id)
+    app_bookable_seats = max(0, app_bookable_seats - maintenance_count)
 
     cafe_repo = CafeRepository(db)
     cafe_obj = await cafe_repo.get_by_id(cafe_id)
@@ -479,3 +478,85 @@ async def update_tier_unit_status(
         "success": True,
         "data": {"unit": {"id": str(updated_unit.id), "label": updated_unit.label, "status": updated_unit.status}}
     }
+
+
+class BrokenMachineRequest(BaseModel):
+    label: str
+
+
+@router.post("/{cafe_id}/tiers/{tier_id}/broken", status_code=status.HTTP_201_CREATED)
+async def mark_machine_broken(
+    cafe_id: UUID,
+    tier_id: UUID,
+    payload: BrokenMachineRequest,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """Owner says "PC 7 is broken". Only the name the owner types is kept (they
+    know which machine it is); customers never see it, they just see one fewer
+    machine bookable. Refused if a booking already made would no longer fit."""
+    from app.models.hardware_tier_unit import HardwareTierUnit, UnitStatus
+    from app.core.exceptions import NotFoundException, ForbiddenException, ValidationException
+
+    label = (payload.label or "").strip()
+    if not label or len(label) > 50:
+        raise ValidationException(message="Type which machine it is, like PC 7 (up to 50 letters)", error_code="INVALID_LABEL")
+
+    tier_repo = HardwareTierRepository(db)
+    tier = await tier_repo.get_by_id_with_lock(tier_id)
+    if not tier or str(tier.cafe_id) != str(cafe_id):
+        raise NotFoundException(message="Setup not found", error_code="TIER_NOT_FOUND")
+    cafe = await CafeRepository(db).get_by_id(cafe_id)
+    if not cafe or str(cafe.owner_id) != str(current_owner.id):
+        raise ForbiddenException(message="You can only manage your own café", error_code="FORBIDDEN")
+    if tier.tier_type == TierType.ACTIVITY:
+        raise ValidationException(message="Use the table list for activities", error_code="USE_UNIT_LIST")
+
+    unit_repo = HardwareTierUnitRepository(db)
+    existing = await unit_repo.list_by_tier(tier_id)
+    if any(u.label.strip().lower() == label.lower() for u in existing):
+        raise ValidationException(message=f"{label} is already marked broken", error_code="ALREADY_BROKEN")
+    broken_now = await unit_repo.count_in_maintenance(tier_id)
+    if broken_now + 1 > (tier.total_seats or 0):
+        raise ValidationException(message="That's more broken machines than this setup has", error_code="TOO_MANY_BROKEN")
+
+    new_capacity = max(0, tier.app_bookable_seats - (broken_now + 1))
+    conflict = await BookingRepository(db).find_first_capacity_conflict(tier_id, new_capacity=new_capacity)
+    if conflict:
+        raise ValidationException(
+            message=f"Can't mark {label} broken yet: booking {conflict.booking_reference} on {conflict.session_date} needs the machine. Mark it broken after that booking.",
+            error_code="MAINTENANCE_CAPACITY_CONFLICT"
+        )
+
+    unit = HardwareTierUnit(tier_id=tier_id, label=label, status=UnitStatus.MAINTENANCE.value)
+    db.add(unit)
+    await db.commit()
+    await db.refresh(unit)
+    return {"success": True, "data": {"unit": {"id": str(unit.id), "label": unit.label, "status": unit.status}}}
+
+
+@router.delete("/{cafe_id}/tiers/{tier_id}/broken/{unit_id}", status_code=status.HTTP_200_OK)
+async def mark_machine_fixed(
+    cafe_id: UUID,
+    tier_id: UUID,
+    unit_id: UUID,
+    current_owner: User = Depends(require_cafe_owner),
+    db: AsyncSession = Depends(get_db)
+):
+    """"PC 7 is fixed": the row is removed, so the machine counts as bookable
+    again. Putting a machine back never needs a capacity check."""
+    from app.core.exceptions import NotFoundException, ForbiddenException
+
+    tier = await HardwareTierRepository(db).get_by_id_with_lock(tier_id)
+    if not tier or str(tier.cafe_id) != str(cafe_id):
+        raise NotFoundException(message="Setup not found", error_code="TIER_NOT_FOUND")
+    cafe = await CafeRepository(db).get_by_id(cafe_id)
+    if not cafe or str(cafe.owner_id) != str(current_owner.id):
+        raise ForbiddenException(message="You can only manage your own café", error_code="FORBIDDEN")
+    unit_repo = HardwareTierUnitRepository(db)
+    unit = await unit_repo.get_by_id(unit_id)
+    if not unit or str(unit.tier_id) != str(tier_id) or tier.tier_type == TierType.ACTIVITY:
+        raise NotFoundException(message="That machine isn't marked broken", error_code="UNIT_NOT_FOUND")
+    await db.delete(unit)
+    await db.commit()
+    return {"success": True, "data": {"fixed": unit.label}}

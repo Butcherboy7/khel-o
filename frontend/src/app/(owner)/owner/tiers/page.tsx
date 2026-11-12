@@ -20,9 +20,10 @@ import {
 import { useTaxonomy, missingRequiredAttrs } from '@/lib/taxonomy';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import { ActivityUnitsManager } from '@/components/owner/ActivityUnitsManager';
+import { BrokenMachines } from '@/components/owner/BrokenMachines';
 import { PLATFORM_MODELS } from '@/constants/platforms';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
-import { bookingOptionsFrom, bookingOptionsPayload } from '@/components/owner/SetupBookingOptions';
+import { bookingOptionsFrom, bookingOptionsPayload, fmtDuration } from '@/components/owner/SetupBookingOptions';
 import type { HardwareTier, TierConfig, TierCreateRequest, TierUpdateRequest } from '@/types';
 import { Edit, AlertCircle, Power, PowerOff, Plus, Zap, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
@@ -352,7 +353,7 @@ export default function HardwareTiersPage() {
       {/* Tiers Grid */}
       <div className="min-h-[300px]">
         {isLoading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <SkeletonCard />
             <SkeletonCard />
           </div>
@@ -379,7 +380,7 @@ export default function HardwareTiersPage() {
         )}
 
         {!isLoading && !isError && tiers.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {tiers.map((tier, i) => (
               <Card
                 key={tier.id}
@@ -437,13 +438,35 @@ export default function HardwareTiersPage() {
                     <div className="flex items-center gap-1.5 rounded-xl bg-surface p-3 text-caption font-semibold text-text-primary">
                       <Zap className="h-3.5 w-3.5 flex-shrink-0 text-primary" aria-hidden="true" />
                       <span>{tier.model}</span>
+                      {tier.refreshRateHz ? <span className="font-normal text-text-secondary">· {tier.refreshRateHz} Hz</span> : null}
                     </div>
                   )}
+
+                  {/* What customers are charged, in words, so the owner never has to open Edit to remember. */}
+                  <ul className="flex flex-col gap-1 text-caption text-text-secondary">
+                    {tier.isRoom ? (
+                      <li>
+                        Private cabin: <b className="font-semibold text-text-primary">₹{Math.max(0, tier.pricePerHour - (tier.coopExtraPlayerPrice ?? 0))}</b> cabin
+                        {' + '}<b className="font-semibold text-text-primary">₹{tier.coopExtraPlayerPrice ?? 0}</b> per PC, up to {tier.coopMaxPlayers} PCs, per hour
+                      </li>
+                    ) : tier.coopEnabled ? (
+                      <li>
+                        Friends can share one: <b className="font-semibold text-text-primary">₹{tier.pricePerHour + (tier.coopExtraPlayerPrice ?? 0)}</b> for 2 players
+                        {(tier.coopMaxPlayers ?? 2) > 2 ? `, up to ${tier.coopMaxPlayers} players` : ''}, per hour
+                      </li>
+                    ) : null}
+                    <li>
+                      Customers can book from{' '}
+                      <b className="font-semibold text-text-primary">{fmtDuration(tier.minBookingMinutes ?? 60)}</b>
+                      {tier.maxBookingMinutes ? <> up to <b className="font-semibold text-text-primary">{fmtDuration(tier.maxBookingMinutes)}</b></> : null}
+                    </li>
+                  </ul>
 
                   {/* One edit path, named. There used to be a bare pencil icon up
                       in the corner AND this button, doing the same thing — so the
                       card offered two answers to "how do I change the price?". */}
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                    {tier.isRoom && <span className="text-caption text-text-secondary">from</span>}
                     <PriceDisplay amount={tier.pricePerHour} size="md" />
                     <div className="flex items-center gap-2">
                       <Button
@@ -481,6 +504,20 @@ export default function HardwareTiersPage() {
                       )}
                     </div>
                   </div>
+
+                  {tier.tierType !== 'activity' && tier.isActive && (
+                    <div className="border-t border-border pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedUnitsTierId(expandedUnitsTierId === tier.id ? null : tier.id)}
+                        className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-text-primary"
+                      >
+                        {expandedUnitsTierId === tier.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        <span>Something broken?</span>
+                      </button>
+                      {expandedUnitsTierId === tier.id && <BrokenMachines cafeId={tier.cafeId} tierId={tier.id} />}
+                    </div>
+                  )}
 
                   {tier.tierType === 'activity' && (
                     <div className="border-t border-border pt-3">
