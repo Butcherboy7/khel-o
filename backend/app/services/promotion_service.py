@@ -955,6 +955,7 @@ class PromotionService:
         is_coop: bool = False,
         campaign_id: Optional[UUID] = None,
         gamer_id: Optional[UUID] = None,
+        room_players: Optional[int] = None,
     ) -> Decimal:
         # Row-locked so a concurrent booking applying the same promo can't read
         # current_uses until this one commits — closes the race where N
@@ -1022,7 +1023,8 @@ class PromotionService:
                 )
 
         discount_amount = self._evaluate_and_price(
-            promo, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop
+            promo, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop,
+            room_players=room_players,
         )
 
         # Not counted as redeemed here: the booking is only pending payment.
@@ -1041,6 +1043,7 @@ class PromotionService:
         seats_count: int,
         is_coop: bool,
         ignore_schedule: bool = False,
+        room_players: Optional[int] = None,
     ) -> Decimal:
         """The eligibility + discount math shared by apply_promotion_to_booking
         (row-locked, authoritative) and get_best_quote_offer (unlocked,
@@ -1059,7 +1062,7 @@ class PromotionService:
             raise ValidationException(message="Promotion is not valid for the selected date/time", error_code="PROMOTION_INACTIVE")
 
         if promo.applicable_tier_id and str(promo.applicable_tier_id) != str(tier_id):
-            raise ValidationException(message="Promotion does not apply to the selected hardware tier", error_code="PROMOTION_TIER_MISMATCH")
+            raise ValidationException(message="This offer isn’t for the setup you picked", error_code="PROMOTION_TIER_MISMATCH")
 
         mode = getattr(promo, 'play_mode', None) or 'any'
         if (mode == 'coop' and not is_coop) or (mode == 'solo' and is_coop):
@@ -1078,6 +1081,16 @@ class PromotionService:
                 raise ValidationException(
                     message=f"This deal applies to exactly {promo.min_duration_hours} hour(s)",
                     error_code="PROMOTION_DURATION_MISMATCH"
+                )
+            # A cabin is one unit however many PCs are used inside it, so the
+            # deal's price only makes sense for the group size it was priced
+            # for (one PC, or two when it is a co-op deal). Any other size is
+            # charged the normal price rather than the deal price.
+            if room_players is not None and room_players != (2 if mode == 'coop' else 1):
+                n = 2 if mode == 'coop' else 1
+                raise ValidationException(
+                    message=f"This deal is for {n} PC{'s' if n > 1 else ''} in the cabin",
+                    error_code="PROMOTION_GROUP_SIZE_MISMATCH",
                 )
             deal_total = Decimal(str(promo.fixed_price_amount)) * seats_count
             discount_amount = (base_amount - deal_total).quantize(Decimal('0.01'))
@@ -1137,6 +1150,7 @@ class PromotionService:
         seats_count: int,
         is_coop: bool,
         campaign_id: Optional[UUID] = None,
+        room_players: Optional[int] = None,
     ):
         """Preview-only (no row lock, no side effects) equivalent of
         apply_promotion_to_booking, used by the /bookings/quote endpoint so
@@ -1145,7 +1159,8 @@ class PromotionService:
         hint_message: str|None) — `hint` is the best offer that almost
         applied, for an "works on bookings of 1hr+" message."""
         eligible, best_hint, best_hint_message, _suggested = await self.list_eligible_offers(
-            cafe_id, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop, campaign_id
+            cafe_id, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop, campaign_id,
+            room_players=room_players,
         )
         if eligible:
             promo, discount = eligible[0]
@@ -1162,6 +1177,7 @@ class PromotionService:
         seats_count: int,
         is_coop: bool,
         campaign_id: Optional[UUID] = None,
+        room_players: Optional[int] = None,
     ):
         """Every offer that applies to this exact slot, biggest saving first,
         plus the best near-miss for a nudge. One source of truth for the
@@ -1188,7 +1204,8 @@ class PromotionService:
         for promo in candidates:
             try:
                 discount = self._evaluate_and_price(
-                    promo, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop
+                    promo, tier_id, base_amount, session_datetime, duration_hours, seats_count, is_coop,
+                    room_players=room_players,
                 )
             except ValidationException as e:
                 # Only offer a "you're close" hint for the failure modes a

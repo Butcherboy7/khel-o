@@ -126,6 +126,8 @@ class BookingService:
 
         seats_requested = getattr(booking_in, 'seats_count', 1)
         players = booking_in.players_count or seats_requested
+        # Set only for a cabin: fixed-price deals check it matches their group size.
+        room_players = players if getattr(tier, 'is_room', False) else None
         # Tables, lanes and rooms are priced per unit, never per person. The
         # group size only has to fit what the owner says one unit takes.
         is_activity = tier.tier_type == TierType.ACTIVITY.value
@@ -222,6 +224,7 @@ class BookingService:
                 seats_count=seats_requested,
                 is_coop=is_coop,
                 campaign_id=campaign_id,
+                room_players=room_players,
             )
             if auto_promo is not None:
                 resolved_promotion_id = auto_promo.id
@@ -242,6 +245,7 @@ class BookingService:
                 is_coop=is_coop,
                 campaign_id=campaign_id,
                 gamer_id=gamer_id,
+                room_players=room_players,
             )
 
         subtotal = base_amount - discount_amount
@@ -330,6 +334,7 @@ class BookingService:
 
         seats_requested = quote_in.seats_count
         players = quote_in.players_count or seats_requested
+        room_players = players if getattr(tier, 'is_room', False) else None
         is_activity = tier.tier_type == TierType.ACTIVITY.value
         if is_activity:
             self._check_group_fits(tier, players, seats_requested)
@@ -370,6 +375,7 @@ class BookingService:
                 seats_count=seats_requested,
                 is_coop=is_coop,
                 campaign_id=campaign_id,
+                room_players=room_players,
             )
 
             # A customer-chosen offer (tapped, or typed as a code) wins if it
@@ -394,6 +400,7 @@ class BookingService:
                     offer_note = await self._why_offer_unavailable(
                         resolved_promotion_id, quote_in.cafe_id, quote_in.hardware_tier_id,
                         base_amount, start_datetime, duration, seats_requested, is_coop,
+                        room_players=room_players,
                     )
             if chosen is None and eligible:
                 chosen = eligible[0]
@@ -479,6 +486,7 @@ class BookingService:
 
     async def _why_offer_unavailable(
         self, promotion_id, cafe_id, tier_id, base_amount, start_datetime, duration, seats, is_coop,
+        room_players=None,
     ) -> str:
         """One plain sentence for why the offer/code the customer picked can't
         be used on this slot ("This offer just ended." beats a raw error)."""
@@ -489,7 +497,9 @@ class BookingService:
         if not self.promo_service._is_promotion_active(promo, now, check_window=False):
             return "This offer just ended."
         try:
-            self.promo_service._evaluate_and_price(promo, tier_id, base_amount, start_datetime, duration, seats, is_coop)
+            self.promo_service._evaluate_and_price(
+                promo, tier_id, base_amount, start_datetime, duration, seats, is_coop, room_players=room_players,
+            )
         except ValidationException as e:
             if e.error_code == "PROMOTION_INACTIVE":
                 from app.services.promotion_service import schedule_text

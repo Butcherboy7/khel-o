@@ -5,8 +5,11 @@ used inside, booked as ONE room however many PCs the group uses.
 Stored with the co-op fields: price_per_hour = room fee + one PC (300 + 150 = 450),
 coop_extra_player_price = one more PC (150), coop_max_players = PCs in the room (5).
 """
+import uuid
 import pytest
-from datetime import datetime, time
+from datetime import datetime, time, timedelta, timezone
+
+from app.models.promotion import Promotion, PromotionType
 
 from tests.test_booking_time_validation import BASE_DATE, _freeze_now  # noqa: F401
 from tests.test_coop_booking import _book, _setup
@@ -56,3 +59,59 @@ async def test_cabin_never_books_two_rooms_for_two_players(db_session, monkeypat
     resp = await _book(tier, cafe, gamer, durationHours=1, seatsCount=2, playersCount=2)
     assert resp.status_code == 422
     assert resp.json()["error"]["code"] == "ROOM_ONE_UNIT"
+
+
+def _offer(cafe, tier, **kw):
+    # The booked day (BASE_DATE) is fixed, so the offer's window is built around it.
+    # (and the real today, which the offer lookup also checks).
+    now = datetime.now(timezone.utc)
+    base = dict(
+        id=uuid.uuid4(), cafe_id=cafe.id, title="Deal", applicable_tier_id=tier.id,
+        valid_from=datetime.combine(BASE_DATE, time(0, 0)).replace(tzinfo=timezone.utc) - timedelta(days=1),
+        valid_until=now + timedelta(days=60),
+        days_of_week=[0, 1, 2, 3, 4, 5, 6], start_hour=0, end_hour=24,
+        max_uses=None, current_uses=0, is_active=True, khelo_code=None, play_mode="any",
+    )
+    base.update(kw)
+    return Promotion(**base)
+
+
+def _fixed(cafe, tier, hours, price, **kw):
+    return _offer(
+        cafe, tier, promotion_type=PromotionType.FIXED_PRICE,
+        fixed_price_amount=price, min_duration_hours=hours, **kw,
+    )
+
+
+@pytest.mark.asyncio
+async def test_fixed_price_deal_does_not_apply_to_a_five_pc_cabin(db_session, monkeypatch):
+    """'3 hours for 400' is priced for one PC. Five PCs for 3 hours is 3150, not 400."""
+    cafe, tier, gamer = await _setup(db_session, monkeypatch, **CABIN)
+    db_session.add(_fixed(cafe, tier, 3, 400))
+    await db_session.commit()
+    resp = await _book(tier, cafe, gamer, durationHours=3, seatsCount=1, playersCount=5)
+    assert resp.status_code == 201, resp.json()
+    body = resp.json()["data"]["booking"]
+    assert float(body["baseAmount"]) == 3150.0
+    assert float(body["discountAmount"]) == 0.0
+
+
+@pytest.mark.asyncio
+async def test_fixed_price_deal_still_applies_to_one_pc_in_a_cabin(db_session, monkeypatch):
+    cafe, tier, gamer = await _setup(db_session, monkeypatch, **CABIN)
+    db_session.add(_fixed(cafe, tier, 3, 400))
+    await db_session.commit()
+    resp = await _book(tier, cafe, gamer, durationHours=3, seatsCount=1, playersCount=1)
+    assert resp.status_code == 201, resp.json()
+    body = resp.json()["data"]["booking"]
+    assert float(body["baseAmount"]) - float(body["discountAmount"]) == 400.0
+
+
+@pytest.mark.asyncio
+async def test_percentage_offer_still_applies_to_a_full_cabin(db_session, monkeypatch):
+    cafe, tier, gamer = await _setup(db_session, monkeypatch, **CABIN)
+    db_session.add(_offer(cafe, tier, promotion_type=PromotionType.PERCENTAGE, discount_percentage=10, min_booking_minutes=60))
+    await db_session.commit()
+    resp = await _book(tier, cafe, gamer, durationHours=1, seatsCount=1, playersCount=5)
+    assert resp.status_code == 201, resp.json()
+    assert float(resp.json()["data"]["booking"]["discountAmount"]) == 105.0  # 10% of 1050
