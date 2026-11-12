@@ -50,6 +50,30 @@ class PaymentService:
         except Exception:
             return "You're all set. Show your QR pass at the café."
 
+    async def _owner_booking_message(self, booking) -> str:
+        """The alert the café owner gets: who is coming and what to get ready, in
+        words ("Booking GC-1 confirmed for Sat 14 Nov, 2 PM. Cabin, 5 PCs.")."""
+        day = f"{booking.session_date:%a} {booking.session_date.day} {booking.session_date:%b}"
+        t = booking.start_time
+        clock = f"{t.hour % 12 or 12}{f':{t.minute:02d}' if t.minute else ''} {'PM' if t.hour >= 12 else 'AM'}"
+        text = f"Booking {booking.booking_reference} confirmed for {day}, {clock}."
+        try:
+            from app.models.hardware_tier import HardwareTier
+            tier = (await self.payment_repo.db.execute(
+                select(HardwareTier).where(HardwareTier.id == booking.hardware_tier_id)
+            )).scalars().first()
+            seats = booking.seats_count or 1
+            players = booking.players_count or seats
+            if tier is not None and getattr(tier, "is_room", False):
+                text += f" Cabin, {players} PC{'s' if players != 1 else ''}."
+            elif players > seats:
+                text += f" {players} players sharing {seats} console{'s' if seats != 1 else ''}."
+            elif seats > 1:
+                text += f" {seats} machines."
+        except Exception:
+            pass
+        return text
+
     async def _notify_customer(self, booking, title: str, message: str, notification_type: str = "system") -> None:
         """Best-effort in-app notification for the gamer who made the booking.
 
@@ -489,7 +513,7 @@ class PaymentService:
             self.payment_repo.db,
             cafe_id=booking.cafe_id,
             title="New booking confirmed",
-            message=f"Booking {booking.booking_reference} confirmed for {booking.session_date} at {booking.start_time}.",
+            message=await self._owner_booking_message(booking),
             notification_type="booking_confirmed",
             link=f"/owner/bookings?ref={booking.booking_reference}",
             # Shared between the verify and webhook paths on purpose: whichever
@@ -652,7 +676,7 @@ class PaymentService:
                             self.payment_repo.db,
                             cafe_id=booking.cafe_id,
                             title="New booking confirmed",
-                            message=f"Booking {booking.booking_reference} confirmed for {booking.session_date} at {booking.start_time}.",
+                            message=await self._owner_booking_message(booking),
                             notification_type="booking_confirmed",
                             link=f"/owner/bookings?ref={booking.booking_reference}",
                             # Shared between the verify and webhook paths on purpose: whichever

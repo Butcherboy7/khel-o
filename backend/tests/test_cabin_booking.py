@@ -181,3 +181,44 @@ async def test_cabin_does_not_make_a_cafe_show_the_co_op_badge(db_session, monke
     await db_session.commit()
     rows, _total = await CafeRepository(db_session).flex_search_verified(query=cafe.name, limit=50)
     assert [r for r in rows if str(r["id"]) == str(cafe.id)][0]["has_coop"] is True
+
+
+@pytest.mark.asyncio
+async def test_quote_does_not_show_a_fixed_price_deal_for_a_five_pc_cabin(db_session, monkeypatch):
+    """Checkout's quote must agree with what the booking charges."""
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from tests.conftest import auth_headers
+    cafe, tier, gamer = await _setup(db_session, monkeypatch, **CABIN)
+    db_session.add(_fixed(cafe, tier, 3, 400))
+    await db_session.commit()
+
+    async def quote(players):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            r = await client.post("/api/v1/bookings/quote", json={
+                "cafeId": str(cafe.id), "hardwareTierId": str(tier.id),
+                "sessionDate": BASE_DATE.isoformat(), "startTime": "12:00:00",
+                "durationHours": 3, "seatsCount": 1, "playersCount": players,
+            }, headers=auth_headers(gamer))
+        assert r.status_code == 200, r.text
+        return r.json()["data"]
+
+    big = await quote(5)
+    assert float(big["baseAmount"]) == 3150.0 and float(big["discountAmount"]) == 0.0
+    assert big["appliedOffer"] is None
+    one = await quote(1)
+    assert float(one["baseAmount"]) - float(one["discountAmount"]) == 400.0
+
+
+@pytest.mark.asyncio
+async def test_owner_alert_says_cabin_and_how_many_pcs(db_session, monkeypatch):
+    from types import SimpleNamespace
+    from app.services.payment_service import PaymentService
+    from app.models.booking import Booking
+    cafe, tier, gamer = await _setup(db_session, monkeypatch, **CABIN)
+    resp = await _book(tier, cafe, gamer, durationHours=1, seatsCount=1, playersCount=5)
+    booking = await db_session.get(Booking, uuid.UUID(resp.json()["data"]["booking"]["id"]))
+    svc = PaymentService.__new__(PaymentService)
+    svc.payment_repo = SimpleNamespace(db=db_session)
+    msg = await svc._owner_booking_message(booking)
+    assert "Cabin, 5 PCs" in msg and "Booking " in msg and "Aug" in msg
