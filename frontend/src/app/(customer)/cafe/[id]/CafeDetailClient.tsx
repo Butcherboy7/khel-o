@@ -738,7 +738,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                           <span>
                             Private cabin, up to {tier.coopMaxPlayers} PCs:{' '}
                             <span className="font-data font-semibold text-text-primary">
-                              <span className="rupee-symbol">₹</span>{shownPrice(Math.max(0, tier.pricePerHour - Number(tier.coopExtraPlayerPrice ?? 0)))}
+                              <span className="rupee-symbol">₹</span>{Math.max(0, shownPrice(tier.pricePerHour) - shownPrice(Number(tier.coopExtraPlayerPrice ?? 0)))}
                             </span>{' '}
                             cabin +{' '}
                             <span className="font-data font-semibold text-text-primary">

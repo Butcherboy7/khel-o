@@ -14,6 +14,10 @@ async def test_admin_cafe_detail_shows_individual_tracking_mode(db_session):
     gamer = await _make_gamer(db_session, "tracking_gamer_individual")
     booking, _ = await _make_booking_with_payment(db_session, gamer)
 
+    # Named tables belong to activity setups; on a PC setup a unit row just means "broken".
+    from app.models.hardware_tier import HardwareTier, TierType
+    tier = await db_session.get(HardwareTier, booking.hardware_tier_id)
+    tier.tier_type = TierType.ACTIVITY
     db_session.add(HardwareTierUnit(id=uuid4(), tier_id=booking.hardware_tier_id, label="Table 1", status=UnitStatus.AVAILABLE))
     await db_session.commit()
 

@@ -484,7 +484,7 @@ export default function OnboardingWizardPage() {
             individualUnits: c.individualUnits,
             hourlyRate: Number(c.pricePerHour) || 100,
             totalSeats: Number(c.totalSeats) || 4,
-            appBookableSeats: Number(c.appBookableSeats) || Number(c.totalSeats) || 4,
+            appBookableSeats: Number.isFinite(Number(c.appBookableSeats)) ? Number(c.appBookableSeats) : Number(c.totalSeats) || 4,
           }
         : {
             platform: c.platform,
@@ -498,7 +498,13 @@ export default function OnboardingWizardPage() {
               (c.platform !== 'other' && !PLATFORM_MODELS[c.platform]?.includes(c.model)),
             hourlyRate: Number(c.pricePerHour) || 100,
             totalSeats: Number(c.totalSeats) || 4,
-            appBookableSeats: Number(c.appBookableSeats) || (Number(c.totalSeats) || 4),
+            appBookableSeats: Number.isFinite(Number(c.appBookableSeats)) ? Number(c.appBookableSeats) : Number(c.totalSeats) || 4,
+            isRoom: Boolean(c.isRoom),
+            coopEnabled: Boolean(c.coopEnabled),
+            coopMaxPlayers: c.coopEnabled || c.isRoom ? c.coopMaxPlayers : undefined,
+            coopExtraPlayerPrice: c.coopEnabled || c.isRoom ? c.coopExtraPlayerPrice : undefined,
+            refreshRateHz: c.refreshRateHz ?? undefined,
+            fpsOverrides: c.fpsOverrides ?? undefined,
           }
     );
 

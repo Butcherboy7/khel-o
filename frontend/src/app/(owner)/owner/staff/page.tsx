@@ -26,6 +26,7 @@ export default function OwnerStaffPage() {
 
   const [staffList, setStaffList] = useState<{ id: string; fullName: string; email: string }[]>([]);
   const [loadError, setLoadError] = useState<unknown>(null);
+  const [inviteLoadFailed, setInviteLoadFailed] = useState(false);
   // Two-tap cancel for an invite, like Remove below.
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [invitations, setInvitations] = useState<StaffInvitation[]>([]);
@@ -41,12 +42,22 @@ export default function OwnerStaffPage() {
 
   const loadData = async () => {
     try {
-      const [staffRes, invRes] = await Promise.all([listOwnerStaff(), listStaffInvitations()]);
-      setStaffList(staffRes.staff || []);
-      setInvitations(invRes.invitations || []);
-      setLoadError(null);
+      const [staffRes, invRes] = await Promise.allSettled([listOwnerStaff(), listStaffInvitations()]);
+      if (staffRes.status === 'rejected') {
+        // Say so: an empty list here would read as "nobody yet" when the load simply failed.
+        setLoadError(staffRes.reason ?? true);
+      } else {
+        setStaffList(staffRes.value.staff || []);
+        setLoadError(null);
+      }
+      // Invites failing alone must not hide the team: show what we have and say it.
+      if (invRes.status === 'fulfilled') {
+        setInvitations(invRes.value.invitations || []);
+        setInviteLoadFailed(false);
+      } else {
+        setInviteLoadFailed(true);
+      }
     } catch (e) {
-      // Say so: an empty list here would read as "nobody yet" when the load simply failed.
       setLoadError(e ?? true);
     } finally {
       setIsLoading(false);
@@ -194,6 +205,9 @@ export default function OwnerStaffPage() {
       </Card>
 
       {/* Pending Invitations Section */}
+      {!loadError && inviteLoadFailed && (
+        <p className="text-sm text-text-secondary">Couldn’t load your pending invites. Pull to refresh and try again.</p>
+      )}
       {!loadError && openInvitations.length > 0 && (
         <Card elevation="raised" className="bg-surface border border-border">
           <CardContent className="p-6 flex flex-col gap-4">

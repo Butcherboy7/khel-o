@@ -346,7 +346,11 @@ function BookingWizardContent() {
   const isRoom = Boolean(activeTier?.isRoom);
   const canSeparate = !isRoom && seatsCount <= windowRemainingSeats;
   const isCoop = canCoop && (isRoom || coopChosen || !canSeparate);
-  const consolesCount = isCoop ? 1 : seatsCount;
+  const consolesCount = isRoom || isCoop ? 1 : seatsCount;
+  // Owner lowered the cabin cap after a "Book again" link was made: pull the group back inside it.
+  useEffect(() => {
+    if (isRoom && coopMax > 0 && seatsCount > coopMax) setSeatsCount(coopMax);
+  }, [isRoom, coopMax, seatsCount]);
   const maxPlayers = isActivity ? Math.min(6, windowRemainingSeats) : (isRoom ? coopMax : Math.min(6, Math.max(windowRemainingSeats, coopMax)));
   const minDurationMin = Math.max(15, activeTier?.minBookingMinutes ?? 60);
   // The owner's longest booking for this setup (8 hours when unset).
