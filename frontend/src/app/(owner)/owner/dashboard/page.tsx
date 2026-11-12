@@ -238,7 +238,7 @@ export default function OwnerDashboardPage() {
       setActionIsError(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update seat allocation.';
+      const msg = err instanceof Error ? err.message : 'Couldn’t update your seats. Please try again.';
       setActionMessage(msg);
       setActionIsError(true);
     } finally {
@@ -288,7 +288,7 @@ export default function OwnerDashboardPage() {
       setActionIsError(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update tier allocation.';
+      const msg = err instanceof Error ? err.message : 'Couldn’t update your seats. Please try again.';
       setActionMessage(msg);
       setActionIsError(true);
     } finally {
@@ -341,7 +341,7 @@ export default function OwnerDashboardPage() {
       setActionIsError(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to toggle bookings pause.';
+      const msg = err instanceof Error ? err.message : 'Couldn’t change that. Please try again.';
       setActionMessage(msg);
       setActionIsError(true);
     } finally {
@@ -795,7 +795,7 @@ export default function OwnerDashboardPage() {
             >
               <span className="text-caption font-bold text-text-primary flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
-                <span>Set seats for each kind of station</span>
+                <span>Choose how many of each setup can be booked online</span>
               </span>
               <span className="text-xs font-semibold text-primary group-hover:underline flex items-center gap-1">
                 {isTierBreakdownOpen ? 'Hide' : 'Show'}
@@ -825,7 +825,7 @@ export default function OwnerDashboardPage() {
                                 onClick={() => handleUpdateSingleTier(t.id, Math.max(0, currentAppSeats - 1))}
                                 disabled={isUpdatingCap || currentAppSeats <= 0}
                                 className="h-8 w-8 rounded-lg bg-card border border-border flex items-center justify-center font-bold text-body hover:bg-surface-hover transition-colors disabled:opacity-30"
-                                title="Decrease online-bookable seats for this tier"
+                                title="One fewer bookable online"
                               >-</button>
                               <span className={`font-bold text-caption font-data px-1 ${currentAppSeats === 0 ? 'text-amber-500 font-bold' : 'text-primary font-bold'}`}>
                                 {currentAppSeats} Online
@@ -835,7 +835,7 @@ export default function OwnerDashboardPage() {
                                 onClick={() => handleUpdateSingleTier(t.id, Math.min(t.totalSeats, currentAppSeats + 1))}
                                 disabled={isUpdatingCap || currentAppSeats >= t.totalSeats}
                                 className="h-8 w-8 rounded-lg bg-card border border-border flex items-center justify-center font-bold text-body hover:bg-surface-hover transition-colors disabled:opacity-30"
-                                title="Increase online-bookable seats for this tier"
+                                title="One more bookable online"
                               >+</button>
                             </div>
                             <span className="text-text-secondary text-xs font-semibold">{walkInSeats} Walk-in</span>
@@ -925,7 +925,7 @@ export default function OwnerDashboardPage() {
 
             <dl className="grid grid-cols-2 gap-3 text-caption">
               <div className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3.5">
-                <dt className="text-caption text-text-secondary">Station</dt>
+                <dt className="text-caption text-text-secondary">Setup</dt>
                 <dd className="font-semibold text-text-primary">{selectedBooking.tierName || 'Standard Pod'}</dd>
               </div>
 

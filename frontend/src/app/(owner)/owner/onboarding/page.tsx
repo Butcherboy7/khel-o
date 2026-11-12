@@ -551,7 +551,7 @@ export default function OnboardingWizardPage() {
       setIsSubmitted(true);
     } catch (err: any) {
       const details = err?.details || err?.response?.data?.detail;
-      let msg = err?.message || 'Failed to submit café application.';
+      let msg = err?.message || 'Couldn’t submit café application. Please try again.';
       if (Array.isArray(details)) {
         const fieldMsgs = details.map((d: any) => `${d.loc?.[d.loc?.length - 1] || 'Field'}: ${d.msg}`).join(', ');
         msg = `Validation Error: ${fieldMsgs}`;
@@ -1314,7 +1314,7 @@ export default function OnboardingWizardPage() {
                                     await deleteCafePhoto(formData.cafeId!, url);
                                     setFormData((prev) => ({ ...prev, photos: prev.photos.filter((p) => p !== url) }));
                                   } catch (err) {
-                                    setError(err instanceof Error ? err.message : 'Failed to delete photo. Please try again.');
+                                    setError(err instanceof Error ? err.message : 'Couldn’t delete photo. Please try again.');
                                   }
                                 }}
                                 className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white text-xs font-bold hover:bg-black/80"
@@ -1367,7 +1367,7 @@ export default function OnboardingWizardPage() {
                                     const res = await deleteMenuPhoto(formData.cafeId!, url);
                                     setFormData((prev) => ({ ...prev, menuPhotos: res.menuPhotos }));
                                   } catch (err) {
-                                    setError(err instanceof Error ? err.message : 'Failed to delete photo. Please try again.');
+                                    setError(err instanceof Error ? err.message : 'Couldn’t delete photo. Please try again.');
                                   }
                                 }}
                                 className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white text-xs font-bold hover:bg-black/80"

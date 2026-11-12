@@ -979,7 +979,7 @@ export default function ScannerPage() {
                     </p>
                   )}
                   {overlayKind === 'ready' && (
-                    <p className="text-caption font-medium text-emerald-600/90">Ready for station check-in.</p>
+                    <p className="text-caption font-medium text-emerald-600/90">Ready to check customers in.</p>
                   )}
                 </div>
 
@@ -1036,7 +1036,7 @@ export default function ScannerPage() {
 
                       <div className="p-3 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
                         <span className="text-text-tertiary text-xs flex items-center gap-1">
-                          <Monitor className="h-3.5 w-3.5" /> Hardware Tier
+                          <Monitor className="h-3.5 w-3.5" /> Setup
                         </span>
                         <span className="font-semibold text-text-primary truncate">{overlayBooking.tierName}</span>
                       </div>
@@ -1051,7 +1051,7 @@ export default function ScannerPage() {
 
                     <div className="p-3 rounded-xl bg-surface-hover border border-border flex items-center justify-between">
                       <span className="text-text-tertiary text-xs flex items-center gap-1">
-                        <User className="h-3.5 w-3.5" /> Your Payout
+                        <User className="h-3.5 w-3.5" /> You earn
                       </span>
                       <span className="font-bold text-emerald-600 text-body">₹{getOwnerPayoutAmount(overlayBooking).toFixed(2)}</span>
                     </div>

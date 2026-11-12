@@ -14,8 +14,6 @@ import {
   Ban,
   QrCode,
   CalendarClock,
-  Minus,
-  Plus,
   AlertCircle,
   X,
 } from 'lucide-react';
@@ -26,7 +24,7 @@ import {
   type OwnerAvailabilityTimeline,
   type AvailabilityTierSummary,
 } from '@/lib/api/owner';
-import { updateTier } from '@/lib/api/tiers';
+import { BrokenMachines } from '@/components/owner/BrokenMachines';
 import { getTodayString, formatMinutesTo12h, timeToMinutes } from '@/lib/format';
 import { Card, Button, Badge, PageSpinner } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
@@ -62,7 +60,6 @@ export default function OwnerAvailabilityPage() {
   const [data, setData] = useState<OwnerAvailabilityTimeline | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isUpdatingBlocked, setIsUpdatingBlocked] = useState(false);
 
   const tierRef = useRef<string | null>(null);
   const isToday = selectedDate === getTodayString();
@@ -79,7 +76,7 @@ export default function OwnerAvailabilityPage() {
       tierRef.current = res.selectedTierId;
       setSelectedTierId(res.selectedTierId);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load availability.');
+      setError(err instanceof Error ? err.message : 'Couldn’t load availability. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -140,28 +137,11 @@ export default function OwnerAvailabilityPage() {
         const res = await getOwnerAvailabilityTimeline({ date: selectedDate, tierId });
         setData(res);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Failed to load availability.');
+        setError(err instanceof Error ? err.message : 'Couldn’t load availability. Please try again.');
       } finally {
         setIsLoading(false);
       }
     })();
-  };
-
-  const handleAdjustBlocked = async (delta: number) => {
-    if (!data?.cafeId || !selectedTier) return;
-    const currentBlocked = selectedTier.blockedSeats;
-    const nextBlocked = Math.max(0, Math.min(selectedTier.totalSeats, currentBlocked + delta));
-    const nextActive = selectedTier.totalSeats - nextBlocked;
-    setIsUpdatingBlocked(true);
-    try {
-      await updateTier(data.cafeId, selectedTier.id, { activeSeatsCount: nextActive });
-      await load();
-      queryClient.invalidateQueries({ queryKey: queryKeys.owner.all });
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to update blocked stations.');
-    } finally {
-      setIsUpdatingBlocked(false);
-    }
   };
 
   if (isLoading && !data) {
@@ -174,12 +154,12 @@ export default function OwnerAvailabilityPage() {
     return (
       <div className="max-w-2xl mx-auto pt-10 px-4 text-center flex flex-col items-center gap-3">
         <Monitor className="h-10 w-10 text-text-secondary" />
-        <h1 className="font-heading text-h2 font-bold text-text-primary">No station types yet</h1>
+        <h1 className="font-heading text-h2 font-bold text-text-primary">No setups yet</h1>
         <p className="text-body text-text-secondary">
-          Add a hardware tier (PC, PS5, Xbox...) before you can see live capacity here.
+          Add a setup (PCs, PS5, snooker...) and you will see what is free right here.
         </p>
         <Link href="/owner/tiers">
-          <Button variant="primary" size="md">Set Up Hardware Tiers</Button>
+          <Button variant="primary" size="md">Add a setup</Button>
         </Link>
       </div>
     );
@@ -292,7 +272,7 @@ export default function OwnerAvailabilityPage() {
 
       {/* Station type selector */}
       <div data-tour="slots-tiers" className="flex flex-col gap-2">
-        <span className="text-caption font-bold text-text-primary">Which stations?</span>
+        <span className="text-caption font-bold text-text-primary">Which setup?</span>
         <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
           {data.tiers.map((t) => {
             const Icon = platformIcon(t.platform);
@@ -310,7 +290,7 @@ export default function OwnerAvailabilityPage() {
                 <span className={`text-caption font-bold text-center leading-tight ${isActive ? 'text-primary' : 'text-text-primary'}`}>
                   {t.name}
                 </span>
-                <span className="text-xs text-text-secondary">{t.id.startsWith('drop-') ? `Launch drop · ${t.playsOn ? `on ${t.playsOn} · ` : ''}${t.totalSeats} seats` : `${t.totalSeats} Stations`}</span>
+                <span className="text-xs text-text-secondary">{t.id.startsWith('drop-') ? `Launch drop · ${t.playsOn ? `on ${t.playsOn} · ` : ''}${t.totalSeats} seats` : `${t.totalSeats} ${t.totalSeats === 1 ? 'machine' : 'machines'}`}</span>
               </button>
             );
           })}
@@ -415,9 +395,9 @@ export default function OwnerAvailabilityPage() {
               {selectedSlot.available > 0 ? <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
               <span>
                 {selectedSlot.available > 0
-                  ? `${selectedSlot.available} station${selectedSlot.available === 1 ? '' : 's'} free in this hour.`
+                  ? `${selectedSlot.available} ${selectedSlot.available === 1 ? 'machine' : 'machines'} free in this hour.`
                   : selectedSlot.blocked > 0
-                  ? `Fully booked — ${selectedSlot.blocked} more blocked for maintenance.`
+                  ? `Fully booked — ${selectedSlot.blocked} more broken or under repair.`
                   : 'Fully booked for this hour.'}
               </span>
             </div>
@@ -461,37 +441,30 @@ export default function OwnerAvailabilityPage() {
         </Card>
       )}
 
-      {/* Blocked / maintenance control */}
-      {selectedTier && !selectedTier.id.startsWith('drop-') && (
-        <Card elevation="flat" className="p-4 flex items-center justify-between gap-3 flex-wrap">
+      {/* Broken machines. Named by the owner ("PC 7"), and the same list the Setups
+          page uses, so marking one here really stops customers booking it. */}
+      {selectedTier && !selectedTier.id.startsWith('drop-') && data?.cafeId && (
+        <Card elevation="flat" className="flex flex-col gap-1 p-4">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-gray-500/10 text-gray-500 flex items-center justify-center flex-shrink-0">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-500/10 text-gray-500">
               <Ban className="h-4 w-4" />
             </div>
             <div className="min-w-0">
               <span className="block text-caption font-bold text-text-primary">Broken or under repair</span>
               <span className="text-caption text-text-secondary">
-                {selectedTier.name} stations nobody can book until you fix them.
+                {selectedTier.tierType === 'activity'
+                  ? 'Mark a table or machine as out of order on Setups & prices.'
+                  : `A ${selectedTier.name} machine nobody can book until you fix it.`}
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleAdjustBlocked(-1)}
-              disabled={isUpdatingBlocked || selectedTier.blockedSeats <= 0}
-              aria-label="One fewer station out of service"
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-surface transition-colors hover:bg-surface-hover disabled:opacity-30"
-            ><Minus className="h-4 w-4" aria-hidden="true" /></button>
-            <span className="min-w-[2ch] text-center font-heading text-body font-bold text-text-primary">{selectedTier.blockedSeats}</span>
-            <button
-              type="button"
-              onClick={() => handleAdjustBlocked(1)}
-              disabled={isUpdatingBlocked || selectedTier.blockedSeats >= selectedTier.totalSeats}
-              aria-label="One more station out of service"
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-surface transition-colors hover:bg-surface-hover disabled:opacity-30"
-            ><Plus className="h-4 w-4" aria-hidden="true" /></button>
-          </div>
+          {selectedTier.tierType === 'activity' ? (
+            <Link href="/owner/tiers" className="mt-1 text-caption font-semibold text-primary-dark hover:underline">
+              Go to Setups & prices
+            </Link>
+          ) : (
+            <BrokenMachines cafeId={data.cafeId} tierId={selectedTier.id} onChanged={load} />
+          )}
         </Card>
       )}
 

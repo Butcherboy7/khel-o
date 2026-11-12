@@ -46,7 +46,7 @@ export function PlatformReconfirmModal() {
       <div className="flex flex-col gap-4">
         {confirmMutation.isError && (
           <div className="p-3 rounded-xl bg-error/10 border border-error/20 text-caption text-error">
-            {(confirmMutation.error as Error)?.message || 'Failed to confirm platform. Please try again.'}
+            {(confirmMutation.error as Error)?.message || 'Couldn’t confirm platform. Please try again.'}
           </div>
         )}
         {data.tiers.map((tier) => {

@@ -304,7 +304,7 @@ export default function OwnerOffersPage() {
       setIsModalOpen(false);
       resetForm();
     },
-    onError: (err: any) => setFormError(err?.message || 'Failed to create offer.'),
+    onError: (err: any) => setFormError(err?.message || 'Couldn’t create offer. Please try again.'),
   });
 
   const updateMut = useMutation({
@@ -328,7 +328,7 @@ export default function OwnerOffersPage() {
       setIsModalOpen(false);
       resetForm();
     },
-    onError: (err: any) => setFormError(err?.message || 'Failed to update offer.'),
+    onError: (err: any) => setFormError(err?.message || 'Couldn’t update offer. Please try again.'),
   });
 
   const deactivateMut = useMutation({
@@ -351,7 +351,7 @@ export default function OwnerOffersPage() {
       setDeleteTarget(null);
       setDeleteError(null);
     },
-    onError: (err: any) => setDeleteError(err?.message || 'Failed to delete offer.'),
+    onError: (err: any) => setDeleteError(err?.message || 'Couldn’t delete offer. Please try again.'),
   });
 
   const toggleDay = (day: number) => {
@@ -504,7 +504,7 @@ export default function OwnerOffersPage() {
 
       {isError && (
         <OwnerLoadError error={error}
-          title="Failed to load offers"
+          title="Couldn’t load offers"
           message={(error as Error)?.message || 'Could not fetch your promotions.'}
           onRetry={() => refetch()}
         />

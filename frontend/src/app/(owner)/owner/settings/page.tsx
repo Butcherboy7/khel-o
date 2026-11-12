@@ -50,7 +50,7 @@ export default function OwnerSettingsPage() {
         setError('Café settings data unavailable.');
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to load settings';
+      const message = err instanceof Error ? err.message : 'Couldn’t load settings. Please try again.';
       setError(message);
     } finally {
       setIsLoading(false);
@@ -68,7 +68,7 @@ export default function OwnerSettingsPage() {
       await toggleEmergencyMode(value);
       setSettings((prev) => (prev ? { ...prev, isEmergencyMode: value } : prev));
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to toggle emergency mode';
+      const message = err instanceof Error ? err.message : 'Couldn’t change emergency mode. Please try again.';
       setError(message);
     } finally {
       setIsTogglingEmergency(false);
@@ -82,7 +82,7 @@ export default function OwnerSettingsPage() {
       await toggleBookingsPaused(value);
       setSettings((prev) => (prev ? { ...prev, bookingsPaused: value } : prev));
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to toggle bookings pause';
+      const message = err instanceof Error ? err.message : 'Couldn’t change that. Please try again.';
       setError(message);
     } finally {
       setIsTogglingPause(false);

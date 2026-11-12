@@ -1420,15 +1420,24 @@ async def get_owner_availability_timeline(
     tiers = await tier_repo.get_by_cafe_id(cafe.id)
     tiers = [t for t in tiers if t.is_active]
 
+    # "Blocked" = machines the owner marked broken by name. The old stepper
+    # (total - active_seats_count) never stopped customers booking, so it is no
+    # longer what this number means.
+    units_by_tier = await HardwareTierUnitRepository(db).list_by_tier_ids([t.id for t in tiers])
+
+    def _broken(tier_id) -> int:
+        return sum(1 for u in units_by_tier.get(tier_id, []) if u.status == "maintenance")
+
     tiers_summary = [
         {
             "id": str(t.id),
             "name": t.name,
+            "tierType": t.tier_type,
             "platform": t.platform.value if t.platform else None,
             "model": t.model,
             "totalSeats": t.total_seats,
             "activeSeatsCount": t.active_seats_count,
-            "blockedSeats": max(0, t.total_seats - t.active_seats_count),
+            "blockedSeats": min(t.total_seats, _broken(t.id)),
             "appBookableSeats": t.app_bookable_seats,
             "pricePerHour": float(t.price_per_hour),
         }
@@ -1491,7 +1500,7 @@ async def get_owner_availability_timeline(
     rows = real_rows + [(time(ds // 60, ds % 60), time(de // 60, de % 60), n, BookingStatus.CONFIRMED) for ds, de, n, _t in dedicated]
 
     total_seats = selected_tier.total_seats
-    blocked_seats = max(0, total_seats - selected_tier.active_seats_count)
+    blocked_seats = min(total_seats, await HardwareTierUnitRepository(db).count_in_maintenance(selected_tier.id))
 
     def overlap_seats(window_start: time, window_end: time, statuses: set) -> int:
         count = 0

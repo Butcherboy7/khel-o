@@ -141,7 +141,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
       setGamesSaved(true);
       setTimeout(() => setGamesSaved(false), 2500);
     } catch (err: unknown) {
-      setGamesError(err instanceof Error ? err.message : 'Failed to update games');
+      setGamesError(err instanceof Error ? err.message : 'Couldn’t update games. Please try again.');
     } finally {
       setGamesSaving(false);
     }
@@ -179,7 +179,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
       setBasicSaved(true);
       setTimeout(() => setBasicSaved(false), 2500);
     } catch (err: unknown) {
-      setBasicError(err instanceof Error ? err.message : 'Failed to update café details');
+      setBasicError(err instanceof Error ? err.message : 'Couldn’t update café details. Please try again.');
     } finally {
       setBasicSaving(false);
     }
@@ -203,7 +203,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
       setLocationSaved(true);
       setTimeout(() => setLocationSaved(false), 2500);
     } catch (err: unknown) {
-      setLocationError(err instanceof Error ? err.message : 'Failed to update café location');
+      setLocationError(err instanceof Error ? err.message : 'Couldn’t update café location. Please try again.');
     } finally {
       setLocationSaving(false);
     }
@@ -218,7 +218,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
       setHoursSaved(true);
       setTimeout(() => setHoursSaved(false), 2500);
     } catch (err: unknown) {
-      setHoursError(err instanceof Error ? err.message : 'Failed to update operating hours');
+      setHoursError(err instanceof Error ? err.message : 'Couldn’t update operating hours. Please try again.');
     } finally {
       setHoursSaving(false);
     }
@@ -283,7 +283,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
       setPhotos(res.photos);
       onSaved({ photos: res.photos });
     } catch (err: unknown) {
-      setUploadError(err instanceof Error ? err.message : 'Failed to delete photo');
+      setUploadError(err instanceof Error ? err.message : 'Couldn’t delete photo. Please try again.');
     } finally {
       setDeletingUrl(null);
     }
@@ -348,7 +348,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
       setMenuPhotos(res.menuPhotos);
       onSaved({ menuPhotos: res.menuPhotos });
     } catch (err: unknown) {
-      setMenuUploadError(err instanceof Error ? err.message : 'Failed to delete menu photo');
+      setMenuUploadError(err instanceof Error ? err.message : 'Couldn’t delete menu photo. Please try again.');
     } finally {
       setDeletingMenuUrl(null);
     }
@@ -362,7 +362,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
     try {
       await persistPhotos(updated);
     } catch (err: unknown) {
-      setUploadError(err instanceof Error ? err.message : 'Failed to reorder photos');
+      setUploadError(err instanceof Error ? err.message : 'Couldn’t reorder photos. Please try again.');
     }
   };
 
@@ -377,7 +377,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
     try {
       await persistPhotos(updated);
     } catch (err: unknown) {
-      setUploadError(err instanceof Error ? err.message : 'Failed to set cover photo');
+      setUploadError(err instanceof Error ? err.message : 'Couldn’t set cover photo. Please try again.');
     }
   };
 
@@ -390,7 +390,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
       setAmenitiesSaved(true);
       setTimeout(() => setAmenitiesSaved(false), 2500);
     } catch (err: unknown) {
-      setAmenitiesError(err instanceof Error ? err.message : 'Failed to update amenities');
+      setAmenitiesError(err instanceof Error ? err.message : 'Couldn’t update amenities. Please try again.');
     } finally {
       setAmenitiesSaving(false);
     }

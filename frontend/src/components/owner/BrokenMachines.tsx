@@ -11,7 +11,7 @@ import { listTierUnits, markMachineBroken, markMachineFixed } from '@/lib/api/ha
  * already use for the machine; nothing is numbered for them and customers never see it.
  * They just see one fewer machine to book until it is marked fixed.
  */
-export function BrokenMachines({ cafeId, tierId }: { cafeId: string; tierId: string }) {
+export function BrokenMachines({ cafeId, tierId, onChanged }: { cafeId: string; tierId: string; onChanged?: () => void }) {
   const queryClient = useQueryClient();
   const [label, setLabel] = useState('');
   const key = ['tier-units', tierId];
@@ -22,6 +22,7 @@ export function BrokenMachines({ cafeId, tierId }: { cafeId: string; tierId: str
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: key });
     queryClient.invalidateQueries({ queryKey: ['owner-hardware-tiers'] });
+    onChanged?.();
   };
   const addMut = useMutation({
     mutationFn: () => markMachineBroken(cafeId, tierId, label.trim()),

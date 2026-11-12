@@ -240,7 +240,7 @@ export default function OwnerBookingsPage() {
 
         {isError && (
           <OwnerLoadError error={error}
-            title="Failed to load bookings"
+            title="Couldn’t load bookings"
             message={(error as Error)?.message || 'Could not fetch desk bookings.'}
             onRetry={() => refetch()}
           />

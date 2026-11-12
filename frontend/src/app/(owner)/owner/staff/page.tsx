@@ -74,7 +74,7 @@ export default function OwnerStaffPage() {
       }
       loadData();
     } catch (err: any) {
-      setMsg({ type: 'error', text: err?.message || 'Failed to create staff invitation.' });
+      setMsg({ type: 'error', text: err?.message || 'Couldn’t create staff invitation. Please try again.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -86,7 +86,7 @@ export default function OwnerStaffPage() {
       setMsg({ type: 'success', text: 'Staff invitation cancelled.' });
       loadData();
     } catch (err: any) {
-      setMsg({ type: 'error', text: err?.message || 'Failed to cancel invitation.' });
+      setMsg({ type: 'error', text: err?.message || 'Couldn’t cancel invitation. Please try again.' });
     }
   };
 

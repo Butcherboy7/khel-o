@@ -56,7 +56,7 @@ export function PayoutDetailsCard() {
       setDestination(res.destination);
       setIsEditing(false);
     } catch (err: any) {
-      setError(err?.message || 'Failed to update payout details.');
+      setError(err?.message || 'Couldn’t update payout details. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

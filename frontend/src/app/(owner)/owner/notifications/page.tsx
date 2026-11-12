@@ -158,7 +158,7 @@ export default function OwnerNotificationsPage() {
       {isError && (
         <ErrorState
           title="Unable to load notifications"
-          message={error?.message || 'Failed to fetch notifications. Please check your connection.'}
+          message={error?.message || 'Couldn’t fetch notifications. Please check your connection.'}
           onRetry={() => refetch()}
         />
       )}

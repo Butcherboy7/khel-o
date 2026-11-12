@@ -21,6 +21,8 @@ export interface AvailabilityTierSummary {
   blockedSeats: number;
   appBookableSeats: number;
   pricePerHour: number;
+  /** 'gaming' (PC/console) or 'activity' (tables etc.). */
+  tierType?: string;
   /** Launch drops only: first day, last day and the rig it runs on. */
   startsOn?: string | null;
   endsOn?: string | null;

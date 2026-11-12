@@ -64,7 +64,7 @@ export default function OwnerReviewsPage() {
 
       {isError && (
         <OwnerLoadError error={error}
-          title="Failed to load reviews"
+          title="Couldn’t load reviews"
           message={(error as Error)?.message ?? 'Could not fetch reviews for your café.'}
           onRetry={() => refetch()}
         />
