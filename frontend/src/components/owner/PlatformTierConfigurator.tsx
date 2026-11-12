@@ -12,6 +12,7 @@ import type { TierConfig } from '@/types/tier';
 import { safeRandomUUID } from '@/lib/uuid';
 
 import { SetupBookingOptions } from './SetupBookingOptions';
+import { PcChargeChoice, PcSpeedFields } from './PcSetupExtras';
 import { TaxonomyDetails } from './TaxonomyDetails';
 interface PlatformTierConfiguratorProps {
   configs: TierConfig[];
@@ -469,27 +470,37 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                   )}
                 </div>
 
+                {p.value === 'pc' && (
+                  <PcChargeChoice config={config} onChange={(patch) => updateConfig(config.id, patch)} />
+                )}
+
                 <NumericField
-                  label="Total units"
+                  label={config.isRoom ? 'Cabins you have' : 'Total units'}
                   min={1}
                   value={config.totalSeats}
                   onChange={(n) => updateConfig(config.id, { totalSeats: n })}
                 />
 
                 <NumericField
-                  label={`Bookable on KHEL-O app (${Math.max(0, config.totalSeats - config.appBookableSeats)} kept for walk-ins)`}
+                  label={`${config.isRoom ? 'Cabins' : 'Bookable'} on KHEL-O app (${Math.max(0, config.totalSeats - config.appBookableSeats)} kept for walk-ins)`}
                   min={0}
                   max={config.totalSeats}
                   value={config.appBookableSeats}
                   onChange={(n) => updateConfig(config.id, { appBookableSeats: n })}
                 />
 
-                <NumericField
-                  label="Price per hour (₹)"
-                  min={1}
-                  value={config.pricePerHour}
-                  onChange={(n) => updateConfig(config.id, { pricePerHour: n })}
-                />
+                {!config.isRoom && (
+                  <NumericField
+                    label="Price per hour (₹)"
+                    min={1}
+                    value={config.pricePerHour}
+                    onChange={(n) => updateConfig(config.id, { pricePerHour: n })}
+                  />
+                )}
+
+                {p.value === 'pc' && (
+                  <PcSpeedFields config={config} onChange={(patch) => updateConfig(config.id, patch)} />
+                )}
 
                 <SetupBookingOptions config={config} onChange={(patch) => updateConfig(config.id, patch)} />
 

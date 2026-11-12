@@ -45,6 +45,9 @@ type BookingOptionFields = Pick<
   | 'coopEnabled'
   | 'coopMaxPlayers'
   | 'coopExtraPlayerPrice'
+  | 'isRoom'
+  | 'refreshRateHz'
+  | 'fpsOverrides'
   | 'minBookingMinutes'
   | 'defaultBookingMinutes'
   | 'price15m'
@@ -59,6 +62,9 @@ export function bookingOptionsFrom(src: BookingOptionFields | undefined) {
     coopEnabled: src?.coopEnabled ?? false,
     coopMaxPlayers: src?.coopMaxPlayers ?? 2,
     coopExtraPlayerPrice: src?.coopExtraPlayerPrice ?? 0,
+    isRoom: src?.isRoom ?? false,
+    refreshRateHz: src?.refreshRateHz ?? null,
+    fpsOverrides: src?.fpsOverrides ?? {},
     minBookingMinutes: (src?.minBookingMinutes ?? 60) as 15 | 30 | 60,
     defaultBookingMinutes: src?.defaultBookingMinutes ?? null,
     price15m: src?.price15m ?? null,
@@ -105,8 +111,31 @@ export function bookingOptionsPayload(config: TierConfig) {
     price15m: o.minBookingMinutes <= 15 ? o.price15m : null,
     price30m: o.minBookingMinutes <= 30 ? o.price30m : null,
   };
-  if (config.tierType === 'activity' || config.platform === 'pc') return { ...minutes, coopEnabled: false };
+  if (config.tierType === 'activity') return { ...minutes, coopEnabled: false, isRoom: false };
+  // The speed of the screen and the FPS the owner typed apply to PCs only.
+  const speed =
+    config.platform === 'pc'
+      ? {
+          refreshRateHz: o.refreshRateHz,
+          fpsOverrides: Object.fromEntries(Object.entries(o.fpsOverrides).filter(([, v]) => Number(v) > 0)),
+        }
+      : {};
+  if (config.platform === 'pc') {
+    // A PC setup is either priced per PC, or a private cabin (room fee + PCs).
+    // The cabin reuses the co-op fields: see PcSetupExtras.
+    if (!o.isRoom) return { ...minutes, ...speed, coopEnabled: false, isRoom: false };
+    return {
+      ...minutes,
+      ...speed,
+      isRoom: true,
+      coopEnabled: true,
+      coopMaxPlayers: o.coopMaxPlayers,
+      coopExtraPlayerPrice: o.coopExtraPlayerPrice,
+      coopPrice30m: null,
+    };
+  }
   return {
+    isRoom: false,
     ...minutes,
     coopEnabled: o.coopEnabled,
     coopMaxPlayers: o.coopMaxPlayers,
@@ -127,7 +156,10 @@ interface Props {
  */
 export function SetupBookingOptions({ config, onChange }: Props) {
   const o = bookingOptionsFrom(config);
-  const showCoop = config.tierType !== 'activity' && config.platform !== 'pc';
+  // Consoles get the co-op switch; a cabin's PC maths is set up in PcSetupExtras but
+  // still shows in the price table below.
+  const showCoopSwitch = config.tierType !== 'activity' && config.platform !== 'pc';
+  const showCoop = showCoopSwitch || (config.platform === 'pc' && o.isRoom);
   const hourly = config.pricePerHour || 0;
   const allowed = allowedMinutes(o.minBookingMinutes, o.maxBookingMinutes);
   const [showAllLengths, setShowAllLengths] = useState(false);
@@ -176,7 +208,7 @@ export function SetupBookingOptions({ config, onChange }: Props) {
 
   return (
     <div className="flex flex-col gap-3 sm:col-span-2">
-      {showCoop && (
+      {showCoopSwitch && (
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between gap-3 p-3">
             <div className="min-w-0">

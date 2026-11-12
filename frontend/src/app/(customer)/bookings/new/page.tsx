@@ -341,10 +341,13 @@ function BookingWizardContent() {
   const playersToSend = isActivity ? (groupShown ?? undefined) : seatsCount;
   const coopMax = activeTier?.coopEnabled ? (activeTier.coopMaxPlayers ?? 2) : 0;
   const canCoop = seatsCount >= 2 && seatsCount <= coopMax;
-  const canSeparate = seatsCount <= windowRemainingSeats;
-  const isCoop = canCoop && (coopChosen || !canSeparate);
+  // A cabin is one room: more PCs never means more rooms, so "own consoles"
+  // doesn't exist for it and 2+ PCs is always the shared-room price.
+  const isRoom = Boolean(activeTier?.isRoom);
+  const canSeparate = !isRoom && seatsCount <= windowRemainingSeats;
+  const isCoop = canCoop && (isRoom || coopChosen || !canSeparate);
   const consolesCount = isCoop ? 1 : seatsCount;
-  const maxPlayers = isActivity ? Math.min(6, windowRemainingSeats) : Math.min(6, Math.max(windowRemainingSeats, coopMax));
+  const maxPlayers = isActivity ? Math.min(6, windowRemainingSeats) : (isRoom ? coopMax : Math.min(6, Math.max(windowRemainingSeats, coopMax)));
   const minDurationMin = Math.max(15, activeTier?.minBookingMinutes ?? 60);
   // The owner's longest booking for this setup (8 hours when unset).
   const maxDurationMin = Math.max(minDurationMin, Math.min(480, activeTier?.maxBookingMinutes ?? 480));
@@ -1048,11 +1051,11 @@ function BookingWizardContent() {
             <div className="flex items-center justify-between gap-3 py-1">
               <span className="flex items-center gap-1.5 font-heading text-body font-bold text-text-primary">
                 <Users className="h-4 w-4 flex-shrink-0 text-primary" aria-hidden />
-                Players
-                {coopMax > 0 && <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" />}
+                {isRoom ? 'PCs in the cabin' : 'Players'}
+                {coopMax > 0 && !isRoom && <InfoTip quiet text={CUSTOMER_INFO.coop} label="What is co-op?" />}
               </span>
               <div className="flex flex-shrink-0 items-center gap-1">
-                <button type="button" onClick={() => setSeatsCount((s) => Math.max(1, s - 1))} disabled={seatsCount <= 1} aria-label="Decrease players" className="flex h-11 w-11 -my-1.5 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                <button type="button" onClick={() => setSeatsCount((s) => Math.max(1, s - 1))} disabled={seatsCount <= 1} aria-label={isRoom ? 'Fewer PCs' : 'Decrease players'} className="flex h-11 w-11 -my-1.5 items-center justify-center rounded-full bg-surface text-text-primary hover:bg-border/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                   <Minus className="h-4 w-4" />
                 </button>
                 <span className="w-7 text-center font-heading text-body font-bold">{seatsCount}</span>
@@ -1064,7 +1067,7 @@ function BookingWizardContent() {
         {/* Co-op vs own consoles — lives inside the Players card and only
             appears when there's a real choice to make (2+ players on a
             setup whose owner allows sharing). */}
-        {canCoop && (
+        {canCoop && !isRoom && (
           <div role="radiogroup" aria-label="How you'll play" className="mt-1.5 mb-1 grid grid-cols-2 gap-2">
             {([
               { coop: true, title: 'Co-op', sub: `1 console · ₹${customerPrice(Math.round(coopRate))}/hr`, off: false, why: '' },
@@ -1095,7 +1098,7 @@ function BookingWizardContent() {
 
         {/* One-time heads-up when co-op is picked. Floats over the card's top
             edge instead of pushing the layout, and leaves on its own. */}
-        {showCoopNotice && isCoop && (
+        {showCoopNotice && isCoop && !isRoom && (
           <div
             role="status"
             className="absolute inset-x-3 bottom-full z-20 mb-2 flex items-start gap-2 rounded-xl bg-secondary px-3 py-2.5 text-caption text-white shadow-float motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1"

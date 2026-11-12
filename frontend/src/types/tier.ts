@@ -34,10 +34,20 @@ export interface HardwareTier {
    *  (HardwareTierUnit rows) or as one pooled count. Computed by the
    *  backend, not a stored flag. */
   trackingMode?: 'individual' | 'pooled';
+  /** Per-game FPS for PC setups, from the backend: the owner's own number when
+   *  they set one (estimated: false), otherwise a rough estimate from the GPU. */
+  expectedFps?: ExpectedFps[];
   /** Co-op: friends share ONE unit for coopExtraPlayerPrice per extra player/hr. */
   coopEnabled?: boolean;
   coopMaxPlayers?: number;
   coopExtraPlayerPrice?: number;
+  /** A cabin / private room: booked as ONE unit, priced room fee + PCs.
+   *  pricePerHour = room fee + one PC; coopExtraPlayerPrice = one more PC. */
+  isRoom?: boolean;
+  /** Screen refresh rate in Hz (144, 240...). */
+  refreshRateHz?: number | null;
+  /** FPS the owner measured per game key ({ valorant: 240 }). */
+  fpsOverrides?: Record<string, number>;
   /** Shortest session (VR is often 15) and the length checkout starts on. Only
    *  15, 30 or 60 are valid now — above 1 hour every setup allows 30-minute
    *  steps regardless of this value. */
@@ -83,6 +93,13 @@ export interface TierCreateRequest {
   coopEnabled?: boolean;
   coopMaxPlayers?: number;
   coopExtraPlayerPrice?: number;
+  /** A cabin / private room: booked as ONE unit, priced room fee + PCs.
+   *  pricePerHour = room fee + one PC; coopExtraPlayerPrice = one more PC. */
+  isRoom?: boolean;
+  /** Screen refresh rate in Hz (144, 240...). */
+  refreshRateHz?: number | null;
+  /** FPS the owner measured per game key ({ valorant: 240 }). */
+  fpsOverrides?: Record<string, number>;
   /** Shortest session (VR is often 15) and the length checkout starts on. Only
    *  15, 30 or 60 are valid now — above 1 hour every setup allows 30-minute
    *  steps regardless of this value. */
@@ -123,6 +140,13 @@ export interface TierUpdateRequest {
   coopEnabled?: boolean;
   coopMaxPlayers?: number;
   coopExtraPlayerPrice?: number;
+  /** A cabin / private room: booked as ONE unit, priced room fee + PCs.
+   *  pricePerHour = room fee + one PC; coopExtraPlayerPrice = one more PC. */
+  isRoom?: boolean;
+  /** Screen refresh rate in Hz (144, 240...). */
+  refreshRateHz?: number | null;
+  /** FPS the owner measured per game key ({ valorant: 240 }). */
+  fpsOverrides?: Record<string, number>;
   /** Shortest session (VR is often 15) and the length checkout starts on. Only
    *  15, 30 or 60 are valid now — above 1 hour every setup allows 30-minute
    *  steps regardless of this value. */
@@ -155,6 +179,8 @@ export interface TierConfig {
   /** True when `model` is owner-typed free text (the "Custom" escape hatch
    *  in the model dropdown) rather than one of PLATFORM_MODELS' presets. */
   isCustomModel?: boolean;
+  /** The estimates the backend worked out for this saved setup (placeholders in the FPS box). */
+  expectedFps?: ExpectedFps[];
   /** This component's own working state for the create-time toggle — see
    *  TierCreateRequest.individualUnits above for what it maps to on submit. */
   individualUnits?: boolean;
@@ -162,6 +188,13 @@ export interface TierConfig {
   coopEnabled?: boolean;
   coopMaxPlayers?: number;
   coopExtraPlayerPrice?: number;
+  /** A cabin / private room: booked as ONE unit, priced room fee + PCs.
+   *  pricePerHour = room fee + one PC; coopExtraPlayerPrice = one more PC. */
+  isRoom?: boolean;
+  /** Screen refresh rate in Hz (144, 240...). */
+  refreshRateHz?: number | null;
+  /** FPS the owner measured per game key ({ valorant: 240 }). */
+  fpsOverrides?: Record<string, number>;
   /** Shortest session (VR is often 15) and the length checkout starts on. Only
    *  15, 30 or 60 are valid now — above 1 hour every setup allows 30-minute
    *  steps regardless of this value. */
@@ -178,4 +211,11 @@ export interface TierConfig {
   maxBookingMinutes?: number | null;
   /** Owner-set 30-min co-op price for 2 players; null = derived. */
   coopPrice30m?: number | null;
+}
+
+export interface ExpectedFps {
+  key: string;
+  game: string;
+  fps: number;
+  estimated: boolean;
 }

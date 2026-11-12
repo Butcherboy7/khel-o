@@ -260,6 +260,7 @@ export default function HardwareTiersPage() {
         pricePerHour: tier.pricePerHour,
         tierType: tier.tierType,
         activityKind: tier.activityKind ?? undefined,
+        expectedFps: tier.expectedFps,
         ...bookingOptionsFrom(tier),
       }]);
       setLegacyTierDefaults(null);

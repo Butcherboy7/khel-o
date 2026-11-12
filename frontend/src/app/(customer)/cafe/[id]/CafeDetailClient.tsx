@@ -677,11 +677,36 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                                   <span>{tier.specs.ram}</span>
                                 </>
                               )}
+                              {/* Screen speed is what esports players ask about first. */}
+                              {tier.refreshRateHz ? (
+                                <>
+                                  <span className="text-text-secondary/50">·</span>
+                                  <span className="font-semibold text-text-primary">{tier.refreshRateHz} Hz</span>
+                                </>
+                              ) : null}
                             </>
                           ) : (
                             <span className="font-semibold text-text-primary">{modelLabel}</span>
                           )}
                         </div>
+                      )}
+                      {/* What to expect in the games people actually play. A number the
+                          owner measured shows plain; one we worked out from the GPU is
+                          marked with ~ and explained under the list. */}
+                      {isPc && (tier.expectedFps?.length ?? 0) > 0 && (
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-text-secondary">
+                          {tier.expectedFps!.slice(0, 3).map((g) => (
+                            <span key={g.key} className="whitespace-nowrap">
+                              {g.game}{' '}
+                              <span className="font-data font-semibold text-text-primary">
+                                {g.estimated ? '~' : ''}{g.fps} FPS
+                              </span>
+                            </span>
+                          ))}
+                          {tier.expectedFps!.some((g) => g.estimated) && (
+                            <span className="text-[11px] text-text-tertiary">estimated</span>
+                          )}
+                        </p>
                       )}
                       {campaign.active && (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -706,7 +731,24 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                         />
                       )}
                       {/* Co-op on every co-op setup, so PS4 and PS5 read the same. */}
-                      {tier.coopEnabled && (
+                      {tier.coopEnabled && tier.isRoom && (
+                        // A private cabin: say what the price is made of, in the owner's two numbers.
+                        <p className="mt-0.5 flex items-center gap-1 text-caption text-text-secondary">
+                          <Users className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+                          <span>
+                            Private cabin, up to {tier.coopMaxPlayers} PCs:{' '}
+                            <span className="font-data font-semibold text-text-primary">
+                              <span className="rupee-symbol">₹</span>{shownPrice(Math.max(0, tier.pricePerHour - Number(tier.coopExtraPlayerPrice ?? 0)))}
+                            </span>{' '}
+                            cabin +{' '}
+                            <span className="font-data font-semibold text-text-primary">
+                              <span className="rupee-symbol">₹</span>{shownPrice(Number(tier.coopExtraPlayerPrice ?? 0))}
+                            </span>{' '}
+                            per PC, per hour
+                          </span>
+                        </p>
+                      )}
+                      {tier.coopEnabled && !tier.isRoom && (
                         <p className="mt-0.5 flex items-center gap-1 whitespace-nowrap text-caption text-text-secondary">
                           <Users className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
                           Co-op for {(tier.coopMaxPlayers ?? 2) > 2 ? `2–${tier.coopMaxPlayers}` : '2'}
@@ -718,6 +760,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                     </div>
 
                     <div className="flex flex-shrink-0 flex-col items-end gap-0.5 self-start text-right">
+                      {tier.isRoom && <span className="text-[11px] leading-none text-text-secondary">from</span>}
                       <div className={`whitespace-nowrap font-data text-body-emphasis font-bold ${discount > 0 ? 'text-accent' : 'text-text-primary'}`}>
                         <span className="rupee-symbol">₹</span>{shownPrice(discountedPrice)}
                         <span className="text-caption font-normal text-text-secondary">/hr</span>
