@@ -12,6 +12,8 @@ export interface QRValidationBooking {
   endTime: string;
   durationHours: number;
   seatsCount: number;
+  playersCount?: number | null;
+  isRoom?: boolean;
   totalAmount: number;
   gatewayFee: number;
   convenienceFee: number;
@@ -53,6 +55,9 @@ export interface CheckinCandidate {
   gamerPhone: string | null;
   startTime: string;
   endTime: string;
+  seatsCount?: number;
+  playersCount?: number | null;
+  isRoom?: boolean;
   status: string;
 }
 

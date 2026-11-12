@@ -101,6 +101,8 @@ class BookingResponse(BookingBase):
     status: BookingStatus
     cafe_name: Optional[str] = None
     tier_name: Optional[str] = None
+    # True when the setup is a private cabin: players_count then means PCs in the cabin.
+    is_room: bool = False
     cafe_address: Optional[str] = None
     qr_code_url: Optional[str] = None
     actual_start_time: Optional[datetime] = None

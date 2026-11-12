@@ -549,6 +549,7 @@ class BookingService:
             tier_obj = await self.tier_repo.get_by_id(booking.hardware_tier_id)
             if tier_obj:
                 resp.tier_name = tier_obj.name
+                resp.is_room = bool(getattr(tier_obj, 'is_room', False))
 
         # Compute cancel policy
         from app.schemas.booking import CancelPolicy
@@ -629,6 +630,7 @@ class BookingService:
         )
         total_pages = math.ceil(total / limit) if total > 0 else 0
 
+        room_ids = await self.booking_repo.room_tier_ids([b.hardware_tier_id for b, *_ in items_tuples])
         responses = []
         for b, c_name, c_addr, t_name in items_tuples:
             await self._expire_if_past_due(b)
@@ -636,6 +638,7 @@ class BookingService:
             res.cafe_name = c_name
             res.cafe_address = c_addr
             res.tier_name = t_name
+            res.is_room = b.hardware_tier_id in room_ids
             responses.append(res)
 
         return {

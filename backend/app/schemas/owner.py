@@ -32,6 +32,9 @@ class OwnerBookingItemResponse(BaseModel):
     start_time: time
     end_time: time
     duration_hours: float
+    # How many machines the booking holds, and how many people (or PCs in a cabin) use them.
+    seats_count: int = 1
+    players_count: Optional[int] = None
     base_amount: float
     discount_amount: float
     gateway_fee: float
@@ -50,6 +53,7 @@ class OwnerBookingItemResponse(BaseModel):
     gamer_name: str
     tier_name: str
     cafe_name: str
+    is_room: bool = False
 
     model_config = ConfigDict(
         from_attributes=True,

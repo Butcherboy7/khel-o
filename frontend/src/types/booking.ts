@@ -19,6 +19,8 @@ export interface Booking {
   seatsCount?: number;
   /** People playing; more than seatsCount = co-op on one unit. */
   playersCount?: number | null;
+  /** A private cabin: playersCount then means PCs in the cabin. */
+  isRoom?: boolean;
   baseAmount: number;
   discountAmount: number;
   gatewayFee: number;

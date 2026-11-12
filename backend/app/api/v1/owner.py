@@ -1247,12 +1247,14 @@ async def validate_qr_code(
                 "gamerName": gamer.full_name if gamer else "Gamer",
                 "gamerEmail": gamer.email if gamer else None,
                 "gamerPhone": gamer.phone_number if gamer else None,
-                "tierName": tier.name if tier else "Standard Tier",
+                "tierName": tier.name if tier else "Setup",
                 "sessionDate": booking.session_date.isoformat(),
                 "startTime": booking.start_time.strftime("%H:%M"),
                 "endTime": booking.end_time.strftime("%H:%M"),
                 "durationHours": float(booking.duration_hours),
                 "seatsCount": booking.seats_count,
+                "playersCount": booking.players_count or booking.seats_count,
+                "isRoom": bool(getattr(tier, "is_room", False)) if tier else False,
                 "totalAmount": float(booking.total_amount),
                 "gatewayFee": float(booking.gateway_fee),
                 "convenienceFee": float(booking.convenience_fee),
@@ -1300,14 +1302,18 @@ async def search_checkin_candidates(
     today = datetime.now(IST).date()
     matches = await booking_repo.search_checkin_candidates(cafe.id, q, today)
 
+    room_ids = await booking_repo.room_tier_ids([b.hardware_tier_id for b, *_ in matches])
     results = [
         {
             "id": str(booking.id),
             "bookingReference": booking.booking_reference,
-            "gamerName": gamer_name or "Gamer",
+            "gamerName": gamer_name or "Customer",
             "gamerPhone": gamer_phone,
             "startTime": booking.start_time.strftime("%H:%M"),
             "endTime": booking.end_time.strftime("%H:%M"),
+            "seatsCount": booking.seats_count,
+            "playersCount": booking.players_count or booking.seats_count,
+            "isRoom": booking.hardware_tier_id in room_ids,
             "status": booking.status.value,
         }
         for booking, gamer_name, gamer_phone in matches

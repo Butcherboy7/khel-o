@@ -34,6 +34,7 @@ import { Card, CardContent, Button, Input } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { checkInDropPass } from '@/lib/api/drops';
 import { checkinBooking } from '@/lib/api/owner';
+import { groupLabel } from '@/lib/bookingLabels';
 import { validateQRCode, searchCheckinCandidates, type QRValidationResponse, type CheckinCandidate } from '@/lib/api/scanner';
 import { ApiError } from '@/lib/api/errors';
 
@@ -885,6 +886,9 @@ export default function ScannerPage() {
                             )}
                             <span>· {candidate.bookingReference}</span>
                           </span>
+                          {groupLabel(candidate) && (
+                            <span className="text-xs font-semibold text-text-secondary">{groupLabel(candidate)}</span>
+                          )}
                         </div>
                       </div>
                       <span className="text-xs font-semibold text-text-secondary shrink-0">
@@ -1043,9 +1047,9 @@ export default function ScannerPage() {
 
                       <div className="p-3 rounded-xl bg-surface-hover border border-border flex flex-col gap-1">
                         <span className="text-text-tertiary text-xs flex items-center gap-1">
-                          <Layers className="h-3.5 w-3.5" /> Seats
+                          <Layers className="h-3.5 w-3.5" /> Get ready
                         </span>
-                        <span className="font-semibold text-text-primary">{overlayBooking.seatsCount} Seat(s)</span>
+                        <span className="font-semibold text-text-primary">{groupLabel(overlayBooking) ?? '1 machine'}</span>
                       </div>
                     </div>
 

@@ -29,6 +29,7 @@ import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { cn } from '@/lib/cn';
+import { groupLabel } from '@/lib/bookingLabels';
 import { addDaysToDateString, formatSessionDate, formatSessionDateShort, formatTime, getOwnerPayoutAmount, getTodayString } from '@/lib/format';
 import { checkInDropPass, listOwnerDropBookings, type OwnerDropBooking } from '@/lib/api/drops';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
@@ -290,6 +291,7 @@ export default function OwnerBookingsPage() {
                         {formatTime(booking.startTime)} · {booking.durationHours}h
                       </span>
                       <span className="font-semibold text-text-primary">{booking.tierName}</span>
+                      {groupLabel(booking) && <span className="font-semibold text-text-primary">{groupLabel(booking)}</span>}
                     </div>
 
                     <span className="font-data text-ref uppercase text-text-secondary">

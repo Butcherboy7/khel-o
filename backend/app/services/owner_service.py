@@ -118,12 +118,14 @@ class OwnerService:
             limit=limit
         )
 
+        room_ids = await self.booking_repo.room_tier_ids([b.hardware_tier_id for b, *_ in items_tuples])
         item_responses: List[OwnerBookingItemResponse] = []
         for booking, gamer_name, tier_name, cafe_name in items_tuples:
             booking = await self.auto_transition_booking(booking)
             booking_dict = BookingResponse.model_validate(booking).model_dump()
             booking_dict["gamer_name"] = gamer_name
             booking_dict["tier_name"] = tier_name
+            booking_dict["is_room"] = booking.hardware_tier_id in room_ids
             booking_dict["cafe_name"] = cafe_name
             item_responses.append(OwnerBookingItemResponse.model_validate(booking_dict))
 

@@ -42,6 +42,7 @@ import { InfoTip } from '@/components/shared/InfoTip';
 import { TutorialButton } from '@/components/owner/TutorialButton';
 import { INFO_TIPS, PAGE_GUIDES } from '@/lib/ownerGuideCopy';
 import { getPublicEnv } from '@/lib/runtimeEnv';
+import { groupLabel } from '@/lib/bookingLabels';
 
 /** Today's date in India as YYYY-MM-DD, whatever the device's clock zone. */
 function todayIst(): string {
@@ -404,7 +405,7 @@ export default function OwnerDashboardPage() {
   // Stations in use, not bookings: a 2-console booking holds two.
   const occupiedNowCount = todayBookings
     .filter((b) => b.status === 'checked_in' || b.status === 'active')
-    .reduce((sum, b) => sum + ((b as { seatsCount?: number }).seatsCount || 1), 0);
+    .reduce((sum, b) => sum + (b.seatsCount || 1), 0);
   // Sourced from the backend's revenueToday (only CONFIRMED/CHECKED_IN/ACTIVE/COMPLETED
   // bookings with a CAPTURED payment) rather than summing todayBookings client-side,
   // which has no status filter and would double-count pending/failed payments.
@@ -636,7 +637,7 @@ export default function OwnerDashboardPage() {
                       <div className="min-w-0 flex-1 pt-0.5">
                         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="truncate font-heading text-body-emphasis font-bold text-text-primary">
-                            {b.gamerName || 'Gamer'}
+                            {b.gamerName || 'Customer'}
                           </span>
                           {/* The shared badge, not `{b.status}`. Rendering the raw
                               column printed PENDING_PAYMENT / NO_SHOW at the desk —
@@ -644,7 +645,7 @@ export default function OwnerDashboardPage() {
                           <BookingStatusBadge status={b.status} size="sm" />
                         </div>
                         <p className="mt-0.5 truncate text-caption leading-snug text-text-secondary">
-                          {b.tierName || 'Standard Pod'} · {b.durationHours || 2}h ·{' '}
+                          {b.tierName || 'Setup'} · {b.durationHours}h{groupLabel(b) ? ` · ${groupLabel(b)}` : ''} ·{' '}
                           <span className="font-semibold text-text-primary">
                             ₹{getOwnerPayoutAmount(b).toFixed(2)}
                           </span>
@@ -657,7 +658,7 @@ export default function OwnerDashboardPage() {
                         variant="secondary"
                         size="sm"
                         onClick={() => setSelectedBooking(b)}
-                        aria-label={`View booking details for ${b.gamerName || 'this gamer'}`}
+                        aria-label={`View booking details for ${b.gamerName || 'this customer'}`}
                         className="gap-1.5"
                       >
                         <Eye className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
@@ -905,8 +906,8 @@ export default function OwnerDashboardPage() {
       <Modal
         isOpen={Boolean(selectedBooking)}
         onClose={() => setSelectedBooking(null)}
-        title="Gamer Booking Details"
-        description={`Verification & Ticket details for Booking Ref: ${selectedBooking?.bookingReference || selectedBooking?.id?.slice(0, 8) || 'N/A'}`}
+        title="Booking details"
+        description={`Booking code ${selectedBooking?.bookingReference || selectedBooking?.id?.slice(0, 8) || ''}`}
       >
         {selectedBooking && (
           <div className="flex flex-col gap-5 pt-1">
@@ -926,7 +927,7 @@ export default function OwnerDashboardPage() {
             <dl className="grid grid-cols-2 gap-3 text-caption">
               <div className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3.5">
                 <dt className="text-caption text-text-secondary">Setup</dt>
-                <dd className="font-semibold text-text-primary">{selectedBooking.tierName || 'Standard Pod'}</dd>
+                <dd className="font-semibold text-text-primary">{selectedBooking.tierName || 'Setup'}</dd>
               </div>
 
               <div className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3.5">
@@ -949,10 +950,10 @@ export default function OwnerDashboardPage() {
               </div>
             </dl>
 
-            {Boolean((selectedBooking as unknown as Record<string, unknown>).seatsCount || (selectedBooking as unknown as Record<string, unknown>).seatsBooked) && (
+            {groupLabel(selectedBooking) && (
               <div className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3.5 text-caption">
-                <span className="text-caption text-text-secondary">Seats booked</span>
-                <span className="font-semibold text-text-primary">{String((selectedBooking as unknown as Record<string, unknown>).seatsCount || (selectedBooking as unknown as Record<string, unknown>).seatsBooked)}</span>
+                <span className="text-caption text-text-secondary">Get ready</span>
+                <span className="font-semibold text-text-primary">{groupLabel(selectedBooking)}</span>
               </div>
             )}
 

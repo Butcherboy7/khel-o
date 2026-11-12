@@ -282,6 +282,17 @@ class BookingRepository(BaseRepository[Booking]):
         result = await self.db.execute(stmt)
         return int(result.scalar() or 0)
 
+    async def room_tier_ids(self, tier_ids) -> set:
+        """Which of these setups are private cabins (so a booking's group size
+        reads as PCs in a cabin, not as co-op players)."""
+        ids = {i for i in tier_ids if i is not None}
+        if not ids:
+            return set()
+        res = await self.db.execute(
+            select(HardwareTier.id).where(HardwareTier.id.in_(ids), HardwareTier.is_room.is_(True))
+        )
+        return set(res.scalars().all())
+
     async def get_owner_bookings_joined(
         self,
         cafe_ids: List[UUID],

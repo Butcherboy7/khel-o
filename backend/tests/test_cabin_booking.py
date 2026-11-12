@@ -115,3 +115,40 @@ async def test_percentage_offer_still_applies_to_a_full_cabin(db_session, monkey
     resp = await _book(tier, cafe, gamer, durationHours=1, seatsCount=1, playersCount=5)
     assert resp.status_code == 201, resp.json()
     assert float(resp.json()["data"]["booking"]["discountAmount"]) == 105.0  # 10% of 1050
+
+
+async def _owner_get(db_session, cafe, path):
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.models.user import User
+    from tests.conftest import auth_headers
+    owner = await db_session.get(User, cafe.owner_id)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        return await client.get(path, headers=auth_headers(owner))
+
+
+@pytest.mark.asyncio
+async def test_owner_is_told_how_many_pcs_a_cabin_booking_needs(db_session, monkeypatch):
+    cafe, tier, gamer = await _setup(db_session, monkeypatch, **CABIN)
+    resp = await _book(tier, cafe, gamer, durationHours=1, seatsCount=1, playersCount=4)
+    assert resp.status_code == 201, resp.json()
+    body = resp.json()["data"]["booking"]
+    assert body["playersCount"] == 4
+
+    listing = await _owner_get(db_session, cafe, "/api/v1/owner/bookings")
+    assert listing.status_code == 200, listing.text
+    row = listing.json()["data"]["items"][0]
+    assert row["seatsCount"] == 1
+    assert row["playersCount"] == 4
+    assert row["isRoom"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_hall_pc_booking_is_not_marked_as_a_cabin(db_session, monkeypatch):
+    cafe, tier, gamer = await _setup(db_session, monkeypatch)
+    resp = await _book(tier, cafe, gamer, durationHours=1, seatsCount=2)
+    assert resp.status_code == 201, resp.json()
+    listing = await _owner_get(db_session, cafe, "/api/v1/owner/bookings")
+    row = listing.json()["data"]["items"][0]
+    assert row["isRoom"] is False
+    assert row["seatsCount"] == 2
