@@ -21,6 +21,8 @@ export interface AvailabilityTierSummary {
   blockedSeats: number;
   appBookableSeats: number;
   pricePerHour: number;
+  /** A private cabin (a cabin is open or closed as a whole). */
+  isRoom?: boolean;
   /** 'gaming' (PC/console) or 'activity' (tables etc.). */
   tierType?: string;
   /** Launch drops only: first day, last day and the rig it runs on. */

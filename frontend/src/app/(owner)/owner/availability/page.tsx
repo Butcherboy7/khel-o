@@ -463,7 +463,7 @@ export default function OwnerAvailabilityPage() {
               Go to Setups & prices
             </Link>
           ) : (
-            <BrokenMachines cafeId={data.cafeId} tierId={selectedTier.id} onChanged={load} />
+            <BrokenMachines cafeId={data.cafeId} tierId={selectedTier.id} isRoom={Boolean(selectedTier.isRoom)} onChanged={load} />
           )}
         </Card>
       )}

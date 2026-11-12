@@ -68,3 +68,45 @@ async def test_another_owner_cannot_mark_my_machines_broken(db_session):
     cafe, tier, gamer = await _setup_cafe_and_gamer(db_session)
     r = await _call("POST", f"/api/v1/cafes/{cafe.id}/tiers/{tier.id}/broken", auth_headers(gamer), json={"label": "PC 1"})
     assert r.status_code in (401, 403)
+
+
+async def _staff_for(db_session, cafe):
+    import uuid
+    from app.models.user import UserRole
+    from app.models.user_role import UserRoleMapping
+    from app.core.security import get_password_hash
+    staff = User(
+        id=uuid.uuid4(), email=f"staff_{uuid.uuid4().hex[:8]}@test.com", full_name="Desk Staff",
+        password_hash=get_password_hash("UnitTestPw123"), role=UserRole.STAFF, is_active=True,
+    )
+    db_session.add(staff)
+    await db_session.flush()
+    db_session.add(UserRoleMapping(id=uuid.uuid4(), user_id=staff.id, role=UserRole.STAFF, cafe_id=cafe.id))
+    await db_session.commit()
+    return staff
+
+
+@pytest.mark.asyncio
+async def test_staff_of_the_cafe_can_mark_a_machine_broken_and_fixed(db_session):
+    cafe, tier, _gamer = await _setup_cafe_and_gamer(db_session)
+    tier.total_seats = 5
+    tier.app_bookable_seats = 5
+    await db_session.commit()
+    staff = await _staff_for(db_session, cafe)
+    h = auth_headers(staff)
+    base = f"/api/v1/cafes/{cafe.id}/tiers/{tier.id}"
+    r = await _call("POST", f"{base}/broken", h, json={"label": "PC 7"})
+    assert r.status_code == 201, r.text
+    listing = await _call("GET", f"{base}/units", h)
+    assert listing.status_code == 200 and listing.json()["data"]["units"][0]["label"] == "PC 7"
+    r = await _call("DELETE", f"{base}/broken/{r.json()['data']['unit']['id']}", h)
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.asyncio
+async def test_staff_of_another_cafe_cannot_mark_my_machines_broken(db_session):
+    cafe, tier, _gamer = await _setup_cafe_and_gamer(db_session)
+    other_cafe, _t, _g = await _setup_cafe_and_gamer(db_session)
+    staff = await _staff_for(db_session, other_cafe)
+    r = await _call("POST", f"/api/v1/cafes/{cafe.id}/tiers/{tier.id}/broken", auth_headers(staff), json={"label": "PC 1"})
+    assert r.status_code == 403

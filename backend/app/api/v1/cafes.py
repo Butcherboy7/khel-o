@@ -20,7 +20,7 @@ from app.repositories.user_repository import UserRepository
 from app.models.user import User, UserRole
 from app.models.user_role import UserRoleMapping
 from app.models.hardware_tier import TierType
-from app.api.deps import require_cafe_owner, get_optional_user, get_current_active_user
+from app.api.deps import require_cafe_owner, require_staff_or_owner, get_optional_user, get_current_active_user
 import uuid
 
 limiter = None
@@ -371,11 +371,36 @@ async def update_hardware_tier(
     }
 
 
+
+async def _check_can_work_this_cafe(db: AsyncSession, user: User, cafe) -> None:
+    """The café's owner, a staff member of THIS café, or an admin. Staff are the
+    people at the desk when a machine breaks, so they may mark it broken or fixed
+    (nothing else about a setup)."""
+    from app.core.exceptions import ForbiddenException
+    from app.api.deps import get_user_roles
+    if cafe and str(cafe.owner_id) == str(user.id):
+        return
+    roles = await get_user_roles(user.id, db)
+    if "admin" in roles:
+        return
+    if "staff" in roles:
+        res = await db.execute(
+            select(UserRoleMapping).where(
+                UserRoleMapping.user_id == user.id,
+                UserRoleMapping.role == UserRole.STAFF,
+                UserRoleMapping.cafe_id == cafe.id,
+            )
+        )
+        if res.scalars().first():
+            return
+    raise ForbiddenException(message="You can only manage your own café", error_code="FORBIDDEN")
+
+
 @router.get("/{cafe_id}/tiers/{tier_id}/units", status_code=status.HTTP_200_OK)
 async def list_tier_units(
     cafe_id: UUID,
     tier_id: UUID,
-    current_owner: User = Depends(require_cafe_owner),
+    current_owner: User = Depends(require_staff_or_owner),
     db: AsyncSession = Depends(get_db)
 ):
     from app.core.exceptions import NotFoundException, ForbiddenException
@@ -387,8 +412,9 @@ async def list_tier_units(
 
     cafe_repo = CafeRepository(db)
     cafe = await cafe_repo.get_by_id(cafe_id)
-    if not cafe or str(cafe.owner_id) != str(current_owner.id):
-        raise ForbiddenException(message="You can only manage your own café's activities", error_code="FORBIDDEN")
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+    await _check_can_work_this_cafe(db, current_owner, cafe)
 
     unit_repo = HardwareTierUnitRepository(db)
     units = await unit_repo.list_by_tier(tier_id)
@@ -489,7 +515,7 @@ async def mark_machine_broken(
     cafe_id: UUID,
     tier_id: UUID,
     payload: BrokenMachineRequest,
-    current_owner: User = Depends(require_cafe_owner),
+    current_owner: User = Depends(require_staff_or_owner),
     db: AsyncSession = Depends(get_db)
 ):
     """Owner says "PC 7 is broken". Only the name the owner types is kept (they
@@ -507,8 +533,9 @@ async def mark_machine_broken(
     if not tier or str(tier.cafe_id) != str(cafe_id):
         raise NotFoundException(message="Setup not found", error_code="TIER_NOT_FOUND")
     cafe = await CafeRepository(db).get_by_id(cafe_id)
-    if not cafe or str(cafe.owner_id) != str(current_owner.id):
-        raise ForbiddenException(message="You can only manage your own café", error_code="FORBIDDEN")
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+    await _check_can_work_this_cafe(db, current_owner, cafe)
     if tier.tier_type == TierType.ACTIVITY:
         raise ValidationException(message="Use the table list for activities", error_code="USE_UNIT_LIST")
 
@@ -524,7 +551,7 @@ async def mark_machine_broken(
     conflict = await BookingRepository(db).find_first_capacity_conflict(tier_id, new_capacity=new_capacity)
     if conflict:
         raise ValidationException(
-            message=f"Can't mark {label} broken yet: booking {conflict.booking_reference} on {conflict.session_date} needs the machine. Mark it broken after that booking.",
+            message=f"{label} is needed for booking {conflict.booking_reference} on {conflict.session_date:%a %d %b}. Call that customer first, or mark it broken after their booking.",
             error_code="MAINTENANCE_CAPACITY_CONFLICT"
         )
 
@@ -540,7 +567,7 @@ async def mark_machine_fixed(
     cafe_id: UUID,
     tier_id: UUID,
     unit_id: UUID,
-    current_owner: User = Depends(require_cafe_owner),
+    current_owner: User = Depends(require_staff_or_owner),
     db: AsyncSession = Depends(get_db)
 ):
     """"PC 7 is fixed": the row is removed, so the machine counts as bookable
@@ -551,8 +578,9 @@ async def mark_machine_fixed(
     if not tier or str(tier.cafe_id) != str(cafe_id):
         raise NotFoundException(message="Setup not found", error_code="TIER_NOT_FOUND")
     cafe = await CafeRepository(db).get_by_id(cafe_id)
-    if not cafe or str(cafe.owner_id) != str(current_owner.id):
-        raise ForbiddenException(message="You can only manage your own café", error_code="FORBIDDEN")
+    if not cafe:
+        raise NotFoundException(message="Café not found", error_code="CAFE_NOT_FOUND")
+    await _check_can_work_this_cafe(db, current_owner, cafe)
     unit_repo = HardwareTierUnitRepository(db)
     unit = await unit_repo.get_by_id(unit_id)
     if not unit or str(unit.tier_id) != str(tier_id) or tier.tier_type == TierType.ACTIVITY:

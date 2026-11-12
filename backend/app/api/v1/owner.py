@@ -1446,6 +1446,7 @@ async def get_owner_availability_timeline(
             "blockedSeats": min(t.total_seats, _broken(t.id)),
             "appBookableSeats": t.app_bookable_seats,
             "pricePerHour": float(t.price_per_hour),
+            "isRoom": bool(getattr(t, "is_room", False)),
         }
         for t in tiers
     ]

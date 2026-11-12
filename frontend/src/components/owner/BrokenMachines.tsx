@@ -11,7 +11,7 @@ import { listTierUnits, markMachineBroken, markMachineFixed } from '@/lib/api/ha
  * already use for the machine; nothing is numbered for them and customers never see it.
  * They just see one fewer machine to book until it is marked fixed.
  */
-export function BrokenMachines({ cafeId, tierId, onChanged }: { cafeId: string; tierId: string; onChanged?: () => void }) {
+export function BrokenMachines({ cafeId, tierId, isRoom = false, onChanged }: { cafeId: string; tierId: string; isRoom?: boolean; onChanged?: () => void }) {
   const queryClient = useQueryClient();
   const [label, setLabel] = useState('');
   const key = ['tier-units', tierId];
@@ -37,7 +37,9 @@ export function BrokenMachines({ cafeId, tierId, onChanged }: { cafeId: string; 
   return (
     <div className="mt-2 flex flex-col gap-2">
       <p className="text-caption text-text-secondary">
-        Type the machine as you know it, like “PC 7”. Customers can’t book it until you mark it fixed, and they never see its name.
+        {isRoom
+          ? 'Type the cabin as you know it, like “Blue cabin”. Customers can’t book it until you mark it open again, and they never see its name.'
+          : 'Type the machine as you know it, like “PC 7”. Customers can’t book it until you mark it fixed, and they never see its name.'}
       </p>
       <form
         className="flex items-center gap-2"
@@ -50,7 +52,7 @@ export function BrokenMachines({ cafeId, tierId, onChanged }: { cafeId: string; 
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           maxLength={50}
-          placeholder="Which machine? e.g. PC 7"
+          placeholder={isRoom ? 'Which cabin? e.g. Blue cabin' : 'Which machine? e.g. PC 7'}
           aria-label="Which machine is broken"
           className="h-10 min-w-0 flex-1 rounded-xl border border-border bg-card px-3 text-body focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
@@ -59,7 +61,7 @@ export function BrokenMachines({ cafeId, tierId, onChanged }: { cafeId: string; 
           Mark broken
         </Button>
       </form>
-      {error && <p role="alert" className="text-caption font-medium text-error">{error.message || 'Could not update that machine.'}</p>}
+      {error && <p role="alert" className="text-caption font-medium text-error">{error.message || 'Couldn’t update that. Please try again.'}</p>}
       {broken.length === 0 ? (
         <p className="text-caption text-text-secondary">Nothing is broken right now.</p>
       ) : (

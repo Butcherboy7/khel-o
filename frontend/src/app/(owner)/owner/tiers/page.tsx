@@ -519,7 +519,7 @@ export default function HardwareTiersPage() {
                         {expandedUnitsTierId === tier.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                         <span>Something broken?</span>
                       </button>
-                      {expandedUnitsTierId === tier.id && <BrokenMachines cafeId={tier.cafeId} tierId={tier.id} />}
+                      {expandedUnitsTierId === tier.id && <BrokenMachines cafeId={tier.cafeId} tierId={tier.id} isRoom={Boolean(tier.isRoom)} />}
                     </div>
                   )}
 
