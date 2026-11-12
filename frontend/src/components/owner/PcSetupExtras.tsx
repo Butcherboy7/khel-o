@@ -187,7 +187,7 @@ export function PcSpeedFields({ config, onChange }: { config: TierConfig; onChan
             Players see an estimate worked out from your graphics card, marked “estimated”. If you have tested a game on these
             PCs, type the real number and it replaces the estimate.
           </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2">
             {FPS_GAMES.map((g) => (
               <label key={g.key} className="flex items-center justify-between gap-3 rounded-lg bg-surface px-3 py-2">
                 <span className="text-caption font-semibold text-text-primary">{g.name}</span>
