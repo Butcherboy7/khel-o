@@ -109,7 +109,7 @@ const INITIAL_STATE: OnboardingState = {
   photos: [],
   menuPhotos: [],
   cancellationPolicy: 'Free cancellation up to 2 hours before session start time.',
-  houseRules: ['No outside food or beverages permitted inside station pods.', 'Valid Photo ID required at check-in.'],
+  houseRules: ['No outside food or drinks at the gaming seats.', 'Valid Photo ID required at check-in.'],
   instagram: '',
   discord: '',
   cafeId: null,
@@ -299,7 +299,7 @@ export default function OnboardingWizardPage() {
 
       setStep1Errors(errors);
       if (Object.keys(errors).length > 0) {
-        setError('Please fix the highlighted fields before continuing.');
+        setError('Please fix the fields marked in red before you continue.');
         const fieldOrder = ['name', 'googleMapsUrl', 'addressLine1', 'pincode'];
         const firstInvalidField = fieldOrder.find((f) => errors[f]);
         const el = firstInvalidField ? step1FieldRefs.current[firstInvalidField] : null;
@@ -350,7 +350,7 @@ export default function OnboardingWizardPage() {
 
       setStep2Errors(errors);
       if (Object.keys(errors).length > 0) {
-        setError('Please fix the highlighted fields before continuing.');
+        setError('Please fix the fields marked in red before you continue.');
         return;
       }
     } else if (Object.keys(step2Errors).length > 0) {
@@ -389,7 +389,7 @@ export default function OnboardingWizardPage() {
 
       setStep3Errors(errors);
       if (Object.keys(errors).length > 0) {
-        setError('Please fix the highlighted fields before continuing.');
+        setError('Please fix the fields marked in red before you continue.');
         return;
       }
     } else if (Object.keys(step3Errors).length > 0) {
@@ -456,7 +456,7 @@ export default function OnboardingWizardPage() {
 
     if (!agreedToOwnerTerms) {
       isSubmittingRef.current = false;
-      setError('Please agree to the Café Partner Terms & Conditions and Privacy Policy to submit your application.');
+      setError('Please agree to the café partner terms and the privacy policy to send your application.');
       return;
     }
 
@@ -587,15 +587,15 @@ export default function OnboardingWizardPage() {
             <h3 className="font-heading text-h3 text-text-primary">What happens next?</h3>
             <div className="flex items-start gap-3 text-caption text-text-secondary">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-              <span>Admin reviews venue coordinates, legal documents & payout details.</span>
+              <span>KHEL-O checks your location, documents and payout details.</span>
             </div>
             <div className="flex items-start gap-3 text-caption text-text-secondary">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-              <span>Upon verification, your account automatically unlocks the full Live Owner Portal.</span>
+              <span>Once we approve it, your owner portal opens fully.</span>
             </div>
             <div className="flex items-start gap-3 text-caption text-text-secondary">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-              <span>You will receive notification when your venue goes live to gamers.</span>
+              <span>We’ll tell you the moment customers can book your café.</span>
             </div>
           </CardContent>
         </Card>
@@ -659,7 +659,7 @@ export default function OnboardingWizardPage() {
               <Store className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="font-heading text-h2 text-text-primary">Café Onboarding Setup</h1>
+              <h1 className="font-heading text-h2 text-text-primary">Set up your café</h1>
               <p className="text-caption text-text-secondary">Step {step} of 6: {stepsList[step - 1].title}</p>
             </div>
           </div>
@@ -705,14 +705,14 @@ export default function OnboardingWizardPage() {
                 <div>
                   <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-emerald-500" />
-                    <span>1. Café Identity & Location Pin</span>
+                    <span>1. Your café and where it is</span>
                   </h2>
                   <p className="text-caption text-text-secondary">Provide basic business details and drop your pin on Google Maps.</p>
                 </div>
 
                 <Input
                   ref={(el) => { step1FieldRefs.current.name = el; }}
-                  label="Café Name *"
+                  label="Café name *"
                   placeholder="e.g. Velocity Esports Lounge"
                   value={formData.name}
                   onChange={(e) => {
@@ -724,7 +724,7 @@ export default function OnboardingWizardPage() {
                 />
 
                 <Textarea
-                  label="Café Description (Optional)"
+                  label="About your café (optional)"
                   placeholder="Describe your PC specs, gaming vibe, food options, or tournament setups..."
                   value={formData.description}
                   onChange={(e) => updateField('description', e.target.value)}
@@ -752,7 +752,7 @@ export default function OnboardingWizardPage() {
 
                 <Input
                   ref={(el) => { step1FieldRefs.current.addressLine1 = el; }}
-                  label="Address Line 1 *"
+                  label="Address *"
                   placeholder="Building number, street address"
                   value={formData.addressLine1}
                   onChange={(e) => {
@@ -764,7 +764,7 @@ export default function OnboardingWizardPage() {
                 />
 
                 <Input
-                  label="Address Line 2 (Optional)"
+                  label="Area or landmark (optional)"
                   placeholder="Area, landmark, floor (e.g. Kukatpally, 2nd floor)"
                   value={formData.addressLine2}
                   onChange={(e) => updateField('addressLine2', e.target.value)}
@@ -855,7 +855,7 @@ export default function OnboardingWizardPage() {
                 <div>
                   <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
                     <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                    <span>2. Business Verification & Legal Documents</span>
+                    <span>2. Business details and documents</span>
                   </h2>
                   <p className="text-caption text-text-secondary">Verify your business identity to build trust with gamers.</p>
                 </div>
@@ -896,7 +896,7 @@ export default function OnboardingWizardPage() {
                   </div>
 
                   <Input
-                    label="Official Business Email (Optional)"
+                    label="Business email (optional)"
                     placeholder="contact@esportsarena.in"
                     value={formData.email}
                     onChange={(e) => {
@@ -914,7 +914,7 @@ export default function OnboardingWizardPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
-                    label="Business PAN Number (Optional)"
+                    label="Business PAN (optional)"
                     placeholder="ABCDE1234F"
                     value={formData.businessPan}
                     onChange={(e) => {
@@ -965,7 +965,7 @@ export default function OnboardingWizardPage() {
 
                 {formData.hasGst && (
                   <Input
-                    label="GSTIN Number *"
+                    label="GSTIN *"
                     placeholder="29ABCDE1234F1Z5"
                     value={formData.gstin}
                     onChange={(e) => {
@@ -983,7 +983,7 @@ export default function OnboardingWizardPage() {
                 )}
 
                 <Input
-                  label="Trade License / Registration Document URL (Optional)"
+                  label="Link to your trade licence or registration (optional)"
                   placeholder="https://drive.google.com/... or document link"
                   value={formData.legalDocumentUrl}
                   onChange={(e) => updateField('legalDocumentUrl', e.target.value)}
@@ -1021,7 +1021,7 @@ export default function OnboardingWizardPage() {
                     required
                   />
                   <Input
-                    label="Confirm UPI ID *"
+                    label="Type your UPI ID again *"
                     placeholder="yourname@okhdfcbank"
                     value={formData.confirmUpiVpa}
                     onChange={(e) => {
@@ -1047,7 +1047,7 @@ export default function OnboardingWizardPage() {
                       A bank account lets us pay you by NEFT/IMPS if an amount is ever more than UPI can send at once. This is optional. If you fill in one of name, account number or IFSC, fill in all three.
                     </p>
                     <Input
-                      label="Account Holder Name"
+                      label="Account holder name"
                       placeholder="e.g. LXG Gaming Private Limited"
                       value={formData.accountHolderName}
                       onChange={(e) => {
@@ -1058,7 +1058,7 @@ export default function OnboardingWizardPage() {
                     />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
-                        label="Bank Account Number"
+                        label="Bank account number"
                         name="bank-account-number"
                         autoComplete="off"
                         placeholder={formData.bankAccountNumberMasked || '9180200192847291'}
@@ -1072,7 +1072,7 @@ export default function OnboardingWizardPage() {
                         hint={formData.bankAccountNumberMasked ? `On file: ${formData.bankAccountNumberMasked}. Leave blank to keep it, or enter a new number to replace it.` : undefined}
                       />
                       <Input
-                        label="Confirm Bank Account Number"
+                        label="Type the account number again"
                         name="confirm-bank-account-number"
                         autoComplete="off"
                         placeholder="9180200192847291"
@@ -1086,7 +1086,7 @@ export default function OnboardingWizardPage() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
-                        label="Bank IFSC Code"
+                        label="Bank IFSC code"
                         name="bank-ifsc-code"
                         autoComplete="off"
                         placeholder="HDFC0000128"
@@ -1098,14 +1098,14 @@ export default function OnboardingWizardPage() {
                         error={step3Errors.bankIfsc}
                       />
                       <Input
-                        label="Bank Name (Optional)"
+                        label="Bank name (optional)"
                         placeholder="e.g. HDFC Bank"
                         value={formData.bankName}
                         onChange={(e) => updateField('bankName', e.target.value)}
                       />
                     </div>
                     <div className="flex flex-col gap-2">
-                      <label className="text-caption font-semibold text-text-primary">Account Type (Optional)</label>
+                      <label className="text-caption font-semibold text-text-primary">Account type (optional)</label>
                       <div className="flex gap-3">
                         {(['savings', 'current'] as const).map((t) => (
                           <button
@@ -1141,7 +1141,7 @@ export default function OnboardingWizardPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
-                    label="Opening Time *"
+                    label="Opening time *"
                     type="time"
                     required
                     value={formData.openingTime}
@@ -1150,7 +1150,7 @@ export default function OnboardingWizardPage() {
                   />
 
                   <Input
-                    label="Closing Time *"
+                    label="Closing time *"
                     type="time"
                     required
                     value={formData.closingTime}
@@ -1277,7 +1277,7 @@ export default function OnboardingWizardPage() {
                     as-is here — to work during onboarding, not just after
                     approval. */}
                 <div className="flex flex-col gap-2">
-                  <label className="text-caption font-semibold text-text-primary">Venue Photos</label>
+                  <label className="text-caption font-semibold text-text-primary">Café photos</label>
                   {!formData.cafeId ? (
                     <p className="text-caption text-text-secondary">Saving your progress — photo upload will be available in a moment.</p>
                   ) : (
@@ -1330,7 +1330,7 @@ export default function OnboardingWizardPage() {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label className="text-caption font-semibold text-text-primary">Menu Photos (Optional)</label>
+                  <label className="text-caption font-semibold text-text-primary">Menu photos (optional)</label>
                   {!formData.cafeId ? (
                     <p className="text-caption text-text-secondary">Saving your progress — photo upload will be available in a moment.</p>
                   ) : (
@@ -1390,22 +1390,22 @@ export default function OnboardingWizardPage() {
                 <div>
                   <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
                     <FileText className="h-5 w-5 text-emerald-500" />
-                    <span>6. Policies & Review Application</span>
+                    <span>6. Rules, then check everything</span>
                   </h2>
                   <p className="text-caption text-text-secondary">Confirm details before submitting your venue for platform verification.</p>
                 </div>
 
                 <Textarea
-                  label="Cancellation Policy"
+                  label="Cancellation rule"
                   value={formData.cancellationPolicy}
                   onChange={(e) => updateField('cancellationPolicy', e.target.value)}
                 />
 
                 <div className="flex flex-col gap-4">
                   <ReviewSection title="Location" onEdit={() => setStep(1)}>
-                    <ReviewRow label="Venue Name" value={formData.name || 'Not provided'} />
+                    <ReviewRow label="Café name" value={formData.name || 'Not provided'} />
                     <ReviewRow
-                      label="Address"
+                      label="Address *"
                       value={`${formData.addressLine1}${formData.addressLine2 ? ', ' + formData.addressLine2 : ''}` || 'Not provided'}
                     />
                     <ReviewRow label="City or town" value={formData.city || 'Not provided'} />
@@ -1428,7 +1428,7 @@ export default function OnboardingWizardPage() {
                       <>
                         <ReviewRow label="Bank Account Holder" value={formData.accountHolderName || 'Not provided'} />
                         <ReviewRow
-                          label="Bank Account Number"
+                          label="Bank account number"
                           value={formData.bankAccountNumber ? `New: ${formData.bankAccountNumber}` : (formData.bankAccountNumberMasked || 'Not provided')}
                         />
                         <ReviewRow label="Bank IFSC" value={formData.bankIfsc || 'Not provided'} />
@@ -1460,7 +1460,7 @@ export default function OnboardingWizardPage() {
                       label="Games"
                       value={`${Object.values(formData.supportedGames).reduce((sum, list) => sum + list.length, 0)} games across ${Object.keys(formData.supportedGames).filter((k) => formData.supportedGames[k].length > 0).length} platforms`}
                     />
-                    <ReviewRow label="Venue Photos" value={`${formData.photos.length} uploaded`} />
+                    <ReviewRow label="Café photos" value={`${formData.photos.length} uploaded`} />
                     <ReviewRow label="Menu Photos" value={`${formData.menuPhotos.length} uploaded`} />
                   </ReviewSection>
                 </div>
