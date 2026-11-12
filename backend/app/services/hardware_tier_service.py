@@ -136,6 +136,9 @@ class HardwareTierService:
             "coop_enabled": tier_in.coop_enabled,
             "coop_max_players": tier_in.coop_max_players,
             "coop_extra_player_price": tier_in.coop_extra_player_price,
+            "is_room": tier_in.is_room,
+            "refresh_rate_hz": tier_in.refresh_rate_hz,
+            "fps_overrides": {k: int(v) for k, v in (tier_in.fps_overrides or {}).items() if 1 <= int(v) <= 1000},
             "min_booking_minutes": tier_in.min_booking_minutes,
             "default_booking_minutes": tier_in.default_booking_minutes,
             "price_15m": tier_in.price_15m,
@@ -345,7 +348,7 @@ class HardwareTierService:
         # (back to "worked out from the hourly rate" / "8 hours" / "standard
         # start") never stuck. Clear them on the locked row directly; the
         # repository's commit below saves it.
-        for field in ("default_booking_minutes", "price_15m", "price_30m", "coop_price_30m", "max_booking_minutes"):
+        for field in ("default_booking_minutes", "price_15m", "price_30m", "coop_price_30m", "max_booking_minutes", "refresh_rate_hz"):
             if field in update_dict and update_dict[field] is None:
                 setattr(tier, field, None)
         individual_units = update_dict.pop("individual_units", None)

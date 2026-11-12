@@ -131,14 +131,20 @@ class BookingService:
         is_activity = tier.tier_type == TierType.ACTIVITY.value
         if is_activity:
             self._check_group_fits(tier, players, seats_requested)
+        self._check_room_is_one_unit(tier, seats_requested)
         # Co-op: more people than consoles means friends share ONE console.
         is_coop = (not is_activity) and players > seats_requested
         if is_coop:
             if not getattr(tier, 'coop_enabled', False):
                 raise ValidationException(message="This setup doesn't allow sharing a console", error_code="COOP_NOT_ALLOWED")
             if seats_requested != 1 or players > int(tier.coop_max_players or 2):
+                is_room = bool(getattr(tier, 'is_room', False))
                 raise ValidationException(
-                    message=f"Up to {tier.coop_max_players} players can share one console here",
+                    message=(
+                        f"Up to {tier.coop_max_players} PCs fit in one cabin here"
+                        if is_room
+                        else f"Up to {tier.coop_max_players} players can share one console here"
+                    ),
                     error_code="COOP_TOO_MANY_PLAYERS"
                 )
 
@@ -327,6 +333,7 @@ class BookingService:
         is_activity = tier.tier_type == TierType.ACTIVITY.value
         if is_activity:
             self._check_group_fits(tier, players, seats_requested)
+        self._check_room_is_one_unit(tier, seats_requested)
         is_coop = (not is_activity) and players > seats_requested
 
         start_datetime = datetime.combine(quote_in.session_date, quote_in.start_time).replace(tzinfo=IST)
@@ -446,6 +453,16 @@ class BookingService:
             platform_fee_before_offer=float(money.fee_before_offer),
             first_booking_offer=money.first_booking_offer,
         )
+
+    @staticmethod
+    def _check_room_is_one_unit(tier, seats_requested: int) -> None:
+        """A cabin is booked as ONE room however many PCs are used inside, so a
+        request for several "seats" of a room means a client bug, never two cabins."""
+        if getattr(tier, 'is_room', False) and seats_requested != 1:
+            raise ValidationException(
+                message="A cabin is booked as one room. Choose how many PCs you need inside it.",
+                error_code="ROOM_ONE_UNIT",
+            )
 
     @staticmethod
     def _length_rule_text(tier) -> str:

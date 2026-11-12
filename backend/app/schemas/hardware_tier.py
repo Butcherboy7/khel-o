@@ -1,8 +1,9 @@
-from pydantic import BaseModel, Field, ConfigDict, model_validator, AliasChoices
+from pydantic import BaseModel, Field, ConfigDict, model_validator, AliasChoices, computed_field
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
 from app.models.hardware_tier import PlatformType, TierType
+from app.core.fps_estimate import expected_fps as _expected_fps
 from app.core.duration import allowed_minutes as _allowed_minutes, MAX_BOOKING_CHOICES, PACKAGE_LENGTHS
 
 
@@ -53,8 +54,12 @@ class HardwareTierBase(BaseModel):
     taxonomy_key: Optional[str] = Field(None, max_length=80)
     attributes: Dict[str, Any] = Field(default_factory=dict)
     coop_enabled: bool = False
-    coop_max_players: int = Field(2, ge=2, le=4)
+    # 8 so a private room (cabin) can hold a whole team; consoles stay 2-4 in the UI.
+    coop_max_players: int = Field(2, ge=2, le=8)
     coop_extra_player_price: float = Field(0.0, ge=0.0)
+    is_room: bool = False
+    refresh_rate_hz: Optional[int] = Field(None, ge=24, le=540)
+    fps_overrides: Dict[str, int] = Field(default_factory=dict)
     # Only 15/30/60 are valid "shortest booking" values now — above 1 hour,
     # every setup allows 30-minute steps regardless of this field.
     min_booking_minutes: int = Field(60, ge=15, le=60)
@@ -135,8 +140,12 @@ class HardwareTierUpdate(BaseModel):
     taxonomy_key: Optional[str] = Field(None, max_length=80)
     attributes: Optional[Dict[str, Any]] = None
     coop_enabled: Optional[bool] = None
-    coop_max_players: Optional[int] = Field(None, ge=2, le=4)
+    coop_max_players: Optional[int] = Field(None, ge=2, le=8)
     coop_extra_player_price: Optional[float] = Field(None, ge=0.0)
+    is_room: Optional[bool] = None
+    # Send null to clear the refresh rate; leave out to keep it.
+    refresh_rate_hz: Optional[int] = Field(None, ge=24, le=540)
+    fps_overrides: Optional[Dict[str, int]] = None
     min_booking_minutes: Optional[int] = Field(None, ge=15, le=60)
     default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
     price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
@@ -209,6 +218,16 @@ class HardwareTierResponse(HardwareTierBase):
     # "pooled" for any path that doesn't set it (e.g. non-admin responses that
     # don't need it).
     tracking_mode: str = "pooled"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def expected_fps(self) -> List[Dict[str, Any]]:
+        """Per-game FPS for PC setups: the owner's number when set, otherwise an
+        ESTIMATE from the GPU (each row says which). Empty for consoles/activities."""
+        platform = self.platform.value if self.platform is not None else None
+        if self.tier_type != TierType.GAMING:
+            return []
+        return _expected_fps(platform, self.specs, self.fps_overrides)
 
     model_config = ConfigDict(
         from_attributes=True,
