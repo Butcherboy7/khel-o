@@ -19,6 +19,7 @@ from pydantic.alias_generators import to_camel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.game_platforms import GAME_RULES, fit as game_fit, rule_for as game_rule_for
 from app.api.deps import get_current_active_user, get_optional_user, get_user_roles, require_admin
 from app.config import settings
 from app.core.exceptions import ForbiddenException, NotFoundException
@@ -441,11 +442,16 @@ async def list_my_drops(db: AsyncSession = Depends(get_db), user: User = Depends
              for i, n, o, c_ in (await db.execute(cafes_stmt)).all()]
     for c in cafes:
         c["tiers"] = [
-            {"id": str(t.id), "name": t.model or t.name, "totalSeats": t.total_seats}
+            {"id": str(t.id), "name": t.model or t.name, "totalSeats": t.total_seats,
+             "platform": t.platform.value if t.platform else None, "tierType": t.tier_type,
+             # Whether this setup runs each game we have a rule for: yes / no / check.
+             "runs": {r["key"]: game_fit(r, t.platform.value if t.platform else None, t.specs, t.name, t.model, t.tier_type)
+                      for r in GAME_RULES}}
             for t in (await db.execute(select(HardwareTier).where(
                 HardwareTier.cafe_id == UUID(c["id"]), HardwareTier.is_active.is_(True)).order_by(HardwareTier.name))).scalars().all()
         ]
-    return {"success": True, "data": {"drops": out, "cafes": cafes, "suggestedPrice": list(svc.SUGGESTED_PRICE)}}
+    rules = [{k: r[k] for k in ("key", "label", "words", "runsOn", "notOn")} for r in GAME_RULES]
+    return {"success": True, "data": {"drops": out, "cafes": cafes, "suggestedPrice": list(svc.SUGGESTED_PRICE), "gameRules": rules}}
 
 
 @owner_router.post("", status_code=status.HTTP_201_CREATED)
@@ -463,6 +469,9 @@ async def create_drop(payload: DropCreate, db: AsyncSession = Depends(get_db), u
         tier = await db.get(HardwareTier, payload.hardware_tier_id)
         if tier is None or tier.cafe_id != cafe.id or not tier.is_active:
             raise svc.DropError("Pick one of your own rigs.", "BAD_RIG")
+        rule = game_rule_for(payload.game)
+        if game_fit(rule, tier.platform.value if tier.platform else None, tier.specs, tier.name, tier.model, tier.tier_type) == "no":
+            raise svc.DropError(f"{tier.model or tier.name} can't run {rule['label']}. It runs on {rule['runsOn']}.", "GAME_NOT_ON_RIG")
         if payload.daily_seats and payload.daily_seats > tier.total_seats:
             raise svc.DropError(f"You only have {tier.total_seats} of that rig.", "TOO_MANY_SEATS")
     elif payload.daily_start_time is not None:

@@ -196,8 +196,29 @@ export interface OwnerDrop extends Omit<Drop, 'blocks' | 'myReservations'> {
 
 export interface OwnerDropList {
   drops: (Omit<Drop, 'myReservations'> & { paidReservations: number })[];
-  cafes: { id: string; name: string; openingTime?: string | null; closingTime?: string | null; tiers: { id: string; name: string; totalSeats: number }[] }[];
+  cafes: { id: string; name: string; openingTime?: string | null; closingTime?: string | null; tiers: OwnerDropTier[] }[];
   suggestedPrice: [number, number];
+  /** Games we know the systems for (GTA 6: PS5, PS5 Pro, Xbox Series X|S). */
+  gameRules?: GameRule[];
+}
+
+export interface OwnerDropTier {
+  id: string;
+  name: string;
+  totalSeats: number;
+  platform?: string | null;
+  /** Per game rule key: 'yes' runs it, 'no' cannot, 'check' a PlayStation/Xbox we could not identify. */
+  runs?: Record<string, 'yes' | 'no' | 'check'>;
+}
+
+export interface GameRule { key: string; label: string; words: string[]; runsOn: string; notOn: string }
+
+const normGame = (s: string) => ` ${s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+
+/** The rule for what the owner typed in "Game", if we have one. */
+export function gameRuleFor(rules: GameRule[] | undefined, game: string): GameRule | null {
+  const g = normGame(game);
+  return (rules ?? []).find((r) => r.words.some((w) => g.includes(normGame(w)))) ?? null;
 }
 
 export interface NewDrop {

@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, ExternalLink, ImagePlus, Plus, Ticket } from 'lucide-react';
 import { Button, Card, CardContent, EmptyState, Input, SkeletonCard } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
-import { createDrop, listOwnerDrops, type NewDrop, type OwnerDropList } from '@/lib/api/drops';
+import { createDrop, gameRuleFor, listOwnerDrops, type NewDrop, type OwnerDropList } from '@/lib/api/drops';
 import { rupees, shortDate } from '@/lib/drops';
 import { uploadCafePhoto } from '@/lib/api/settings';
 
@@ -212,7 +212,13 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
 
   const priceNum = Number(price);
   const tiers = list.cafes.find((c) => c.id === cafeId)?.tiers ?? [];
-  const tier = tiers.find((t) => t.id === tierId) ?? null;
+  // Only setups that can run the game. GTA 6: PS5, PS5 Pro, Xbox Series X|S (no VR, PC or racing rigs).
+  const rule = gameRuleFor(list.gameRules, game);
+  const runs = (t: (typeof tiers)[number]) => (rule ? t.runs?.[rule.key] ?? 'check' : 'any');
+  const usable = tiers.filter((t) => runs(t) !== 'no');
+  const unusable = tiers.filter((t) => runs(t) === 'no');
+  const tier = usable.find((t) => t.id === tierId) ?? null;
+  const gameName = rule?.label ?? (game.trim() || 'it');
   const cafeRow = list.cafes.find((c) => c.id === cafeId);
   const openAt = cafeRow?.openingTime ?? null;
   const closeAt = cafeRow?.closingTime ?? null;
@@ -226,6 +232,13 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
     const t = tiers.find((x) => x.id === id);
     if (t) setDaySeats((n) => Math.min(Math.max(1, n), t.totalSeats));
   };
+  // Only one setup fits: pick it for them. Changing the game drops a pick that no longer fits.
+  const usableIds = usable.map((t) => t.id).join(',');
+  useEffect(() => {
+    if (tierId && !usable.some((t) => t.id === tierId)) setTierId('');
+    else if (!tierId && usable.length === 1) pickTier(usable[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usableIds, tierId]);
 
   const upload = async (file: File | undefined) => {
     if (!file || !cafeId) return;
@@ -244,7 +257,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
   const submit = async () => {
     setError(null);
     if (!cafeId || !title.trim() || !game.trim()) return setError('Fill in the title and the game.');
-    if (!tier) return setError('Pick which of your rigs this drop runs on.');
+    if (!tier) return setError(usable.length === 0 ? `None of your setups can run ${gameName}.` : `Pick which setup has ${gameName}.`);
     if (!startsOn || !startT || !endT || daySeats < 1) return setError('Set the first day, the hours and the seats.');
     if (endT <= startT) return setError('It has to close later the same day, before midnight.');
     const body: NewDrop = {
@@ -302,14 +315,24 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
           <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />
         </Step>
 
-        <Step n={2} title={`Which of your systems run ${game || 'it'}?`}>
+        <Step n={2} title={`Which of your setups have ${gameName}?`}>
+          {rule && (
+            <p className="rounded-xl bg-surface p-3 text-caption text-text-secondary">
+              <span className="font-semibold text-text-primary">{rule.label} runs on {rule.runsOn}.</span> {rule.notOn}
+            </p>
+          )}
           {tiers.length === 0 ? (
             <p className="rounded-xl bg-surface p-3 text-body text-text-secondary">
               You have no setups yet. <Link href="/owner/tiers" className="font-semibold text-primary">Add one in Setups &amp; prices</Link>, then come back.
             </p>
+          ) : usable.length === 0 ? (
+            <p className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-body text-text-primary">
+              None of your setups can run {gameName}. Add your PS5 or Xbox Series X|S in{' '}
+              <Link href="/owner/tiers" className="font-semibold text-primary">Setups &amp; prices</Link>, then come back.
+            </p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="System">
-              {tiers.map((t) => (
+            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Setup">
+              {usable.map((t) => (
                 <button
                   key={t.id}
                   type="button"
@@ -318,16 +341,27 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
                   onClick={() => pickTier(t.id)}
                   className={`flex min-h-[56px] items-center justify-between gap-3 rounded-xl border-2 px-3 text-left ${t.id === tierId ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
                 >
-                  <span className="font-semibold text-text-primary">{t.name}</span>
+                  <span className="flex flex-col">
+                    <span className="font-semibold text-text-primary">{t.name}</span>
+                    {runs(t) === 'check' && rule && <span className="text-caption text-warning">Make sure these are a PS5 or Xbox Series X|S</span>}
+                  </span>
                   <span className="text-caption text-text-secondary">you have {t.totalSeats}</span>
                 </button>
               ))}
             </div>
           )}
-          <p className="text-caption text-text-secondary">A drop runs on one kind of system. Want {game || 'it'} on both PS5 and Xbox? Make one drop for each.</p>
+          {unusable.length > 0 && rule && (
+            <p className="text-caption text-text-secondary">
+              Not shown because they can&rsquo;t run {rule.label}: {unusable.map((t) => t.name).join(', ')}.
+            </p>
+          )}
+          {usable.length > 1 && (
+            <p className="text-caption text-text-secondary">A drop runs on one kind of setup. Have {gameName} on both PS5 and Xbox? Make one drop for each.</p>
+          )}
           {tier && (
-            <div className="flex flex-col gap-2">
-              <p className="text-body font-medium text-text-primary">How many of your {tier.totalSeats} {tier.name} run {game || 'it'}?</p>
+            <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface/60 p-3">
+              <p className="text-body font-semibold text-text-primary">You have {tier.totalSeats} {tier.name}. How many have {gameName} and are kept for this drop?</p>
+              <p className="text-caption text-text-secondary">Only count the ones with {gameName} installed. The rest stay open for normal bookings.</p>
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
                   <button
@@ -360,7 +394,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
           )}
         </Step>
 
-        <Step n={3} title={`When are they kept for ${game || 'it'}?`}>
+        <Step n={3} title={`When are they kept for ${gameName}?`}>
           <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="When">
             <button
               type="button"
