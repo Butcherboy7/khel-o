@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Check, Copy, Lock, X } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
+import { InstagramReels } from '@/components/customer/InstagramReels';
 import { dropArt } from '@/components/customer/HomeTabs';
 import { cn } from '@/lib/cn';
 import { trackAction } from '@/lib/api/analyticsEvents';
@@ -254,6 +255,9 @@ export function CommunityPage() {
       )}
 
       {tab === 'photos' && <PhotosTab contributors={data?.contributors ?? []} photos={data?.photos ?? WALL.map((n) => ({ url: `/community/${n}.webp`, caption: null }))} />}
+
+      {/* Our reels, under every tab: follow the journey on Instagram too. */}
+      <InstagramReels where="community" className="mt-2 rounded-3xl border border-border bg-card p-4 md:p-5 [&>div:last-child]:mx-0 [&>div:last-child]:px-0 [&>div:last-child]:scroll-px-0" />
 
       {/* Not joined yet: one big button that follows you down the page on phones. */}
       {mounted && !member && (

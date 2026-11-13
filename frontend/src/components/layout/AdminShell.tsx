@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Store,
   Users,
+  Clapperboard,
   BarChart3,
   CalendarDays,
   MessageSquare,
@@ -77,6 +78,7 @@ const adminNavGroups: NavGroup[] = [
       { label: 'Drops', href: '/admin/drops', icon: Rocket },
       { label: 'Community', href: '/admin/community', icon: Users },
       { label: 'Community email', href: '/admin/community-email', icon: Megaphone },
+      { label: 'Instagram', href: '/admin/instagram', icon: Clapperboard },
     ],
   },
   {

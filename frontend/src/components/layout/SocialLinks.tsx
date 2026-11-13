@@ -10,7 +10,7 @@
  * Path data is Simple Icons' (CC0). LinkedIn is authored here because Simple
  * Icons dropped it over a trademark request.
  */
-const SOCIALS: { label: string; href: string; path: string }[] = [
+export const SOCIALS: { label: string; href: string; path: string }[] = [
   {
     label: 'Instagram',
     href: 'https://www.instagram.com/khelo.journey/',
@@ -73,3 +73,6 @@ export function SocialLinks({ className = '' }: { className?: string }) {
     </ul>
   );
 }
+
+/** Instagram's mark path (24x24), for places that show our Instagram on its own. */
+export const INSTAGRAM_PATH = SOCIALS[0].path;

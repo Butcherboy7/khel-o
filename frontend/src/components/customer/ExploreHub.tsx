@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Flame, Gamepad2, MapPin, MessageCircle, Monitor, Swords, Trophy, Users } from 'lucide-react';
 import { SearchBarWithSuggestions } from '@/components/customer/SearchBarWithSuggestions';
+import { InstagramReels } from '@/components/customer/InstagramReels';
 import { dropArt } from '@/components/customer/HomeTabs';
 import { listDrops } from '@/lib/api/drops';
 import { dropDestination } from '@/lib/drops';
@@ -233,6 +234,8 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
           </div>
         </section>
       )}
+
+      {!q && <InstagramReels where="explore" />}
 
       {!q && activities.length > 0 && (
         <section className="flex flex-col gap-3" aria-label="Browse by game">

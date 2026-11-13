@@ -27,6 +27,7 @@ from app.api.v1.owner_intros import router as owner_intros_router
 from app.api.v1.launch_list import public_router as launch_list_router, admin_router as admin_launch_list_router
 from app.api.v1.challenges import public_router as challenges_router, admin_router as admin_challenges_router
 from app.api.v1.community import router as community_router, admin_router as community_admin_router
+from app.api.v1.instagram import public_router as instagram_router, admin_router as instagram_admin_router
 from app.api.v1.drops import public_router as drops_public_router, owner_router as drops_owner_router, admin_router as drops_admin_router
 from app.api.v1.marketing_campaigns import public_router as campaign_links_router, admin_router as marketing_campaigns_router
 
@@ -63,6 +64,8 @@ api_router.include_router(challenges_router)
 api_router.include_router(admin_challenges_router)
 api_router.include_router(community_router)
 api_router.include_router(community_admin_router)
+api_router.include_router(instagram_router)
+api_router.include_router(instagram_admin_router)
 api_router.include_router(drops_public_router)
 api_router.include_router(drops_owner_router)
 api_router.include_router(drops_admin_router)
