@@ -1,5 +1,5 @@
 """Expected FPS on a PC setup: estimated from the GPU, owner numbers win, unknown GPUs get nothing."""
-from app.core.fps_estimate import expected_fps
+from app.core.fps_estimate import expected_fps, console_info
 from app.schemas.hardware_tier import HardwareTierResponse
 from datetime import datetime, timezone
 import uuid
@@ -30,9 +30,27 @@ def test_unknown_gpu_gets_no_estimate_but_owner_numbers_still_show():
     assert [(r["key"], r["estimated"]) for r in rows] == [("cs2", False)]
 
 
-def test_consoles_and_missing_specs_get_nothing():
-    assert expected_fps("playstation", {"console": "PS5"}, {}) == []
+def test_missing_specs_and_unknown_hardware_get_nothing():
     assert expected_fps("pc", None, None) == []
+    assert expected_fps("other", {}, {}, "Racing Simulator") == []
+    assert expected_fps("other", {}, {}, "VR (Meta Quest 3)") == []
+    assert console_info("other", {}, "Racing Simulator") is None
+
+
+def test_known_consoles_get_labelled_estimates_and_facts():
+    ps5 = {r["key"]: r for r in expected_fps("playstation", {}, {}, "PlayStation 5")}
+    assert ps5["fortnite"]["fps"] == 120 and ps5["fortnite"]["estimated"] is True
+    assert console_info("playstation", {}, "PlayStation 5")["label"] == "PS5"
+
+
+def test_pro_and_series_s_are_not_mistaken_for_their_cousins():
+    assert console_info("playstation", {}, "PS5 Pro")["label"] == "PS5 Pro"
+    assert console_info("xbox", {}, "Xbox Series S")["label"] == "Xbox Series S"
+    assert console_info("xbox", {}, "Xbox Series X")["label"] == "Xbox Series X"
+    assert console_info("nintendo", {}, "Nintendo Switch 2")["label"] == "Nintendo Switch 2"
+    assert console_info("nintendo", {}, "Nintendo Switch")["label"] == "Nintendo Switch"
+    # An Xbox we cannot place gets nothing rather than a guess.
+    assert console_info("xbox", {}, "Xbox") is None
 
 
 def test_response_serialises_expected_fps_camel_case():

@@ -37,6 +37,10 @@ export interface HardwareTier {
   /** Per-game FPS for PC setups, from the backend: the owner's own number when
    *  they set one (estimated: false), otherwise a rough estimate from the GPU. */
   expectedFps?: ExpectedFps[];
+  /** Photos of this setup, shown under "Photos by setup". */
+  photos?: string[];
+  /** Plain facts about a console we recognise (PS5, Xbox Series S...). */
+  consoleInfo?: ConsoleInfo | null;
   /** Co-op: friends share ONE unit for coopExtraPlayerPrice per extra player/hr. */
   coopEnabled?: boolean;
   coopMaxPlayers?: number;
@@ -119,6 +123,8 @@ export interface TierCreateRequest {
 }
 
 export interface TierUpdateRequest {
+  /** The setup's photo list (send the full list; [] clears). */
+  photos?: string[];
   /** Activity tiers: true = named units (Table 1, 2…), false = one pooled count. */
   individualUnits?: boolean;
   name?: string;
@@ -211,6 +217,15 @@ export interface TierConfig {
   maxBookingMinutes?: number | null;
   /** Owner-set 30-min co-op price for 2 players; null = derived. */
   coopPrice30m?: number | null;
+}
+
+export interface ConsoleInfo {
+  key: string;
+  label: string;
+  tflops: number | null;
+  resolution: string;
+  storage: string;
+  blurb: string;
 }
 
 export interface ExpectedFps {

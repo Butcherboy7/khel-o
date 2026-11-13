@@ -128,6 +128,44 @@ async def test_tier_update_clamps_fps_and_cabin_needs_pc(db_session):
     assert r.status_code == 422, r.text
 
 
+@pytest.mark.asyncio
+async def test_refresh_rate_can_be_a_custom_value_above_360(db_session):
+    cafe, tier, gamer = await _setup_cafe_and_gamer(db_session)
+    owner = await _owner(db_session, cafe)
+    url = f"/api/v1/cafes/{cafe.id}/tiers/{tier.id}"
+    r = await _call("PATCH", url, auth_headers(owner), json={"refreshRateHz": 480})
+    assert r.status_code == 200, r.text
+    await db_session.refresh(tier)
+    assert tier.refresh_rate_hz == 480
+    r = await _call("PATCH", url, auth_headers(owner), json={"refreshRateHz": 5000})
+    assert r.status_code == 422, r.text
+
+
+@pytest.mark.asyncio
+async def test_setup_photos_only_accept_this_cafes_own_uploads(db_session, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "AWS_S3_BUCKET", "bkt")
+    monkeypatch.setattr(settings, "AWS_REGION", "ap-south-1")
+    cafe, tier, gamer = await _setup_cafe_and_gamer(db_session)
+    owner = await _owner(db_session, cafe)
+    url = f"/api/v1/cafes/{cafe.id}/tiers/{tier.id}"
+    base = "https://bkt.s3.ap-south-1.amazonaws.com/"
+    mine = [f"{base}cafes/{cafe.id}/a.webp", f"{base}cafes/{cafe.id}/b.webp", f"{base}cafes/{cafe.id}/a.webp"]
+    r = await _call("PATCH", url, auth_headers(owner), json={"photos": mine})
+    assert r.status_code == 200, r.text
+    await db_session.refresh(tier)
+    assert tier.photos == mine[:2]  # a repeated photo is kept once
+    bad = [f"{base}cafes/00000000-0000-0000-0000-000000000000/x.webp"]
+    r = await _call("PATCH", url, auth_headers(owner), json={"photos": bad})
+    assert r.status_code == 422, r.text
+    r = await _call("PATCH", url, auth_headers(owner), json={"photos": ["https://evil.example/x.png"]})
+    assert r.status_code == 422, r.text
+    r = await _call("PATCH", url, auth_headers(owner), json={"photos": []})
+    assert r.status_code == 200, r.text
+    await db_session.refresh(tier)
+    assert tier.photos == []
+
+
 def test_onboarding_extras_pass_cabin_and_speed_through():
     from app.api.v1.owner import OnboardingHardwareTierItem, _onboarding_extras
     from app.models.hardware_tier import PlatformType

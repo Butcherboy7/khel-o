@@ -21,6 +21,7 @@ import { useTaxonomy, missingRequiredAttrs } from '@/lib/taxonomy';
 import { PlatformTierConfigurator } from '@/components/owner/PlatformTierConfigurator';
 import { ActivityUnitsManager } from '@/components/owner/ActivityUnitsManager';
 import { BrokenMachines } from '@/components/owner/BrokenMachines';
+import { SetupPhotos } from '@/components/owner/SetupPhotos';
 import { PLATFORM_MODELS } from '@/constants/platforms';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { bookingOptionsFrom, bookingOptionsPayload, fmtDuration } from '@/components/owner/SetupBookingOptions';
@@ -32,6 +33,7 @@ export default function HardwareTiersPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<HardwareTier | null>(null);
+  const [photosTierId, setPhotosTierId] = useState<string | null>(null);
   const [expandedUnitsTierId, setExpandedUnitsTierId] = useState<string | null>(null);
 
   // Lightweight, dependency-free success feedback for create/update — the
@@ -508,6 +510,21 @@ export default function HardwareTiersPage() {
                       )}
                     </div>
                   </div>
+
+                  {tier.isActive && (
+                    <div className="border-t border-border pt-3">
+                      <button
+                        type="button"
+                        data-tour={i === 0 ? 'tier-photos-open' : undefined}
+                        onClick={() => setPhotosTierId(photosTierId === tier.id ? null : tier.id)}
+                        className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-text-primary"
+                      >
+                        {photosTierId === tier.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        <span>Photos of this setup{(tier.photos?.length ?? 0) > 0 ? ` (${tier.photos!.length})` : ''}</span>
+                      </button>
+                      {photosTierId === tier.id && <SetupPhotos cafeId={tier.cafeId} tierId={tier.id} photos={tier.photos ?? []} />}
+                    </div>
+                  )}
 
                   {tier.tierType !== 'activity' && tier.isActive && (
                     <div className="border-t border-border pt-3">

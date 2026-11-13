@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
 from app.models.hardware_tier import PlatformType, TierType
-from app.core.fps_estimate import expected_fps as _expected_fps
+from app.core.fps_estimate import expected_fps as _expected_fps, console_info as _console_info
 from app.core.duration import allowed_minutes as _allowed_minutes, MAX_BOOKING_CHOICES, PACKAGE_LENGTHS
 
 
@@ -58,7 +58,7 @@ class HardwareTierBase(BaseModel):
     coop_max_players: int = Field(2, ge=2, le=8)
     coop_extra_player_price: float = Field(0.0, ge=0.0)
     is_room: bool = False
-    refresh_rate_hz: Optional[int] = Field(None, ge=24, le=540)
+    refresh_rate_hz: Optional[int] = Field(None, ge=24, le=1000)
     fps_overrides: Dict[str, int] = Field(default_factory=dict)
     # Only 15/30/60 are valid "shortest booking" values now — above 1 hour,
     # every setup allows 30-minute steps regardless of this field.
@@ -144,8 +144,10 @@ class HardwareTierUpdate(BaseModel):
     coop_extra_player_price: Optional[float] = Field(None, ge=0.0)
     is_room: Optional[bool] = None
     # Send null to clear the refresh rate; leave out to keep it.
-    refresh_rate_hz: Optional[int] = Field(None, ge=24, le=540)
+    refresh_rate_hz: Optional[int] = Field(None, ge=24, le=1000)
     fps_overrides: Optional[Dict[str, int]] = None
+    # Send [] to clear; at most 8 photos of this setup. Checked against the café in the service.
+    photos: Optional[List[str]] = Field(None, max_length=8)
     min_booking_minutes: Optional[int] = Field(None, ge=15, le=60)
     default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
     price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
@@ -218,6 +220,7 @@ class HardwareTierResponse(HardwareTierBase):
     # "pooled" for any path that doesn't set it (e.g. non-admin responses that
     # don't need it).
     tracking_mode: str = "pooled"
+    photos: List[str] = Field(default_factory=list)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -227,7 +230,16 @@ class HardwareTierResponse(HardwareTierBase):
         platform = self.platform.value if self.platform is not None else None
         if self.tier_type != TierType.GAMING:
             return []
-        return _expected_fps(platform, self.specs, self.fps_overrides)
+        return _expected_fps(platform, self.specs, self.fps_overrides, self.name, self.model)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def console_info(self) -> Optional[Dict[str, Any]]:
+        """What this console is, in plain facts, when we recognise it."""
+        if self.tier_type != TierType.GAMING:
+            return None
+        platform = self.platform.value if self.platform is not None else None
+        return _console_info(platform, self.specs, self.name, self.model)
 
     model_config = ConfigDict(
         from_attributes=True,

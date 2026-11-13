@@ -337,6 +337,19 @@ class HardwareTierService:
             update_dict["fps_overrides"] = {
                 k: int(v) for k, v in update_dict["fps_overrides"].items() if 1 <= int(v) <= 1000
             }
+        removed_photo_urls: list = []
+        if update_dict.get("photos") is not None:
+            from app.services.storage_service import key_from_url
+            seen: list = []
+            for url in update_dict["photos"]:
+                key = key_from_url(url) if isinstance(url, str) else None
+                # Only this café's own uploads: nobody can point a setup at someone else's file.
+                if not key or not key.startswith(f"cafes/{tier.cafe_id}/"):
+                    raise ValidationException(message="That photo doesn't belong to your café.", error_code="TIER_PHOTO_NOT_YOURS")
+                if url not in seen:
+                    seen.append(url)
+            update_dict["photos"] = seen
+            removed_photo_urls = [u for u in (tier.photos or []) if u not in seen]
         eff_room = update_dict.get("is_room", tier.is_room)
         if eff_room:
             eff_plat = update_data.platform if update_data.platform is not None else tier.platform
@@ -370,6 +383,16 @@ class HardwareTierService:
                 setattr(tier, field, None)
         individual_units = update_dict.pop("individual_units", None)
         updated = await self.tier_repo.update(tier_id, update_dict)
+
+        if removed_photo_urls:
+            from app.services.storage_service import key_from_url, delete_object
+            for url in removed_photo_urls:
+                key = key_from_url(url)
+                if key:
+                    try:
+                        delete_object(key)
+                    except Exception:  # the setup is already saved; a failed cleanup must not fail it
+                        pass
 
         if updated.tier_type == TierType.ACTIVITY and self.unit_repo:
             label = updated.activity_kind or updated.name or "Unit"

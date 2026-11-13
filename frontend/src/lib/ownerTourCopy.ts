@@ -167,12 +167,17 @@ export const TOUR_LESSONS: TourLesson[] = [
       {
         kind: 'look', page: '/owner/tiers', target: 'tier-hz', afterTap: true, onlyIfVisible: true,
         title: 'Screen speed and FPS',
-        body: 'Tap your screen’s refresh rate, like 144 Hz. Under it you can type the FPS your PCs really get in popular games. Numbers we work out are marked “estimated” on your café page. Yours show without that word.',
+        body: 'Tap your screen’s refresh rate, like 144 Hz, or tap Other and type your own, like 480. Under it you can type the FPS your PCs really get in popular games. Numbers we work out are marked “estimated” on your café page. Yours show without that word.',
       },
       {
         kind: 'tap', page: '/owner/tiers', target: 'tier-cancel', afterTap: true,
         title: 'Close without saving',
         body: 'This was practice. Tap Cancel and nothing changes.',
+      },
+      {
+        kind: 'look', page: '/owner/tiers', target: 'tier-photos-open', onlyIfVisible: true,
+        title: 'Add photos of each setup',
+        body: 'Tap “Photos of this setup” and add pictures of your PS5s, PCs or VR corner. Players see them under “Photos by setup” on your café page, so they know what they will play on.',
       },
       {
         kind: 'look', page: '/owner/tiers', target: 'tier-broken', onlyIfVisible: true,

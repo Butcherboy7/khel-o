@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Armchair, Monitor } from 'lucide-react';
 import { NumericField } from '@/components/ui';
 import { InfoTip } from '@/components/shared/InfoTip';
@@ -16,6 +17,9 @@ export const FPS_GAMES = [
 ] as const;
 
 const HZ_CHOICES = [60, 75, 120, 144, 165, 180, 240, 360];
+/** Monitors go past 360 Hz now (400, 480, 500), so owners can type any rate. */
+export const HZ_MIN = 24;
+export const HZ_MAX = 1000;
 
 /** Cabin defaults an owner can change straight away. */
 const DEFAULT_CABIN_FEE = 300;
@@ -138,6 +142,9 @@ export function PcChargeChoice({ config, onChange }: { config: TierConfig; onCha
 /** Refresh rate first, then optional FPS: what esports players check before booking. */
 export function PcSpeedFields({ config, onChange }: { config: TierConfig; onChange: (patch: Partial<TierConfig>) => void }) {
   const hz = config.refreshRateHz ?? null;
+  const isCustomValue = hz != null && !HZ_CHOICES.includes(hz);
+  const [otherOpen, setOtherOpen] = useState(false);
+  const showOther = otherOpen || isCustomValue;
   const overrides = config.fpsOverrides ?? {};
   const estimates = new Map((config.expectedFps ?? []).filter((g) => g.estimated).map((g) => [g.key, g.fps]));
   const setFps = (key: string, raw: string) => {
@@ -174,7 +181,41 @@ export function PcSpeedFields({ config, onChange }: { config: TierConfig; onChan
               {n} Hz
             </button>
           ))}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={showOther}
+            onClick={() => {
+              if (showOther) { setOtherOpen(false); if (isCustomValue) onChange({ refreshRateHz: null }); }
+              else setOtherOpen(true);
+            }}
+            className={cn(
+              'h-9 rounded-full border px-3.5 text-caption font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+              showOther ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-text-secondary hover:border-primary/60',
+            )}
+          >
+            Other
+          </button>
         </div>
+        {showOther && (
+          <label className="mt-2 flex items-center gap-2 text-caption font-semibold text-text-secondary">
+            Type your monitor&rsquo;s rate
+            <input
+              type="text"
+              inputMode="numeric"
+              aria-label="Custom refresh rate in Hz"
+              placeholder="e.g. 480"
+              value={isCustomValue ? String(hz) : ''}
+              onChange={(e) => {
+                const d = e.target.value.replace(/[^\d]/g, '').replace(/^0+/, '').slice(0, 4);
+                onChange({ refreshRateHz: d === '' ? null : Math.min(HZ_MAX, Number(d)) });
+              }}
+              onBlur={() => { if (hz != null && hz < HZ_MIN) onChange({ refreshRateHz: HZ_MIN }); }}
+              className="h-9 w-24 rounded-lg border border-border bg-card px-2 text-right font-data text-body focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+            <span>Hz</span>
+          </label>
+        )}
         <p className="mt-1 text-caption text-text-secondary">Not sure? Leave it empty. Tap again to clear.</p>
       </div>
 

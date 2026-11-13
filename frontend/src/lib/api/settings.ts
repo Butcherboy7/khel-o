@@ -172,6 +172,17 @@ export async function uploadCafePhoto(
   return publicUrl;
 }
 
+// POST /api/v1/owner/cafes/{cafeId}/setup-photos/presign, then a direct upload.
+// The photo is attached to a setup by saving the setup's photo list (updateTier).
+export async function uploadSetupPhoto(cafeId: string, file: File, onProgress?: (percent: number) => void): Promise<string> {
+  const photo = await toWebp(file);
+  const { uploadUrl, publicUrl } = await call<{ uploadUrl: string; publicUrl: string }>(() =>
+    apiClient.post(`/api/v1/owner/cafes/${cafeId}/setup-photos/presign`, { contentType: photo.type })
+  );
+  await putToPresignedUrl(uploadUrl, photo, onProgress);
+  return publicUrl;
+}
+
 // DELETE /api/v1/owner/cafes/{cafeId}/photos
 export async function deleteCafePhoto(cafeId: string, url: string): Promise<{ photos: CafePhoto[] }> {
   return call(() =>

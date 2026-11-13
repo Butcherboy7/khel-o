@@ -86,6 +86,8 @@ class HardwareTier(Base):
     # Owner-typed FPS per game, {"valorant": 240}. A game missing here shows
     # an ESTIMATE from the GPU table (app/core/fps_estimate.py), never a made-up number.
     fps_overrides: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default='{}', nullable=False)
+    # Photo URLs for this setup (the café's own uploads), shown under "Photos by setup".
+    photos: Mapped[list[Any]] = mapped_column(JSON, default=list, server_default='[]', nullable=False)
     # Shortest bookable session for this setup (VR: 15, most consoles: 60)
     # and the length checkout starts on; null = checkout's own default.
     min_booking_minutes: Mapped[int] = mapped_column(Integer, default=60, server_default='60', nullable=False)

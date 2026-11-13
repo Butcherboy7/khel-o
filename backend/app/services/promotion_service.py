@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from decimal import Decimal
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.repositories.promotion_repository import PromotionRepository
@@ -546,13 +546,33 @@ class PromotionService:
         # The offer that gives that "from" price, so the chip beside it names
         # the same deal ("20% off" next to the 20%-off price, never "25% off").
         from_promo: dict = {}
+        # An offer that covers every setup ("10% off everything") lowers the
+        # café's cheapest setup, so it counts for the "from" price too.
+        cheapest: dict = {}
+        tierless_cafes = {p.cafe_id for p in promos if p.applicable_tier_id is None}
+        if tierless_cafes:
+            from app.models.hardware_tier import HardwareTier
+            rows = await self.promo_repo.db.execute(
+                select(HardwareTier.cafe_id, func.min(HardwareTier.price_per_hour))
+                .where(HardwareTier.cafe_id.in_(tierless_cafes), HardwareTier.is_active == True)  # noqa: E712
+                .group_by(HardwareTier.cafe_id)
+            )
+            cheapest = {cid: float(v) for cid, v in rows.all() if v is not None}
         for p in promos:
+            if (getattr(p, "play_mode", None) or "any") == "coop":
+                continue
             tier = tiers.get(p.applicable_tier_id)
-            if tier is None or (getattr(p, "play_mode", None) or "any") == "coop":
+            if tier is None and (
+                p.promotion_type not in (PromotionType.PERCENTAGE, PromotionType.FIXED_AMOUNT) or p.campaign_id is not None
+            ):
+                # Whole-café deals count only when they are a plain % or amount off;
+                # link-only campaign offers and rewards never change the public price.
+                continue
+            regular = float(tier.price_per_hour) if tier is not None else cheapest.get(p.cafe_id)
+            if regular is None:
                 continue
             if not self._is_promotion_active(p, now):
                 continue
-            regular = float(tier.price_per_hour)
             if p.promotion_type == PromotionType.PERCENTAGE:
                 price = regular * (1 - float(p.discount_percentage or 0) / 100)
             elif p.promotion_type == PromotionType.FIXED_AMOUNT:

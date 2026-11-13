@@ -52,6 +52,8 @@ import { ShareModal } from '@/components/customer/ShareModal';
 import { createShare } from '@/lib/share';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
+import { SetupPhotosSection } from '@/components/customer/SetupPhotosSection';
+import { PcCompare, ConsoleCompare } from '@/components/customer/TierCompare';
 import { OfferChip, OfferLine } from '@/components/customer/OfferChip';
 import { useCampaign } from '@/hooks/useCampaign';
 import { optimizedImg, fallBackToOriginal } from '@/lib/imageUrl';
@@ -98,7 +100,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
 
   const campaign = useCampaign(initialCafe?.id);
   const promoSuffix = campaign.code ? `&promoCode=${encodeURIComponent(campaign.code)}` : '';
-  const [showAllTierSpecs, setShowAllTierSpecs] = useState(false);
+  const [photoTierId, setPhotoTierId] = useState<string | null>(null);
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [isShareOpen, setIsShareOpen] = useState(false);
@@ -340,7 +342,6 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
   // RAM/Monitor rows in the comparison table are PC-only specs — showing
   // that table for a console-only café (e.g. PS5-only) is just dashes,
   // so only offer it when at least one tier actually has PC specs.
-  const hasPcTier = gamingTiers.some((t) => Boolean(t.specs?.gpu));
   // Picking the tier here (instead of only on the booking page) removes an
   // entire duplicate step — the booking page shows the exact same tier
   // cards, so a user reads specs once here rather than twice. Defaults to
@@ -693,7 +694,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                       {/* What to expect in the games people actually play. A number the
                           owner measured shows plain; one we worked out from the GPU is
                           marked with ~ and explained under the list. */}
-                      {isPc && (tier.expectedFps?.length ?? 0) > 0 && (
+                      {(tier.expectedFps?.length ?? 0) > 0 && (
                         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-text-secondary">
                           {tier.expectedFps!.slice(0, 3).map((g) => (
                             <span key={g.key} className="whitespace-nowrap">
@@ -729,6 +730,19 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                           live={promoLive}
                           urgency={offerUrgency({ slotsRemaining: promo.slotsRemaining, validUntil: promo.validUntil })}
                         />
+                      )}
+                      {(tier.photos?.length ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhotoTierId(tier.id);
+                            document.getElementById('setup-photos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }}
+                          className="relative z-10 mt-1 inline-flex min-h-[28px] items-center gap-1 text-caption font-semibold text-primary-dark hover:underline"
+                        >
+                          <Images className="h-3.5 w-3.5" aria-hidden />
+                          See {tier.photos!.length} {tier.photos!.length === 1 ? 'photo' : 'photos'}
+                        </button>
                       )}
                       {/* Co-op on every co-op setup, so PS4 and PS5 read the same. */}
                       {tier.coopEnabled && tier.isRoom && (
@@ -792,51 +806,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
               </p>
             )}
 
-            {hasPcTier && gamingTiers.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setShowAllTierSpecs((v) => !v)}
-                className="self-start flex items-center gap-1.5 text-caption font-semibold text-primary-dark hover:underline"
-              >
-                {showAllTierSpecs ? 'Hide tier comparison' : 'Compare all tiers'}
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showAllTierSpecs ? 'rotate-180' : ''}`} />
-              </button>
-            )}
-
-            {hasPcTier && showAllTierSpecs && gamingTiers.length > 1 && (
-              <div className="overflow-x-auto rounded-2xl border border-border/80">
-                <table className="w-full text-caption">
-                  <thead>
-                    <tr className="bg-surface">
-                      <th className="p-3 text-left font-semibold text-text-secondary">Spec</th>
-                      {gamingTiers.map((tier) => (
-                        <th key={tier.id} className="p-3 text-left font-heading font-bold text-text-primary whitespace-nowrap">
-                          {tier.name}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { label: 'Hardware', get: (t: (typeof gamingTiers)[number]) => t.specs?.gpu || t.specs?.console || t.specs?.other || t.model || '—' },
-                      { label: 'RAM', get: (t: (typeof gamingTiers)[number]) => t.specs?.ram || '—' },
-                      { label: 'Monitor', get: (t: (typeof gamingTiers)[number]) => t.specs?.monitor || '—' },
-                      { label: 'Stations', get: (t: (typeof gamingTiers)[number]) => (t.totalSeats > 0 ? String(t.totalSeats) : '—') },
-                      { label: 'Price', get: (t: (typeof gamingTiers)[number]) => `₹${shownPrice(t.pricePerHour)}/hr${isLead ? ' (approx)' : ''}` },
-                    ].map((row) => (
-                      <tr key={row.label} className="border-t border-border/60">
-                        <td className="p-3 font-semibold text-text-secondary">{row.label}</td>
-                        {gamingTiers.map((tier) => (
-                          <td key={tier.id} className="p-3 text-text-primary whitespace-nowrap">
-                            {row.get(tier)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <PcCompare tiers={gamingTiers} price={(t) => `₹${shownPrice(t.pricePerHour)}/hr${isLead ? ' (approx)' : ''}`} />
+            <ConsoleCompare tiers={gamingTiers} />
           </>
       </section>
       )}
@@ -890,7 +861,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
       )}
 
       {/* Games */}
-      {!(isLead && !(cafe.supportedGames && Object.values(cafe.supportedGames).some((g) => g.length > 0))) && (
+      {gamingTiers.length > 0 && Boolean(cafe.supportedGames && Object.values(cafe.supportedGames).some((g) => g.length > 0)) && (
       <section className="flex flex-col gap-4">
         <h2 className="font-heading text-h2 text-text-primary">Games available</h2>
         {cafe.supportedGames && Object.keys(cafe.supportedGames).length > 0 ? (
@@ -980,6 +951,9 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           </div>
         </section>
       )}
+
+      {/* Photos by setup: what each kind of machine looks like, one tab per setup. */}
+      <SetupPhotosSection tiers={cafe.tiers ?? []} selectedTierId={photoTierId} onOpen={openLightbox} />
 
       {/* Opening Hours & Interactive Google Map Row */}
       <section className={`grid grid-cols-1 gap-4 ${isLead && !hoursKnown ? '' : 'md:grid-cols-2'}`}>

@@ -136,7 +136,7 @@ class OnboardingHardwareTierItem(BaseModel):
     coop_enabled: bool = Field(False, validation_alias=AliasChoices("coopEnabled", "coop_enabled"))
     coop_max_players: Optional[int] = Field(None, ge=2, le=8, validation_alias=AliasChoices("coopMaxPlayers", "coop_max_players"))
     coop_extra_player_price: Optional[float] = Field(None, ge=0, validation_alias=AliasChoices("coopExtraPlayerPrice", "coop_extra_player_price"))
-    refresh_rate_hz: Optional[int] = Field(None, ge=24, le=540, validation_alias=AliasChoices("refreshRateHz", "refresh_rate_hz"))
+    refresh_rate_hz: Optional[int] = Field(None, ge=24, le=1000, validation_alias=AliasChoices("refreshRateHz", "refresh_rate_hz"))
     fps_overrides: Optional[Dict[str, int]] = Field(None, validation_alias=AliasChoices("fpsOverrides", "fps_overrides"))
 
     model_config = ConfigDict(populate_by_name=True)
@@ -2721,6 +2721,20 @@ async def presign_cafe_photo_upload(
         "success": True,
         "data": result
     }
+
+
+@router.post("/cafes/{cafe_id}/setup-photos/presign", status_code=status.HTTP_200_OK)
+async def presign_setup_photo_upload(
+    cafe_id: UUID,
+    payload: PhotoPresignRequest,
+    cafe: Cafe = Depends(require_cafe_ownership),
+):
+    """Presigned upload for a photo of one setup (PS5, PC, VR...). Kept apart from
+    the café gallery so a full gallery never stops an owner adding setup photos.
+    The photo is attached to the setup when the owner saves it (tier update)."""
+    from app.services.storage_service import create_presigned_upload
+
+    return {"success": True, "data": create_presigned_upload(cafe.id, payload.content_type)}
 
 
 @router.delete("/cafes/{cafe_id}/photos", status_code=status.HTTP_200_OK)
