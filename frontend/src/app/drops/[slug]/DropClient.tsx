@@ -19,7 +19,7 @@ import {
   type DropBlock,
   type DropReservation,
 } from '@/lib/api/drops';
-import { blockEnd, blockStart, blockTimes, clock, dayLabel, gameKey, rupees, whenText } from '@/lib/drops';
+import { atMinutes, blockEnd, blockStart, blockTimes, clock, dayLabel, gameKey, rupees, whenText, wireTime } from '@/lib/drops';
 import { calculateWindowRemainingSeats, timeToMinutes } from '@/lib/format';
 import { CommunityButton, CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 import { CustomerShell } from '@/components/layout/CustomerShell';
@@ -146,7 +146,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   // Flexible: free seats for the exact window picked, counted the same way the booking slider does.
   const windowFree = useMemo(() => {
     if (!block || !startTime) return 0;
-    const s = timeToMinutes(startTime);
+    const s = inBlock(startTime, block);
     return calculateWindowRemainingSeats(block.seatsTotal, booked, s, s + Math.round(hours * 60));
   }, [block, booked, startTime, hours]);
   const sessionLeft = (b: DropBlock) =>
@@ -165,7 +165,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     setError(null);
     // Pre-pick the best open slot so one tap reserves: an evening 2-hour slot if there is one.
     const ok = (m: number, len: number) =>
-      m + len <= timeToMinutes(b.endTime) && b.seatsTotal - peakIn(b, m, m + len) >= 1 && new Date(`${b.date}T${hhmm(m)}:00+05:30`).getTime() > Date.now();
+      m + len <= timeToMinutes(b.endTime) && b.seatsTotal - peakIn(b, m, m + len) >= 1 && atMinutes(b.date, m).getTime() > Date.now();
     const slots = b.bookedSlots ? hourRange(b) : [];
     const evening = slots.find((m) => m >= 18 * 60 && ok(m, 120));
     const any2 = slots.find((m) => ok(m, 120));
@@ -229,7 +229,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const pending = drop.myReservations.find((r) => r.status === 'pending_payment' && r.expiresAt && new Date(r.expiresAt) > new Date());
   const firstBlock = paid[0]?.block ?? block ?? drop.blocks.find((b) => !b.started) ?? drop.blocks[0];
   const art = drop.coverImageUrl || (/gta/i.test(drop.game) ? GTA_ART : null);
-  const endLabel = startTime ? hhmm(timeToMinutes(startTime) + Math.round(hours * 60)) : '';
+  const endLabel = startTime && block ? hhmm(inBlock(startTime, block) + Math.round(hours * 60)) : '';
 
   const pay = (reservation: DropReservation, order: { orderId: string; amount: number; currency: string; keyId?: string }) => {
     displayRazorpay({
@@ -304,7 +304,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         blockId: block.id,
         seats: seatCount,
         code: code.trim() || undefined,
-        startTime: flex ? startTime ?? undefined : undefined,
+        startTime: flex && startTime ? wireTime(startTime) : undefined,
         hours: flex ? hours : undefined,
         phone: drop.needsPhone ? phone : undefined,
       });
@@ -446,7 +446,11 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         <section ref={daysRef} className="scroll-mt-20">
           <h2 className="font-heading text-h2 font-semibold text-text-primary">{canReserve ? 'Pick a day' : 'Days'}</h2>
           {flex && drop.blocks[0] && (
-            <p className="text-caption text-text-secondary">Open {clock(drop.blocks[0].startTime)} – {clock(drop.blocks[0].endTime)}, every day</p>
+            <p className="text-caption text-text-secondary">
+              {drop.blocks[0].hours >= 24
+                ? 'Open all 24 hours, every day. Book any time, day or night.'
+                : `Open ${clock(drop.blocks[0].startTime)} – ${clock(drop.blocks[0].endTime)}${timeToMinutes(drop.blocks[0].endTime) > 1440 ? ' (next morning)' : ''}, every day`}
+            </p>
           )}
           <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="radiogroup" aria-label="Days">
             {drop.blocks.map((b) => {
@@ -492,7 +496,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             startTime={startTime}
             durationHours={hours}
             onChange={(s, h) => {
-              setStartTime(s.slice(0, 5));
+              setStartTime(hhmm(inBlock(s.slice(0, 5), block)));
               setHours(h);
               setError(null);
             }}
@@ -744,6 +748,13 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
       />
     </CustomerShell>
   );
+}
+
+// A clock time inside a session, as minutes from the session day's midnight: 02:00 in a
+// 6 PM to 4 AM session is 26:00 (1560). Times already in that form pass through.
+function inBlock(t: string, b: DropBlock): number {
+  const m = timeToMinutes(t);
+  return m < timeToMinutes(b.startTime) ? m + 1440 : m;
 }
 
 // 30-minute slots of a session, as minutes from midnight.

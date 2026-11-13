@@ -31,6 +31,16 @@ export function formatTime(timeStr: string): string {
   return `${h}:${minutes} ${period}`;
 }
 
+/** Open all day and night: opening and closing at the same time (00:00 to 00:00). */
+export function isOpen24h(openingTime?: string | null, closingTime?: string | null): boolean {
+  return Boolean(openingTime && closingTime && openingTime.slice(0, 5) === closingTime.slice(0, 5));
+}
+
+/** "10:00 AM–11:00 PM", or "Open 24 hours" for a 24/7 café. */
+export function hoursText(openingTime: string, closingTime: string, sep = '–'): string {
+  return isOpen24h(openingTime, closingTime) ? 'Open 24 hours' : `${formatTime(openingTime)}${sep}${formatTime(closingTime)}`;
+}
+
 /** Format duration hours to readable string: 1.5 → "1h 30m", 2 → "2h" */
 export function formatDuration(hours: number): string {
   const h = Math.floor(hours);

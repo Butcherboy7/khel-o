@@ -69,8 +69,8 @@ def money(value) -> Decimal:
 
 
 def block_hours(block: DropBlock) -> Decimal:
-    minutes = (block.end_time.hour * 60 + block.end_time.minute) - (block.start_time.hour * 60 + block.start_time.minute)
-    return (Decimal(minutes) / Decimal(60)).quantize(Decimal("0.01"))
+    s, e = span(block.start_time, block.end_time)
+    return (Decimal(e - s) / Decimal(60)).quantize(Decimal("0.01"))
 
 
 def block_price_per_seat(drop: Drop, block: DropBlock) -> Decimal:
@@ -205,17 +205,55 @@ def _mins(t) -> int:
     return t.hour * 60 + t.minute
 
 
+DAY_MIN = 24 * 60
+
+
+def span(start: time, end: time) -> tuple[int, int]:
+    """Minutes from the session day's midnight. An end at or before the start is the next
+    day, so 18:00-04:00 runs overnight and 00:00-00:00 (or 10:00-10:00) is a full 24 hours."""
+    s, e = _mins(start), _mins(end)
+    if e <= s:
+        e += DAY_MIN
+    return s, e
+
+
+def block_span(block: DropBlock) -> tuple[int, int]:
+    return span(block.start_time, block.end_time)
+
+
+def at_in_block(t: time, block: DropBlock) -> int:
+    """A clock time inside a session, as minutes from the session day's midnight:
+    01:00 in an 18:00-04:00 session is 25:00 (1500)."""
+    m, bs = _mins(t), _mins(block.start_time)
+    return m + DAY_MIN if m < bs else m
+
+
 def res_window(res_or_none, block: DropBlock) -> tuple[int, int]:
-    """Minutes-from-midnight window a reservation occupies (whole session if not flexible)."""
+    """Window a reservation occupies, in minutes from the session day's midnight
+    (can run past 1440 overnight). The whole session if not flexible."""
     if res_or_none is not None and res_or_none.start_time is not None:
-        return _mins(res_or_none.start_time), _mins(res_or_none.end_time)
-    return _mins(block.start_time), _mins(block.end_time)
+        s = at_in_block(res_or_none.start_time, block)
+        length = (_mins(res_or_none.end_time) - _mins(res_or_none.start_time)) % DAY_MIN or DAY_MIN
+        return s, s + length
+    return block_span(block)
+
+
+def clock_of(m: int) -> time:
+    m %= DAY_MIN
+    return time(m // 60, m % 60)
+
+
+def hhmm(m: int) -> str:
+    """Minutes past the session day's midnight as "HH:MM"; past midnight it reads 25:00,
+    the form the booking slider understands."""
+    return f"{m // 60:02d}:{m % 60:02d}"
 
 
 def _peak(windows: list[tuple[int, int, int]], block: DropBlock) -> int:
     """Most seats in use at any one hour of the session. windows = (start, end, seats)."""
     peak = 0
-    for h in range(_mins(block.start_time), _mins(block.end_time), STEP):
+    bs, be = block_span(block)
+    for h in range(bs, be, STEP):
         used = sum(n for s, e, n in windows if s < h + STEP and e > h)
         peak = max(peak, used)
     return peak
@@ -245,7 +283,11 @@ async def _take(db: AsyncSession, block_id: UUID, seats: int, start: Optional[ti
     if block is None:
         return False
     windows = await _holding_windows(db, block)
-    s, e = (_mins(start), _mins(end)) if start is not None else (_mins(block.start_time), _mins(block.end_time))
+    if start is not None:
+        s = at_in_block(start, block)
+        e = s + ((_mins(end) - _mins(start)) % DAY_MIN or DAY_MIN)
+    else:
+        s, e = block_span(block)
     peak = _peak(windows + [(s, e, seats)], block)
     if peak > block.seats_total:
         return False
@@ -265,9 +307,10 @@ async def _give_back(db: AsyncSession, block_id: UUID, seats: int = 0) -> None:
 def seats_free(windows: list[tuple[int, int, int]], block: DropBlock) -> dict[str, int]:
     """Free seats for each hour of a session, keyed 'HH:MM'."""
     out = {}
-    for h in range(_mins(block.start_time), _mins(block.end_time), STEP):
+    bs, be = block_span(block)
+    for h in range(bs, be, STEP):
         used = sum(n for s, e, n in windows if s < h + STEP and e > h)
-        out[f"{h // 60:02d}:{h % 60:02d}"] = max(0, block.seats_total - used)
+        out[hhmm(h)] = max(0, block.seats_total - used)
     return out
 
 
@@ -281,7 +324,7 @@ def fee_per_seat(drop: Drop, hours: float) -> Decimal:
 
 def booked_windows(windows: list[tuple[int, int, int]]) -> list[dict]:
     """The shape the booking slider already understands (who is not shown)."""
-    return [{"startTime": f"{s // 60:02d}:{s % 60:02d}", "endTime": f"{e // 60:02d}:{e % 60:02d}", "seatsCount": n} for s, e, n in windows]
+    return [{"startTime": hhmm(s), "endTime": hhmm(e), "seatsCount": n} for s, e, n in windows]
 
 
 async def user_seats(db: AsyncSession, drop_id: UUID, user_id: UUID, block_id: Optional[UUID] = None) -> int:
@@ -405,13 +448,14 @@ async def reserve(
         length = round(hours * 60)
         if length < 60 or length > drop.max_hours * 60 or length % STEP:
             raise DropError(f"You can play 1 to {drop.max_hours} hours.", "BAD_HOURS")
-        offset = _mins(start) - _mins(block.start_time)
-        end_min = _mins(start) + length
-        if offset < 0 or offset % STEP or end_min > _mins(block.end_time):
+        bs, be = block_span(block)
+        begin = at_in_block(start, block)
+        end_min = begin + length
+        if (begin - bs) % STEP or end_min > be:
             raise DropError("That time does not fit inside this session.", "BAD_HOURS")
         r_start = start
-        r_end = time(end_min // 60, end_min % 60) if end_min < 1440 else time(23, 59)
-        if datetime.combine(block.session_date, r_start).replace(tzinfo=IST) <= now_utc():
+        r_end = clock_of(end_min)
+        if datetime.combine(block.session_date, time(0, 0)).replace(tzinfo=IST) + timedelta(minutes=begin) <= now_utc():
             raise DropError("That hour has already started.", "BLOCK_STARTED")
 
     if not await _take(db, block.id, seats, r_start, r_end):
@@ -483,12 +527,13 @@ async def book_offline(
         length = round(hours * 60)
         if length < 60 or length > drop.max_hours * 60 or length % STEP:
             raise DropError(f"Choose 1 to {drop.max_hours} hours.", "BAD_HOURS")
-        offset = _mins(start) - _mins(block.start_time)
-        end_min = _mins(start) + length
-        if offset < 0 or offset % STEP or end_min > _mins(block.end_time):
+        bs, be = block_span(block)
+        begin = at_in_block(start, block)
+        end_min = begin + length
+        if (begin - bs) % STEP or end_min > be:
             raise DropError("That time does not fit inside this session.", "BAD_HOURS")
         r_start = start
-        r_end = time(end_min // 60, end_min % 60) if end_min < 1440 else time(23, 59)
+        r_end = clock_of(end_min)
     if not await _take(db, block.id, seats, r_start, r_end):
         await db.rollback()
         raise DropError("Not enough seats are free at that time. Pick another time or fewer seats.", "SOLD_OUT")
@@ -626,9 +671,18 @@ async def can_manage(db: AsyncSession, user: User, cafe_id: UUID) -> bool:
 
 
 async def dedicated_windows(db: AsyncSession, tier_id: UUID, day) -> list[tuple[int, int, int, str]]:
-    """Seats of a rig kept for a live drop on this day: (start_min, end_min, seats, title).
-    Normal booking sees these seats as taken during the drop's daily hours."""
-    return [(_mins(d.daily_start_time), _mins(d.daily_end_time), d.daily_seats or 0, d.title) for d in await dedicated_drops(db, tier_id, day)]
+    """Seats of a rig kept for a live drop on this calendar day: (start_min, end_min, seats, title),
+    end_min at most 1440. Normal booking sees these seats as taken during the drop's hours.
+    An overnight drop's hours after midnight belong to the day before, so they are added here too."""
+    out = []
+    for d in await dedicated_drops(db, tier_id, day):
+        s, e = span(d.daily_start_time, d.daily_end_time)
+        out.append((s, min(e, DAY_MIN), d.daily_seats or 0, d.title))
+    for d in await dedicated_drops(db, tier_id, day - timedelta(days=1)):
+        s, e = span(d.daily_start_time, d.daily_end_time)
+        if e > DAY_MIN:
+            out.append((0, e - DAY_MIN, d.daily_seats or 0, d.title))
+    return out
 
 
 async def dedicated_drops(db: AsyncSession, tier_id: UUID, day) -> list[Drop]:
@@ -639,14 +693,25 @@ async def dedicated_drops(db: AsyncSession, tier_id: UUID, day) -> list[Drop]:
     return list(rows)
 
 
+def _cafe_span(cafe: Cafe) -> Optional[tuple[int, int]]:
+    """The café's open hours as minutes from midnight; None when not set or open 24 hours."""
+    if not cafe.opening_time or not cafe.closing_time:
+        return None
+    o, c = span(cafe.opening_time, cafe.closing_time)
+    return None if c - o >= DAY_MIN else (o, c)
+
+
 async def check_rig_free(db: AsyncSession, cafe: Cafe, tier, day_from: date, day_to: date,
                          start: time, end: time, seats: int, ignore_drop_id: Optional[UUID] = None) -> None:
     """Refuse a drop whose kept seats would not fit next to normal bookings already made.
-    Also keeps the drop hours inside the cafe's opening hours."""
+    Also keeps the drop hours inside the cafe's opening hours. Hours can run past midnight."""
     from app.models.booking import Booking, BookingStatus, SEAT_HOLDING_STATUSES
-    s_min, e_min = _mins(start), _mins(end)
-    if cafe.opening_time and cafe.closing_time and cafe.closing_time > cafe.opening_time:
-        if s_min < _mins(cafe.opening_time) or e_min > _mins(cafe.closing_time):
+    s_min, e_min = span(start, end)
+    open_span = _cafe_span(cafe)
+    if open_span is not None:
+        o, c = open_span
+        s_in = s_min if s_min >= o else s_min + DAY_MIN
+        if s_in + (e_min - s_min) > c:
             raise DropError(
                 f"Your café is open {cafe.opening_time:%H:%M} to {cafe.closing_time:%H:%M}. Keep the drop hours inside that.",
                 "OUTSIDE_CAFE_HOURS")
@@ -654,27 +719,36 @@ async def check_rig_free(db: AsyncSession, cafe: Cafe, tier, day_from: date, day
     ttl = datetime.now(timezone.utc) - timedelta(minutes=15)
     rows = (await db.execute(select(Booking).where(
         Booking.hardware_tier_id == tier.id,
-        Booking.session_date >= day_from, Booking.session_date <= day_to,
+        Booking.session_date >= day_from, Booking.session_date <= day_to + timedelta(days=1),
         or_(Booking.status.in_(SEAT_HOLDING_STATUSES),
-            and_(Booking.status == BookingStatus.PENDING_PAYMENT, Booking.created_at >= ttl)),
-        Booking.start_time < end, Booking.end_time > start))).scalars().all()
+            and_(Booking.status == BookingStatus.PENDING_PAYMENT, Booking.created_at >= ttl))))).scalars().all()
     others = (await db.execute(select(Drop).where(
         Drop.hardware_tier_id == tier.id, Drop.status == "live", Drop.daily_start_time.is_not(None),
-        Drop.starts_on <= day_to, or_(Drop.ends_on.is_(None), Drop.ends_on >= day_from),
+        Drop.starts_on <= day_to + timedelta(days=1), or_(Drop.ends_on.is_(None), Drop.ends_on >= day_from - timedelta(days=1)),
         *( [Drop.id != ignore_drop_id] if ignore_drop_id else [] )))).scalars().all()
+
+    def runs_on(d: Drop, day) -> bool:
+        return d.starts_on <= day and (d.ends_on is None or d.ends_on >= day)
+
     by_day: dict = {}
-    for b in rows:
-        by_day.setdefault(b.session_date, []).append(b)
-    days = set(by_day) | ({day_from} if others else set())
-    for day in sorted(days):
-        bks = by_day.get(day, [])
-        points = {s_min} | {_mins(b.start_time) for b in bks if s_min <= _mins(b.start_time) < e_min}
-        worst = 0
-        for t in points:
-            used = sum(b.seats_count for b in bks if _mins(b.start_time) <= t < _mins(b.end_time))
-            used += sum(d.daily_seats or 0 for d in others
-                        if d.starts_on <= day and (d.ends_on is None or d.ends_on >= day) and _mins(d.daily_start_time) <= t < _mins(d.daily_end_time))
-            worst = max(worst, used)
+    for bk in rows:
+        by_day.setdefault(bk.session_date, []).append(bk)
+    # Every day of the drop: overnight hours meet the next day's bookings and other drops' tails.
+    days = [day_from + timedelta(days=i) for i in range((day_to - day_from).days + 1)]
+    for day in days:
+        # Everything on one axis: minutes from this day's midnight, the next day after 1440.
+        used_windows = []
+        for off in (0, 1):
+            for bk in by_day.get(day + timedelta(days=off), []):
+                bs_, be_ = span(bk.start_time, bk.end_time)
+                used_windows.append((bs_ + off * DAY_MIN, be_ + off * DAY_MIN, bk.seats_count))
+        for d in others:
+            ds, de = span(d.daily_start_time, d.daily_end_time)
+            for off in (-1, 0, 1):
+                if runs_on(d, day + timedelta(days=off)):
+                    used_windows.append((ds + off * DAY_MIN, de + off * DAY_MIN, d.daily_seats or 0))
+        points = {s_min} | {w[0] for w in used_windows if s_min <= w[0] < e_min}
+        worst = max(sum(n for a_, b_, n in used_windows if a_ <= t < b_) for t in points)
         if worst + seats > cap:
             free = max(0, cap - worst)
             raise DropError(
@@ -700,7 +774,7 @@ async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict],
             if r.status in PAID or (r.expires_at is not None and _aware(r.expires_at) > now)]
 
     def clock(m: int) -> str:
-        m = min(m, 24 * 60 - 1)
+        m %= DAY_MIN
         return f"{m // 60:02d}:{m % 60:02d}"
 
     def counts(lo: int, hi: int) -> tuple[int, int]:
@@ -715,7 +789,7 @@ async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict],
         return booked, pending
 
     timeline = []
-    for h in range(_mins(block.start_time), _mins(block.end_time), 60):
+    for h in range(*block_span(block), 60):
         booked, pending = counts(h, h + 60)
         timeline.append({
             "label": clock(h), "startTime": clock(h), "endTime": clock(h + 60),
@@ -726,12 +800,12 @@ async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict],
     for r, name in live:
         s, e = res_window(r, block)
         bookings.append({"startTime": clock(s), "endTime": clock(e), "seatsCount": r.seats, "status": r.status,
-                         "name": name, "reference": r.reference})
-    bookings.sort(key=lambda b: b["startTime"])
+                         "name": name, "reference": r.reference, "_s": s})
+    bookings.sort(key=lambda b: b.pop("_s"))
     now_stats = None
     ist_now = now.astimezone(IST)
-    if day == ist_now.date():
-        m = ist_now.hour * 60 + ist_now.minute
+    if day in (ist_now.date(), ist_now.date() - timedelta(days=1)):
+        m = (ist_now.date() - day).days * DAY_MIN + ist_now.hour * 60 + ist_now.minute
         booked, pending = counts(m, m + 1)
         now_stats = {"available": max(0, block.seats_total - booked - pending), "occupied": booked,
                      "pending": pending, "blocked": 0, "total": block.seats_total}
@@ -803,8 +877,8 @@ GRACE_MINUTES = 15
 
 
 def reservation_start(res: DropReservation, block: DropBlock) -> datetime:
-    t = res.start_time or block.start_time
-    return datetime.combine(block.session_date, t).replace(tzinfo=IST)
+    s, _ = res_window(res, block)
+    return datetime.combine(block.session_date, time(0, 0)).replace(tzinfo=IST) + timedelta(minutes=s)
 
 
 async def give_away(db: AsyncSession, res: DropReservation, staff: User) -> DropReservation:

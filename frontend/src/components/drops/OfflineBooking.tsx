@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button, Card, CardContent, Input } from '@/components/ui';
 import { addOfflineBooking, removeOfflineBooking, type OwnerDrop } from '@/lib/api/drops';
-import { blockTimes, clock, dayLabel } from '@/lib/drops';
+import { blockTimes, clock, dayLabel, wireTime } from '@/lib/drops';
 
 const digits = (v: string, max: number) => v.replace(/\D/g, '').slice(0, max);
 
@@ -63,7 +63,7 @@ export function OfflineBooking({ d, onDone }: { d: OwnerDrop; onDone: () => void
         name: name.trim(),
         phone: phone.trim() || undefined,
         seats: n,
-        startTime: flexible ? startValue : undefined,
+        startTime: flexible ? wireTime(startValue) : undefined,
         hours: flexible ? Number(hours) || 1 : undefined,
         amount: amount.trim() === '' ? undefined : Number(amount),
         note: note.trim() || undefined,

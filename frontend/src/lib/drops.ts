@@ -2,12 +2,29 @@ import type { DropBlock } from '@/lib/api/drops';
 
 /** Display helpers for drops. Block dates and times are café time (IST). */
 
+/** Session times can run past midnight: "26:00" is 2 AM the next morning. */
+export function minutesOf(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/** The moment `m` minutes after midnight (IST) on `date`; m can pass 1440 into the next day. */
+export function atMinutes(date: string, m: number): Date {
+  return new Date(new Date(`${date}T00:00:00+05:30`).getTime() + m * 60_000);
+}
+
+/** "26:00" → "02:00": the clock time the server expects. */
+export function wireTime(hhmm: string): string {
+  const m = minutesOf(hhmm) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
 export function blockStart(b: Pick<DropBlock, 'date' | 'startTime'>): Date {
-  return new Date(`${b.date}T${b.startTime}:00+05:30`);
+  return atMinutes(b.date, minutesOf(b.startTime));
 }
 
 export function blockEnd(b: Pick<DropBlock, 'date' | 'endTime'>): Date {
-  return new Date(`${b.date}T${b.endTime}:00+05:30`);
+  return atMinutes(b.date, minutesOf(b.endTime));
 }
 
 export function dayLabel(date: string): string {
@@ -19,9 +36,10 @@ export function dayLabel(date: string): string {
   });
 }
 
-/** "18:00" → "6 PM", "18:30" → "6:30 PM". */
+/** "18:00" → "6 PM", "18:30" → "6:30 PM". Past midnight "26:00" → "2 AM". */
 export function clock(hhmm: string): string {
-  const [h, m] = hhmm.split(':').map(Number);
+  const [rawH, m] = hhmm.split(':').map(Number);
+  const h = rawH % 24;
   const suffix = h >= 12 ? 'PM' : 'AM';
   const h12 = h % 12 || 12;
   return m ? `${h12}:${String(m).padStart(2, '0')} ${suffix}` : `${h12} ${suffix}`;
@@ -29,7 +47,9 @@ export function clock(hhmm: string): string {
 
 export function blockTimes(b: Pick<DropBlock, 'startTime' | 'endTime' | 'hours'>): string {
   const hrs = Number.isInteger(b.hours) ? b.hours : b.hours.toFixed(1);
-  return `${clock(b.startTime)} to ${clock(b.endTime)} · ${hrs} ${b.hours === 1 ? 'hour' : 'hours'}`;
+  if (b.hours >= 24) return `All 24 hours from ${clock(b.startTime)}`;
+  const next = minutesOf(b.endTime) > 1440 ? ' next day' : '';
+  return `${clock(b.startTime)} to ${clock(b.endTime)}${next} · ${hrs} ${b.hours === 1 ? 'hour' : 'hours'}`;
 }
 
 export function rupees(n: number): string {

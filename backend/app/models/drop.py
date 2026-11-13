@@ -66,7 +66,6 @@ class DropBlock(Base):
     """One fixed session (e.g. Thu 19 Nov, 6 PM to 11 PM) with N seats."""
     __tablename__ = "drop_blocks"
     __table_args__ = (
-        CheckConstraint("end_time > start_time", name="ck_drop_blocks_same_day"),
         UniqueConstraint("drop_id", "session_date", "start_time", name="uq_drop_blocks_day"),
         CheckConstraint("seats_taken >= 0 AND seats_taken <= seats_total", name="ck_drop_blocks_seats"),
     )

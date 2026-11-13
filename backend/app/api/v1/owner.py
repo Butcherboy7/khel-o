@@ -1531,7 +1531,7 @@ async def get_owner_availability_timeline(
     real_rows = list(res.all())
     # Seats kept for a launch drop on this rig count as taken during its hours.
     dedicated = await dsvc.dedicated_windows(db, selected_tier.id, parsed_date)
-    rows = real_rows + [(time(ds // 60, ds % 60), time(de // 60, de % 60), n, BookingStatus.CONFIRMED) for ds, de, n, _t in dedicated]
+    rows = real_rows + [(time(ds // 60, ds % 60), time(min(de, 1439) // 60, min(de, 1439) % 60), n, BookingStatus.CONFIRMED) for ds, de, n, _t in dedicated]
 
     total_seats = selected_tier.total_seats
     blocked_seats = min(total_seats, await HardwareTierUnitRepository(db).count_in_maintenance(selected_tier.id))

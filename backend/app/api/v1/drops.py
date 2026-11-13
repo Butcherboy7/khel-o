@@ -52,8 +52,9 @@ def _block_out(drop: Drop, b: DropBlock, hour_free: Optional[dict] = None) -> di
     return {
         "id": str(b.id),
         "date": b.session_date.isoformat(),
+        # Past midnight the end reads 26:00 (04:00 next day), the form the slider understands.
         "startTime": b.start_time.strftime("%H:%M"),
-        "endTime": b.end_time.strftime("%H:%M"),
+        "endTime": svc.hhmm(svc.block_span(b)[1]),
         "hours": float(svc.block_hours(b)),
         "seatsTotal": b.seats_total,
         "seatsLeft": max(0, b.seats_total - b.seats_taken),
@@ -79,8 +80,8 @@ def _reservation_out(drop: Drop, r: DropReservation, block: Optional[DropBlock])
         "deposit": float(r.deposit_amount),
         "balanceDue": float(r.balance_due),
         "hours": r.hours,
-        "startTime": (r.start_time or block.start_time).strftime("%H:%M") if (r.start_time or block) else None,
-        "endTime": (r.end_time or block.end_time).strftime("%H:%M") if (r.end_time or block) else None,
+        "startTime": (svc.hhmm(svc.res_window(r, block)[0]) if block else r.start_time.strftime("%H:%M") if r.start_time else None),
+        "endTime": (svc.hhmm(svc.res_window(r, block)[1]) if block else r.end_time.strftime("%H:%M") if r.end_time else None),
         "arriveFrom": _iso(svc.reservation_start(r, block) - timedelta(minutes=svc.GRACE_MINUTES)) if block else None,
         "arriveUntil": _iso(svc.reservation_start(r, block) + timedelta(minutes=svc.GRACE_MINUTES)) if block else None,
         "givenAwayAt": _iso(r.given_away_at),
@@ -400,9 +401,11 @@ class DropCreate(_Camel):
         if self.early_access_starts_at > self.public_starts_at:
             raise ValueError("Early access must start before (or when) everyone can reserve")
         if self.daily_start_time is not None:
-            if self.daily_end_time is None or self.daily_end_time <= self.daily_start_time or not self.daily_seats or not self.starts_on:
+            if self.daily_end_time is None or not self.daily_seats or not self.starts_on:
                 raise ValueError("Set the daily hours, the seats and the first day")
-            hrs = ((self.daily_end_time.hour * 60 + self.daily_end_time.minute) - (self.daily_start_time.hour * 60 + self.daily_start_time.minute)) / 60
+            # An end at or before the start runs past midnight; equal times mean all 24 hours.
+            s_, e_ = svc.span(self.daily_start_time, self.daily_end_time)
+            hrs = (e_ - s_) / 60
             if self.deposit_amount > self.price_per_hour * hrs:
                 raise ValueError("The fee can't be more than the price of a day's hours")
         elif not self.blocks:
@@ -676,7 +679,7 @@ async def owner_reservations(since: Optional[date] = None, db: AsyncSession = De
             "phone": r.guest_phone if r.source == "offline" else holder.phone_number,
             "source": r.source, "price": float(r.block_price), "note": r.note,
             "date": blk.session_date.isoformat(),
-            "startTime": f"{start // 60:02d}:{start % 60:02d}", "endTime": f"{min(end, 1439) // 60:02d}:{min(end, 1439) % 60:02d}",
+            "startTime": svc.hhmm(start % svc.DAY_MIN), "endTime": svc.hhmm(end % svc.DAY_MIN),
             "hours": r.hours, "balanceDue": float(r.balance_due), "depositPaid": float(r.deposit_amount),
             "dropId": str(drop.id), "dropTitle": drop.title, "dropSlug": drop.slug,
             "checkinToken": r.checkin_token if r.status == "confirmed" else None,

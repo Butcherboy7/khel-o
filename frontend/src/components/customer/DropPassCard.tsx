@@ -13,7 +13,8 @@ const LABEL: Record<MyDropPass['status'], string> = {
 
 function clock(hhmm: string | null): string {
   if (!hhmm) return '';
-  const [h, m] = hhmm.split(':').map(Number);
+  const [rawH, m] = hhmm.split(':').map(Number);
+  const h = rawH % 24;
   return `${h % 12 || 12}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 

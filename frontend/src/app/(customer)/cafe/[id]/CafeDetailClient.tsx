@@ -62,7 +62,7 @@ import { offerUrgency, offerLabelWithMode, hourlyOffer } from '@/lib/offers';
 import { useAuthStore } from '@/store/authStore';
 import { CafeDropBanner } from '@/components/customer/CafeDropBanner';
 import { useLocationStore } from '@/store/locationStore';
-import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity, noBreakHyphens, customerPrice } from '@/lib/format';
+import { calculateDistance, formatDistance, isCafeOpenNow, isOpen24h, hoursText, formatTime, titleCaseCity, noBreakHyphens, customerPrice } from '@/lib/format';
 import { firstBookingOfferLive } from '@/lib/pricing';
 import { fireAnalyticsEvent, trackAction } from '@/lib/api/analyticsEvents';
 import { InfoTip } from '@/components/shared/InfoTip';
@@ -367,7 +367,9 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
   const isOpenNow = hoursKnown && isCafeOpenNow(cafe.openingTime, cafe.closingTime);
   const openStatusLabel = !hoursKnown
     ? null
-    : isOpenNow
+    : isOpen24h(cafe.openingTime, cafe.closingTime)
+      ? 'Open 24 hours'
+      : isOpenNow
       ? `Open till ${formatTime(cafe.closingTime!)}`
       : `Opens ${formatTime(cafe.openingTime!)}`;
   // "DG Gaming Cafe, Bowenpally" -> "Bowenpally": the café's own name
@@ -524,7 +526,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
             <>
               <span className="flex items-center gap-1 font-semibold">
                 <Clock className="h-3.5 w-3.5" aria-hidden />
-                Usually {formatTime(cafe.openingTime!)}–{formatTime(cafe.closingTime!)}
+                Usually {hoursText(cafe.openingTime!, cafe.closingTime!)}
               </span>
               <span aria-hidden="true">·</span>
             </>
@@ -965,7 +967,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           </div>
           <p className="text-body text-text-secondary mt-1">
             {cafe.openingTime && cafe.closingTime
-              ? `Daily: ${formatTime(cafe.openingTime)} - ${formatTime(cafe.closingTime)}${isLead ? ' (approx)' : ''}`
+              ? `${isOpen24h(cafe.openingTime, cafe.closingTime) ? 'Open 24 hours, every day' : `Daily: ${hoursText(cafe.openingTime, cafe.closingTime, ' - ')}`}${isLead ? ' (approx)' : ''}`
               : 'Hours not listed by this café yet.'}
           </p>
         </div>

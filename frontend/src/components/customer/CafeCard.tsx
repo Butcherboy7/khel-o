@@ -6,7 +6,7 @@ import { MapPin, Star, Zap, ArrowRight, Users, Clock, ThumbsUp } from 'lucide-re
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
 import { useLocationStore } from '@/store/locationStore';
 import { usePageLoaded } from '@/hooks/usePageLoaded';
-import { calculateDistance, formatDistance, isCafeOpenNow, formatTime, titleCaseCity, customerPrice } from '@/lib/format';
+import { calculateDistance, formatDistance, isCafeOpenNow, isOpen24h, formatTime, titleCaseCity, customerPrice } from '@/lib/format';
 import { hasConsoleTier, hasPcTier } from '@/lib/platformTags';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import type { Platform } from '@/constants/platforms';
@@ -105,7 +105,7 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
     : !hoursKnown
       ? null
       : isOpenNow
-        ? 'Open now'
+        ? (isOpen24h(cafe.openingTime, cafe.closingTime) ? 'Open 24 hours' : 'Open now')
         : cafe.openingTime
           ? `Opens ${formatTime(cafe.openingTime)}`
           : 'Closed';

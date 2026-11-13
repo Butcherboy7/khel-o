@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
 import { getSeoPage } from '@/lib/api/seo';
-import { formatTime, customerPrice, shownPriceRange } from '@/lib/format';
+import { formatTime, hoursText, customerPrice, shownPriceRange } from '@/lib/format';
 import { cleanName, listVenueKind, venueArea } from '@/lib/venueKind';
 import type { CafeListItem } from '@/types';
 
@@ -291,7 +291,7 @@ export default async function CityCafesPage({ params }: PageProps) {
                       </td>
                       <td className="px-3 py-2 text-right text-caption text-text-secondary whitespace-nowrap">
                         {r.cafe.openingTime && r.cafe.closingTime
-                          ? `${formatTime(r.cafe.openingTime)}–${formatTime(r.cafe.closingTime)}`
+                          ? hoursText(r.cafe.openingTime, r.cafe.closingTime)
                           : '—'}
                       </td>
                       <td className="px-3 py-2 text-right text-caption whitespace-nowrap">

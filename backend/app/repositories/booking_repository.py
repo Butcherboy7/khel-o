@@ -149,8 +149,12 @@ class BookingRepository(BaseRepository[Booking]):
         count = int(result.scalar() or 0)
         # Seats a live launch drop keeps on this rig are taken for normal booking too.
         from app.services import drop_service as dsvc
-        s, e = start_time.hour * 60 + start_time.minute, end_time.hour * 60 + end_time.minute
-        for ds, de, n, _title in await dsvc.dedicated_windows(self.db, tier_id, session_date):
+        s, e = dsvc.span(start_time, end_time)
+        windows = list(await dsvc.dedicated_windows(self.db, tier_id, session_date))
+        if e > dsvc.DAY_MIN:  # a booking that runs past midnight meets the next day's kept seats too
+            windows += [(ds + dsvc.DAY_MIN, de + dsvc.DAY_MIN, n, t)
+                        for ds, de, n, t in await dsvc.dedicated_windows(self.db, tier_id, session_date + timedelta(days=1))]
+        for ds, de, n, _title in windows:
             if ds < e and de > s:
                 count += n
         return count

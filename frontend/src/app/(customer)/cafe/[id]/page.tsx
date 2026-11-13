@@ -7,7 +7,7 @@ import { PLATFORMS } from '@/constants/platforms';
 import Link from 'next/link';
 import { getCafeLinks, getCafeWaitlistCount } from '@/lib/api/seo';
 import { listCafeReviews } from '@/lib/api/reviews';
-import { customerPrice, formatTime, titleCaseCity } from '@/lib/format';
+import { customerPrice, formatTime, isOpen24h, titleCaseCity } from '@/lib/format';
 import { hourlyOffer } from '@/lib/offers';
 import { cleanName, venueArea, venueKind } from '@/lib/venueKind';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
@@ -145,7 +145,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     headlinePrice
       ? `From ₹${headlinePrice.price}/hr${headlinePrice.when ? ` (${headlinePrice.when})` : ' in off-peak slots'}, ₹${minPrice}/hr otherwise`
       : minPrice ? `From ₹${minPrice}/hr` : null,
-    cafe.openingTime && cafe.closingTime ? `open ${formatTime(cafe.openingTime)}–${formatTime(cafe.closingTime)}` : null,
+    cafe.openingTime && cafe.closingTime ? (isOpen24h(cafe.openingTime, cafe.closingTime) ? 'open 24 hours' : `open ${formatTime(cafe.openingTime)}–${formatTime(cafe.closingTime)}`) : null,
     platformLabels.length > 0 ? platformLabels.join(', ') : null,
     // Reviews left on KHEL-O itself, so quoting them is ours to make.
     cafe.totalReviews > 0 && cafe.averageRating > 0
@@ -242,8 +242,9 @@ export default async function CafeDetailPage({ params, searchParams }: PageProps
               openingHoursSpecification: {
                 '@type': 'OpeningHoursSpecification',
                 dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-                opens: cafe.openingTime.slice(0, 5),
-                closes: cafe.closingTime.slice(0, 5),
+                // Google reads 00:00 to 23:59 as open all day.
+                opens: isOpen24h(cafe.openingTime, cafe.closingTime) ? '00:00' : cafe.openingTime.slice(0, 5),
+                closes: isOpen24h(cafe.openingTime, cafe.closingTime) ? '23:59' : cafe.closingTime.slice(0, 5),
               },
             }
           : {}),

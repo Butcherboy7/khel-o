@@ -11,6 +11,7 @@ import { GOOGLE_MAPS_URL_PATTERN } from '@/lib/googleMapsUrl';
 import { PHOTO_CATEGORIES } from '@/constants/photoCategories';
 import { PLATFORMS } from '@/constants/platforms';
 import { PRESET_GAMES_BY_PLATFORM } from '@/constants/games';
+import { Open24Toggle } from '@/components/owner/Open24Toggle';
 
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_MB = 8;
@@ -539,8 +540,17 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
             {hoursError && (
               <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">{hoursError}</div>
             )}
+            <Open24Toggle
+              on={openingTime === '00:00' && closingTime === '00:00'}
+              onChange={(on) => {
+                setOpeningTime(on ? '00:00' : '10:00');
+                setClosingTime(on ? '00:00' : '23:00');
+              }}
+            />
+            {!(openingTime === '00:00' && closingTime === '00:00') && (
+            <>
             <p className="text-caption text-text-secondary">
-              Overnight hours are supported — e.g. opening at 10:00 and closing at 02:00 the next day.
+              Open past midnight? Set the closing time for the next morning, like opening at 10:00 and closing at 02:00.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
@@ -562,6 +572,8 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: Ed
                 />
               </div>
             </div>
+            </>
+            )}
             <SaveRow saving={hoursSaving} saved={hoursSaved} label="Save hours" onClick={handleHoursSave} />
           </div>
         )}

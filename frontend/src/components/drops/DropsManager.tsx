@@ -8,7 +8,7 @@ import { Button, Card, CardContent, EmptyState, Input, SkeletonCard } from '@/co
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 import { createDrop, gameRuleFor, listOwnerDrops, type NewDrop, type OwnerDropList } from '@/lib/api/drops';
-import { rupees, shortDate } from '@/lib/drops';
+import { clock, rupees, shortDate } from '@/lib/drops';
 import { uploadCafePhoto } from '@/lib/api/settings';
 
 const STATE_LABEL: Record<string, string> = {
@@ -152,32 +152,46 @@ const mins = (t: string) => {
   return (h || 0) * 60 + (m || 0);
 };
 
+/** Start and end as minutes from midnight; an end at or before the start is the next morning. */
+const spanOf = (start: string, end: string): [number, number] => {
+  const s = mins(start);
+  let e = mins(end);
+  if (e <= s) e += 1440;
+  return [s, e];
+};
+
+/** 18:00 → "6 PM"; past midnight it says so: 27:00 → "3 AM (next day)". */
+const clockAt = (m: number) => `${clock(`${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`)}${m >= 1440 ? ' (next day)' : ''}`;
+
 /** Shows, in plain words and as a bar, what other players will see: how many of this system
  *  are kept for the drop, in which hours, and how many stay open for normal booking. */
 function KeptPreview({ game, tierName, total, kept, start, end, openAt, closeAt }: {
   game: string; tierName: string; total: number; kept: number; start: string; end: string; openAt: string | null; closeAt: string | null;
 }) {
   const rest = Math.max(0, total - kept);
-  const lo = Math.min(mins(openAt ?? start), mins(start));
-  const hi = Math.max(mins(closeAt ?? end), mins(end), lo + 60);
-  const span = hi - lo;
-  const left = Math.max(0, ((mins(start) - lo) / span) * 100);
-  const width = Math.max(2, ((mins(end) - mins(start)) / span) * 100);
-  const full = left < 0.5 && left + width > 99.5;
+  let [s, e] = spanOf(start, end);
+  const [lo, hi] = openAt && closeAt ? spanOf(openAt, closeAt) : [s, e];
+  if (s < lo) { s += 1440; e += 1440; }
+  const range = Math.max(60, hi - lo);
+  const left = Math.max(0, ((s - lo) / range) * 100);
+  const width = Math.max(2, Math.min(100 - left, ((e - s) / range) * 100));
+  const allDay = e - s >= 1440;
+  const full = allDay || (left < 0.5 && left + width > 99.5);
+  const when = allDay ? <>All 24 hours (from <strong>{clockAt(s)}</strong> to the same time the next day)</> : <>From <strong>{clockAt(s)}</strong> to <strong>{clockAt(e)}</strong></>;
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3" aria-live="polite">
       <p className="text-caption font-semibold uppercase tracking-wide text-text-secondary">What other players will see</p>
-      <div className="relative h-8 overflow-hidden rounded-lg bg-success/15" role="img" aria-label={`${kept} of ${total} ${tierName} kept for ${game} from ${start} to ${end}`}>
+      <div className="relative h-8 overflow-hidden rounded-lg bg-success/15" role="img" aria-label={`${kept} of ${total} ${tierName} kept for ${game}`}>
         <div className="absolute inset-y-0 flex items-center justify-center bg-primary text-caption font-bold text-white" style={{ left: `${left}%`, width: `${width}%` }}>
           {game}
         </div>
       </div>
       <div className="flex justify-between text-caption text-text-secondary">
-        <span>{openAt ?? start}</span>
-        <span>{closeAt ?? end}</span>
+        <span>{clockAt(lo)}</span>
+        <span>{clockAt(Math.max(hi, lo + 60))}</span>
       </div>
       <p className="text-body text-text-primary">
-        From <strong>{start}</strong> to <strong>{end}</strong>, {kept} of your {total} {tierName} {kept === 1 ? 'is' : 'are'} kept for {game} and show as taken for normal booking.
+        {when}, {kept} of your {total} {tierName} {kept === 1 ? 'is' : 'are'} kept for {game} and show as taken for normal booking. Players can reserve any of those hours.
         {rest > 0 ? <> The other {rest} stay open for normal players.</> : <> Nothing is left for normal players in those hours.</>}
         {!full && <> Outside those hours all {total} are open for normal booking.</>}
       </p>
@@ -222,11 +236,13 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
   const cafeRow = list.cafes.find((c) => c.id === cafeId);
   const openAt = cafeRow?.openingTime ?? null;
   const closeAt = cafeRow?.closingTime ?? null;
-  // "The whole day" = every hour the café is open. Only offered when the café's hours are set and end the same day.
-  const canWholeDay = !!openAt && !!closeAt && closeAt > openAt;
+  // "The whole day" = every hour the café is open, past midnight too. A 24/7 café runs
+  // 6 AM to 6 AM, so the night crowd (11 PM to 3 AM) fits in one night's session.
+  const open24 = !!openAt && openAt === closeAt;
+  const canWholeDay = !!openAt && !!closeAt;
   const whole = wholeDay && canWholeDay;
-  const startT = whole ? (openAt as string) : dayStart;
-  const endT = whole ? (closeAt as string) : dayEnd;
+  const startT = whole ? (open24 ? '06:00' : (openAt as string)) : dayStart;
+  const endT = whole ? (open24 ? '06:00' : (closeAt as string)) : dayEnd;
   const pickTier = (id: string) => {
     setTierId(id);
     const t = tiers.find((x) => x.id === id);
@@ -259,7 +275,6 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
     if (!cafeId || !title.trim() || !game.trim()) return setError('Fill in the title and the game.');
     if (!tier) return setError(usable.length === 0 ? `None of your setups can run ${gameName}.` : `Pick which setup has ${gameName}.`);
     if (!startsOn || !startT || !endT || daySeats < 1) return setError('Set the first day, the hours and the seats.');
-    if (endT <= startT) return setError('It has to close later the same day, before midnight.');
     const body: NewDrop = {
       cafeId,
       hardwareTierId: tier.id,
@@ -405,7 +420,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
               className={`flex min-h-[64px] flex-col items-start justify-center rounded-xl border-2 px-3 text-left disabled:opacity-50 ${whole ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
             >
               <span className="font-semibold text-text-primary">The whole day</span>
-              <span className="text-caption text-text-secondary">{canWholeDay ? `Every hour you’re open (${openAt}–${closeAt})` : 'Set your opening hours first'}</span>
+              <span className="text-caption text-text-secondary">{!canWholeDay ? 'Set your opening hours first' : open24 ? 'All 24 hours, day and night' : `Every hour you’re open (${clock(openAt as string)} to ${clock(closeAt as string)})`}</span>
             </button>
             <button
               type="button"
@@ -436,6 +451,11 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
               </>
             )}
           </div>
+          {!whole && dayEnd <= dayStart && (
+            <p className="text-caption font-semibold text-text-primary">
+              {dayEnd === dayStart ? 'Same time both sides: that is all 24 hours.' : `Runs past midnight: ${clock(dayStart)} to ${clock(dayEnd)} the next morning.`}
+            </p>
+          )}
           {tier && (
             <KeptPreview game={game || 'This game'} tierName={tier.name} total={tier.totalSeats} kept={daySeats} start={startT} end={endT} openAt={openAt} closeAt={closeAt} />
           )}

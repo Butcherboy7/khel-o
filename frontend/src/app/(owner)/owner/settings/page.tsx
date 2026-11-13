@@ -242,7 +242,7 @@ export default function OwnerSettingsPage() {
                   <Clock className="h-4 w-4 text-text-secondary" />
                   <span className="text-body text-text-primary">
                     {settings.openingTime && settings.closingTime
-                      ? `${settings.openingTime.slice(0, 5)} - ${settings.closingTime.slice(0, 5)}`
+                      ? (settings.openingTime.slice(0, 5) === settings.closingTime.slice(0, 5) ? 'Open 24 hours' : `${settings.openingTime.slice(0, 5)} - ${settings.closingTime.slice(0, 5)}`)
                       : 'Not set'}
                   </span>
                 </div>

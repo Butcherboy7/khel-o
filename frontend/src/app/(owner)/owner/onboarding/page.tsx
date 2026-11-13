@@ -32,6 +32,7 @@ import { PRESET_GAMES_BY_PLATFORM } from '@/constants/games';
 import type { TierConfig } from '@/types/tier';
 import { safeRandomUUID } from '@/lib/uuid';
 import { getPublicEnv } from '@/lib/runtimeEnv';
+import { Open24Toggle } from '@/components/owner/Open24Toggle';
 
 interface OnboardingState {
   name: string;
@@ -1145,6 +1146,14 @@ export default function OnboardingWizardPage() {
                   <p className="text-caption text-text-secondary">Add what customers can book and the price per hour. Your staff pick the exact PC or table when the customer checks in.</p>
                 </div>
 
+                <Open24Toggle
+                  on={formData.openingTime === '00:00' && formData.closingTime === '00:00'}
+                  onChange={(on) => {
+                    updateField('openingTime', on ? '00:00' : '09:00');
+                    updateField('closingTime', on ? '00:00' : '23:00');
+                  }}
+                />
+                {!(formData.openingTime === '00:00' && formData.closingTime === '00:00') && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
                     label="Opening time *"
@@ -1164,6 +1173,7 @@ export default function OnboardingWizardPage() {
                     error={!formData.closingTime ? 'Closing time is required' : undefined}
                   />
                 </div>
+                )}
 
                 <div className="flex flex-col gap-3">
                   <h3 className="font-heading text-h3 text-text-primary">What does your café offer?</h3>
@@ -1443,7 +1453,7 @@ export default function OnboardingWizardPage() {
                   </ReviewSection>
 
                   <ReviewSection title="Setups & prices" onEdit={() => setStep(4)}>
-                    <ReviewRow label="Hours" value={`${formData.openingTime} – ${formData.closingTime}`} />
+                    <ReviewRow label="Hours" value={formData.openingTime === formData.closingTime ? 'Open 24 hours' : `${formData.openingTime} – ${formData.closingTime}`} />
                     {formData.hardwareTiers.length === 0 ? (
                       <ReviewRow label="Setups" value="None added yet" />
                     ) : (

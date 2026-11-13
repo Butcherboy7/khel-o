@@ -6,7 +6,7 @@ import { listCafes, cafePath } from '@/lib/api/cafes';
 import { getSeoPage } from '@/lib/api/seo';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SeoLinkGroups } from '@/components/customer/SeoLinkGroups';
-import { formatTime, customerPrice, shownPriceRange } from '@/lib/format';
+import { formatTime, hoursText, customerPrice, shownPriceRange } from '@/lib/format';
 import { cleanName } from '@/lib/venueKind';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
@@ -234,7 +234,7 @@ export default async function FacetPage({ params }: PageProps) {
                         {c.startingPrice != null ? `₹${c.isLeadListing ? c.startingPrice : customerPrice(c.startingPrice)}/hr` : '—'}
                       </td>
                       <td className="px-3 py-2 text-right text-caption text-text-secondary whitespace-nowrap">
-                        {c.openingTime && c.closingTime ? `${formatTime(c.openingTime)}–${formatTime(c.closingTime)}` : '—'}
+                        {c.openingTime && c.closingTime ? hoursText(c.openingTime, c.closingTime) : '—'}
                       </td>
                       <td className="px-3 py-2 text-right font-data tabular-nums">
                         {c.totalReviews > 0 ? `${c.averageRating.toFixed(1)} (${c.totalReviews})` : 'New'}
