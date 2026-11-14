@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus } from 'lucide-react';
 import { uploadCafePhoto } from '@/lib/api/settings';
-import { ArrowLeft, Bell, Check, CheckCircle2, ChevronDown, Download, ExternalLink, KeyRound, MessageCircle, Plus, QrCode } from 'lucide-react';
+import { ArrowLeft, Bell, Check, CheckCircle2, ChevronDown, Download, Eye, MessageCircle, Phone, Plus, QrCode, Settings2, Share2, SlidersHorizontal, Users } from 'lucide-react';
 import { Button, Card, CardContent, Input, Modal, SkeletonCard } from '@/components/ui';
 import { ShareIconRow, WhatsAppButton } from '@/components/shared/ShareActions';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
@@ -52,6 +52,28 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const GRACE_MS = 15 * 60_000;
+
+type DropTab = 'slots' | 'bookings' | 'share' | 'settings';
+const TABS: DropTab[] = ['slots', 'bookings', 'share', 'settings'];
+/** Quick Find anchors and Tutorial targets → the tab they live on. */
+const TAB_OF: Record<string, DropTab> = {
+  slots: 'slots',
+  'drop-offline': 'slots',
+  checkin: 'bookings',
+  who: 'bookings',
+  'drop-checkin': 'bookings',
+  'drop-who': 'bookings',
+  share: 'share',
+  'drop-share': 'share',
+  prices: 'settings',
+  consoles: 'settings',
+  details: 'settings',
+  'drop-prices': 'settings',
+  'drop-seats': 'settings',
+  'drop-photo': 'settings',
+  'drop-run': 'settings',
+  'drop-cancel': 'settings',
+};
 
 const ymd = (dt: Date) => dt.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 const addDays = (iso: string, n: number) => ymd(new Date(new Date(`${iso}T12:00:00+05:30`).getTime() + n * 86_400_000));
@@ -102,7 +124,7 @@ function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
           ))}
         </div>
         {d.maxHours ? <DropPriceOptions base={Number(price) || 0} value={opts} onChange={setOpts} /> : null}
-        <p className="text-caption text-text-secondary">The booking fee is what people pay online to hold a seat. It comes off their bill. You can change these any time, even while the drop is live. People who already reserved keep the price they booked at.</p>
+        <p className="text-caption text-text-secondary">Booking fee = paid online to hold a seat, then taken off their bill. New prices are for new bookings only.</p>
         <div className="flex items-center gap-3">
           <Button onClick={save} disabled={busy || !changed || !Number(price) || overlapping(opts.timePrices)}>Save prices</Button>
           {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
@@ -129,7 +151,7 @@ function CoverPhoto({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
     try {
       const url = await uploadCafePhoto(d.cafe.id, file, 'play_area');
       await set(url);
-      setMsg({ ok: true, text: 'Saved. It is live on your page and on the home Drops tab.' });
+      setMsg({ ok: true, text: 'Saved. Players see it now.' });
     } catch (e) {
       setMsg({ ok: false, text: (e as Error)?.message || 'Could not upload. Try again.' });
     } finally {
@@ -140,9 +162,7 @@ function CoverPhoto({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
     <Card elevation="flat" data-tour="drop-photo">
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Your photo</p>
-        <p className="text-caption text-text-secondary">
-          Add a photo of people playing GTA 6 at your café. It replaces the Rockstar picture on your page and on the home Drops tab, so people see your place.
-        </p>
+        <p className="text-caption text-text-secondary">People playing at your café. Players see it instead of the game poster.</p>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {own && <img src={d.coverImageUrl!} alt="Your drop photo" className="aspect-[16/9] w-full rounded-xl object-cover" />}
         <div className="flex flex-wrap items-center gap-3">
@@ -151,8 +171,8 @@ function CoverPhoto({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
             <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
           </label>
           {own && (
-            <button type="button" disabled={busy} onClick={() => set('').then(() => setMsg({ ok: true, text: 'Back to the Rockstar picture.' }))} className="text-body font-semibold text-text-secondary underline">
-              Use the Rockstar picture
+            <button type="button" disabled={busy} onClick={() => set('').then(() => setMsg({ ok: true, text: 'Back to the game poster.' }))} className="text-body font-semibold text-text-secondary underline">
+              Use the game poster
             </button>
           )}
           {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
@@ -185,7 +205,7 @@ function SeatsPerDay({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
     <Card elevation="flat" data-tour="drop-seats" data-qf="consoles">
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Seats at one time</p>
-        <p className="text-caption text-text-secondary">How many people can play together. This is how many consoles you give to the drop.</p>
+        <p className="text-caption text-text-secondary">How many can play at once: the consoles you give the drop.</p>
         <div className="flex flex-wrap items-center gap-3">
           <input
             inputMode="numeric"
@@ -248,9 +268,7 @@ function DropConsoles({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
     <Card elevation="flat" data-tour="drop-seats" data-qf="consoles">
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Consoles in this drop</p>
-        <p className="text-caption text-text-secondary">
-          Tick every console players can book. You can mix PS5 and Xbox. Players pick the exact console they want.
-        </p>
+        <p className="text-caption text-text-secondary">Tick the consoles players can book. They pick the exact one.</p>
         {missing.length > 0 && !changed && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2">
             <p className="min-w-0 text-caption font-semibold text-text-primary">
@@ -392,7 +410,7 @@ function AddConsole({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
               />
             </label>
           </div>
-          <p className="text-caption text-text-secondary">The normal price is for bookings outside the drop. Drop players pay the drop price.</p>
+          <p className="text-caption text-text-secondary">Normal price = bookings outside the drop.</p>
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={add} disabled={busy || !chosen || !Number(price)}>
               {busy ? 'Adding…' : chosen ? `Add ${count} ${chosen.name}` : 'Add'}
@@ -420,9 +438,7 @@ function CancelDrop({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
     <Card elevation="flat" className="border-error/30" data-tour="drop-cancel">
       <CardContent className="flex flex-col gap-2 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Cancel this drop</p>
-        <p className="text-caption text-text-secondary">
-          Use this only if you cannot run it. Every person who paid gets all their money back, by themselves. It cannot be undone.
-        </p>
+        <p className="text-caption text-text-secondary">Only if you can’t run it. Everyone who paid gets a full refund. Can’t be undone.</p>
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="secondary" disabled={busy} onClick={() => setAsking(true)}>
             Cancel drop and refund everyone
@@ -484,9 +500,7 @@ function RunControl({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
         <p className="font-heading text-body-emphasis font-bold text-text-primary">
           {over ? `This drop ended on ${nice(d.endsOn!)}` : `Runs until ${nice(d.endsOn!)}`}
         </p>
-        <p className="text-caption text-text-secondary">
-          New days appear by themselves (players see the next 7). The longest a drop can run is until {nice(hardEnd)}. After it ends, booking is normal.
-        </p>
+        <p className="text-caption text-text-secondary">New days open by themselves. It can run until {nice(hardEnd)}.</p>
         <div className="flex flex-wrap gap-2">
           {d.endsOn! < hardEnd && !over && (
             <Button variant="secondary" disabled={busy} onClick={() => set(hardEnd < addDays(d.endsOn!, 7) ? hardEnd : addDays(d.endsOn!, 7))}>
@@ -596,11 +610,14 @@ function ShareDrop({ d }: { d: OwnerDrop }) {
         <div>
           <p className="font-heading text-body-emphasis font-bold text-text-primary">Share your drop</p>
           <p className="text-caption text-text-secondary">
-            {hidden
-              ? 'This drop is hidden. Put it live first, then send this link.'
-              : 'Send this link to your regulars and post it on your Instagram. Everyone who opens it can reserve.'}
+            {hidden ? 'It’s hidden. Put it live first, then send the link.' : 'Send it to your regulars. Post it on Instagram.'}
           </p>
         </div>
+        {d.waitlistCount > 0 && (
+          <p className="flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-caption font-semibold text-amber-900">
+            <Bell className="h-4 w-4" aria-hidden /> {d.waitlistCount} {d.waitlistCount === 1 ? 'person is' : 'people are'} waiting to hear it’s open
+          </p>
+        )}
         <p className="truncate rounded-xl bg-surface px-3 py-2.5 font-mono text-caption text-text-primary">{url.replace(/^https?:\/\//, '')}</p>
         <WhatsAppButton
           text={`${d.game} at ${d.cafe.name}. Only ${d.seatsPerSlot ?? d.seatsTotal} seats${d.seatsPerSlot ? ' a night' : ''}. Reserve yours:`}
@@ -632,10 +649,8 @@ function WalkInQr({ slug, cafe }: { slug: string; cafe: string }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt="QR code to reserve a seat" className="h-28 w-28 flex-none rounded-lg" />
       <div className="min-w-0">
-        <p className="font-semibold text-text-primary">Counter code for walk-ins</p>
-        <p className="text-caption text-text-secondary">
-          Someone walks in and wants a free seat? Show this. They scan, pay the booking fee, and the seat shows up on your list and is taken off for everyone else.
-        </p>
+        <p className="font-semibold text-text-primary">Walk-in QR</p>
+        <p className="text-caption text-text-secondary">Someone at the counter wants a seat? They scan, pay the fee, done.</p>
         <a href={src} download={`${cafe.replace(/\W+/g, '-')}-walk-in-qr.png`} className="mt-1 inline-block text-body font-semibold text-primary underline">
           Download to print
         </a>
@@ -698,7 +713,7 @@ function EditDetails({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
             <input type="datetime-local" value={earlyAt} onChange={(e) => setEarlyAt(e.target.value)} className={when} />
           </label>
         )}
-        <p className="text-caption text-text-secondary">Times are café time (India). The daily hours and the rig cannot change once the drop is made: make a new drop for that.</p>
+        <p className="text-caption text-text-secondary">India time. Daily hours can’t change here: make a new drop for that.</p>
         <div className="flex items-center gap-3">
           <Button onClick={save} disabled={busy || !changed}>Save</Button>
           {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
@@ -719,6 +734,28 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
   // Quick Find: ?slot=walkin|block|price&console=<key>&hours=3&date=… pre-sets Manage slots.
   const searchParams = useSearchParams();
   const slot = searchParams.get('slot');
+
+  // Which tab: ?tab=, else the tab that holds a Quick Find target (?qf=prices → Settings), else Slots.
+  const [tab, setTab] = useState<DropTab>(() => {
+    const t = searchParams.get('tab') as DropTab | null;
+    if (t && TABS.includes(t)) return t;
+    return TAB_OF[searchParams.get('qf') ?? ''] ?? 'slots';
+  });
+  const pickTab = (t: DropTab) => {
+    setTab(t);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', t);
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`);
+  };
+  // Quick Find and the Tutorial ask for a part of the page by name; open the tab that has it.
+  useEffect(() => {
+    const reveal = (e: Event) => {
+      const t = TAB_OF[(e as CustomEvent<string>).detail];
+      if (t) setTab(t);
+    };
+    window.addEventListener('khelo:reveal', reveal);
+    return () => window.removeEventListener('khelo:reveal', reveal);
+  }, []);
   const presetKey = ['slot', 'console', 'hours', 'date'].map((k) => searchParams.get(k) ?? '').join('|');
   const [preset, setPreset] = useState<SlotPreset | undefined>(undefined);
   useEffect(() => {
@@ -732,6 +769,7 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
       hours: Number.isFinite(hours) && hours > 0 ? hours : undefined,
       date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined,
     });
+    setTab('slots');
     spotlightWhenReady('slots');
     const url = new URL(window.location.href);
     ['slot', 'console', 'hours', 'date'].forEach((k) => url.searchParams.delete(k));
@@ -743,141 +781,239 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
   if (isLoading) return <SkeletonCard />;
   if (error || !d) return <OwnerLoadError error={error} title="Couldn’t load this drop" onRetry={() => refetch()} />;
 
+  const today = ymd(new Date());
+  const days = d.blocks.filter((b) => b.reservations.some((r) => r.source !== 'block'));
+  const upcoming = days.filter((b) => b.date >= today);
+  const earlier = days.filter((b) => b.date < today).reverse();
+  const toCome = upcoming.reduce((n, b) => n + b.reservations.filter((r) => r.source !== 'block' && r.status === 'confirmed').length, 0);
+  const tabs: { key: DropTab; label: string; Icon: typeof Users; count?: number }[] = [
+    { key: 'slots', label: 'Slots', Icon: SlidersHorizontal },
+    { key: 'bookings', label: 'Bookings', Icon: Users, count: toCome },
+    { key: 'share', label: 'Share', Icon: Share2 },
+    { key: 'settings', label: 'Settings', Icon: Settings2 },
+  ];
+
   return (
-    <div className="flex flex-col gap-6">
-      <Link href={base} className="inline-flex min-h-[44px] items-center gap-1 self-start text-body font-semibold text-text-secondary hover:text-text-primary">
+    <div className="flex flex-col gap-4">
+      <Link href={base} className="-mb-2 inline-flex min-h-[44px] items-center gap-1 self-start text-body font-semibold text-text-secondary hover:text-text-primary">
         <ArrowLeft className="h-4 w-4" /> All drops
       </Link>
       <OwnerPageHeader
         guide={admin ? undefined : 'drop'}
         title={d.title}
-        description={`${d.cafe.name} · ${consolesLine(d) ? `on ${consolesLine(d)} · ` : d.playsOn ? `on ${d.playsOn} · ` : ''}${rupees(d.pricePerHour)} an hour · ${rupees(d.deposit)} booking fee a seat`}
-        action={
-          <a
-            href={`/drops/${d.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-border px-4 font-semibold text-text-primary hover:bg-surface sm:w-auto"
-          >
-            <ExternalLink className="h-4 w-4" /> See what customers see
-          </a>
-        }
+        description={[d.cafe.name, consolesLine(d) || d.playsOn, `${rupees(d.pricePerHour)} an hour`, `${rupees(d.deposit)} to book a seat`].filter(Boolean).join(' · ')}
       />
 
-      {/* Day-to-day work first: the slots, then the numbers, then open/hide and sharing. */}
-      <SlotManager d={d} onDone={refresh} preset={preset} />
+      <StatusBar d={d} onChanged={refresh} />
 
       <div className="grid grid-cols-3 gap-2" data-tour="drop-stats">
-        <Stat label="Seats sold" value={`${d.totals.seatsSold} of ${d.seatsTotal}`} />
-        <Stat label="Here" value={String(d.totals.checkedIn)} />
-        <Stat label="Collect at café" value={rupees(d.totals.balanceToCollect)} />
-      </div>
-      {(d.totals.offlineSeats ?? 0) > 0 && (
-        <p className="-mt-3 text-caption text-text-secondary">
-          Includes {d.totals.offlineSeats} {d.totals.offlineSeats === 1 ? 'seat' : 'seats'} you sold at the café ({rupees(d.totals.offlineCollected ?? 0)} cash, already in your hand).
-        </p>
-      )}
-
-      <StatusCard d={d} onChanged={refresh} />
-
-      {d.status !== 'cancelled' && <ShareDrop d={d} />}
-
-      <div data-tour="drop-checkin" data-qf="checkin">
-        <CheckInBox onDone={refresh} />
+        <Stat label="Seats sold" value={`${d.totals.seatsSold} of ${d.seatsTotal}`} hint={(d.totals.offlineSeats ?? 0) > 0 ? `${d.totals.offlineSeats} at the café` : undefined} />
+        <Stat label="Checked in" value={String(d.totals.checkedIn)} />
+        <Stat label="To collect" value={rupees(d.totals.balanceToCollect)} hint="at the café" />
       </div>
 
-      <div className="flex items-center justify-between gap-3" data-tour="drop-who" data-qf="who">
-        <h2 className="font-heading text-h2 font-semibold text-text-primary">Who is coming</h2>
-        <Link href="/owner/availability" className="text-body font-semibold text-primary">Hour by hour</Link>
+      {/* One job per tab. As one page this was twenty phone screens of forms and text. */}
+      <div
+        role="tablist"
+        aria-label="Drop sections"
+        className="sticky top-14 z-20 -mx-4 flex gap-1 overflow-x-auto border-b border-border bg-surface/95 px-4 py-2 backdrop-blur lg:-mx-8 lg:px-8 [scrollbar-width:none]"
+      >
+        {tabs.map(({ key: k, label, Icon, count }) => {
+          const on = tab === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              id={`drop-tab-${k}`}
+              aria-selected={on}
+              aria-controls={`drop-panel-${k}`}
+              onClick={() => pickTab(k)}
+              className={`flex min-h-[44px] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-body font-semibold transition-colors ${
+                on ? 'bg-card text-text-primary shadow-sm ring-1 ring-border' : 'text-text-secondary hover:bg-card/60 hover:text-text-primary'
+              }`}
+            >
+              <Icon className={`hidden h-4 w-4 sm:block ${on ? 'text-primary' : ''}`} aria-hidden />
+              {label}
+              {count ? <span className="rounded-full bg-primary px-1.5 text-[11px] font-bold leading-5 text-white">{count}</span> : null}
+            </button>
+          );
+        })}
       </div>
-      {d.blocks.every((b) => b.reservations.length === 0) && (
-        <p className="rounded-2xl border border-border bg-card p-4 text-body text-text-secondary">
-          No reservations yet. Send your link with the Share buttons above.
-        </p>
-      )}
 
-      {d.blocks.filter((b) => b.reservations.some((r) => r.source !== 'block')).map((b) => (
-        <Card key={b.id} elevation="resting">
-          <CardContent className="flex flex-col gap-3 p-5">
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className="font-heading text-h3 font-bold text-text-primary">{dayLabel(b.date)}</h2>
-              <p className="text-body font-semibold text-text-primary">
-                {b.seatsTotal - b.seatsLeft} of {b.seatsTotal} taken
-              </p>
+      <div role="tabpanel" id={`drop-panel-${tab}`} aria-labelledby={`drop-tab-${tab}`} className="flex flex-col gap-4">
+        {tab === 'slots' && <SlotManager d={d} onDone={refresh} preset={preset} />}
+
+        {tab === 'bookings' && (
+          <>
+            <div data-tour="drop-checkin" data-qf="checkin">
+              <CheckInBox onDone={refresh} />
             </div>
-            <p className="-mt-2 text-body text-text-secondary">{blockTimes(b)}{d.maxHours ? '' : ` · ${rupees(b.pricePerSeat)} a seat`}</p>
-            {b.reservations.length === 0 ? (
-              <p className="text-caption text-text-secondary">No reservations yet.</p>
-            ) : (
-              <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
-                {b.reservations.filter((r) => r.source !== 'block').map((r) => (
-                  <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
-                    <span className="min-w-0 basis-full sm:basis-0 sm:flex-1">
-                      <span className="block truncate font-semibold text-text-primary">
-                        {r.name} · {r.seats} {r.seats === 1 ? 'seat' : 'seats'}
-                      </span>
-                      <span className="block text-caption text-text-secondary">
-                        {r.reference}
-                        {r.hours && r.startTime && r.endTime ? ` · ${clockRange(r.startTime, r.endTime)} (${r.hours} hr)` : ''}
-                        {r.phone ? <> · <a href={`tel:${r.phone}`} className="font-semibold text-primary underline">Call {r.phone}</a></> : null}
-                        {r.email ? <> · <span className="select-all break-all">{r.email}</span></> : null}
-                        {r.earlyAccess ? ' · early access' : ''}
-                        {r.source === 'offline' ? ` · sold at the café${r.price ? `, ${rupees(r.price)} cash taken` : ''}${r.note ? ` · ${r.note}` : ''}` : r.status === 'confirmed' || r.status === 'checked_in' ? ` · collect ${rupees(r.balanceDue)}` : ''}
-                      </span>
-                    </span>
-                    {r.source !== 'offline' && (r.status === 'confirmed' || r.status === 'checked_in') && passMessage(d, b, r) && (
-                      <a
-                        href={passMessage(d, b, r) as string}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-[#25D366] px-3 text-caption font-semibold text-white hover:bg-[#1ebe5a]"
-                      >
-                        <MessageCircle className="h-4 w-4" /> Send pass on WhatsApp
-                      </a>
-                    )}
-                    {r.status === 'confirmed' && r.checkinToken ? (
-                      <span className="flex items-center gap-2">
-                        {r.source === 'offline' && <RemoveOffline id={r.id} name={r.name} onDone={refresh} />}
-                        {Date.now() >= new Date(`${b.date}T${r.startTime ?? b.startTime}:00+05:30`).getTime() + GRACE_MS && <GiveAway id={r.id} name={r.name} onDone={refresh} />}
-                        <RowCheckIn token={r.checkinToken} onDone={refresh} />
-                      </span>
-                    ) : (
-                      <span
-                        className={`text-caption font-semibold ${r.status === 'checked_in' ? 'text-success' : r.status === 'refunded' ? 'text-error' : 'text-text-secondary'}`}
-                      >
-                        {r.status === 'checked_in' && <CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />}
-                        {STATUS_LABEL[r.status] ?? r.status}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+            <div className="flex items-center justify-between gap-3" data-tour="drop-who" data-qf="who">
+              <h2 className="font-heading text-h3 font-bold text-text-primary">Who is coming</h2>
+              <Link href="/owner/availability" className="text-body font-semibold text-primary">Hour by hour</Link>
+            </div>
+            {!days.length && (
+              <div className="flex flex-col items-start gap-3 rounded-2xl border border-border bg-card p-4">
+                <p className="text-body text-text-secondary">No bookings yet. Send your link and they show up here.</p>
+                <Button variant="secondary" onClick={() => pickTab('share')}>
+                  <Share2 className="mr-1.5 h-4 w-4" /> Share your drop
+                </Button>
+              </div>
             )}
-          </CardContent>
-        </Card>
-      ))}
+            {days.length > 0 && !upcoming.length && <p className="text-body text-text-secondary">Nothing booked from today on.</p>}
+            {upcoming.map((b) => (
+              <DayCard key={b.id} d={d} b={b} onDone={refresh} />
+            ))}
+            {earlier.length > 0 && (
+              <details className="group rounded-2xl border border-border bg-card px-4">
+                <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-2 font-semibold text-text-primary">
+                  Earlier days ({earlier.length})
+                  <ChevronDown className="h-4 w-4 text-text-secondary transition-transform group-open:rotate-180" aria-hidden />
+                </summary>
+                <div className="flex flex-col gap-3 pb-4">
+                  {earlier.map((b) => (
+                    <DayCard key={b.id} d={d} b={b} onDone={refresh} flat />
+                  ))}
+                </div>
+              </details>
+            )}
+            {days.length > 0 && (
+              <Button variant="secondary" onClick={() => downloadDropCsv(d.id, d.slug)} className="self-start">
+                <Download className="mr-1.5 h-4 w-4" /> Download the list (CSV)
+              </Button>
+            )}
+          </>
+        )}
 
-      <h2 className="font-heading text-h2 font-semibold text-text-primary">Settings</h2>
-      <div className="grid gap-4 md:grid-cols-2">
-        {d.status !== 'cancelled' && <EditDetails d={d} onDone={refresh} />}
-        <EditPrices d={d} onDone={refresh} />
-        {d.rolling && (d.cafeSetups?.length ? <DropConsoles d={d} onDone={refresh} /> : <SeatsPerDay d={d} onDone={refresh} />)}
-        <CoverPhoto d={d} onDone={refresh} />
-        {d.rolling && d.endsOn && d.startsOn && <RunControl d={d} onDone={refresh} />}
+        {tab === 'share' && (
+          <>
+            {d.status !== 'cancelled' && <ShareDrop d={d} />}
+            <Funnel d={d} />
+          </>
+        )}
+
+        {tab === 'settings' && (
+          <>
+            <div className="grid gap-4 md:grid-cols-2">
+              {d.status !== 'cancelled' && <EditDetails d={d} onDone={refresh} />}
+              <EditPrices d={d} onDone={refresh} />
+              {d.rolling && (d.cafeSetups?.length ? <DropConsoles d={d} onDone={refresh} /> : <SeatsPerDay d={d} onDone={refresh} />)}
+              <CoverPhoto d={d} onDone={refresh} />
+              {d.rolling && d.endsOn && d.startsOn && <RunControl d={d} onDone={refresh} />}
+            </div>
+            <CancelDrop d={d} onDone={refresh} />
+          </>
+        )}
       </div>
-
-      <Funnel d={d} />
-
-      <Button variant="secondary" onClick={() => downloadDropCsv(d.id, d.slug)} className="self-start">
-        <Download className="mr-1.5 h-4 w-4" /> Download the list (CSV)
-      </Button>
-
-      <CancelDrop d={d} onDone={refresh} />
     </div>
   );
 }
 
-function StatusCard({ d, onChanged }: { d: OwnerDrop; onChanged: () => void }) {
+/** One day's bookings: who, when, what to collect, and the buttons for each. */
+function DayCard({ d, b, onDone, flat = false }: { d: OwnerDrop; b: OwnerDrop['blocks'][number]; onDone: () => void; flat?: boolean }) {
+  const rows = b.reservations.filter((r) => r.source !== 'block');
+  const list = (
+    <>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{dayLabel(b.date)}</h3>
+        <span className="text-caption text-text-secondary">
+          {rows.length} {rows.length === 1 ? 'booking' : 'bookings'}
+        </span>
+      </div>
+      <ul className="flex flex-col divide-y divide-border">
+        {rows.map((r) => (
+          <BookingRow key={r.id} d={d} b={b} r={r} onDone={onDone} />
+        ))}
+      </ul>
+    </>
+  );
+  if (flat) return <div className="flex flex-col gap-1 border-t border-border pt-3">{list}</div>;
+  return (
+    <Card elevation="resting">
+      <CardContent className="flex flex-col gap-1 p-4">{list}</CardContent>
+    </Card>
+  );
+}
+
+const PILL: Record<string, { text: string; tone: string }> = {
+  confirmed: { text: 'Booked', tone: 'bg-sky-100 text-sky-800' },
+  checked_in: { text: 'Here', tone: 'bg-green-100 text-green-800' },
+  pending_payment: { text: 'Paying now', tone: 'bg-amber-100 text-amber-800' },
+  refunded: { text: 'Refunded', tone: 'bg-surface text-text-secondary' },
+  given_away: { text: 'Given away', tone: 'bg-surface text-text-secondary' },
+};
+
+/** A booking as the counter needs it: name and seats, then when, which console and what to collect,
+ *  then the buttons. The e-mail lives in the CSV; the phone is one tap. */
+function BookingRow({ d, b, r, onDone }: { d: OwnerDrop; b: OwnerDrop['blocks'][number]; r: Row; onDone: () => void }) {
+  const offline = r.source === 'offline';
+  const pill = offline && r.status === 'confirmed' ? { text: 'Sold at café', tone: 'bg-violet-100 text-violet-800' } : PILL[r.status] ?? { text: STATUS_LABEL[r.status] ?? r.status, tone: 'bg-surface text-text-secondary' };
+  const open = r.status === 'confirmed' || r.status === 'checked_in';
+  const pass = !offline && open ? passMessage(d, b, r) : null;
+  const late = Date.now() >= new Date(`${b.date}T${r.startTime ?? b.startTime}:00+05:30`).getTime() + GRACE_MS;
+  const facts = [
+    r.startTime && r.endTime ? clockRange(r.startTime, r.endTime) : blockTimes(b),
+    r.consoles?.length ? r.consoles.join(' + ') : '',
+    r.earlyAccess ? 'early access' : '',
+    offline && r.note ? r.note : '',
+  ].filter(Boolean);
+  return (
+    <li className="flex flex-col gap-2 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-text-primary">
+            {r.name} <span className="font-normal text-text-secondary">· {r.seats} {r.seats === 1 ? 'seat' : 'seats'}</span>
+          </p>
+          <p className="text-caption text-text-secondary">{facts.join(' · ')}</p>
+          <p className="text-caption">
+            {offline ? (
+              <span className="text-text-secondary">{r.price ? `${rupees(r.price)} cash taken` : 'Sold at the café'}</span>
+            ) : open && r.balanceDue > 0 ? (
+              <span className="font-semibold text-text-primary">Collect {rupees(r.balanceDue)}</span>
+            ) : open ? (
+              <span className="text-text-secondary">Nothing to collect</span>
+            ) : null}
+            <span className="ml-1.5 font-mono text-[11px] text-text-secondary">{r.reference}</span>
+          </p>
+        </div>
+        <span className={`flex flex-none items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold ${pill.tone}`}>
+          {r.status === 'checked_in' && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />}
+          {pill.text}
+        </span>
+      </div>
+      {(r.status === 'confirmed' || pass || r.phone) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {r.status === 'confirmed' && r.checkinToken && <RowCheckIn token={r.checkinToken} onDone={onDone} />}
+          {pass && (
+            <a
+              href={pass}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-[#25D366] px-3 text-caption font-semibold text-white hover:bg-[#1ebe5a]"
+            >
+              <MessageCircle className="h-4 w-4" aria-hidden /> Send pass
+            </a>
+          )}
+          {r.phone && (
+            <a
+              href={`tel:${r.phone}`}
+              aria-label={`Call ${r.name} on ${r.phone}`}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-primary hover:bg-surface"
+            >
+              <Phone className="h-4 w-4" aria-hidden /> Call
+            </a>
+          )}
+          {r.status === 'confirmed' && offline && <RemoveOffline id={r.id} name={r.name} onDone={onDone} />}
+          {r.status === 'confirmed' && r.checkinToken && late && <GiveAway id={r.id} name={r.name} onDone={onDone} />}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** Live or hidden, in one line, with the one switch. */
+function StatusBar({ d, onChanged }: { d: OwnerDrop; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toggle = async () => {
@@ -892,38 +1028,45 @@ function StatusCard({ d, onChanged }: { d: OwnerDrop; onChanged: () => void }) {
       setBusy(false);
     }
   };
+  const [label, hint, dot] =
+    d.status === 'cancelled'
+      ? ['Cancelled', 'everyone who paid was refunded', 'bg-gray-400']
+      : d.status === 'draft'
+      ? ['Hidden', 'only you can see it', 'bg-amber-500']
+      : d.state === 'open'
+      ? ['Live', 'anyone can book', 'bg-green-500']
+      : d.state === 'early'
+      ? ['Early access', 'only people with the code can book', 'bg-violet-500']
+      : ['Live soon', `opens ${whenText(d.publicStartsAt)}`, 'bg-sky-500'];
   return (
-    <Card elevation="flat" data-qf="status">
-      <CardContent className="flex flex-col gap-2 p-4 text-body text-text-primary">
-        <p className="font-semibold">
-          {d.status === 'draft'
-            ? 'Draft: only you can see it.'
-            : d.status === 'cancelled'
-            ? 'Cancelled.'
-            : d.state === 'open'
-            ? 'Open: anyone can reserve.'
-            : d.state === 'early'
-            ? 'Early access: only people with the code can reserve.'
-            : 'Live, but reservations haven’t opened yet.'}
+    <div data-qf="status" className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 rounded-2xl border border-border bg-card py-2 pl-3 pr-2">
+        <span className="relative flex h-2.5 w-2.5 flex-none" aria-hidden>
+          {d.status === 'live' && d.state === 'open' && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60 motion-reduce:hidden" />}
+          <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${dot}`} />
+        </span>
+        <p className="min-w-0 flex-1 text-body">
+          <span className="font-semibold text-text-primary">{label}</span>
+          <span className="text-text-secondary"> · {hint}</span>
         </p>
-        <p className="text-text-secondary">Everyone can reserve from {whenText(d.publicStartsAt)}.</p>
-        {d.earlyAccessCode && (
-          <p className="flex items-center gap-1.5 text-text-secondary">
-            <KeyRound className="h-4 w-4" /> Early access from {whenText(d.earlyAccessStartsAt)} with code{' '}
-            <span className="font-mono font-bold text-text-primary">{d.earlyAccessCode}</span>
-          </p>
-        )}
-        <p className="flex items-center gap-1.5 text-text-secondary">
-          <Bell className="h-4 w-4" /> {d.waitlistCount} {d.waitlistCount === 1 ? 'person' : 'people'} asked to be told when it opens
-        </p>
+        <a
+          href={`/drops/${d.slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="See what customers see (opens a new tab)"
+          title="See what customers see"
+          className="flex h-11 w-11 flex-none items-center justify-center rounded-xl text-text-secondary hover:bg-surface hover:text-text-primary"
+        >
+          <Eye className="h-5 w-5" aria-hidden />
+        </a>
         {d.status !== 'cancelled' && (
-          <Button variant={d.status === 'live' ? 'secondary' : 'primary'} onClick={toggle} disabled={busy} className="mt-1 self-start" data-qf-focus>
-            {d.status === 'live' ? 'Hide it (back to draft)' : 'Put it live'}
+          <Button size="sm" variant={d.status === 'live' ? 'secondary' : 'primary'} onClick={toggle} disabled={busy} data-qf-focus>
+            {busy ? '…' : d.status === 'live' ? 'Hide' : 'Put it live'}
           </Button>
         )}
-        {error && <p className="text-error">{error}</p>}
-      </CardContent>
-    </Card>
+      </div>
+      {error && <p className="text-caption text-error">{error}</p>}
+    </div>
   );
 }
 
@@ -950,27 +1093,23 @@ function CheckInBox({ onDone }: { onDone: () => void }) {
   };
   return (
     <Card elevation="resting">
-      <CardContent className="flex flex-col gap-3 p-5">
-        <h2 className="flex items-center gap-2 font-heading text-h3 font-bold text-text-primary">
-          <QrCode className="h-5 w-5" /> Check someone in
-        </h2>
-        <p className="text-body text-text-secondary">
-          Scan their pass in{' '}
-          <Link href="/owner/scanner" className="font-semibold text-primary underline-offset-2 hover:underline">
-            Scan &amp; Check-in
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-heading text-h3 font-bold text-text-primary">Check someone in</h2>
+          <Link href="/owner/scanner" className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white hover:bg-primary-dark">
+            <QrCode className="h-4 w-4" aria-hidden /> Scan their pass
           </Link>
-          , or point your phone camera at it and tap Check in. You can also paste the pass link here.
-        </p>
+        </div>
         <div className="flex gap-2">
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && go()}
-            placeholder="Pass link"
+            placeholder="Or paste the pass link"
             aria-label="Pass link"
             className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-card px-3 text-body text-text-primary"
           />
-          <Button onClick={go} disabled={busy || !value.trim()}>
+          <Button variant="secondary" onClick={go} disabled={busy || !value.trim()}>
             Check in
           </Button>
         </div>
@@ -1002,11 +1141,12 @@ function RowCheckIn({ token, onDone }: { token: string; onDone: () => void }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-3">
-      <p className="text-caption text-text-secondary">{label}</p>
-      <p className="font-heading text-h3 font-bold text-text-primary">{value}</p>
+    <div className="min-w-0 rounded-2xl border border-border bg-card px-3 py-2.5">
+      <p className="truncate text-caption text-text-secondary">{label}</p>
+      <p className="font-heading text-h3 font-bold leading-tight text-text-primary">{value}</p>
+      {hint && <p className="truncate text-[11px] text-text-secondary">{hint}</p>}
     </div>
   );
 }
@@ -1019,13 +1159,13 @@ function Funnel({ d }: { d: OwnerDrop }) {
     ['Started paying', f.paymentStarted],
     ['Paid', f.paymentSuccess],
   ] as const;
-  const top = Math.max(1, f.pageViews);
+  const top = Math.max(1, ...steps.map(([, n]) => n));
   const channels = Object.entries(f.shareByChannel).sort((a, b) => b[1] - a[1]);
   const names: Record<string, string> = { whatsapp: 'WhatsApp', copy_link: 'Copy link', map: 'Map', calendar: 'Calendar', story: 'Story pic' };
   return (
     <Card elevation="resting">
-      <CardContent className="flex flex-col gap-3 p-5">
-        <h2 className="font-heading text-h3 font-bold text-text-primary">How people got here</h2>
+      <CardContent className="flex flex-col gap-3 p-4">
+        <h2 className="font-heading text-h3 font-bold text-text-primary">How people found it</h2>
         <ul className="flex flex-col gap-2">
           {steps.map(([label, n]) => (
             <li key={label}>

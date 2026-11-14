@@ -370,7 +370,7 @@ export default function HardwareTiersPage() {
       <OwnerPageHeader
         guide="tiers"
         title="Setups & prices"
-        description="A setup is one kind of thing customers book: Gaming PCs, PS5, a snooker table. Set how many you have and the price per hour."
+        description="What customers can book, how many, and the price."
         action={
           <Button
             variant="primary"

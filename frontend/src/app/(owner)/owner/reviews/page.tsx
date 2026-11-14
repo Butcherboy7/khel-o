@@ -48,7 +48,7 @@ export default function OwnerReviewsPage() {
       <OwnerPageHeader
         guide="reviews"
         title="Reviews"
-        description="What customers said after playing here. Anything you reply is public — everyone reading the review sees it."
+        description="What players said. Your replies are public."
       />
 
       {cafeId && (
@@ -73,7 +73,7 @@ export default function OwnerReviewsPage() {
       {!isLoading && !isError && reviews.length === 0 && (
         <EmptyState
           title="No reviews yet"
-          description="Once customers finish a session here, what they write about your café shows up on this page."
+          description="Reviews show up here after players finish a session."
           icon={<Star className="h-7 w-7" aria-hidden="true" />}
         />
       )}

@@ -163,7 +163,7 @@ export default function OwnerChallengesPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
       <OwnerPageHeader
         title="Challenges"
-        description="KHEL-O challenges at your café: who's playing, what to get ready, and what you've promised. KHEL-O runs sign-ups, check-in and results."
+        description="Who’s playing, what to get ready, what you promised."
       />
       {isLoading && <SkeletonCard />}
       {isError && <OwnerLoadError error={error} title="Couldn’t load your challenges" onRetry={() => refetch()} />}

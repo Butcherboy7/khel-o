@@ -493,7 +493,7 @@ export default function OwnerOffersPage() {
       <OwnerPageHeader
         guide="offers"
         title="Offers"
-        description="Run a discount, a fixed-price deal, or a flat amount off. It applies automatically at checkout. Each one also gets a code you can share or print as a QR."
+        description="Discounts that apply by themselves at checkout."
         action={
           <Button
             variant="primary"
@@ -527,7 +527,7 @@ export default function OwnerOffersPage() {
       {!isLoading && !isError && promotions.length === 0 && (
         <EmptyState
           title="No offers running"
-          description="A discount or a fixed-price deal is a good way to fill quiet hours, like 20% off weekday afternoons, or '4 hours for ₹360'. Customers see the lower price straight away."
+          description="Fill quiet hours: try 20% off weekday afternoons, or 4 hours for ₹360."
           actionLabel="Create your first offer"
           onAction={openCreate}
         />

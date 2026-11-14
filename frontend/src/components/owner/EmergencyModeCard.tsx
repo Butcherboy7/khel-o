@@ -60,8 +60,7 @@ export function EmergencyModeCard({ isEmergencyMode, onToggle, isLoading }: Emer
                 Emergency: shut everything down
               </h3>
               <p className="max-w-prose text-caption text-text-secondary">
-                Stops every new booking at once — app and desk. For a power cut, a safety problem, or
-                broken hardware. For an ordinary busy night, turn off online booking below instead.
+                Power cut or safety problem: stops every booking, app and desk.
               </p>
               {isEmergencyMode && (
                 <div className="mt-2 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-2.5 sm:p-3">

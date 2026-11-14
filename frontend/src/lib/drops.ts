@@ -53,10 +53,12 @@ export function clock(hhmm: string): string {
 }
 
 export function blockTimes(b: Pick<DropBlock, 'startTime' | 'endTime' | 'hours'>): string {
-  const hrs = Number.isInteger(b.hours) ? b.hours : b.hours.toFixed(1);
-  if (b.hours >= 24) return `All 24 hours from ${clock(b.startTime)}`;
+  // Old blocks can carry a bad hour count; work it out from the clock times instead.
+  const h = b.hours > 0 ? b.hours : (((minutesOf(b.endTime) - minutesOf(b.startTime)) % 1440) + 1440) % 1440 / 60;
+  const hrs = Number.isInteger(h) ? h : h.toFixed(1);
+  if (h >= 24) return `All 24 hours from ${clock(b.startTime)}`;
   const next = minutesOf(b.endTime) > 1440 ? ' next day' : '';
-  return `${clock(b.startTime)} to ${clock(b.endTime)}${next} · ${hrs} ${b.hours === 1 ? 'hour' : 'hours'}`;
+  return `${clock(b.startTime)} to ${clock(b.endTime)}${next}${h > 0 ? ` · ${hrs} ${h === 1 ? 'hour' : 'hours'}` : ''}`;
 }
 
 export function rupees(n: number): string {

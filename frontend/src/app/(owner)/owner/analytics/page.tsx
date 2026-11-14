@@ -48,7 +48,7 @@ export default function OwnerAnalyticsPage() {
       <OwnerPageHeader
         guide="analytics"
         title="Insights"
-        description="How your café is doing, when it fills up, and what to do about it."
+        description="How you’re doing and what to try next."
       />
 
       <div

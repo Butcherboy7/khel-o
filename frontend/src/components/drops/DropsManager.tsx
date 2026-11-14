@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, ExternalLink, ImagePlus, Plus, Ticket } from 'lucide-react';
+import { ChevronRight, Eye, ImagePlus, Plus, Ticket } from 'lucide-react';
 import { Button, Card, CardContent, EmptyState, Input, SkeletonCard } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
@@ -14,11 +14,18 @@ import { DropPriceOptions, overlapping, priceOptionsPayload, type PriceOptions }
 import { uploadCafePhoto } from '@/lib/api/settings';
 
 const STATE_LABEL: Record<string, string> = {
-  draft: 'Draft (only you can see it)',
+  draft: 'Hidden · only you see it',
   cancelled: 'Cancelled',
-  soon: 'Not open yet',
+  soon: 'Opens soon',
   early: 'Early access',
-  open: 'Open to everyone',
+  open: 'Live',
+};
+const STATE_TONE: Record<string, string> = {
+  draft: 'bg-amber-100 text-amber-800',
+  cancelled: 'bg-surface text-text-secondary',
+  soon: 'bg-sky-100 text-sky-800',
+  early: 'bg-violet-100 text-violet-800',
+  open: 'bg-green-100 text-green-800',
 };
 
 /** A datetime-local value ("2026-11-12T12:00") is café time (IST). */
@@ -50,7 +57,7 @@ export function DropsManager({ base = '/owner/drops', admin = false, extra }: { 
         description={
           admin
             ? 'Set up and run a launch drop for any café. People reserve with a small booking fee that comes off their bill, and pay the rest at the café.'
-            : 'Sell a few seats ahead of a big game launch. People reserve with a small booking fee that comes off their bill, and pay the rest at your café.'
+            : 'Sell seats before a big game launch. Players pay a small fee now, the rest at your café.'
         }
         action={
           !creating && (
@@ -69,7 +76,7 @@ export function DropsManager({ base = '/owner/drops', admin = false, extra }: { 
           data-tour="drops-guide"
           className="flex min-h-[44px] items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-body font-semibold text-text-primary hover:bg-primary/10"
         >
-          <span>New to GTA 6 reservations? Read the 2-minute guide, including how to add seats you sold at the café.</span>
+          <span>New to drops? Read the 2-minute guide</span>
           <ChevronRight className="h-4 w-4 flex-shrink-0 text-primary" aria-hidden />
         </Link>
       )}
@@ -94,46 +101,55 @@ export function DropsManager({ base = '/owner/drops', admin = false, extra }: { 
       {data?.drops.map((d, i) => {
         const sold = d.seatsTotal - d.blocks.reduce((n, b) => n + b.seatsLeft, 0);
         return (
-          <Card key={d.id} elevation="resting" data-tour={i === 0 ? 'drops-list' : undefined}>
-            <CardContent className="flex flex-col gap-3 p-5">
+          <Card key={d.id} elevation="resting" data-tour={i === 0 ? 'drops-list' : undefined} className="relative transition-shadow hover:shadow-card">
+            <CardContent className="flex flex-col gap-3 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-overline font-semibold uppercase tracking-wide text-primary">
-                    {STATE_LABEL[d.state] ?? d.state} · {d.cafe.name}
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-caption font-semibold ${STATE_TONE[d.state] ?? 'bg-surface text-text-secondary'}`}>
+                    <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+                    {STATE_LABEL[d.state] ?? d.state}
+                  </span>
+                  <h2 className="mt-1 font-heading text-h3 font-bold text-text-primary">
+                    <Link href={`${base}/${d.id}`} className="after:absolute after:inset-0 focus-visible:outline-none">
+                      {d.title}
+                    </Link>
+                  </h2>
+                  <p className="text-caption text-text-secondary">
+                    {[admin ? d.cafe.name : '', d.playsOn ? `On ${d.playsOn}` : '', d.startsOn && d.endsOn ? `${shortDate(d.startsOn)} – ${shortDate(d.endsOn)}` : ''].filter(Boolean).join(' · ')}
                   </p>
-                  <h2 className="font-heading text-h3 font-bold text-text-primary">{d.title}</h2>
-                  <p className="text-body text-text-secondary">
-                    {d.playsOn ? `On ${d.playsOn} · ` : ''}{sold} of {d.seatsTotal} seats sold · {d.paidReservations} paid · {rupees(d.pricePerHour)} an hour
-                  </p>
-                  {d.startsOn && d.endsOn && (
-                    <p className="text-caption text-text-secondary">
-                      {shortDate(d.startsOn)} to {shortDate(d.endsOn)}
-                    </p>
-                  )}
-                  {extra?.[d.id] && (
-                    <p className="text-caption text-text-secondary">
-                      {rupees(extra[d.id].feesTaken)} in booking fees · {extra[d.id].waitlist} waiting
-                      {extra[d.id].refunded > 0 ? ` · ${extra[d.id].refunded} refunded` : ''}
-                    </p>
-                  )}
                 </div>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Link
-                  href={`${base}/${d.id}`}
-                  className="flex h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-primary px-4 font-semibold text-white hover:bg-primary-dark"
-                >
-                  Reservations and check-in <ChevronRight className="h-4 w-4" />
-                </Link>
                 <a
                   href={`/drops/${d.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-border px-4 font-semibold text-text-primary hover:bg-surface"
+                  aria-label={`See ${d.title} as customers do (opens a new tab)`}
+                  title="See what customers see"
+                  className="relative z-10 flex h-11 w-11 flex-none items-center justify-center rounded-xl border border-border text-text-secondary hover:bg-surface hover:text-text-primary"
                 >
-                  <ExternalLink className="h-4 w-4" /> Public page
+                  <Eye className="h-5 w-5" aria-hidden />
                 </a>
               </div>
+              <dl className="grid grid-cols-3 gap-2 rounded-xl bg-surface p-2.5 text-center">
+                {[
+                  ['Seats sold', `${sold} of ${d.seatsTotal}`],
+                  ['Paid', String(d.paidReservations)],
+                  ['Per hour', rupees(d.pricePerHour)],
+                ].map(([k, v]) => (
+                  <div key={k} className="min-w-0">
+                    <dt className="truncate text-[11px] text-text-secondary">{k}</dt>
+                    <dd className="font-heading text-body-emphasis font-bold text-text-primary">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+              {extra?.[d.id] && (
+                <p className="text-caption text-text-secondary">
+                  {rupees(extra[d.id].feesTaken)} in booking fees · {extra[d.id].waitlist} waiting
+                  {extra[d.id].refunded > 0 ? ` · ${extra[d.id].refunded} refunded` : ''}
+                </p>
+              )}
+              <span className="flex items-center justify-between text-body font-semibold text-primary" aria-hidden>
+                Manage slots, bookings and prices <ChevronRight className="h-4 w-4" />
+              </span>
             </CardContent>
           </Card>
         );

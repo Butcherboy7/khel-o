@@ -21,6 +21,8 @@ export function QuickFindSpotlight() {
     let timer = 0;
 
     const find = () => {
+      // A page with tabs (a drop) opens the tab that holds this part.
+      window.dispatchEvent(new CustomEvent('khelo:reveal', { detail: target }));
       const el = document.querySelector<HTMLElement>(`[data-qf~="${target}"]`);
       if (!el || el.offsetParent === null) {
         if (++tries < 40) timer = window.setTimeout(find, 125);

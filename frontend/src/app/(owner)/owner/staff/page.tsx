@@ -158,7 +158,7 @@ export default function OwnerStaffPage() {
       <OwnerPageHeader
         guide="staff"
         title="Your team"
-        description="Give the people working your desk their own login, so nobody has to share yours."
+        description="Their own login, so nobody shares yours."
         action={
           <Button
             variant="primary"
@@ -330,7 +330,7 @@ export default function OwnerStaffPage() {
               bare
               icon={<Users className="h-7 w-7" aria-hidden="true" />}
               title="Nobody yet"
-              description="Invite a staff member and they'll get an email to set their own password. You stay the only one who can see the money."
+              description="They get an email to set a password."
               actionLabel="Invite someone"
               onAction={() => setIsInviteOpen(true)}
             />

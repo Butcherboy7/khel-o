@@ -37,7 +37,7 @@ import { PlatformReconfirmModal } from '@/components/owner/PlatformReconfirmModa
 import { apiClient } from '@/lib/api/client';
 import { getHostingChallenges } from '@/lib/api/challenges';
 import type { User } from '@/types';
-import { QuickFindProvider, useQuickFind, useShortcutLabel } from '@/components/owner/quickfind/QuickFind';
+import { QuickFindProvider, useQuickFind, useShortcutLabel, SearchHint } from '@/components/owner/quickfind/QuickFind';
 import { QuickFindSpotlight } from '@/components/owner/quickfind/QuickFindSpotlight';
 
 /* ── Navigation Items ────────────────────────────────────────────── */
@@ -592,7 +592,7 @@ function QuickFindTrigger() {
         aria-keyshortcuts="Control+K Meta+K"
       >
         <Search className="h-4 w-4 flex-shrink-0" aria-hidden />
-        <span className="min-w-0 flex-1 truncate">Search anything or do something…</span>
+        <SearchHint />
         {shortcut && (
           <kbd className="flex-shrink-0 rounded-md border border-border bg-card px-1.5 py-0.5 font-sans text-[11px] font-semibold text-text-secondary">
             {shortcut}

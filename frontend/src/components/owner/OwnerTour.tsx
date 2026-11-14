@@ -74,6 +74,8 @@ function isShown(el: HTMLElement): boolean {
  *  hidden desktop sidebar. */
 function findTarget(target: TourTarget): HTMLElement | null {
   if (typeof target === 'string') {
+    // A page with tabs (a drop) opens the tab that holds this part.
+    window.dispatchEvent(new CustomEvent('khelo:reveal', { detail: target }));
     const all = Array.from(document.querySelectorAll<HTMLElement>(`[data-tour="${CSS.escape(target)}"]`)).filter(isShown);
     return all[all.length - 1] ?? null;
   }

@@ -143,7 +143,7 @@ export default function OwnerBookingsPage() {
       <OwnerPageHeader
         guide="bookings"
         title="Bookings"
-        description="Find a booking, check someone in, or free up a time nobody paid for."
+        description="Find a booking or check someone in."
       />
 
       {/* Filters stack on a phone: side by side, the date field and the status
@@ -264,7 +264,7 @@ export default function OwnerBookingsPage() {
         {!isLoading && !isError && bookings.length === 0 && dropRows.length === 0 && (
           <EmptyState
             title="Nothing here"
-            description="No bookings match what you searched for. Try a different date, or set Show to Everything."
+            description="Try another day, or set Show to Everything."
           />
         )}
 

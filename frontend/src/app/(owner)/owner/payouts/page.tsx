@@ -10,7 +10,6 @@ import { getOwnerPayoutSummary, getOwnerCafePayouts } from '@/lib/api/owner';
 import { Card, CardContent, Badge, Button, EmptyState, PageSpinner } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { MoneyExplained } from '@/components/owner/MoneyExplained';
-import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
 import { useAuthStore } from '@/store/authStore';
 import { isCafeSuspended, SuspendedNotice } from '@/components/owner/OwnerLoadError';
 
@@ -73,7 +72,7 @@ export default function OwnerPayoutsPage() {
 
         title="Payouts"
 
-        description="Where the money from your bookings is, and what has already reached you."
+        description="Where your money is right now."
 
       />
         <SuspendedNotice />
@@ -82,11 +81,11 @@ export default function OwnerPayoutsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-5">
       <OwnerPageHeader
         guide="payouts"
         title="Payouts"
-        description="Where the money from your bookings is, and what has already reached you."
+        description="Where your money is right now."
       />
       {payoutOnHold && (
         <Card elevation="resting" className="border border-error/30 bg-error/5">
@@ -96,114 +95,60 @@ export default function OwnerPayoutsPage() {
         </Card>
       )}
 
-      {/* Four numbers that mirror the actual money flow — customer pays,
-          Razorpay settles to KHEL-O, it becomes available, then it's paid
-          out — so an owner can tell at a glance which stage their money is
-          in instead of seeing one opaque "owed" total. */}
-      <div className="flex flex-col gap-2" data-tour="payout-stages">
-        <OwnerStatRow
-          stats={[
-            {
-              label: 'Earned so far',
-              value: `₹${totalEarnings.toFixed(0)}`,
-              tone: 'neutral',
-              hint: 'All your app bookings, after refunds',
-            },
-            {
-              label: 'Still clearing',
-              value: `₹${pendingSettlement.toFixed(0)}`,
-              tone: pendingSettlement > 0 ? 'warning' : 'neutral',
-              hint: 'Customer has paid; the bank is still moving it (2–3 working days)',
-            },
-            {
-              label: 'Ready to pay you',
-              value: `₹${outstandingAmount.toFixed(0)}`,
-              tone: outstandingAmount > 0 ? 'warning' : 'neutral',
-              hint: 'Cleared. KHEL-O sends this to you next',
-            },
-            {
-              label: 'Paid to you',
-              value: `₹${totalPaid.toFixed(0)}`,
-              tone: 'positive',
-              hint: 'Already sent to your UPI or bank',
-            },
-          ]}
-        />
-        <p className="text-caption text-text-secondary px-1">
-          How money reaches you: the customer pays → the payment clears (2–3 working days) → it moves to
-          “Ready to pay you” → KHEL-O sends it to your UPI or bank and it shows under “Paid to you”.
-        </p>
-      </div>
-
-      <Card data-tour="payout-where" elevation="resting" className="border border-border bg-surface-hover">
-        <CardContent className="flex flex-col gap-3 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-caption">
-            <span className="text-text-secondary">Where it&apos;s sent: </span>
-            <span className="font-bold text-text-primary">
-              {account?.upiVpa || account?.bankAccountNumberMasked || 'Not added yet'}
+      {/* The money's journey, left to right: earned → clearing → ready → paid. Each step
+          is a number and three words; the order itself explains how money reaches you. */}
+      <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-tour="payout-stages" aria-label="Where your money is">
+        {[
+          { label: 'Earned', value: totalEarnings, note: 'after refunds', tone: 'text-text-primary' },
+          { label: 'Clearing', value: pendingSettlement, note: 'takes 2–3 days', tone: pendingSettlement > 0 ? 'text-amber-700' : 'text-text-primary' },
+          { label: 'Ready', value: outstandingAmount, note: 'we send it next', tone: outstandingAmount > 0 ? 'text-amber-700' : 'text-text-primary' },
+          { label: 'Paid to you', value: totalPaid, note: 'in your bank', tone: 'text-success' },
+        ].map((s, n) => (
+          <li key={s.label} className="relative flex flex-col gap-0.5 rounded-2xl border border-border bg-card px-3 py-2.5">
+            <span className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-surface text-[10px] font-bold text-text-primary">{n + 1}</span>
+              {s.label}
             </span>
+            <span className={`font-heading text-h2 font-bold leading-tight ${s.tone}`}>₹{s.value.toFixed(0)}</span>
+            <span className="text-[11px] text-text-secondary">{s.note}</span>
+          </li>
+        ))}
+      </ol>
+
+      <Card data-tour="payout-where" elevation="resting">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <Building2 className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-caption text-text-secondary">We send your money to</p>
+              <p className="truncate font-semibold text-text-primary">
+                {account ? [account.upiVpa ? `UPI ${account.upiVpa}` : '', account.bankAccountNumberMasked ? `Bank ${account.bankAccountNumberMasked}` : ''].filter(Boolean).join(' · ') : 'Nowhere yet'}
+              </p>
+              {account?.accountHolderName && <p className="truncate text-caption text-text-secondary">{account.accountHolderName}{account.bankIfsc ? ` · ${account.bankIfsc}` : ''}</p>}
+            </div>
           </div>
-          {!account && (
-            <Link href="/owner/settings" className="w-full sm:w-auto">
-              <Button variant="primary" size="sm" fullWidth className="gap-1.5 whitespace-nowrap sm:w-auto">
-                <span>Add payout details</span>
-                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </Button>
-            </Link>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Connected Bank Account Details */}
-      <Card elevation="raised" className="bg-surface border border-border">
-        <CardContent className="p-6 flex flex-col gap-4">
-          <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-emerald-500" />
-            <span>Your payout details</span>
-          </h2>
-
-          {account ? (
-            <dl className="grid grid-cols-1 gap-4 rounded-2xl border border-border/80 bg-surface-hover p-4 sm:grid-cols-2 md:grid-cols-3">
-              {[
-                ['Account holder', account.accountHolderName],
-                ['UPI ID', account.upiVpa],
-                ['Bank account', account.bankAccountNumberMasked],
-                ['Bank IFSC', account.bankIfsc],
-              ]
-                .filter(([, v]) => Boolean(v))
-                .map(([label, value]) => (
-                  <div key={label as string}>
-                    <dt className="block text-caption text-text-secondary">{label}</dt>
-                    <dd className="break-all text-caption font-bold text-text-primary">{value}</dd>
-                  </div>
-                ))}
-            </dl>
-          ) : (
-            <p className="text-caption text-text-secondary bg-surface-hover p-4 rounded-2xl border border-border/80">
-              No payout details yet. Add your UPI ID or bank account in Café settings so KHEL-O can send you your money.
-            </p>
-          )}
+          <Link href="/owner/settings?qf=payout" className="w-full sm:w-auto">
+            <Button variant={account ? 'secondary' : 'primary'} size="sm" fullWidth className="gap-1.5 whitespace-nowrap sm:w-auto">
+              <span>{account ? 'Change' : 'Add UPI or bank'}</span>
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          </Link>
         </CardContent>
       </Card>
 
       {/* Manual Payout History */}
-      <Card elevation="raised" className="bg-surface border border-border">
-        <CardContent className="p-6 flex flex-col gap-6">
+      <Card elevation="resting">
+        <CardContent className="p-4 sm:p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <h2 className="font-heading text-h2 text-text-primary flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-emerald-500" />
-              <span>Money sent to you</span>
-            </h2>
-            <div className="text-right">
-              <span className="block text-caption text-text-secondary">Ready to pay you</span>
-              <span className="font-heading text-h3 text-amber-600">₹{outstandingAmount.toFixed(2)}</span>
-            </div>
+            <h2 className="font-heading text-h3 font-bold text-text-primary">Money sent to you</h2>
           </div>
 
           {payoutHistory.length === 0 ? (
             <EmptyState
               title="Nothing sent yet"
-              description="When KHEL-O sends you money, it shows here with the UTR number (the bank's receipt number)."
+              description="Each payment shows here with its bank receipt number (UTR)."
             />
           ) : (
             <ul className="flex flex-col gap-3">

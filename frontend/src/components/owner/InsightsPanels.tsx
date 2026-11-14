@@ -429,7 +429,7 @@ export function WeekGrid({ data }: { data: OwnerInsights }) {
   return (
     <Section
       title="When your café is busy"
-      why="Plan staff for the rush, and put offers on the empty hours instead of discounting the busy ones."
+      why="Put offers on the empty hours, not the busy ones."
       tip={INFO_TIPS.insightsWeek}
     >
       <p className="text-body text-text-secondary">
@@ -560,7 +560,7 @@ export function CustomersPanel({ data }: { data: OwnerInsights }) {
   return (
     <Section
       title="Who plays here"
-      why="New players grow you. Players who come back are what keep the lights on."
+      why="New players grow you. Regulars pay the bills."
       tip={INFO_TIPS.insightsCustomers}
     >
       {c.total === 0 ? (
@@ -664,7 +664,7 @@ export function FunnelPanel({ data }: { data: OwnerInsights }) {
   return (
     <Section
       title="From your page to a booking"
-      why="If lots of people look but few book, your photos, prices or hours are the place to fix."
+      why="Many look but few book? Check photos, prices and hours."
       tip={INFO_TIPS.insightsFunnel}
     >
       {f.pageVisitors === 0 && f.paid === 0 ? (
@@ -713,7 +713,7 @@ export function StationsPanel({ data }: { data: OwnerInsights }) {
   return (
     <Section
       title="Which setups earn most"
-      why="Compared per seat, so you know where one more machine, or a price change, would pay off."
+      why="Per seat, so you know where one more machine pays off."
       tip={INFO_TIPS.insightsStations}
     >
       {s.length === 0 ? (
@@ -784,7 +784,7 @@ export function GamesAndReviews({
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <Section
         title="What people play"
-        why="Keep these installed, updated and ready. It’s what players ask for."
+        why="Keep these installed and updated."
       >
         {topGames.length === 0 ? (
           <p className="text-body text-text-secondary">
@@ -811,7 +811,7 @@ export function GamesAndReviews({
       </Section>
       <Section
         title="What players say"
-        why="Your rating is the first thing a new player sees next to your name."
+        why="New players see your rating first."
       >
         <div className="flex items-center gap-3">
           <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600">

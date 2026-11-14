@@ -85,13 +85,45 @@ interface QuickFindApi {
   open: (initial?: string) => void;
   close: () => void;
   isOpen: boolean;
+  isStaff: boolean;
 }
 
 const QuickFindContext = createContext<QuickFindApi | null>(null);
 
 export function useQuickFind(): QuickFindApi {
   const ctx = useContext(QuickFindContext);
-  return ctx ?? { open: () => {}, close: () => {}, isOpen: false };
+  return ctx ?? { open: () => {}, close: () => {}, isOpen: false, isStaff: false };
+}
+
+const OWNER_HINTS = ['opening time', "tomorrow's bookings", 'PS5 2 broken', 'sell PS5 1 for 2 hours', 'change price', 'new offer', 'add staff', 'payouts', 'pause bookings'];
+const STAFF_HINTS = ["today's bookings", 'scan a pass', 'free slots', 'PS5 2 broken', 'not paid'];
+
+/**
+ * The search box's placeholder, teaching by example: after a moment it starts
+ * cycling real things owners type ("Try “opening time”"), so nobody has to be
+ * told what Quick Find can do. Starts on the plain sentence (same on the server).
+ */
+export function SearchHint({ fallback = 'Search anything or do something…' }: { fallback?: string }) {
+  const { isStaff } = useQuickFind();
+  const list = isStaff ? STAFF_HINTS : OWNER_HINTS;
+  const [i, setI] = useState(-1);
+  useEffect(() => {
+    let n = -1;
+    const first = window.setTimeout(() => setI((n = 0)), 2500);
+    const tick = window.setInterval(() => {
+      if (n >= 0 && document.visibilityState === 'visible') setI((n = (n + 1) % list.length));
+    }, 3200);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(tick);
+    };
+  }, [list.length]);
+  if (i < 0) return <span className="min-w-0 flex-1 truncate">{fallback}</span>;
+  return (
+    <span key={i} className="qf-fade min-w-0 flex-1 truncate" aria-hidden="true">
+      Try <span className="font-semibold text-text-primary">“{list[i]}”</span>
+    </span>
+  );
 }
 
 /** "⌘ K" on a Mac, "Ctrl K" elsewhere. Empty until mounted (no hydration mismatch). */
@@ -135,7 +167,7 @@ export function QuickFindProvider({ isStaff, children }: { isStaff: boolean; chi
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const api = useMemo(() => ({ open, close, isOpen }), [open, close, isOpen]);
+  const api = useMemo(() => ({ open, close, isOpen, isStaff }), [open, close, isOpen, isStaff]);
   return (
     <QuickFindContext.Provider value={api}>
       {children}

@@ -65,7 +65,7 @@ export default function Gta6GuidePage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <OwnerPageHeader
         title="GTA 6 at your café"
-        description="Sell seats before launch day, take walk-in bookings too, and never double-book a seat. Here is how it works."
+        description="Sell seats before launch day, without double-booking."
       />
 
       <Card elevation="raised" className="border border-primary/30 bg-primary/5">

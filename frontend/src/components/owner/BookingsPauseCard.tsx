@@ -40,8 +40,7 @@ export function BookingsPauseCard({ bookingsPaused, onToggle, isLoading }: Booki
                 Online booking
               </h3>
               <p className="max-w-prose text-caption text-text-secondary">
-                Turn this off for a private event or a night you&apos;re already full. Walk-ins are
-                not affected, and you can turn it back on any time.
+                Full tonight or a private event? Turn it off. Walk-ins still work.
               </p>
               {bookingsPaused ? (
                 <div className="mt-2 flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2.5 sm:p-3">

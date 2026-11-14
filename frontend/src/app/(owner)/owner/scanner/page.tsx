@@ -636,7 +636,7 @@ export default function ScannerPage() {
       <OwnerPageHeader
         guide="scanner"
         title="Scan & check in"
-        description="Point your camera at the QR code on the customer's phone. No camera? Upload a screenshot, or look them up by name."
+        description="Point the camera at the customer’s QR pass."
       />
 
       {/* Tab Navigation — role="tablist" so the three modes announce as one
