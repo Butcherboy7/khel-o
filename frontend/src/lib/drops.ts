@@ -121,14 +121,39 @@ export function dropLengths(d: Priced): number[] {
   return Array.from({ length: d.maxHours ?? 0 }, (_, i) => i + 1);
 }
 
-function bandRate(d: Priced, m: number): number | null {
-  for (const b of d.timePrices ?? []) {
+function bandAt(bands: TimePrice[] | undefined, m: number): TimePrice | null {
+  m = ((m % 1440) + 1440) % 1440;
+  for (const b of bands ?? []) {
     const s = minutesOf(b.start);
     let e = minutesOf(b.end);
     if (e <= s) e += 1440;
-    if ((s <= m && m < e) || (s <= m + 1440 && m + 1440 < e)) return b.perHour;
+    if ((s <= m && m < e) || (s <= m + 1440 && m + 1440 < e)) return b;
   }
   return null;
+}
+
+function bandRate(d: Priced, m: number): number | null {
+  return bandAt(d.timePrices, m)?.perHour ?? null;
+}
+
+/** Shortest booking (hours) that may start at minute m: set by the price window it starts in. */
+export function minHoursAt(bands: TimePrice[] | undefined, m: number): number {
+  return bandAt(bands, m)?.minHours ?? 1;
+}
+
+/** "5–6 AM ₹300 + 6–8 AM ₹400": what each part of a booking costs, for the price line. */
+export function priceSplit(d: Priced, begin: number, hours: number): { from: number; to: number; perHour: number; amount: number }[] {
+  const len = Math.round(hours * 60);
+  const out: { from: number; to: number; perHour: number; amount: number }[] = [];
+  for (let m = begin; m < begin + len; m += 30) {
+    const rate = bandRate(d, m % 1440) ?? d.pricePerHour;
+    const last = out[out.length - 1];
+    if (last && last.perHour === rate && last.to === m) {
+      last.to = m + 30;
+      last.amount += rate / 2;
+    } else out.push({ from: m, to: m + 30, perHour: rate, amount: rate / 2 });
+  }
+  return out;
 }
 
 /** One seat for `hours` from minute `begin` of the session day. Mirrors seat_price in drop_service.py. */
@@ -141,4 +166,40 @@ export function dropSeatPrice(d: Priced, begin: number, hours: number): number {
     if (r != null) total += ((r - d.pricePerHour) * 30) / 60;
   }
   return Math.max(0, Math.round(total * 100) / 100);
+}
+
+const hm = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+/** Put one price on [from, to) (minutes; past 1440 wraps to the next morning) over a date's
+ *  existing windows: overlapped parts are replaced, the rest kept. perHour null = back to the
+ *  usual price there. Returns windows sorted by start, neighbours with the same price merged. */
+export function paintBands(bands: TimePrice[], from: number, to: number, perHour: number | null, minHours?: number): TimePrice[] {
+  const cell: (TimePrice | null)[] = Array.from({ length: 48 }, () => null);
+  for (const b of bands) {
+    const s = minutesOf(b.start);
+    let e = minutesOf(b.end);
+    if (e <= s) e += 1440;
+    for (let m = s; m < e; m += 30) cell[(m % 1440) / 30] = b;
+  }
+  const fresh = perHour ? { start: '', end: '', perHour, ...(minHours && minHours > 1 ? { minHours } : {}) } : null;
+  for (let m = from; m < to; m += 30) cell[(m % 1440) / 30] = fresh;
+  const out: TimePrice[] = [];
+  let cur: { s: number; b: TimePrice } | null = null;
+  const same = (a: TimePrice, b: TimePrice) => a.perHour === b.perHour && (a.minHours ?? 1) === (b.minHours ?? 1);
+  const flush = (end: number) => {
+    if (cur) out.push({ start: hm(cur.s), end: hm(end), perHour: cur.b.perHour, ...(cur.b.minHours ? { minHours: cur.b.minHours } : {}) });
+    cur = null;
+  };
+  for (let i = 0; i < 48; i++) {
+    const c = cell[i];
+    if (cur && (!c || !same(cur.b, c))) flush(i * 30);
+    if (c && !cur) cur = { s: i * 30, b: c };
+  }
+  flush(1440);
+  // A window running through midnight is one window (11 PM to 2 AM), not two.
+  if (out.length > 1 && out[0].start === '00:00' && out[out.length - 1].end === '00:00' && same(out[0], out[out.length - 1])) {
+    const first = out.shift() as TimePrice;
+    out[out.length - 1].end = first.end;
+  }
+  return out;
 }

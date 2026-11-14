@@ -12,7 +12,8 @@ import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 import { cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, getWalkInQr, giveAwayReservation, updateDrop, type OwnerDrop } from '@/lib/api/drops';
 import { blockTimes, clockRange, dayLabel, rupees, whenText } from '@/lib/drops';
-import { OfflineBooking, RemoveOffline } from '@/components/drops/OfflineBooking';
+import { RemoveOffline } from '@/components/drops/OfflineBooking';
+import { SlotManager } from '@/components/drops/SlotManager';
 import { DropPriceOptions, overlapping, priceOptionsPayload, type PriceOptions } from '@/components/drops/DropPriceOptions';
 
 type Row = OwnerDrop['blocks'][number]['reservations'][number];
@@ -535,7 +536,7 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
 
       {d.status !== 'cancelled' && <ShareDrop d={d} />}
 
-      <OfflineBooking d={d} onDone={refresh} />
+      <SlotManager d={d} onDone={refresh} />
 
       <div className="grid grid-cols-3 gap-2" data-tour="drop-stats">
         <Stat label="Seats sold" value={`${d.totals.seatsSold} of ${d.seatsTotal}`} />
@@ -562,7 +563,7 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
         </p>
       )}
 
-      {d.blocks.filter((b) => b.reservations.length > 0).map((b) => (
+      {d.blocks.filter((b) => b.reservations.some((r) => r.source !== 'block')).map((b) => (
         <Card key={b.id} elevation="resting">
           <CardContent className="flex flex-col gap-3 p-5">
             <div className="flex items-baseline justify-between gap-3">
@@ -576,7 +577,7 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
               <p className="text-caption text-text-secondary">No reservations yet.</p>
             ) : (
               <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
-                {b.reservations.map((r) => (
+                {b.reservations.filter((r) => r.source !== 'block').map((r) => (
                   <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
                     <span className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                       <span className="block truncate font-semibold text-text-primary">

@@ -110,11 +110,87 @@ def block_closed(drop: Drop, block: DropBlock, at: Optional[datetime] = None) ->
 
 def in_range(drop: Drop, block: DropBlock) -> bool:
     """Is this session part of the drop? Includes the night before launch when it runs into launch day."""
+    if getattr(block, "closed", False):
+        return False
     if drop.ends_on is not None and block.session_date > drop.ends_on:
         return False
     if drop.starts_on is None or block.session_date >= drop.starts_on:
         return True
     return bool(drop.max_hours) and open_from(drop, block) < block_span(block)[1]
+
+
+def _iv(x: dict) -> tuple[int, int]:
+    return span(time.fromisoformat(str(x["start"])[:5]), time.fromisoformat(str(x["end"])[:5]))
+
+
+def default_intervals(drop: Drop) -> list[tuple[int, int]]:
+    if drop.daily_start_time is None or drop.daily_end_time is None:
+        return []
+    return [span(drop.daily_start_time, drop.daily_end_time)]
+
+
+def day_intervals(drop: Drop, day: date) -> list[tuple[int, int]]:
+    """Open stretches of one event date, as minutes from that date's midnight (an end past
+    1440 runs into the next morning). [] = closed that day."""
+    over = (drop.day_hours or {}).get(day.isoformat())
+    if over is not None:
+        return sorted(_iv(x) for x in over)
+    return default_intervals(drop)
+
+
+def runs_on(drop: Drop, day: date) -> bool:
+    return drop.starts_on is not None and drop.starts_on <= day and (drop.ends_on is None or drop.ends_on >= day)
+
+
+def launch_night(drop: Drop) -> bool:
+    """A by-the-hour drop whose daily hours run past midnight also opens on the night before
+    launch day, from 12 AM, unless launch day's own hours already start at midnight."""
+    if not drop.max_hours or drop.starts_on is None:
+        return False
+    dflt = default_intervals(drop)
+    if not dflt or dflt[0][1] <= DAY_MIN:
+        return False
+    tail_end = dflt[0][1] - DAY_MIN
+    return not any(s < tail_end for s, _e in day_intervals(drop, drop.starts_on))
+
+
+def tails_into(drop: Drop, day: date) -> list[tuple[int, int]]:
+    """The part of the night before that runs into this date (minutes from this date's midnight)."""
+    prev = day - timedelta(days=1)
+    if runs_on(drop, prev):
+        return [(max(0, s - DAY_MIN), e - DAY_MIN) for s, e in day_intervals(drop, prev) if e > DAY_MIN]
+    if drop.starts_on is not None and prev == drop.starts_on - timedelta(days=1) and launch_night(drop):
+        return [(0, e - DAY_MIN) for _s, e in default_intervals(drop) if e > DAY_MIN]
+    return []
+
+
+def clean_intervals(raw) -> list[dict]:
+    """Owner's opening stretches for a date: on the hour or half hour, not overlapping."""
+    out, used = [], set()
+    for x in raw or []:
+        a, b = str(x["start"])[:5], str(x["end"])[:5]
+        ta, tb = time.fromisoformat(a), time.fromisoformat(b)
+        if ta.minute % 30 or tb.minute % 30:
+            raise DropError("Opening times start and end on the hour or half hour.", "BAD_HOURS")
+        s, e = span(ta, tb)
+        mins = set(range(s, e, STEP))
+        if mins & used:
+            raise DropError("Two opening times overlap. Change one so they don't.", "HOURS_OVERLAP")
+        used |= mins
+        out.append({"start": a, "end": b})
+    if len(out) > 4:
+        raise DropError("Use 4 opening stretches a day at most.", "BAD_HOURS")
+    return sorted(out, key=lambda x: _iv(x)[0])
+
+
+def bookable_until(drop: Drop, at: Optional[datetime] = None) -> Optional[datetime]:
+    """Latest start people can book online, or None for no limit."""
+    if not drop.advance_hours:
+        return None
+    at = at or now_utc()
+    if drop.advance_from is not None and at.astimezone(IST).date() < drop.advance_from:
+        return None
+    return at + timedelta(hours=drop.advance_hours)
 
 
 def state(drop: Drop, at: Optional[datetime] = None) -> str:
@@ -177,24 +253,29 @@ async def ensure_blocks(db: AsyncSession, drop: Drop) -> None:
     """Rolling drops: make sure each of the next 7 days (not past ends_on) has its day.
     Safe to call on every read; a race on the same day is stopped by the unique key."""
     from sqlalchemy.exc import IntegrityError
-    if drop.daily_start_time is None or drop.status != "live" or drop.starts_on is None:
+    if drop.status != "live" or drop.starts_on is None or (drop.daily_start_time is None and not drop.day_hours):
         return
     today = now_utc().astimezone(IST).date()
     first = max(today, drop.starts_on)
-    if drop.max_hours and span(drop.daily_start_time, drop.daily_end_time)[1] > DAY_MIN:
-        # Runs past midnight: the night before launch day carries the first hours after 12 AM.
-        first = max(today, drop.starts_on - timedelta(days=1))
     # Before launch the first week from launch day is already open for booking; after launch the
     # window rolls: today plus the next 6 days.
     last = min(first + timedelta(days=VISIBLE_DAYS - 1), drop.ends_on or drop.starts_on + timedelta(days=MAX_DAYS - 1))
     have = set((await db.execute(select(DropBlock.session_date).where(DropBlock.drop_id == drop.id))).scalars().all())
     made = False
+    eve = drop.starts_on - timedelta(days=1)
+    if today <= drop.starts_on and eve not in have and launch_night(drop):
+        # Runs past midnight: the night before launch day carries the first hours after 12 AM.
+        db.add(DropBlock(drop_id=drop.id, session_date=eve, start_time=drop.daily_start_time,
+                         end_time=drop.daily_end_time, seats_total=drop.daily_seats or 1))
+        made = True
     d = first
     while d <= last:
         if d not in have:
-            db.add(DropBlock(drop_id=drop.id, session_date=d, start_time=drop.daily_start_time,
-                             end_time=drop.daily_end_time, seats_total=drop.daily_seats or 1))
-            made = True
+            # Each opening stretch of the date is its own session; a closed date gets none.
+            for s, e in day_intervals(drop, d):
+                db.add(DropBlock(drop_id=drop.id, session_date=d, start_time=clock_of(s),
+                                 end_time=clock_of(e), seats_total=drop.daily_seats or 1))
+                made = True
         d += timedelta(days=1)
     if made:
         try:
@@ -205,7 +286,8 @@ async def ensure_blocks(db: AsyncSession, drop: Drop) -> None:
 
 async def blocks_of(db: AsyncSession, drop_id: UUID) -> list[DropBlock]:
     rows = await db.execute(
-        select(DropBlock).where(DropBlock.drop_id == drop_id).order_by(DropBlock.session_date, DropBlock.start_time)
+        select(DropBlock).where(DropBlock.drop_id == drop_id, DropBlock.closed.is_(False))
+        .order_by(DropBlock.session_date, DropBlock.start_time)
     )
     return list(rows.scalars().all())
 
@@ -360,15 +442,38 @@ def lengths(drop: Drop) -> list[int]:
     return list(range(1, (drop.max_hours or 0) + 1))
 
 
-def _band_rate(drop: Drop, m: int) -> Optional[Decimal]:
-    for b in drop.time_prices or []:
-        s, e = span(time.fromisoformat(b["start"]), time.fromisoformat(b["end"]))
+def bands_for(drop: Drop, day: Optional[date] = None) -> list[dict]:
+    """Price windows for a date: that date's own if the café set them, else the drop's."""
+    if day is not None:
+        over = (drop.day_prices or {}).get(day.isoformat())
+        if over is not None:
+            return over
+    return drop.time_prices or []
+
+
+def _band_at(bands: list[dict], m: int) -> Optional[dict]:
+    m %= DAY_MIN
+    for b in bands:
+        s, e = _iv(b)
         if s <= m < e or s <= m + DAY_MIN < e:
-            return Decimal(str(b["perHour"]))
+            return b
     return None
 
 
-def seat_price(drop: Drop, begin: int, length: int) -> Decimal:
+def _band_rate(drop: Drop, m: int, day: Optional[date] = None) -> Optional[Decimal]:
+    b = _band_at(bands_for(drop, day), m)
+    return Decimal(str(b["perHour"])) if b else None
+
+
+def min_minutes(drop: Drop, day: Optional[date], begin: int) -> int:
+    """Shortest booking that may start at minute `begin`: set by the price window it starts in."""
+    b = _band_at(bands_for(drop, day), begin)
+    if b and b.get("minHours"):
+        return int(round(float(b["minHours"]) * 60))
+    return 60
+
+
+def seat_price(drop: Drop, begin: int, length: int, day: Optional[date] = None) -> Decimal:
     """Price of one seat for `length` minutes from minute `begin` of the session day.
     Package price (or hourly price x hours), then each half hour inside a time band moves
     by the difference between that band's hourly price and the normal one."""
@@ -376,7 +481,7 @@ def seat_price(drop: Drop, begin: int, length: int) -> Decimal:
     packs = {int(x["hours"]): Decimal(str(x["price"])) for x in drop.length_prices or []}
     total = packs[length // 60] if length % 60 == 0 and length // 60 in packs else base * Decimal(length) / Decimal(60)
     for m in range(begin, begin + length, STEP):
-        rate = _band_rate(drop, m % DAY_MIN)
+        rate = _band_rate(drop, m % DAY_MIN, day)
         if rate is not None:
             total += (rate - base) * Decimal(STEP) / Decimal(60)
     return money(max(total, Decimal("0")))
@@ -414,12 +519,19 @@ def clean_price_options(length_prices, time_prices) -> tuple[Optional[list], Opt
             rate = float(x["perHour"])
             if not 0 < rate <= 10000:
                 raise DropError("Each time price needs an hourly price.", "BAD_TIME_PRICE")
+            mh = x.get("minHours")
+            if mh not in (None, "", 0):
+                mh = int(mh)
+                if not 1 <= mh <= 12:
+                    raise DropError("The shortest booking is 1 to 12 hours.", "BAD_TIME_PRICE")
+            else:
+                mh = None
             s_, e_ = span(ta, tb)
             mins = {m % DAY_MIN for m in range(s_, e_, STEP)}
             if mins & used:
                 raise DropError("Two time prices cover the same hours. Make them not overlap.", "BAD_TIME_PRICE")
             used |= mins
-            tp.append({"start": a, "end": b, "perHour": rate})
+            tp.append({"start": a, "end": b, "perHour": rate, **({"minHours": mh} if mh else {})})
     return lp, tp
 
 
@@ -429,6 +541,18 @@ def fee_per_seat(drop: Drop, hours: float) -> Decimal:
     if hours <= 3:
         return money(short)
     return money(Decimal(str(drop.deposit_amount_long)) if drop.deposit_amount_long is not None else short * 2)
+
+
+async def owner_windows(db: AsyncSession, block: DropBlock) -> list[dict]:
+    """Booked stretches with what they are: online (paid in the app), walk-in (sold at the café) or
+    blocked (the café kept the hours off sale). For the café's own slider."""
+    rows = (await db.execute(
+        select(DropReservation).where(DropReservation.block_id == block.id, DropReservation.status.in_(HOLDING))
+    )).scalars().all()
+    kinds = {"online": "online", "offline": "walkin", "block": "blocked"}
+    return [{"startTime": hhmm(s), "endTime": hhmm(e), "seatsCount": r.seats, "kind": kinds.get(r.source, "online"),
+             "id": str(r.id), "label": r.guest_name if r.source != "online" else None}
+            for r in rows for s, e in [res_window(r, block)]]
 
 
 def booked_windows(windows: list[tuple[int, int, int]]) -> list[dict]:
@@ -530,7 +654,7 @@ async def reserve(
         raise DropError(f"You can reserve 1 to {drop.max_seats_per_user} seats.", "BAD_SEATS")
 
     block = await db.get(DropBlock, block_id)
-    if block is None or block.drop_id != drop.id:
+    if block is None or block.drop_id != drop.id or block.closed:
         raise NotFoundException(message="We couldn't find that time.", error_code="BLOCK_NOT_FOUND")
     if not drop.max_hours and block_starts_at(block) <= now_utc():
         raise DropError("This time has already started.", "BLOCK_STARTED")
@@ -569,6 +693,13 @@ async def reserve(
             raise DropError("That time does not fit inside this session.", "BAD_HOURS")
         if begin < open_from(drop, block):
             raise DropError(f"This drop opens at 12 AM on {drop.starts_on.day} {drop.starts_on.strftime('%b')}. Pick a time from then.", "BEFORE_LAUNCH")
+        shortest = min_minutes(drop, block.session_date, begin)
+        if length < shortest:
+            h = shortest // 60
+            raise DropError(f"From {hhmm(begin % DAY_MIN)} the shortest booking is {h} {'hour' if h == 1 else 'hours'}.", "BELOW_MIN")
+        limit = bookable_until(drop)
+        if limit is not None and _day0(block) + timedelta(minutes=begin) > limit:
+            raise DropError(f"Online booking is open for the next {drop.advance_hours} hours only. To book further ahead, contact KHEL-O.", "ADVANCE_LIMIT")
         r_start = start
         r_end = clock_of(end_min)
         if datetime.combine(block.session_date, time(0, 0)).replace(tzinfo=IST) + timedelta(minutes=begin) <= now_utc():
@@ -579,7 +710,7 @@ async def reserve(
         raise DropError("Sorry, these seats just got taken. Pick another time.", "SOLD_OUT")
 
     if r_start is not None:
-        per_seat = seat_price(drop, begin, length)
+        per_seat = seat_price(drop, begin, length, block.session_date)
         deposit = money(fee_per_seat(drop, hours) * seats)
     else:
         per_seat = block_price_per_seat(drop, block)
@@ -611,6 +742,7 @@ async def reserve(
 async def book_offline(
     db: AsyncSession, drop: Drop, block_id: UUID, staff: User, seats: int, name: str, phone: Optional[str],
     note: Optional[str], start: Optional[time] = None, hours: Optional[float] = None, amount: Optional[Decimal] = None,
+    kind: str = "walkin",
 ) -> DropReservation:
     """The café sold these seats itself and took the cash. They hold the seats
     exactly like a paid online reservation (so nobody else can book them), but
@@ -621,7 +753,7 @@ async def book_offline(
     await ensure_blocks(db, drop)
     if drop.status == "cancelled" or state(drop) == "ended":
         raise DropError("This drop is over, so it can't take bookings.", "DROP_ENDED")
-    name = (name or "").strip() or "Booked at the café"
+    name = (name or "").strip() or ("Blocked" if kind == "block" else "Booked at the café")
     if len(name) > 120:
         raise DropError("Write the customer's name (up to 120 letters).", "NEED_NAME")
     phone = (phone or "").strip()
@@ -633,7 +765,7 @@ async def book_offline(
     if seats < 1 or seats > 20:
         raise DropError("Choose 1 to 20 seats.", "BAD_SEATS")
     block = await db.get(DropBlock, block_id)
-    if block is None or block.drop_id != drop.id:
+    if block is None or block.drop_id != drop.id or block.closed:
         raise NotFoundException(message="We couldn't find that time.", error_code="BLOCK_NOT_FOUND")
     r_start = r_end = None
     length = None
@@ -654,10 +786,12 @@ async def book_offline(
     if not await _take(db, block.id, seats, r_start, r_end):
         await db.rollback()
         raise DropError("Not enough seats are free at that time. Pick another time or fewer seats.", "SOLD_OUT")
-    if amount is not None:
+    if kind == "block":
+        total = Decimal("0.00")  # a block is not a sale
+    elif amount is not None:
         total = money(amount)
     elif r_start is not None:
-        total = money(seat_price(drop, begin, length) * seats)
+        total = money(seat_price(drop, begin, length, block.session_date) * seats)
     else:
         total = money(block_price_per_seat(drop, block) * seats)
     now = now_utc()
@@ -666,7 +800,7 @@ async def book_offline(
         status="confirmed", block_price=total, deposit_amount=Decimal("0.00"), balance_due=Decimal("0.00"),
         expires_at=now, paid_at=now, checkin_token=secrets.token_urlsafe(18), used_early_access=False,
         start_time=r_start, end_time=r_end, hours=length // 60 if length else None,
-        source="offline", guest_name=name, guest_phone=phone or None, note=(note or "").strip()[:200] or None,
+        source="block" if kind == "block" else "offline", guest_name=name, guest_phone=phone or None, note=(note or "").strip()[:200] or None,
     )
     db.add(res)
     await db.commit()
@@ -680,7 +814,7 @@ async def cancel_offline(db: AsyncSession, res: DropReservation, staff: User) ->
     if not await can_manage(db, staff, drop.cafe_id):
         raise ForbiddenException(message="Only the café can do this.", error_code="FORBIDDEN")
     res = (await db.execute(select(DropReservation).where(DropReservation.id == res.id).with_for_update())).scalars().one()
-    if res.source != "offline":
+    if res.source not in ("offline", "block"):
         raise DropError("Only a booking you wrote down yourself can be removed here.", "NOT_OFFLINE")
     if res.status not in HOLDING:
         raise DropError("That booking is already closed.", "NOT_ACTIVE")
@@ -789,32 +923,25 @@ async def can_manage(db: AsyncSession, user: User, cafe_id: UUID) -> bool:
 
 async def dedicated_windows(db: AsyncSession, tier_id: UUID, day) -> list[tuple[int, int, int, str]]:
     """Seats of a rig kept for a live drop on this calendar day: (start_min, end_min, seats, title),
-    end_min at most 1440. Normal booking sees these seats as taken during the drop's hours.
-    An overnight drop's hours after midnight belong to the day before, so they are added here too."""
+    end_min at most 1440. Normal booking sees these seats as taken during the drop's hours on
+    that date (each date can have its own hours), plus the night before's hours past midnight."""
     out = []
     for d in await dedicated_drops(db, tier_id, day):
-        s, e = span(d.daily_start_time, d.daily_end_time)
-        out.append((s, min(e, DAY_MIN), d.daily_seats or 0, d.title))
-    prev = day - timedelta(days=1)
-    tail = (await db.execute(select(Drop).where(
-        Drop.hardware_tier_id == tier_id, Drop.status == "live", Drop.daily_start_time.is_not(None),
-        Drop.starts_on <= day, or_(Drop.ends_on.is_(None), Drop.ends_on >= prev),
-    ))).scalars().all()
-    for d in tail:
-        if d.starts_on > prev and not d.max_hours:
-            continue  # a fixed drop has nothing before its first day; a by-the-hour one opens at launch midnight
-        s, e = span(d.daily_start_time, d.daily_end_time)
-        if e > DAY_MIN:
-            out.append((0, e - DAY_MIN, d.daily_seats or 0, d.title))
+        if runs_on(d, day):
+            for s, e in day_intervals(d, day):
+                out.append((s, min(e, DAY_MIN), d.daily_seats or 0, d.title))
+        for s, e in tails_into(d, day):
+            out.append((s, e, d.daily_seats or 0, d.title))
     return out
 
 
 async def dedicated_drops(db: AsyncSession, tier_id: UUID, day) -> list[Drop]:
+    """Live drops on this rig that could hold seats on this date (its own hours or the night before's)."""
     rows = (await db.execute(select(Drop).where(
-        Drop.hardware_tier_id == tier_id, Drop.status == "live", Drop.daily_start_time.is_not(None),
-        Drop.starts_on <= day, or_(Drop.ends_on.is_(None), Drop.ends_on >= day),
+        Drop.hardware_tier_id == tier_id, Drop.status == "live", Drop.starts_on.is_not(None),
+        Drop.starts_on <= day, or_(Drop.ends_on.is_(None), Drop.ends_on >= day - timedelta(days=1)),
     ))).scalars().all()
-    return list(rows)
+    return [d for d in rows if d.daily_start_time is not None or d.day_hours]
 
 
 def _cafe_span(cafe: Cafe) -> Optional[tuple[int, int]]:
@@ -828,8 +955,7 @@ def _cafe_span(cafe: Cafe) -> Optional[tuple[int, int]]:
 async def check_rig_free(db: AsyncSession, cafe: Cafe, tier, day_from: date, day_to: date,
                          start: time, end: time, seats: int, ignore_drop_id: Optional[UUID] = None) -> None:
     """Refuse a drop whose kept seats would not fit next to normal bookings already made.
-    Also keeps the drop hours inside the cafe's opening hours. Hours can run past midnight."""
-    from app.models.booking import Booking, BookingStatus, SEAT_HOLDING_STATUSES
+    Also keeps the daily hours inside the cafe's opening hours. Hours can run past midnight."""
     s_min, e_min = span(start, end)
     open_span = _cafe_span(cafe)
     if open_span is not None:
@@ -839,53 +965,185 @@ async def check_rig_free(db: AsyncSession, cafe: Cafe, tier, day_from: date, day
             raise DropError(
                 f"Your café is open {cafe.opening_time:%H:%M} to {cafe.closing_time:%H:%M}. Keep the drop hours inside that.",
                 "OUTSIDE_CAFE_HOURS")
+    days = {day_from + timedelta(days=i): [(s_min, e_min)] for i in range((day_to - day_from).days + 1)}
+    await check_rig_free_days(db, tier, days, seats, ignore_drop_id)
+
+
+async def check_rig_free_days(db: AsyncSession, tier, windows: dict, seats: int, ignore_drop_id: Optional[UUID] = None) -> None:
+    """The same check for any set of dates and opening stretches: {date: [(start_min, end_min)]}.
+    Event hours may go past the café's normal hours (a launch night), so only seats are checked."""
+    from app.models.booking import Booking, BookingStatus, SEAT_HOLDING_STATUSES
+    windows = {k: v for k, v in windows.items() if v}
+    if not windows:
+        return
+    lo, hi = min(windows), max(windows)
     cap = tier.app_bookable_seats or tier.total_seats
     ttl = datetime.now(timezone.utc) - timedelta(minutes=15)
     rows = (await db.execute(select(Booking).where(
         Booking.hardware_tier_id == tier.id,
-        Booking.session_date >= day_from, Booking.session_date <= day_to + timedelta(days=1),
+        Booking.session_date >= lo, Booking.session_date <= hi + timedelta(days=1),
         or_(Booking.status.in_(SEAT_HOLDING_STATUSES),
             and_(Booking.status == BookingStatus.PENDING_PAYMENT, Booking.created_at >= ttl))))).scalars().all()
     others = (await db.execute(select(Drop).where(
-        Drop.hardware_tier_id == tier.id, Drop.status == "live", Drop.daily_start_time.is_not(None),
-        Drop.starts_on <= day_to + timedelta(days=1), or_(Drop.ends_on.is_(None), Drop.ends_on >= day_from - timedelta(days=1)),
-        *( [Drop.id != ignore_drop_id] if ignore_drop_id else [] )))).scalars().all()
-
-    def runs_on(d: Drop, day) -> bool:
-        return d.starts_on <= day and (d.ends_on is None or d.ends_on >= day)
-
+        Drop.hardware_tier_id == tier.id, Drop.status == "live", Drop.starts_on.is_not(None),
+        Drop.starts_on <= hi + timedelta(days=1), or_(Drop.ends_on.is_(None), Drop.ends_on >= lo - timedelta(days=1)),
+        *([Drop.id != ignore_drop_id] if ignore_drop_id else [])))).scalars().all()
     by_day: dict = {}
     for bk in rows:
         by_day.setdefault(bk.session_date, []).append(bk)
-    # Every day of the drop: overnight hours meet the next day's bookings and other drops' tails.
-    days = [day_from + timedelta(days=i) for i in range((day_to - day_from).days + 1)]
-    for day in days:
+    for day in sorted(windows):
         # Everything on one axis: minutes from this day's midnight, the next day after 1440.
-        used_windows = []
+        used = []
         for off in (0, 1):
             for bk in by_day.get(day + timedelta(days=off), []):
                 bs_, be_ = span(bk.start_time, bk.end_time)
-                used_windows.append((bs_ + off * DAY_MIN, be_ + off * DAY_MIN, bk.seats_count))
+                used.append((bs_ + off * DAY_MIN, be_ + off * DAY_MIN, bk.seats_count))
         for d in others:
-            ds, de = span(d.daily_start_time, d.daily_end_time)
             for off in (-1, 0, 1):
-                if runs_on(d, day + timedelta(days=off)):
-                    used_windows.append((ds + off * DAY_MIN, de + off * DAY_MIN, d.daily_seats or 0))
-        points = {s_min} | {w[0] for w in used_windows if s_min <= w[0] < e_min}
-        worst = max(sum(n for a_, b_, n in used_windows if a_ <= t < b_) for t in points)
-        if worst + seats > cap:
-            free = max(0, cap - worst)
-            raise DropError(
-                f"On {day.day} {day:%b} only {free} of your {tier.model or tier.name} {'is' if free == 1 else 'are'} free in those hours "
-                f"({worst} already booked). Keep fewer seats, move the hours, or sort those bookings out first.",
-                "SEATS_CLASH")
+                dd = day + timedelta(days=off)
+                if runs_on(d, dd):
+                    for ds, de in day_intervals(d, dd):
+                        used.append((ds + off * DAY_MIN, de + off * DAY_MIN, d.daily_seats or 0))
+        for s_min, e_min in windows[day]:
+            points = {s_min} | {w[0] for w in used if s_min <= w[0] < e_min}
+            worst = max(sum(n for a_, b_, n in used if a_ <= t < b_) for t in points)
+            if worst + seats > cap:
+                free = max(0, cap - worst)
+                raise DropError(
+                    f"On {day.day} {day:%b} only {free} of your {tier.model or tier.name} {'is' if free == 1 else 'are'} free in those hours "
+                    f"({worst} already booked). Keep fewer seats, move the hours, or sort those bookings out first.",
+                    "SEATS_CLASH")
+
+
+async def _reconcile_day(db: AsyncSession, drop: Drop, day: date, intervals: list[tuple[int, int]]) -> None:
+    """Make this date's sessions match its opening stretches. Sessions that hold bookings must
+    still cover those bookings (same clock times), or the change is refused. Removed hours are
+    closed, not deleted, so old reservations keep their row."""
+    blocks = (await db.execute(select(DropBlock).where(DropBlock.drop_id == drop.id, DropBlock.session_date == day)
+                               .with_for_update())).scalars().all()
+    if not blocks:
+        return  # made from the schedule when the date comes into view
+    held: dict = {}
+    for b in blocks:
+        rows = (await db.execute(select(DropReservation).where(
+            DropReservation.block_id == b.id, DropReservation.status.in_(HOLDING)))).scalars().all()
+        if rows and not b.closed:
+            held[b.id] = [(r, res_window(r, b)) for r in rows]
+    assigned: dict[int, DropBlock] = {}
+    for b in blocks:
+        if b.id not in held:
+            continue
+        wins = [w for _r, w in held[b.id]]
+        lo, hi = min(w[0] for w in wins), max(w[1] for w in wins)
+        idx = next((i for i, (s, e) in enumerate(intervals) if s <= lo and hi <= e), None)
+        if idx is None or idx in assigned:
+            raise DropError(f"There are bookings from {hhmm(lo % DAY_MIN)} to {hhmm(hi % DAY_MIN)} on {day.day} {day:%b}. "
+                            "Keep those hours open, or remove those bookings first.", "HAS_BOOKINGS")
+        assigned[idx] = b
+    used_ids = {b.id for b in assigned.values()}
+    for i, (s, e) in enumerate(intervals):
+        st, en = clock_of(s), clock_of(e)
+        b = assigned.get(i)
+        same_start = next((x for x in blocks if x.start_time == st and x.id not in used_ids), None)
+        if b is None:
+            b = same_start
+        elif b.start_time != st and same_start is not None:
+            # Another (empty) session already uses this start time: move it aside first.
+            same_start.closed = True
+            same_start.start_time = clock_of((s + 1) % DAY_MIN)
+            await db.flush()
+        if b is None:
+            b = DropBlock(drop_id=drop.id, session_date=day, start_time=st, end_time=en, seats_total=drop.daily_seats or 1)
+            db.add(b)
+        else:
+            b.start_time, b.end_time, b.closed = st, en, False
+            for r, w in held.get(b.id, []):
+                if res_window(r, b) != w:
+                    raise DropError(f"There are bookings from {hhmm(w[0] % DAY_MIN)} to {hhmm(w[1] % DAY_MIN)} on {day.day} {day:%b} "
+                                    "that would move with this change. Keep those hours open.", "HAS_BOOKINGS")
+        used_ids.add(b.id)
+    for x in blocks:
+        if x.id not in used_ids:
+            x.closed = True
+    await db.flush()
+
+
+async def apply_schedule(db: AsyncSession, drop: Drop, dates: list[date], actor: User, *, hours=None,
+                         default_hours: bool = False, prices=None, default_prices: bool = False) -> None:
+    """Set the opening hours and/or price windows of some event dates (copy-to-days sends several).
+    hours: list of {start, end} ([] = closed) or None to leave as is; default_hours=True goes back
+    to the daily hours. Same for prices. Bookings already made are never moved or dropped."""
+    from app.models.hardware_tier import HardwareTier
+    from app.models.owner_audit_log import OwnerAuditLog
+    if not dates:
+        raise DropError("Pick at least one day.", "NO_DAYS")
+    if drop.starts_on is None:
+        raise DropError("This drop has no daily schedule.", "NOT_ROLLING")
+    last = drop.ends_on or drop.starts_on + timedelta(days=MAX_DAYS - 1)
+    for d in dates:
+        if d < drop.starts_on or d > last:
+            raise DropError(f"{d.day} {d:%b} is not one of this drop's days.", "NOT_A_DAY")
+    before = {"dayHours": drop.day_hours, "dayPrices": drop.day_prices}
+    if hours is not None or default_hours:
+        clean = clean_intervals(hours) if hours is not None else None
+        dh = dict(drop.day_hours or {})
+        for d in dates:
+            if default_hours:
+                dh.pop(d.isoformat(), None)
+            else:
+                dh[d.isoformat()] = clean
+        drop.day_hours = dh or None
+        # A night that runs past midnight must not run into the next date's own opening.
+        for d in sorted(set(dates) | {x + timedelta(days=1) for x in dates}):
+            if not runs_on(drop, d) or (d == drop.starts_on and not drop.day_hours):
+                continue
+            tails = [t for t in tails_into(drop, d) if runs_on(drop, d - timedelta(days=1))]
+            for ts, te in tails:
+                for s, e in day_intervals(drop, d):
+                    if s < te and ts < e:
+                        prev = d - timedelta(days=1)
+                        raise DropError(f"{prev.day} {prev:%b} runs past midnight until {hhmm(te)}, into {d.day} {d:%b}'s opening at "
+                                        f"{hhmm(s % DAY_MIN)}. Make the night end earlier or the next day open later.", "HOURS_OVERLAP")
+        if drop.hardware_tier_id and drop.status == "live":
+            tier = await db.get(HardwareTier, drop.hardware_tier_id)
+            if tier is not None:
+                await check_rig_free_days(db, tier, {d: day_intervals(drop, d) for d in dates}, drop.daily_seats or 1, drop.id)
+        for d in dates:
+            await _reconcile_day(db, drop, d, day_intervals(drop, d))
+        # Launch day now opening at midnight replaces the night-before session.
+        eve = drop.starts_on - timedelta(days=1)
+        if drop.starts_on in dates and not launch_night(drop):
+            for b in (await db.execute(select(DropBlock).where(DropBlock.drop_id == drop.id, DropBlock.session_date == eve,
+                                                               DropBlock.closed.is_(False)))).scalars().all():
+                n = (await db.execute(select(func.count()).select_from(DropReservation).where(
+                    DropReservation.block_id == b.id, DropReservation.status.in_(HOLDING)))).scalar_one()
+                if n:
+                    raise DropError("There are bookings on launch night. Keep launch day's hours as they are, or remove those bookings first.",
+                                    "HAS_BOOKINGS")
+                b.closed = True
+    if prices is not None or default_prices:
+        if prices is not None:
+            _lp, tp = clean_price_options(None, prices)
+        dp = dict(drop.day_prices or {})
+        for d in dates:
+            if default_prices:
+                dp.pop(d.isoformat(), None)
+            else:
+                dp[d.isoformat()] = tp or []
+        drop.day_prices = dp or None
+    db.add(OwnerAuditLog(owner_id=actor.id, action="drop.schedule.updated", entity_type="drop", entity_id=str(drop.id),
+                         before_summary=json.dumps(before)[:4000],
+                         after_summary=json.dumps({"dates": [d.isoformat() for d in dates], "dayHours": drop.day_hours,
+                                                   "dayPrices": drop.day_prices})[:4000]))
+    await db.commit()
 
 
 async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict], list[dict], Optional[dict]]:
     """One day of a drop in the same shape as the normal Free slots grid:
     hour by hour (total, booked, pending, available), who is behind it, and the
     live "right now" counts when the day is today."""
-    block = (await db.execute(select(DropBlock).where(DropBlock.drop_id == drop.id, DropBlock.session_date == day))).scalars().first()
+    block = (await db.execute(select(DropBlock).where(DropBlock.drop_id == drop.id, DropBlock.session_date == day,
+                                                       DropBlock.closed.is_(False)).order_by(DropBlock.start_time.desc()))).scalars().first()
     if block is None:
         return [], [], None
     rows = (await db.execute(
@@ -894,7 +1152,7 @@ async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict],
         .order_by(DropReservation.created_at)
     )).all()
     now = now_utc()
-    live = [(r, (r.guest_name if r.source == "offline" else n)) for r, n in rows
+    live = [(r, (r.guest_name if r.source in ("offline", "block") else n)) for r, n in rows
             if r.status in PAID or (r.expires_at is not None and _aware(r.expires_at) > now)]
 
     def clock(m: int) -> str:

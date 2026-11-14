@@ -14,7 +14,37 @@ interface BookedSlot {
   startTime: string;
   endTime: string;
   seatsCount?: number;
+  /** Café view only: paid online, sold at the café, or kept off sale. */
+  kind?: 'online' | 'walkin' | 'blocked';
 }
+
+/** A price window drawn as a thin coloured strip over the hours it covers. */
+export interface PriceBand {
+  start: string;
+  end: string;
+  perHour: number;
+  minHours?: number;
+}
+
+type SegState = 'AVAILABLE' | 'BOOKED' | 'PAST' | 'LATER';
+type SegKind = 'online' | 'walkin' | 'blocked';
+
+/** Distinct, colour-blind-safe-ish hues for price windows (paired with labels in the key). */
+export const BAND_COLOURS = ['#0ea5e9', '#f59e0b', '#8b5cf6', '#14b8a6', '#ec4899', '#84cc16'];
+
+const STRIPE = (c: string) => ({
+  backgroundColor: c,
+  backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.9) 0, rgba(255,255,255,0.9) 1.5px, transparent 0, transparent 4px)',
+});
+const KIND_STYLE: Record<SegKind, React.CSSProperties> = {
+  online: STRIPE('#ef4444'),
+  walkin: STRIPE('#8b5cf6'),
+  blocked: {
+    backgroundColor: '#6b7280',
+    backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0, rgba(255,255,255,0.55) 1.5px, transparent 0, transparent 4px)',
+  },
+};
+const KIND_LABEL: Record<SegKind, string> = { online: 'Booked online', walkin: 'Walk-in', blocked: 'Blocked' };
 
 interface AvailabilityBadge {
   remainingSeats?: number;
@@ -85,6 +115,12 @@ interface TimelineRangePickerProps {
   onlyDurationsMinutes?: number[];
   /** Rendered inside the same card under the slider (checkout puts Players here). */
   children?: React.ReactNode;
+  /** Café view: colour booked hours by what they are (online, walk-in, blocked). */
+  ownerView?: boolean;
+  /** Price windows to draw over the hours (and list in the key). */
+  priceBands?: PriceBand[];
+  /** Minutes (on this slider's axis) from which online booking is not open yet. */
+  bookableUntilMin?: number | null;
 }
 
 /** "9:30 – 11:30 PM", or "11:30 PM – 1:30 AM" when the session crosses noon or midnight. */
@@ -128,6 +164,9 @@ export function TimelineRangePicker({
   maxDurationMinutes,
   onlyDurationsMinutes,
   children,
+  ownerView = false,
+  priceBands,
+  bookableUntilMin = null,
 }: TimelineRangePickerProps) {
   const G = stepMinutes;
   const minDurMin = Math.max(G, minDurationMinutes);
@@ -486,29 +525,54 @@ export function TimelineRangePicker({
         ? new Date().getHours() * 60 + new Date().getMinutes()
         : -1;
 
-    const list: { start: number; state: 'AVAILABLE' | 'BOOKED' | 'PAST' }[] = [];
+    const list: { start: number; state: SegState; kind?: SegKind }[] = [];
     for (let m = openMin; m < closeMin; m += G) {
-      let state: 'AVAILABLE' | 'BOOKED' | 'PAST' = 'AVAILABLE';
+      let state: SegState = 'AVAILABLE';
+      let kind: SegKind | undefined;
       if (nowMin >= 0 && m + G <= nowMin) {
         state = 'PAST';
+      } else if (bookableUntilMin != null && m > bookableUntilMin) {
+        state = 'LATER';
       } else {
         let totalOccupiedSeats = 0;
+        const byKind: Partial<Record<SegKind, number>> = {};
         for (const bs of bookedSlots) {
           let bS = timeToMinutes(bs.startTime);
           let bE = timeToMinutes(bs.endTime);
           if (bE <= bS) bE += 1440;
           if (m < bE && m + G > bS) {
             totalOccupiedSeats += bs.seatsCount || 1;
+            const k = bs.kind ?? 'online';
+            byKind[k] = (byKind[k] ?? 0) + (bs.seatsCount || 1);
           }
         }
         if (totalOccupiedSeats + requestedSeats > totalSeats) {
           state = 'BOOKED';
+          kind = (Object.entries(byKind) as [SegKind, number][]).sort((a, b) => b[1] - a[1])[0]?.[0];
+        } else if (ownerView && totalOccupiedSeats > 0) {
+          // Partly taken: still bookable, but the café sees what holds the other seats.
+          kind = (Object.entries(byKind) as [SegKind, number][]).sort((a, b) => b[1] - a[1])[0]?.[0];
         }
       }
-      list.push({ start: m, state });
+      list.push({ start: m, state, kind });
     }
     return list;
-  }, [openMin, closeMin, selectedDate, bookedSlots, totalSeats, requestedSeats, G]);
+  }, [openMin, closeMin, selectedDate, bookedSlots, totalSeats, requestedSeats, G, bookableUntilMin, ownerView]);
+
+  const bandRows = useMemo(() => {
+    if (!priceBands?.length) return [];
+    return priceBands.map((b, i) => {
+      const s0 = timeToMinutes(b.start);
+      let e0 = timeToMinutes(b.end);
+      if (e0 <= s0) e0 += 1440;
+      return { ...b, s0, e0, colour: BAND_COLOURS[i % BAND_COLOURS.length] };
+    });
+  }, [priceBands]);
+  const bandAt = (m: number) =>
+    bandRows.find((b) => (m >= b.s0 && m < b.e0) || (m - 1440 >= b.s0 && m - 1440 < b.e0) || (m + 1440 >= b.s0 && m + 1440 < b.e0));
+  const kindsShown = ownerView
+    ? (['online', 'walkin', 'blocked'] as SegKind[]).filter((k) => segments.some((x) => x.kind === k))
+    : [];
 
   const isSelectionValid = useMemo(() => {
     if (selStart < minValidStart || selEnd > closeMin) return false;
@@ -668,8 +732,20 @@ export function TimelineRangePicker({
                 'repeating-linear-gradient(135deg, rgba(255,255,255,0.9) 0, rgba(255,255,255,0.9) 1.5px, transparent 0, transparent 4px)',
             }}
           />
-          Booked
+          {ownerView ? 'Booked online' : 'Booked'}
         </span>
+        {kindsShown.filter((k) => k !== 'online').map((k) => (
+          <span key={k} className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary" aria-hidden="true">
+            <span className="h-1.5 w-4 rounded-full" style={KIND_STYLE[k]} />
+            {KIND_LABEL[k]}
+          </span>
+        ))}
+        {segments.some((x) => x.state === 'LATER') && (
+          <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary" aria-hidden="true">
+            <span className="h-1.5 w-4 rounded-full border border-dashed border-gray-400 bg-gray-100" />
+            Not open yet
+          </span>
+        )}
         <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary" aria-hidden="true">
           <span
             className="h-1.5 w-4 rounded-full"
@@ -698,6 +774,17 @@ export function TimelineRangePicker({
           </span>
         )}
       </div>
+
+      {bandRows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 pt-1.5" aria-label="Prices by time">
+          {bandRows.map((b) => (
+            <span key={`${b.start}-${b.end}`} className="flex items-center gap-1.5 text-[10px] font-semibold text-text-secondary">
+              <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: b.colour }} />
+              {formatPlayoTime(b.s0)}–{formatPlayoTime(b.e0)} ₹{b.perHour}/hr{b.minHours ? ` · min ${b.minHours} hr` : ''}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* ── Dynamic Timeline Canvas (100% Unified Coordinates) ── */}
       <div ref={outerRef} className="relative overflow-hidden bg-white pt-3 pb-2" style={{ height: 90 }}>
@@ -740,6 +827,20 @@ export function TimelineRangePicker({
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
           >
+            {/* Price windows: a thin coloured strip over the hours each one covers. */}
+            {bandRows.length > 0 &&
+              segments.map((seg) => {
+                const b = bandAt(seg.start);
+                if (!b) return null;
+                return (
+                  <div
+                    key={`band-${seg.start}`}
+                    aria-hidden
+                    style={{ position: 'absolute', left: sidePadding + ((seg.start - openMin) / G) * slotW, width: slotW, top: 2, height: 4, backgroundColor: b.colour, opacity: 0.85, pointerEvents: 'none' }}
+                  />
+                );
+              })}
+
             {/* Playo Time Labels ("7 AM", "9 AM", "11 AM", "1 PM") */}
             {ticks.map(({ minutes, label, showLabel }) => {
               if (!showLabel) return null;
@@ -795,12 +896,15 @@ export function TimelineRangePicker({
                 };
                 let stateLabel = 'Available';
                 if (seg.state === 'BOOKED') {
-                  style = {
-                    backgroundColor: '#ef4444',
-                    backgroundImage:
-                      'repeating-linear-gradient(135deg, rgba(255,255,255,0.9) 0, rgba(255,255,255,0.9) 1.5px, transparent 0, transparent 4px)',
-                  };
-                  stateLabel = 'Booked';
+                  style = KIND_STYLE[ownerView ? seg.kind ?? 'online' : 'online'];
+                  stateLabel = ownerView ? `Full, ${KIND_LABEL[seg.kind ?? 'online'].toLowerCase()}` : 'Booked';
+                } else if (seg.state === 'LATER') {
+                  style = { backgroundColor: '#f3f4f6', backgroundImage: 'repeating-linear-gradient(90deg, #9ca3af 0, #9ca3af 3px, transparent 0, transparent 6px)' };
+                  stateLabel = 'Not open for online booking yet';
+                } else if (ownerView && seg.kind) {
+                  // Partly taken: green below, a thin mark of what holds the other seats.
+                  style = { backgroundColor: '#22c55e', boxShadow: `inset 0 -2px 0 ${seg.kind === 'walkin' ? '#8b5cf6' : seg.kind === 'blocked' ? '#6b7280' : '#ef4444'}` };
+                  stateLabel = `Some seats free, some ${KIND_LABEL[seg.kind].toLowerCase()}`;
                 } else if (seg.state === 'PAST') {
                   style = {
                     backgroundColor: '#d1d5db',

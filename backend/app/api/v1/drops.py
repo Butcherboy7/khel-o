@@ -63,6 +63,8 @@ def _block_out(drop: Drop, b: DropBlock, hour_free: Optional[dict] = None) -> di
         "balancePerSeat": float(max(0, per_seat - svc.money(drop.deposit_amount))),
         "hourFree": hour_free or {},
         "started": svc.block_closed(drop, b),
+        # This date's price windows (its own, or the drop's usual ones).
+        "timePrices": svc.bands_for(drop, b.session_date),
     }
 
 
@@ -132,6 +134,13 @@ def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
         "maxHours": max(svc.lengths(drop)) if drop.length_prices else drop.max_hours,
         "lengthPrices": drop.length_prices or [],
         "timePrices": drop.time_prices or [],
+        "dayHours": drop.day_hours or {},
+        "dayPrices": drop.day_prices or {},
+        "dailyStart": drop.daily_start_time.strftime("%H:%M") if drop.daily_start_time else None,
+        "dailyEnd": drop.daily_end_time.strftime("%H:%M") if drop.daily_end_time else None,
+        "advanceHours": drop.advance_hours,
+        "advanceFrom": drop.advance_from.isoformat() if drop.advance_from else None,
+        "bookableUntil": _iso(svc.bookable_until(drop)),
         "startsOn": drop.starts_on.isoformat() if drop.starts_on else None,
         "endsOn": drop.ends_on.isoformat() if drop.ends_on else None,
         "rolling": drop.daily_start_time is not None,
@@ -249,7 +258,8 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
     data["myReservations"] = mine
     # Real number of people who hold a paid seat (shown once it is worth saying).
     data["reservedCount"] = (await db.execute(select(func.count(func.distinct(DropReservation.user_id))).where(
-        DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.PAID)))).scalar_one()
+        DropReservation.drop_id == drop.id, DropReservation.source == "online",
+        DropReservation.status.in_(svc.PAID)))).scalar_one()
     data["waitlistCount"] = (await db.execute(
         select(func.count()).select_from(DropWaitlist).where(DropWaitlist.drop_id == drop.id)
     )).scalar_one()
@@ -529,6 +539,9 @@ class DropUpdate(_Camel):
     status: Optional[Literal["draft", "live"]] = None
     ends_on: Optional[date] = None
     daily_seats: Optional[int] = Field(None, ge=1, le=100)
+    # Online booking only this many hours ahead (0 / null = no limit), from advance_from.
+    advance_hours: Optional[int] = Field(None, ge=0, le=24 * 30)
+    advance_from: Optional[date] = None
     add_blocks: list[BlockIn] = Field(default_factory=list, max_length=40)
 
 
@@ -578,6 +591,8 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
         fields["length_prices"], fields["time_prices"] = lp, tp
         if lp:
             fields["max_hours"] = max(x["hours"] for x in lp)
+    if "advance_hours" in fields:
+        fields["advance_hours"] = fields["advance_hours"] or None
     for k, v in fields.items():
         setattr(drop, k, v)
     if svc._aware(drop.early_access_starts_at) > svc._aware(drop.public_starts_at):
@@ -586,6 +601,48 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
         db.add(DropBlock(drop_id=drop.id, session_date=b.date, start_time=b.start_time, end_time=b.end_time, seats_total=b.seats))
     await db.commit()
     return {"success": True, "data": await _out(db, drop, cafe, await svc.blocks_of(db, drop.id))}
+
+
+class Interval(_Camel):
+    start: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    end: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+
+
+class Band(_Camel):
+    start: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    end: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    per_hour: float = Field(..., gt=0, le=10000)
+    min_hours: Optional[int] = Field(None, ge=1, le=12)
+
+
+class ScheduleIn(_Camel):
+    dates: list[date] = Field(..., min_length=1, max_length=31)
+    # Opening stretches for these dates ([] = closed). Leave out to keep them as they are.
+    hours: Optional[list[Interval]] = Field(None, max_length=4)
+    use_default_hours: bool = False
+    # Price windows for these dates. Leave out to keep them as they are.
+    prices: Optional[list[Band]] = Field(None, max_length=6)
+    use_default_prices: bool = False
+
+
+@owner_router.put("/{drop_id}/schedule")
+async def set_schedule(drop_id: UUID, payload: ScheduleIn, db: AsyncSession = Depends(get_db),
+                       user: User = Depends(get_current_active_user)):
+    """Opening hours and prices for single dates (or copied to several). Bookings never move."""
+    drop, cafe = await _managed(db, user, drop_id)
+    if drop.status == "cancelled":
+        raise svc.DropError("This drop was cancelled and can't be changed.", "DROP_CANCELLED")
+    fs = payload.model_fields_set
+    await svc.apply_schedule(
+        db, drop, sorted(set(payload.dates)), user,
+        hours=[i.model_dump() for i in payload.hours] if "hours" in fs and payload.hours is not None else None,
+        default_hours=payload.use_default_hours,
+        prices=[{"start": b.start, "end": b.end, "perHour": b.per_hour, **({"minHours": b.min_hours} if b.min_hours else {})}
+                for b in payload.prices] if "prices" in fs and payload.prices is not None else None,
+        default_prices=payload.use_default_prices,
+    )
+    await svc.ensure_blocks(db, drop)
+    return {"success": True, "data": await _detail(db, drop, cafe)}
 
 
 class BlockSeats(_Camel):
@@ -650,9 +707,9 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
             continue
         by_block.setdefault(r.block_id, []).append({
             "id": str(r.id), "reference": r.reference,
-            "name": r.guest_name if r.source == "offline" else name,
-            "phone": r.guest_phone if r.source == "offline" else phone, "seats": r.seats,
-            "email": None if r.source == "offline" else email,
+            "name": r.guest_name if r.source != "online" else name,
+            "phone": r.guest_phone if r.source != "online" else phone, "seats": r.seats,
+            "email": None if r.source != "online" else email,
             "passUrl": f"{_site()}/drops/{drop.slug}/pass/{r.checkin_token}" if r.status in svc.PAID else None,
             **_when(r, blocks),
             "source": r.source, "note": r.note, "price": float(r.block_price),
@@ -668,11 +725,11 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
             # Same booked/free picture the players' slider shows, for the café's own slider.
             wins = await svc._holding_windows(db, blk)
             b["hourFree"] = svc.seats_free(wins, blk)
-            b["bookedSlots"] = svc.booked_windows(wins)
+            b["bookedSlots"] = await svc.owner_windows(db, blk)
     data["waitlistCount"] = (await db.execute(
         select(func.count()).select_from(DropWaitlist).where(DropWaitlist.drop_id == drop.id))).scalar_one()
     data["funnel"] = await svc.funnel(db, drop)
-    paid = [r for r, *_ in rows if r.status in svc.PAID]
+    paid = [r for r, *_ in rows if r.status in svc.PAID and r.source != "block"]
     offline = [r for r in paid if r.source == "offline"]
     data["totals"] = {
         "paidReservations": len(paid), "seatsSold": sum(r.seats for r in paid),
@@ -698,7 +755,7 @@ async def owner_reservations(since: Optional[date] = None, db: AsyncSession = De
         .join(DropBlock, DropBlock.id == DropReservation.block_id)
         .join(User, User.id == DropReservation.user_id)
         .join(Cafe, Cafe.id == Drop.cafe_id)
-        .where(DropBlock.session_date >= day,
+        .where(DropBlock.session_date >= day, DropReservation.source != "block",
                DropReservation.status.in_(("pending_payment", "confirmed", "checked_in", "refunded", "given_away")))
         .order_by(DropBlock.session_date, DropReservation.start_time)
         .limit(500)
@@ -770,6 +827,8 @@ class OfflineBookingIn(_Camel):
     # What the customer paid at the café. Left empty = the drop's normal price.
     amount: Optional[float] = Field(None, ge=0, le=1000000)
     note: Optional[str] = Field(None, max_length=200)
+    # walkin = sold at the café; block = kept off sale (not a sale, no money).
+    kind: Literal["walkin", "block"] = "walkin"
 
 
 @owner_router.post("/{drop_id}/offline-bookings", status_code=status.HTTP_201_CREATED)
@@ -781,7 +840,7 @@ async def add_offline_booking(drop_id: UUID, payload: OfflineBookingIn, db: Asyn
     res = await svc.book_offline(
         db, drop, payload.block_id, user, payload.seats, payload.name, payload.phone, payload.note,
         start=payload.start_time, hours=payload.hours,
-        amount=Decimal(str(payload.amount)) if payload.amount is not None else None,
+        amount=Decimal(str(payload.amount)) if payload.amount is not None else None, kind=payload.kind,
     )
     block = await db.get(DropBlock, res.block_id)
     return {"success": True, "data": _reservation_out(drop, res, block)}
@@ -834,7 +893,7 @@ async def admin_drops(db: AsyncSession = Depends(get_db), admin: User = Depends(
     paid = {r[0]: r for r in (await db.execute(
         select(DropReservation.drop_id, func.count(), func.coalesce(func.sum(DropReservation.seats), 0),
                func.coalesce(func.sum(DropReservation.deposit_amount), 0))
-        .where(DropReservation.paid_at.is_not(None), DropReservation.refunded_at.is_(None))
+        .where(DropReservation.paid_at.is_not(None), DropReservation.refunded_at.is_(None), DropReservation.source != "block")
         .group_by(DropReservation.drop_id)
     )).all()}
     refunded = dict((await db.execute(

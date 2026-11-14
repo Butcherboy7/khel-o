@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockTimes, calDate, clock, dropLengths, dropSeatPrice, wireTime } from './drops';
+import { blockTimes, calDate, clock, dropLengths, dropSeatPrice, minHoursAt, paintBands, priceSplit, wireTime } from './drops';
 
 describe('launch midnight', () => {
   it('12 AM on launch day is shown as the next date of the night before', () => {
@@ -29,5 +29,39 @@ describe('drop prices', () => {
     expect(dropSeatPrice(d, 19 * 60, 2)).toBe(600);
     expect(dropSeatPrice(d, 23 * 60, 3)).toBe(650);
     expect(dropSeatPrice({ ...d, lengthPrices: packs }, 25 * 60, 3)).toBe(500);
+  });
+});
+
+describe('paintBands', () => {
+  it('adds a window, cuts into overlapped ones and keeps the rest', () => {
+    const base = [{ start: '00:00', end: '06:00', perHour: 200 }];
+    expect(paintBands(base, 4 * 60, 8 * 60, 300)).toEqual([
+      { start: '00:00', end: '04:00', perHour: 200 },
+      { start: '04:00', end: '08:00', perHour: 300 },
+    ]);
+  });
+  it('clears back to the usual price and merges across midnight', () => {
+    const base = [{ start: '22:00', end: '02:00', perHour: 150, minHours: 3 }];
+    expect(paintBands(base, 23 * 60, 24 * 60, null)).toEqual([
+      { start: '00:00', end: '02:00', perHour: 150, minHours: 3 },
+      { start: '22:00', end: '23:00', perHour: 150, minHours: 3 },
+    ]);
+    expect(paintBands([], 23 * 60, 26 * 60, 120)).toEqual([{ start: '23:00', end: '02:00', perHour: 120 }]);
+  });
+});
+
+describe('priceSplit and minHoursAt', () => {
+  const d = { pricePerHour: 200, maxHours: 8, timePrices: [{ start: '00:00', end: '06:00', perHour: 300, minHours: 3 }] };
+  it('splits 5 to 8 AM into 300 + 200 + 200', () => {
+    expect(dropSeatPrice(d, 5 * 60, 3)).toBe(700);
+    expect(priceSplit(d, 5 * 60, 3)).toEqual([
+      { from: 300, to: 360, perHour: 300, amount: 300 },
+      { from: 360, to: 480, perHour: 200, amount: 400 },
+    ]);
+  });
+  it('the window a booking starts in sets the shortest length', () => {
+    expect(minHoursAt(d.timePrices, 2 * 60)).toBe(3);
+    expect(minHoursAt(d.timePrices, 26 * 60)).toBe(3);
+    expect(minHoursAt(d.timePrices, 7 * 60)).toBe(1);
   });
 });

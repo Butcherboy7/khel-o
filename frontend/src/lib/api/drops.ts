@@ -19,7 +19,17 @@ export interface DropBlock {
   /** Flexible drops: free seats for each hour of the session, keyed 'HH:MM'. */
   hourFree?: Record<string, number>;
   /** Flexible drops: who holds which half hours (no names), for the slider. */
-  bookedSlots?: { startTime: string; endTime: string; seatsCount: number }[];
+  bookedSlots?: {
+    startTime: string;
+    endTime: string;
+    seatsCount: number;
+    /** Café view only. */
+    kind?: 'online' | 'walkin' | 'blocked';
+    id?: string;
+    label?: string | null;
+  }[];
+  /** This date's price windows (its own, or the drop's usual ones). */
+  timePrices?: TimePrice[];
 }
 
 export interface DropReservation {
@@ -48,7 +58,9 @@ export interface DropReservation {
 }
 
 export interface LengthPrice { hours: number; price: number }
-export interface TimePrice { start: string; end: string; perHour: number }
+/** minHours: the shortest booking that may start inside this window. */
+export interface TimePrice { start: string; end: string; perHour: number; minHours?: number }
+export interface OpenHours { start: string; end: string }
 
 export interface Drop {
   id: string;
@@ -71,6 +83,16 @@ export interface Drop {
   lengthPrices?: LengthPrice[];
   /** A different hourly price inside these times (e.g. cheaper after midnight). */
   timePrices?: TimePrice[];
+  /** Own hours for single dates ({} = every date uses the daily hours; [] = closed). */
+  dayHours?: Record<string, OpenHours[]>;
+  dayPrices?: Record<string, TimePrice[]>;
+  dailyStart?: string | null;
+  dailyEnd?: string | null;
+  /** Online booking only this many hours ahead, from advanceFrom. */
+  advanceHours?: number | null;
+  advanceFrom?: string | null;
+  /** Latest start people can book online right now (null = no limit). */
+  bookableUntil?: string | null;
   startsOn?: string | null;
   endsOn?: string | null;
   rolling?: boolean;
@@ -182,7 +204,7 @@ export interface OwnerReservationRow {
   startTime?: string | null;
   endTime?: string | null;
   /** 'offline' = the café sold it and took the cash itself. */
-  source?: 'online' | 'offline';
+  source?: 'online' | 'offline' | 'block';
   price?: number;
   note?: string | null;
   email?: string | null;
@@ -266,7 +288,10 @@ export async function createDrop(body: NewDrop): Promise<Drop> {
   return call(() => apiClient.post('/api/v1/owner/drops', body));
 }
 
-export async function updateDrop(id: string, body: Partial<Omit<NewDrop, 'cafeId' | 'blocks'>> & { addBlocks?: NewDrop['blocks']; endsOn?: string }): Promise<Drop> {
+export async function updateDrop(
+  id: string,
+  body: Partial<Omit<NewDrop, 'cafeId' | 'blocks'>> & { addBlocks?: NewDrop['blocks']; endsOn?: string; advanceHours?: number | null; advanceFrom?: string | null },
+): Promise<Drop> {
   return call(() => apiClient.patch(`/api/v1/owner/drops/${id}`, body));
 }
 
@@ -287,7 +312,7 @@ export interface OwnerDropBooking {
   dropTitle: string;
   dropSlug: string;
   checkinToken: string | null;
-  source?: 'online' | 'offline';
+  source?: 'online' | 'offline' | 'block';
   price?: number;
   note?: string | null;
 }
@@ -359,6 +384,22 @@ export interface OfflineBookingInput {
   /** What the customer paid at the café. Empty = the drop's usual price. */
   amount?: number;
   note?: string;
+  /** walkin = sold at the café (default); block = kept off sale. */
+  kind?: 'walkin' | 'block';
+}
+
+export interface ScheduleInput {
+  dates: string[];
+  /** [] = closed. Leave out to keep the hours as they are. */
+  hours?: OpenHours[];
+  useDefaultHours?: boolean;
+  prices?: TimePrice[];
+  useDefaultPrices?: boolean;
+}
+
+/** Opening hours and/or prices for some dates. Bookings already made never move. */
+export async function setDropSchedule(dropId: string, body: ScheduleInput): Promise<OwnerDrop> {
+  return call(() => apiClient.put(`/api/v1/owner/drops/${dropId}/schedule`, body));
 }
 
 /** The café sold seats itself and took the cash: the app stops offering them. */

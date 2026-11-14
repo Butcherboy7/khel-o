@@ -45,6 +45,14 @@ class Drop(Base):
     # Different hourly price at some times: [{"start": "00:00", "end": "06:00", "perHour": 200}, ...].
     # Each hour inside a band costs perHour instead of price_per_hour (packages move by the difference).
     time_prices: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Event schedule, date by date. day_hours {"2026-11-19": [{"start": "00:00", "end": "00:00"}], "2026-11-23": []}
+    # overrides the daily hours for that date ([] = closed; several stretches allowed). day_prices
+    # {"2026-11-19": [bands]} overrides time_prices for that date. Both empty = the daily defaults.
+    day_hours: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    day_prices: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Online booking only this many hours ahead (None = no limit), switched on from advance_from (None = now).
+    advance_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    advance_from: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Rolling schedule: one block a day, made on demand for the next 7 days, until ends_on
     # (starts_on + 13 at most). After ends_on the drop is over and café booking is normal.
     daily_start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
@@ -84,6 +92,8 @@ class DropBlock(Base):
     # Seats held by paid or still-paying reservations. Only ever changed with a
     # single conditional UPDATE (see services/drop_service.py), never read-then-write.
     seats_taken: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Hours the café took away from this date. Kept (not deleted) so past reservations keep their row.
+    closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
 

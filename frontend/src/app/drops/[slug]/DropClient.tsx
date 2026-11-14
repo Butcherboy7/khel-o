@@ -19,7 +19,7 @@ import {
   type DropBlock,
   type DropReservation,
 } from '@/lib/api/drops';
-import { atMinutes, blockEnd, blockStart, blockTimes, calDate, clock, clockRange, dayLabel, dropLengths, dropSeatPrice, gameKey, rupees, whenText, wireTime } from '@/lib/drops';
+import { atMinutes, blockEnd, blockStart, blockTimes, calDate, clock, clockRange, dayLabel, dropLengths, dropSeatPrice, gameKey, minHoursAt, priceSplit, rupees, whenText, wireTime } from '@/lib/drops';
 import { calculateWindowRemainingSeats, timeToMinutes } from '@/lib/format';
 import { CommunityButton, CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 import { CustomerShell } from '@/components/layout/CustomerShell';
@@ -142,6 +142,15 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const extras = usual && drop ? drop.blocks.filter((b) => b.startTime !== usual.startTime || b.endTime !== usual.endTime) : [];
   const block = drop?.blocks.find((b) => b.id === blockId) ?? null;
   const booked = useMemo(() => block?.bookedSlots ?? [], [block]);
+  // Online booking may be open only a set time ahead (48 hours): later starts are "not open yet".
+  const limitMs = drop?.bookableUntil ? Date.parse(drop.bookableUntil) : null;
+  const beyond = (b: DropBlock) => limitMs != null && atMinutes(b.date, timeToMinutes(b.startTime)).getTime() > limitMs;
+  const limitMin = (b: DropBlock) => (limitMs == null ? null : Math.floor((limitMs - atMinutes(b.date, 0).getTime()) / 60000));
+  const anyBeyond = Boolean(drop && limitMs != null && (drop.blocks.some(beyond) || (drop.endsOn && atMinutes(drop.endsOn, 0).getTime() > limitMs)));
+  // This date's own price windows, and the shortest booking the window you start in allows.
+  const bands = block?.timePrices ?? drop?.timePrices ?? [];
+  const priced = drop ? { ...drop, timePrices: bands } : null;
+  const minH = block && startTime ? minHoursAt(bands, inBlock(startTime, block)) : 1;
   // The cap is per day: seats on one night never stop you booking another night.
   const seatsHeld = (drop?.myReservations ?? [])
     .filter((r) => r.blockId === block?.id)
@@ -165,18 +174,22 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const seatCount = Math.min(seats, maxSeats);
 
   const feePerSeat = !drop ? 0 : flex ? (hours <= 3 ? drop.deposit : drop.depositLong) : drop.deposit;
-  const priceAt = (h: number) => (drop && block && startTime ? dropSeatPrice(drop, inBlock(startTime, block), h) : 0);
+  const priceAt = (h: number) => (priced && block && startTime ? dropSeatPrice(priced, inBlock(startTime, block), h) : 0);
+  const split = priced && block && startTime && flex ? priceSplit(priced, inBlock(startTime, block), hours) : [];
   const totalPerSeat = !drop || !block ? 0 : flex ? priceAt(hours) : block.pricePerSeat;
   const payNow = feePerSeat * seatCount;
   const total = totalPerSeat * seatCount;
 
   const pick = (b: DropBlock) => {
-    if (b.started || sessionLeft(b) === 0) return;
+    if (b.started || sessionLeft(b) === 0 || beyond(b)) return;
     setBlockId(b.id);
     setError(null);
     // Pre-pick the best open slot so one tap reserves: an evening 2-hour slot if there is one.
+    const lim = limitMin(b);
+    const own = b.timePrices ?? drop?.timePrices ?? [];
     const ok = (m: number, len: number) =>
-      m + len <= timeToMinutes(b.endTime) && b.seatsTotal - peakIn(b, m, m + len) >= 1 && atMinutes(b.date, m).getTime() > Date.now();
+      m + len <= timeToMinutes(b.endTime) && b.seatsTotal - peakIn(b, m, m + len) >= 1 && atMinutes(b.date, m).getTime() > Date.now() &&
+      (lim == null || m <= lim) && len >= minHoursAt(own, m) * 60;
     const slots = b.bookedSlots ? hourRange(b) : [];
     // A café selling packages (1, 3, 5 hours) starts on its shortest one of 2 hours or more.
     const lens = drop ? dropLengths(drop) : [1, 2];
@@ -193,6 +206,14 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     track('drop_block_selected', { block: b.id, date: b.date });
   };
 
+  // Moving the start into a window with a longer shortest booking stretches the length to it.
+  useEffect(() => {
+    if (!flex || !drop || hours >= minH) return;
+    const ok = dropLengths(drop).find((h) => h >= minH);
+    if (ok) setHours(ok);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minH, startTime]);
+
   // Signed in from the sheet: carry on to payment with every pick kept.
   useEffect(() => {
     if (reserveAfterSignIn.current && isAuthenticated) {
@@ -205,7 +226,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   useEffect(() => {
     if (!drop || blockId || !drop.blocks.length) return;
     // Skip days where they already hold the most seats allowed, so the page never opens on a dead end.
-    const free = (x: DropBlock) => !x.started && sessionLeft(x) > 0;
+    const free = (x: DropBlock) => !x.started && sessionLeft(x) > 0 && !beyond(x);
     const b = drop.blocks.find((x) => free(x) && heldOn(x.id) < drop.maxSeatsPerUser) ?? drop.blocks.find(free);
     if (b && drop.maxHours) pick(b);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,7 +238,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   useEffect(() => {
     if (!drop || !drop.maxHours || pickedByHand.current || !blockId) return;
     if (heldOn(blockId) < drop.maxSeatsPerUser) return;
-    const next = drop.blocks.find((x) => !x.started && sessionLeft(x) > 0 && heldOn(x.id) < drop.maxSeatsPerUser);
+    const next = drop.blocks.find((x) => !x.started && sessionLeft(x) > 0 && !beyond(x) && heldOn(x.id) < drop.maxSeatsPerUser);
     if (next) pick(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heldCount]);
@@ -481,7 +502,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           )}
           <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="radiogroup" aria-label="Days">
             {drop.blocks.map((b) => {
-              const gone = b.started || sessionLeft(b) === 0;
+              const later = beyond(b);
+              const gone = b.started || sessionLeft(b) === 0 || later;
               const on = b.id === blockId;
               const shownDate = calDate(b.date, b.startTime); // the launch night opens at 12 AM on launch day
               // Two sessions on one date (a launch night 12 AM - 6 AM, then the day): name them by start time.
@@ -508,12 +530,23 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                     {new Date(`${shownDate}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', timeZone: 'Asia/Kolkata' })}
                   </span>
                   <span className={`block text-[11px] ${gone ? 'text-error' : 'text-text-secondary'}`}>
-                    {b.started ? 'Started' : sessionLeft(b) === 0 ? 'Full' : flex ? (twin || shownDate !== b.date ? clock(b.startTime) : new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' })) : `${clock(b.startTime)}`}
+                    {b.started ? 'Started' : later ? 'Soon' : sessionLeft(b) === 0 ? 'Full' : flex ? (twin || shownDate !== b.date ? clock(b.startTime) : new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' })) : `${clock(b.startTime)}`}
                   </span>
                 </button>
               );
             })}
           </div>
+          {anyBeyond && canReserve && drop.advanceHours ? (
+            <div className="mt-3 rounded-xl border border-border bg-card px-3 py-2.5">
+              <p className="font-semibold text-text-primary">Planning ahead?</p>
+              <p className="text-caption text-text-secondary">
+                Online reservations are currently available for the next {drop.advanceHours} hours. For bookings beyond this period, contact our team.
+              </p>
+              <Link href="/support" className="mt-1 inline-flex min-h-[44px] items-center font-semibold text-primary underline">
+                Contact KHEL-O
+              </Link>
+            </div>
+          ) : null}
         </section>
         )}
 
@@ -525,19 +558,22 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               {lengths.map((h) => {
                 const on = h === hours;
                 const fits = inBlock(startTime, block) + h * 60 <= timeToMinutes(block.endTime);
+                const tooShort = h < minH;
                 return (
                   <button
                     key={h}
                     type="button"
                     role="radio"
                     aria-checked={on}
+                    disabled={tooShort}
+                    title={tooShort ? `From ${clock(startTime)} the shortest booking is ${minH} hours` : undefined}
                     onClick={() => {
                       // Keep the start when it fits, else slide back so the package ends with the session.
                       if (!fits) setStartTime(hhmm(Math.max(timeToMinutes(block.startTime), timeToMinutes(block.endTime) - h * 60)));
                       setHours(h);
                       setError(null);
                     }}
-                    className={`flex min-h-[64px] flex-col items-center justify-center rounded-xl border px-2 py-2 transition-colors ${
+                    className={`flex min-h-[64px] flex-col items-center justify-center rounded-xl border px-2 py-2 transition-colors disabled:opacity-40 ${
                       on ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'
                     }`}
                   >
@@ -568,10 +604,12 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             requestedSeats={seatCount}
             remainingSeats={windowFree}
             skipCoachmark={false}
-            minDurationMinutes={60}
+            minDurationMinutes={minH * 60}
             maxDurationMinutes={(lengths[lengths.length - 1] ?? drop.maxHours ?? 5) * 60}
             onlyDurationsMinutes={lengths.map((h) => h * 60)}
             stepMinutes={30}
+            priceBands={bands}
+            bookableUntilMin={limitMin(block)}
           >
             <div className="flex items-center justify-between gap-3 py-1.5">
               <div className="min-w-0">
@@ -601,6 +639,18 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               </span>
             </div>
           </TimelineRangePicker>
+        )}
+        {canReserve && block && flex && startTime && (split.length > 1 || minH > 1) && (
+          <p className="-mt-2 text-caption text-text-secondary tabular-nums">
+            {split.length > 1 && (
+              <>
+                {split.map((x) => `${clockRange(hhmm(x.from), hhmm(x.to))} ${rupees(x.amount)}`).join(' + ')}
+                {drop.lengthPrices?.length ? '' : ` = ${rupees(priceAt(hours))}`}
+              </>
+            )}
+            {split.length > 1 && minH > 1 ? ' · ' : ''}
+            {minH > 1 ? `From ${clock(startTime)} the shortest booking is ${minH} hours.` : ''}
+          </p>
         )}
 
         {/* Older whole-session drops keep the simple seat stepper */}
