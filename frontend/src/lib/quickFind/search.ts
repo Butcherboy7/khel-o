@@ -101,7 +101,10 @@ export function rank(items: QFItem[], q: ParsedQuery, mem?: QuickFindMemory): QF
   for (const item of items) {
     const base = scoreItem(item, q);
     if (base <= 0) continue;
-    const score = base + (item.boost ?? 0) + (mem ? usageBoost(mem, item.id) : 0);
+    const text = base + (item.boost ?? 0);
+    // History breaks near-ties only: capped at 5% of the item's own score, so a
+    // clearly better match for what was typed always wins.
+    const score = text + (mem ? Math.min(usageBoost(mem, item.id), 0.05 * text) : 0);
     scored.push({ item, score });
   }
   scored.sort((a, b) => b.score - a.score || a.item.title.length - b.item.title.length);

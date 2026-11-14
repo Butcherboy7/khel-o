@@ -186,6 +186,15 @@ describe('roles', () => {
   });
 });
 
+describe('history', () => {
+  it('lifts near-ties but never beats a clearly better match', () => {
+    const c = ctx({ setups: [{ id: 't-ps5', name: 'PS5', platform: 'playstation', model: 'PS5', pricePerHour: 149, totalSeats: 4, isActive: true }], drops: [{ id: 'd3', title: 'GTA 6 Launch Drop', status: 'live', flexible: true, consoles: [1, 2, 3, 4].map((n) => ({ key: `t-ps5:${n}`, label: `PS5 ${n}`, platform: 'playstation', setup: 'PS5' })) }] });
+    const q = parseQuery('block ps5 pro 2 tomorrow', NOW);
+    const mem = { recent: [], uses: { 'setup:t-ps5:broken': { n: 9, at: Date.now() } } };
+    expect(rank(buildItems(c, q), q, mem)[0].item.id).toBe('drop:d3:block');
+  });
+});
+
 describe('results', () => {
   it('no duplicates by destination, grouped with best match first', () => {
     const { results } = top('bookings');
