@@ -253,6 +253,8 @@ function QuickFindPalette({ isStaff, initial, onClose }: { isStaff: boolean; ini
   const panelRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  // After a pick the next page owns focus; only a plain close hands it back.
+  const picked = useRef(false);
 
   const { ctx, searchingPeople, liveFailed, liveLoading } = useQuickFindData(isStaff, query);
   const parsed = useMemo(() => parseQuery(query), [query]);
@@ -299,7 +301,7 @@ function QuickFindPalette({ isStaff, initial, onClose }: { isStaff: boolean; ini
     return () => {
       window.clearTimeout(t);
       document.body.style.overflow = prevOverflow;
-      previouslyFocused.current?.focus?.();
+      if (!picked.current) previouslyFocused.current?.focus?.({ preventScroll: true });
     };
   }, []);
 
@@ -311,6 +313,8 @@ function QuickFindPalette({ isStaff, initial, onClose }: { isStaff: boolean; ini
   const choose = useCallback(
     (item: QFItem) => {
       setMem(rememberPick(item.id, query));
+      picked.current = true;
+      (document.activeElement as HTMLElement | null)?.blur?.();
       onClose();
       if (item.run === 'tutorial') {
         router.push('/owner/dashboard');
@@ -640,7 +644,7 @@ function ResultRow({
         <span className="truncate text-body-emphasis text-text-primary">
           <Highlighted text={item.title} ranges={ranges} />
         </span>
-        <span className="truncate text-caption text-text-secondary">
+        <span className="line-clamp-2 text-caption text-text-secondary sm:line-clamp-1">
           {item.description}
           <span className="hidden sm:inline"> · {item.where}</span>
         </span>

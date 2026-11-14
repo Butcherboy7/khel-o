@@ -128,6 +128,18 @@ describe('scenarios from the brief', () => {
     expect(r.href).toContain('hours=3');
   });
 
+  it('E4: a drop of plain PS5s still gets the walk-in flow for "sell ps5 pro 1"', () => {
+    const c = ctx({
+      drops: [{ id: 'd2', title: 'Practice Drop', status: 'draft', flexible: true, consoles: [{ key: 't-ps5:1', label: 'PS5 1', platform: 'playstation', setup: 'PS5' }] },
+              { id: 'd3', title: 'GTA 6 Launch Drop', status: 'live', flexible: true, consoles: [{ key: 't-ps5:1', label: 'PS5 1', platform: 'playstation', setup: 'PS5' }, { key: 't-ps5:2', label: 'PS5 2', platform: 'playstation', setup: 'PS5' }] }],
+    });
+    const first = top('sell ps5 pro 1 for 3 hours', c).results[0].item;
+    expect(first.id).toBe('drop:d3:walkin');
+    expect(first.href).not.toContain('console=');
+    const block = top('block ps5 2 tomorrow', c).results.slice(0, 2).map((r) => r.item.id);
+    expect(block).toContain('drop:d3:block');
+  });
+
   it('E3: without a drop, walk-in explains the seat split', () => {
     expect(top('mark walk-in', ctx({ drops: [] })).results[0].item.id).toBe('walkin-normal');
   });

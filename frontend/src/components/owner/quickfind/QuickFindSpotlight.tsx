@@ -42,7 +42,10 @@ export function QuickFindSpotlight() {
 /** Scroll an element to the middle, glow it twice, focus its `data-qf-focus` field. */
 export function spotlightElement(el: HTMLElement) {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+  // Tall sections (a whole slot manager) start at the top, under the sticky header; short ones sit mid-screen.
+  const tall = el.getBoundingClientRect().height > window.innerHeight * 0.6;
+  el.style.scrollMarginTop = '72px';
+  el.scrollIntoView({ block: tall ? 'start' : 'center', behavior: reduce ? 'auto' : 'smooth' });
   el.classList.remove('qf-spotlight');
   void el.offsetWidth;
   el.classList.add('qf-spotlight');

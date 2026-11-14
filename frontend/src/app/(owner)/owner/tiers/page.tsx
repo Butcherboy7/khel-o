@@ -431,8 +431,15 @@ export default function HardwareTiersPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="font-heading text-h3 text-text-primary">{tier.name}</h3>
-                      <p className="mt-0.5 text-caption text-text-secondary">
-                        {tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'} in total
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-caption text-text-secondary">
+                        <span>{tier.totalSeats} {tier.totalSeats === 1 ? 'unit' : 'units'}</span>
+                        {tier.model && tier.model !== tier.name && (
+                          <span className="inline-flex items-center gap-1 font-semibold text-text-primary">
+                            <Zap className="h-3 w-3 text-primary" aria-hidden="true" />
+                            {tier.model}
+                          </span>
+                        )}
+                        {tier.refreshRateHz ? <span>· {tier.refreshRateHz} Hz</span> : null}
                       </p>
                     </div>
                     <Badge variant={tier.isActive ? 'success' : 'default'} className="mt-1">
@@ -440,22 +447,13 @@ export default function HardwareTiersPage() {
                     </Badge>
                   </div>
 
-                  {/* The split between online-bookable and walk-in seats, said in
-                      a sentence. Two coloured chips carrying emoji (📱 / 🚶) wrapped
-                      to three ragged lines on a phone and left the owner guessing
-                      what the pictures meant. */}
-                  <dl className="grid grid-cols-2 gap-2">
-                    <div className="rounded-xl bg-surface px-3 py-2">
-                      <dt className="text-caption text-text-secondary">Bookable in the app</dt>
-                      <dd className="font-heading text-h3 text-text-primary">{tier.appBookableSeats}</dd>
-                    </div>
-                    <div className="rounded-xl bg-surface px-3 py-2">
-                      <dt className="text-caption text-text-secondary">Kept for walk-ins</dt>
-                      <dd className="font-heading text-h3 text-text-primary">
-                        {Math.max(0, tier.totalSeats - tier.appBookableSeats)}
-                      </dd>
-                    </div>
-                  </dl>
+                  {/* The online / walk-in split as one sentence with the numbers in
+                      bold. Two big boxes plus a model box made each card a full phone
+                      screen tall. */}
+                  <p className="-mt-2 text-caption text-text-secondary">
+                    <b className="font-semibold text-text-primary">{tier.appBookableSeats}</b> bookable in the app ·{' '}
+                    <b className="font-semibold text-text-primary">{Math.max(0, tier.totalSeats - tier.appBookableSeats)}</b> kept for walk-ins
+                  </p>
 
                   {tier.tierType === 'activity' && missingRequiredAttrs(taxonomy, tier.taxonomyKey, tier.attributes).length > 0 && (
                     <button
@@ -469,18 +467,6 @@ export default function HardwareTiersPage() {
                         Customers need it to book the right number of people.
                       </span>
                     </button>
-                  )}
-
-                  {(tier.model || tier.refreshRateHz) && (
-                    <div className="flex items-center gap-1.5 rounded-xl bg-surface p-3 text-caption font-semibold text-text-primary">
-                      <Zap className="h-3.5 w-3.5 flex-shrink-0 text-primary" aria-hidden="true" />
-                      {tier.model && <span>{tier.model}</span>}
-                      {tier.refreshRateHz ? (
-                        <span className={tier.model ? 'font-normal text-text-secondary' : undefined}>
-                          {tier.model ? '· ' : ''}{tier.refreshRateHz} Hz
-                        </span>
-                      ) : null}
-                    </div>
                   )}
 
                   {/* What customers are charged, in words, so the owner never has to open Edit to remember. */}

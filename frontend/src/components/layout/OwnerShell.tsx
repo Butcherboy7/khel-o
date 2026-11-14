@@ -486,7 +486,11 @@ function OwnerTopBar({
       <div className="flex shrink-0 items-center gap-2">
         <QuickFindTrigger />
         <OwnerNotificationBell />
-        <RoleSwitcher />
+        {/* On phones the switcher lives in the menu drawer: here it squeezed the
+            page name down to "Launch d…". */}
+        <div className="hidden lg:block">
+          <RoleSwitcher />
+        </div>
       </div>
     </header>
   );

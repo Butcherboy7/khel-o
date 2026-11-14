@@ -253,6 +253,8 @@ function dropItems(ctx: QFContext, q: ParsedQuery): QFItem[] {
     if (d.status === 'cancelled') continue;
     const base = `/owner/drops/${enc(d.id)}`;
     const words = [d.title, d.game ?? '', 'drop', 'launch', 'event', 'gta 6', 'gta'];
+    // The drop's own console names ("PS5 Pro 1", "Xbox Series X 1"), so "sell ps5 pro" finds its flows.
+    const consoleWords = Array.from(new Set(d.consoles.flatMap((x) => [x.label, x.setup ?? '', x.platform === 'playstation' ? 'playstation ps5 console' : x.platform === 'xbox' ? 'xbox console' : 'console'])));
     const c = consoleFor(d, q);
     const ambiguousMachine = Boolean(q.machine) && !c;
     const machineKnown = c ? c.label : '';
@@ -263,7 +265,8 @@ function dropItems(ctx: QFContext, q: ParsedQuery): QFItem[] {
     const params = (slot: string) =>
       [`slot=${slot}`, c ? `console=${enc(c.key)}` : '', hours ? `hours=${hours}` : '', inRun && q.day ? `date=${q.day.iso}` : ''].filter(Boolean).join('&');
     const said = [machineKnown, hours ? `for ${hrsText(hours)}` : '', dayPart].filter(Boolean).join(' ');
-    const lift = (c ? 0.3 : 0) + (hours ? 0.08 : 0) + (dayPart ? 0.05 : 0);
+    // A live drop beats a draft or practice one when both fit equally.
+    const lift = (c ? 0.3 : 0) + (hours ? 0.08 : 0) + (dayPart ? 0.05 : 0) + (d.status === 'live' ? 0.04 : 0);
     const draft = d.status === 'draft' ? ' (not live yet)' : '';
 
     out.push({
@@ -287,7 +290,7 @@ function dropItems(ctx: QFContext, q: ParsedQuery): QFItem[] {
       icon: 'walkin',
       kind: 'flow',
       href: `${base}?${params('walkin')}`,
-      keywords: [...words, 'walk in', 'walkin', 'sell', 'sold', 'cash', 'counter', 'offline', 'phone booking', 'mark walk in', 'sale', ...(c ? [c.label] : [])],
+      keywords: [...words, 'walk in', 'walkin', 'sell', 'sold', 'cash', 'counter', 'offline', 'phone booking', 'mark walk in', 'sale', ...consoleWords],
       roles: OWNER,
       boost: lift,
     });
@@ -300,7 +303,7 @@ function dropItems(ctx: QFContext, q: ParsedQuery): QFItem[] {
       icon: 'block',
       kind: 'flow',
       href: `${base}?${params('block')}`,
-      keywords: [...words, 'block', 'hold', 'not for sale', 'private', 'cleaning', 'maintenance', 'reserve', 'unavailable', ...(c ? [c.label] : [])],
+      keywords: [...words, 'block', 'hold', 'not for sale', 'private', 'cleaning', 'maintenance', 'reserve', 'unavailable', ...consoleWords],
       roles: OWNER,
       boost: lift,
     });

@@ -251,43 +251,23 @@ export default function OwnerAvailabilityPage() {
         )}
       </div>
 
-      {/* Hero capacity strip */}
+      {/* Hero capacity strip: four numbers in one row. As 2×2 tall cards they
+          filled the first phone screen before the owner reached the setup picker. */}
       {heroStats && (
-        <div data-tour="slots-now" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {/* Labels at 12px, not the 10px overline these carried: they are the
-              only thing telling the owner which number is which. */}
-          <div className="flex flex-col gap-1 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
-            <span className="flex items-center gap-1.5 text-caption font-semibold text-emerald-800">
-              <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> Free{' '}
-              {isToday ? 'now' : ''}
-            </span>
-            <span className="font-heading text-h1 text-emerald-800">{heroStats.available}</span>
-            <span className="text-caption text-emerald-800/80">of {heroStats.total}</span>
-          </div>
-          <div className="flex flex-col gap-1 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3.5">
-            <span className="flex items-center gap-1.5 text-caption font-semibold text-rose-800">
-              <Users className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> In use{' '}
-              {isToday ? 'now' : ''}
-            </span>
-            <span className="font-heading text-h1 text-rose-800">{heroStats.occupied}</span>
-            <span className="text-caption text-rose-800/80">of {heroStats.total}</span>
-          </div>
-          <div className="flex flex-col gap-1 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5">
-            <span className="flex items-center gap-1.5 text-caption font-semibold text-amber-800">
-              <Clock3 className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> Not paid yet
-            </span>
-            <span className="font-heading text-h1 text-amber-800">{heroStats.pending}</span>
-            <span className="text-caption text-amber-800/80">
-              booking{heroStats.pending === 1 ? '' : 's'}
-            </span>
-          </div>
-          <div className="flex flex-col gap-1 rounded-2xl border border-border bg-surface p-3.5">
-            <span className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary">
-              <Monitor className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> Total
-            </span>
-            <span className="font-heading text-h1 text-text-primary">{heroStats.total}</span>
-            <span className="truncate text-caption text-text-secondary">{selectedTier?.name}</span>
-          </div>
+        <div data-tour="slots-now" className="grid grid-cols-4 gap-1.5 sm:gap-3">
+          {[
+            { label: isToday ? 'Free now' : 'Free', value: heroStats.available, tone: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-800', Icon: CheckCircle2 },
+            { label: isToday ? 'In use' : 'Booked', value: heroStats.occupied, tone: 'border-rose-500/30 bg-rose-500/10 text-rose-800', Icon: Users },
+            { label: 'Not paid', value: heroStats.pending, tone: 'border-amber-500/30 bg-amber-500/10 text-amber-800', Icon: Clock3 },
+            { label: 'Total', value: heroStats.total, tone: 'border-border bg-surface text-text-primary', Icon: Monitor },
+          ].map(({ label, value, tone, Icon }) => (
+            <div key={label} className={`flex min-w-0 flex-col gap-0.5 rounded-xl border px-2.5 py-2 sm:rounded-2xl sm:p-3.5 ${tone}`}>
+              <span className="flex items-center gap-1 truncate text-caption font-semibold">
+                <Icon className="hidden h-3.5 w-3.5 flex-shrink-0 sm:block" aria-hidden="true" /> {label}
+              </span>
+              <span className="font-heading text-h2 leading-none sm:text-h1">{value}</span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -391,32 +371,13 @@ export default function OwnerAvailabilityPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div className="flex flex-col">
-                <span className="font-heading text-h2 font-bold text-emerald-600">{selectedSlot.available}</span>
-                <span className="text-caption font-semibold text-text-secondary uppercase">Available</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-heading text-h2 font-bold text-rose-600">{selectedSlot.booked}</span>
-                <span className="text-caption font-semibold text-text-secondary uppercase">Booked</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-heading text-h2 font-bold text-amber-600">{selectedSlot.pending}</span>
-                <span className="text-caption font-semibold text-text-secondary uppercase">Pending</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-heading text-h2 font-bold text-text-primary">{selectedSlot.total}</span>
-                <span className="text-caption font-semibold text-text-secondary uppercase">Total</span>
-              </div>
-            </div>
-
             <div className={`px-3.5 py-2.5 rounded-xl text-caption font-semibold flex items-center gap-2 ${
               selectedSlot.available > 0 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-rose-500/10 text-rose-700'
             }`}>
               {selectedSlot.available > 0 ? <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
               <span>
                 {selectedSlot.available > 0
-                  ? `${selectedSlot.available} ${selectedSlot.available === 1 ? 'machine' : 'machines'} free in this hour.`
+                  ? `${selectedSlot.available} of ${selectedSlot.total} free in this hour${selectedSlot.booked ? `, ${selectedSlot.booked} booked` : ''}${selectedSlot.pending ? `, ${selectedSlot.pending} not paid yet` : ''}.`
                   : selectedSlot.blocked > 0
                   ? `Fully booked — ${selectedSlot.blocked} more broken or under repair.`
                   : 'Fully booked for this hour.'}
@@ -431,7 +392,7 @@ export default function OwnerAvailabilityPage() {
         <Card elevation="resting" className="overflow-hidden">
           <div className="px-4 py-3.5 border-b border-border">
             <span className="font-heading text-body font-bold text-text-primary">
-              What&apos;s Occupying This Hour {slotBookings.length > 0 && `(${slotBookings.length})`}
+              Who&apos;s on this hour {slotBookings.length > 0 && `(${slotBookings.length})`}
             </span>
           </div>
           {slotBookings.length === 0 ? (
@@ -491,7 +452,7 @@ export default function OwnerAvailabilityPage() {
 
       {/* Stacked, not two-up: side by side at 390px both labels wrapped to two
           lines and overflowed their own buttons. One clear action per row. */}
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="hidden gap-3 lg:flex">
         <Link href="/owner/scanner" className="sm:flex-1">
           <Button variant="primary" size="md" fullWidth className="gap-2">
             <QrCode className="h-4 w-4 flex-shrink-0" aria-hidden="true" />

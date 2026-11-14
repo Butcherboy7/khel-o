@@ -439,7 +439,7 @@ export default function OwnerDashboardPage() {
       {/* The café's own name leads, at h1, because it is the one thing on this
           screen that says "this is you". The operating status is a pill beside
           it — before, the status ran at heading size and outshouted the venue. */}
-      <div className="flex flex-col gap-3 border-b border-border pb-4 md:flex-row md:items-start md:justify-between">
+      <div className="flex flex-col gap-2 border-b border-border pb-3 md:flex-row md:items-start md:justify-between md:gap-3 md:pb-4">
         <div className="min-w-0">
           <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
             <h1 className="font-heading text-h1 text-text-primary text-balance">
@@ -469,7 +469,7 @@ export default function OwnerDashboardPage() {
               </span>
             </Badge>
           </div>
-          <p className="text-body text-text-secondary">
+          <p className="hidden text-body text-text-secondary sm:block">
             {isStaff
               ? "Check in customers as they arrive."
               : "Everything happening at your café today."}
