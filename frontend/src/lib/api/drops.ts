@@ -47,6 +47,9 @@ export interface DropReservation {
   qr: string | null;
 }
 
+export interface LengthPrice { hours: number; price: number }
+export interface TimePrice { start: string; end: string; perHour: number }
+
 export interface Drop {
   id: string;
   slug: string;
@@ -64,6 +67,10 @@ export interface Drop {
   depositLong: number;
   /** Set on flexible drops: people pick 1..maxHours. */
   maxHours: number | null;
+  /** Package prices. When there are any, only these lengths can be booked. */
+  lengthPrices?: LengthPrice[];
+  /** A different hourly price inside these times (e.g. cheaper after midnight). */
+  timePrices?: TimePrice[];
   startsOn?: string | null;
   endsOn?: string | null;
   rolling?: boolean;
@@ -178,6 +185,11 @@ export interface OwnerReservationRow {
   source?: 'online' | 'offline';
   price?: number;
   note?: string | null;
+  email?: string | null;
+  /** The pass page with the QR, once paid. */
+  passUrl?: string | null;
+  /** The calendar date they play (12 AM of a night session is the next date). */
+  playDate?: string;
 }
 
 export interface OwnerDrop extends Omit<Drop, 'blocks' | 'myReservations'> {
@@ -232,6 +244,8 @@ export interface NewDrop {
   depositAmount: number;
   maxHours?: number;
   depositAmountLong?: number;
+  lengthPrices?: LengthPrice[];
+  timePrices?: TimePrice[];
   dailyStartTime?: string;
   dailyEndTime?: string;
   dailySeats?: number;

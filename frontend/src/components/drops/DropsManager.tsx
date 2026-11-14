@@ -9,6 +9,7 @@ import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 import { createDrop, gameRuleFor, listOwnerDrops, type NewDrop, type OwnerDropList } from '@/lib/api/drops';
 import { clock, rupees, shortDate } from '@/lib/drops';
+import { DropPriceOptions, overlapping, priceOptionsPayload, type PriceOptions } from '@/components/drops/DropPriceOptions';
 import { uploadCafePhoto } from '@/lib/api/settings';
 
 const STATE_LABEL: Record<string, string> = {
@@ -212,6 +213,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
   const [deposit, setDeposit] = useState('100');
   const [depositLong, setDepositLong] = useState('200');
   const [maxHours, setMaxHours] = useState('5');
+  const [priceOpts, setPriceOpts] = useState<PriceOptions>({ lengthPrices: [], timePrices: [] });
   const [code, setCode] = useState('');
   const [earlyAt, setEarlyAt] = useState('');
   const [publicAt, setPublicAt] = useState('');
@@ -275,6 +277,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
     if (!cafeId || !title.trim() || !game.trim()) return setError('Fill in the title and the game.');
     if (!tier) return setError(usable.length === 0 ? `None of your setups can run ${gameName}.` : `Pick which setup has ${gameName}.`);
     if (!startsOn || !startT || !endT || daySeats < 1) return setError('Set the first day, the hours and the seats.');
+    if (overlapping(priceOpts.timePrices)) return setError('Two of your time prices cover the same hours. Change one so they don’t overlap.');
     const body: NewDrop = {
       cafeId,
       hardwareTierId: tier.id,
@@ -286,6 +289,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
       depositAmount: Number(deposit),
       maxHours: Number(maxHours) || undefined,
       depositAmountLong: maxHours ? Number(depositLong) : undefined,
+      ...priceOptionsPayload(priceOpts),
       earlyAccessCode: code.trim() || undefined,
       earlyAccessStartsAt: istIso(earlyAt || publicAt || nowIst()),
       publicStartsAt: istIso(publicAt || nowIst()),
@@ -485,6 +489,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
               hint="Paid online to hold a seat. Taken off the bill."
             />
           </div>
+          <DropPriceOptions base={priceNum || 0} value={priceOpts} onChange={setPriceOpts} />
         </Step>
 
         <Step n={5} title="Your photo">

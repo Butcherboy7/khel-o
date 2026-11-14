@@ -19,7 +19,7 @@ import {
   type DropBlock,
   type DropReservation,
 } from '@/lib/api/drops';
-import { atMinutes, blockEnd, blockStart, blockTimes, calDate, clock, dayLabel, gameKey, rupees, whenText, wireTime } from '@/lib/drops';
+import { atMinutes, blockEnd, blockStart, blockTimes, calDate, clock, clockRange, dayLabel, dropLengths, dropSeatPrice, gameKey, rupees, whenText, wireTime } from '@/lib/drops';
 import { calculateWindowRemainingSeats, timeToMinutes } from '@/lib/format';
 import { CommunityButton, CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 import { CustomerShell } from '@/components/layout/CustomerShell';
@@ -130,6 +130,16 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   }, [drop]);
 
   const flex = !!drop?.maxHours;
+  const lengths = drop ? dropLengths(drop) : [];
+  // The everyday hours, and any one-off session (a launch night) told apart.
+  const usual = (() => {
+    if (!drop?.blocks.length) return null;
+    const key = (b: DropBlock) => `${b.startTime}-${b.endTime}`;
+    const n = new Map<string, number>();
+    drop.blocks.forEach((b) => n.set(key(b), (n.get(key(b)) ?? 0) + 1));
+    return [...drop.blocks].sort((a, b) => (n.get(key(b)) ?? 0) - (n.get(key(a)) ?? 0))[0];
+  })();
+  const extras = usual && drop ? drop.blocks.filter((b) => b.startTime !== usual.startTime || b.endTime !== usual.endTime) : [];
   const block = drop?.blocks.find((b) => b.id === blockId) ?? null;
   const booked = useMemo(() => block?.bookedSlots ?? [], [block]);
   // The cap is per day: seats on one night never stop you booking another night.
@@ -155,7 +165,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const seatCount = Math.min(seats, maxSeats);
 
   const feePerSeat = !drop ? 0 : flex ? (hours <= 3 ? drop.deposit : drop.depositLong) : drop.deposit;
-  const totalPerSeat = !drop || !block ? 0 : flex ? drop.pricePerHour * hours : block.pricePerSeat;
+  const priceAt = (h: number) => (drop && block && startTime ? dropSeatPrice(drop, inBlock(startTime, block), h) : 0);
+  const totalPerSeat = !drop || !block ? 0 : flex ? priceAt(hours) : block.pricePerSeat;
   const payNow = feePerSeat * seatCount;
   const total = totalPerSeat * seatCount;
 
@@ -167,13 +178,17 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     const ok = (m: number, len: number) =>
       m + len <= timeToMinutes(b.endTime) && b.seatsTotal - peakIn(b, m, m + len) >= 1 && atMinutes(b.date, m).getTime() > Date.now();
     const slots = b.bookedSlots ? hourRange(b) : [];
-    const evening = slots.find((m) => m >= 18 * 60 && ok(m, 120));
-    const any2 = slots.find((m) => ok(m, 120));
-    const any1 = slots.find((m) => ok(m, 60));
+    // A café selling packages (1, 3, 5 hours) starts on its shortest one of 2 hours or more.
+    const lens = drop ? dropLengths(drop) : [1, 2];
+    const want = lens.find((h) => h >= 2) ?? lens[0] ?? 1;
+    const short = lens[0] ?? 1;
+    const evening = slots.find((m) => m >= 18 * 60 && ok(m, want * 60));
+    const anyWant = slots.find((m) => ok(m, want * 60));
+    const anyShort = slots.find((m) => ok(m, short * 60));
     if (flex) {
-      const m = evening ?? any2 ?? any1;
+      const m = evening ?? anyWant ?? anyShort;
       setStartTime(m != null ? hhmm(m) : b.startTime);
-      setHours(evening != null || any2 != null ? 2 : 1);
+      setHours(evening != null || anyWant != null ? want : short);
     }
     track('drop_block_selected', { block: b.id, date: b.date });
   };
@@ -370,9 +385,20 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 Play on {drop.playsOn}
               </span>
             )}
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
-              {rupees(drop.pricePerHour)} an hour
-            </span>
+            {drop.lengthPrices?.length ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 tabular-nums">
+                {drop.lengthPrices.map((p) => `${p.hours} hr ${rupees(p.price)}`).join(' · ')}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
+                {rupees(drop.pricePerHour)} an hour
+              </span>
+            )}
+            {(drop.timePrices ?? []).map((t) => (
+              <span key={t.start} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 tabular-nums">
+                {clockRange(t.start, t.end)}: {rupees(t.perHour)} an hour
+              </span>
+            ))}
             {(drop.reservedCount ?? 0) >= 3 && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-success/40 bg-success/10 px-3 py-1.5 text-success">
                 {drop.reservedCount} gamers reserved
@@ -445,11 +471,12 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         {!ended && (
         <section ref={daysRef} className="scroll-mt-20">
           <h2 className="font-heading text-h2 font-semibold text-text-primary">{canReserve ? 'Pick a day' : 'Days'}</h2>
-          {flex && drop.blocks[0] && (
+          {flex && usual && (
             <p className="text-caption text-text-secondary">
-              {drop.blocks[0].hours >= 24
+              {usual.hours >= 24
                 ? 'Open all 24 hours, every day. Book any time, day or night.'
-                : `Open ${clock(drop.blocks[0].startTime)} – ${clock(drop.blocks[0].endTime)}${timeToMinutes(drop.blocks[0].endTime) > 1440 ? ' (next morning)' : ''}, every day`}
+                : `Open ${clock(usual.startTime)} – ${clock(usual.endTime)}${timeToMinutes(usual.endTime) > 1440 ? ' (next morning)' : ''}, every day.`}
+              {extras.map((b) => ` Also ${clock(b.startTime)} – ${clock(b.endTime)} on ${dayLabel(calDate(b.date, b.startTime))}.`).join('')}
             </p>
           )}
           <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="radiogroup" aria-label="Days">
@@ -457,6 +484,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               const gone = b.started || sessionLeft(b) === 0;
               const on = b.id === blockId;
               const shownDate = calDate(b.date, b.startTime); // the launch night opens at 12 AM on launch day
+              // Two sessions on one date (a launch night 12 AM - 6 AM, then the day): name them by start time.
+              const twin = drop.blocks.some((x) => x.id !== b.id && calDate(x.date, x.startTime) === shownDate);
               return (
                 <button
                   key={b.id}
@@ -479,13 +508,46 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                     {new Date(`${shownDate}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', timeZone: 'Asia/Kolkata' })}
                   </span>
                   <span className={`block text-[11px] ${gone ? 'text-error' : 'text-text-secondary'}`}>
-                    {b.started ? 'Started' : sessionLeft(b) === 0 ? 'Full' : flex ? (shownDate !== b.date ? '12 AM' : new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' })) : `${clock(b.startTime)}`}
+                    {b.started ? 'Started' : sessionLeft(b) === 0 ? 'Full' : flex ? (twin || shownDate !== b.date ? clock(b.startTime) : new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' })) : `${clock(b.startTime)}`}
                   </span>
                 </button>
               );
             })}
           </div>
         </section>
+        )}
+
+        {/* Packages: the café's set lengths and prices, one tap each */}
+        {canReserve && block && flex && startTime && !!drop.lengthPrices?.length && (
+          <section aria-label="How long">
+            <h2 className="font-heading text-h2 font-semibold text-text-primary">How long?</h2>
+            <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Packages">
+              {lengths.map((h) => {
+                const on = h === hours;
+                const fits = inBlock(startTime, block) + h * 60 <= timeToMinutes(block.endTime);
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => {
+                      // Keep the start when it fits, else slide back so the package ends with the session.
+                      if (!fits) setStartTime(hhmm(Math.max(timeToMinutes(block.startTime), timeToMinutes(block.endTime) - h * 60)));
+                      setHours(h);
+                      setError(null);
+                    }}
+                    className={`flex min-h-[64px] flex-col items-center justify-center rounded-xl border px-2 py-2 transition-colors ${
+                      on ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'
+                    }`}
+                  >
+                    <span className="font-heading text-body-emphasis font-bold text-text-primary">{h} {h === 1 ? 'hour' : 'hours'}</span>
+                    <span className={`text-caption font-semibold tabular-nums ${on ? 'text-primary' : 'text-text-secondary'}`}>{rupees(priceAt(h))}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         )}
 
         {/* Time and length: the same slider as a normal booking */}
@@ -507,7 +569,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             remainingSeats={windowFree}
             skipCoachmark={false}
             minDurationMinutes={60}
-            maxDurationMinutes={(drop.maxHours ?? 5) * 60}
+            maxDurationMinutes={(lengths[lengths.length - 1] ?? drop.maxHours ?? 5) * 60}
+            onlyDurationsMinutes={lengths.map((h) => h * 60)}
             stepMinutes={30}
           >
             <div className="flex items-center justify-between gap-3 py-1.5">

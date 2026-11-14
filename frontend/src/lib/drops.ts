@@ -1,4 +1,4 @@
-import type { DropBlock } from '@/lib/api/drops';
+import type { DropBlock, LengthPrice, TimePrice } from '@/lib/api/drops';
 
 /** Display helpers for drops. Block dates and times are café time (IST). */
 
@@ -111,4 +111,34 @@ export function clockRange(start: string, end: string): string {
 /** "2026-11-19" → "19 Nov". */
 export function shortDate(date: string): string {
   return new Date(`${date}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
+}
+
+type Priced = { pricePerHour: number; maxHours: number | null; lengthPrices?: LengthPrice[]; timePrices?: TimePrice[] };
+
+/** Hours people can book: the café's packages if it sells them, else 1..maxHours. */
+export function dropLengths(d: Priced): number[] {
+  if (d.lengthPrices?.length) return d.lengthPrices.map((p) => p.hours).sort((a, b) => a - b);
+  return Array.from({ length: d.maxHours ?? 0 }, (_, i) => i + 1);
+}
+
+function bandRate(d: Priced, m: number): number | null {
+  for (const b of d.timePrices ?? []) {
+    const s = minutesOf(b.start);
+    let e = minutesOf(b.end);
+    if (e <= s) e += 1440;
+    if ((s <= m && m < e) || (s <= m + 1440 && m + 1440 < e)) return b.perHour;
+  }
+  return null;
+}
+
+/** One seat for `hours` from minute `begin` of the session day. Mirrors seat_price in drop_service.py. */
+export function dropSeatPrice(d: Priced, begin: number, hours: number): number {
+  const len = Math.round(hours * 60);
+  const pack = len % 60 === 0 ? d.lengthPrices?.find((p) => p.hours === len / 60) : undefined;
+  let total = pack ? pack.price : (d.pricePerHour * len) / 60;
+  for (let m = begin; m < begin + len; m += 30) {
+    const r = bandRate(d, m % 1440);
+    if (r != null) total += ((r - d.pricePerHour) * 30) / 60;
+  }
+  return Math.max(0, Math.round(total * 100) / 100);
 }

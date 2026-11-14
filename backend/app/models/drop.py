@@ -10,7 +10,7 @@ import uuid
 from datetime import date, datetime, time, timezone
 
 from sqlalchemy import (
-    Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Time, UniqueConstraint,
+    JSON, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Time, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,6 +40,11 @@ class Drop(Base):
     # it is counted toward the bill but never refunded (unless the café cancels).
     max_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
     deposit_amount_long: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    # Package prices: [{"hours": 3, "price": 650}, ...]. When set, only these lengths can be booked.
+    length_prices: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Different hourly price at some times: [{"start": "00:00", "end": "06:00", "perHour": 200}, ...].
+    # Each hour inside a band costs perHour instead of price_per_hour (packages move by the difference).
+    time_prices: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # Rolling schedule: one block a day, made on demand for the next 7 days, until ends_on
     # (starts_on + 13 at most). After ends_on the drop is over and café booking is normal.
     daily_start_time: Mapped[time | None] = mapped_column(Time, nullable=True)

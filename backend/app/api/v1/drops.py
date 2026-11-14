@@ -129,7 +129,9 @@ def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
         "pricePerHour": float(drop.price_per_hour),
         "deposit": float(drop.deposit_amount),
         "depositLong": float(drop.deposit_amount_long if drop.deposit_amount_long is not None else svc.money(drop.deposit_amount) * 2),
-        "maxHours": drop.max_hours,
+        "maxHours": max(svc.lengths(drop)) if drop.length_prices else drop.max_hours,
+        "lengthPrices": drop.length_prices or [],
+        "timePrices": drop.time_prices or [],
         "startsOn": drop.starts_on.isoformat() if drop.starts_on else None,
         "endsOn": drop.ends_on.isoformat() if drop.ends_on else None,
         "rolling": drop.daily_start_time is not None,
@@ -377,6 +379,8 @@ class DropCreate(_Camel):
     deposit_amount: float = Field(99, ge=1, le=10000)
     max_hours: Optional[int] = Field(None, ge=1, le=12)
     deposit_amount_long: Optional[float] = Field(None, ge=1, le=10000)
+    length_prices: Optional[list[dict]] = Field(None, max_length=12)
+    time_prices: Optional[list[dict]] = Field(None, max_length=6)
     max_seats_per_user: int = Field(2, ge=1, le=2)
     early_access_code: Optional[str] = Field(None, max_length=40)
     early_access_starts_at: datetime
@@ -483,11 +487,16 @@ async def create_drop(payload: DropCreate, db: AsyncSession = Depends(get_db), u
     if payload.status == "live" and payload.hardware_tier_id is not None and payload.daily_start_time is not None and payload.starts_on:
         await svc.check_rig_free(db, cafe, tier, payload.starts_on, payload.starts_on + timedelta(days=payload.days - 1),
                                  payload.daily_start_time, payload.daily_end_time, payload.daily_seats or 1)
+    try:
+        lp, tp = svc.clean_price_options(payload.length_prices, payload.time_prices)
+    except (KeyError, TypeError, ValueError):
+        raise svc.DropError("Some prices are not filled in right. Check the packages and time prices.", "BAD_PRICES")
     drop = Drop(
         slug=slug, cafe_id=cafe.id, title=payload.title.strip(), game=payload.game.strip(),
         tagline=(payload.tagline or "").strip() or None, cover_image_url=payload.cover_image_url,
         price_per_hour=payload.price_per_hour, deposit_amount=payload.deposit_amount,
-        max_hours=payload.max_hours, deposit_amount_long=payload.deposit_amount_long,
+        length_prices=lp, time_prices=tp,
+        max_hours=(max(x['hours'] for x in lp) if lp else payload.max_hours), deposit_amount_long=payload.deposit_amount_long,
         daily_start_time=payload.daily_start_time, daily_end_time=payload.daily_end_time, daily_seats=payload.daily_seats,
         hardware_tier_id=payload.hardware_tier_id,
         starts_on=payload.starts_on, ends_on=(payload.starts_on + timedelta(days=payload.days - 1)) if payload.starts_on else None,
@@ -512,6 +521,8 @@ class DropUpdate(_Camel):
     price_per_hour: Optional[float] = Field(None, gt=0, le=10000)
     deposit_amount: Optional[float] = Field(None, ge=1, le=10000)
     deposit_amount_long: Optional[float] = Field(None, ge=1, le=10000)
+    length_prices: Optional[list[dict]] = Field(None, max_length=12)
+    time_prices: Optional[list[dict]] = Field(None, max_length=6)
     early_access_code: Optional[str] = Field(None, max_length=40)
     early_access_starts_at: Optional[datetime] = None
     public_starts_at: Optional[datetime] = None
@@ -559,6 +570,14 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
         await svc.check_rig_free(db, cafe, tier, max(today, drop.starts_on), fields.get("ends_on") or drop.ends_on,
                                  drop.daily_start_time, drop.daily_end_time, fields.get("daily_seats") or drop.daily_seats or 1,
                                  ignore_drop_id=drop.id)
+    if "length_prices" in fields or "time_prices" in fields:
+        try:
+            lp, tp = svc.clean_price_options(fields.get("length_prices", drop.length_prices), fields.get("time_prices", drop.time_prices))
+        except (KeyError, TypeError, ValueError):
+            raise svc.DropError("Some prices are not filled in right. Check the packages and time prices.", "BAD_PRICES")
+        fields["length_prices"], fields["time_prices"] = lp, tp
+        if lp:
+            fields["max_hours"] = max(x["hours"] for x in lp)
     for k, v in fields.items():
         setattr(drop, k, v)
     if svc._aware(drop.early_access_starts_at) > svc._aware(drop.public_starts_at):
@@ -606,6 +625,16 @@ async def set_block_seats(drop_id: UUID, block_id: UUID, payload: BlockSeats, db
     return {"success": True, "data": _block_out(drop, block)}
 
 
+def _when(r: DropReservation, blocks: list[DropBlock]) -> dict:
+    """The reservation's own date and clock times (12 AM of a night session is the next date)."""
+    blk = next((b for b in blocks if b.id == r.block_id), None)
+    if blk is None:
+        return {}
+    s_, e_ = svc.res_window(r, blk)
+    return {"playDate": (blk.session_date + timedelta(days=s_ // svc.DAY_MIN)).isoformat(),
+            "startTime": svc.hhmm(s_ % svc.DAY_MIN), "endTime": svc.hhmm(e_ % svc.DAY_MIN)}
+
+
 async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
     await svc.release_expired(db, drop.id)
     blocks = await svc.blocks_of(db, drop.id)
@@ -623,6 +652,9 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
             "id": str(r.id), "reference": r.reference,
             "name": r.guest_name if r.source == "offline" else name,
             "phone": r.guest_phone if r.source == "offline" else phone, "seats": r.seats,
+            "email": None if r.source == "offline" else email,
+            "passUrl": f"{_site()}/drops/{drop.slug}/pass/{r.checkin_token}" if r.status in svc.PAID else None,
+            **_when(r, blocks),
             "source": r.source, "note": r.note, "price": float(r.block_price),
             "status": r.status, "deposit": float(r.deposit_amount), "balanceDue": float(r.balance_due),
             "checkedInAt": _iso(r.checked_in_at), "paidAt": _iso(r.paid_at), "earlyAccess": r.used_early_access,
@@ -678,6 +710,7 @@ async def owner_reservations(since: Optional[date] = None, db: AsyncSession = De
             "id": str(r.id), "reference": r.reference, "status": r.status, "seats": r.seats,
             "name": r.guest_name if r.source == "offline" else holder.full_name,
             "phone": r.guest_phone if r.source == "offline" else holder.phone_number,
+            "email": None if r.source == "offline" else holder.email,
             "source": r.source, "price": float(r.block_price), "note": r.note,
             "date": blk.session_date.isoformat(),
             "startTime": svc.hhmm(start % svc.DAY_MIN), "endTime": svc.hhmm(end % svc.DAY_MIN),

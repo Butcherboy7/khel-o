@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus } from 'lucide-react';
 import { uploadCafePhoto } from '@/lib/api/settings';
-import { ArrowLeft, Bell, CheckCircle2, Download, ExternalLink, KeyRound, QrCode } from 'lucide-react';
+import { ArrowLeft, Bell, CheckCircle2, Download, ExternalLink, KeyRound, MessageCircle, QrCode } from 'lucide-react';
 import { Button, Card, CardContent, Input, Modal, SkeletonCard } from '@/components/ui';
 import { ShareIconRow, WhatsAppButton } from '@/components/shared/ShareActions';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
@@ -13,6 +13,32 @@ import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 import { cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, getWalkInQr, giveAwayReservation, updateDrop, type OwnerDrop } from '@/lib/api/drops';
 import { blockTimes, clockRange, dayLabel, rupees, whenText } from '@/lib/drops';
 import { OfflineBooking, RemoveOffline } from '@/components/drops/OfflineBooking';
+import { DropPriceOptions, overlapping, priceOptionsPayload, type PriceOptions } from '@/components/drops/DropPriceOptions';
+
+type Row = OwnerDrop['blocks'][number]['reservations'][number];
+
+/** WhatsApp to the player, typed out: when, what is paid, what to pay at the café, and the QR pass link. */
+function passMessage(d: OwnerDrop, b: OwnerDrop['blocks'][number], r: Row): string | null {
+  const digits = (r.phone ?? '').replace(/\D/g, '').slice(-10);
+  if (digits.length !== 10 || !r.passUrl) return null;
+  const first = (r.name || '').trim().split(/\s+/)[0] || 'there';
+  const when = `${dayLabel(r.playDate ?? b.date)}, ${r.startTime && r.endTime ? clockRange(r.startTime, r.endTime) : blockTimes(b)}`;
+  const text = [
+    `Hi ${first}, your ${d.game} seat at ${d.cafe.name} is confirmed.`,
+    '',
+    `When: ${when}${r.hours ? ` (${r.hours} ${r.hours === 1 ? 'hour' : 'hours'})` : ''}`,
+    `Seats: ${r.seats}`,
+    `Booking: ${r.reference}`,
+    `Paid online: ${rupees(r.deposit)}`,
+    `Pay at the café: ${rupees(r.balanceDue)}`,
+    '',
+    `Your QR pass. Show it at the counter: ${r.passUrl}`,
+    '',
+    `Address: ${d.cafe.address}`,
+    'Please come 15 minutes early. See you there!',
+  ].join('\n');
+  return `https://wa.me/91${digits}?text=${encodeURIComponent(text)}`;
+}
 
 const STATUS_LABEL: Record<string, string> = {
   pending_payment: 'Paying now',
@@ -32,14 +58,16 @@ function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
   const [price, setPrice] = useState(String(d.pricePerHour));
   const [short, setShort] = useState(String(d.deposit));
   const [long, setLong] = useState(String(d.depositLong));
+  const [opts, setOpts] = useState<PriceOptions>({ lengthPrices: d.lengthPrices ?? [], timePrices: d.timePrices ?? [] });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const changed = Number(price) !== d.pricePerHour || Number(short) !== d.deposit || Number(long) !== d.depositLong;
+  const optsChanged = JSON.stringify(priceOptionsPayload(opts)) !== JSON.stringify({ lengthPrices: d.lengthPrices ?? [], timePrices: d.timePrices ?? [] });
+  const changed = optsChanged || Number(price) !== d.pricePerHour || Number(short) !== d.deposit || Number(long) !== d.depositLong;
   const save = async () => {
     setBusy(true);
     setMsg(null);
     try {
-      await updateDrop(d.id, { pricePerHour: Number(price), depositAmount: Number(short), depositAmountLong: Number(long) });
+      await updateDrop(d.id, { pricePerHour: Number(price), depositAmount: Number(short), depositAmountLong: Number(long), ...priceOptionsPayload(opts) });
       setMsg({ ok: true, text: 'Saved. New reservations use these prices.' });
       onDone();
     } catch (e) {
@@ -50,7 +78,7 @@ function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
   };
   const num = (v: string) => v.replace(/\D/g, '').slice(0, 5);
   return (
-    <Card elevation="flat" data-tour="drop-prices">
+    <Card elevation="flat" data-tour="drop-prices" className="md:col-span-2">
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Price and booking fee</p>
         <div className="grid grid-cols-3 gap-2">
@@ -70,9 +98,10 @@ function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
             </label>
           ))}
         </div>
+        {d.maxHours ? <DropPriceOptions base={Number(price) || 0} value={opts} onChange={setOpts} /> : null}
         <p className="text-caption text-text-secondary">The booking fee is what people pay online to hold a seat. It comes off their bill. You can change these any time, even while the drop is live. People who already reserved keep the price they booked at.</p>
         <div className="flex items-center gap-3">
-          <Button onClick={save} disabled={busy || !changed || !Number(price)}>Save prices</Button>
+          <Button onClick={save} disabled={busy || !changed || !Number(price) || overlapping(opts.timePrices)}>Save prices</Button>
           {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
         </div>
       </CardContent>
@@ -557,10 +586,21 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
                         {r.reference}
                         {r.hours && r.startTime && r.endTime ? ` · ${clockRange(r.startTime, r.endTime)} (${r.hours} hr)` : ''}
                         {r.phone ? <> · <a href={`tel:${r.phone}`} className="font-semibold text-primary underline">Call {r.phone}</a></> : null}
+                        {r.email ? <> · <span className="select-all break-all">{r.email}</span></> : null}
                         {r.earlyAccess ? ' · early access' : ''}
                         {r.source === 'offline' ? ` · sold at the café${r.price ? `, ${rupees(r.price)} cash taken` : ''}${r.note ? ` · ${r.note}` : ''}` : r.status === 'confirmed' || r.status === 'checked_in' ? ` · collect ${rupees(r.balanceDue)}` : ''}
                       </span>
                     </span>
+                    {r.source !== 'offline' && (r.status === 'confirmed' || r.status === 'checked_in') && passMessage(d, b, r) && (
+                      <a
+                        href={passMessage(d, b, r) as string}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-[#25D366] px-3 text-caption font-semibold text-white hover:bg-[#1ebe5a]"
+                      >
+                        <MessageCircle className="h-4 w-4" /> Send pass on WhatsApp
+                      </a>
+                    )}
                     {r.status === 'confirmed' && r.checkinToken ? (
                       <span className="flex items-center gap-2">
                         {r.source === 'offline' && <RemoveOffline id={r.id} name={r.name} onDone={refresh} />}

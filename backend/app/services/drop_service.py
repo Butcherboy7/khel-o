@@ -353,6 +353,76 @@ def seats_free(windows: list[tuple[int, int, int]], block: DropBlock) -> dict[st
     return out
 
 
+def lengths(drop: Drop) -> list[int]:
+    """Hours people can book: the package lengths when the café sells packages, else 1..max_hours."""
+    if drop.length_prices:
+        return sorted(int(x["hours"]) for x in drop.length_prices)
+    return list(range(1, (drop.max_hours or 0) + 1))
+
+
+def _band_rate(drop: Drop, m: int) -> Optional[Decimal]:
+    for b in drop.time_prices or []:
+        s, e = span(time.fromisoformat(b["start"]), time.fromisoformat(b["end"]))
+        if s <= m < e or s <= m + DAY_MIN < e:
+            return Decimal(str(b["perHour"]))
+    return None
+
+
+def seat_price(drop: Drop, begin: int, length: int) -> Decimal:
+    """Price of one seat for `length` minutes from minute `begin` of the session day.
+    Package price (or hourly price x hours), then each half hour inside a time band moves
+    by the difference between that band's hourly price and the normal one."""
+    base = Decimal(str(drop.price_per_hour))
+    packs = {int(x["hours"]): Decimal(str(x["price"])) for x in drop.length_prices or []}
+    total = packs[length // 60] if length % 60 == 0 and length // 60 in packs else base * Decimal(length) / Decimal(60)
+    for m in range(begin, begin + length, STEP):
+        rate = _band_rate(drop, m % DAY_MIN)
+        if rate is not None:
+            total += (rate - base) * Decimal(STEP) / Decimal(60)
+    return money(max(total, Decimal("0")))
+
+
+def clean_price_options(length_prices, time_prices) -> tuple[Optional[list], Optional[list]]:
+    """Check and normalise the owner's package and time prices. Raises DropError in plain words."""
+    lp = None
+    if length_prices:
+        seen = set()
+        lp = []
+        for x in length_prices:
+            h, price = int(x["hours"]), float(x["price"])
+            if not 1 <= h <= 12:
+                raise DropError("A package can be 1 to 12 hours.", "BAD_PACKAGE")
+            if h in seen:
+                raise DropError(f"There are two prices for {h} {'hour' if h == 1 else 'hours'}. Keep one.", "BAD_PACKAGE")
+            if not 0 < price <= 100000:
+                raise DropError("Each package needs a price.", "BAD_PACKAGE")
+            seen.add(h)
+            lp.append({"hours": h, "price": price})
+        lp.sort(key=lambda x: x["hours"])
+    tp = None
+    if time_prices:
+        if len(time_prices) > 6:
+            raise DropError("Use 6 time prices at most.", "BAD_TIME_PRICE")
+        tp, used = [], set()
+        for x in time_prices:
+            a, b = str(x["start"])[:5], str(x["end"])[:5]
+            ta, tb = time.fromisoformat(a), time.fromisoformat(b)
+            if ta == tb:
+                raise DropError("A time price needs a different start and end.", "BAD_TIME_PRICE")
+            if ta.minute % 30 or tb.minute % 30:
+                raise DropError("Time prices start and end on the hour or half hour.", "BAD_TIME_PRICE")
+            rate = float(x["perHour"])
+            if not 0 < rate <= 10000:
+                raise DropError("Each time price needs an hourly price.", "BAD_TIME_PRICE")
+            s_, e_ = span(ta, tb)
+            mins = {m % DAY_MIN for m in range(s_, e_, STEP)}
+            if mins & used:
+                raise DropError("Two time prices cover the same hours. Make them not overlap.", "BAD_TIME_PRICE")
+            used |= mins
+            tp.append({"start": a, "end": b, "perHour": rate})
+    return lp, tp
+
+
 def fee_per_seat(drop: Drop, hours: float) -> Decimal:
     """₹100 up to 3 hours, ₹200 for 4 or 5 (owner can change both)."""
     short = Decimal(str(drop.deposit_amount))
@@ -487,7 +557,10 @@ async def reserve(
         if hours is None or start is None:
             raise DropError("Pick when you want to start and how many hours.", "NEED_HOURS")
         length = round(hours * 60)
-        if length < 60 or length > drop.max_hours * 60 or length % STEP:
+        if drop.length_prices:
+            if length % 60 or length // 60 not in lengths(drop):
+                raise DropError("Pick one of the café's packages: " + ", ".join(f"{h} hr" for h in lengths(drop)) + ".", "BAD_HOURS")
+        elif length < 60 or length > drop.max_hours * 60 or length % STEP:
             raise DropError(f"You can play 1 to {drop.max_hours} hours.", "BAD_HOURS")
         bs, be = block_span(block)
         begin = at_in_block(start, block)
@@ -506,7 +579,7 @@ async def reserve(
         raise DropError("Sorry, these seats just got taken. Pick another time.", "SOLD_OUT")
 
     if r_start is not None:
-        per_seat = money(Decimal(str(drop.price_per_hour)) * Decimal(length) / Decimal(60))
+        per_seat = seat_price(drop, begin, length)
         deposit = money(fee_per_seat(drop, hours) * seats)
     else:
         per_seat = block_price_per_seat(drop, block)
@@ -583,7 +656,7 @@ async def book_offline(
     if amount is not None:
         total = money(amount)
     elif r_start is not None:
-        total = money(Decimal(str(drop.price_per_hour)) * Decimal(length) / Decimal(60) * seats)
+        total = money(seat_price(drop, begin, length) * seats)
     else:
         total = money(block_price_per_seat(drop, block) * seats)
     now = now_utc()

@@ -36,15 +36,15 @@ const MAX_DURATION_MIN = MAX_DURATION_HOURS * 60;
 // 1h15, etc. are never valid, even on a 15-min-minimum setup. Mirrors
 // app/core/duration.py's allowed_minutes exactly; booking_service rejects
 // anything else with a 422, so the picker must never be able to land on one.
-function allowedDurationsMin(minDurMin: number, maxDurMin: number = MAX_DURATION_MIN): number[] {
+function allowedDurationsMin(minDurMin: number, maxDurMin: number = MAX_DURATION_MIN, only?: number[]): number[] {
   const lengths = [15, 30].filter((m) => m >= minDurMin);
   for (let m = 60; m <= MAX_DURATION_MIN; m += 30) lengths.push(m);
-  return lengths.filter((m) => m <= maxDurMin);
+  return lengths.filter((m) => m <= maxDurMin && (!only?.length || only.includes(m)));
 }
 
 /** Nearest allowed length to a raw (drag-computed) minute count. */
-function snapDurationMin(raw: number, minDurMin: number, maxMin: number = MAX_DURATION_MIN): number {
-  const all = allowedDurationsMin(minDurMin);
+function snapDurationMin(raw: number, minDurMin: number, maxMin: number = MAX_DURATION_MIN, only?: number[]): number {
+  const all = allowedDurationsMin(minDurMin, MAX_DURATION_MIN, only);
   const fit = all.filter((a) => a <= maxMin);
   const allowed = fit.length ? fit : [all[0]];
   let best = allowed[0];
@@ -81,6 +81,8 @@ interface TimelineRangePickerProps {
   stepMinutes?: number;
   /** Longest session this setup allows (owner-set; default 8 hours). */
   maxDurationMinutes?: number | null;
+  /** Only these lengths can be picked (a café selling 1, 3 and 5 hour packages). */
+  onlyDurationsMinutes?: number[];
   /** Rendered inside the same card under the slider (checkout puts Players here). */
   children?: React.ReactNode;
 }
@@ -124,6 +126,7 @@ export function TimelineRangePicker({
   minDurationMinutes = MIN_DURATION_MIN,
   stepMinutes = 30,
   maxDurationMinutes,
+  onlyDurationsMinutes,
   children,
 }: TimelineRangePickerProps) {
   const G = stepMinutes;
@@ -420,11 +423,11 @@ export function TimelineRangePicker({
   // Nearest allowed length (never an always-round-down) for a raw drag position.
   const snapLive = (l: { start: number; end: number }, mode: 'start' | 'end' | 'pan') => {
     if (mode === 'start') {
-      const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(maxDurMin, l.end - minValidStart));
+      const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(maxDurMin, l.end - minValidStart), onlyDurationsMinutes);
       return { start: l.end - dur, end: l.end, dur };
     }
     if (mode === 'end') {
-      const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(maxDurMin, closeMin - l.start));
+      const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(maxDurMin, closeMin - l.start), onlyDurationsMinutes);
       return { start: l.start, end: l.start + dur, dur };
     }
     const dur = l.end - l.start;
@@ -515,7 +518,7 @@ export function TimelineRangePicker({
   }, [selStart, selEnd, minValidStart, closeMin, segments]);
 
   const adjustDuration = (direction: 1 | -1) => {
-    const allowed = allowedDurationsMin(minDurMin, maxDurMin);
+    const allowed = allowedDurationsMin(minDurMin, maxDurMin, onlyDurationsMinutes);
     const currentIdx = allowed.indexOf(durMin);
     // durMin should always be one of `allowed` (it's derived from
     // durationHours, which onChange only ever sets to an allowed value) —
@@ -537,8 +540,8 @@ export function TimelineRangePicker({
   // first, then shorter allowed lengths, so it still finds something when the
   // day has no gap as long as the current selection.
   const findNextSlot = () => {
-    const wanted = snapDurationMin(Math.max(minDurMin, durMin), minDurMin, maxDurMin);
-    const lengths = allowedDurationsMin(minDurMin, maxDurMin).filter((m) => m <= wanted).reverse();
+    const wanted = snapDurationMin(Math.max(minDurMin, durMin), minDurMin, maxDurMin, onlyDurationsMinutes);
+    const lengths = allowedDurationsMin(minDurMin, maxDurMin, onlyDurationsMinutes).filter((m) => m <= wanted).reverse();
     for (const len of lengths) {
       let best: number | null = null;
       for (let m = minValidStart; m <= closeMin - len; m += G) {
