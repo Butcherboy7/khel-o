@@ -109,10 +109,11 @@ export function SlotManager({ d, onDone, preset }: { d: OwnerDrop; onDone: () =>
     }
     if (preset.mode) setMode(preset.mode);
     const known = (preset.consoles ?? []).filter((k) => consoles.some((c) => c.key === k));
-    if (known.length) setPick(known);
+    if (known.length) setPick(known.slice(0, 1));
     setHours(preset.hours && preset.hours >= 1 && preset.hours <= 24 ? preset.hours : 1);
   }, [preset, appliedPreset, dates, consoles]);
-  const picked = pick.filter((k) => consoles.some((c) => c.key === k));
+  // One console at a time (or all): two under one slider can't show which of them is free.
+  const picked = pick.filter((k) => consoles.some((c) => c.key === k)).slice(0, 1);
   /** Bookings as the slider should see them: only the picked consoles, when some are picked. */
   const forPick = (slots: NonNullable<DropBlock['bookedSlots']>) =>
     picked.length
@@ -274,6 +275,7 @@ export function SlotManager({ d, onDone, preset }: { d: OwnerDrop; onDone: () =>
   const lengthOptions: number[] = [];
   if (block) for (let m = 60; m <= Math.min(480, minutesOf(block.endTime) - s0); m += 30) lengthOptions.push(m);
 
+  const freeOthers = consoles.filter((c) => !picked.includes(c.key) && (states[c.key] ?? 'free') === 'free');
   const takenText = busyPicked.length ? `${pickedLabel(consoles, busyPicked)} ${busyPicked.length === 1 ? 'is' : 'are'} taken then` : '';
   const actionDisabled = busy || !block || block.started || (mode !== 'price' && (picked.length ? busyPicked.length > 0 : free < 1));
 
@@ -437,15 +439,24 @@ export function SlotManager({ d, onDone, preset }: { d: OwnerDrop; onDone: () =>
                 ownerView
                 priceBands={bands}
               >
-                {mode !== 'price' && picked.length > 0 && (
-                  <p className={`py-1.5 text-caption ${busyPicked.length ? 'font-semibold text-error' : 'text-text-secondary'}`}>
-                    {busyPicked.length ? `${takenText}. Move the hours or pick another console.` : `${pickName} ${picked.length === 1 ? 'is' : 'are'} free in these hours.`}
-                  </p>
+                {mode !== 'price' && picked.length > 0 && !busyPicked.length && (
+                  <p className="py-1.5 text-caption text-text-secondary">{pickName} is free in these hours.</p>
+                )}
+                {mode !== 'price' && busyPicked.length > 0 && (
+                  <div className="flex flex-col gap-2 py-1.5">
+                    <p className="text-caption font-semibold text-error">
+                      {takenText}.{' '}
+                      {freeOthers.length
+                        ? `${freeOthers.length === 1 ? 'This one is' : 'These are'} free in the same hours. Tap one to switch:`
+                        : 'Every other console is taken too. Move the hours.'}
+                    </p>
+                    {freeOthers.length > 0 && <ConsoleStrip consoles={freeOthers} states={states} onPick={(k) => setPick([k])} />}
+                  </div>
                 )}
                 {mode === 'walkin' && !picked.length && <SeatStepper n={n} max={Math.max(1, free)} free={free} onChange={setSeats} />}
                 {mode === 'block' && !picked.length && (
                   <p className="py-1.5 text-caption text-text-secondary">
-                    Blocks all {free} free {free === 1 ? 'console' : 'consoles'} in these hours. To close the whole drop, pick every console.
+                    Blocks all {free} free {free === 1 ? 'console' : 'consoles'} in these hours. To block just one, pick it under Console.
                   </p>
                 )}
                 {mode === 'price' && (

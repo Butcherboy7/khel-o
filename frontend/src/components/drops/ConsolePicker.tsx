@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Gamepad2, Search, X } from 'lucide-react';
+import { ChevronDown, Gamepad2, Search, X } from 'lucide-react';
 import type { DropConsole } from '@/lib/api/drops';
 
 export type ConsoleState = 'free' | 'online' | 'walkin' | 'blocked';
@@ -13,16 +13,17 @@ const STATE: Record<ConsoleState, { label: string; dot: string; text: string }> 
   blocked: { label: 'Blocked', dot: 'bg-gray-500', text: 'text-gray-700' },
 };
 
-/** What the button says: "All consoles", "PS5 Pro 2", "PS5 Pro 1, Xbox 1" or "3 consoles". */
+/** What the button says: "All consoles" or the one console, e.g. "PS5 Pro 2". */
 export function pickedLabel(consoles: DropConsole[], value: string[]): string {
   if (!value.length) return 'All consoles';
   const names = consoles.filter((c) => value.includes(c.key)).map((c) => c.label);
   return names.length <= 2 ? names.join(', ') : `${names.length} consoles`;
 }
 
-/** Choose which console(s) the café is working on: all of them (the overview), one, or several.
- *  A dropdown on a computer, a sheet from the bottom on a phone. Each row says what that console
- *  is doing at the picked time. */
+/** Choose which console the café is working on: all of them (the overview) or exactly one.
+ *  One at a time on purpose: with two picked, the slider and the "taken" message can't say which
+ *  of them is free. A dropdown on a computer, a sheet from the bottom on a phone; tapping a row
+ *  picks it and closes. Each row says what that console is doing at the picked time. */
 export function ConsolePicker({
   consoles,
   value,
@@ -37,16 +38,17 @@ export function ConsolePicker({
   when: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<string[]>(value);
   const [q, setQ] = useState('');
   const sheet = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    setDraft(value);
     setQ('');
-    const t = window.setTimeout(() => sheet.current?.querySelector<HTMLElement>('input, button')?.focus(), 30);
+    const t = window.setTimeout(
+      () => (sheet.current?.querySelector<HTMLElement>('[aria-checked="true"]') ?? sheet.current?.querySelector<HTMLElement>('input, button'))?.focus(),
+      30,
+    );
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     window.addEventListener('keydown', esc);
     return () => {
@@ -72,7 +74,10 @@ export function ConsolePicker({
     return out;
   }, [consoles, q]);
 
-  const toggle = (k: string) => setDraft(draft.includes(k) ? draft.filter((x) => x !== k) : [...draft, k]);
+  const choose = (v: string[]) => {
+    onChange(v);
+    close();
+  };
   const freeCount = consoles.filter((c) => (states[c.key] ?? 'free') === 'free').length;
 
   return (
@@ -103,7 +108,7 @@ export function ConsolePicker({
             ref={sheet}
             role="dialog"
             aria-modal="true"
-            aria-label="Pick consoles"
+            aria-label="Pick a console"
             className="relative flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-card shadow-xl sm:max-w-md sm:rounded-2xl"
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           >
@@ -130,18 +135,18 @@ export function ConsolePicker({
               </label>
             )}
 
-            <div className="flex-1 overflow-y-auto px-2 py-2">
+            <div className="flex-1 overflow-y-auto px-2 py-2" role="radiogroup" aria-label="Console">
               <button
                 type="button"
-                role="checkbox"
-                aria-checked={draft.length === 0}
-                onClick={() => setDraft([])}
+                role="radio"
+                aria-checked={value.length === 0}
+                onClick={() => choose([])}
                 className="flex min-h-[52px] w-full items-center gap-3 rounded-xl px-2 text-left hover:bg-surface-hover"
               >
-                <Box on={draft.length === 0} />
+                <Dot on={value.length === 0} />
                 <span className="min-w-0 flex-1">
                   <span className="block font-semibold text-text-primary">All consoles</span>
-                  <span className="block text-caption text-text-secondary">See every console together</span>
+                  <span className="block text-caption text-text-secondary">Every console together; sell or block several at once</span>
                 </span>
                 <span className="text-caption text-text-secondary">
                   {freeCount} of {consoles.length} free
@@ -152,17 +157,17 @@ export function ConsolePicker({
                   <p className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">{g.setup}</p>
                   {g.items.map((c) => {
                     const st = STATE[states[c.key] ?? 'free'];
-                    const on = draft.includes(c.key);
+                    const on = value.length === 1 && value[0] === c.key;
                     return (
                       <button
                         key={c.key}
                         type="button"
-                        role="checkbox"
+                        role="radio"
                         aria-checked={on}
-                        onClick={() => toggle(c.key)}
-                        className="flex min-h-[52px] w-full items-center gap-3 rounded-xl px-2 text-left hover:bg-surface-hover"
+                        onClick={() => choose([c.key])}
+                        className={`flex min-h-[52px] w-full items-center gap-3 rounded-xl px-2 text-left hover:bg-surface-hover ${on ? 'bg-primary/5' : ''}`}
                       >
-                        <Box on={on} />
+                        <Dot on={on} />
                         <span className="min-w-0 flex-1 truncate font-semibold text-text-primary">{c.label}</span>
                         <span className={`flex flex-none items-center gap-1.5 text-caption font-semibold ${st.text}`}>
                           <span className={`h-2 w-2 rounded-full ${st.dot}`} aria-hidden />
@@ -176,18 +181,6 @@ export function ConsolePicker({
               {!groups.length && <p className="px-2 py-4 text-caption text-text-secondary">No console by that name.</p>}
             </div>
 
-            <div className="flex gap-2 border-t border-border p-3">
-              <button
-                type="button"
-                onClick={() => {
-                  onChange(draft);
-                  close();
-                }}
-                className="min-h-[48px] flex-1 rounded-xl bg-primary px-4 font-semibold text-white hover:bg-primary/90"
-              >
-                {draft.length ? `Use ${pickedLabel(consoles, draft)}` : 'Use all consoles'}
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -195,13 +188,13 @@ export function ConsolePicker({
   );
 }
 
-function Box({ on }: { on: boolean }) {
+function Dot({ on }: { on: boolean }) {
   return (
     <span
       aria-hidden
-      className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border ${on ? 'border-primary bg-primary text-white' : 'border-border bg-card'}`}
+      className={`flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 ${on ? 'border-primary' : 'border-border bg-card'}`}
     >
-      {on && <Check className="h-3.5 w-3.5" />}
+      {on && <span className="h-2.5 w-2.5 rounded-full bg-primary" />}
     </span>
   );
 }
