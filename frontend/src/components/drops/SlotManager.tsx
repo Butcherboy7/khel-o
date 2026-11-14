@@ -294,7 +294,13 @@ export function SlotManager({ d, onDone, preset }: { d: OwnerDrop; onDone: () =>
             const shown = own[0] ? calDate(x, own[0].startTime) : x;
             const closed = Boolean(d.dayHours?.[x] && d.dayHours[x].length === 0);
             const later = !own.length && !closed;
-            const full = own.length > 0 && own.every((b) => b.seatsLeft === 0);
+            // Hour-based drops: full only when no hour has a free console left.
+            // seatsLeft counts whole bookings, so it said "Full" on a day with
+            // most hours still open.
+            const full = own.length > 0 && own.every((b) =>
+              b.hourFree && Object.keys(b.hourFree).length > 0
+                ? Object.values(b.hourFree).every((n) => n <= 0)
+                : b.seatsLeft === 0);
             const on = x === day;
             const dd = new Date(`${shown}T12:00:00+05:30`);
             return (
@@ -894,13 +900,13 @@ function AdvanceLimit({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
           ))}
         </select>
       </label>
-      <p className="text-caption text-text-secondary">
-        {value && later
-          ? `Starts on ${shortDate(later)}. Until then players can book any day.`
-          : value
-            ? 'Further ahead, players see a note to contact KHEL-O. You can still add their booking here.'
-            : 'Players can book any open day.'}
-      </p>
+      {value ? (
+        <p className="text-caption text-text-secondary">
+          {later
+            ? `Starts on ${shortDate(later)}. Until then players can book any day.`
+            : 'Further ahead, players see a note to contact KHEL-O. You can still add their booking here.'}
+        </p>
+      ) : null}
       {err && <p className="text-caption text-error">{err}</p>}
     </div>
   );

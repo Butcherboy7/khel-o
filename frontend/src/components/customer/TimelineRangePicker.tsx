@@ -661,10 +661,12 @@ export function TimelineRangePicker({
     // A one-station setup is always "last 1 seat": that's fake urgency, not news.
     if (totalSeats <= 1) return null;
     const noun = `${unitName}${seats > 1 ? 's' : ''}`;
+    // The café's own view states the count; sales urgency is for players.
+    if (ownerView) return { text: `${seats} ${noun} free`, variant: 'neutral' as const };
     if (seats <= 2) return { text: `Last ${seats} ${noun}!`, variant: 'critical' as const };
     if (seats <= 10) return { text: `Only ${seats} ${noun} left!`, variant: 'warning' as const };
     return { text: `${seats} ${noun} left`, variant: 'neutral' as const };
-  }, [activeWindowRemainingSeats, totalSeats, unitName]);
+  }, [activeWindowRemainingSeats, totalSeats, unitName, ownerView]);
 
   const ticks = useMemo(() => {
     const list: { minutes: number; label: string; showLabel: boolean; isHour: boolean }[] = [];
