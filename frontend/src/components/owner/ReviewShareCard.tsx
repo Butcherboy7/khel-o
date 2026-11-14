@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Copy, Download, QrCode, Share2 } from 'lucide-react';
+import { Check, Copy, Download, Share2 } from 'lucide-react';
 import { reviewLink, reviewQrUrl } from '@/lib/api/reviews';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
@@ -53,26 +53,22 @@ export function ReviewShareCard({ cafeId, cafeSlug, cafeName }: { cafeId: string
     'inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 text-caption font-semibold text-text-primary hover:bg-surface';
 
   return (
-    <section className="grid grid-cols-1 gap-4 rounded-2xl border border-border bg-card p-4 sm:grid-cols-[auto_1fr] sm:items-center sm:p-5">
+    <section className="grid grid-cols-[auto_1fr] items-start gap-3 rounded-2xl border border-border bg-card p-3 sm:items-center sm:gap-4 sm:p-4">
       {/* eslint-disable-next-line @next/next/no-img-element -- plain PNG from our API */}
       <img
         src={qr}
         alt={`QR code that opens ${cafeName}'s review form`}
-        width={132}
-        height={132}
-        className="mx-auto h-[132px] w-[132px] rounded-xl border border-border bg-white p-1 sm:mx-0"
+        width={96}
+        height={96}
+        className="h-[84px] w-[84px] rounded-xl border border-border bg-white p-1 sm:h-24 sm:w-24"
       />
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <h2 className="flex items-center gap-2 font-heading text-h3 text-text-primary">
-            <QrCode className="h-5 w-5 text-primary" aria-hidden />
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="flex items-center gap-1.5 font-heading text-body-emphasis font-bold text-text-primary">
             Get more reviews
             <InfoTip text={INFO_TIPS.reviewsQr} label="How the review QR works" />
           </h2>
-          <p className="text-caption text-text-secondary">
-            Print this QR for your counter or tables, or send the link after a session. It opens your café page right at
-            the review box. More good reviews means more players pick you when they search.
-          </p>
+          <p className="text-caption text-text-secondary">Put it on your counter. Scanning opens your review box.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={share} className={btn}>

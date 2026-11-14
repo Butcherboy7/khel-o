@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
-import { PAGE_GUIDES, type GuidePage } from '@/lib/ownerGuideCopy';
-import { InfoTip } from '@/components/shared/InfoTip';
-import { TutorialButton } from './TutorialButton';
+import type { GuidePage } from '@/lib/ownerGuideCopy';
+import { PageHelp } from './TutorialButton';
 
 interface OwnerPageHeaderProps {
   /** Plain-language name of the screen. Kept short so it never wraps on a phone. */
@@ -11,7 +10,7 @@ interface OwnerPageHeaderProps {
   description?: string;
   /** The single most likely action on this screen. Goes full-width on mobile. */
   action?: ReactNode;
-  /** Adds the ⓘ beside the title and the page's Tutorial button. */
+  /** Adds the page's "?" help (what it's for + Show me how). */
   guide?: GuidePage;
   className?: string;
 }
@@ -37,12 +36,11 @@ export function OwnerPageHeader({
   className,
 }: OwnerPageHeaderProps) {
   return (
-    <header className={cn('flex flex-col gap-4', className)}>
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-1.5">
-          <h1 className="font-heading text-h1 text-text-primary text-balance">{title}</h1>
-          {guide && <InfoTip text={PAGE_GUIDES[guide].info} label={`About ${title}`} />}
-          {guide && <TutorialButton page={guide} className="ml-auto" />}
+    <header className={cn('flex flex-col gap-3', className)}>
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-start gap-3">
+          <h1 className="min-w-0 flex-1 font-heading text-h2 text-text-primary text-balance sm:text-h1">{title}</h1>
+          {guide && <PageHelp page={guide} />}
         </div>
         {description && (
           <p className="max-w-prose text-body text-text-secondary">{description}</p>

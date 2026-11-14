@@ -8,9 +8,8 @@ import { Settings as SettingsIcon, Clock, MapPin, AlertCircle, RefreshCw, Store,
 import { Card, CardContent, Button, Skeleton } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
 import { getOwnerSettings, toggleEmergencyMode, toggleBookingsPaused, type OwnerSettings } from '@/lib/api/settings';
-import { SettingsHeader } from '@/components/owner/SettingsHeader';
+import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { InfoTip } from '@/components/shared/InfoTip';
-import { TutorialButton } from '@/components/owner/TutorialButton';
 import { INFO_TIPS } from '@/lib/ownerGuideCopy';
 import { EmergencyModeCard } from '@/components/owner/EmergencyModeCard';
 import { BookingsPauseCard } from '@/components/owner/BookingsPauseCard';
@@ -145,11 +144,16 @@ export default function OwnerSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Header with Live Status */}
-      <SettingsHeader
-        isEmergencyMode={settings.isEmergencyMode}
-        bookingsPaused={settings.bookingsPaused}
-        cafeName={settings.cafeName}
-        action={<TutorialButton page="settings" />}
+      <OwnerPageHeader
+        guide="settings"
+        title="Café settings"
+        description={
+          settings.isEmergencyMode
+            ? 'Closed: nobody can book right now.'
+            : settings.bookingsPaused
+            ? 'Online bookings are paused. Walk-ins still work.'
+            : `${settings.cafeName} is open for bookings.`
+        }
       />
 
       {error && (

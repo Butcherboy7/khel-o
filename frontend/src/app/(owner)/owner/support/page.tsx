@@ -17,8 +17,8 @@ export default function OwnerSupportPage() {
           <div className="flex min-w-0 items-start gap-3">
             <GraduationCap className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" aria-hidden />
             <div className="min-w-0">
-              <p className="text-body-emphasis text-text-primary">Full tutorial</p>
-              <p className="text-caption text-text-secondary">Lights up the buttons on each page, one at a time, with a practice check-in. About 4 minutes.</p>
+              <p className="text-body-emphasis text-text-primary">New here? Take the tour</p>
+              <p className="text-caption text-text-secondary">4 minutes, with a practice check-in.</p>
             </div>
           </div>
           <Button variant="primary" size="sm" onClick={startTour} className="flex-shrink-0">

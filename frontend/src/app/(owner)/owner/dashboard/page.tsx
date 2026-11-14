@@ -40,7 +40,7 @@ import { RejectedView } from '@/components/owner/RejectedView';
 import { ProspectiveOwnerView } from '@/components/owner/ProspectiveOwnerView';
 import { OwnerStatRow } from '@/components/owner/OwnerStatRow';
 import { InfoTip } from '@/components/shared/InfoTip';
-import { TutorialButton } from '@/components/owner/TutorialButton';
+import { PageHelp } from '@/components/owner/TutorialButton';
 import { INFO_TIPS, PAGE_GUIDES } from '@/lib/ownerGuideCopy';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import { groupLabel } from '@/lib/bookingLabels';
@@ -439,13 +439,12 @@ export default function OwnerDashboardPage() {
       {/* The café's own name leads, at h1, because it is the one thing on this
           screen that says "this is you". The operating status is a pill beside
           it — before, the status ran at heading size and outshouted the venue. */}
-      <div className="flex flex-col gap-2 border-b border-border pb-3 md:flex-row md:items-start md:justify-between md:gap-3 md:pb-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
-            <h1 className="font-heading text-h1 text-text-primary text-balance">
+            <h1 className="font-heading text-h2 text-text-primary text-balance sm:text-h1">
               {(statusState.cafe?.name as string) || (isStaff ? 'Staff Desk' : 'Your Café')}
             </h1>
-            <InfoTip text={PAGE_GUIDES.dashboard.info} label="About the dashboard" />
             <Badge
               variant={
                 cafeSettings?.isEmergencyMode
@@ -462,24 +461,18 @@ export default function OwnerDashboardPage() {
               {!cafeSettings?.isEmergencyMode && cafeSettings?.bookingsPaused && <PauseCircle className="h-3.5 w-3.5" />}
               <span>
                 {cafeSettings?.isEmergencyMode
-                  ? 'Emergency Mode Active'
+                  ? 'Closed (emergency)'
                   : cafeSettings?.bookingsPaused
-                  ? 'Bookings Paused'
-                  : isStaff ? 'Staff Desk Active' : 'Live & Accepting Bookings'}
+                  ? 'Online bookings paused'
+                  : isStaff ? 'Staff desk' : 'Live'}
               </span>
             </Badge>
           </div>
-          <p className="hidden text-body text-text-secondary sm:block">
-            {isStaff
-              ? "Check in customers as they arrive."
-              : "Everything happening at your café today."}
-          </p>
         </div>
 
         {/* A bare circular-arrow glyph asked the owner to know what it did.
             Naming the action costs one word and removes the guess. */}
         <div className="flex shrink-0 items-center gap-2 self-start">
-          <TutorialButton page="dashboard" />
           <Button
             variant="ghost"
             size="sm"
@@ -491,12 +484,42 @@ export default function OwnerDashboardPage() {
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
             <span>Refresh</span>
           </Button>
+          {!isStaff && <PageHelp page="dashboard" />}
         </div>
       </div>
 
       {/* Phones: Quick Find as a full search bar on the first screen, so owners
           find it without knowing the header icon. Desktop has it in the top bar. */}
       <DashboardQuickFind />
+
+      {/* The one problem worth shouting about: the café is live but nobody can
+          book it online (every seat kept for walk-ins). One tap fixes it. */}
+      {!isStaff && statusState.cafe && totalSeatsCount > 0 && appSeatCap === 0 && !isPaused && !cafeSettings?.isEmergencyMode && (
+        <div role="status" className="flex flex-col gap-3 rounded-2xl border border-amber-400/50 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2 text-body text-amber-950">
+            <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" aria-hidden="true" />
+            <span>
+              <strong>Nobody can book you online.</strong> All {totalSeatsCount} seats are kept for walk-ins.
+            </span>
+          </p>
+          <Button variant="primary" size="sm" onClick={() => handleUpdateSeatCap(totalSeatsCount)} disabled={isUpdatingCap} className="w-full flex-shrink-0 sm:w-auto">
+            Open all {totalSeatsCount} seats
+          </Button>
+        </div>
+      )}
+      {!isStaff && isPaused && !cafeSettings?.isEmergencyMode && (
+        <div role="status" className="flex flex-col gap-3 rounded-2xl border border-amber-400/50 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2 text-body text-amber-950">
+            <PauseCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" aria-hidden="true" />
+            <span>
+              <strong>Online bookings are paused.</strong> Walk-ins still work.
+            </span>
+          </p>
+          <Button variant="primary" size="sm" onClick={handleTogglePauseBookings} isLoading={isTogglingPause} className="w-full flex-shrink-0 sm:w-auto">
+            Start taking bookings
+          </Button>
+        </div>
+      )}
 
       {/* Staff open this portal to do exactly one thing, so it gets the first
           screen and a full-width target rather than a decorated banner. */}
@@ -594,10 +617,8 @@ export default function OwnerDashboardPage() {
               <h2 className="flex items-center gap-2 font-heading text-h3 text-text-primary">
                 <Clock className="h-5 w-5 flex-shrink-0 text-primary" aria-hidden="true" />
                 <span className="truncate">Arriving today</span>
+                {todayBookings.length > 0 && <span className="rounded-full bg-primary px-2 text-caption font-bold leading-5 text-white">{todayBookings.length}</span>}
               </h2>
-              <p className="mt-0.5 text-caption text-text-secondary">
-                Tap Check in when a customer reaches the desk.
-              </p>
             </div>
             <Link href="/owner/bookings" className="flex-shrink-0">
               <Button variant="outline" size="sm" className="gap-1 whitespace-nowrap">
@@ -611,9 +632,7 @@ export default function OwnerDashboardPage() {
             <div className="flex flex-col items-center gap-2 px-4 py-8 text-center text-text-secondary">
               <QrCode className="h-8 w-8 text-text-secondary/50" aria-hidden="true" />
               <p className="text-body font-medium text-text-primary">Nobody booked for today yet.</p>
-              <span className="max-w-xs text-caption text-text-secondary">
-                Bookings made in the KHEL-O app show up here on their own — you don&apos;t need to refresh.
-              </span>
+              <span className="max-w-xs text-caption text-text-secondary">New bookings appear here by themselves.</span>
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -709,109 +728,74 @@ export default function OwnerDashboardPage() {
           real but secondary, so they live behind one "Advanced" disclosure
           instead of two more full-width cards. */}
       {!isStaff && (
-      <Card data-tour="dash-seats" data-qf="seats" elevation="raised" className="flex flex-col gap-4 border border-border bg-card p-4 shadow-card">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Monitor className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="flex items-center gap-1 font-heading text-h3 text-text-primary">
-                Seats open for online booking
-                <InfoTip text={INFO_TIPS.dashboardOnlineSeats} label="About machines on the app" />
-              </h2>
-              <p className="max-w-prose text-caption text-text-secondary">
-                Customers can book these through the KHEL-O app. The rest you keep for walk-ins.
-              </p>
-            </div>
-          </div>
-
+      <Card data-tour="dash-seats" data-qf="seats" elevation="raised" className="flex flex-col gap-3 border border-border bg-card p-4 shadow-card">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="flex min-w-0 items-center gap-1 font-heading text-h3 text-text-primary">
+            Online booking
+            <InfoTip text={INFO_TIPS.dashboardOnlineSeats} label="About online booking" />
+          </h2>
           <Button
             variant={isPaused ? 'primary' : 'secondary'}
             size="sm"
             onClick={handleTogglePauseBookings}
             isLoading={isTogglingPause}
-            className="w-full flex-shrink-0 justify-center gap-2 sm:w-auto"
+            className="flex-shrink-0 gap-1.5"
           >
             {isPaused ? <PlayCircle className="h-4 w-4" aria-hidden="true" /> : <PauseCircle className="h-4 w-4" aria-hidden="true" />}
-            <span>{isPaused ? 'Start taking bookings' : 'Stop taking bookings'}</span>
+            <span>{isPaused ? 'Resume' : 'Pause'}</span>
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 border-t border-border pt-4">
-          <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3">
-            <span className="text-caption font-medium text-text-secondary">Bookable online</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleUpdateSeatCap(Math.max(0, appSeatCap - 1))}
-                disabled={isUpdatingCap || appSeatCap <= 0}
-                aria-label="One fewer machine on the app"
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-card text-h3 font-bold transition-colors hover:bg-surface disabled:opacity-40"
-              >
-                −
-              </button>
-              <span className="min-w-[2ch] text-center font-heading text-h1 text-primary">{appSeatCap}</span>
-              <button
-                type="button"
-                onClick={() => handleUpdateSeatCap(Math.min(totalSeatsCount, appSeatCap + 1))}
-                disabled={isUpdatingCap || appSeatCap >= totalSeatsCount}
-                aria-label="One more machine on the app"
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-card text-h3 font-bold transition-colors hover:bg-surface disabled:opacity-40"
-              >
-                +
-              </button>
-            </div>
-            <span className="text-caption text-text-secondary">of {totalSeatsCount} seats</span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2" role="group" aria-label="Seats bookable online">
+            <button
+              type="button"
+              onClick={() => handleUpdateSeatCap(Math.max(0, appSeatCap - 1))}
+              disabled={isUpdatingCap || appSeatCap <= 0}
+              aria-label="One fewer seat online"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-card text-h3 font-bold transition-colors hover:bg-surface disabled:opacity-40"
+            >
+              −
+            </button>
+            <span className="min-w-[2ch] text-center font-heading text-h1 text-primary" aria-live="polite">{appSeatCap}</span>
+            <button
+              type="button"
+              onClick={() => handleUpdateSeatCap(Math.min(totalSeatsCount, appSeatCap + 1))}
+              disabled={isUpdatingCap || appSeatCap >= totalSeatsCount}
+              aria-label="One more seat online"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-card text-h3 font-bold transition-colors hover:bg-surface disabled:opacity-40"
+            >
+              +
+            </button>
           </div>
-
-          <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3">
-            <span className="text-caption font-medium text-text-secondary">Kept for walk-ins</span>
-            <span className="font-heading text-h1 text-amber-700">{totalSeatsCount - appSeatCap}</span>
-            <span className="text-caption text-text-secondary">
-              of {totalSeatsCount} seats
-            </span>
-          </div>
+          <p className="min-w-0 text-body text-text-secondary">
+            of {totalSeatsCount} seats bookable online.{' '}
+            <span className="whitespace-nowrap"><strong className="text-text-primary">{Math.max(0, totalSeatsCount - appSeatCap)}</strong> kept for walk-ins.</span>
+          </p>
         </div>
 
-        {/* Shortcut row. `grid` rather than `flex-wrap`: wrapping left "None (0)"
-            orphaned on its own line beside a gap of dead space on a phone. */}
-        <div className="flex flex-col gap-2">
-          <span className="text-caption font-medium text-text-secondary">Or set it quickly</span>
-          <div className="grid grid-cols-3 gap-2">
+        <div className="flex flex-wrap gap-2">
+          {appSeatCap !== totalSeatsCount && (
             <Button variant="secondary" size="sm" onClick={() => handleUpdateSeatCap(totalSeatsCount)} disabled={isUpdatingCap}>
-              All {totalSeatsCount}
+              Open all {totalSeatsCount}
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => handleUpdateSeatCap(Math.round(totalSeatsCount * 0.7))} disabled={isUpdatingCap}>
-              Most {Math.round(totalSeatsCount * 0.7)}
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => handleUpdateSeatCap(0)} disabled={isUpdatingCap}>
-              None
-            </Button>
-          </div>
-        </div>
-
-        {/* Advanced: per-tier seat tuning + live occupancy, folded away by default */}
-        {((statusState.cafe?.tiers && statusState.cafe.tiers.length > 0) || tierOccupancy.length > 0) && (
-          <div className="flex flex-col gap-3 pt-2 border-t border-border/60">
+          )}
+          {statusState.cafe?.tiers && statusState.cafe.tiers.length > 1 && (
             <button
               type="button"
               onClick={() => setIsTierBreakdownOpen((prev) => !prev)}
               aria-expanded={isTierBreakdownOpen}
-              className="group flex min-h-[48px] items-center justify-between gap-2 rounded-2xl border border-border bg-surface p-3 text-left transition-colors hover:bg-surface-hover"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl px-3 text-caption font-semibold text-primary hover:bg-primary/5"
             >
-              <span className="text-caption font-bold text-text-primary flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
-                <span>Choose how many of each setup can be booked online</span>
-              </span>
-              <span className="text-xs font-semibold text-primary group-hover:underline flex items-center gap-1">
-                {isTierBreakdownOpen ? 'Hide' : 'Show'}
-                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isTierBreakdownOpen ? 'rotate-180' : ''}`} />
-              </span>
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+              Set it per setup
+              <ChevronDown className={`h-4 w-4 transition-transform ${isTierBreakdownOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
+          )}
+        </div>
 
-            {isTierBreakdownOpen && (
-              <div className="flex flex-col gap-3 pt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+        {isTierBreakdownOpen && (
+          <div className="flex flex-col gap-3 border-t border-border pt-3">
                 {statusState.cafe?.tiers && statusState.cafe.tiers.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                     {statusState.cafe.tiers.map((t: any) => {
@@ -853,56 +837,6 @@ export default function OwnerDashboardPage() {
                   </div>
                 )}
 
-                {tierOccupancy.length > 0 && (
-                  <div className="rounded-2xl border border-border overflow-hidden">
-                    <div className="px-3 pt-3 pb-2 flex items-center justify-between gap-3 bg-surface">
-                      <span className="text-caption font-bold text-text-primary flex items-center gap-2">
-                        <Monitor className="h-4 w-4 text-indigo-400 flex-shrink-0" />
-                        Live Occupancy
-                      </span>
-                      <Link href="/owner/scanner" className="flex-shrink-0">
-                        <Button variant="primary" size="sm" className="gap-1.5 whitespace-nowrap">
-                          <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
-                          <span>Scan</span>
-                        </Button>
-                      </Link>
-                    </div>
-                    <div className="divide-y divide-border">
-                      {tierOccupancy.map((t) => {
-                        const pct = Math.min(100, Math.max(0, t.occupancyPercent));
-                        const barColor = pct >= 80 ? 'bg-rose-500' : pct >= 50 ? 'bg-amber-500' : 'bg-emerald-500';
-                        const textColor = pct >= 80 ? 'text-rose-500' : pct >= 50 ? 'text-amber-500' : 'text-emerald-500';
-                        const walkIn = Math.max(0, t.totalSeats - t.appBookableSeats);
-
-                        return (
-                          <div key={t.tierId} className="px-3 py-2.5 flex flex-col gap-2 bg-card">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-heading text-caption font-bold text-text-primary truncate">{t.tierName}</span>
-                              <span className={`text-xs font-bold font-data flex-shrink-0 ${textColor}`}>
-                                {t.occupiedSeats}/{t.totalSeats}
-                                <span className="text-text-secondary font-normal ml-1">({pct}%)</span>
-                              </span>
-                            </div>
-                            <div className="w-full h-2 rounded-full bg-border overflow-hidden">
-                              <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${pct}%` }} />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-caption font-semibold">
-                                <Monitor className="h-2.5 w-2.5" />
-                                {t.appBookableSeats} Online
-                              </span>
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 text-caption font-semibold">
-                                {walkIn} Walk-In
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
       </Card>

@@ -158,10 +158,10 @@ export default function OwnerBookingsPage() {
           aria-label="Search bookings by customer name or booking code"
         />
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <span id="bookings-day-label" className="text-h4 text-text-primary">Day</span>
-            <div role="group" aria-labelledby="bookings-day-label" data-tour="bookings-days" className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span id="bookings-day-label" className="sr-only">Day</span>
+            <div role="group" aria-labelledby="bookings-day-label" data-tour="bookings-days" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0">
               {[
                 { key: today, label: 'Today' },
                 { key: tomorrow, label: 'Tomorrow' },
@@ -210,7 +210,7 @@ export default function OwnerBookingsPage() {
             </div>
           </div>
 
-          <div className="flex items-end gap-1">
+          <div className="flex items-end gap-1 sm:w-64">
             <div className="min-w-0 flex-1" data-tour="bookings-show">
               <Select
                 label="Show"
