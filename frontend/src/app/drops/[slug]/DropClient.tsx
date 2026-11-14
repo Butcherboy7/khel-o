@@ -19,7 +19,7 @@ import {
   type DropBlock,
   type DropReservation,
 } from '@/lib/api/drops';
-import { atMinutes, blockEnd, blockStart, blockTimes, clock, dayLabel, gameKey, rupees, whenText, wireTime } from '@/lib/drops';
+import { atMinutes, blockEnd, blockStart, blockTimes, calDate, clock, dayLabel, gameKey, rupees, whenText, wireTime } from '@/lib/drops';
 import { calculateWindowRemainingSeats, timeToMinutes } from '@/lib/format';
 import { CommunityButton, CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 import { CustomerShell } from '@/components/layout/CustomerShell';
@@ -456,6 +456,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             {drop.blocks.map((b) => {
               const gone = b.started || sessionLeft(b) === 0;
               const on = b.id === blockId;
+              const shownDate = calDate(b.date, b.startTime); // the launch night opens at 12 AM on launch day
               return (
                 <button
                   key={b.id}
@@ -472,13 +473,13 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                   } ${gone ? 'opacity-50' : canReserve ? 'hover:border-primary/50' : ''}`}
                 >
                   <span className="block text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
-                    {new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'Asia/Kolkata' })}
+                    {new Date(`${shownDate}T12:00:00+05:30`).toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'Asia/Kolkata' })}
                   </span>
                   <span className="block font-heading text-body-emphasis font-bold leading-tight text-text-primary">
-                    {new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', timeZone: 'Asia/Kolkata' })}
+                    {new Date(`${shownDate}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', timeZone: 'Asia/Kolkata' })}
                   </span>
                   <span className={`block text-[11px] ${gone ? 'text-error' : 'text-text-secondary'}`}>
-                    {b.started ? 'Started' : sessionLeft(b) === 0 ? 'Full' : flex ? new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' }) : `${clock(b.startTime)}`}
+                    {b.started ? 'Started' : sessionLeft(b) === 0 ? 'Full' : flex ? (shownDate !== b.date ? '12 AM' : new Date(`${b.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' })) : `${clock(b.startTime)}`}
                   </span>
                 </button>
               );
@@ -689,7 +690,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <>
               <p className="mb-1.5 flex items-center justify-between gap-2 text-caption">
                 <span className="min-w-0 truncate font-semibold text-text-primary">
-                  {flex && startTime ? `${dayLabel(block.date)} · ${clock(startTime)} – ${clock(endLabel)}` : dayLabel(block.date)}
+                  {flex && startTime ? `${dayLabel(calDate(block.date, startTime))} · ${clock(startTime)} – ${clock(endLabel)}` : dayLabel(block.date)}
                 </span>
                 <span className={`flex-shrink-0 font-bold ${windowFree <= 2 ? 'text-error' : 'text-success'}`}>
                   {flex ? (windowFree <= 0 ? 'Full at this time' : windowFree <= 2 ? `Only ${windowFree} ${windowFree === 1 ? 'seat' : 'seats'} left` : `${windowFree} seats open`) : ''}

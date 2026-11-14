@@ -459,6 +459,11 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
           {tier && (
             <KeptPreview game={game || 'This game'} tierName={tier.name} total={tier.totalSeats} kept={daySeats} start={startT} end={endT} openAt={openAt} closeAt={closeAt} />
           )}
+          {startsOn && Number(maxHours) > 0 && spanOf(startT, endT)[1] > 1440 && (
+            <p className="rounded-lg bg-primary/5 px-3 py-2 text-caption font-semibold text-text-primary">
+              Players can reserve from 12 AM on {shortDate(startsOn)}, so the first midnight is covered.
+            </p>
+          )}
           <p className="text-caption text-text-secondary">Nothing can be reserved before the first day. It runs for 2 weeks, then booking goes back to normal. Times are café time (India).</p>
         </Step>
 

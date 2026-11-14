@@ -27,6 +27,13 @@ export function blockEnd(b: Pick<DropBlock, 'date' | 'endTime'>): Date {
   return atMinutes(b.date, minutesOf(b.endTime));
 }
 
+/** The calendar date a time falls on: 12 AM (shown "24:00") of a session day is the next date. */
+export function calDate(date: string, hhmm?: string | null): string {
+  const days = hhmm ? Math.floor(minutesOf(hhmm) / 1440) : 0;
+  if (!days) return date;
+  return new Date(atMinutes(date, 0).getTime() + days * 86_400_000 + 12 * 3_600_000).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
 export function dayLabel(date: string): string {
   return new Date(`${date}T12:00:00+05:30`).toLocaleDateString('en-IN', {
     weekday: 'short',

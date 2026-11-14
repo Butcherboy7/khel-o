@@ -53,15 +53,16 @@ def _block_out(drop: Drop, b: DropBlock, hour_free: Optional[dict] = None) -> di
         "id": str(b.id),
         "date": b.session_date.isoformat(),
         # Past midnight the end reads 26:00 (04:00 next day), the form the slider understands.
-        "startTime": b.start_time.strftime("%H:%M"),
+        "startTime": svc.hhmm(svc.open_from(drop, b)),
         "endTime": svc.hhmm(svc.block_span(b)[1]),
-        "hours": float(svc.block_hours(b)),
+        "hours": float(svc.block_hours(b)) if svc.open_from(drop, b) == svc.block_span(b)[0]
+                 else (svc.block_span(b)[1] - svc.open_from(drop, b)) / 60,
         "seatsTotal": b.seats_total,
         "seatsLeft": max(0, b.seats_total - b.seats_taken),
         "pricePerSeat": float(per_seat),
         "balancePerSeat": float(max(0, per_seat - svc.money(drop.deposit_amount))),
         "hourFree": hour_free or {},
-        "started": svc.block_starts_at(b) <= svc.now_utc(),
+        "started": svc.block_closed(drop, b),
     }
 
 
@@ -150,7 +151,7 @@ def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
             "photo": _cafe_photo(cafe),
         },
         "blocks": [_block_out(drop, b) for b in blocks],
-        "seatsLeft": sum(max(0, b.seats_total - b.seats_taken) for b in blocks if svc.block_starts_at(b) > svc.now_utc()),
+        "seatsLeft": sum(max(0, b.seats_total - b.seats_taken) for b in blocks if not svc.block_closed(drop, b)),
         "seatsTotal": sum(b.seats_total for b in blocks),
     }
 
@@ -177,14 +178,14 @@ async def list_drops(db: AsyncSession = Depends(get_db), user: Optional[User] = 
         if svc.state(drop) == "ended":
             continue
         blocks = [b for b in await svc.blocks_of(db, drop.id)
-                  if (drop.ends_on is None or b.session_date <= drop.ends_on) and (drop.starts_on is None or b.session_date >= drop.starts_on)]
-        upcoming = [b for b in blocks if svc.block_starts_at(b) > svc.now_utc()]
+                  if svc.in_range(drop, b)]
+        upcoming = [b for b in blocks if not svc.block_closed(drop, b)]
         if not upcoming:
             continue  # every session has started: nothing left to book
         cafe = await db.get(Cafe, drop.cafe_id)
         data = await _out(db, drop, cafe, blocks)
         data.pop("blocks", None)
-        data["nextStartsAt"] = _iso(min(svc.block_starts_at(b) for b in upcoming))
+        data["nextStartsAt"] = _iso(min(max(svc.open_at(drop, b), svc.now_utc()) if drop.max_hours else svc.block_starts_at(b) for b in upcoming))
         # A drop you already hold a seat in never counts as "new" on the home tab.
         data["iHold"] = bool(user is not None and (await db.execute(
             select(func.count()).select_from(DropReservation).where(
@@ -225,7 +226,7 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
     await svc.release_expired(db, drop.id)
     await svc.ensure_blocks(db, drop)
     blocks = [b for b in await svc.blocks_of(db, drop.id)
-              if (drop.ends_on is None or b.session_date <= drop.ends_on) and (drop.starts_on is None or b.session_date >= drop.starts_on)]
+              if svc.in_range(drop, b)]
     data = await _out(db, drop, cafe, blocks)
     if drop.max_hours:
         for bd, blk in zip(data["blocks"], blocks):

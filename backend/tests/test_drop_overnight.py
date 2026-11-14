@@ -34,7 +34,11 @@ async def test_24_7_cafe_runs_a_24_hour_drop_and_players_book_after_midnight():
         assert r.status_code == 201, r.text
         slug = r.json()["data"]["slug"]
         drop = (await c.get(f"/api/v1/drops/{slug}")).json()["data"]
-        blk = drop["blocks"][0]
+        # The night before launch day opens from 12 AM on launch day, then the full days follow.
+        launch = drop["blocks"][0]
+        assert launch["date"] == str(DAY - timedelta(days=1)) and launch["startTime"] == "24:00" and launch["endTime"] == "30:00" and launch["hours"] == 6
+        blk = drop["blocks"][1]
+        assert blk["date"] == str(DAY)
         assert blk["startTime"] == "06:00" and blk["endTime"] == "30:00" and blk["hours"] == 24
 
         # 2 AM to 4 AM, after midnight, books into the same night's session.
@@ -73,3 +77,29 @@ async def test_overnight_drop_inside_overnight_cafe_hours_and_outside_refused():
         # Seats clash after midnight with the first drop: only 2 of 4 left from 18:00 to 03:00.
         clash = await c.post("/api/v1/owner/drops", json=_rig_body(cafe, tier, start="01:00", end="03:00", seats=3), headers=_h(owner))
         assert clash.status_code == 400 and "SEATS_CLASH" in clash.text
+
+
+@pytest.mark.asyncio
+async def test_launch_midnight_is_bookable_but_hours_before_launch_are_not():
+    owner, cafe, tier = await _cafe_with_rig(total=4)
+    await _hours(cafe.id, time(0), time(0))
+    async with _client() as c:
+        body = {**_rig_body(cafe, tier, start="06:00", end="06:00", seats=2, days=2), "maxHours": 5, "depositAmountLong": 200}
+        slug = (await c.post("/api/v1/owner/drops", json=body, headers=_h(owner))).json()["data"]["slug"]
+        launch = (await c.get(f"/api/v1/drops/{slug}")).json()["data"]["blocks"][0]
+        eve = await _user(phone="9876512001")
+        # Evening before launch: not part of the drop.
+        r = await c.post(f"/api/v1/drops/{slug}/reserve", headers=_h(eve),
+                         json={"blockId": launch["id"], "seats": 1, "startTime": "22:00", "hours": 2})
+        assert r.status_code == 400 and "BEFORE_LAUNCH" in r.text
+        # 12 AM on launch day works, including a session that runs through the small hours.
+        r = await c.post(f"/api/v1/drops/{slug}/reserve", headers=_h(eve),
+                         json={"blockId": launch["id"], "seats": 1, "startTime": "00:00", "hours": 3})
+        assert r.status_code == 201, r.text
+        res = r.json()["data"]["reservation"]
+        assert res["startTime"] == "24:00" and res["endTime"] == "27:00"
+        # Normal booking sees those seats kept from 12 AM on launch day, and not the evening before.
+        before = (await c.get(f"/api/v1/cafes/{cafe.id}/availability", params={"tier_id": str(tier.id), "date": str(DAY - timedelta(days=1))})).json()["data"]
+        assert not any(s["startTime"] == "00:00:00" and s["seatsCount"] == 2 for s in before["bookedSlots"])
+        on = (await c.get(f"/api/v1/cafes/{cafe.id}/availability", params={"tier_id": str(tier.id), "date": str(DAY)})).json()["data"]
+        assert {"startTime": "00:00:00", "endTime": "06:00:00", "seatsCount": 2} in on["bookedSlots"]

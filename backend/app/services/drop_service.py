@@ -81,6 +81,42 @@ def block_starts_at(block: DropBlock) -> datetime:
     return datetime.combine(block.session_date, block.start_time).replace(tzinfo=IST)
 
 
+def _day0(block: DropBlock) -> datetime:
+    return datetime.combine(block.session_date, time(0, 0)).replace(tzinfo=IST)
+
+
+def open_from(drop: Drop, block: DropBlock) -> int:
+    """First minute (from the session day's midnight) people can book in this session.
+    A drop that starts on 19 Nov at 12 AM runs on the night block of 18 Nov, so that
+    block only opens from midnight; the hours before it are not part of the drop."""
+    bs, _ = block_span(block)
+    if drop.max_hours and drop.starts_on and block.session_date < drop.starts_on:
+        return max(bs, (drop.starts_on - block.session_date).days * DAY_MIN)
+    return bs
+
+
+def open_at(drop: Drop, block: DropBlock) -> datetime:
+    return _day0(block) + timedelta(minutes=open_from(drop, block))
+
+
+def block_closed(drop: Drop, block: DropBlock, at: Optional[datetime] = None) -> bool:
+    """Nothing left to book. Fixed sessions are gone once they start; flexible ones (play by
+    the hour) stay open until their last hour has started."""
+    at = at or now_utc()
+    if drop.max_hours:
+        return _day0(block) + timedelta(minutes=block_span(block)[1] - STEP) <= at
+    return block_starts_at(block) <= at
+
+
+def in_range(drop: Drop, block: DropBlock) -> bool:
+    """Is this session part of the drop? Includes the night before launch when it runs into launch day."""
+    if drop.ends_on is not None and block.session_date > drop.ends_on:
+        return False
+    if drop.starts_on is None or block.session_date >= drop.starts_on:
+        return True
+    return bool(drop.max_hours) and open_from(drop, block) < block_span(block)[1]
+
+
 def state(drop: Drop, at: Optional[datetime] = None) -> str:
     """draft | cancelled | soon (nothing open yet) | early (code only) | open | ended"""
     at = at or now_utc()
@@ -145,6 +181,9 @@ async def ensure_blocks(db: AsyncSession, drop: Drop) -> None:
         return
     today = now_utc().astimezone(IST).date()
     first = max(today, drop.starts_on)
+    if drop.max_hours and span(drop.daily_start_time, drop.daily_end_time)[1] > DAY_MIN:
+        # Runs past midnight: the night before launch day carries the first hours after 12 AM.
+        first = max(today, drop.starts_on - timedelta(days=1))
     # Before launch the first week from launch day is already open for booking; after launch the
     # window rolls: today plus the next 6 days.
     last = min(first + timedelta(days=VISIBLE_DAYS - 1), drop.ends_on or drop.starts_on + timedelta(days=MAX_DAYS - 1))
@@ -423,11 +462,13 @@ async def reserve(
     block = await db.get(DropBlock, block_id)
     if block is None or block.drop_id != drop.id:
         raise NotFoundException(message="We couldn't find that time.", error_code="BLOCK_NOT_FOUND")
-    if block_starts_at(block) <= now_utc():
+    if not drop.max_hours and block_starts_at(block) <= now_utc():
         raise DropError("This time has already started.", "BLOCK_STARTED")
+    if drop.max_hours and block_closed(drop, block):
+        raise DropError("This day has already started.", "BLOCK_STARTED")
     if drop.ends_on is not None and block.session_date > drop.ends_on:
         raise DropError("This drop has ended for that day.", "DROP_ENDED")
-    if drop.starts_on is not None and block.session_date < drop.starts_on:
+    if not in_range(drop, block):
         raise DropError(f"This drop starts on {drop.starts_on.day} {drop.starts_on.strftime('%b')}. Pick a later day.", "BEFORE_LAUNCH")
 
     # One reservation at a time per person: lock their row so two taps (or two
@@ -453,6 +494,8 @@ async def reserve(
         end_min = begin + length
         if (begin - bs) % STEP or end_min > be:
             raise DropError("That time does not fit inside this session.", "BAD_HOURS")
+        if begin < open_from(drop, block):
+            raise DropError(f"This drop opens at 12 AM on {drop.starts_on.day} {drop.starts_on.strftime('%b')}. Pick a time from then.", "BEFORE_LAUNCH")
         r_start = start
         r_end = clock_of(end_min)
         if datetime.combine(block.session_date, time(0, 0)).replace(tzinfo=IST) + timedelta(minutes=begin) <= now_utc():
@@ -678,7 +721,14 @@ async def dedicated_windows(db: AsyncSession, tier_id: UUID, day) -> list[tuple[
     for d in await dedicated_drops(db, tier_id, day):
         s, e = span(d.daily_start_time, d.daily_end_time)
         out.append((s, min(e, DAY_MIN), d.daily_seats or 0, d.title))
-    for d in await dedicated_drops(db, tier_id, day - timedelta(days=1)):
+    prev = day - timedelta(days=1)
+    tail = (await db.execute(select(Drop).where(
+        Drop.hardware_tier_id == tier_id, Drop.status == "live", Drop.daily_start_time.is_not(None),
+        Drop.starts_on <= day, or_(Drop.ends_on.is_(None), Drop.ends_on >= prev),
+    ))).scalars().all()
+    for d in tail:
+        if d.starts_on > prev and not d.max_hours:
+            continue  # a fixed drop has nothing before its first day; a by-the-hour one opens at launch midnight
         s, e = span(d.daily_start_time, d.daily_end_time)
         if e > DAY_MIN:
             out.append((0, e - DAY_MIN, d.daily_seats or 0, d.title))
