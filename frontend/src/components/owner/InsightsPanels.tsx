@@ -404,7 +404,9 @@ export function WeekGrid({ data }: { data: OwnerInsights }) {
   const { hours, grid, busiest, quietest, averageFull } = data.week;
   const [cell, setCell] = useState<[number, number] | null>(null);
 
-  if (hours.length === 0) {
+  // An all-empty grid is a wall of grey squares that says nothing.
+  const anyUse = grid.some((row) => row.some((p) => p > 0));
+  if (hours.length === 0 || !anyUse) {
     return (
       <Section
         title="When your café is busy"
@@ -719,6 +721,10 @@ export function StationsPanel({ data }: { data: OwnerInsights }) {
       {s.length === 0 ? (
         <p className="text-body text-text-secondary">
           Add your stations to see how each one earns.
+        </p>
+      ) : s.every((t) => t.bookings === 0) ? (
+        <p className="text-body text-text-secondary">
+          No bookings in this period yet. Each setup shows here once it earns.
         </p>
       ) : (
         <ul className="flex flex-col divide-y divide-border">
