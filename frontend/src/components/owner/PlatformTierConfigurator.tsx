@@ -213,7 +213,7 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
 
       <div>
         <label className="text-caption font-semibold text-text-primary mb-2 block">
-          Activities (snooker, arcade, and other bookable extras)
+          Activities like snooker or arcade
         </label>
         <div className="flex flex-wrap gap-2 mb-3">
           {ACTIVITY_PRESETS.map(({ key, label, icon: Icon, defaultIndividualUnits }) => {

@@ -995,7 +995,7 @@ export default function OwnerOffersPage() {
 
           <div className="flex flex-col gap-1.5">
             <span className="text-caption font-semibold text-text-primary">Days</span>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="grid grid-cols-7 gap-1">
               {DAY_LABELS.map((label, idx) => {
                 const selected = form.daysOfWeek.includes(idx);
                 return (
@@ -1003,7 +1003,8 @@ export default function OwnerOffersPage() {
                     key={label}
                     type="button"
                     onClick={() => toggleDay(idx)}
-                    className={`min-w-[44px] h-11 px-2 rounded-xl text-caption font-semibold transition-colors ${
+                    aria-pressed={selected}
+                    className={`min-w-0 h-11 rounded-xl text-caption font-semibold transition-colors ${
                       selected
                         ? 'bg-primary text-white'
                         : 'bg-surface border border-border text-text-secondary hover:bg-surface-hover'

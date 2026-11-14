@@ -611,7 +611,7 @@ export default function HardwareTiersPage() {
           resetForm();
         }}
         title={editingTierId ? 'Edit setup' : 'Add a setup'}
-        description="What it is, how many you have, how many customers can book online, and the price."
+        description="Pick what it is. Count and price come next."
       >
         <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
           {formError && (
