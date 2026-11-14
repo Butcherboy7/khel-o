@@ -342,13 +342,13 @@ export const TOUR_LESSONS: TourLesson[] = [
 const INTRO: TourStep = {
   kind: 'look', page: D,
   title: 'Welcome to KHEL-O',
-  body: 'This tutorial lights up the buttons you need, one at a time. About 4 minutes. Tap Skip any time, and replay a lesson from the Tutorial button on each page.',
+  body: 'This tutorial lights up the buttons you need, one at a time. About 4 minutes. Tap Skip any time. To replay a lesson, tap the ? at the top of any page, then Show me how.',
 };
 
 const OUTRO: TourStep = {
   kind: 'look', page: D,
   title: 'You’re ready',
-  body: 'Reviews, Insights and Alerts are in the menu too. Every page has a Tutorial button at the top if you want a lesson again. Selling GTA 6 seats? Open Launch drops and read the GTA 6 guide.',
+  body: 'Reviews, Insights and Alerts are in the menu too. Want a lesson again? Tap the ? at the top of any page. Selling GTA 6 seats? Open Launch drops and read the GTA 6 guide.',
 };
 
 /** One step as it plays, with its place in the lesson and the tour. */
@@ -374,10 +374,23 @@ function number(lessons: { name: string; steps: TourStep[] }[]): PlayStep[] {
 }
 
 /** The whole tutorial, dashboard first, walking page to page. */
+/** In the full tutorial the drop lesson needs a drop open: the owner taps
+ *  theirs first, and with no drop yet the whole lesson is passed over
+ *  (instead of nine cards with nothing lit up on the drops list). */
+const OPEN_DROP: TourStep = {
+  kind: 'tap', page: '/owner/drops', target: 'drops-list', onlyIfVisible: true,
+  title: 'Open your drop',
+  body: 'Tap it. Next you’ll see how to run it on the day.',
+};
+
 export function fullTour(): PlayStep[] {
   const lessons = TOUR_LESSONS.map((l, i) => ({
     name: l.name,
-    steps: i === 0 ? [INTRO, ...l.steps] : l.steps,
+    steps: i === 0
+      ? [INTRO, ...l.steps]
+      : l.page === 'drop'
+      ? [OPEN_DROP, ...l.steps.map((s) => ({ ...s, afterTap: true }))]
+      : l.steps,
   }));
   lessons[lessons.length - 1] = { ...lessons[lessons.length - 1], steps: [...lessons[lessons.length - 1].steps, OUTRO] };
   return number(lessons);
