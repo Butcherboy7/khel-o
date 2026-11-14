@@ -44,10 +44,10 @@ type Tab = EditCafeTab;
 export const EDIT_CAFE_TABS: EditCafeTab[] = ['basic', 'location', 'hours', 'amenities', 'games'];
 
 const TABS: { id: Tab; label: string; icon: typeof Store }[] = [
-  { id: 'basic', label: 'Basic Info', icon: Store },
+  { id: 'basic', label: 'Basics', icon: Store },
   { id: 'location', label: 'Location', icon: MapPin },
   { id: 'hours', label: 'Hours', icon: Clock },
-  { id: 'amenities', label: 'Amenities & Photos', icon: Sparkles },
+  { id: 'amenities', label: 'Photos & more', icon: Sparkles },
   { id: 'games', label: 'Games', icon: Gamepad2 },
 ];
 
@@ -409,12 +409,12 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, init
       isOpen={isOpen}
       onClose={onClose}
       title="Edit your café"
-      description="Each section saves independently — switch tabs freely."
+      description="Each tab saves on its own."
       size="full"
     >
       <div className="flex flex-col gap-5">
         {/* Tab bar — horizontally scrollable on mobile, touch-friendly (44px targets) */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+        <div role="tablist" aria-label="Café details" className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 [scrollbar-width:none] sm:mx-0 sm:px-0">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -422,6 +422,11 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, init
               <button
                 key={tab.id}
                 type="button"
+                role="tab"
+                aria-selected={isActive}
+                // Opened straight on a later tab (Quick Find, settings rows), the
+                // chosen tab must be in view, not scrolled off the right edge.
+                ref={isActive ? (el) => { el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } : undefined}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex-shrink-0 flex items-center gap-1.5 h-11 px-3.5 rounded-xl text-caption font-semibold whitespace-nowrap transition-colors ${
                   isActive
@@ -442,7 +447,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, init
             {basicError && (
               <div className="rounded-xl bg-error/10 border border-error/20 p-3 text-caption text-error">{basicError}</div>
             )}
-            <Input label="Café Name" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input label="Café name" value={name} onChange={(e) => setName(e.target.value)} required />
             <Textarea
               label="Description"
               hint="What makes your café worth a visit — shown on your public listing."
@@ -561,7 +566,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, init
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-caption font-semibold text-text-primary">Opening Time</label>
+                <label className="text-caption font-semibold text-text-primary">Opens at</label>
                 <input
                   type="time"
                   value={openingTime}
@@ -570,7 +575,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, init
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-caption font-semibold text-text-primary">Closing Time</label>
+                <label className="text-caption font-semibold text-text-primary">Closes at</label>
                 <input
                   type="time"
                   value={closingTime}
@@ -650,11 +655,8 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, init
             <div className="flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
                 <label className="text-caption font-semibold text-text-primary">
-                  Venue Photos <span className="text-text-secondary font-normal">({photos.length}/{MAX_PHOTOS})</span>
+                  Photos <span className="text-text-secondary font-normal">({photos.length}/{MAX_PHOTOS})</span>
                 </label>
-                {photos.length === 0 && (
-                  <span className="text-caption text-text-secondary">Using stock photos until you upload real ones</span>
-                )}
               </div>
 
               {uploadError && (
@@ -664,7 +666,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, init
               {photos.length === 0 && (
                 <div className="flex items-center gap-2 rounded-xl bg-warning/10 border border-warning/20 p-3 text-caption text-warning">
                   <ImageOff className="h-4 w-4 flex-shrink-0" />
-                  <span>No real photos uploaded yet — customers currently see generic stock images.</span>
+                  <span>No photos yet. Players see stock pictures until you add yours.</span>
                 </div>
               )}
 
@@ -867,7 +869,7 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, init
                 return (
                   <div key={platform} className="flex flex-col gap-2">
                     <label className="text-caption font-semibold text-text-primary">
-                      {platformLabel} — Pre-Installed Games
+                      {platformLabel.replace(/ Gaming$/, '')} games
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                       {presets.map((game) => {

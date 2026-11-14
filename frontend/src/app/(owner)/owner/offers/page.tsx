@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tag, Plus, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw, Percent, IndianRupee, Sparkles, Trash2 } from 'lucide-react';
+import { Tag, Plus, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw, Percent, IndianRupee, Sparkles, Trash2, ChevronDown } from 'lucide-react';
 import {
   listOwnerPromotions,
   createPromotion,
@@ -124,9 +124,9 @@ function toDateInput(iso: string): string {
 }
 
 const TYPE_OPTIONS: { value: PromotionType; label: string; hint: string; icon: typeof Percent }[] = [
-  { value: 'percentage', label: 'Discount', hint: 'e.g. 20% off', icon: Percent },
-  { value: 'fixed_price', label: 'Fixed Price Deal', hint: 'e.g. 4 hours for ₹360', icon: Sparkles },
-  { value: 'fixed_amount', label: 'Fixed Amount Off', hint: 'e.g. ₹100 off', icon: IndianRupee },
+  { value: 'percentage', label: '% off', hint: '20% off', icon: Percent },
+  { value: 'fixed_price', label: 'Deal price', hint: '4 hrs for ₹360', icon: Sparkles },
+  { value: 'fixed_amount', label: '₹ off', hint: '₹100 off', icon: IndianRupee },
 ];
 
 interface FormState {
@@ -217,7 +217,11 @@ export default function OwnerOffersPage() {
   });
   const promotions = data?.promotions ?? [];
 
+  // "More options" starts open only when the offer being edited already uses them.
+  const [moreOpen, setMoreOpen] = useState(false);
+
   const resetForm = () => {
+    setMoreOpen(false);
     setForm(emptyForm());
     setEditingId(null);
     setEditingUses(0);
@@ -264,6 +268,7 @@ export default function OwnerOffersPage() {
       kheloCode: p.kheloCode ?? '',
       isActive: p.isActive,
     });
+    setMoreOpen(Boolean(p.kheloCode || p.maxUses != null));
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -732,8 +737,8 @@ export default function OwnerOffersPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm(); }}
-        title={editingId ? 'Edit Offer' : 'Create Offer'}
-        description="Applies automatically at checkout when the conditions below are met. No code needed."
+        title={editingId ? 'Edit offer' : 'New offer'}
+        description="Applies by itself at checkout. No code needed."
         size="lg"
       >
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -745,8 +750,8 @@ export default function OwnerOffersPage() {
           )}
 
           <div className="flex flex-col gap-1.5" data-tour="offer-type">
-            <label className="text-caption font-semibold text-text-primary">What kind of offer are you running? *</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <span className="text-caption font-semibold text-text-primary">Kind of offer</span>
+            <div className="grid grid-cols-3 gap-2">
               {TYPE_OPTIONS.map((opt) => {
                 const Icon = opt.icon;
                 const selected = form.promotionType === opt.value;
@@ -756,7 +761,8 @@ export default function OwnerOffersPage() {
                     type="button"
                     disabled={typeLocked}
                     onClick={() => setForm((f) => ({ ...f, promotionType: opt.value }))}
-                    className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+                    aria-pressed={selected}
+                    className={`flex min-h-[72px] flex-col items-start gap-0.5 p-2.5 rounded-xl border text-left transition-colors disabled:opacity-60 disabled:cursor-not-allowed sm:p-3 ${
                       selected
                         ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
                         : 'border-border bg-surface hover:bg-surface-hover'
@@ -764,7 +770,7 @@ export default function OwnerOffersPage() {
                   >
                     <Icon className={`h-4 w-4 ${selected ? 'text-primary' : 'text-text-secondary'}`} />
                     <span className="text-caption font-semibold text-text-primary">{opt.label}</span>
-                    <span className="text-caption text-text-secondary">{opt.hint}</span>
+                    <span className="text-[11px] leading-tight text-text-secondary sm:text-caption">{opt.hint}</span>
                   </button>
                 );
               })}
@@ -936,7 +942,7 @@ export default function OwnerOffersPage() {
           </div>
 
           <div className="flex flex-col gap-1.5" data-tour="offer-when">
-            <span className="text-caption font-semibold text-text-primary">When it runs (tap one, or set it below)</span>
+            <span className="text-caption font-semibold text-text-primary">When it runs</span>
             <div className="flex flex-wrap gap-1.5">
               {WHEN_PRESETS.map((p) => {
                 const on =
@@ -988,7 +994,7 @@ export default function OwnerOffersPage() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-caption font-semibold text-text-primary">Days of Week *</label>
+            <span className="text-caption font-semibold text-text-primary">Days</span>
             <div className="flex flex-wrap gap-1.5">
               {DAY_LABELS.map((label, idx) => {
                 const selected = form.daysOfWeek.includes(idx);
@@ -1031,13 +1037,16 @@ export default function OwnerOffersPage() {
                   </div>
                 ))}
               </div>
-              <p className="flex items-start gap-1.5 rounded-xl border border-dashed border-border bg-surface px-3 py-2 text-caption text-text-secondary">
-                <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
-                An offer can never make a booking free. If a discount would bring the price to ₹0 or below, it simply doesn&apos;t apply to that length.
-              </p>
+              <p className="text-caption text-text-secondary">An offer never makes a booking free.</p>
             </div>
           )}
 
+          <details key={editingId ?? 'new'} open={moreOpen} onToggle={(e) => setMoreOpen((e.currentTarget as HTMLDetailsElement).open)} className="group rounded-xl border border-border bg-surface px-3">
+            <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 text-caption font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
+              More options: use limit, offer code
+              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <div className="flex flex-col gap-4 pb-3">
           <Input
             label="Stop after this many uses (optional)"
             type="number"
@@ -1071,9 +1080,11 @@ export default function OwnerOffersPage() {
               </Button>
             </div>
             <p className="text-caption text-text-secondary">
-              Lets customers use this offer with a code or QR, as well as it applying by itself at checkout. It uses the same dates and limit as above. 4-20 letters/numbers.
+              Optional. Players can also type it at checkout. 4–20 letters or numbers.
             </p>
           </div>
+            </div>
+          </details>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
             <Button type="button" variant="ghost" data-tour="offer-cancel" onClick={() => { setIsModalOpen(false); resetForm(); }}>
@@ -1085,7 +1096,7 @@ export default function OwnerOffersPage() {
               isLoading={createMut.isPending || updateMut.isPending}
               loadingText={editingId ? 'Saving...' : 'Creating...'}
             >
-              {editingId ? 'Save Changes' : 'Create Offer'}
+              {editingId ? 'Save changes' : 'Create offer'}
             </Button>
           </div>
         </form>
