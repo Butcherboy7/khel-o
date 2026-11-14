@@ -131,7 +131,10 @@ function formatRange(start: number, end: number): string {
 }
 
 /** 90 -> "1 hr 30", 120 -> "2 hr", 30 -> "30 min": the same wording as the rest of checkout. */
-function formatLength(minutes: number): string {
+function formatLength(raw: number): string {
+  // Whole minutes only: moving the bar adds and subtracts float minutes, and a
+  // leftover like 1e-13 used to print as "5 hr 1.1368683772161603e-13".
+  const minutes = Math.round(raw);
   if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -316,7 +319,10 @@ export function TimelineRangePicker({
 
   // ── Dynamic Slot Width Scale (Compresses dynamically for large durations) ──
   const sidePadding = Math.max(40, containerWidth / 3);
-  const maxAvailPx = Math.max(100, containerWidth - 64);
+  // A long session zooms the track out so the bar fills at most about half the
+  // width. It used to fill the whole width: both handles then sat in the
+  // edge-scroll zones at the sides, and a 5 or 6 hr bar was very hard to grab.
+  const maxAvailPx = Math.max(100, containerWidth * 0.5);
   // While a handle is held the scale is frozen: otherwise stretching the session
   // past ~3.5h rescales the whole track under the finger and the handle jumps.
   const frozenSlotW = useRef<number | null>(null);
@@ -469,7 +475,9 @@ export function TimelineRangePicker({
       const dur = snapDurationMin(l.end - l.start, minDurMin, Math.min(maxDurMin, closeMin - l.start), onlyDurationsMinutes);
       return { start: l.start, end: l.start + dur, dur };
     }
-    const dur = l.end - l.start;
+    // Moving the whole bar never changes its length: use the length it started with,
+    // not end - start (float subtraction leaves crumbs like 300.0000000000001).
+    const dur = dragDurMin.current;
     const st = clampTo(Math.round(l.start / G) * G, minValidStart, closeMin - dur);
     return { start: st, end: st + dur, dur };
   };

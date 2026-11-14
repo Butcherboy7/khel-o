@@ -252,10 +252,10 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
 
   return (
     <Card elevation="resting" data-tour="drop-offline">
-      <CardContent className="flex flex-col gap-4 p-4 sm:p-5">
-        <div>
+      <CardContent className="flex flex-col gap-3 p-4 sm:p-5">
+        <div className="flex items-baseline justify-between gap-2">
           <h2 className="font-heading text-h3 font-bold text-text-primary">Manage slots</h2>
-          <p className="text-body text-text-secondary">Pick a day, drag over the hours, then say what they are.</p>
+          <p className="truncate text-caption text-text-secondary">Pick a day, drag the hours</p>
         </div>
 
         {/* Days */}
@@ -275,7 +275,7 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
                 role="radio"
                 aria-checked={on}
                 onClick={() => pickDay(x)}
-                className={`min-h-[64px] w-[68px] flex-none rounded-xl border px-1 py-1.5 text-center transition-colors ${
+                className={`min-h-[52px] w-[58px] flex-none rounded-xl border px-1 py-1 text-center transition-colors ${
                   on ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'
                 } ${closed ? 'opacity-70' : ''}`}
               >
@@ -300,27 +300,24 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
 
         {/* What the day looks like */}
         {sessions.length > 0 && (
-          <dl className="grid grid-cols-4 gap-1.5 text-center" aria-label={`${dayLabel(day)} at a glance`}>
+          <dl
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption tabular-nums"
+            aria-label={`${dayLabel(day)} at a glance${many ? `, hours added up across ${picked.length ? pickName : `all ${consoles.length || d.seatsPerSlot} consoles`}` : ''}`}
+            title={many ? `Hours added up across ${picked.length ? pickName : `all ${consoles.length || d.seatsPerSlot} consoles`}` : undefined}
+          >
             {[
-              ['Free', summary.free, 'bg-green-50 text-green-800'],
-              ['Online', summary.online, 'bg-red-50 text-red-700'],
-              ['Walk-in', summary.walkin, 'bg-violet-50 text-violet-800'],
-              ['Blocked', summary.blocked, 'bg-gray-100 text-gray-700'],
-            ].map(([label, v, cls]) => (
-              <div key={label as string} className={`rounded-lg px-1 py-1.5 ${cls}`}>
-                <dt className="text-[11px] font-semibold uppercase tracking-wide opacity-80">{label as string}</dt>
-                <dd className="font-heading text-body-emphasis font-bold tabular-nums">
-                  {Number.isInteger(v as number) ? (v as number) : (v as number).toFixed(1)}
-                  <span className="ml-0.5 text-[11px] font-semibold opacity-70">hrs</span>
-                </dd>
+              ['free', summary.free, 'bg-green-500', 'text-green-800'],
+              ['online', summary.online, 'bg-red-500', 'text-red-700'],
+              ['walk-in', summary.walkin, 'bg-violet-500', 'text-violet-800'],
+              ['blocked', summary.blocked, 'bg-gray-400', 'text-gray-700'],
+            ].map(([label, v, dot, txt]) => (
+              <div key={label as string} className="flex items-center gap-1">
+                <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden />
+                <dd className={`font-bold ${txt}`}>{Number.isInteger(v as number) ? (v as number) : (v as number).toFixed(1)} hrs</dd>
+                <dt className="text-text-secondary">{label as string}</dt>
               </div>
             ))}
           </dl>
-        )}
-        {sessions.length > 0 && many && (
-          <p className="-mt-2 text-caption text-text-secondary">
-            Hours added up across {picked.length ? pickName : `all ${consoles.length || d.seatsPerSlot} consoles`}.
-          </p>
         )}
 
         {!block ? (
@@ -357,7 +354,7 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
             )}
 
             {/* What to do with the hours */}
-            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="What are these hours?">
+            <div className="grid grid-cols-3 gap-1 rounded-xl border border-border bg-surface p-1" role="radiogroup" aria-label="What are these hours?">
               {MODES.map((m) => (
                 <button
                   key={m.id}
@@ -365,8 +362,8 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
                   role="radio"
                   aria-checked={mode === m.id}
                   onClick={() => setMode(m.id)}
-                  className={`flex min-h-[56px] flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-center transition-colors ${
-                    mode === m.id ? m.on : 'border-border bg-card text-text-secondary hover:border-text-secondary'
+                  className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border px-1 text-center transition-colors ${
+                    mode === m.id ? m.on : 'border-transparent text-text-secondary hover:text-text-primary'
                   }`}
                 >
                   <m.icon className="h-4 w-4" aria-hidden />
@@ -374,7 +371,7 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
                 </button>
               ))}
             </div>
-            <p className="-mt-2 text-caption text-text-secondary">
+            <p className="-mt-1.5 text-caption text-text-secondary">
               {MODES.find((m) => m.id === mode)?.hint}
               {mode === 'price' && consoles.length > 1 ? '. Applies to every console.' : ''}
             </p>
@@ -779,7 +776,7 @@ function DayHours({ d, day, dates, onDone }: { d: OwnerDrop; day: string; dates:
                     type="button"
                     aria-pressed={on}
                     onClick={() => setCopyTo(on ? copyTo.filter((y) => y !== x) : [...copyTo, x])}
-                    className={`min-h-[40px] rounded-full border px-3 text-caption font-semibold ${on ? 'border-primary bg-primary/10 text-text-primary' : 'border-border text-text-secondary'}`}
+                    className={`min-h-[44px] rounded-full border px-3 text-caption font-semibold ${on ? 'border-primary bg-primary/10 text-text-primary' : 'border-border text-text-secondary'}`}
                   >
                     {shortDate(x)}
                   </button>

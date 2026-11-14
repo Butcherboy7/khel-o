@@ -379,43 +379,74 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
       <div className="mx-auto flex max-w-xl flex-col gap-4 pb-28 lg:grid lg:max-w-5xl lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:gap-x-10">
         {/* Banner */}
         <section className="lg:sticky lg:top-20">
-          <div className="overflow-hidden rounded-2xl border border-border/70 shadow-card">
+          {/* Desktop: the big artwork. Phones get a small thumbnail so the slider is on the first screen. */}
+          <div className="hidden overflow-hidden rounded-2xl border border-border/70 shadow-card lg:block">
             {art ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={art} alt={`${drop.game} artwork`} className="aspect-[2.3/1] w-full object-cover sm:aspect-video" />
+              <img src={art} alt={`${drop.game} artwork`} className="aspect-video w-full object-cover" />
             ) : (
-              <div className="aspect-[2.3/1] w-full bg-gradient-to-br sm:aspect-video from-primary/80 to-secondary/70" aria-hidden />
+              <div className="aspect-video w-full bg-gradient-to-br from-primary/80 to-secondary/70" aria-hidden />
             )}
           </div>
-          <p className="mt-3 text-caption font-bold uppercase tracking-wider text-primary">Launch drop</p>
-          <h1 className="font-heading text-h1 font-bold text-text-primary">{drop.title}</h1>
-          {/* Where it happens, big: people book the game and miss which café it is */}
-          <a
-            href={drop.cafe.mapsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-3.5 py-3"
-          >
-            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-primary text-white">
-              <MapPin className="h-5 w-5" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-heading text-h2 font-bold leading-tight text-text-primary">{drop.cafe.name}</span>
-              <span className="block truncate text-caption text-text-secondary">{drop.cafe.address || drop.cafe.city}</span>
-            </span>
-            <span className="flex-shrink-0 text-caption font-bold text-primary">Map</span>
-          </a>
+          <div className="flex items-center gap-3 lg:mt-3 lg:block">
+            <div className="h-[68px] w-[68px] flex-none overflow-hidden rounded-xl border border-border/70 lg:hidden">
+              {art ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={art} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="h-full w-full bg-gradient-to-br from-primary/80 to-secondary/70" aria-hidden />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-primary">Launch drop</p>
+              <h1 className="font-heading text-h2 font-bold leading-tight text-text-primary lg:text-h1">{drop.title}</h1>
+              {/* Where it happens: people book the game and miss which café it is */}
+              <a
+                href={drop.cafe.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-0.5 flex min-h-[28px] items-center gap-1 text-body font-semibold text-text-primary"
+              >
+                <MapPin className="h-4 w-4 flex-none text-primary" aria-hidden />
+                <span className="truncate">{drop.cafe.name}</span>
+                <span className="flex-none text-caption font-bold text-primary">· Map</span>
+              </a>
+            </div>
+          </div>
+          {/* One quiet line of facts on phones; the chips come back on desktop */}
+          <p className="mt-2 text-caption text-text-secondary tabular-nums lg:hidden">
+            {[
+              drop.lengthPrices?.length ? drop.lengthPrices.map((p) => `${p.hours} hr ${rupees(p.price)}`).join(' · ') : `${rupees(drop.pricePerHour)} an hour`,
+              drop.endsOn && drop.state !== 'ended'
+                ? `until ${new Date(`${drop.endsOn}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            {otherCafes > 0 && (
+              <>
+                {' · '}
+                <Link
+                  href={`/drops?game=${gameKey(drop.game)}`}
+                  onClick={() => track('drop_other_cafes_tap', { others: otherCafes })}
+                  className="font-semibold text-primary underline underline-offset-2"
+                >
+                  {otherCafes} more {otherCafes === 1 ? 'café' : 'cafés'}
+                </Link>
+              </>
+            )}
+          </p>
           {otherCafes > 0 && (
             <Link
               href={`/drops?game=${gameKey(drop.game)}`}
               onClick={() => track('drop_other_cafes_tap', { others: otherCafes })}
-              className="mt-2 inline-flex min-h-[44px] items-center text-body font-semibold text-primary underline-offset-2 hover:underline"
+              className="mt-2 hidden min-h-[44px] items-center text-body font-semibold text-primary underline-offset-2 hover:underline lg:inline-flex"
             >
               Not near you? {otherCafes} more {otherCafes === 1 ? 'café has' : 'cafés have'} {drop.game} →
             </Link>
           )}
-          {drop.tagline && <p className="mt-1 text-body text-text-secondary">{drop.tagline}</p>}
-          <div className="mt-3 flex flex-wrap gap-2 text-caption font-semibold text-text-primary">
+          {drop.tagline && <p className="mt-1 hidden text-body text-text-secondary lg:block">{drop.tagline}</p>}
+          <div className="mt-3 hidden flex-wrap gap-2 text-caption font-semibold text-text-primary lg:flex">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
               <Ticket className="h-3.5 w-3.5 text-primary" /> {drop.seatsPerSlot ? `${drop.seatsPerSlot} ${drop.seatsPerSlot === 1 ? 'seat' : 'seats'} at a time, every night` : `${drop.seatsLeft} of ${drop.seatsTotal} seats left`}
             </span>
@@ -449,7 +480,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               </span>
             )}
           </div>
-          {art === GTA_ART && <p className="mt-2 text-[11px] text-text-secondary">Grand Theft Auto VI artwork © Rockstar Games.</p>}
+          {art === GTA_ART && <p className="mt-2 hidden text-[11px] text-text-secondary lg:block">Grand Theft Auto VI artwork © Rockstar Games.</p>}
         </section>
 
         <div className="flex min-w-0 flex-col gap-4">
@@ -510,9 +541,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         {!ended && (
         <section ref={daysRef} className="scroll-mt-20">
           {multi && (
-            <div className="mb-4">
-              <h2 className="font-heading text-h2 font-semibold text-text-primary">Pick your console</h2>
-              <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Console">
+            <div className="mb-3">
+              <h2 className="sr-only">Pick your console</h2>
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Pick your console">
                 {setups.map((s) => {
                   const on = s.tierId === setup;
                   return (
@@ -525,21 +556,19 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                         setSetupPick(s.tierId);
                         track('drop_setup_selected', { setup: s.name });
                       }}
-                      className={`flex min-h-[56px] flex-col items-start justify-center rounded-xl border px-3 text-left transition-colors ${
+                      className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border px-2 text-center transition-colors ${
                         on ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'
                       }`}
                     >
-                      <span className="font-heading text-body-emphasis font-bold text-text-primary">{s.name}</span>
-                      <span className="text-caption text-text-secondary">
-                        {s.count} {s.count === 1 ? 'console' : 'consoles'}
-                      </span>
+                      <span className="truncate font-heading text-body font-bold text-text-primary">{s.name}</span>
+                      <span className="flex-none text-caption text-text-secondary">×{s.count}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
           )}
-          <h2 className="font-heading text-h2 font-semibold text-text-primary">{canReserve ? 'Pick a day' : 'Days'}</h2>
+          <h2 className="sr-only">{canReserve ? 'Pick a day' : 'Days'}</h2>
           {flex && usual && (
             <p className="text-caption text-text-secondary">
               {usual.hours >= 24
@@ -567,7 +596,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                     pickedByHand.current = true;
                     pick(b);
                   }}
-                  className={`min-h-[56px] w-[64px] flex-none rounded-xl border px-1 py-1.5 text-center transition-colors ${
+                  className={`min-h-[52px] w-[60px] flex-none rounded-xl border px-1 py-1 text-center transition-colors ${
                     on ? 'border-primary bg-primary/10' : 'border-border bg-card'
                   } ${gone ? 'opacity-50' : canReserve ? 'hover:border-primary/50' : ''}`}
                 >
@@ -584,25 +613,14 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               );
             })}
           </div>
-          {anyBeyond && canReserve && drop.advanceHours ? (
-            <div className="mt-3 rounded-xl border border-border bg-card px-3 py-2.5">
-              <p className="font-semibold text-text-primary">Planning ahead?</p>
-              <p className="text-caption text-text-secondary">
-                Online reservations are currently available for the next {drop.advanceHours} hours. For bookings beyond this period, contact our team.
-              </p>
-              <Link href="/support" className="mt-1 inline-flex min-h-[44px] items-center font-semibold text-primary underline">
-                Contact KHEL-O
-              </Link>
-            </div>
-          ) : null}
         </section>
         )}
 
         {/* Packages: the café's set lengths and prices, one tap each */}
         {canReserve && block && flex && startTime && !!drop.lengthPrices?.length && (
-          <section aria-label="How long">
-            <h2 className="font-heading text-h2 font-semibold text-text-primary">How long?</h2>
-            <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Packages">
+          <section aria-label="How long" className="-mt-1">
+            <h2 className="sr-only">How long?</h2>
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="How long?">
               {lengths.map((h) => {
                 const on = h === hours;
                 const fits = inBlock(startTime, block) + h * 60 <= timeToMinutes(block.endTime);
@@ -621,11 +639,11 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                       setHours(h);
                       setError(null);
                     }}
-                    className={`flex min-h-[64px] flex-col items-center justify-center rounded-xl border px-2 py-2 transition-colors disabled:opacity-40 ${
+                    className={`flex min-h-[48px] flex-col items-center justify-center rounded-xl border px-2 py-1 transition-colors disabled:opacity-40 ${
                       on ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'
                     }`}
                   >
-                    <span className="font-heading text-body-emphasis font-bold text-text-primary">{h} {h === 1 ? 'hour' : 'hours'}</span>
+                    <span className="font-heading text-body font-bold leading-tight text-text-primary">{h} {h === 1 ? 'hour' : 'hours'}</span>
                     <span className={`text-caption font-semibold tabular-nums ${on ? 'text-primary' : 'text-text-secondary'}`}>{rupees(priceAt(h))}</span>
                   </button>
                 );
@@ -700,6 +718,14 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             {minH > 1 ? `From ${clock(startTime)} the shortest booking is ${minH} hours.` : ''}
           </p>
         )}
+        {!ended && anyBeyond && canReserve && drop.advanceHours ? (
+          <p className="-mt-2 text-caption text-text-secondary">
+            Online booking opens {drop.advanceHours} hours ahead. Planning further?{' '}
+            <Link href="/support" className="font-semibold text-primary underline underline-offset-2">
+              Contact KHEL-O
+            </Link>
+          </p>
+        ) : null}
 
         {/* Older whole-session drops keep the simple seat stepper */}
         {canReserve && block && !flex && (
@@ -841,6 +867,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             )}
           </dl>
         </details>
+        {art === GTA_ART && <p className="text-[11px] text-text-secondary lg:hidden">Grand Theft Auto VI artwork © Rockstar Games.</p>}
         </div>
       </div>
 
