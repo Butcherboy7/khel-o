@@ -143,6 +143,97 @@ async def test_normal_booking_only_loses_the_consoles_the_drop_keeps():
             assert {n for _s, _e, n, _t in await svc.dedicated_windows(db, ps5.id, DAY)} == {3}
 
 
+async def _pick(c, d, blk, start, hours, phone, units):
+    g = await _user(phone=phone)
+    return await c.post(f"/api/v1/drops/{d['slug']}/reserve", headers=_h(g),
+                        json={"blockId": blk, "seats": 1, "startTime": start, "hours": hours, "units": units})
+
+
+@pytest.mark.asyncio
+async def test_a_player_picks_ps5_2_and_keeps_it():
+    async with _client() as c:
+        owner, ps5, xbox, d = await _setup(c)
+        blk = _on(d, DAY)[0]["id"]
+        r = await _pick(c, d, blk, "14:00", 2, "9876543001", [f"{ps5.id}:2"])
+        assert r.status_code == 201, r.text
+        res = r.json()["data"]["reservation"]
+        assert res["consoles"] == ["PS5 2"] and res["consolesPicked"] is True
+        # Somebody else wants PS5 2 at the same time: told exactly that, by name.
+        again = await _pick(c, d, blk, "15:00", 1, "9876543002", [f"{ps5.id}:2"])
+        assert again.status_code == 400 and "CONSOLE_TAKEN" in again.text and "PS5 2" in again.text
+        assert (await _pick(c, d, blk, "15:00", 1, "9876543003", [f"{ps5.id}:1"])).status_code == 201
+        # The player's page shows each console's own taken hours.
+        pub = (await c.get(f"/api/v1/drops/{d['slug']}")).json()["data"]
+        by = _on(pub, DAY)[0]["byConsole"]
+        assert [(s["startTime"], s["endTime"]) for s in by[f"{ps5.id}:2"]] == [("14:00", "16:00")]
+        assert by[f"{xbox.id}:1"] == []
+        # A walk-in can't push the player off PS5 2; the café sees who has it and that it was picked.
+        assert (await _walkin(c, owner, d, blk, "14:00", 1, [f"{ps5.id}:2"])).status_code == 400
+        det = (await c.get(f"/api/v1/owner/drops/{d['id']}", headers=_h(owner))).json()["data"]
+        rows = _on(det, DAY)[0]["reservations"]
+        assert sorted(r["consoles"][0] for r in rows) == ["PS5 1", "PS5 2"]
+        # A console that isn't in the drop is refused.
+        bad = await _pick(c, d, blk, "18:00", 1, "9876543004", [f"{ps5.id}:9"])
+        assert bad.status_code == 400 and "BAD_CONSOLE" in bad.text
+
+
+@pytest.mark.asyncio
+async def test_ten_people_grab_the_same_console_and_only_one_gets_it():
+    import asyncio
+    async with _client() as c:
+        _owner, ps5, _xbox, d = await _setup(c)
+        blk = _on(d, DAY)[0]["id"]
+        out = await asyncio.gather(*[_pick(c, d, blk, "19:00", 1, f"98765440{i:02d}", [f"{ps5.id}:3"]) for i in range(10)])
+        assert sum(1 for r in out if r.status_code == 201) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_owner_adds_an_xbox_from_the_drop_page():
+    async with _client() as c:
+        owner, cafe, ps5 = await _cafe_with_rig(total=2)
+        d = await _drop(c, owner, cafe, ps5)
+        assert {a["name"] for a in d.get("addableConsoles", [])} <= {"PS5 Pro", "PS5", "Xbox Series X", "Xbox Series S"}
+        r = await c.post(f"/api/v1/owner/drops/{d['id']}/console-setups", headers=_h(owner),
+                         json={"model": "seriesx", "count": 2, "pricePerHour": 150})
+        assert r.status_code == 200, r.text
+        data = r.json()["data"]
+        assert [x["label"] for x in data["consoles"]] == ["PS5 1", "PS5 2", "Xbox Series X 1", "Xbox Series X 2"]
+        assert {s["name"]: s["count"] for s in data["setups"]} == {"PS5": 2, "Xbox Series X": 2}
+        assert _on(data, DAY)[0]["seatsTotal"] == 4
+        # A third one later joins the same setup and the drop as "Xbox Series X 3".
+        r = await c.post(f"/api/v1/owner/drops/{d['id']}/console-setups", headers=_h(owner),
+                         json={"model": "seriesx", "count": 1, "pricePerHour": 150})
+        assert r.status_code == 200, r.text
+        assert r.json()["data"]["consoles"][-1]["label"] == "Xbox Series X 3"
+        assert sum(1 for s in r.json()["data"]["cafeSetups"] if s["name"] == "Xbox Series X") == 1
+        # Only consoles that run GTA 6.
+        bad = await c.post(f"/api/v1/owner/drops/{d['id']}/console-setups", headers=_h(owner),
+                           json={"model": "rtx4090", "count": 1, "pricePerHour": 150})
+        assert bad.status_code == 400 and "BAD_CONSOLE" in bad.text
+        # Someone else's drop: no.
+        stranger, _c2, _t2 = await _cafe_with_rig(total=1)
+        r = await c.post(f"/api/v1/owner/drops/{d['id']}/console-setups", headers=_h(stranger),
+                         json={"model": "seriesx", "count": 1, "pricePerHour": 150})
+        assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_a_pc_cannot_join_a_gta_6_drop():
+    async with _client() as c:
+        owner, cafe, ps5 = await _cafe_with_rig(total=2)
+        d = await _drop(c, owner, cafe, ps5)
+        async with AsyncSessionLocal() as db:
+            pc = HardwareTier(id=uuid4(), cafe_id=cafe.id, name="RTX 4070", price_per_hour=80.0, total_seats=4,
+                              app_bookable_seats=4, active_seats_count=4, is_active=True, platform=PlatformType.PC)
+            db.add(pc)
+            await db.commit()
+        det = (await c.get(f"/api/v1/owner/drops/{d['id']}", headers=_h(owner))).json()["data"]
+        assert {s["name"]: s["runsGame"] for s in det["cafeSetups"]} == {"PS5": True, "RTX 4070": False}
+        r = await c.put(f"/api/v1/owner/drops/{d['id']}/consoles", headers=_h(owner),
+                        json={"keys": [f"{ps5.id}:1", f"{pc.id}:1"]})
+        assert r.status_code == 400 and "GAME_NOT_ON_RIG" in r.text
+
+
 def test_fitting_keeps_picked_consoles_and_moves_the_rest():
     keys = ["a:1", "a:2"]
     items = [{"id": "x", "s": 0, "e": 120, "n": 1, "fixed": None, "cur": ["a:1"], "allowed": keys},

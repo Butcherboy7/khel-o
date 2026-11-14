@@ -5,12 +5,12 @@ import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus } from 'lucide-react';
 import { uploadCafePhoto } from '@/lib/api/settings';
-import { ArrowLeft, Bell, Check, CheckCircle2, ChevronDown, Download, ExternalLink, KeyRound, MessageCircle, QrCode } from 'lucide-react';
+import { ArrowLeft, Bell, Check, CheckCircle2, ChevronDown, Download, ExternalLink, KeyRound, MessageCircle, Plus, QrCode } from 'lucide-react';
 import { Button, Card, CardContent, Input, Modal, SkeletonCard } from '@/components/ui';
 import { ShareIconRow, WhatsAppButton } from '@/components/shared/ShareActions';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
-import { cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, getWalkInQr, giveAwayReservation, setDropConsoles, updateDrop, type OwnerDrop } from '@/lib/api/drops';
+import { addDropConsoleSetup, cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, getWalkInQr, giveAwayReservation, setDropConsoles, updateDrop, type OwnerDrop } from '@/lib/api/drops';
 import { blockTimes, clockRange, dayLabel, rupees, whenText } from '@/lib/drops';
 import { RemoveOffline } from '@/components/drops/OfflineBooking';
 import { SlotManager } from '@/components/drops/SlotManager';
@@ -28,7 +28,7 @@ function passMessage(d: OwnerDrop, b: OwnerDrop['blocks'][number], r: Row): stri
     `Hi ${first}, your ${d.game} seat at ${d.cafe.name} is confirmed.`,
     '',
     `When: ${when}${r.hours ? ` (${r.hours} ${r.hours === 1 ? 'hour' : 'hours'})` : ''}`,
-    `Seats: ${r.seats}`,
+    r.consoles?.length ? `Console: ${r.consoles.join(' + ')}` : `Seats: ${r.seats}`,
     `Booking: ${r.reference}`,
     `Paid online: ${rupees(r.deposit)}`,
     `Pay at the café: ${rupees(r.balanceDue)}`,
@@ -208,8 +208,9 @@ function consolesLine(d: OwnerDrop): string {
   return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
 }
 
-/** Which consoles the drop uses: any mix of the café's setups (PS5s, Xboxes...). Players pick the type;
- *  the café can sell or block each console on its own in Manage slots. */
+/** Which consoles the drop uses: any mix of the café's setups (PS5s, Xboxes...). Players pick the exact
+ *  console; the café can sell or block each one on its own in Manage slots. Consoles the café has but
+ *  hasn't put in the drop are pointed out, and a new console (an Xbox Series X...) can be added right here. */
 function DropConsoles({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
   const now = (d.consoles ?? []).map((c) => c.key);
   const [keys, setKeys] = useState<string[]>(now);
@@ -219,12 +220,21 @@ function DropConsoles({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
   useEffect(() => setKeys(nowKey ? nowKey.split(',') : []), [nowKey]);
   const changed = [...keys].sort().join() !== [...now].sort().join();
   const toggle = (k: string) => setKeys(keys.includes(k) ? keys.filter((x) => x !== k) : [...keys, k]);
-  const save = async () => {
+  const runs = (d.cafeSetups ?? []).filter((s) => s.runsGame !== false);
+  const cant = (d.cafeSetups ?? []).filter((s) => s.runsGame === false);
+  // Consoles the café has that the drop doesn't use yet (a setup that grew, or a new one).
+  const missing = runs.flatMap((s) => Array.from({ length: s.count }, (_, i) => `${s.tierId}:${i + 1}`)).filter((k) => !now.includes(k));
+  const missingText = runs
+    .map((s) => ({ s, n: missing.filter((k) => k.startsWith(`${s.tierId}:`)).length }))
+    .filter((x) => x.n)
+    .map((x) => `${x.n} ${x.s.name}`)
+    .join(' and ');
+  const save = async (list: string[]) => {
     setBusy(true);
     setMsg(null);
     try {
-      await setDropConsoles(d.id, keys);
-      setMsg({ ok: true, text: `Saved. The drop now uses ${keys.length} ${keys.length === 1 ? 'console' : 'consoles'}.` });
+      await setDropConsoles(d.id, list);
+      setMsg({ ok: true, text: `Saved. The drop now uses ${list.length} ${list.length === 1 ? 'console' : 'consoles'}.` });
       onDone();
     } catch (e) {
       setMsg({ ok: false, text: (e as Error)?.message || 'Could not save.' });
@@ -237,10 +247,20 @@ function DropConsoles({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Consoles in this drop</p>
         <p className="text-caption text-text-secondary">
-          Tick every console players can book. You can mix PS5 and Xbox; players pick which one they want.
+          Tick every console players can book. You can mix PS5 and Xbox. Players pick the exact console they want.
         </p>
-        {(d.cafeSetups ?? []).map((s) => (
-          // Setups not in the drop stay folded, so a café with 15 PCs doesn't get a long list.
+        {missing.length > 0 && !changed && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2">
+            <p className="min-w-0 text-caption font-semibold text-text-primary">
+              {missingText} not in the drop yet, so players can&apos;t book {missing.length === 1 ? 'it' : 'them'}.
+            </p>
+            <Button disabled={busy} onClick={() => save([...now, ...missing])}>
+              Add {missing.length === 1 ? 'it' : 'them'}
+            </Button>
+          </div>
+        )}
+        {runs.map((s) => (
+          // Setups not in the drop stay folded, so the list stays short.
           <details key={s.tierId} open={now.some((k) => k.startsWith(`${s.tierId}:`)) || undefined} className="group rounded-xl border border-border px-3">
             <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 text-caption font-semibold text-text-primary">
               <span>
@@ -274,14 +294,115 @@ function DropConsoles({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
           </details>
         ))}
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={save} disabled={busy || !changed || !keys.length}>
+          <Button onClick={() => save(keys)} disabled={busy || !changed || !keys.length}>
             {busy ? 'Saving…' : 'Save consoles'}
           </Button>
           {!keys.length && <span className="text-caption text-error">Pick at least one console.</span>}
           {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
         </div>
+        <AddConsole d={d} onDone={onDone} />
+        {cant.length > 0 && (
+          <p className="text-caption text-text-secondary">
+            Not listed: {cant.map((s) => s.name).join(', ')}. {cant.length === 1 ? 'It' : 'They'} can&apos;t run {d.game}.
+          </p>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+/** A console the café has that isn't on KHEL-O yet (an Xbox Series S...): pick it, say how many, done.
+ *  It becomes a setup of the café and joins this drop straight away. */
+function AddConsole({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
+  const options = d.addableConsoles ?? [];
+  const [open, setOpen] = useState(false);
+  const [model, setModel] = useState('');
+  const [count, setCount] = useState(1);
+  const [price, setPrice] = useState(String(d.pricePerHour));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  if (!options.length) return null;
+  const chosen = options.find((o) => o.model === model);
+  const add = async () => {
+    if (!chosen) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await addDropConsoleSetup(d.id, { model, count, pricePerHour: Number(price) });
+      setMsg({ ok: true, text: `Added ${count} ${chosen.name}. Players can book ${count === 1 ? 'it' : 'them'} now.` });
+      setOpen(false);
+      setModel('');
+      setCount(1);
+      onDone();
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error)?.message || 'Could not add.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-3">
+      {!open ? (
+        <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-[44px] items-center gap-2 self-start font-semibold text-primary">
+          <Plus className="h-4 w-4" aria-hidden /> Add a console you have
+        </button>
+      ) : (
+        <>
+          <p className="text-body font-semibold text-text-primary">Add a console</p>
+          <p className="text-caption text-text-secondary">Only consoles that run {d.game} are listed.</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <label className="col-span-2 flex min-w-0 flex-col gap-1 text-caption text-text-secondary sm:col-span-1">
+              Console
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className="h-11 w-full min-w-0 rounded-lg border border-border bg-card px-2 text-body text-text-primary"
+              >
+                <option value="">Pick one</option>
+                {options.map((o) => (
+                  <option key={o.model} value={o.model}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex min-w-0 flex-col gap-1 text-caption text-text-secondary">
+              How many
+              <select
+                value={count}
+                onChange={(e) => setCount(Number(e.target.value))}
+                className="h-11 w-full min-w-0 rounded-lg border border-border bg-card px-2 text-body text-text-primary"
+              >
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex min-w-0 flex-col gap-1 text-caption text-text-secondary">
+              Normal ₹ an hour
+              <input
+                inputMode="numeric"
+                value={price}
+                onChange={(e) => setPrice(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                className="h-11 w-full min-w-0 rounded-lg border border-border bg-card px-2 text-body tabular-nums text-text-primary"
+              />
+            </label>
+          </div>
+          <p className="text-caption text-text-secondary">The normal price is for bookings outside the drop. Drop players pay the drop price.</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={add} disabled={busy || !chosen || !Number(price)}>
+              {busy ? 'Adding…' : chosen ? `Add ${count} ${chosen.name}` : 'Add'}
+            </Button>
+            <Button variant="secondary" disabled={busy} onClick={() => setOpen(false)}>
+              Back
+            </Button>
+          </div>
+        </>
+      )}
+      {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
+    </div>
   );
 }
 
@@ -590,7 +711,7 @@ function EditDetails({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
 export function DropManage({ id, base = '/owner/drops', admin = false }: { id: string; base?: string; admin?: boolean }) {
   const qc = useQueryClient();
   const key = ['owner', 'drop', id];
-  const { data: d, isLoading, error, refetch } = useQuery({ queryKey: key, queryFn: () => getOwnerDrop(id), refetchInterval: 30_000 });
+  const { data: d, isLoading, error, refetch } = useQuery({ queryKey: key, queryFn: () => getOwnerDrop(id), refetchInterval: 10_000, refetchOnWindowFocus: true });
   const refresh = () => qc.invalidateQueries({ queryKey: key });
 
   if (isLoading) return <SkeletonCard />;

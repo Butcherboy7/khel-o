@@ -237,8 +237,8 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
   const many = (picked.length || (d.seatsPerSlot ?? 1)) > 1;
   const labelOf = (k: string) => consoles.find((c) => c.key === k)?.label ?? '';
   const onDay = sessions.flatMap((b) =>
-    (b.bookedSlots ?? []).filter((s) => s.kind && s.kind !== 'online' && s.id && (!picked.length || (s.units ?? []).some((u) => picked.includes(u)))),
-  );
+    (b.bookedSlots ?? []).filter((s) => s.kind && s.id && (!picked.length || (s.units ?? []).some((u) => picked.includes(u)))),
+  ).sort((x, y) => x.startTime.localeCompare(y.startTime));
 
   if (d.status === 'cancelled' || !dates.length) return null;
 
@@ -619,24 +619,24 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
           </>
         )}
 
-        {/* Walk-ins and blocks on this day */}
+        {/* Everything on this day: online bookings, walk-ins and blocks, each with its console */}
         {onDay.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <p className="text-caption font-semibold uppercase tracking-wide text-text-secondary">On {dayLabel(day)}</p>
             {onDay.map((s) => (
               <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
                 <span className="flex min-w-0 items-center gap-2 text-caption">
-                  <span className={`h-2.5 w-2.5 flex-none rounded-full ${s.kind === 'walkin' ? 'bg-violet-500' : 'bg-gray-500'}`} aria-hidden />
+                  <span className={`h-2.5 w-2.5 flex-none rounded-full ${s.kind === 'online' ? 'bg-red-500' : s.kind === 'walkin' ? 'bg-violet-500' : 'bg-gray-500'}`} aria-hidden />
                   <span className="font-semibold text-text-primary">{clockRange(s.startTime, s.endTime)}</span>
                   <span className="truncate text-text-secondary">
-                    {s.kind === 'walkin' ? 'Walk-in' : 'Blocked'}
+                    {s.kind === 'online' ? `Online${s.pinned ? ', picked by player' : ''}` : s.kind === 'walkin' ? 'Walk-in' : 'Blocked'}
                     {s.label && s.label !== 'Blocked' && s.label !== 'Booked at the café' ? ` · ${s.label}` : ''} ·{' '}
                     {s.units?.length && s.units.every(labelOf)
                       ? s.units.map(labelOf).join(', ')
                       : `${s.seatsCount} ${s.seatsCount === 1 ? 'console' : 'consoles'}`}
                   </span>
                 </span>
-                <RemoveOffline id={s.id as string} name={s.kind === 'walkin' ? 'these' : 'the blocked'} onDone={onDone} />
+                {s.kind !== 'online' && <RemoveOffline id={s.id as string} name={s.kind === 'walkin' ? 'these' : 'the blocked'} onDone={onDone} />}
               </div>
             ))}
           </div>

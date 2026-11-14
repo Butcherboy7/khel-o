@@ -68,7 +68,16 @@ def _block_out(drop: Drop, b: DropBlock, hour_free: Optional[dict] = None) -> di
     }
 
 
-def _reservation_out(drop: Drop, r: DropReservation, block: Optional[DropBlock]) -> dict:
+async def _labels(db: AsyncSession, drop: Drop) -> dict[str, str]:
+    """Console key -> its name ("PS5 Pro 2")."""
+    return {c["key"]: c["label"] for c in await svc.console_list(db, drop)}
+
+
+def _console_names(r: DropReservation, labels: Optional[dict]) -> list[str]:
+    return [labels[u] for u in (r.units or []) if labels and u in labels]
+
+
+def _reservation_out(drop: Drop, r: DropReservation, block: Optional[DropBlock], labels: Optional[dict] = None) -> dict:
     pass_url = f"{_site()}/drops/{drop.slug}/pass/{r.checkin_token}"
     paid = r.status in svc.PAID
     return {
@@ -76,6 +85,9 @@ def _reservation_out(drop: Drop, r: DropReservation, block: Optional[DropBlock])
         "reference": r.reference,
         "status": r.status,
         "seats": r.seats,
+        # The console(s) this booking plays on, e.g. ["PS5 Pro 2"]. Shown on the pass so staff know the seat.
+        "consoles": _console_names(r, labels),
+        "consolesPicked": bool(r.units_pinned),
         "blockId": str(r.block_id),
         "block": _block_out(drop, block) if block else None,
         "blockPrice": float(r.block_price),
@@ -229,7 +241,7 @@ async def my_reservations(db: AsyncSession = Depends(get_db), user: User = Depen
     out = []
     for r, drop, cafe in rows:
         block = await db.get(DropBlock, r.block_id)
-        d = _reservation_out(drop, r, block)
+        d = _reservation_out(drop, r, block, await _labels(db, drop))
         d.pop("qr", None)  # the QR lives on the pass page
         d.pop("block", None)
         d.update({"date": block.session_date.isoformat() if block else None, "dropSlug": drop.slug,
@@ -261,6 +273,9 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
                 w = per.get(t, [])
                 bd["bySetup"][t] = {"seatsTotal": total, "hourFree": svc.seats_free(w, blk, total),
                                     "bookedSlots": svc.booked_windows(w)}
+            # And for every single console, so a player can pick PS5 Pro 1 or 2 and see when it is free.
+            bd["byConsole"] = {k: svc.booked_windows(w)
+                               for k, w in svc.console_windows(drop, blk, await svc.holding_rows(db, blk)).items()}
     mine = []
     if user is not None:
         by_id = {b.id: b for b in blocks}
@@ -270,7 +285,8 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
                 DropReservation.status.in_(("pending_payment", "confirmed", "checked_in", "refunded")),
             ).order_by(DropReservation.created_at)
         )).scalars().all()
-        mine = [_reservation_out(drop, r, by_id.get(r.block_id)) for r in rows]
+        labels = await _labels(db, drop)
+        mine = [_reservation_out(drop, r, by_id.get(r.block_id), labels) for r in rows]
         data["needsPhone"] = not bool(user.phone_number)
     data["myReservations"] = mine
     # Real number of people who hold a paid seat (shown once it is worth saying).
@@ -292,6 +308,8 @@ class ReserveRequest(_Camel):
     phone: Optional[str] = Field(None, max_length=20)
     # Which console type (setup id), when the drop has more than one (PS5 and Xbox).
     setup: Optional[UUID] = None
+    # The exact console(s) the player picked ("<setup id>:<number>"). They are kept for them and never move.
+    units: Optional[list[str]] = Field(None, max_length=10)
 
 
 @public_router.get("/{slug}/walk-in-qr")
@@ -313,10 +331,10 @@ async def reserve(slug: str, payload: ReserveRequest, db: AsyncSession = Depends
         await db.flush()
     done = await svc.reserve(db, drop, payload.block_id, user, payload.seats, payload.code,
                              start=payload.start_time, hours=payload.hours,
-                             setup=str(payload.setup) if payload.setup else None)
+                             setup=str(payload.setup) if payload.setup else None, units=payload.units or None)
     block = await db.get(DropBlock, done.reservation.block_id)
     return {"success": True, "data": {
-        "reservation": _reservation_out(drop, done.reservation, block),
+        "reservation": _reservation_out(drop, done.reservation, block, await _labels(db, drop)),
         "order": {"orderId": done.order_id, "amount": float(done.reservation.deposit_amount),
                   "currency": "INR", "keyId": done.key_id},
     }}
@@ -333,7 +351,7 @@ async def verify(payload: VerifyRequest, db: AsyncSession = Depends(get_db), use
     res, outcome = await svc.verify(db, user, payload.razorpay_order_id, payload.razorpay_payment_id, payload.razorpay_signature)
     drop = await db.get(Drop, res.drop_id)
     block = await db.get(DropBlock, res.block_id)
-    return {"success": True, "data": {"outcome": outcome, "reservation": _reservation_out(drop, res, block)}}
+    return {"success": True, "data": {"outcome": outcome, "reservation": _reservation_out(drop, res, block, await _labels(db, drop))}}
 
 
 class WaitlistRequest(_Camel):
@@ -366,7 +384,7 @@ async def get_pass(slug: str, token: str, db: AsyncSession = Depends(get_db),
                                           "dropTitle": drop.title, "reference": res.reference}}
     block = await db.get(DropBlock, res.block_id)
     holder = await db.get(User, res.user_id)
-    out = _reservation_out(drop, res, block)
+    out = _reservation_out(drop, res, block, await _labels(db, drop))
     out.update({"valid": res.status in svc.PAID, "canCheckIn": manager and res.status == "confirmed",
                 "dropTitle": drop.title, "holderName": holder.full_name if manager else None,
                 "holderPhone": holder.phone_number if manager else None})
@@ -682,6 +700,25 @@ async def set_consoles(drop_id: UUID, payload: ConsolesIn, db: AsyncSession = De
     return {"success": True, "data": await _detail(db, drop, cafe)}
 
 
+class ConsoleSetupIn(_Camel):
+    # ps5pro / ps5 / seriesx / seriess
+    model: str = Field(..., max_length=20)
+    count: int = Field(..., ge=1, le=20)
+    # The normal price an hour for these consoles outside the drop.
+    price_per_hour: float = Field(..., gt=0, le=100000)
+
+
+@owner_router.post("/{drop_id}/console-setups")
+async def add_console_setup(drop_id: UUID, payload: ConsoleSetupIn, db: AsyncSession = Depends(get_db),
+                            user: User = Depends(get_current_active_user)):
+    """Add consoles the café has (an Xbox Series X...) to the café and to this drop in one step."""
+    drop, cafe = await _managed(db, user, drop_id)
+    if drop.status == "cancelled":
+        raise svc.DropError("This drop was cancelled and can't be changed.", "DROP_CANCELLED")
+    await svc.add_console_setup(db, drop, payload.model, payload.count, payload.price_per_hour, user)
+    return {"success": True, "data": await _detail(db, drop, cafe)}
+
+
 class BlockSeats(_Camel):
     seats: int = Field(..., ge=0, le=100)
 
@@ -743,6 +780,7 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
         .order_by(DropReservation.created_at)
     )).all()
     by_block: dict[UUID, list] = {b.id: [] for b in blocks}
+    labels = await _labels(db, drop)
     for r, name, phone, email in rows:
         if r.status in ("expired", "cancelled"):
             continue
@@ -750,6 +788,7 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
             "id": str(r.id), "reference": r.reference,
             "name": r.guest_name if r.source != "online" else name,
             "phone": r.guest_phone if r.source != "online" else phone, "seats": r.seats,
+            "consoles": _console_names(r, labels), "consolesPicked": bool(r.units_pinned),
             "email": None if r.source != "online" else email,
             "passUrl": f"{_site()}/drops/{drop.slug}/pass/{r.checkin_token}" if r.status in svc.PAID else None,
             **_when(r, blocks),
@@ -775,8 +814,15 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
         HardwareTier.cafe_id == drop.cafe_id, HardwareTier.is_active.is_(True),
         HardwareTier.tier_type == TierType.GAMING.value).order_by(HardwareTier.created_at))).scalars().all()
     data["cafeSetups"] = [{"tierId": str(t.id), "name": svc.short_name(t),
-                           "platform": t.platform.value if t.platform else None, "count": t.total_seats or 0}
+                           "platform": t.platform.value if t.platform else None, "count": t.total_seats or 0,
+                           # Whether it can run the drop's game (no PC for GTA 6).
+                           "runsGame": svc.runs_game(drop, t)}
                           for t in tiers if (t.total_seats or 0) > 0]
+    # Consoles that can be added from the drop page: the ones that run the game.
+    from app.core.game_platforms import rule_for
+    rule = rule_for(drop.game)
+    data["addableConsoles"] = [{"model": k, "name": v[2]} for k, v in svc.DROP_CONSOLE_MODELS.items()
+                               if rule is None or k in rule["consoles"]]
     paid = [r for r, *_ in rows if r.status in svc.PAID and r.source != "block"]
     offline = [r for r in paid if r.source == "offline"]
     data["totals"] = {
@@ -894,7 +940,7 @@ async def add_offline_booking(drop_id: UUID, payload: OfflineBookingIn, db: Asyn
         units=payload.units or None,
     )
     block = await db.get(DropBlock, res.block_id)
-    return {"success": True, "data": _reservation_out(drop, res, block)}
+    return {"success": True, "data": _reservation_out(drop, res, block, await _labels(db, drop))}
 
 
 @owner_router.post("/reservations/{reservation_id}/remove-offline")
@@ -914,7 +960,7 @@ async def check_in(payload: CheckInRequest, db: AsyncSession = Depends(get_db), 
     drop = await db.get(Drop, res.drop_id)
     block = await db.get(DropBlock, res.block_id)
     holder = await db.get(User, res.user_id)
-    out = _reservation_out(drop, res, block)
+    out = _reservation_out(drop, res, block, await _labels(db, drop))
     out.update({"outcome": outcome, "holderName": res.guest_name if res.source == "offline" else holder.full_name})
     return {"success": True, "data": out}
 
@@ -927,7 +973,7 @@ async def give_away(reservation_id: UUID, db: AsyncSession = Depends(get_db), us
     res = await svc.give_away(db, res, user)
     drop = await db.get(Drop, res.drop_id)
     block = await db.get(DropBlock, res.block_id)
-    return {"success": True, "data": _reservation_out(drop, res, block)}
+    return {"success": True, "data": _reservation_out(drop, res, block, await _labels(db, drop))}
 
 
 # ---------------------------------------------------------------- admin

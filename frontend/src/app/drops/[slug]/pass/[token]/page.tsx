@@ -83,7 +83,7 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
             )}
             {b && (
               <p className="mt-2 text-[15px] text-text-primary">
-                {dayLabel(b.date)} · {pass.hours && pass.startTime && pass.endTime ? `${pass.startTime} to ${pass.endTime}` : blockTimes(b)} · {pass.seats} {pass.seats === 1 ? 'seat' : 'seats'}
+                {dayLabel(b.date)} · {pass.hours && pass.startTime && pass.endTime ? `${pass.startTime} to ${pass.endTime}` : blockTimes(b)} · {pass.consoles?.length ? pass.consoles.join(' + ') : `${pass.seats} ${pass.seats === 1 ? 'seat' : 'seats'}`}
               </p>
             )}
             {pass.arriveFrom && pass.arriveUntil && pass.status === 'confirmed' && (

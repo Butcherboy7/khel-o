@@ -57,6 +57,11 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
       }),
     };
   }, [raw, setup]);
+  // The exact console(s) the player plays on (PS5 Pro 1, PS5 Pro 2, Xbox Series X 1...).
+  const [consolePick, setConsolePick] = useState<string[]>([]);
+  const consoleByHand = useRef(false);
+  const setupByHand = useRef(Boolean(params.get('setup')));
+  const [notice, setNotice] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [blockId, setBlockId] = useState<string | null>(params.get('block'));
   const [seats, setSeats] = useState(Math.max(1, Number(params.get('seats')) || 1));
@@ -158,7 +163,21 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   })();
   const extras = usual && drop ? drop.blocks.filter((b) => b.startTime !== usual.startTime || b.endTime !== usual.endTime) : [];
   const block = drop?.blocks.find((b) => b.id === blockId) ?? null;
-  const booked = useMemo(() => block?.bookedSlots ?? [], [block]);
+  // Exact consoles: the slider shows only the picked console(s), and the player can switch to any other.
+  const allConsoles = raw?.consoles ?? [];
+  const exact = Boolean(flex && block?.byConsole && allConsoles.length > 0);
+  const shownConsoles = multi && setup ? allConsoles.filter((c) => c.tierId === setup) : allConsoles;
+  const picked = consolePick.filter((k) => allConsoles.some((c) => c.key === k));
+  const win = block && startTime ? { s: inBlock(startTime, block), e: inBlock(startTime, block) + Math.round(hours * 60) } : null;
+  const freeAt = (k: string) =>
+    !block?.byConsole || !win || !(block.byConsole[k] ?? []).some((x) => timeToMinutes(x.startTime) < win.e && timeToMinutes(x.endTime) > win.s);
+  const nameOf = (k: string) => allConsoles.find((c) => c.key === k)?.label ?? 'That console';
+  const pickedNames = picked.map(nameOf).join(' and ');
+  const pickedKey = picked.join(',');
+  const booked = useMemo(() => {
+    if (exact && block?.byConsole) return pickedKey.split(',').filter(Boolean).flatMap((k) => block.byConsole?.[k] ?? []);
+    return block?.bookedSlots ?? [];
+  }, [block, exact, pickedKey]);
   // Online booking may be open only a set time ahead (48 hours): later starts are "not open yet".
   const limitMs = drop?.bookableUntil ? Date.parse(drop.bookableUntil) : null;
   const beyond = (b: DropBlock) => limitMs != null && atMinutes(b.date, timeToMinutes(b.startTime)).getTime() > limitMs;
@@ -182,13 +201,15 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   // Flexible: free seats for the exact window picked, counted the same way the booking slider does.
   const windowFree = useMemo(() => {
     if (!block || !startTime) return 0;
+    if (exact) return picked.length && picked.every(freeAt) ? picked.length : 0;
     const s = inBlock(startTime, block);
     return calculateWindowRemainingSeats(block.seatsTotal, booked, s, s + Math.round(hours * 60));
-  }, [block, booked, startTime, hours]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [block, booked, startTime, hours, exact, pickedKey]);
   const sessionLeft = (b: DropBlock) =>
     flex && b.bookedSlots ? Math.max(0, ...hourRange(b).map((m) => b.seatsTotal - peakAt(b, m))) : b.seatsLeft;
   const maxSeats = Math.max(1, Math.min(seatsAllowed, flex ? windowFree : block?.seatsLeft ?? 1));
-  const seatCount = Math.min(seats, maxSeats);
+  const seatCount = exact ? Math.max(1, picked.length) : Math.min(seats, maxSeats);
 
   const feePerSeat = !drop ? 0 : flex ? (hours <= 3 ? drop.deposit : drop.depositLong) : drop.deposit;
   const priceAt = (h: number) => (priced && block && startTime ? dropSeatPrice(priced, inBlock(startTime, block), h) : 0);
@@ -260,6 +281,46 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heldCount]);
 
+  // Pre-pick a console that is free at the chosen time. When the first one is taken, say which one we
+  // picked and why, in a small notice that goes away by itself. A console the player tapped is kept.
+  const winKey = `${block?.id}|${win?.s}|${win?.e}|${setup}|${allConsoles.map((c) => c.key).join(',')}|${JSON.stringify(block?.byConsole ?? {})}`;
+  useEffect(() => {
+    if (!exact || !win) return;
+    const pool = multi && setupByHand.current ? allConsoles.filter((c) => c.tierId === setup) : allConsoles;
+    const current = picked.filter((k) => pool.some((c) => c.key === k));
+    if (current.length && (consoleByHand.current || current.every(freeAt))) return;
+    const free = pool.filter((c) => freeAt(c.key));
+    if (!free.length) return;
+    const next = free.slice(0, Math.max(1, Math.min(current.length || 1, free.length)));
+    setConsolePick(next.map((c) => c.key));
+    if (multi && next[0].tierId !== setup) setSetupPick(next[0].tierId);
+    if (free.length < pool.length) {
+      const when = clockRange(hhmm(win.s % 1440), hhmm(win.e % 1440));
+      setNotice(
+        free.length === 1
+          ? `${next[0].label} picked for you. It's the only console free at ${when}.`
+          : `${next.map((c) => c.label).join(' and ')} picked for you. ${pool.find((c) => !freeAt(c.key))?.label} is taken at ${when}.`,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [winKey, exact]);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4500);
+    return () => clearTimeout(t);
+  }, [notice]);
+  const tapConsole = (k: string) => {
+    consoleByHand.current = true;
+    setError(null);
+    setConsolePick((cur) => {
+      const mine = cur.filter((x) => allConsoles.some((c) => c.key === x));
+      if (mine.includes(k)) return mine.length > 1 ? mine.filter((x) => x !== k) : mine;
+      if (mine.length < seatsAllowed && seatsAllowed > 1 && mine.length > 0) return [...mine, k];
+      return [k];
+    });
+    track('drop_console_selected', { console: nameOf(k) });
+  };
+
   if (!drop) {
     return (
       <CustomerShell>
@@ -324,6 +385,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const back = () => {
     const q = new URLSearchParams();
     if (block) q.set('block', block.id);
+    if (setup) q.set('setup', setup);
     q.set('seats', String(seatCount));
     if (flex && startTime) {
       q.set('start', startTime);
@@ -340,6 +402,10 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     }
     if (needsCode && !code.trim()) {
       setError('Type the early access code first.');
+      return;
+    }
+    if (exact && picked.some((k) => !freeAt(k))) {
+      setError(`${picked.filter((k) => !freeAt(k)).map(nameOf).join(' and ')} is taken at that time. Pick another console or time.`);
       return;
     }
     if (flex && (!startTime || windowFree < seatCount)) {
@@ -360,7 +426,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         startTime: flex && startTime ? wireTime(startTime) : undefined,
         hours: flex ? hours : undefined,
         phone: drop.needsPhone ? phone : undefined,
-        setup: setup ?? undefined,
+        setup: exact ? undefined : setup ?? undefined,
+        units: exact ? picked : undefined,
       });
       pay(done.reservation, done.order);
     } catch (e) {
@@ -543,7 +610,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           {multi && (
             <div className="mb-3">
               <h2 className="sr-only">Pick your console</h2>
-              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Pick your console">
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="PlayStation or Xbox">
                 {setups.map((s) => {
                   const on = s.tierId === setup;
                   return (
@@ -553,6 +620,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                       role="radio"
                       aria-checked={on}
                       onClick={() => {
+                        setupByHand.current = true;
+                        consoleByHand.current = false;
+                        setConsolePick([]);
                         setSetupPick(s.tierId);
                         track('drop_setup_selected', { setup: s.name });
                       }}
@@ -652,6 +722,36 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           </section>
         )}
 
+        {/* The exact console: PS5 Pro 1, PS5 Pro 2... Each says if it is free at the picked time. */}
+        {canReserve && block && exact && startTime && (
+          <section aria-label="Pick your console" className="-mt-1">
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none]" role="group" aria-label="Pick your console">
+              {shownConsoles.map((c) => {
+                const on = picked.includes(c.key);
+                const ok = freeAt(c.key);
+                return (
+                  <button
+                    key={c.key}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => tapConsole(c.key)}
+                    className={`flex min-h-[44px] flex-none items-center gap-1.5 rounded-xl border px-3 text-body font-semibold text-text-primary transition-colors ${
+                      on ? (ok ? 'border-primary bg-primary/10' : 'border-error bg-error/10') : 'border-border bg-card hover:border-primary/50'
+                    }`}
+                  >
+                    <span className={`h-2 w-2 flex-none rounded-full ${ok ? 'bg-success' : 'bg-error'}`} aria-hidden />
+                    {c.label}
+                    {!ok && <span className="text-caption font-normal text-error">taken then</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {seatsAllowed > 1 && shownConsoles.length > 1 && (
+              <p className="mt-1 text-caption text-text-secondary">Bringing a friend? Tap a second console.</p>
+            )}
+          </section>
+        )}
+
         {/* Time and length: the same slider as a normal booking */}
         {canReserve && block && flex && startTime && (
           <TimelineRangePicker
@@ -666,9 +766,10 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               setError(null);
             }}
             bookedSlots={booked}
-            totalSeats={block.seatsTotal}
-            requestedSeats={seatCount}
+            totalSeats={exact ? Math.max(1, picked.length) : block.seatsTotal}
+            requestedSeats={exact ? Math.max(1, picked.length) : seatCount}
             remainingSeats={windowFree}
+            unitName={exact ? 'console' : 'seat'}
             skipCoachmark={false}
             minDurationMinutes={minH * 60}
             maxDurationMinutes={(lengths[lengths.length - 1] ?? drop.maxHours ?? 5) * 60}
@@ -677,6 +778,13 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             priceBands={bands}
             bookableUntilMin={limitMin(block)}
           >
+            {exact ? (
+              <p className={`py-1.5 text-caption ${windowFree ? 'text-text-secondary' : 'font-semibold text-error'}`}>
+                {windowFree
+                  ? `You play on ${pickedNames}. It's kept for you.`
+                  : `${picked.filter((k) => !freeAt(k)).map(nameOf).join(' and ') || 'That console'} is taken then. Move the time or pick another console.`}
+              </p>
+            ) : (
             <div className="flex items-center justify-between gap-3 py-1.5">
               <div className="min-w-0">
                 <span className="font-heading text-body font-bold text-text-primary">How many seats?</span>
@@ -704,6 +812,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 </button>
               </span>
             </div>
+            )}
           </TimelineRangePicker>
         )}
         {canReserve && block && flex && startTime && (split.length > 1 || minH > 1) && (
@@ -871,6 +980,15 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         </div>
       </div>
 
+      {/* Why this console was picked: a small notice that goes away by itself */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[148px] z-overlay flex justify-center px-4" role="status" aria-live="polite">
+        {notice && (
+          <p className="max-w-sm rounded-2xl bg-text-primary px-4 py-2.5 text-center text-caption font-semibold text-white shadow-overlay motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2">
+            {notice}
+          </p>
+        )}
+      </div>
+
       {/* Pay bar: one big button, the seat count and what it costs, in plain words */}
       <div className="fixed bottom-0 left-0 right-0 z-overlay border-t border-border bg-card px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2.5 shadow-overlay">
         <div className="mx-auto max-w-xl">
@@ -880,8 +998,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 <span className="min-w-0 truncate font-semibold text-text-primary">
                   {flex && startTime ? `${dayLabel(calDate(block.date, startTime))} · ${clock(startTime)} – ${clock(endLabel)}` : dayLabel(block.date)}
                 </span>
-                <span className={`flex-shrink-0 font-bold ${windowFree <= 2 ? 'text-error' : 'text-success'}`}>
-                  {flex ? (windowFree <= 0 ? 'Full at this time' : windowFree <= 2 ? `Only ${windowFree} ${windowFree === 1 ? 'seat' : 'seats'} left` : `${windowFree} seats open`) : ''}
+                <span className={`flex-shrink-0 font-bold ${exact ? (windowFree ? 'text-success' : 'text-error') : windowFree <= 2 ? 'text-error' : 'text-success'}`}>
+                  {exact ? (windowFree ? pickedNames : 'Taken then') : flex ? (windowFree <= 0 ? 'Full at this time' : windowFree <= 2 ? `Only ${windowFree} ${windowFree === 1 ? 'seat' : 'seats'} left` : `${windowFree} seats open`) : ''}
                 </span>
               </p>
               <button
@@ -994,8 +1112,8 @@ function Confirmation({
       </p>
       {b && (
         <p className="mt-1 text-body text-text-primary">
-          {dayLabel(b.date)} · {r.hours && r.startTime && r.endTime ? `${clock(r.startTime)} – ${clock(r.endTime)}` : blockTimes(b)} · {r.seats}{' '}
-          {r.seats === 1 ? 'seat' : 'seats'}
+          {dayLabel(b.date)} · {r.hours && r.startTime && r.endTime ? `${clock(r.startTime)} – ${clock(r.endTime)}` : blockTimes(b)} ·{' '}
+          {r.consoles?.length ? <span className="font-semibold">on {r.consoles.join(' + ')}</span> : `${r.seats} ${r.seats === 1 ? 'seat' : 'seats'}`}
         </p>
       )}
       {r.hours && r.arriveFrom && r.arriveUntil && r.status === 'confirmed' && (
@@ -1070,7 +1188,7 @@ function MySeats({ drop, list }: { drop: Drop; list: DropReservation[] }) {
                     {b ? dayLabel(b.date) : drop.title} · {r.hours && r.startTime && r.endTime ? `${clock(r.startTime)} – ${clock(r.endTime)}` : b ? blockTimes(b) : ''}
                   </span>
                   <span className="block text-caption text-text-secondary">
-                    {r.seats} {r.seats === 1 ? 'seat' : 'seats'} · {r.reference}
+                    {r.consoles?.length ? r.consoles.join(' + ') : `${r.seats} ${r.seats === 1 ? 'seat' : 'seats'}`} · {r.reference}
                   </span>
                 </span>
                 <span className="flex-shrink-0 text-body font-semibold text-primary">Show QR</span>

@@ -432,7 +432,27 @@ def block_keys(drop: Drop, block: DropBlock) -> list[str]:
 
 def short_name(tier) -> str:
     name = (tier.model or tier.name or "Console").strip() if tier is not None else "Seat"
-    return re.sub(r"PlayStation\s*", "PS", name)
+    name = re.sub(r"PlayStation\s*", "PS", name)
+    # Xbox models are stored as "Series X" / "Series S": say "Xbox" so nobody mixes them up.
+    if tier is not None and tier.platform is not None and tier.platform.value == "xbox" and not name.lower().startswith("xbox"):
+        name = f"Xbox {name}"
+    return name
+
+
+# Consoles that can be added to a drop straight from the drop page: key -> (platform, stored model, name).
+DROP_CONSOLE_MODELS = {
+    "ps5pro": ("playstation", "PS5 Pro", "PS5 Pro"),
+    "ps5": ("playstation", "PS5", "PS5"),
+    "seriesx": ("xbox", "Series X", "Xbox Series X"),
+    "seriess": ("xbox", "Series S", "Xbox Series S"),
+}
+
+
+def runs_game(drop: Drop, tier) -> bool:
+    """Can this setup run the drop's game? A game we have no rule for: yes (the owner knows)."""
+    from app.core.game_platforms import fit, rule_for
+    return fit(rule_for(drop.game), tier.platform.value if tier.platform else None, tier.specs, tier.name,
+               tier.model, getattr(tier, "tier_type", None)) != "no"
 
 
 def same_setup(keys: list[str], units: Optional[list], fallback: str) -> list[str]:
@@ -577,6 +597,62 @@ def setup_windows(drop: Drop, block: DropBlock, rows: list[DropReservation]) -> 
     return out
 
 
+def console_windows(drop: Drop, block: DropBlock, rows: list[DropReservation]) -> dict[str, list[tuple[int, int, int]]]:
+    """Booked stretches of each single console, so a player who picks PS5 Pro 2 sees exactly when it is taken."""
+    out: dict[str, list] = {k: [] for k in block_keys(drop, block)}
+    for r in rows:
+        s, e = res_window(r, block)
+        for u in r.units or []:
+            if u in out:
+                out[u].append((s, e, 1))
+    return out
+
+
+async def add_console_setup(db: AsyncSession, drop: Drop, model_key: str, count: int, price: float, actor: User) -> None:
+    """Add consoles the café has (an Xbox Series X, two more PS5s...) from the drop page: they become a
+    setup of the café and join the drop in one step. A setup of that model already there just grows."""
+    from app.models.hardware_tier import HardwareTier, PlatformType, TierType
+    from app.models.owner_audit_log import OwnerAuditLog
+    from app.services.platform_derivation import derive_tier_display
+    if model_key not in DROP_CONSOLE_MODELS:
+        raise DropError("Pick a console from the list.", "BAD_CONSOLE")
+    if not 1 <= count <= 20:
+        raise DropError("Add 1 to 20 consoles at a time.", "BAD_COUNT")
+    if price <= 0:
+        raise DropError("Set the normal price an hour for these consoles.", "BAD_PRICE")
+    platform, model, name = DROP_CONSOLE_MODELS[model_key]
+    from app.core.game_platforms import rule_for
+    rule = rule_for(drop.game)
+    if rule is not None and model_key not in rule["consoles"]:
+        raise DropError(f"{name} can't run {drop.game}.", "GAME_NOT_ON_RIG")
+    tier = (await db.execute(select(HardwareTier).where(
+        HardwareTier.cafe_id == drop.cafe_id, HardwareTier.is_active.is_(True),
+        HardwareTier.tier_type == TierType.GAMING.value, HardwareTier.platform == PlatformType(platform),
+        HardwareTier.model == model, HardwareTier.is_room.is_(False)).order_by(HardwareTier.created_at))).scalars().first()
+    if tier is None:
+        specs, _ = derive_tier_display(PlatformType(platform), model, False)
+        tier = HardwareTier(cafe_id=drop.cafe_id, name=name, platform=PlatformType(platform), model=model, specs=specs,
+                            total_seats=count, app_bookable_seats=count, reserved_walkin_seats=0, active_seats_count=count,
+                            price_per_hour=price, tier_type=TierType.GAMING.value, is_active=True)
+        db.add(tier)
+        first = 1
+    else:
+        first = (tier.total_seats or 0) + 1
+        tier.total_seats = (tier.total_seats or 0) + count
+        tier.app_bookable_seats = (tier.app_bookable_seats or 0) + count
+        tier.active_seats_count = (tier.active_seats_count or 0) + count
+    await db.flush()
+    db.add(OwnerAuditLog(owner_id=actor.id, action="drop.console_setup.added", entity_type="hardware_tier",
+                         entity_id=str(tier.id), before_summary=None,
+                         after_summary=json.dumps({"drop": str(drop.id), "model": name, "added": count})[:4000]))
+    keys = console_keys(drop) + [f"{tier.id}:{i}" for i in range(first, first + count)]
+    try:
+        await set_consoles(db, drop, keys, actor)
+    except Exception:
+        await db.rollback()  # the new setup only exists together with its place in the drop
+        raise
+
+
 async def holding_rows(db: AsyncSession, block: DropBlock) -> list[DropReservation]:
     return list((await db.execute(
         select(DropReservation).where(DropReservation.block_id == block.id, DropReservation.status.in_(HOLDING))
@@ -610,6 +686,8 @@ async def set_consoles(db: AsyncSession, drop: Drop, keys: list[str], actor: Use
             n = 0
         if t is None or not 1 <= n <= (t.total_seats or 0):
             raise DropError("One of those consoles isn't at your café. Refresh and pick again.", "BAD_CONSOLE")
+        if not runs_game(drop, t):
+            raise DropError(f"{short_name(t)} can't run {drop.game}. Pick consoles that can.", "GAME_NOT_ON_RIG")
         if k not in clean:
             clean.append(k)
     if not clean:
@@ -879,6 +957,7 @@ class Reserved:
 async def reserve(
     db: AsyncSession, drop: Drop, block_id: UUID, user: User, seats: int, code: Optional[str],
     start: Optional[time] = None, hours: Optional[float] = None, setup: Optional[str] = None,
+    units: Optional[list[str]] = None,
 ) -> Reserved:
     await release_expired(db, drop.id)
     await ensure_blocks(db, drop)
@@ -892,6 +971,10 @@ async def reserve(
     early = st == "early"
     if early and not code_ok(drop, code):
         raise DropError("Right now only people with the early access code can reserve. Check the code and try again.", "EARLY_ACCESS_CODE")
+    if units:
+        # The player picked the exact console(s): one seat each.
+        units = list(dict.fromkeys(str(u) for u in units))
+        seats = len(units)
     if seats < 1 or seats > drop.max_seats_per_user:
         raise DropError(f"You can reserve 1 to {drop.max_seats_per_user} seats.", "BAD_SEATS")
 
@@ -949,16 +1032,28 @@ async def reserve(
 
     # Which console type the player wants (PS5 or Xbox...). Old pages send nothing: the main one.
     counts = tier_counts(drop)
-    tier = str(setup) if setup else primary_tier(drop)
-    if tier not in counts:
-        raise DropError("That console isn't part of this drop. Pick another.", "BAD_SETUP")
     s_, e_ = _window(block, r_start, r_end)
     keys = block_keys(drop, block)
-    units = await _place(db, drop, block.id, {"s": s_, "e": e_, "n": seats, "fixed": None, "cur": [],
-                                              "allowed": [k for k in keys if key_tier(k) == tier]})
-    if units is None:
-        await db.rollback()
-        raise DropError("Sorry, these seats just got taken. Pick another time.", "SOLD_OUT")
+    picked = units
+    if picked:
+        if any(u not in keys for u in picked):
+            raise DropError("That console isn't part of this drop any more. Refresh and pick again.", "BAD_CONSOLE")
+        labels = {c["key"]: c["label"] for c in await console_list(db, drop)}
+        units = await _place(db, drop, block.id, {"s": s_, "e": e_, "n": seats, "fixed": picked, "cur": picked,
+                                                  "allowed": picked})
+        if units is None:
+            await db.rollback()
+            name = " and ".join(labels.get(u, "That console") for u in picked)
+            raise DropError(f"{name} was just taken for that time. Pick another console or time.", "CONSOLE_TAKEN")
+    else:
+        tier = str(setup) if setup else primary_tier(drop)
+        if tier not in counts:
+            raise DropError("That console isn't part of this drop. Pick another.", "BAD_SETUP")
+        units = await _place(db, drop, block.id, {"s": s_, "e": e_, "n": seats, "fixed": None, "cur": [],
+                                                  "allowed": [k for k in keys if key_tier(k) == tier]})
+        if units is None:
+            await db.rollback()
+            raise DropError("Sorry, these seats just got taken. Pick another time.", "SOLD_OUT")
 
     if r_start is not None:
         per_seat = seat_price(drop, begin, length, block.session_date)
@@ -974,6 +1069,7 @@ async def reserve(
         expires_at=now_utc() + timedelta(minutes=HOLD_MINUTES),
         checkin_token=secrets.token_urlsafe(18), used_early_access=early,
         start_time=r_start, end_time=r_end, hours=length // 60 if r_start is not None else None, units=units,
+        units_pinned=bool(picked),
     )
     db.add(reservation)
     await db.flush()
@@ -1102,6 +1198,10 @@ async def _retake(db: AsyncSession, res: DropReservation) -> Optional[list[str]]
         return None
     s, e = res_window(res, block)
     keys = block_keys(drop, block)
+    if res.units_pinned and res.units:
+        # The player picked that exact console: only that one, or nothing.
+        return await _place(db, drop, block.id, {"s": s, "e": e, "n": res.seats, "fixed": list(res.units),
+                                                 "cur": list(res.units), "allowed": list(res.units), "id": str(res.id)})
     return await _place(db, drop, block.id, {"s": s, "e": e, "n": res.seats, "fixed": None, "cur": res.units or [],
                                              "allowed": same_setup(keys, res.units, primary_tier(drop)), "id": str(res.id)})
 

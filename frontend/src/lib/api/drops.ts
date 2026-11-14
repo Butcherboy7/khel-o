@@ -35,18 +35,23 @@ export interface DropBlock {
   timePrices?: TimePrice[];
   /** Flexible drops: the same free/booked picture per console type (setup id). */
   bySetup?: Record<string, { seatsTotal: number; hourFree: Record<string, number>; bookedSlots: { startTime: string; endTime: string; seatsCount: number }[] }>;
+  /** Flexible drops: when each single console (key) is taken, so a player can pick PS5 Pro 1 or 2. */
+  byConsole?: Record<string, { startTime: string; endTime: string; seatsCount: number }[]>;
 }
 
 /** One console of a drop, e.g. PS5 Pro 2. key = "<setup id>:<number>". */
 export interface DropConsole { key: string; label: string; tierId: string; setup: string; platform: string | null }
 /** A console type in a drop (or at the café), with how many there are. */
-export interface DropSetup { tierId: string; name: string; platform: string | null; count: number }
+export interface DropSetup { tierId: string; name: string; platform: string | null; count: number; runsGame?: boolean }
 
 export interface DropReservation {
   id: string;
   reference: string;
   status: 'pending_payment' | 'confirmed' | 'checked_in' | 'expired' | 'cancelled' | 'refunded' | 'given_away';
   seats: number;
+  /** The console(s) it plays on, e.g. ["PS5 Pro 2"]. */
+  consoles?: string[];
+  consolesPicked?: boolean;
   hours?: number | null;
   startTime?: string | null;
   endTime?: string | null;
@@ -141,7 +146,7 @@ export async function getWalkInQr(slug: string): Promise<{ url: string; qr: stri
 
 export async function reserveDrop(
   slug: string,
-  body: { blockId: string; seats: number; code?: string; phone?: string; startTime?: string; hours?: number; setup?: string },
+  body: { blockId: string; seats: number; code?: string; phone?: string; startTime?: string; hours?: number; setup?: string; units?: string[] },
 ): Promise<ReserveResult> {
   return call(() => apiClient.post(`/api/v1/drops/${encodeURIComponent(slug)}/reserve`, body));
 }
@@ -225,6 +230,9 @@ export interface OwnerReservationRow {
   passUrl?: string | null;
   /** The calendar date they play (12 AM of a night session is the next date). */
   playDate?: string;
+  /** The console(s) it plays on, e.g. ["PS5 Pro 2"], and whether the player or café picked them. */
+  consoles?: string[];
+  consolesPicked?: boolean;
 }
 
 export interface OwnerDrop extends Omit<Drop, 'blocks' | 'myReservations'> {
@@ -241,6 +249,13 @@ export interface OwnerDrop extends Omit<Drop, 'blocks' | 'myReservations'> {
   totals: { paidReservations: number; seatsSold: number; depositsCollected: number; balanceToCollect: number; checkedIn: number; offlineBookings?: number; offlineSeats?: number; offlineCollected?: number };
   /** Every gaming setup at the café, for choosing the drop's consoles. */
   cafeSetups?: DropSetup[];
+  /** Consoles that can be added from the drop page (the ones that run the game). */
+  addableConsoles?: { model: string; name: string }[];
+}
+
+/** Add consoles the café has (an Xbox Series X...) to the café and to this drop in one step. */
+export async function addDropConsoleSetup(dropId: string, body: { model: string; count: number; pricePerHour: number }): Promise<OwnerDrop> {
+  return call(() => apiClient.post(`/api/v1/owner/drops/${dropId}/console-setups`, body));
 }
 
 /** Which consoles the drop uses ("<setup id>:<number>"), any mix of setups. */
