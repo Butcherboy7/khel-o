@@ -99,7 +99,7 @@ export function DropsManager({ base = '/owner/drops', admin = false, extra }: { 
         <EmptyState icon={<Ticket className="h-6 w-6" />} title="No drops yet" description="Tap New drop to make your first one." />
       )}
       {data?.drops.map((d, i) => {
-        const sold = d.seatsTotal - d.blocks.reduce((n, b) => n + b.seatsLeft, 0);
+        const sold = d.seatsSold ?? d.seatsTotal - d.blocks.reduce((n, b) => n + b.seatsLeft, 0);
         return (
           <Card key={d.id} elevation="resting" data-tour={i === 0 ? 'drops-list' : undefined} className="relative transition-shadow hover:shadow-card">
             <CardContent className="flex flex-col gap-3 p-4">
@@ -132,7 +132,7 @@ export function DropsManager({ base = '/owner/drops', admin = false, extra }: { 
               <dl className="grid grid-cols-3 gap-2 rounded-xl bg-surface p-2.5 text-center">
                 {[
                   ['Seats sold', `${sold} of ${d.seatsTotal}`],
-                  ['Paid', String(d.paidReservations)],
+                  ['Bookings', String(d.paidReservations)],
                   ['Per hour', rupees(d.pricePerHour)],
                 ].map(([k, v]) => (
                   <div key={k} className="min-w-0">

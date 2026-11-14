@@ -42,8 +42,8 @@ export function BrokenMachines({ cafeId, tierId, isRoom = false, onChanged, init
     <div className="mt-2 flex flex-col gap-2">
       <p className="text-caption text-text-secondary">
         {isRoom
-          ? 'Type the cabin as you know it, like “Blue cabin”. Customers can’t book it until you mark it open again, and they never see its name.'
-          : 'Type the machine as you know it, like “PC 7”. Customers can’t book it until you mark it fixed, and they never see its name.'}
+          ? 'Type the cabin’s name, like “Blue cabin”. Players never see it.'
+          : 'Type the machine’s name, like “PC 7”. Players never see it.'}
       </p>
       <form
         className="flex items-center gap-2"

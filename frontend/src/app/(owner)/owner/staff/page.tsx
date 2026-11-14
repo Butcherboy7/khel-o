@@ -330,9 +330,7 @@ export default function OwnerStaffPage() {
               bare
               icon={<Users className="h-7 w-7" aria-hidden="true" />}
               title="Nobody yet"
-              description="They get an email to set a password."
-              actionLabel="Invite someone"
-              onAction={() => setIsInviteOpen(true)}
+              description="Tap Invite someone. They get an email to set a password."
             />
           ) : (
             <div className="flex flex-col gap-3">

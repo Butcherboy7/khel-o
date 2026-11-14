@@ -168,7 +168,7 @@ export default function OwnerNotificationsPage() {
           <Bell className="h-16 w-16 mb-4 opacity-30 text-primary" />
           <h2 className="font-heading text-h3 font-bold text-text-primary mb-2">All caught up!</h2>
           <p className="text-body text-text-secondary">
-            New bookings, cancellations, check-ins, and payment issues will show up here.
+            Nothing new right now.
           </p>
         </div>
       )}

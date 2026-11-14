@@ -233,21 +233,13 @@ export default function OwnerSettingsPage() {
 
       {/* Section 1b: Payouts */}
       <div className="flex flex-col gap-2" data-qf="payout">
-        <h2 className="font-heading text-h3 font-bold text-text-primary">Where we send your money</h2>
-        {/* min-h reserves roughly the "account already set up" card's real
-            height so PayoutDetailsCard's own internal data fetch (which starts
-            from a much shorter h-16 skeleton) doesn't grow the page under the
-            controls below once it resolves — that growth previously shifted
-            "Edit Profile" down far enough that a fast click landed on
-            "Resume Bookings" instead, silently un-pausing live bookings. */}
-        <div className="min-h-[300px] sm:min-h-[240px]">
-          <PayoutDetailsCard />
-        </div>
+        {/* Sits below the pause/emergency controls now, so its own loading
+            growth can only move the login card, never a bookings switch. */}
+        <PayoutDetailsCard />
       </div>
 
       {/* Section 1a: Login & Security */}
       <div className="flex flex-col gap-2" data-qf="login">
-        <h2 className="font-heading text-h3 font-bold text-text-primary">Your login</h2>
         <AccountCredentialsCard />
       </div>
 
@@ -271,7 +263,7 @@ export default function OwnerSettingsPage() {
           To close your KHEL-O account as well, use{' '}
           <Link
             href="/delete-account"
-            className="font-semibold text-primary underline underline-offset-2"
+            className="inline-block py-2 font-semibold text-primary underline underline-offset-2"
           >
             Delete account
           </Link>

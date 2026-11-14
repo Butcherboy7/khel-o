@@ -533,12 +533,12 @@ export default function HardwareTiersPage() {
                   </div>
 
                   {tier.isActive && (
-                    <div className="border-t border-border pt-3">
+                    <div className="border-t border-border pt-2">
                       <button
                         type="button"
                         data-tour={i === 0 ? 'tier-photos-open' : undefined}
                         onClick={() => setPhotosTierId(photosTierId === tier.id ? null : tier.id)}
-                        className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-text-primary"
+                        className="-my-2 flex min-h-[44px] w-full items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-text-primary"
                       >
                         {photosTierId === tier.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                         <span>Photos of this setup{(tier.photos?.length ?? 0) > 0 ? ` (${tier.photos!.length})` : ''}</span>
@@ -548,12 +548,12 @@ export default function HardwareTiersPage() {
                   )}
 
                   {tier.tierType !== 'activity' && tier.isActive && (
-                    <div className="border-t border-border pt-3">
+                    <div className="border-t border-border pt-2">
                       <button
                         type="button"
                         data-tour={i === 0 ? 'tier-broken' : undefined}
                         onClick={() => setExpandedUnitsTierId(expandedUnitsTierId === tier.id ? null : tier.id)}
-                        className="flex items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-text-primary"
+                        className="-my-2 flex min-h-[44px] w-full items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-text-primary"
                       >
                         {expandedUnitsTierId === tier.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                         <span>Something broken?</span>
@@ -572,7 +572,7 @@ export default function HardwareTiersPage() {
                   )}
 
                   {tier.tierType === 'activity' && (
-                    <div className="border-t border-border pt-3">
+                    <div className="border-t border-border pt-2">
                       <button
                         type="button"
                         onClick={() =>

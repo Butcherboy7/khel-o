@@ -527,9 +527,7 @@ export default function OwnerOffersPage() {
       {!isLoading && !isError && promotions.length === 0 && (
         <EmptyState
           title="No offers running"
-          description="Fill quiet hours: try 20% off weekday afternoons, or 4 hours for ₹360."
-          actionLabel="Create your first offer"
-          onAction={openCreate}
+          description="Fill quiet hours: try 20% off weekday afternoons, or 4 hours for ₹360. Tap New offer to start."
         />
       )}
 

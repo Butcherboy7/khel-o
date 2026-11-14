@@ -412,7 +412,10 @@ export default function OwnerDashboardPage() {
   // bookings with a CAPTURED payment) rather than summing todayBookings client-side,
   // which has no status filter and would double-count pending/failed payments.
   const totalEarningsToday = dashboardData?.revenueToday ?? 0;
-  const seatsFreeNow = Math.max(0, Math.min(appSeatCap, totalSeatsCount) - occupiedNowCount);
+  // Seats nobody is sitting at right now, online-bookable or not. Capping this
+  // at the online limit said "0 free" in an empty café with online booking off.
+  const seatsFreeNow = Math.max(0, totalSeatsCount - occupiedNowCount);
+  const showClosedOnlineBanner = activeRole !== 'staff' && Boolean(statusState.cafe) && totalSeatsCount > 0 && appSeatCap === 0 && !cafeSettings?.bookingsPaused && !cafeSettings?.isEmergencyMode;
 
   // "Needs Your Attention" = bookings whose session start time has already
   // passed but nobody checked them in yet — the thing an owner actually
@@ -494,7 +497,7 @@ export default function OwnerDashboardPage() {
 
       {/* The one problem worth shouting about: the café is live but nobody can
           book it online (every seat kept for walk-ins). One tap fixes it. */}
-      {!isStaff && statusState.cafe && totalSeatsCount > 0 && appSeatCap === 0 && !isPaused && !cafeSettings?.isEmergencyMode && (
+      {showClosedOnlineBanner && (
         <div role="status" className="flex flex-col gap-3 rounded-2xl border border-amber-400/50 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="flex items-start gap-2 text-body text-amber-950">
             <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" aria-hidden="true" />
@@ -775,7 +778,7 @@ export default function OwnerDashboardPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {appSeatCap !== totalSeatsCount && (
+          {appSeatCap !== totalSeatsCount && !showClosedOnlineBanner && (
             <Button variant="secondary" size="sm" onClick={() => handleUpdateSeatCap(totalSeatsCount)} disabled={isUpdatingCap}>
               Open all {totalSeatsCount}
             </Button>

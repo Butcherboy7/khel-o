@@ -436,7 +436,7 @@ export default function OwnerAvailabilityPage() {
               <span className="text-caption text-text-secondary">
                 {selectedTier.tierType === 'activity'
                   ? 'Mark a table or machine as out of order on Setups & prices.'
-                  : `A ${selectedTier.name} machine nobody can book until you fix it.`}
+                  : 'Mark it here and nobody can book it.'}
               </span>
             </div>
           </div>

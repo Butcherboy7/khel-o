@@ -81,12 +81,10 @@ export function PayoutDetailsCard() {
           </div>
           <div className="flex flex-col gap-1.5 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-heading text-body font-bold text-text-primary">Payout Details</h3>
+              <h2 className="font-heading text-body-emphasis font-bold text-text-primary">Where we send your money</h2>
               {destination && <Badge variant="default" size="sm">On file</Badge>}
             </div>
-            <p className="text-caption text-text-secondary max-w-md">
-              The UPI ID or bank account KHEL-O sends your money to.
-            </p>
+            <p className="text-caption text-text-secondary max-w-md">Your UPI ID or bank account.</p>
           </div>
         </div>
 

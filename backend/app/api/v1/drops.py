@@ -486,7 +486,13 @@ async def list_my_drops(db: AsyncSession = Depends(get_db), user: User = Depends
         blocks = await svc.blocks_of(db, drop.id)
         item = await _out(db, drop, cafe, blocks)
         item["paidReservations"] = (await db.execute(select(func.count()).select_from(DropReservation).where(
-            DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.PAID)))).scalar_one()
+            DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.PAID),
+            DropReservation.source != "block"))).scalar_one()
+        # Same count as the drop page's "Seats sold" (online + sold at the café,
+        # not the owner's own time blocks), so the two screens agree.
+        item["seatsSold"] = int((await db.execute(select(func.coalesce(func.sum(DropReservation.seats), 0)).where(
+            DropReservation.drop_id == drop.id, DropReservation.status.in_(svc.PAID),
+            DropReservation.source != "block"))).scalar_one())
         out.append(item)
     cafes_stmt = select(Cafe.id, Cafe.name, Cafe.opening_time, Cafe.closing_time).order_by(Cafe.name)
     if "admin" not in roles:

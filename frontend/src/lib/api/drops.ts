@@ -264,7 +264,7 @@ export async function setDropConsoles(dropId: string, keys: string[]): Promise<O
 }
 
 export interface OwnerDropList {
-  drops: (Omit<Drop, 'myReservations'> & { paidReservations: number })[];
+  drops: (Omit<Drop, 'myReservations'> & { paidReservations: number; seatsSold?: number })[];
   cafes: { id: string; name: string; openingTime?: string | null; closingTime?: string | null; tiers: OwnerDropTier[] }[];
   suggestedPrice: [number, number];
   /** Games we know the systems for (GTA 6: PS5, PS5 Pro, Xbox Series X|S). */
