@@ -571,14 +571,14 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
                 {b.seatsTotal - b.seatsLeft} of {b.seatsTotal} taken
               </p>
             </div>
-            <p className="-mt-2 text-body text-text-secondary">{blockTimes(b)} · {rupees(b.pricePerSeat)} a seat</p>
+            <p className="-mt-2 text-body text-text-secondary">{blockTimes(b)}{d.maxHours ? '' : ` · ${rupees(b.pricePerSeat)} a seat`}</p>
             {b.reservations.length === 0 ? (
               <p className="text-caption text-text-secondary">No reservations yet.</p>
             ) : (
               <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
                 {b.reservations.map((r) => (
-                  <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5">
-                    <span className="min-w-0 flex-1">
+                  <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
+                    <span className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                       <span className="block truncate font-semibold text-text-primary">
                         {r.name} · {r.seats} {r.seats === 1 ? 'seat' : 'seats'}
                       </span>

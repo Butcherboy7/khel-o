@@ -662,8 +662,13 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
         })
     data = await _out(db, drop, cafe, blocks)
     data["earlyAccessCode"] = drop.early_access_code
-    for b in data["blocks"]:
+    for b, blk in zip(data["blocks"], blocks):
         b["reservations"] = by_block.get(UUID(b["id"]), [])
+        if drop.max_hours:
+            # Same booked/free picture the players' slider shows, for the café's own slider.
+            wins = await svc._holding_windows(db, blk)
+            b["hourFree"] = svc.seats_free(wins, blk)
+            b["bookedSlots"] = svc.booked_windows(wins)
     data["waitlistCount"] = (await db.execute(
         select(func.count()).select_from(DropWaitlist).where(DropWaitlist.drop_id == drop.id))).scalar_one()
     data["funnel"] = await svc.funnel(db, drop)
@@ -757,7 +762,7 @@ class CheckInRequest(_Camel):
 
 class OfflineBookingIn(_Camel):
     block_id: UUID
-    name: str = Field(..., min_length=1, max_length=120)
+    name: Optional[str] = Field(None, max_length=120)
     phone: Optional[str] = Field(None, max_length=20)
     seats: int = Field(1, ge=1, le=20)
     start_time: Optional[time] = None

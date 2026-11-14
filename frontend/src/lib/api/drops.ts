@@ -350,7 +350,7 @@ export async function giveAwayReservation(id: string): Promise<DropReservation> 
 
 export interface OfflineBookingInput {
   blockId: string;
-  name: string;
+  name?: string;
   phone?: string;
   seats: number;
   /** "HH:MM", flexible drops only. */

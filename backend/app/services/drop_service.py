@@ -621,8 +621,8 @@ async def book_offline(
     await ensure_blocks(db, drop)
     if drop.status == "cancelled" or state(drop) == "ended":
         raise DropError("This drop is over, so it can't take bookings.", "DROP_ENDED")
-    name = (name or "").strip()
-    if not name or len(name) > 120:
+    name = (name or "").strip() or "Booked at the café"
+    if len(name) > 120:
         raise DropError("Write the customer's name (up to 120 letters).", "NEED_NAME")
     phone = (phone or "").strip()
     if phone:
@@ -641,8 +641,9 @@ async def book_offline(
         if hours is None or start is None:
             raise DropError("Pick when it starts and how many hours.", "NEED_HOURS")
         length = round(hours * 60)
-        if length < 60 or length > drop.max_hours * 60 or length % STEP:
-            raise DropError(f"Choose 1 to {drop.max_hours} hours.", "BAD_HOURS")
+        # The café can block any stretch inside the day (a whole evening if it sold it by phone).
+        if length < 60 or length % STEP:
+            raise DropError("Pick at least 1 hour.", "BAD_HOURS")
         bs, be = block_span(block)
         begin = at_in_block(start, block)
         end_min = begin + length

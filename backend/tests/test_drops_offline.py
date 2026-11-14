@@ -49,11 +49,13 @@ async def test_removing_an_offline_seat_frees_it_and_only_the_cafe_can():
 
 
 @pytest.mark.asyncio
-async def test_offline_needs_a_name_and_a_real_phone_and_other_cafes_are_refused():
+async def test_offline_name_is_optional_phone_must_be_real_and_other_cafes_are_refused():
     drop, block, _b2, owner, cafe = await _drop(seats=3, deposit=100)
     stranger = await _user()
     async with _client() as c:
-        assert (await _offline(c, owner, drop, block, name="  ")).status_code in (400, 422)
+        # Just marking hours booked: no name needed, it reads "Booked at the café".
+        quick = await _offline(c, owner, drop, block, name="  ")
+        assert quick.status_code == 201, quick.text
         assert (await _offline(c, owner, drop, block, phone="12")).status_code == 400
         assert (await _offline(c, owner, drop, block, phone=None)).status_code == 201
         assert (await _offline(c, stranger, drop, block)).status_code in (401, 403)
