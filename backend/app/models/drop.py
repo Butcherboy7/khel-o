@@ -60,6 +60,9 @@ class Drop(Base):
     daily_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # The cafe's rig (PS5, Xbox, PC...) this drop runs on. daily_seats of it are kept for the drop.
     hardware_tier_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hardware_tiers.id", ondelete="SET NULL"), nullable=True)
+    # The consoles the drop uses, any mix of the café's setups: ["<tier id>:1", "<tier id>:2", "<xbox tier id>:1"].
+    # Null = the first daily_seats consoles of hardware_tier_id. daily_seats is kept equal to its length.
+    consoles: Mapped[list | None] = mapped_column(JSON, nullable=True)
     starts_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     ends_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     max_seats_per_user: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
@@ -94,6 +97,8 @@ class DropBlock(Base):
     seats_taken: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Hours the café took away from this date. Kept (not deleted) so past reservations keep their row.
     closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # Goes up by one on every booking change, so a change made from an old read is refused.
+    rev: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
 
@@ -106,6 +111,10 @@ class DropReservation(Base):
     block_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("drop_blocks.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     seats: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # The console(s) this booking sits on ("<tier id>:<number>"), one per seat. Pinned = the café chose
+    # them, so they never move; otherwise the server may move it to another console of the same setup.
+    units: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    units_pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     # Flexible-hours reservations only (null = the whole session, the old way).
     start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     end_time: Mapped[time | None] = mapped_column(Time, nullable=True)

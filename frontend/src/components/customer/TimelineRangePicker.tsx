@@ -570,9 +570,8 @@ export function TimelineRangePicker({
   }, [priceBands]);
   const bandAt = (m: number) =>
     bandRows.find((b) => (m >= b.s0 && m < b.e0) || (m - 1440 >= b.s0 && m - 1440 < b.e0) || (m + 1440 >= b.s0 && m + 1440 < b.e0));
-  const kindsShown = ownerView
-    ? (['online', 'walkin', 'blocked'] as SegKind[]).filter((k) => segments.some((x) => x.kind === k))
-    : [];
+  // The café always sees every state in the key, so the colours mean the same thing on every day.
+  const kindsShown: SegKind[] = ownerView ? ['online', 'walkin', 'blocked'] : [];
 
   const isSelectionValid = useMemo(() => {
     if (selStart < minValidStart || selEnd > closeMin) return false;
@@ -956,9 +955,11 @@ export function TimelineRangePicker({
                 style={{
                   width: '100%',
                   height: 7,
-                  backgroundColor: '#ffffff',
-                  backgroundImage:
-                    'repeating-linear-gradient(135deg, #374151 0, #374151 3px, #e5e7eb 0, #e5e7eb 7px)',
+                  // The café's picked hours are a plain bar, so they never look like a striped booking.
+                  backgroundColor: ownerView ? '#111827' : '#ffffff',
+                  backgroundImage: ownerView
+                    ? 'none'
+                    : 'repeating-linear-gradient(135deg, #374151 0, #374151 3px, #e5e7eb 0, #e5e7eb 7px)',
                   borderRadius: 2,
                   border: previewValid ? '1px solid #374151' : '1px solid #ef4444',
                 }}

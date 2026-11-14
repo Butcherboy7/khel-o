@@ -5,6 +5,7 @@ import { Ban, CalendarDays, Check, Copy, IndianRupee, Minus, Plus, RotateCcw, Us
 import { Button, Card, CardContent, Input } from '@/components/ui';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
 import { RemoveOffline } from '@/components/drops/OfflineBooking';
+import { ConsolePicker, ConsoleStrip, pickedLabel, type ConsoleState } from '@/components/drops/ConsolePicker';
 import {
   addOfflineBooking,
   removeOfflineBooking,
@@ -81,7 +82,20 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [undo, setUndo] = useState<Undo | null>(null);
 
-  const booked = useMemo(() => block?.bookedSlots ?? [], [block]);
+  // Which consoles the café is working on: [] = all of them (the overview).
+  const consoles = useMemo(() => d.consoles ?? [], [d.consoles]);
+  const [pick, setPick] = useState<string[]>([]);
+  const picked = pick.filter((k) => consoles.some((c) => c.key === k));
+  /** Bookings as the slider should see them: only the picked consoles, when some are picked. */
+  const forPick = (slots: NonNullable<DropBlock['bookedSlots']>) =>
+    picked.length
+      ? slots
+          .map((s) => ({ ...s, seatsCount: (s.units ?? []).filter((u) => picked.includes(u)).length }))
+          .filter((s) => s.seatsCount > 0)
+      : slots;
+  const capOf = (b: DropBlock) => (picked.length ? picked.length : b.seatsTotal);
+
+  const booked = useMemo(() => forPick(block?.bookedSlots ?? []), [block, picked.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const bands = useMemo(() => block?.timePrices ?? d.dayPrices?.[day] ?? d.timePrices ?? [], [block, d.dayPrices, d.timePrices, day]);
   const sessionLen = block ? minutesOf(block.endTime) - minutesOf(block.startTime) : 0;
   const s0 = block ? (start ? inBlock(start, block) : minutesOf(block.startTime)) : 0;
@@ -89,8 +103,21 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
   const e0 = s0 + lengthMin;
   const startValue = hhmm(s0);
   const endValue = hhmm(e0);
-  const free = block ? calculateWindowRemainingSeats(block.seatsTotal, booked, s0, e0) : 0;
+  const total = block ? capOf(block) : 0;
+  const free = block ? calculateWindowRemainingSeats(total, booked, s0, e0) : 0;
   const n = Math.min(seats, Math.max(1, free));
+
+  // What each console is doing at the picked hours.
+  const states = useMemo(() => {
+    const out: Record<string, ConsoleState> = {};
+    for (const s of block?.bookedSlots ?? []) {
+      if (!(minutesOf(s.startTime) < e0 && s0 < minutesOf(s.endTime))) continue;
+      for (const u of s.units ?? []) out[u] ??= s.kind ?? 'online';
+    }
+    return out;
+  }, [block, s0, e0]);
+  const busyPicked = picked.filter((k) => (states[k] ?? 'free') !== 'free');
+  const pickName = pickedLabel(consoles, picked);
   const priced = { ...d, timePrices: bands };
   const usualRate = (bands.find((b) => {
     const bs = minutesOf(b.start);
@@ -103,7 +130,7 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
   useEffect(() => {
     setAsking(false);
     setMsg(null);
-  }, [day, blockId, mode, start, hours]);
+  }, [day, blockId, mode, start, hours, pick]);
 
   const pickDay = (x: string) => {
     setDate(x);
@@ -137,7 +164,8 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
       async () => {
         const r = await addOfflineBooking(d.id, {
           blockId: block!.id,
-          seats: kind === 'block' ? free : n,
+          seats: picked.length ? picked.length : kind === 'block' ? free : n,
+          units: picked.length ? picked : undefined,
           startTime: flexible ? wireTime(startValue) : undefined,
           hours: flexible ? lengthMin / 60 : undefined,
           kind,
@@ -153,9 +181,15 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
         setUndoId(r.id);
       },
       kind === 'block'
-        ? `Blocked ${when}. Nobody can book it online.`
-        : `Marked ${when} as sold for ${n} ${n === 1 ? 'seat' : 'seats'}. Players can’t pick it now.`,
+        ? `Blocked ${picked.length ? pickName : 'all free consoles'}, ${when}. Nobody can book ${picked.length === 1 ? 'it' : 'them'} online.`
+        : `Marked ${picked.length ? pickName : `${n} ${n === 1 ? 'console' : 'consoles'}`} as sold, ${when}. Players can’t pick ${picked.length === 1 || n === 1 ? 'it' : 'them'} now.`,
     );
+  const whatWillHappen = (kind: 'walkin' | 'block') => {
+    const who = picked.length ? pickName : kind === 'block' ? `all ${free} free ${free === 1 ? 'console' : 'consoles'}` : `${n} ${n === 1 ? 'console' : 'consoles'}`;
+    return kind === 'block'
+      ? `Block ${who}, ${when}? Nobody can book ${picked.length === 1 || (!picked.length && free === 1) ? 'it' : 'them'} online.`
+      : `Mark ${who} as sold to a walk-in, ${when}? The other consoles stay open.`;
+  };
 
   // The new booking's id arrives inside run(); keep it for Undo.
   const [undoId, setUndoId] = useState<string | null>(null);
@@ -186,7 +220,7 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
       const z = minutesOf(b.endTime);
       for (let m = a; m < z; m += 30) {
         let used = 0;
-        for (const s of b.bookedSlots ?? []) {
+        for (const s of forPick(b.bookedSlots ?? [])) {
           const ss = minutesOf(s.startTime);
           const se = minutesOf(s.endTime);
           if (m >= ss && m < se) {
@@ -194,14 +228,17 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
             out[s.kind ?? 'online'] += (s.seatsCount * 30) / 60;
           }
         }
-        out.free += (Math.max(0, b.seatsTotal - used) * 30) / 60;
+        out.free += (Math.max(0, capOf(b) - used) * 30) / 60;
         out.open += 0.5;
       }
     }
     return out;
-  }, [sessions]);
-  const unit = (d.seatsPerSlot ?? 1) > 1 ? 'seat-hrs' : 'hrs';
-  const onDay = sessions.flatMap((b) => (b.bookedSlots ?? []).filter((s) => s.kind && s.kind !== 'online' && s.id));
+  }, [sessions, picked.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const many = (picked.length || (d.seatsPerSlot ?? 1)) > 1;
+  const labelOf = (k: string) => consoles.find((c) => c.key === k)?.label ?? '';
+  const onDay = sessions.flatMap((b) =>
+    (b.bookedSlots ?? []).filter((s) => s.kind && s.kind !== 'online' && s.id && (!picked.length || (s.units ?? []).some((u) => picked.includes(u)))),
+  );
 
   if (d.status === 'cancelled' || !dates.length) return null;
 
@@ -210,7 +247,8 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
   const lengthOptions: number[] = [];
   if (block) for (let m = 60; m <= Math.min(480, minutesOf(block.endTime) - s0); m += 30) lengthOptions.push(m);
 
-  const actionDisabled = busy || !block || block.started || (mode !== 'price' && free < 1);
+  const takenText = busyPicked.length ? `${pickedLabel(consoles, busyPicked)} ${busyPicked.length === 1 ? 'is' : 'are'} taken then` : '';
+  const actionDisabled = busy || !block || block.started || (mode !== 'price' && (picked.length ? busyPicked.length > 0 : free < 1));
 
   return (
     <Card elevation="resting" data-tour="drop-offline">
@@ -255,6 +293,11 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
           })}
         </div>
 
+        {/* Which console(s): all, one, or several */}
+        {consoles.length > 1 && mode !== 'price' && (
+          <ConsolePicker consoles={consoles} value={picked} onChange={setPick} states={states} when={block ? `at ${range}` : 'on this day'} />
+        )}
+
         {/* What the day looks like */}
         {sessions.length > 0 && (
           <dl className="grid grid-cols-4 gap-1.5 text-center" aria-label={`${dayLabel(day)} at a glance`}>
@@ -268,11 +311,16 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
                 <dt className="text-[11px] font-semibold uppercase tracking-wide opacity-80">{label as string}</dt>
                 <dd className="font-heading text-body-emphasis font-bold tabular-nums">
                   {Number.isInteger(v as number) ? (v as number) : (v as number).toFixed(1)}
-                  <span className="ml-0.5 text-[11px] font-semibold opacity-70">{unit}</span>
+                  <span className="ml-0.5 text-[11px] font-semibold opacity-70">hrs</span>
                 </dd>
               </div>
             ))}
           </dl>
+        )}
+        {sessions.length > 0 && many && (
+          <p className="-mt-2 text-caption text-text-secondary">
+            Hours added up across {picked.length ? pickName : `all ${consoles.length || d.seatsPerSlot} consoles`}.
+          </p>
         )}
 
         {!block ? (
@@ -326,7 +374,21 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
                 </button>
               ))}
             </div>
-            <p className="-mt-2 text-caption text-text-secondary">{MODES.find((m) => m.id === mode)?.hint}</p>
+            <p className="-mt-2 text-caption text-text-secondary">
+              {MODES.find((m) => m.id === mode)?.hint}
+              {mode === 'price' && consoles.length > 1 ? '. Applies to every console.' : ''}
+            </p>
+
+            {/* Every console at the picked hours (the overview); tap one to work on it alone */}
+            {consoles.length > 1 && mode !== 'price' && !picked.length && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-caption text-text-secondary">
+                  <span className="font-semibold text-text-primary">{range}</span> · {consoles.length - Object.keys(states).filter((k) => consoles.some((c) => c.key === k)).length} of{' '}
+                  {consoles.length} free. Tap one to pick it.
+                </p>
+                <ConsoleStrip consoles={consoles} states={states} onPick={(k) => setPick([k])} />
+              </div>
+            )}
 
             {flexible ? (
               <TimelineRangePicker
@@ -341,7 +403,7 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
                   setHours(h);
                 }}
                 bookedSlots={booked}
-                totalSeats={block.seatsTotal}
+                totalSeats={total}
                 requestedSeats={mode === 'price' ? 0 : n}
                 remainingSeats={free}
                 skipCoachmark
@@ -351,10 +413,15 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
                 ownerView
                 priceBands={bands}
               >
-                {mode === 'walkin' && <SeatStepper n={n} max={Math.max(1, free)} free={free} onChange={setSeats} />}
-                {mode === 'block' && (
+                {mode !== 'price' && picked.length > 0 && (
+                  <p className={`py-1.5 text-caption ${busyPicked.length ? 'font-semibold text-error' : 'text-text-secondary'}`}>
+                    {busyPicked.length ? `${takenText}. Move the hours or pick another console.` : `${pickName} ${picked.length === 1 ? 'is' : 'are'} free in these hours.`}
+                  </p>
+                )}
+                {mode === 'walkin' && !picked.length && <SeatStepper n={n} max={Math.max(1, free)} free={free} onChange={setSeats} />}
+                {mode === 'block' && !picked.length && (
                   <p className="py-1.5 text-caption text-text-secondary">
-                    Blocks all {free} free {free === 1 ? 'seat' : 'seats'} in these hours.
+                    Blocks all {free} free {free === 1 ? 'console' : 'consoles'} in these hours. To close the whole drop, pick every console.
                   </p>
                 )}
                 {mode === 'price' && (
@@ -392,7 +459,7 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
             ) : (
               <div className="rounded-2xl border border-border p-4">
                 <p className="text-body text-text-secondary">{clockRange(block.startTime, block.endTime)}</p>
-                <SeatStepper n={n} max={Math.max(1, free)} free={free} onChange={setSeats} />
+                {!picked.length && <SeatStepper n={n} max={Math.max(1, free)} free={free} onChange={setSeats} />}
               </div>
             )}
 
@@ -438,7 +505,8 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
             <div className="rounded-xl bg-surface-hover px-3 py-2.5 text-caption text-text-secondary">
               <p className="font-heading text-body-emphasis font-bold text-text-primary">{when}</p>
               <p>
-                {hrs(lengthMin)} · {free} of {block.seatsTotal} {block.seatsTotal === 1 ? 'seat' : 'seats'} free · players pay{' '}
+                {picked.length ? `${pickName} · ` : ''}
+                {hrs(lengthMin)} · {free} of {total} {total === 1 ? 'console' : 'consoles'} free · players pay{' '}
                 {rupees(dropSeatPrice(priced, s0, lengthMin / 60))} a seat
               </p>
             </div>
@@ -466,16 +534,43 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
 
             {/* Do it */}
             <div className="flex flex-col gap-2">
-              {mode === 'walkin' && (
-                <Button onClick={() => markSeats('walkin')} disabled={actionDisabled} fullWidth className="bg-violet-600 hover:bg-violet-700">
-                  {busy ? 'Saving…' : free < 1 ? 'Already full at this time' : `Mark as sold · ${range}`}
-                </Button>
-              )}
-              {mode === 'block' && (
-                <Button onClick={() => markSeats('block')} disabled={actionDisabled} fullWidth className="bg-gray-700 hover:bg-gray-800">
-                  {busy ? 'Saving…' : free < 1 ? 'Nothing free to block here' : `Block ${range}`}
-                </Button>
-              )}
+              {(mode === 'walkin' || mode === 'block') &&
+                (asking ? (
+                  <div className={`flex flex-col gap-2 rounded-xl border p-3 ${mode === 'walkin' ? 'border-violet-300 bg-violet-50' : 'border-gray-300 bg-gray-100'}`}>
+                    <p className={`text-caption ${mode === 'walkin' ? 'text-violet-900' : 'text-gray-800'}`}>{whatWillHappen(mode)}</p>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => markSeats(mode)}
+                        disabled={busy}
+                        className={`flex-1 ${mode === 'walkin' ? 'bg-violet-600 hover:bg-violet-700' : 'bg-gray-700 hover:bg-gray-800'}`}
+                      >
+                        <Check className="h-4 w-4" /> {busy ? 'Saving…' : mode === 'walkin' ? 'Yes, mark as sold' : 'Yes, block it'}
+                      </Button>
+                      <Button variant="secondary" onClick={() => setAsking(false)}>
+                        Back
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={() => setAsking(true)}
+                    disabled={actionDisabled}
+                    fullWidth
+                    className={mode === 'walkin' ? 'bg-violet-600 hover:bg-violet-700' : 'bg-gray-700 hover:bg-gray-800'}
+                  >
+                    {busy
+                      ? 'Saving…'
+                      : picked.length && busyPicked.length
+                        ? takenText
+                        : !picked.length && free < 1
+                          ? mode === 'walkin'
+                            ? 'Already full at this time'
+                            : 'Nothing free to block here'
+                          : mode === 'walkin'
+                            ? `Mark ${picked.length ? `${pickName} as` : 'as'} sold · ${range}`
+                            : `Block ${picked.length ? `${pickName} · ` : ''}${range}`}
+                  </Button>
+                ))}
               {mode === 'price' &&
                 (asking ? (
                   <div className="flex flex-col gap-2 rounded-xl border border-sky-300 bg-sky-50 p-3">
@@ -538,8 +633,10 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
                   <span className="font-semibold text-text-primary">{clockRange(s.startTime, s.endTime)}</span>
                   <span className="truncate text-text-secondary">
                     {s.kind === 'walkin' ? 'Walk-in' : 'Blocked'}
-                    {s.label && s.label !== 'Blocked' && s.label !== 'Booked at the café' ? ` · ${s.label}` : ''} · {s.seatsCount}{' '}
-                    {s.seatsCount === 1 ? 'seat' : 'seats'}
+                    {s.label && s.label !== 'Blocked' && s.label !== 'Booked at the café' ? ` · ${s.label}` : ''} ·{' '}
+                    {s.units?.length && s.units.every(labelOf)
+                      ? s.units.map(labelOf).join(', ')
+                      : `${s.seatsCount} ${s.seatsCount === 1 ? 'console' : 'consoles'}`}
                   </span>
                 </span>
                 <RemoveOffline id={s.id as string} name={s.kind === 'walkin' ? 'these' : 'the blocked'} onDone={onDone} />

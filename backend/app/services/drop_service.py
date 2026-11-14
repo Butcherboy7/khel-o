@@ -388,32 +388,271 @@ async def _holding_windows(db: AsyncSession, block: DropBlock) -> list[tuple[int
     return [(*res_window(r, block), r.seats) for r in rows]
 
 
-async def _take(db: AsyncSession, block_id: UUID, seats: int, start: Optional[time] = None, end: Optional[time] = None) -> bool:
-    """Claim seats for [start, end) of a session (the whole session if omitted).
-    The block row is locked first so two people can't both take the last seat
-    of an hour; seats_taken then holds the busiest hour."""
+# ---------------------------------------------------------------- consoles
+# Each console of a drop is "<tier id>:<number>" (PS5 Pro 1 = "<ps5 tier>:1"). Consoles are numbered
+# from the setup's own count; there is no separate console table (hardware_tier_units means "broken").
+
+def console_keys(drop: Drop) -> list[str]:
+    if drop.consoles:
+        return [str(k) for k in drop.consoles]
+    n = drop.daily_seats or 1
+    tier = str(drop.hardware_tier_id) if drop.hardware_tier_id else "_"
+    return [f"{tier}:{i}" for i in range(1, n + 1)]
+
+
+def key_tier(key: str) -> str:
+    return key.rsplit(":", 1)[0]
+
+
+def tier_counts(drop: Drop) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for k in console_keys(drop):
+        out[key_tier(k)] = out.get(key_tier(k), 0) + 1
+    return out
+
+
+def tier_seats(drop: Drop, tier_id) -> int:
+    """How many consoles of this setup the drop keeps."""
+    return tier_counts(drop).get(str(tier_id), 0)
+
+
+def primary_tier(drop: Drop) -> str:
+    return str(drop.hardware_tier_id) if drop.hardware_tier_id else key_tier(console_keys(drop)[0])
+
+
+def block_keys(drop: Drop, block: DropBlock) -> list[str]:
+    """The consoles of one session. A session whose seat count was set by hand (old fixed drops)
+    gets plain numbered seats past the drop's own consoles."""
+    keys = console_keys(drop)
+    n = block.seats_total
+    if n <= len(keys):
+        return keys[:n]
+    return keys + [f"_:{i}" for i in range(len(keys) + 1, n + 1)]
+
+
+def short_name(tier) -> str:
+    name = (tier.model or tier.name or "Console").strip() if tier is not None else "Seat"
+    return re.sub(r"PlayStation\s*", "PS", name)
+
+
+def same_setup(keys: list[str], units: Optional[list], fallback: str) -> list[str]:
+    """Consoles a booking may move to: the same setup(s) it is on (an Xbox booking stays on an Xbox)."""
+    tiers = {key_tier(u) for u in units} if units else {fallback}
+    return [k for k in keys if key_tier(k) in tiers] or list(keys)
+
+
+def fit_consoles(keys: list[str], items: list[dict]) -> Optional[dict]:
+    """Put every booking of a session on its own console(s). items: {id, s, e, n, allowed, fixed, cur}.
+    fixed bookings (the café picked the console) never move; the rest keep their console when they can,
+    else move to another allowed one. Returns {id: [keys]} or None when it can't be done."""
+    import itertools
+    busy: dict[str, list] = {k: [] for k in keys}
+    out: dict = {}
+
+    def free(k: str, s: int, e: int) -> bool:
+        return all(not (a < e and s < b) for a, b in busy[k])
+
+    for it in items:
+        if it.get("fixed"):
+            for k in it["fixed"]:
+                if k not in busy or not free(k, it["s"], it["e"]):
+                    return None
+                busy[k].append((it["s"], it["e"]))
+            out[it["id"]] = list(it["fixed"])
+    movable = sorted((it for it in items if not it.get("fixed")), key=lambda x: (x["s"], -x["e"]))
+    steps = [0]
+
+    def go(i: int) -> bool:
+        if i == len(movable):
+            return True
+        steps[0] += 1
+        if steps[0] > 20000:
+            return False
+        it = movable[i]
+        cand = [k for k in it["allowed"] if k in busy and free(k, it["s"], it["e"])]
+        if len(cand) < it["n"]:
+            return False
+        cur = it.get("cur") or []
+        cand.sort(key=lambda k: (k not in cur, keys.index(k)))
+        for combo in itertools.combinations(cand, it["n"]):
+            for k in combo:
+                busy[k].append((it["s"], it["e"]))
+            out[it["id"]] = list(combo)
+            if go(i + 1):
+                return True
+            for k in combo:
+                busy[k].pop()
+        out.pop(it["id"], None)
+        return False
+
+    return out if go(0) else None
+
+
+def _item(drop: Drop, block: DropBlock, keys: list[str], r: DropReservation) -> dict:
+    s, e = res_window(r, block)
+    units = [u for u in (r.units or [])]
+    pinned = bool(r.units_pinned and units and all(u in keys for u in units))
+    return {"id": str(r.id), "s": s, "e": e, "n": r.seats, "fixed": units if pinned else None, "cur": units,
+            "allowed": same_setup(keys, units, primary_tier(drop))}
+
+
+async def _place(db: AsyncSession, drop: Drop, block_id: UUID, new: Optional[dict] = None) -> Optional[list[str]]:
+    """Fit a new booking (s, e, n, allowed, fixed) next to everything already held in this session.
+    The session row is locked first, so two people can never get the same console at the same time.
+    Bookings that were not pinned may move to another console of their setup. Returns the new
+    booking's consoles ([] when new is None), or None when it doesn't fit. seats_taken keeps the
+    busiest half hour, as before."""
+    for _attempt in range(8):
+        block = (await db.execute(select(DropBlock).where(DropBlock.id == block_id).with_for_update()
+                                  .execution_options(populate_existing=True))).scalars().first()
+        if block is None:
+            return None
+        rev = block.rev
+        keys = block_keys(drop, block)
+        rows = (await db.execute(
+            select(DropReservation).where(DropReservation.block_id == block.id, DropReservation.status.in_(HOLDING))
+            .execution_options(populate_existing=True)
+        )).scalars().all()
+        items = [_item(drop, block, keys, r) for r in rows if new is None or str(r.id) != new.get("id")]
+        if new is not None:
+            items.append({**new, "id": "new"})
+        got = fit_consoles(keys, items)
+        if got is None:
+            return None
+        peak = _peak([(it["s"], it["e"], it["n"]) for it in items], block)
+        if peak > block.seats_total:
+            return None
+        # The row lock already makes this safe on Postgres; the rev check also stops a write made from a
+        # stale read anywhere else (another request changed this session after we looked): then look again.
+        res = await db.execute(update(DropBlock).where(DropBlock.id == block.id, DropBlock.rev == rev)
+                               .values(seats_taken=peak, rev=rev + 1).execution_options(synchronize_session="fetch"))
+        if res.rowcount != 1:
+            continue
+        for r in rows:
+            if str(r.id) in got and got[str(r.id)] != (r.units or []):
+                r.units = got[str(r.id)]
+        return got.get("new", [])
+    return None
+
+
+def _window(block: DropBlock, start: Optional[time], end: Optional[time]) -> tuple[int, int]:
     if start is None:
-        # The whole session adds to every hour, so the busiest hour grows by the same amount.
-        res = await db.execute(
-            update(DropBlock)
-            .where(DropBlock.id == block_id, DropBlock.seats_taken + seats <= DropBlock.seats_total)
-            .values(seats_taken=DropBlock.seats_taken + seats)
-        )
-        return res.rowcount == 1
-    block = (await db.execute(select(DropBlock).where(DropBlock.id == block_id).with_for_update())).scalars().first()
-    if block is None:
-        return False
-    windows = await _holding_windows(db, block)
-    if start is not None:
-        s = at_in_block(start, block)
-        e = s + ((_mins(end) - _mins(start)) % DAY_MIN or DAY_MIN)
-    else:
-        s, e = block_span(block)
-    peak = _peak(windows + [(s, e, seats)], block)
-    if peak > block.seats_total:
-        return False
-    await db.execute(update(DropBlock).where(DropBlock.id == block_id).values(seats_taken=peak))
-    return True
+        return block_span(block)
+    s = at_in_block(start, block)
+    return s, s + ((_mins(end) - _mins(start)) % DAY_MIN or DAY_MIN)
+
+
+async def console_list(db: AsyncSession, drop: Drop) -> list[dict]:
+    """The drop's consoles with names, in order: [{key, label, tierId, setup, platform}]."""
+    from app.models.hardware_tier import HardwareTier
+    keys = console_keys(drop)
+    ids = {key_tier(k) for k in keys if key_tier(k) != "_"}
+    tiers = {}
+    if ids:
+        rows = (await db.execute(select(HardwareTier).where(HardwareTier.id.in_([UUID(i) for i in ids])))).scalars().all()
+        tiers = {str(t.id): t for t in rows}
+    out = []
+    for k in keys:
+        t = tiers.get(key_tier(k))
+        name = short_name(t)
+        out.append({"key": k, "label": f"{name} {k.rsplit(':', 1)[1]}", "tierId": key_tier(k), "setup": name,
+                    "platform": t.platform.value if t is not None and t.platform else None})
+    return out
+
+
+def setup_windows(drop: Drop, block: DropBlock, rows: list[DropReservation]) -> dict[str, list[tuple[int, int, int]]]:
+    """Booked stretches per setup (an Xbox booking only counts against the Xboxes)."""
+    prim = primary_tier(drop)
+    out: dict[str, list] = {t: [] for t in tier_counts(drop)}
+    for r in rows:
+        s, e = res_window(r, block)
+        per: dict[str, int] = {}
+        if r.units:
+            for u in r.units:
+                per[key_tier(u)] = per.get(key_tier(u), 0) + 1
+        else:
+            per[prim] = r.seats
+        for t, n in per.items():
+            out.setdefault(t, []).append((s, e, n))
+    return out
+
+
+async def holding_rows(db: AsyncSession, block: DropBlock) -> list[DropReservation]:
+    return list((await db.execute(
+        select(DropReservation).where(DropReservation.block_id == block.id, DropReservation.status.in_(HOLDING))
+    )).scalars().all())
+
+
+async def settle_units(db: AsyncSession, drop: Drop, block: DropBlock) -> None:
+    """Give older bookings (made before consoles had names) a console. Safe to call on every read."""
+    rows = await holding_rows(db, block)
+    if any(not r.units for r in rows):
+        if await _place(db, drop, block.id) is not None:
+            await db.commit()
+
+
+async def set_consoles(db: AsyncSession, drop: Drop, keys: list[str], actor: User) -> None:
+    """Choose which consoles the drop uses (any mix of the café's setups). Refused when a console
+    the café picked for a booking would go, when the bookings would no longer fit, or when normal
+    bookings already hold those consoles in the drop's hours."""
+    from app.models.hardware_tier import HardwareTier, TierType
+    from app.models.owner_audit_log import OwnerAuditLog
+    tiers = {str(t.id): t for t in (await db.execute(select(HardwareTier).where(
+        HardwareTier.cafe_id == drop.cafe_id, HardwareTier.is_active.is_(True),
+        HardwareTier.tier_type == TierType.GAMING.value))).scalars().all()}
+    clean: list[str] = []
+    for k in keys:
+        k = str(k)
+        t = tiers.get(key_tier(k))
+        try:
+            n = int(k.rsplit(":", 1)[1])
+        except (IndexError, ValueError):
+            n = 0
+        if t is None or not 1 <= n <= (t.total_seats or 0):
+            raise DropError("One of those consoles isn't at your café. Refresh and pick again.", "BAD_CONSOLE")
+        if k not in clean:
+            clean.append(k)
+    if not clean:
+        raise DropError("Pick at least one console for the drop.", "NO_CONSOLES")
+    if len(clean) > 40:
+        raise DropError("Use 40 consoles at most.", "BAD_CONSOLE")
+    order = list(tiers)
+    clean.sort(key=lambda k: (order.index(key_tier(k)), int(k.rsplit(":", 1)[1])))
+    before = console_keys(drop)
+    old_counts = tier_counts(drop)
+    labels = {c["key"]: c["label"] for c in await console_list(db, drop)}
+    drop.consoles = clean
+    drop.daily_seats = len(clean)
+    if drop.hardware_tier_id is None or str(drop.hardware_tier_id) not in {key_tier(k) for k in clean}:
+        drop.hardware_tier_id = UUID(key_tier(clean[0]))
+    today = now_utc().astimezone(IST).date()
+    blocks = (await db.execute(select(DropBlock).where(
+        DropBlock.drop_id == drop.id, DropBlock.session_date >= today - timedelta(days=1), DropBlock.closed.is_(False))
+        .order_by(DropBlock.session_date, DropBlock.start_time))).scalars().all()
+    for b in blocks:
+        rows = await holding_rows(db, b)
+        for r in rows:
+            gone = [u for u in (r.units or []) if r.units_pinned and u not in clean]
+            if gone:
+                raise DropError(f"{labels.get(gone[0], 'That console')} has a booking on {b.session_date.day} {b.session_date:%b}. "
+                                "Remove that booking first, or keep the console.", "CONSOLE_IN_USE")
+        b.seats_total = len(clean)
+        await db.flush()
+        if rows and await _place(db, drop, b.id) is None:
+            raise DropError(f"The bookings on {b.session_date.day} {b.session_date:%b} would not fit on those consoles. "
+                            "Keep more consoles, or move those bookings first.", "CONSOLES_FULL")
+    if drop.status == "live" and drop.starts_on is not None:
+        last = drop.ends_on or drop.starts_on + timedelta(days=MAX_DAYS - 1)
+        d, days = max(today, drop.starts_on), {}
+        while d <= last:
+            days[d] = day_intervals(drop, d)
+            d += timedelta(days=1)
+        for tid, n in tier_counts(drop).items():
+            if tid in tiers and n > old_counts.get(tid, 0):
+                await check_rig_free_days(db, tiers[tid], days, n, drop.id)
+    db.add(OwnerAuditLog(owner_id=actor.id, action="drop.consoles.updated", entity_type="drop", entity_id=str(drop.id),
+                         before_summary=json.dumps(before)[:4000], after_summary=json.dumps(clean)[:4000]))
+    await db.commit()
 
 
 async def _give_back(db: AsyncSession, block_id: UUID, seats: int = 0) -> None:
@@ -422,16 +661,18 @@ async def _give_back(db: AsyncSession, block_id: UUID, seats: int = 0) -> None:
     block = (await db.execute(select(DropBlock).where(DropBlock.id == block_id).with_for_update())).scalars().first()
     if block is None:
         return
-    await db.execute(update(DropBlock).where(DropBlock.id == block_id).values(seats_taken=_peak(await _holding_windows(db, block), block)))
+    await db.execute(update(DropBlock).where(DropBlock.id == block_id).values(
+        seats_taken=_peak(await _holding_windows(db, block), block), rev=DropBlock.rev + 1))
 
 
-def seats_free(windows: list[tuple[int, int, int]], block: DropBlock) -> dict[str, int]:
+def seats_free(windows: list[tuple[int, int, int]], block: DropBlock, total: Optional[int] = None) -> dict[str, int]:
     """Free seats for each hour of a session, keyed 'HH:MM'."""
     out = {}
     bs, be = block_span(block)
+    cap = block.seats_total if total is None else total
     for h in range(bs, be, STEP):
         used = sum(n for s, e, n in windows if s < h + STEP and e > h)
-        out[hhmm(h)] = max(0, block.seats_total - used)
+        out[hhmm(h)] = max(0, cap - used)
     return out
 
 
@@ -551,7 +792,8 @@ async def owner_windows(db: AsyncSession, block: DropBlock) -> list[dict]:
     )).scalars().all()
     kinds = {"online": "online", "offline": "walkin", "block": "blocked"}
     return [{"startTime": hhmm(s), "endTime": hhmm(e), "seatsCount": r.seats, "kind": kinds.get(r.source, "online"),
-             "id": str(r.id), "label": r.guest_name if r.source != "online" else None}
+             "id": str(r.id), "label": r.guest_name if r.source != "online" else None,
+             "units": list(r.units or []), "pinned": bool(r.units_pinned)}
             for r in rows for s, e in [res_window(r, block)]]
 
 
@@ -636,7 +878,7 @@ class Reserved:
 
 async def reserve(
     db: AsyncSession, drop: Drop, block_id: UUID, user: User, seats: int, code: Optional[str],
-    start: Optional[time] = None, hours: Optional[float] = None,
+    start: Optional[time] = None, hours: Optional[float] = None, setup: Optional[str] = None,
 ) -> Reserved:
     await release_expired(db, drop.id)
     await ensure_blocks(db, drop)
@@ -705,7 +947,16 @@ async def reserve(
         if datetime.combine(block.session_date, time(0, 0)).replace(tzinfo=IST) + timedelta(minutes=begin) <= now_utc():
             raise DropError("That hour has already started.", "BLOCK_STARTED")
 
-    if not await _take(db, block.id, seats, r_start, r_end):
+    # Which console type the player wants (PS5 or Xbox...). Old pages send nothing: the main one.
+    counts = tier_counts(drop)
+    tier = str(setup) if setup else primary_tier(drop)
+    if tier not in counts:
+        raise DropError("That console isn't part of this drop. Pick another.", "BAD_SETUP")
+    s_, e_ = _window(block, r_start, r_end)
+    keys = block_keys(drop, block)
+    units = await _place(db, drop, block.id, {"s": s_, "e": e_, "n": seats, "fixed": None, "cur": [],
+                                              "allowed": [k for k in keys if key_tier(k) == tier]})
+    if units is None:
         await db.rollback()
         raise DropError("Sorry, these seats just got taken. Pick another time.", "SOLD_OUT")
 
@@ -722,7 +973,7 @@ async def reserve(
         balance_due=max(Decimal("0.00"), total - deposit),
         expires_at=now_utc() + timedelta(minutes=HOLD_MINUTES),
         checkin_token=secrets.token_urlsafe(18), used_early_access=early,
-        start_time=r_start, end_time=r_end, hours=length // 60 if r_start is not None else None,
+        start_time=r_start, end_time=r_end, hours=length // 60 if r_start is not None else None, units=units,
     )
     db.add(reservation)
     await db.flush()
@@ -742,7 +993,7 @@ async def reserve(
 async def book_offline(
     db: AsyncSession, drop: Drop, block_id: UUID, staff: User, seats: int, name: str, phone: Optional[str],
     note: Optional[str], start: Optional[time] = None, hours: Optional[float] = None, amount: Optional[Decimal] = None,
-    kind: str = "walkin",
+    kind: str = "walkin", units: Optional[list[str]] = None,
 ) -> DropReservation:
     """The café sold these seats itself and took the cash. They hold the seats
     exactly like a paid online reservation (so nobody else can book them), but
@@ -762,11 +1013,18 @@ async def book_offline(
             phone = clean_phone(phone)
         except Exception:
             raise DropError("That phone number doesn't look right. Leave it empty or fix it.", "BAD_PHONE")
-    if seats < 1 or seats > 20:
-        raise DropError("Choose 1 to 20 seats.", "BAD_SEATS")
     block = await db.get(DropBlock, block_id)
     if block is None or block.drop_id != drop.id or block.closed:
         raise NotFoundException(message="We couldn't find that time.", error_code="BLOCK_NOT_FOUND")
+    keys = block_keys(drop, block)
+    if units:
+        # The café picked the console(s): exactly those, and they never move.
+        units = list(dict.fromkeys(str(u) for u in units))
+        if any(u not in keys for u in units):
+            raise DropError("One of those consoles isn't part of this drop. Refresh and pick again.", "BAD_CONSOLE")
+        seats = len(units)
+    if seats < 1 or seats > 20:
+        raise DropError("Choose 1 to 20 seats.", "BAD_SEATS")
     r_start = r_end = None
     length = None
     if drop.max_hours:
@@ -783,8 +1041,12 @@ async def book_offline(
             raise DropError("That time does not fit inside this session.", "BAD_HOURS")
         r_start = start
         r_end = clock_of(end_min)
-    if not await _take(db, block.id, seats, r_start, r_end):
+    s_, e_ = _window(block, r_start, r_end)
+    got = await _place(db, drop, block.id, {"s": s_, "e": e_, "n": seats, "fixed": units or None, "cur": [], "allowed": keys})
+    if got is None:
         await db.rollback()
+        if units:
+            raise DropError("That console is already taken for some of that time. Pick another console or time.", "SOLD_OUT")
         raise DropError("Not enough seats are free at that time. Pick another time or fewer seats.", "SOLD_OUT")
     if kind == "block":
         total = Decimal("0.00")  # a block is not a sale
@@ -800,6 +1062,7 @@ async def book_offline(
         status="confirmed", block_price=total, deposit_amount=Decimal("0.00"), balance_due=Decimal("0.00"),
         expires_at=now, paid_at=now, checkin_token=secrets.token_urlsafe(18), used_early_access=False,
         start_time=r_start, end_time=r_end, hours=length // 60 if length else None,
+        units=got, units_pinned=bool(units),
         source="block" if kind == "block" else "offline", guest_name=name, guest_phone=phone or None, note=(note or "").strip()[:200] or None,
     )
     db.add(res)
@@ -831,6 +1094,18 @@ async def _lock_by_order(db: AsyncSession, order_id: str) -> Optional[DropReserv
     )).scalars().first()
 
 
+async def _retake(db: AsyncSession, res: DropReservation) -> Optional[list[str]]:
+    """A late payment: is a console of the same setup still free for its time?"""
+    drop = await db.get(Drop, res.drop_id)
+    block = await db.get(DropBlock, res.block_id)
+    if drop is None or block is None:
+        return None
+    s, e = res_window(res, block)
+    keys = block_keys(drop, block)
+    return await _place(db, drop, block.id, {"s": s, "e": e, "n": res.seats, "fixed": None, "cur": res.units or [],
+                                             "allowed": same_setup(keys, res.units, primary_tier(drop)), "id": str(res.id)})
+
+
 async def mark_paid(db: AsyncSession, res: DropReservation, payment_id: str) -> str:
     """Record a captured deposit. Safe to call twice (verify + webhook race)."""
     if res.status in PAID:
@@ -842,8 +1117,9 @@ async def mark_paid(db: AsyncSession, res: DropReservation, payment_id: str) -> 
     if res.status == "pending_payment":
         res.status = "confirmed"
         outcome = "confirmed"
-    elif res.status == "expired" and await _take(db, res.block_id, res.seats, res.start_time, res.end_time):
+    elif res.status == "expired" and (late := await _retake(db, res)) is not None:
         # Paid after the hold ran out, but a seat was still free.
+        res.units = late
         res.status = "confirmed"
         outcome = "confirmed_late"
     else:
@@ -927,21 +1203,31 @@ async def dedicated_windows(db: AsyncSession, tier_id: UUID, day) -> list[tuple[
     that date (each date can have its own hours), plus the night before's hours past midnight."""
     out = []
     for d in await dedicated_drops(db, tier_id, day):
+        n = tier_seats(d, tier_id)
         if runs_on(d, day):
             for s, e in day_intervals(d, day):
-                out.append((s, min(e, DAY_MIN), d.daily_seats or 0, d.title))
+                out.append((s, min(e, DAY_MIN), n, d.title))
         for s, e in tails_into(d, day):
-            out.append((s, e, d.daily_seats or 0, d.title))
+            out.append((s, e, n, d.title))
     return out
 
 
+async def _cafe_drops(db: AsyncSession, cafe_id, lo: date, hi: date, ignore: Optional[UUID] = None) -> list[Drop]:
+    return list((await db.execute(select(Drop).where(
+        Drop.cafe_id == cafe_id, Drop.status == "live", Drop.starts_on.is_not(None),
+        Drop.starts_on <= hi, or_(Drop.ends_on.is_(None), Drop.ends_on >= lo),
+        *([Drop.id != ignore] if ignore else []),
+    ))).scalars().all())
+
+
 async def dedicated_drops(db: AsyncSession, tier_id: UUID, day) -> list[Drop]:
-    """Live drops on this rig that could hold seats on this date (its own hours or the night before's)."""
-    rows = (await db.execute(select(Drop).where(
-        Drop.hardware_tier_id == tier_id, Drop.status == "live", Drop.starts_on.is_not(None),
-        Drop.starts_on <= day, or_(Drop.ends_on.is_(None), Drop.ends_on >= day - timedelta(days=1)),
-    ))).scalars().all()
-    return [d for d in rows if d.daily_start_time is not None or d.day_hours]
+    """Live drops using consoles of this setup that could hold them on this date (its own hours or the night before's)."""
+    from app.models.hardware_tier import HardwareTier
+    tier = await db.get(HardwareTier, tier_id)
+    if tier is None:
+        return []
+    rows = await _cafe_drops(db, tier.cafe_id, day - timedelta(days=1), day)
+    return [d for d in rows if (d.daily_start_time is not None or d.day_hours) and tier_seats(d, tier_id) > 0]
 
 
 def _cafe_span(cafe: Cafe) -> Optional[tuple[int, int]]:
@@ -977,17 +1263,16 @@ async def check_rig_free_days(db: AsyncSession, tier, windows: dict, seats: int,
     if not windows:
         return
     lo, hi = min(windows), max(windows)
-    cap = tier.app_bookable_seats or tier.total_seats
+    # A drop keeps real consoles, so it is checked against every console of the setup.
+    cap = tier.total_seats or tier.app_bookable_seats
     ttl = datetime.now(timezone.utc) - timedelta(minutes=15)
     rows = (await db.execute(select(Booking).where(
         Booking.hardware_tier_id == tier.id,
         Booking.session_date >= lo, Booking.session_date <= hi + timedelta(days=1),
         or_(Booking.status.in_(SEAT_HOLDING_STATUSES),
             and_(Booking.status == BookingStatus.PENDING_PAYMENT, Booking.created_at >= ttl))))).scalars().all()
-    others = (await db.execute(select(Drop).where(
-        Drop.hardware_tier_id == tier.id, Drop.status == "live", Drop.starts_on.is_not(None),
-        Drop.starts_on <= hi + timedelta(days=1), or_(Drop.ends_on.is_(None), Drop.ends_on >= lo - timedelta(days=1)),
-        *([Drop.id != ignore_drop_id] if ignore_drop_id else [])))).scalars().all()
+    others = [d for d in await _cafe_drops(db, tier.cafe_id, lo - timedelta(days=1), hi + timedelta(days=1), ignore_drop_id)
+              if tier_seats(d, tier.id) > 0]
     by_day: dict = {}
     for bk in rows:
         by_day.setdefault(bk.session_date, []).append(bk)
@@ -1003,7 +1288,7 @@ async def check_rig_free_days(db: AsyncSession, tier, windows: dict, seats: int,
                 dd = day + timedelta(days=off)
                 if runs_on(d, dd):
                     for ds, de in day_intervals(d, dd):
-                        used.append((ds + off * DAY_MIN, de + off * DAY_MIN, d.daily_seats or 0))
+                        used.append((ds + off * DAY_MIN, de + off * DAY_MIN, tier_seats(d, tier.id)))
         for s_min, e_min in windows[day]:
             points = {s_min} | {w[0] for w in used if s_min <= w[0] < e_min}
             worst = max(sum(n for a_, b_, n in used if a_ <= t < b_) for t in points)
@@ -1104,10 +1389,11 @@ async def apply_schedule(db: AsyncSession, drop: Drop, dates: list[date], actor:
                         prev = d - timedelta(days=1)
                         raise DropError(f"{prev.day} {prev:%b} runs past midnight until {hhmm(te)}, into {d.day} {d:%b}'s opening at "
                                         f"{hhmm(s % DAY_MIN)}. Make the night end earlier or the next day open later.", "HOURS_OVERLAP")
-        if drop.hardware_tier_id and drop.status == "live":
-            tier = await db.get(HardwareTier, drop.hardware_tier_id)
-            if tier is not None:
-                await check_rig_free_days(db, tier, {d: day_intervals(drop, d) for d in dates}, drop.daily_seats or 1, drop.id)
+        if drop.status == "live":
+            for tid, n in tier_counts(drop).items():
+                tier = await db.get(HardwareTier, UUID(tid)) if tid != "_" else None
+                if tier is not None:
+                    await check_rig_free_days(db, tier, {d: day_intervals(drop, d) for d in dates}, n, drop.id)
         for d in dates:
             await _reconcile_day(db, drop, d, day_intervals(drop, d))
         # Launch day now opening at midnight replaces the night-before session.

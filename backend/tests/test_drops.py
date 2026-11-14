@@ -353,16 +353,20 @@ async def test_many_people_at_once_never_oversell():
 
 @pytest.mark.asyncio
 async def test_seat_take_is_atomic_even_from_a_stale_read():
-    """Two sessions both 'see' one seat left; only one conditional UPDATE wins."""
-    drop, block, *_ = await _drop(seats=1)
+    """Two sessions both 'see' one seat left; the session lock lets only one of them have it."""
+    drop, block, _b2, owner, _cafe = await _drop(seats=1)
     async with AsyncSessionLocal() as s1, AsyncSessionLocal() as s2:
         b1, b2 = await s1.get(DropBlock, block.id), await s2.get(DropBlock, block.id)
         assert b1.seats_taken == b2.seats_taken == 0  # both think it's free
-        first = await svc._take(s1, block.id, 1)
-        await s1.commit()
-        second = await svc._take(s2, block.id, 1)
-        await s2.commit()
-    assert (first, second) == (True, False)
+        d1, d2 = await s1.get(Drop, drop.id), await s2.get(Drop, drop.id)
+        o1, o2 = await s1.get(User, owner.id), await s2.get(User, owner.id)
+        first = await svc.book_offline(s1, d1, block.id, o1, 1, "A", None, None)
+        try:
+            await svc.book_offline(s2, d2, block.id, o2, 1, "B", None, None)
+            second = True
+        except svc.DropError:
+            second = False
+    assert (bool(first), second) == (True, False)
     assert await _taken(block.id) == 1
 
 

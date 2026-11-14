@@ -39,7 +39,24 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const { isAuthenticated, isHydrated, user } = useAuthStore();
   const { displayRazorpay, mockModalState } = useRazorpay();
 
-  const [drop, setDrop] = useState<Drop | null>(initial);
+  const [raw, setDrop] = useState<Drop | null>(initial);
+  // A drop with PS5s and Xboxes: the player picks which kind, and sees only that kind's free time.
+  const [setupPick, setSetupPick] = useState<string>(params.get('setup') ?? '');
+  const setups = raw?.setups ?? [];
+  const multi = setups.length > 1;
+  const setup = multi ? (setups.find((s) => s.tierId === setupPick) ?? setups[0]).tierId : null;
+  const drop = useMemo(() => {
+    if (!raw || !setup) return raw;
+    return {
+      ...raw,
+      blocks: raw.blocks.map((b) => {
+        const v = b.bySetup?.[setup];
+        if (!v) return b;
+        const left = Object.values(v.hourFree).length ? Math.max(0, ...Object.values(v.hourFree)) : b.seatsLeft;
+        return { ...b, seatsTotal: v.seatsTotal, hourFree: v.hourFree, bookedSlots: v.bookedSlots, seatsLeft: left };
+      }),
+    };
+  }, [raw, setup]);
   const [missing, setMissing] = useState(false);
   const [blockId, setBlockId] = useState<string | null>(params.get('block'));
   const [seats, setSeats] = useState(Math.max(1, Number(params.get('seats')) || 1));
@@ -343,6 +360,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         startTime: flex && startTime ? wireTime(startTime) : undefined,
         hours: flex ? hours : undefined,
         phone: drop.needsPhone ? phone : undefined,
+        setup: setup ?? undefined,
       });
       pay(done.reservation, done.order);
     } catch (e) {
@@ -399,11 +417,11 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           {drop.tagline && <p className="mt-1 text-body text-text-secondary">{drop.tagline}</p>}
           <div className="mt-3 flex flex-wrap gap-2 text-caption font-semibold text-text-primary">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
-              <Ticket className="h-3.5 w-3.5 text-primary" /> {drop.seatsPerSlot ? `${drop.seatsPerSlot} seats at a time, every night` : `${drop.seatsLeft} of ${drop.seatsTotal} seats left`}
+              <Ticket className="h-3.5 w-3.5 text-primary" /> {drop.seatsPerSlot ? `${drop.seatsPerSlot} ${drop.seatsPerSlot === 1 ? 'seat' : 'seats'} at a time, every night` : `${drop.seatsLeft} of ${drop.seatsTotal} seats left`}
             </span>
-            {drop.playsOn && (
+            {(multi || drop.playsOn) && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-primary">
-                Play on {drop.playsOn}
+                Play on {multi ? setups.map((s) => s.name).join(' or ') : drop.playsOn}
               </span>
             )}
             {drop.lengthPrices?.length ? (
@@ -491,6 +509,36 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         {/* Day */}
         {!ended && (
         <section ref={daysRef} className="scroll-mt-20">
+          {multi && (
+            <div className="mb-4">
+              <h2 className="font-heading text-h2 font-semibold text-text-primary">Pick your console</h2>
+              <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Console">
+                {setups.map((s) => {
+                  const on = s.tierId === setup;
+                  return (
+                    <button
+                      key={s.tierId}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => {
+                        setSetupPick(s.tierId);
+                        track('drop_setup_selected', { setup: s.name });
+                      }}
+                      className={`flex min-h-[56px] flex-col items-start justify-center rounded-xl border px-3 text-left transition-colors ${
+                        on ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'
+                      }`}
+                    >
+                      <span className="font-heading text-body-emphasis font-bold text-text-primary">{s.name}</span>
+                      <span className="text-caption text-text-secondary">
+                        {s.count} {s.count === 1 ? 'console' : 'consoles'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <h2 className="font-heading text-h2 font-semibold text-text-primary">{canReserve ? 'Pick a day' : 'Days'}</h2>
           {flex && usual && (
             <p className="text-caption text-text-secondary">

@@ -240,7 +240,7 @@ async def get_cafe_availability(
             "remainingSeats": app_bookable_seats,
             "bookedSlots": booked_slots,
             "keptForDrops": [
-                {"title": d.title, "slug": d.slug, "game": d.game, "seats": d.daily_seats or 0,
+                {"title": d.title, "slug": d.slug, "game": d.game, "seats": dsvc.tier_seats(d, tier_id),
                  "startTime": d.daily_start_time.strftime("%H:%M"), "endTime": d.daily_end_time.strftime("%H:%M")}
                 for d in await dsvc.dedicated_drops(db, tier_id, parsed_date)
             ],

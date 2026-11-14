@@ -105,6 +105,14 @@ async def _out(db: AsyncSession, drop: Drop, cafe: Cafe, blocks: list[DropBlock]
     data["tierId"] = str(tier.id) if tier else None
     data["playsOn"] = (tier.model or tier.name) if tier else None
     data["platform"] = tier.platform.value if tier is not None and tier.platform else None
+    # The consoles of the drop (PS5 Pro 1, PS5 Pro 2, Xbox 1...) and the types players can pick from.
+    consoles = await svc.console_list(db, drop)
+    data["consoles"] = consoles
+    setups: dict[str, dict] = {}
+    for c in consoles:
+        s = setups.setdefault(c["tierId"], {"tierId": c["tierId"], "name": c["setup"], "platform": c["platform"], "count": 0})
+        s["count"] += 1
+    data["setups"] = list(setups.values())
     return data
 
 
@@ -244,6 +252,15 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
             wins = await svc._holding_windows(db, blk)
             bd["hourFree"] = svc.seats_free(wins, blk)
             bd["bookedSlots"] = svc.booked_windows(wins)
+            # The same picture for each console type, so a PS5 booking never hides a free Xbox.
+            per = svc.setup_windows(drop, blk, await svc.holding_rows(db, blk))
+            keys = svc.block_keys(drop, blk)
+            bd["bySetup"] = {}
+            for t in svc.tier_counts(drop):
+                total = sum(1 for k in keys if svc.key_tier(k) == t)
+                w = per.get(t, [])
+                bd["bySetup"][t] = {"seatsTotal": total, "hourFree": svc.seats_free(w, blk, total),
+                                    "bookedSlots": svc.booked_windows(w)}
     mine = []
     if user is not None:
         by_id = {b.id: b for b in blocks}
@@ -273,6 +290,8 @@ class ReserveRequest(_Camel):
     seats: int = Field(1, ge=1, le=10)
     code: Optional[str] = Field(None, max_length=40)
     phone: Optional[str] = Field(None, max_length=20)
+    # Which console type (setup id), when the drop has more than one (PS5 and Xbox).
+    setup: Optional[UUID] = None
 
 
 @public_router.get("/{slug}/walk-in-qr")
@@ -293,7 +312,8 @@ async def reserve(slug: str, payload: ReserveRequest, db: AsyncSession = Depends
         user.phone_number = svc.clean_phone(payload.phone)
         await db.flush()
     done = await svc.reserve(db, drop, payload.block_id, user, payload.seats, payload.code,
-                             start=payload.start_time, hours=payload.hours)
+                             start=payload.start_time, hours=payload.hours,
+                             setup=str(payload.setup) if payload.setup else None)
     block = await db.get(DropBlock, done.reservation.block_id)
     return {"success": True, "data": {
         "reservation": _reservation_out(drop, done.reservation, block),
@@ -568,6 +588,7 @@ async def update_drop(drop_id: UUID, payload: DropUpdate, db: AsyncSession = Dep
     if fields.get("daily_seats") is not None:
         if drop.daily_start_time is None:
             raise svc.DropError("This drop has no daily seats to change.", "NOT_ROLLING")
+        fields["consoles"] = None  # a plain count again: the first N consoles of the main setup
         today = svc.now_utc().astimezone(svc.IST).date()
         for blk in (await db.execute(select(DropBlock).where(
                 DropBlock.drop_id == drop.id, DropBlock.session_date >= today).with_for_update())).scalars().all():
@@ -645,6 +666,22 @@ async def set_schedule(drop_id: UUID, payload: ScheduleIn, db: AsyncSession = De
     return {"success": True, "data": await _detail(db, drop, cafe)}
 
 
+class ConsolesIn(_Camel):
+    # "<setup id>:<number>", e.g. two PS5 Pros and an Xbox.
+    keys: list[str] = Field(..., min_length=1, max_length=40)
+
+
+@owner_router.put("/{drop_id}/consoles")
+async def set_consoles(drop_id: UUID, payload: ConsolesIn, db: AsyncSession = Depends(get_db),
+                       user: User = Depends(get_current_active_user)):
+    """Which consoles the drop uses, any mix of PS5, Xbox and the rest. Bookings are never dropped."""
+    drop, cafe = await _managed(db, user, drop_id)
+    if drop.status == "cancelled":
+        raise svc.DropError("This drop was cancelled and can't be changed.", "DROP_CANCELLED")
+    await svc.set_consoles(db, drop, payload.keys, user)
+    return {"success": True, "data": await _detail(db, drop, cafe)}
+
+
 class BlockSeats(_Camel):
     seats: int = Field(..., ge=0, le=100)
 
@@ -693,8 +730,12 @@ def _when(r: DropReservation, blocks: list[DropBlock]) -> dict:
 
 
 async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
+    from app.models.hardware_tier import TierType
     await svc.release_expired(db, drop.id)
     blocks = await svc.blocks_of(db, drop.id)
+    if drop.max_hours:
+        for blk in blocks:
+            await svc.settle_units(db, drop, blk)  # older bookings get a console
     rows = (await db.execute(
         select(DropReservation, User.full_name, User.phone_number, User.email)
         .join(User, User.id == DropReservation.user_id)
@@ -729,6 +770,13 @@ async def _detail(db: AsyncSession, drop: Drop, cafe: Cafe) -> dict:
     data["waitlistCount"] = (await db.execute(
         select(func.count()).select_from(DropWaitlist).where(DropWaitlist.drop_id == drop.id))).scalar_one()
     data["funnel"] = await svc.funnel(db, drop)
+    # Every gaming setup of the café, for choosing the drop's consoles.
+    tiers = (await db.execute(select(HardwareTier).where(
+        HardwareTier.cafe_id == drop.cafe_id, HardwareTier.is_active.is_(True),
+        HardwareTier.tier_type == TierType.GAMING.value).order_by(HardwareTier.created_at))).scalars().all()
+    data["cafeSetups"] = [{"tierId": str(t.id), "name": svc.short_name(t),
+                           "platform": t.platform.value if t.platform else None, "count": t.total_seats or 0}
+                          for t in tiers if (t.total_seats or 0) > 0]
     paid = [r for r, *_ in rows if r.status in svc.PAID and r.source != "block"]
     offline = [r for r in paid if r.source == "offline"]
     data["totals"] = {
@@ -829,6 +877,8 @@ class OfflineBookingIn(_Camel):
     note: Optional[str] = Field(None, max_length=200)
     # walkin = sold at the café; block = kept off sale (not a sale, no money).
     kind: Literal["walkin", "block"] = "walkin"
+    # The console(s) the café picked ("<setup id>:<number>"). Empty = any free one.
+    units: Optional[list[str]] = Field(None, max_length=40)
 
 
 @owner_router.post("/{drop_id}/offline-bookings", status_code=status.HTTP_201_CREATED)
@@ -841,6 +891,7 @@ async def add_offline_booking(drop_id: UUID, payload: OfflineBookingIn, db: Asyn
         db, drop, payload.block_id, user, payload.seats, payload.name, payload.phone, payload.note,
         start=payload.start_time, hours=payload.hours,
         amount=Decimal(str(payload.amount)) if payload.amount is not None else None, kind=payload.kind,
+        units=payload.units or None,
     )
     block = await db.get(DropBlock, res.block_id)
     return {"success": True, "data": _reservation_out(drop, res, block)}

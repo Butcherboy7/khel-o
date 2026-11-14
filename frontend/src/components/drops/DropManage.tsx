@@ -5,12 +5,12 @@ import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus } from 'lucide-react';
 import { uploadCafePhoto } from '@/lib/api/settings';
-import { ArrowLeft, Bell, CheckCircle2, Download, ExternalLink, KeyRound, MessageCircle, QrCode } from 'lucide-react';
+import { ArrowLeft, Bell, Check, CheckCircle2, ChevronDown, Download, ExternalLink, KeyRound, MessageCircle, QrCode } from 'lucide-react';
 import { Button, Card, CardContent, Input, Modal, SkeletonCard } from '@/components/ui';
 import { ShareIconRow, WhatsAppButton } from '@/components/shared/ShareActions';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
-import { cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, getWalkInQr, giveAwayReservation, updateDrop, type OwnerDrop } from '@/lib/api/drops';
+import { cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, getWalkInQr, giveAwayReservation, setDropConsoles, updateDrop, type OwnerDrop } from '@/lib/api/drops';
 import { blockTimes, clockRange, dayLabel, rupees, whenText } from '@/lib/drops';
 import { RemoveOffline } from '@/components/drops/OfflineBooking';
 import { SlotManager } from '@/components/drops/SlotManager';
@@ -193,6 +193,91 @@ function SeatsPerDay({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
             className="h-11 w-24 rounded-lg border border-border bg-card px-2 text-body text-text-primary"
           />
           <Button onClick={save} disabled={busy || !changed}>Save seats</Button>
+          {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** "2 PS5 Pro and 1 Xbox Series X", from the drop's consoles. */
+function consolesLine(d: OwnerDrop): string {
+  const s = d.setups ?? [];
+  if (!s.length) return '';
+  const parts = s.map((x) => `${x.count} ${x.name}`);
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+}
+
+/** Which consoles the drop uses: any mix of the café's setups (PS5s, Xboxes...). Players pick the type;
+ *  the café can sell or block each console on its own in Manage slots. */
+function DropConsoles({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
+  const now = (d.consoles ?? []).map((c) => c.key);
+  const [keys, setKeys] = useState<string[]>(now);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const nowKey = now.join();
+  useEffect(() => setKeys(nowKey ? nowKey.split(',') : []), [nowKey]);
+  const changed = [...keys].sort().join() !== [...now].sort().join();
+  const toggle = (k: string) => setKeys(keys.includes(k) ? keys.filter((x) => x !== k) : [...keys, k]);
+  const save = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await setDropConsoles(d.id, keys);
+      setMsg({ ok: true, text: `Saved. The drop now uses ${keys.length} ${keys.length === 1 ? 'console' : 'consoles'}.` });
+      onDone();
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error)?.message || 'Could not save.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card elevation="flat" data-tour="drop-seats">
+      <CardContent className="flex flex-col gap-3 p-4">
+        <p className="font-heading text-body-emphasis font-bold text-text-primary">Consoles in this drop</p>
+        <p className="text-caption text-text-secondary">
+          Tick every console players can book. You can mix PS5 and Xbox; players pick which one they want.
+        </p>
+        {(d.cafeSetups ?? []).map((s) => (
+          // Setups not in the drop stay folded, so a café with 15 PCs doesn't get a long list.
+          <details key={s.tierId} open={now.some((k) => k.startsWith(`${s.tierId}:`)) || undefined} className="group rounded-xl border border-border px-3">
+            <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 text-caption font-semibold text-text-primary">
+              <span>
+                {s.name} <span className="font-normal text-text-secondary">· {keys.filter((k) => k.startsWith(`${s.tierId}:`)).length} of {s.count} in the drop</span>
+              </span>
+              <ChevronDown className="h-4 w-4 text-text-secondary transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="flex flex-wrap gap-1.5 pb-3">
+              {Array.from({ length: s.count }, (_, i) => {
+                const k = `${s.tierId}:${i + 1}`;
+                const on = keys.includes(k);
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={on}
+                    onClick={() => toggle(k)}
+                    className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-3 text-caption font-semibold ${
+                      on ? 'border-primary bg-primary/10 text-text-primary' : 'border-border bg-card text-text-secondary'
+                    }`}
+                  >
+                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${on ? 'border-primary bg-primary text-white' : 'border-border'}`} aria-hidden>
+                      {on && <Check className="h-3 w-3" />}
+                    </span>
+                    {s.name} {i + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </details>
+        ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={save} disabled={busy || !changed || !keys.length}>
+            {busy ? 'Saving…' : 'Save consoles'}
+          </Button>
+          {!keys.length && <span className="text-caption text-error">Pick at least one console.</span>}
           {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
         </div>
       </CardContent>
@@ -519,7 +604,7 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
       <OwnerPageHeader
         guide={admin ? undefined : 'drop'}
         title={d.title}
-        description={`${d.cafe.name} · ${d.playsOn ? `on ${d.playsOn} · ` : ''}${rupees(d.pricePerHour)} an hour · ${rupees(d.deposit)} booking fee a seat`}
+        description={`${d.cafe.name} · ${consolesLine(d) ? `on ${consolesLine(d)} · ` : d.playsOn ? `on ${d.playsOn} · ` : ''}${rupees(d.pricePerHour)} an hour · ${rupees(d.deposit)} booking fee a seat`}
         action={
           <a
             href={`/drops/${d.slug}`}
@@ -532,10 +617,7 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
         }
       />
 
-      <StatusCard d={d} onChanged={refresh} />
-
-      {d.status !== 'cancelled' && <ShareDrop d={d} />}
-
+      {/* Day-to-day work first: the slots, then the numbers, then open/hide and sharing. */}
       <SlotManager d={d} onDone={refresh} />
 
       <div className="grid grid-cols-3 gap-2" data-tour="drop-stats">
@@ -548,6 +630,10 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
           Includes {d.totals.offlineSeats} {d.totals.offlineSeats === 1 ? 'seat' : 'seats'} you sold at the café ({rupees(d.totals.offlineCollected ?? 0)} cash, already in your hand).
         </p>
       )}
+
+      <StatusCard d={d} onChanged={refresh} />
+
+      {d.status !== 'cancelled' && <ShareDrop d={d} />}
 
       <div data-tour="drop-checkin">
         <CheckInBox onDone={refresh} />
@@ -628,7 +714,7 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
       <div className="grid gap-4 md:grid-cols-2">
         {d.status !== 'cancelled' && <EditDetails d={d} onDone={refresh} />}
         <EditPrices d={d} onDone={refresh} />
-        {d.rolling && <SeatsPerDay d={d} onDone={refresh} />}
+        {d.rolling && (d.cafeSetups?.length ? <DropConsoles d={d} onDone={refresh} /> : <SeatsPerDay d={d} onDone={refresh} />)}
         <CoverPhoto d={d} onDone={refresh} />
         {d.rolling && d.endsOn && d.startsOn && <RunControl d={d} onDone={refresh} />}
       </div>
