@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, type FormEvent } from 'react';
+import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff, ExternalLink, Star, Gamepad2 } from 'lucide-react';
 import { Modal, Button, Input, Textarea } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings, type CafePhoto } from '@/lib/api/settings';
@@ -23,6 +23,8 @@ interface EditCafeModalProps {
   cafeId: string;
   settings: OwnerSettings;
   onSaved: (updated: Partial<OwnerSettings>) => void;
+  /** Which tab to open on (Quick Find: "opening hours" opens straight on Hours). */
+  initialTab?: EditCafeTab;
 }
 
 const PRESET_AMENITIES = [
@@ -37,7 +39,9 @@ const PRESET_AMENITIES = [
   'Wheelchair accessible',
 ];
 
-type Tab = 'basic' | 'location' | 'hours' | 'amenities' | 'games';
+export type EditCafeTab = 'basic' | 'location' | 'hours' | 'amenities' | 'games';
+type Tab = EditCafeTab;
+export const EDIT_CAFE_TABS: EditCafeTab[] = ['basic', 'location', 'hours', 'amenities', 'games'];
 
 const TABS: { id: Tab; label: string; icon: typeof Store }[] = [
   { id: 'basic', label: 'Basic Info', icon: Store },
@@ -52,8 +56,11 @@ function toHHMM(time: string | null): string {
   return time.slice(0, 5);
 }
 
-export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved }: EditCafeModalProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('basic');
+export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, initialTab }: EditCafeModalProps) {
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'basic');
+  useEffect(() => {
+    if (isOpen && initialTab) setActiveTab(initialTab);
+  }, [isOpen, initialTab]);
 
   // Basic info
   const [name, setName] = useState(settings.cafeName);

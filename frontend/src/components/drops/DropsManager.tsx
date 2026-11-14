@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, ExternalLink, ImagePlus, Plus, Ticket } from 'lucide-react';
@@ -35,6 +36,11 @@ export function DropsManager({ base = '/owner/drops', admin = false, extra }: { 
   const qc = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['owner', 'drops'], queryFn: listOwnerDrops });
   const [creating, setCreating] = useState(false);
+  // Quick Find "new launch drop" opens the form (?new=1).
+  const wantsNew = useSearchParams().get('new') === '1';
+  useEffect(() => {
+    if (wantsNew && !admin) setCreating(true);
+  }, [wantsNew, admin]);
 
   return (
     <div className="flex flex-col gap-6">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, FormEvent, ChangeEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Script from 'next/script';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -184,7 +185,12 @@ const OVERLAY_PRESENTATION: Record<OverlayKind, OverlayPresentation> = {
 
 export default function ScannerPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'camera' | 'upload' | 'manual'>('camera');
+  // Quick Find "check in by name" opens straight on the typing tab (?tab=manual).
+  const tabParam = useSearchParams().get('tab');
+  const [activeTab, setActiveTab] = useState<'camera' | 'upload' | 'manual'>(tabParam === 'manual' ? 'manual' : 'camera');
+  useEffect(() => {
+    if (tabParam === 'manual') setActiveTab('manual');
+  }, [tabParam]);
   const [manualQuery, setManualQuery] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<QRValidationResponse | null>(null);

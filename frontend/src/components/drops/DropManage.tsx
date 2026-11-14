@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus } from 'lucide-react';
 import { uploadCafePhoto } from '@/lib/api/settings';
@@ -13,7 +14,8 @@ import { OwnerLoadError } from '@/components/owner/OwnerLoadError';
 import { addDropConsoleSetup, cancelDrop, checkInDropPass, downloadDropCsv, getOwnerDrop, getWalkInQr, giveAwayReservation, setDropConsoles, updateDrop, type OwnerDrop } from '@/lib/api/drops';
 import { blockTimes, clockRange, dayLabel, rupees, whenText } from '@/lib/drops';
 import { RemoveOffline } from '@/components/drops/OfflineBooking';
-import { SlotManager } from '@/components/drops/SlotManager';
+import { SlotManager, type SlotPreset } from '@/components/drops/SlotManager';
+import { spotlightWhenReady } from '@/components/owner/quickfind/QuickFindSpotlight';
 import { DropPriceOptions, overlapping, priceOptionsPayload, type PriceOptions } from '@/components/drops/DropPriceOptions';
 
 type Row = OwnerDrop['blocks'][number]['reservations'][number];
@@ -79,7 +81,7 @@ function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
   };
   const num = (v: string) => v.replace(/\D/g, '').slice(0, 5);
   return (
-    <Card elevation="flat" data-tour="drop-prices" className="md:col-span-2">
+    <Card elevation="flat" data-tour="drop-prices" data-qf="prices" className="md:col-span-2">
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Price and booking fee</p>
         <div className="grid grid-cols-3 gap-2">
@@ -180,7 +182,7 @@ function SeatsPerDay({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
     }
   };
   return (
-    <Card elevation="flat" data-tour="drop-seats">
+    <Card elevation="flat" data-tour="drop-seats" data-qf="consoles">
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Seats at one time</p>
         <p className="text-caption text-text-secondary">How many people can play together. This is how many consoles you give to the drop.</p>
@@ -243,7 +245,7 @@ function DropConsoles({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
     }
   };
   return (
-    <Card elevation="flat" data-tour="drop-seats">
+    <Card elevation="flat" data-tour="drop-seats" data-qf="consoles">
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Consoles in this drop</p>
         <p className="text-caption text-text-secondary">
@@ -589,7 +591,7 @@ function ShareDrop({ d }: { d: OwnerDrop }) {
   const url = typeof window !== 'undefined' ? `${window.location.origin}/drops/${d.slug}` : `/drops/${d.slug}`;
   const hidden = d.status !== 'live';
   return (
-    <Card elevation="resting" data-tour="drop-share">
+    <Card elevation="resting" data-tour="drop-share" data-qf="share">
       <CardContent className="flex flex-col gap-3 p-4">
         <div>
           <p className="font-heading text-body-emphasis font-bold text-text-primary">Share your drop</p>
@@ -680,7 +682,7 @@ function EditDetails({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
   };
   const when = 'h-11 w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary';
   return (
-    <Card elevation="flat" data-tour="drop-details">
+    <Card elevation="flat" data-tour="drop-details" data-qf="details">
       <CardContent className="flex flex-col gap-3 p-4">
         <p className="font-heading text-body-emphasis font-bold text-text-primary">Name and opening</p>
         <Input label="Name" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -714,6 +716,30 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
   const { data: d, isLoading, error, refetch } = useQuery({ queryKey: key, queryFn: () => getOwnerDrop(id), refetchInterval: 10_000, refetchOnWindowFocus: true });
   const refresh = () => qc.invalidateQueries({ queryKey: key });
 
+  // Quick Find: ?slot=walkin|block|price&console=<key>&hours=3&date=… pre-sets Manage slots.
+  const searchParams = useSearchParams();
+  const slot = searchParams.get('slot');
+  const presetKey = ['slot', 'console', 'hours', 'date'].map((k) => searchParams.get(k) ?? '').join('|');
+  const [preset, setPreset] = useState<SlotPreset | undefined>(undefined);
+  useEffect(() => {
+    if (!d || (slot !== 'walkin' && slot !== 'block' && slot !== 'price')) return;
+    const hours = Number(searchParams.get('hours'));
+    const date = searchParams.get('date');
+    setPreset({
+      key: `${presetKey}|${Date.now()}`,
+      mode: slot,
+      consoles: searchParams.get('console') ? [searchParams.get('console') as string] : undefined,
+      hours: Number.isFinite(hours) && hours > 0 ? hours : undefined,
+      date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined,
+    });
+    spotlightWhenReady('slots');
+    const url = new URL(window.location.href);
+    ['slot', 'console', 'hours', 'date'].forEach((k) => url.searchParams.delete(k));
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`);
+    // Re-run for each new link, not for every 10-second refetch of the drop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(d), presetKey]);
+
   if (isLoading) return <SkeletonCard />;
   if (error || !d) return <OwnerLoadError error={error} title="Couldn’t load this drop" onRetry={() => refetch()} />;
 
@@ -739,7 +765,7 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
       />
 
       {/* Day-to-day work first: the slots, then the numbers, then open/hide and sharing. */}
-      <SlotManager d={d} onDone={refresh} />
+      <SlotManager d={d} onDone={refresh} preset={preset} />
 
       <div className="grid grid-cols-3 gap-2" data-tour="drop-stats">
         <Stat label="Seats sold" value={`${d.totals.seatsSold} of ${d.seatsTotal}`} />
@@ -756,11 +782,11 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
 
       {d.status !== 'cancelled' && <ShareDrop d={d} />}
 
-      <div data-tour="drop-checkin">
+      <div data-tour="drop-checkin" data-qf="checkin">
         <CheckInBox onDone={refresh} />
       </div>
 
-      <div className="flex items-center justify-between gap-3" data-tour="drop-who">
+      <div className="flex items-center justify-between gap-3" data-tour="drop-who" data-qf="who">
         <h2 className="font-heading text-h2 font-semibold text-text-primary">Who is coming</h2>
         <Link href="/owner/availability" className="text-body font-semibold text-primary">Hour by hour</Link>
       </div>
@@ -867,7 +893,7 @@ function StatusCard({ d, onChanged }: { d: OwnerDrop; onChanged: () => void }) {
     }
   };
   return (
-    <Card elevation="flat">
+    <Card elevation="flat" data-qf="status">
       <CardContent className="flex flex-col gap-2 p-4 text-body text-text-primary">
         <p className="font-semibold">
           {d.status === 'draft'
@@ -891,7 +917,7 @@ function StatusCard({ d, onChanged }: { d: OwnerDrop; onChanged: () => void }) {
           <Bell className="h-4 w-4" /> {d.waitlistCount} {d.waitlistCount === 1 ? 'person' : 'people'} asked to be told when it opens
         </p>
         {d.status !== 'cancelled' && (
-          <Button variant={d.status === 'live' ? 'secondary' : 'primary'} onClick={toggle} disabled={busy} className="mt-1 self-start">
+          <Button variant={d.status === 'live' ? 'secondary' : 'primary'} onClick={toggle} disabled={busy} className="mt-1 self-start" data-qf-focus>
             {d.status === 'live' ? 'Hide it (back to draft)' : 'Put it live'}
           </Button>
         )}

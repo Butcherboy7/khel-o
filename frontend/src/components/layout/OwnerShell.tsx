@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, Suspense, type ReactNode } from 'react';
 import { OwnerAlertProvider } from '@/components/owner/OwnerAlertProvider';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -25,6 +25,7 @@ import {
   Bell,
   Swords,
   Ticket,
+  Search,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -36,6 +37,8 @@ import { PlatformReconfirmModal } from '@/components/owner/PlatformReconfirmModa
 import { apiClient } from '@/lib/api/client';
 import { getHostingChallenges } from '@/lib/api/challenges';
 import type { User } from '@/types';
+import { QuickFindProvider, useQuickFind, useShortcutLabel } from '@/components/owner/quickfind/QuickFind';
+import { QuickFindSpotlight } from '@/components/owner/quickfind/QuickFindSpotlight';
 
 /* ── Navigation Items ────────────────────────────────────────────── */
 
@@ -321,6 +324,8 @@ function OwnerMobileMenu({
         {/* The drawer is the one place with room to say what a screen is FOR.
             An owner opening this menu for the first time should be able to pick
             the right destination without tapping through all twelve. */}
+        <DrawerSearch onClose={onClose} />
+
         <nav className="flex-1 space-y-6 py-4">
           {sections.map((section) => (
             <div key={section.heading}>
@@ -479,6 +484,7 @@ function OwnerTopBar({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        <QuickFindTrigger />
         <OwnerNotificationBell />
         <RoleSwitcher />
       </div>
@@ -565,6 +571,61 @@ function OwnerBottomNav({
   );
 }
 
+/* ── Quick Find entry points ─────────────────────────────────────── */
+
+/** Desktop: a search field in the top bar. Phone: one icon next to the bell. */
+function QuickFindTrigger() {
+  const { open } = useQuickFind();
+  const shortcut = useShortcutLabel();
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => open()}
+        data-tour="quick-find"
+        className="hidden h-10 w-[min(360px,32vw)] items-center gap-2.5 rounded-xl border border-border bg-surface px-3 text-left text-body text-text-secondary transition-colors hover:border-text-secondary/40 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:flex"
+        aria-label="Quick Find: search anything or do something"
+        aria-keyshortcuts="Control+K Meta+K"
+      >
+        <Search className="h-4 w-4 flex-shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">Search anything or do something…</span>
+        {shortcut && (
+          <kbd className="flex-shrink-0 rounded-md border border-border bg-card px-1.5 py-0.5 font-sans text-[11px] font-semibold text-text-secondary">
+            {shortcut}
+          </kbd>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => open()}
+        data-tour="quick-find-mobile"
+        className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-text-primary transition-all hover:bg-border/60 active:scale-95 lg:hidden"
+        aria-label="Quick Find: search anything or do something"
+      >
+        <Search className="h-[18px] w-[18px]" />
+      </button>
+    </>
+  );
+}
+
+/** The drawer's first row, for owners who open the menu looking for something. */
+function DrawerSearch({ onClose }: { onClose: () => void }) {
+  const { open } = useQuickFind();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onClose();
+        open();
+      }}
+      className="mt-4 flex min-h-[48px] w-full items-center gap-3 rounded-xl bg-white/10 px-3 text-left text-body text-white/75 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+    >
+      <Search className="h-5 w-5 flex-shrink-0" aria-hidden />
+      <span className="truncate">Search anything or do something…</span>
+    </button>
+  );
+}
+
 /* ── Exported Shell ──────────────────────────────────────────────── */
 
 export function OwnerShell({
@@ -579,7 +640,11 @@ export function OwnerShell({
 
   return (
     <OwnerAlertProvider>
+    <QuickFindProvider isStaff={isStaff}>
     <div className="min-h-screen bg-surface">
+      <Suspense fallback={null}>
+        <QuickFindSpotlight />
+      </Suspense>
       {/* Owner-only: confirms platform/model on tiers that pre-date this
           redesign. Not shown to staff — the backing endpoint requires a
           cafe_owner (or admin) role and always 403s for a staff-only
@@ -615,6 +680,7 @@ export function OwnerShell({
         isStaff={isStaff}
       />
     </div>
+    </QuickFindProvider>
     </OwnerAlertProvider>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Monitor,
   Joystick,
@@ -54,14 +55,20 @@ function formatDateLabel(dateStr: string): string {
 
 export default function OwnerAvailabilityPage() {
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState(getTodayString());
+  // Quick Find links: ?date=YYYY-MM-DD, ?tier=<setup>, ?machine=PS5%202 (pre-types the broken machine).
+  const searchParams = useSearchParams();
+  const dateParam = searchParams.get('date');
+  const tierParam = searchParams.get('tier');
+  const machineParam = (searchParams.get('machine') ?? '').slice(0, 50);
+  const validDate = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const [selectedDate, setSelectedDate] = useState(() => validDate(dateParam) ?? getTodayString());
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   const [selectedHour, setSelectedHour] = useState<number | null>(null);
   const [data, setData] = useState<OwnerAvailabilityTimeline | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const tierRef = useRef<string | null>(null);
+  const tierRef = useRef<string | null>(tierParam);
   const isToday = selectedDate === getTodayString();
 
   const load = useCallback(async () => {
@@ -89,6 +96,20 @@ export default function OwnerAvailabilityPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A new Quick Find link while already on this page.
+  const firstLink = useRef(true);
+  useEffect(() => {
+    if (firstLink.current) {
+      firstLink.current = false;
+      return;
+    }
+    if (tierParam) tierRef.current = tierParam;
+    const d = validDate(dateParam);
+    if (d && d !== selectedDate) setSelectedDate(d);
+    else load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateParam, tierParam]);
 
   // Whenever we land on a fresh day's data, snap the selected hour to "now"
   // (today) or the venue's first open hour (any other day).
@@ -444,7 +465,7 @@ export default function OwnerAvailabilityPage() {
       {/* Broken machines. Named by the owner ("PC 7"), and the same list the Setups
           page uses, so marking one here really stops customers booking it. */}
       {selectedTier && !selectedTier.id.startsWith('drop-') && data?.cafeId && (
-        <Card elevation="flat" data-tour="slots-broken" className="flex flex-col gap-1 p-4">
+        <Card elevation="flat" data-tour="slots-broken" data-qf="broken" className="flex flex-col gap-1 p-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-500/10 text-gray-500">
               <Ban className="h-4 w-4" />
@@ -463,7 +484,7 @@ export default function OwnerAvailabilityPage() {
               Go to Setups & prices
             </Link>
           ) : (
-            <BrokenMachines cafeId={data.cafeId} tierId={selectedTier.id} isRoom={Boolean(selectedTier.isRoom)} onChanged={load} />
+            <BrokenMachines cafeId={data.cafeId} tierId={selectedTier.id} isRoom={Boolean(selectedTier.isRoom)} onChanged={load} initialLabel={machineParam} />
           )}
         </Card>
       )}

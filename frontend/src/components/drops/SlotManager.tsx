@@ -45,7 +45,17 @@ const MODES: { id: Mode; label: string; hint: string; icon: typeof Users; on: st
 /** The café's one screen for its event days: pick a day, drag over the hours on the same slider
  *  players use, then say what they are (sold to a walk-in, blocked, or a different price).
  *  Opening hours per day, copy a day to other days, and how far ahead people can book. */
-export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
+/** What a Quick Find link asked for: "sell PS5 Pro 1 for 3 hours tomorrow". Only fills in; the owner confirms. */
+export interface SlotPreset {
+  mode?: Mode;
+  consoles?: string[];
+  hours?: number;
+  date?: string;
+  /** Changes whenever a new link arrives, so the same preset can be applied again. */
+  key: string;
+}
+
+export function SlotManager({ d, onDone, preset }: { d: OwnerDrop; onDone: () => void; preset?: SlotPreset }) {
   const flexible = Boolean(d.maxHours);
   const today = todayIso();
 
@@ -85,6 +95,23 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
   // Which consoles the café is working on: [] = all of them (the overview).
   const consoles = useMemo(() => d.consoles ?? [], [d.consoles]);
   const [pick, setPick] = useState<string[]>([]);
+
+  // Apply a Quick Find preset once per link. Unknown consoles or days are ignored, never guessed.
+  const [appliedPreset, setAppliedPreset] = useState('');
+  useEffect(() => {
+    if (!preset || preset.key === appliedPreset) return;
+    setAppliedPreset(preset.key);
+    if (preset.date && dates.includes(preset.date)) {
+      setDate(preset.date);
+      setBlockId('');
+      setStart('');
+      setUndo(null);
+    }
+    if (preset.mode) setMode(preset.mode);
+    const known = (preset.consoles ?? []).filter((k) => consoles.some((c) => c.key === k));
+    if (known.length) setPick(known);
+    setHours(preset.hours && preset.hours >= 1 && preset.hours <= 24 ? preset.hours : 1);
+  }, [preset, appliedPreset, dates, consoles]);
   const picked = pick.filter((k) => consoles.some((c) => c.key === k));
   /** Bookings as the slider should see them: only the picked consoles, when some are picked. */
   const forPick = (slots: NonNullable<DropBlock['bookedSlots']>) =>
@@ -251,7 +278,7 @@ export function SlotManager({ d, onDone }: { d: OwnerDrop; onDone: () => void })
   const actionDisabled = busy || !block || block.started || (mode !== 'price' && (picked.length ? busyPicked.length > 0 : free < 1));
 
   return (
-    <Card elevation="resting" data-tour="drop-offline">
+    <Card elevation="resting" data-tour="drop-offline" data-qf="slots">
       <CardContent className="flex flex-col gap-3 p-4 sm:p-5">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="font-heading text-h3 font-bold text-text-primary">Manage slots</h2>

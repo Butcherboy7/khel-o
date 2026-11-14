@@ -3,7 +3,7 @@
 import Link from 'next/link';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Settings as SettingsIcon, Clock, MapPin, Phone, AlertCircle, RefreshCw } from 'lucide-react';
 import { Card, CardContent, Button, Skeleton } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
@@ -16,7 +16,7 @@ import { EmergencyModeCard } from '@/components/owner/EmergencyModeCard';
 import { BookingsPauseCard } from '@/components/owner/BookingsPauseCard';
 import { PayoutDetailsCard } from '@/components/owner/PayoutDetailsCard';
 import { AccountCredentialsCard } from '@/components/shared/AccountCredentialsCard';
-import { EditCafeModal } from '@/components/owner/EditCafeModal';
+import { EditCafeModal, EDIT_CAFE_TABS, type EditCafeTab } from '@/components/owner/EditCafeModal';
 
 export default function OwnerSettingsPage() {
   const router = useRouter();
@@ -28,6 +28,20 @@ export default function OwnerSettingsPage() {
   const [isTogglingEmergency, setIsTogglingEmergency] = useState(false);
   const [isTogglingPause, setIsTogglingPause] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTab, setEditTab] = useState<EditCafeTab | undefined>(undefined);
+
+  // Quick Find: ?edit=hours (or basic, location, amenities, games) opens the
+  // editor on that tab once the settings have loaded.
+  const searchParams = useSearchParams();
+  const editParam = searchParams.get('edit');
+  useEffect(() => {
+    if (!settings || !editParam || !EDIT_CAFE_TABS.includes(editParam as EditCafeTab)) return;
+    setEditTab(editParam as EditCafeTab);
+    setIsEditModalOpen(true);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('edit');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`);
+  }, [settings, editParam]);
 
   // Staff role guard — Staff cannot access Café Settings. Gated on activeRole
   // alone: the legacy user.role single-value column can be stale (e.g. an
@@ -158,21 +172,25 @@ export default function OwnerSettingsPage() {
           </p>
         </div>
 
-        <EmergencyModeCard
-          isEmergencyMode={settings.isEmergencyMode}
-          onToggle={handleEmergencyToggle}
-          isLoading={isTogglingEmergency}
-        />
+        <div data-qf="emergency">
+          <EmergencyModeCard
+            isEmergencyMode={settings.isEmergencyMode}
+            onToggle={handleEmergencyToggle}
+            isLoading={isTogglingEmergency}
+          />
+        </div>
 
-        <BookingsPauseCard
-          bookingsPaused={settings.bookingsPaused}
-          onToggle={handlePauseToggle}
-          isLoading={isTogglingPause}
-        />
+        <div data-qf="pause">
+          <BookingsPauseCard
+            bookingsPaused={settings.bookingsPaused}
+            onToggle={handlePauseToggle}
+            isLoading={isTogglingPause}
+          />
+        </div>
       </div>
 
       {/* Section 1a: Login & Security */}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4" data-qf="login">
         <div className="flex flex-col gap-1 border-b border-border pb-2.5">
           <h2 className="font-heading text-h2 text-text-primary">Login &amp; security</h2>
           <p className="text-caption text-text-secondary">
@@ -183,7 +201,7 @@ export default function OwnerSettingsPage() {
       </div>
 
       {/* Section 1b: Payouts */}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4" data-qf="payout">
         <div className="flex flex-col gap-1 border-b border-border pb-2.5">
           <h2 className="font-heading text-h2 text-text-primary">Where your money goes</h2>
           <p className="text-caption text-text-secondary">
@@ -208,7 +226,7 @@ export default function OwnerSettingsPage() {
             <h2 className="font-heading text-h2 text-text-primary">Your café details</h2>
             <p className="text-caption text-text-secondary">What customers see on your listing.</p>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setIsEditModalOpen(true)}>
+          <Button variant="secondary" size="sm" onClick={() => { setEditTab(undefined); setIsEditModalOpen(true); }}>
             Edit
           </Button>
         </div>
@@ -307,6 +325,7 @@ export default function OwnerSettingsPage() {
         <EditCafeModal
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
+          initialTab={editTab}
           cafeId={settings.cafeId}
           settings={settings}
           onSaved={(updated) =>

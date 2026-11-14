@@ -17,6 +17,7 @@ import {
   ChevronDown,
   SlidersHorizontal,
   RefreshCw,
+  Search,
   Plus,
   Eye,
   X,
@@ -43,6 +44,7 @@ import { TutorialButton } from '@/components/owner/TutorialButton';
 import { INFO_TIPS, PAGE_GUIDES } from '@/lib/ownerGuideCopy';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 import { groupLabel } from '@/lib/bookingLabels';
+import { useQuickFind } from '@/components/owner/quickfind/QuickFind';
 
 /** Today's date in India as YYYY-MM-DD, whatever the device's clock zone. */
 function todayIst(): string {
@@ -492,6 +494,10 @@ export default function OwnerDashboardPage() {
         </div>
       </div>
 
+      {/* Phones: Quick Find as a full search bar on the first screen, so owners
+          find it without knowing the header icon. Desktop has it in the top bar. */}
+      <DashboardQuickFind />
+
       {/* Staff open this portal to do exactly one thing, so it gets the first
           screen and a full-width target rather than a decorated banner. */}
       {isStaff && (
@@ -703,7 +709,7 @@ export default function OwnerDashboardPage() {
           real but secondary, so they live behind one "Advanced" disclosure
           instead of two more full-width cards. */}
       {!isStaff && (
-      <Card data-tour="dash-seats" elevation="raised" className="flex flex-col gap-4 border border-border bg-card p-4 shadow-card">
+      <Card data-tour="dash-seats" data-qf="seats" elevation="raised" className="flex flex-col gap-4 border border-border bg-card p-4 shadow-card">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -982,5 +988,19 @@ export default function OwnerDashboardPage() {
         )}
       </Modal>
     </div>
+  );
+}
+
+function DashboardQuickFind() {
+  const { open } = useQuickFind();
+  return (
+    <button
+      type="button"
+      onClick={() => open()}
+      className="-mt-1 flex min-h-[48px] w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 text-left text-body text-text-secondary shadow-card transition-colors hover:border-text-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:hidden"
+    >
+      <Search className="h-5 w-5 flex-shrink-0 text-text-primary" aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate">Search anything or do something…</span>
+    </button>
   );
 }

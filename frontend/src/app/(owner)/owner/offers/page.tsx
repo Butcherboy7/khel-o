@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Tag, Plus, Calendar, Clock, Users, Ban, RotateCcw, AlertCircle, QrCode, Copy, RefreshCw, Percent, IndianRupee, Sparkles, Trash2 } from 'lucide-react';
 import {
@@ -227,6 +228,18 @@ export default function OwnerOffersPage() {
     resetForm();
     setIsModalOpen(true);
   };
+
+  // Quick Find: "new offer" / "happy hour" lands here with ?new=1.
+  const searchParams = useSearchParams();
+  const wantsNew = searchParams.get('new') === '1';
+  useEffect(() => {
+    if (!wantsNew || !cafeId) return;
+    openCreate();
+    const url = new URL(window.location.href);
+    url.searchParams.delete('new');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsNew, cafeId]);
 
   const openEdit = (p: Promotion) => {
     setEditingId(p.id);

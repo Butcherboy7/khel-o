@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -46,10 +46,25 @@ export default function OwnerBookingsPage() {
   // code from a notification searches every day instead.
   const today = getTodayString();
   const tomorrow = addDaysToDateString(today, 1);
-  const [selectedDate, setSelectedDate] = useState(() => (searchParams.get('ref') ? '' : today));
+  const [selectedDate, setSelectedDate] = useState(() => dayParam(searchParams.get('day'), today, tomorrow) ?? (searchParams.get('ref') ? '' : today));
   const datePickerRef = useRef<HTMLInputElement>(null);
   const pickedOther = selectedDate !== '' && selectedDate !== 'upcoming' && selectedDate !== today && selectedDate !== tomorrow;
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>(() => statusParam(searchParams.get('status')) ?? 'all');
+
+  // Quick Find links (?day=tomorrow&status=cancelled&ref=…) — also when the
+  // owner is already on this page and searches again, so it re-reads them.
+  const linkKey = `${searchParams.get('day') ?? ''}|${searchParams.get('status') ?? ''}|${searchParams.get('ref') ?? ''}`;
+  useEffect(() => {
+    const day = dayParam(searchParams.get('day'), today, tomorrow);
+    const status = statusParam(searchParams.get('status'));
+    const ref = searchParams.get('ref');
+    if (day !== undefined) setSelectedDate(day);
+    else if (ref) setSelectedDate('');
+    if (status) setSelectedStatus(status);
+    else if (searchParams.get('day')) setSelectedStatus('all');
+    if (ref !== null) setSearchRef(ref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkKey]);
 
   // 'Coming up' has no single day: ask for every day, then keep today onwards.
   const apiDate = selectedDate === 'upcoming' ? '' : selectedDate;
@@ -394,6 +409,22 @@ export default function OwnerBookingsPage() {
       </div>
     </div>
   );
+}
+
+const STATUSES = ['pending_payment', 'confirmed', 'checked_in', 'active', 'completed', 'cancelled', 'no_show'];
+
+function statusParam(v: string | null): string | undefined {
+  return v && STATUSES.includes(v) ? v : undefined;
+}
+
+/** ?day=today|tomorrow|upcoming|all|YYYY-MM-DD → the day filter ('' = all days). */
+function dayParam(v: string | null, today: string, tomorrow: string): string | undefined {
+  if (!v) return undefined;
+  if (v === 'today') return today;
+  if (v === 'tomorrow') return tomorrow;
+  if (v === 'upcoming') return 'upcoming';
+  if (v === 'all') return '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined;
 }
 
 /** The booking's start has passed (café time), so "never showed up" is allowed. */

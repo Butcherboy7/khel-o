@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Users, UserPlus, EyeOff, Trash2, CheckCircle2, AlertCircle, Copy, Mail, Clock, XCircle } from 'lucide-react';
 import { listOwnerStaff, deleteOwnerStaff } from '@/lib/api/owner';
 import { createStaffInvitation, listStaffInvitations, cancelStaffInvitation, type StaffInvitation } from '@/lib/api/invitations';
@@ -32,6 +32,16 @@ export default function OwnerStaffPage() {
   const [invitations, setInvitations] = useState<StaffInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  // Quick Find: "add staff" opens the invite form straight away.
+  const searchParams = useSearchParams();
+  const wantsInvite = searchParams.get('invite') === '1';
+  useEffect(() => {
+    if (!wantsInvite) return;
+    setIsInviteOpen(true);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('invite');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`);
+  }, [wantsInvite]);
   const [formData, setFormData] = useState({ fullName: '', email: '', phoneNumber: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);

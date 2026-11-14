@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { spotlightWhenReady } from '@/components/owner/quickfind/QuickFindSpotlight';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listCafeTiers, createTier, updateTier, deleteTier } from '@/lib/api/tiers';
 import { getOwnerCafeId } from '@/lib/api/owner';
@@ -93,6 +95,39 @@ export default function HardwareTiersPage() {
   });
 
   const tiers = data || [];
+
+  // Quick Find links: ?edit=<setup> opens its editor, ?add=1 the Add form,
+  // ?broken=<setup>&machine=PS5%202 opens "Something broken?" with the name typed,
+  // ?qf=broken opens it on the first PC/console setup. Each link is acted on once.
+  const searchParams = useSearchParams();
+  const linkKey = ['edit', 'add', 'broken', 'machine', 'qf'].map((k) => searchParams.get(k) ?? '').join('|');
+  const handledLink = useRef('');
+  const [brokenPrefill, setBrokenPrefill] = useState<{ tierId: string; label: string } | null>(null);
+  useEffect(() => {
+    if (!data || linkKey === '||||' || handledLink.current === linkKey) return;
+    handledLink.current = linkKey;
+    const editId = searchParams.get('edit');
+    const brokenId = searchParams.get('broken');
+    const editTier = editId ? data.find((t) => t.id === editId) : undefined;
+    if (editTier) {
+      handleOpenEdit(editTier);
+      return;
+    }
+    if (searchParams.get('add') === '1') {
+      resetForm();
+      setIsModalOpen(true);
+      return;
+    }
+    const gaming = data.filter((t) => t.isActive && t.tierType !== 'activity');
+    const brokenTier = brokenId ? data.find((t) => t.id === brokenId) : searchParams.get('qf') === 'broken' ? gaming[0] : undefined;
+    if (brokenTier) {
+      setExpandedUnitsTierId(brokenTier.id);
+      setBrokenPrefill({ tierId: brokenTier.id, label: (searchParams.get('machine') ?? '').slice(0, 50) });
+      spotlightWhenReady(`broken-${brokenTier.id}`);
+    }
+    // handleOpenEdit/resetForm are plain functions recreated each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, linkKey]);
 
   const getActiveCafeId = async () => {
     let activeId = resolvedCafeId || storeCafeId;
@@ -537,7 +572,16 @@ export default function HardwareTiersPage() {
                         {expandedUnitsTierId === tier.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                         <span>Something broken?</span>
                       </button>
-                      {expandedUnitsTierId === tier.id && <BrokenMachines cafeId={tier.cafeId} tierId={tier.id} isRoom={Boolean(tier.isRoom)} />}
+                      {expandedUnitsTierId === tier.id && (
+                        <div data-qf={`broken-${tier.id}`} className="-mx-2 px-2 pb-2">
+                          <BrokenMachines
+                            cafeId={tier.cafeId}
+                            tierId={tier.id}
+                            isRoom={Boolean(tier.isRoom)}
+                            initialLabel={brokenPrefill?.tierId === tier.id ? brokenPrefill.label : ''}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 

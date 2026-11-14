@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui';
@@ -11,9 +11,13 @@ import { listTierUnits, markMachineBroken, markMachineFixed } from '@/lib/api/ha
  * already use for the machine; nothing is numbered for them and customers never see it.
  * They just see one fewer machine to book until it is marked fixed.
  */
-export function BrokenMachines({ cafeId, tierId, isRoom = false, onChanged }: { cafeId: string; tierId: string; isRoom?: boolean; onChanged?: () => void }) {
+export function BrokenMachines({ cafeId, tierId, isRoom = false, onChanged, initialLabel = '' }: { cafeId: string; tierId: string; isRoom?: boolean; onChanged?: () => void; initialLabel?: string }) {
   const queryClient = useQueryClient();
-  const [label, setLabel] = useState('');
+  // Quick Find can arrive with the machine already typed ("PS5 2"); the owner still taps Mark broken.
+  const [label, setLabel] = useState(initialLabel);
+  useEffect(() => {
+    if (initialLabel) setLabel(initialLabel);
+  }, [initialLabel]);
   const key = ['tier-units', tierId];
 
   const { data } = useQuery({ queryKey: key, queryFn: () => listTierUnits(cafeId, tierId), staleTime: 10_000 });
@@ -54,6 +58,7 @@ export function BrokenMachines({ cafeId, tierId, isRoom = false, onChanged }: { 
           maxLength={50}
           placeholder={isRoom ? 'Which cabin? e.g. Blue cabin' : 'Which machine? e.g. PC 7'}
           aria-label="Which machine is broken"
+          data-qf-focus
           className="h-10 min-w-0 flex-1 rounded-xl border border-border bg-card px-3 text-body focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         <Button type="submit" variant="secondary" size="sm" isLoading={addMut.isPending} disabled={!label.trim()} className="gap-1.5 whitespace-nowrap">

@@ -766,3 +766,22 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
   .khelo-vote-bar { transition: none; }
   .khelo-vote-pop, .khelo-vote-ring, .khelo-vote-spark, .khelo-vote-plus { animation: none; opacity: 0; }
 }
+
+/* Quick Find: the palette rises into place; a deep-linked section glows twice so the eye lands on it. */
+.qf-enter { animation: qf-enter .2s cubic-bezier(.16, 1, .3, 1); }
+@keyframes qf-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (min-width: 1024px) {
+  @keyframes qf-enter { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
+}
+.qf-fade { animation: qf-fade .16s ease-out; }
+@keyframes qf-fade { from { opacity: 0; } to { opacity: 1; } }
+.qf-spotlight { border-radius: 16px; animation: qf-spotlight 2.4s cubic-bezier(.16, 1, .3, 1); }
+@keyframes qf-spotlight {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(208 70 60 / 0); }
+  15%, 55% { box-shadow: 0 0 0 4px rgb(208 70 60 / .45), 0 8px 24px -6px rgb(208 70 60 / .35); }
+  35%, 75% { box-shadow: 0 0 0 2px rgb(208 70 60 / .25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qf-enter, .qf-fade { animation: none; }
+  .qf-spotlight { animation: none; box-shadow: 0 0 0 3px rgb(208 70 60 / .45); }
+}
