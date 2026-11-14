@@ -265,7 +265,7 @@ export const TOUR_LESSONS: TourLesson[] = [
         body: 'Price per hour and the two fees. People who already reserved keep the price they booked at.',
       },
       {
-        kind: 'look', page: '*', target: 'drop-seats',
+        kind: 'look', page: '*', target: 'drop-seats', onlyIfVisible: true,
         title: 'Seats at one time',
         body: 'How many people can play together. You can raise or lower it, but never below what is already reserved.',
       },
@@ -275,7 +275,7 @@ export const TOUR_LESSONS: TourLesson[] = [
         body: 'Add a photo of people playing at your café. Customers see it first, so your place looks different from others.',
       },
       {
-        kind: 'look', page: '*', target: 'drop-run',
+        kind: 'look', page: '*', target: 'drop-run', onlyIfVisible: true,
         title: 'How long it runs',
         body: 'It starts with a week and can run up to 2 weeks. Add a week, or stop after today.',
       },

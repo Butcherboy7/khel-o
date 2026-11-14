@@ -98,10 +98,13 @@ export function DropsManager({ base = '/owner/drops', admin = false, extra }: { 
       {data && !data.drops.length && !creating && (
         <EmptyState icon={<Ticket className="h-6 w-6" />} title="No drops yet" description="Tap New drop to make your first one." />
       )}
-      {data?.drops.map((d, i) => {
+      {data?.drops.map((d, i, all) => {
+        // The Tutorial lights up (and opens) the live drop when there is one.
+        const liveIdx = all.findIndex((x) => x.state !== 'draft' && x.state !== 'cancelled');
+        const tourCard = i === (liveIdx >= 0 ? liveIdx : 0);
         const sold = d.seatsSold ?? d.seatsTotal - d.blocks.reduce((n, b) => n + b.seatsLeft, 0);
         return (
-          <Card key={d.id} elevation="resting" data-tour={i === 0 ? 'drops-list' : undefined} className="relative transition-shadow hover:shadow-card">
+          <Card key={d.id} elevation="resting" data-tour={tourCard ? 'drops-list' : undefined} className="relative transition-shadow hover:shadow-card">
             <CardContent className="flex flex-col gap-3 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
