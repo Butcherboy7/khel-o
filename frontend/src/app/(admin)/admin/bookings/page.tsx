@@ -143,7 +143,7 @@ function AmountCell({ b, align = 'right' }: { b: BookingDetail; align?: 'left' |
     <div className={align === 'right' ? 'text-right' : 'text-left'}>
       <div className="font-data text-body font-bold tabular-nums text-text-primary">{money(b.totalAmount)}</div>
       {b.ownerSettlementAmount != null && (
-        <div className="font-data text-[11px] tabular-nums text-text-tertiary">
+        <div className="text-[11px] leading-snug tabular-nums text-text-tertiary">
           Café {money(b.ownerSettlementAmount)} · KHELO {money(b.platformFeeAmount)}
           {(b.kheloDiscount ?? 0) > 0 && <> · KHELO paid {money(b.kheloDiscount ?? 0)}</>}
           {b.firstBookingOffer && <> · first booking, no fee</>}
@@ -303,7 +303,7 @@ export default function AdminBookingsPage() {
       {!isLoading && !isError && bookings.length > 0 && (
         <>
           <div className="hidden md:block overflow-x-auto rounded-2xl border border-border bg-card">
-            <table className="w-full min-w-[920px] text-left">
+            <table className="w-full min-w-[880px] text-left">
               <thead className="bg-surface text-[12px] font-semibold text-text-secondary">
                 <tr>
                   <th scope="col" className="w-10 py-2.5 pl-5 pr-2 text-right font-semibold">#</th>
@@ -343,7 +343,7 @@ export default function AdminBookingsPage() {
                       <div className="text-caption text-text-primary">{dayLabel(b.sessionDate)}</div>
                       <div className="text-[11px] tabular-nums text-text-tertiary">{timeLabel(b.startTime)}</div>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3">
+                    <td className="w-[11rem] px-3 py-3">
                       <AmountCell b={b} />
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">
