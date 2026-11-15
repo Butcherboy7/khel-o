@@ -67,7 +67,7 @@ export function Photos() {
         hint="JPG, PNG or WebP. You can pick several at once. New photos go to the end of the wall."
       >
         <div className="flex flex-wrap items-center gap-2">
-          <label className={cn('inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 font-bold text-white', uploading && 'opacity-70')}>
+          <label className={cn('btn-depth inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 font-bold text-white', uploading && 'opacity-70')}>
             <ImagePlus className="h-4 w-4" aria-hidden />
             {uploading ? `Uploading ${uploading.done} of ${uploading.total}…` : 'Upload photos'}
             <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={!!uploading} onChange={(e) => e.target.files?.length && uploadMany(e.target.files)} />

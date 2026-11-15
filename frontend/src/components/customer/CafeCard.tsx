@@ -419,7 +419,7 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
               a real CTA instead of relying on the whole-card Link affordance
               other cards use — the extra weight is the point. */}
           {isLive && (
-            <div className="mt-1 flex items-center justify-center gap-1.5 rounded-lg bg-primary py-1.5 text-caption font-bold text-white transition-colors group-hover:bg-primary-dark">
+            <div className="btn-depth mt-1 flex items-center justify-center gap-1.5 rounded-lg bg-primary py-1.5 text-caption font-bold text-white transition-colors group-hover:bg-primary-dark">
               Book Now
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
             </div>

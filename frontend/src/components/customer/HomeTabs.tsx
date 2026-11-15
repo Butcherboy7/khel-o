@@ -291,7 +291,7 @@ export function DropSpotlight() {
             {many ? `Play ${d.game} at ${to.count} cafés` : `Play ${d.game} at ${d.cafe.name}`}
           </span>
         </span>
-        <span className="flex-shrink-0 rounded-full bg-primary px-4 py-2.5 text-body font-extrabold shadow-lg transition-transform active:scale-95">
+        <span className="btn-depth flex-shrink-0 rounded-full bg-primary px-4 py-2.5 text-body font-extrabold">
           {many ? 'Pick a café' : 'Reserve now'}
         </span>
       </div>

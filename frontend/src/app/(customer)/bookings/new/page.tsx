@@ -1370,7 +1370,7 @@ function BookingWizardContent() {
               noTimeLeftToday ||
               windowRemainingSeats < consolesCount
             }
-            className="flex-shrink-0 min-h-btn rounded-2xl bg-primary px-6 py-3 font-heading text-btn font-bold text-white shadow-float hover:bg-primary-dark active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="btn-depth flex-shrink-0 min-h-btn rounded-2xl bg-primary px-6 py-3 font-heading text-btn font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isProcessing
               ? 'Processing'

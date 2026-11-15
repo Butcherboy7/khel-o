@@ -1263,8 +1263,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                 aria-label={joined ? 'Voted. Tap to remove your vote' : `Vote for ${cafe.name}`}
                 className={`inline-flex min-h-[48px] flex-shrink-0 items-center justify-center rounded-2xl px-6 py-3.5 font-heading text-btn font-semibold shadow-float transition-colors disabled:opacity-60 ${
                   joined
-                    ? 'bg-surface text-text-primary border border-border'
-                    : 'bg-primary text-white hover:bg-primary-dark'
+                    ? 'btn-depth-soft bg-surface text-text-primary border border-border'
+                    : 'btn-depth bg-primary text-white'
                 }`}
               >
                 {joined ? 'Voted ✓' : 'Vote'}

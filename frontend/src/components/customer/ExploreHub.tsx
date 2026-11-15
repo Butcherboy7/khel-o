@@ -186,7 +186,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
                   <p className="mt-0.5 text-caption text-white/80">
                     {liveDrop.seatsPerSlot ? `${liveDrop.seatsPerSlot} seats a night` : `${liveDrop.seatsLeft} of ${liveDrop.seatsTotal} seats left`}
                   </p>
-                  <span className="mt-2.5 inline-flex min-h-[40px] items-center rounded-full bg-white px-4 text-caption font-extrabold text-[#1c1c1e]">
+                  <span className="btn-depth-soft [--edge:rgb(0_0_0/0.35)] mt-2.5 inline-flex min-h-[40px] items-center rounded-full bg-white px-4 text-caption font-extrabold text-[#1c1c1e]">
                     {(liveTo?.count ?? 1) > 1 ? 'Pick a café' : 'Reserve'}
                   </span>
                 </div>
