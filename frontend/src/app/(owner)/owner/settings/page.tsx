@@ -253,7 +253,7 @@ export default function OwnerSettingsPage() {
           To take your café off KHEL-O for good, email{' '}
           <a
             href="mailto:support@khel-o.com"
-            className="font-semibold text-primary underline underline-offset-2"
+            className="whitespace-nowrap font-semibold text-primary underline underline-offset-2"
           >
             support@khel-o.com
           </a>
