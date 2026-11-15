@@ -8,7 +8,7 @@ import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { adSource, joinedHere, recordJoin, suggestedHere, votedHere } from '@/lib/communityJoin';
 import { getThisWeek } from '@/lib/api/community';
-import { COMMUNITY_URL } from '@/lib/challenge';
+import { COMMUNITY_MEMBERS_FLOOR, COMMUNITY_URL } from '@/lib/challenge';
 import { cn } from '@/lib/cn';
 import { COOKIE_NOTICE_KEY } from '@/components/layout/CookieConsentBanner';
 
@@ -17,7 +17,7 @@ import { COOKIE_NOTICE_KEY } from '@/components/layout/CookieConsentBanner';
 export function CommunityInviteCard({ where }: { where: string }) {
   // The real member count, only once it is big enough to mean something.
   const { data } = useQuery({ queryKey: ['community-week'], queryFn: getThisWeek, staleTime: 120_000, retry: false });
-  const members = data?.members ?? 0;
+  const members = Math.max(data?.members ?? 0, COMMUNITY_MEMBERS_FLOOR);
   const [step, setStep] = useState<'join' | 'vote' | 'suggest' | 'done' | null>(null);
   useEffect(() => {
     setStep(!joinedHere() ? 'join' : !votedHere() && data?.poll && !data.poll.closed ? 'vote' : !suggestedHere() ? 'suggest' : 'done');
@@ -52,11 +52,12 @@ export function CommunityInviteCard({ where }: { where: string }) {
         <WhatsAppIcon className="h-5 w-5" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-heading text-body-emphasis font-bold">Join the KHEL-O WhatsApp Community</span>
+        <span className="block font-heading text-body-emphasis font-bold">{members}+ gamers are already in</span>
         <span className="block text-caption text-[#C9CBD3]">
-          {members >= 10 ? `${members} gamers are in. ` : ''}New challenges drop there first, plus café news and people to play with. Free, leave any time.
+          GTA 6 seat alerts, challenge drops and café news land in the KHEL-O WhatsApp Community first. Not in yet? You hear last.
         </span>
       </span>
+      <span className="inline-flex min-h-[44px] flex-none items-center gap-1.5 rounded-full bg-[#25D366] px-4 text-caption font-bold text-[#0B1F12]">Join free</span>
     </a>
   );
 }
@@ -142,7 +143,7 @@ export function CampaignJoinStrip({ campaign, where }: { campaign: string; where
     };
     const timer = window.setTimeout(() => {
       ready = true;
-    }, 9000);
+    }, 5000);
     const poll = window.setInterval(tryReveal, 1000);
     function cleanup() {
       window.clearTimeout(timer);
@@ -170,7 +171,7 @@ export function CampaignJoinStrip({ campaign, where }: { campaign: string; where
       className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+72px)] z-40 mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-2.5 pl-3.5 text-[#F4F1EC] shadow-lg"
     >
       <p className="min-w-0 flex-1 text-caption leading-snug">
-        <span className="font-bold">Seats are filling.</span> Get alerts on WhatsApp.
+        <span className="font-bold">{COMMUNITY_MEMBERS_FLOOR}+ gamers get seat alerts first.</span> Join before they fill.
       </p>
       <a
         href={COMMUNITY_URL}

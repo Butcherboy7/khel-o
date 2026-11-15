@@ -165,6 +165,8 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
           </div>
         )}
 
+        {data !== undefined && <CommunityInviteCard where="drops_list" />}
+
         <ul className="flex flex-col gap-3">
           {rows.map((d, i) => {
             const art = d.coverImageUrl || d.cafe.photo || dropArt(d);
@@ -209,7 +211,6 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
           })}
         </ul>
 
-        {data !== undefined && <CommunityInviteCard where="drops_list" />}
         <CampaignJoinStrip campaign="gta-6-booking-ad" where="drops_list_strip" />
 
         {cafes > 0 && (
