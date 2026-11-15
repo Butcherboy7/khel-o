@@ -48,7 +48,9 @@ function addDays(dateStr: string, delta: number): string {
 function formatDateLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  // The year only when it isn't this year, so the label fits beside "Change".
+  const sameYear = y === new Date().getFullYear();
+  return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
 }
 
 /* ── Page ────────────────────────────────────────────────────────── */
@@ -69,6 +71,7 @@ export default function OwnerAvailabilityPage() {
   const [error, setError] = useState<string | null>(null);
 
   const tierRef = useRef<string | null>(tierParam);
+  const datePickerRef = useRef<HTMLInputElement>(null);
   const isToday = selectedDate === getTodayString();
 
   const load = useCallback(async () => {
@@ -230,10 +233,23 @@ export default function OwnerAvailabilityPage() {
           <ChevronLeft className="h-4 w-4" />
         </button>
 
-        <div className="flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-surface min-w-0">
-          <CalendarDays className="h-4 w-4 text-primary flex-shrink-0" />
-          <span className="font-heading text-caption font-bold text-text-primary truncate">{formatDateLabel(selectedDate)}</span>
-        </div>
+        {/* Tap the date to jump to any day, past or future, without pressing the
+            arrows over and over. The real date field sits under the button so
+            the phone's own calendar opens. */}
+        <label className="relative flex h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3 transition-colors hover:bg-surface-hover focus-within:ring-2 focus-within:ring-primary sm:px-4">
+          <CalendarDays className="h-5 w-5 flex-shrink-0 text-primary" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate font-heading text-caption font-bold text-text-primary">{formatDateLabel(selectedDate)}</span>
+          <span className="flex-shrink-0 text-xs font-semibold text-primary">Change</span>
+          <input
+            ref={datePickerRef}
+            type="date"
+            aria-label="Pick a day"
+            value={selectedDate}
+            onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+            onClick={() => datePickerRef.current?.showPicker?.()}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          />
+        </label>
 
         <button
           type="button"
@@ -283,15 +299,18 @@ export default function OwnerAvailabilityPage() {
                 key={t.id}
                 type="button"
                 onClick={() => handleSelectTier(t.id)}
-                className={`flex flex-col items-center justify-center gap-1.5 min-w-[104px] px-3.5 py-3 rounded-2xl border-2 transition-colors flex-shrink-0 ${
+                aria-pressed={isActive}
+                // Fixed width + wrapping text: a long name like "GTA 6 Launch
+                // Drop" used to stretch one card off the screen edge.
+                className={`flex w-[124px] flex-shrink-0 flex-col items-center justify-start gap-1.5 rounded-2xl border-2 px-2.5 py-3 transition-colors ${
                   isActive ? 'border-primary bg-primary/5' : 'border-border bg-surface hover:bg-surface-hover'
                 }`}
               >
-                <Icon className={`h-6 w-6 ${isActive ? 'text-primary' : 'text-text-secondary'}`} />
-                <span className={`text-caption font-bold text-center leading-tight ${isActive ? 'text-primary' : 'text-text-primary'}`}>
+                <Icon className={`h-6 w-6 flex-shrink-0 ${isActive ? 'text-primary' : 'text-text-secondary'}`} aria-hidden="true" />
+                <span className={`line-clamp-2 break-words text-center text-caption font-bold leading-tight ${isActive ? 'text-primary' : 'text-text-primary'}`}>
                   {t.name}
                 </span>
-                <span className="text-xs text-text-secondary">{t.id.startsWith('drop-') ? `Launch drop · ${t.playsOn ? `on ${t.playsOn} · ` : ''}${t.totalSeats} seats` : `${t.totalSeats} ${t.totalSeats === 1 ? 'machine' : 'machines'}`}</span>
+                <span className="text-center text-xs leading-snug text-text-secondary">{t.id.startsWith('drop-') ? `${t.playsOn ? `${t.playsOn} · ` : ''}${t.totalSeats} seats` : `${t.totalSeats} ${t.totalSeats === 1 ? 'machine' : 'machines'}`}</span>
               </button>
             );
           })}

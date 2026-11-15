@@ -434,7 +434,9 @@ function hasStarted(b: { sessionDate: string; startTime: string }): boolean {
 
 function dayChip(active: boolean): string {
   return cn(
-    'inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-4 text-caption font-semibold transition-colors',
+    // shrink-0 + nowrap: in the sideways-scrolling row the chips were squeezed
+    // until "Pick a date" broke onto three lines.
+    'inline-flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-caption font-semibold transition-colors',
     'focus-within:outline-none focus-within:ring-2 focus-within:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
     active ? 'border-secondary bg-secondary text-white' : 'border-border bg-card text-text-primary hover:border-text-secondary',
   );
