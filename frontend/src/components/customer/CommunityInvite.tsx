@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, X } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { trackAction } from '@/lib/api/analyticsEvents';
-import { joinedHere, recordJoin, suggestedHere, votedHere } from '@/lib/communityJoin';
+import { adSource, joinedHere, recordJoin, suggestedHere, votedHere } from '@/lib/communityJoin';
 import { getThisWeek } from '@/lib/api/community';
 import { COMMUNITY_URL } from '@/lib/challenge';
 import { cn } from '@/lib/cn';
@@ -99,5 +99,76 @@ export function LastChallengeLink({ where }: { where: string }) {
       </span>
       <ArrowRight className="h-4 w-4 flex-shrink-0 text-text-secondary" aria-hidden />
     </Link>
+  );
+}
+
+const STRIP_DISMISS_KEY = 'khelo.drops.strip.dismissed';
+
+/** For people who came from one ad and are browsing without reserving: a slim bar that appears
+ *  after they have scrolled or lingered. Only for that campaign, never once joined or dismissed. */
+export function CampaignJoinStrip({ campaign, where }: { campaign: string; where: string }) {
+  const [show, setShow] = useState(false);
+  const [gone, setGone] = useState(false);
+
+  useEffect(() => {
+    let dismissed = false;
+    try {
+      dismissed = sessionStorage.getItem(STRIP_DISMISS_KEY) === '1';
+    } catch {
+      /* private window */
+    }
+    if (dismissed || joinedHere() || adSource() !== campaign) return;
+    const reveal = () => {
+      setShow(true);
+      trackAction('drops_join_strip_shown', { campaign });
+      cleanup();
+    };
+    const onScroll = () => {
+      if (window.scrollY > 260) reveal();
+    };
+    const timer = window.setTimeout(reveal, 9000);
+    function cleanup() {
+      window.clearTimeout(timer);
+      window.removeEventListener('scroll', onScroll);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return cleanup;
+  }, [campaign]);
+
+  if (!show || gone) return null;
+  const close = () => {
+    setGone(true);
+    trackAction('drops_join_strip_dismissed', { campaign });
+    try {
+      sessionStorage.setItem(STRIP_DISMISS_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  };
+  return (
+    <div
+      role="region"
+      aria-label="WhatsApp alerts"
+      className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+72px)] z-40 mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-2.5 pl-3.5 text-[#F4F1EC] shadow-lg"
+    >
+      <p className="min-w-0 flex-1 text-caption leading-snug">
+        <span className="font-bold">Seats are filling.</span> Get alerts on WhatsApp.
+      </p>
+      <a
+        href={COMMUNITY_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => {
+          recordJoin(where);
+          setGone(true);
+        }}
+        className="inline-flex min-h-[44px] flex-none items-center gap-1.5 rounded-full bg-[#25D366] px-4 text-caption font-bold text-[#0B1F12]"
+      >
+        <WhatsAppIcon className="h-4 w-4" aria-hidden /> Join
+      </a>
+      <button type="button" onClick={close} aria-label="Dismiss" className="inline-flex h-11 w-9 flex-none items-center justify-center text-[#F4F1EC]/70">
+        <X className="h-4 w-4" aria-hidden />
+      </button>
+    </div>
   );
 }

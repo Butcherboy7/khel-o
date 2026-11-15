@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, LocateFixed, MapPin } from 'lucide-react';
 import { CustomerShell } from '@/components/layout/CustomerShell';
 import { dropArt } from '@/components/customer/HomeTabs';
+import { CampaignJoinStrip, CommunityInviteCard } from '@/components/customer/CommunityInvite';
 import { listDrops, type DropListItem } from '@/lib/api/drops';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { distanceKm, gameKey, rupees } from '@/lib/drops';
@@ -207,6 +208,9 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
             );
           })}
         </ul>
+
+        {data !== undefined && <CommunityInviteCard where="drops_list" />}
+        <CampaignJoinStrip campaign="gta-6-booking-ad" where="drops_list_strip" />
 
         {cafes > 0 && (
           <p className="px-1 pb-4 text-caption text-text-secondary">
