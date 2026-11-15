@@ -350,7 +350,10 @@ function AdminMobileNav() {
         )}
         aria-label="Admin bottom navigation"
         // Any tap on the bar while the sheet is up also puts the sheet away.
-        onClickCapture={() => isOpen && close()}
+        // (More itself toggles; React re-renders between this and its onClick.)
+        onClickCapture={(e) => {
+          if (isOpen && !(e.target as Element).closest('[aria-haspopup="dialog"]')) close();
+        }}
       >
         {bottom.map((g) => {
           const Icon = AREA_ICON[g.label ?? ''] ?? BarChart3;
@@ -374,7 +377,7 @@ function AdminMobileNav() {
         })}
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => setIsOpen((o) => !o)}
           aria-label="All admin areas"
           aria-haspopup="dialog"
           aria-expanded={isOpen}

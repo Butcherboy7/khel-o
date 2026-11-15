@@ -532,7 +532,10 @@ function OwnerBottomNav({
       )}
       aria-label="Owner bottom navigation"
       // Any tap on the bar while the menu is up also puts the menu away.
-      onClickCapture={() => menuOpen && onToggleMenu(false)}
+      // (More itself toggles; React re-renders between this and its onClick.)
+      onClickCapture={(e) => {
+        if (menuOpen && !(e.target as Element).closest('[aria-haspopup="dialog"]')) onToggleMenu(false);
+      }}
     >
       {items.map((item) => {
         if (item.isMenu) {
