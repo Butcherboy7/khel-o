@@ -117,8 +117,9 @@ export function CampaignJoinStrip({ campaign, where }: { campaign: string; where
     } catch {
       /* private window */
     }
-    if (dismissed || joinedHere() || adSource() !== campaign) return;
+    if (dismissed || joinedHere()) return;
     const reveal = () => {
+      if (adSource() !== campaign) return;
       setShow(true);
       trackAction('drops_join_strip_shown', { campaign });
       cleanup();
