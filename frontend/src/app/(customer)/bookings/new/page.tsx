@@ -1,5 +1,6 @@
 'use client';
 
+import { WhatsAppHelp } from '@/components/support/WhatsAppHelp';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
 
@@ -1296,6 +1297,9 @@ function BookingWizardContent() {
       )}
       </div>
       </div>
+
+      {/* Stuck or confused: a real person on WhatsApp, message already typed. */}
+      <WhatsAppHelp about={`a slot at ${cafe.name}`} />
 
       <BottomSheet isOpen={offersOpen} onClose={() => setOffersOpen(false)} title="Offers for this slot">
         <OffersPanel

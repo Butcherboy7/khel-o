@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { LifeBuoy, Mail, Phone } from 'lucide-react';
 import { SupportView } from '@/components/support/SupportView';
+import { WhatsAppHelp } from '@/components/support/WhatsAppHelp';
 import { ContactForm } from '@/app/(legal)/contact/ContactForm';
 import { PageSpinner } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
@@ -28,6 +29,9 @@ export default function SupportPage() {
           Stuck with a booking, a payment or a café? Tell us what happened. You don&apos;t need an account.
         </p>
       </div>
+
+      {/* Fastest: WhatsApp, message already typed. */}
+      <WhatsAppHelp />
 
       <div className="grid grid-cols-2 gap-3">
         <a

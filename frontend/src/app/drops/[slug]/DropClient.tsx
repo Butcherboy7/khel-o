@@ -1,5 +1,6 @@
 'use client';
 
+import { WhatsAppHelp } from '@/components/support/WhatsAppHelp';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -928,6 +929,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         )}
         {err}
 
+        {/* Stuck or confused: a real person on WhatsApp, message already typed. */}
+        <WhatsAppHelp about={`${drop.title} at ${drop.cafe.name}`} />
+
         {drop.state === 'early' && <Waitlist drop={drop} onJoined={load} text="No code? Get a message when everyone can reserve." quiet />}
 
         {/* Share */}
@@ -1011,7 +1015,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 {busy ? 'Opening payment…' : 'Reserve now'}
               </button>
               <p className="mt-1.5 text-center text-[11px] text-text-secondary">
-                Pay {rupees(payNow)} now · {rupees(Math.max(0, total - payNow))} at the café
+                Pay {rupees(payNow)} now · {rupees(Math.max(0, total - payNow))} at the café ·{' '}
+                <WhatsAppHelp variant="link" about={`${drop.title} at ${drop.cafe.name}`} className="min-h-0" />
               </p>
             </>
           ) : canReserve && block && seatsAllowed === 0 ? (
