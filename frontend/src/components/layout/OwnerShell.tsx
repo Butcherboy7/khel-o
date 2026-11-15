@@ -19,7 +19,7 @@ import {
   QrCode,
   Settings,
   X,
-  LayoutGrid,
+  Menu,
   ChevronRight,
   LifeBuoy,
   Bell,
@@ -517,7 +517,8 @@ function OwnerBottomNav({
     { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
     { label: 'Scan', href: '/owner/scanner', icon: QrCode },
     { label: 'Free slots', href: '/owner/availability', icon: CalendarClock },
-    { label: 'More', href: '#menu', icon: LayoutGrid, isMenu: true },
+    // Not a grid: Dashboard already wears one, two doors in the same bar.
+    { label: 'More', href: '#menu', icon: Menu, isMenu: true },
   ];
 
   const items = quickItems;
