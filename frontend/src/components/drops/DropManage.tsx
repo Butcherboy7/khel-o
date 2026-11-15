@@ -166,7 +166,7 @@ function CoverPhoto({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {own && <img src={d.coverImageUrl!} alt="Your drop photo" className="aspect-[16/9] w-full rounded-xl object-cover" />}
         <div className="flex flex-wrap items-center gap-3">
-          <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white">
+          <label className="btn-depth inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white">
             <ImagePlus className="h-4 w-4" /> {busy ? 'Uploading…' : own ? 'Change photo' : 'Add a photo'}
             <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
           </label>
@@ -1096,7 +1096,7 @@ function CheckInBox({ onDone }: { onDone: () => void }) {
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-heading text-h3 font-bold text-text-primary">Check someone in</h2>
-          <Link href="/owner/scanner" className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white hover:bg-primary-dark">
+          <Link href="/owner/scanner" className="btn-depth inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white hover:bg-primary-dark">
             <QrCode className="h-4 w-4" aria-hidden /> Scan their pass
           </Link>
         </div>
@@ -1134,7 +1134,7 @@ function RowCheckIn({ token, onDone }: { token: string; onDone: () => void }) {
           setBusy(false);
         }
       }}
-      className="h-11 rounded-lg bg-primary px-3 text-caption font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
+      className="btn-depth h-11 rounded-lg bg-primary px-3 text-caption font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
     >
       {busy ? '…' : 'Check in'}
     </button>

@@ -158,7 +158,7 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
               {picked || !key ? 'Nothing to reserve right now' : 'We could not find that game'}
             </p>
             <p className="mt-1 text-body text-text-secondary">You can still book a normal slot at any café.</p>
-            <Link href="/browse" className="mt-3 inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-body font-bold text-white">
+            <Link href="/browse" className="btn-depth mt-3 inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-body font-bold text-white">
               See all cafés <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </div>

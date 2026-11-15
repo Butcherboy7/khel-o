@@ -107,7 +107,7 @@ function AddReel({ onAdded }: { onAdded: () => void }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={!ready || add.isPending} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-primary px-5 text-body font-bold text-white disabled:opacity-50">
+            <button type="submit" disabled={!ready || add.isPending} className="btn-depth inline-flex min-h-[44px] items-center gap-2 rounded-full bg-primary px-5 text-body font-bold text-white disabled:opacity-50">
               {add.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Put it on Explore and Community
             </button>
           </div>
@@ -135,7 +135,7 @@ function ReelRow({ r, i, count, onMove, onChanged }: { r: AdminInstagramReel; i:
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {dirty && (
-            <button type="button" onClick={() => edit.mutate({ title: title.trim(), tag: tag.trim() })} className="inline-flex min-h-[36px] items-center rounded-full bg-primary px-3 text-caption font-bold text-white">Save</button>
+            <button type="button" onClick={() => edit.mutate({ title: title.trim(), tag: tag.trim() })} className="btn-depth inline-flex min-h-[36px] items-center rounded-full bg-primary px-3 text-caption font-bold text-white">Save</button>
           )}
           <SmallButton title="Move left (earlier)" disabled={i === 0} onClick={() => onMove(i, i - 1)}><ArrowUp className="h-4 w-4" aria-hidden /></SmallButton>
           <SmallButton title="Move right (later)" disabled={i === count - 1} onClick={() => onMove(i, i + 1)}><ArrowDown className="h-4 w-4" aria-hidden /></SmallButton>

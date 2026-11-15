@@ -150,7 +150,7 @@ export default async function CafeDemandPage({ params }: PageProps) {
               </p>
               <Link
                 href="/partner"
-                className="inline-flex min-h-btn items-center justify-center rounded-2xl bg-primary px-5 font-heading text-btn font-semibold text-white hover:bg-primary-dark"
+                className="btn-depth inline-flex min-h-btn items-center justify-center rounded-2xl bg-primary px-5 font-heading text-btn font-semibold text-white hover:bg-primary-dark"
               >
                 List {cafeName} on KHEL-O
               </Link>

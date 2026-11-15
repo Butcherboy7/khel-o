@@ -404,7 +404,7 @@ export default function ProfilePage() {
                 </div>
 
                 <Link href={`/accept-invitation?token=${inv.token}`} className="w-full sm:w-auto flex-shrink-0">
-                  <Button variant="primary" size="sm" className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold gap-1.5 shadow-card">
+                  <Button variant="primary" size="sm" className="w-full bg-emerald-500 hover:bg-emerald-400 [--edge:#047857] text-slate-950 font-bold gap-1.5 shadow-card">
                     <span>Accept Invitation</span>
                     <ChevronRight className="h-4 w-4" />
                   </Button>

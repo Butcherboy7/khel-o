@@ -53,7 +53,7 @@ export function CookieConsentBanner() {
         <button
           type="button"
           onClick={dismiss}
-          className="min-h-[36px] shrink-0 rounded-lg bg-primary px-3 text-[12px] font-semibold text-white transition-colors hover:bg-primary-dark"
+          className="btn-depth min-h-[36px] shrink-0 rounded-lg bg-primary px-3 text-[12px] font-semibold text-white transition-colors hover:bg-primary-dark"
         >
           Got it
         </button>

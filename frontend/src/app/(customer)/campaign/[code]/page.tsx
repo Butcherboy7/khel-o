@@ -95,7 +95,7 @@ function CafeCard({ cafe, code }: { cafe: CampaignCafe; code: string }) {
         <Link
           href={bookHref}
           onClick={() => trackAction('campaign_book_now', { code, cafe: cafe.name, where: 'top' }, cafe.id)}
-          className="inline-flex min-h-[44px] flex-shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-body font-semibold text-white hover:bg-primary-dark"
+          className="btn-depth inline-flex min-h-[44px] flex-shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-body font-semibold text-white hover:bg-primary-dark"
         >
           Book
           <ArrowRight className="h-4 w-4" aria-hidden />
@@ -118,7 +118,7 @@ function CafeCard({ cafe, code }: { cafe: CampaignCafe; code: string }) {
       <Link
         href={bookHref}
         onClick={() => trackAction('campaign_book_now', { code, cafe: cafe.name }, cafe.id)}
-        className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-body font-semibold text-white transition-colors hover:bg-primary-dark"
+        className="btn-depth mt-2 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-body font-semibold text-white transition-colors hover:bg-primary-dark"
       >
         Book now at {cafe.name}
         <ArrowRight className="h-4 w-4" aria-hidden />
@@ -178,7 +178,7 @@ export default function CampaignLandingPage() {
       <div className="mx-auto max-w-md px-4 py-16">
         <ErrorState title="This campaign isn't running" message="The link may have expired. You can still browse every café." />
         <div className="mt-4 flex justify-center">
-          <Link href="/" className="inline-flex min-h-[44px] items-center rounded-xl bg-primary px-5 font-semibold text-white">
+          <Link href="/" className="btn-depth inline-flex min-h-[44px] items-center rounded-xl bg-primary px-5 font-semibold text-white">
             Browse cafés
           </Link>
         </div>

@@ -136,7 +136,7 @@ export function BookingCard({ booking }: BookingCardProps) {
               )}
               <Link
                 href={bookAgainHref(booking)}
-                className="-my-1 inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-4 text-caption font-bold text-white transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                className="btn-depth -my-1 inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-4 text-caption font-bold text-white transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden />
                 Book again

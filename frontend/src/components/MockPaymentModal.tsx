@@ -50,7 +50,7 @@ export function MockPaymentModal({
         <div className="flex flex-col gap-3">
           <button
             onClick={onSuccess}
-            className="w-full flex items-center justify-center gap-2 bg-primary text-white font-semibold py-3 px-4 rounded-xl hover:bg-primary/90 transition-colors"
+            className="btn-depth w-full flex items-center justify-center gap-2 bg-primary text-white font-semibold py-3 px-4 rounded-xl hover:bg-primary/90 transition-colors"
           >
             <CheckCircle2 className="h-5 w-5" />
             <span>Simulate SUCCESS</span>
@@ -58,7 +58,7 @@ export function MockPaymentModal({
 
           <button
             onClick={onFailure}
-            className="w-full flex items-center justify-center gap-2 bg-error text-white font-semibold py-3 px-4 rounded-xl hover:bg-error/90 transition-colors"
+            className="btn-depth w-full flex items-center justify-center gap-2 bg-error text-white font-semibold py-3 px-4 rounded-xl hover:bg-error/90 transition-colors"
           >
             <AlertCircle className="h-5 w-5" />
             <span>Simulate FAILURE</span>

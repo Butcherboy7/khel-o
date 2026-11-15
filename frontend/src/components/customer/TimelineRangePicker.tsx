@@ -1081,7 +1081,7 @@ export function TimelineRangePicker({
           <button
             type="button"
             onClick={findNextSlot}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-error text-white font-semibold text-caption hover:bg-error/90 transition-all flex-shrink-0"
+            className="btn-depth flex items-center gap-1 px-3 py-1.5 rounded-xl bg-error text-white font-semibold text-caption hover:bg-error/90 transition-all flex-shrink-0"
           >
             <Sparkles className="h-3.5 w-3.5" />
             Find Open Slot

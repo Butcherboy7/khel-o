@@ -202,7 +202,7 @@ export function LocationSearchInput({ value, onChange, onClear, state, error, la
               <button
                 type="button"
                 onClick={handleCreate}
-                className="mt-1 rounded-xl bg-primary px-4 py-2 text-caption font-semibold text-white"
+                className="btn-depth mt-1 rounded-xl bg-primary px-4 py-2 text-caption font-semibold text-white"
               >
                 Yes, it&apos;s a city
               </button>

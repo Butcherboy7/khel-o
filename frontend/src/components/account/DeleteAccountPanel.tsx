@@ -52,7 +52,7 @@ export function DeleteAccountPanel() {
         </div>
         <Link
           href="/login?redirect=/delete-account"
-          className="inline-flex h-10 w-fit items-center rounded-xl bg-primary px-4 text-caption font-semibold !text-white !no-underline"
+          className="btn-depth inline-flex h-10 w-fit items-center rounded-xl bg-primary px-4 text-caption font-semibold !text-white !no-underline"
         >
           Sign in
         </Link>

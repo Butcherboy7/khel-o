@@ -753,7 +753,7 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
           <button
             type="submit"
             disabled={!detailsChanged || saveDetails.isPending}
-            className="min-h-input rounded-lg bg-primary px-5 font-semibold text-white disabled:opacity-40"
+            className="btn-depth min-h-input rounded-lg bg-primary px-5 font-semibold text-white disabled:opacity-40"
           >
             {saveDetails.isPending ? 'Saving…' : 'Save'}
           </button>
@@ -995,7 +995,7 @@ export default function CampaignsPage() {
         <button
           type="button"
           onClick={() => setCreating((v) => !v)}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-primary px-4 font-semibold text-white"
+          className="btn-depth inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-primary px-4 font-semibold text-white"
         >
           {creating ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
           {creating ? 'Close' : 'New campaign'}

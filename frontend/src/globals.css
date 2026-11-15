@@ -785,3 +785,54 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
   .qf-enter, .qf-fade { animation: none; }
   .qf-spotlight { animation: none; box-shadow: 0 0 0 3px rgb(208 70 60 / .45); }
 }
+
+/* ── Depth buttons ──────────────────────────────────────────────────
+   A solid darker edge under the button, like a real key. Pressing pushes
+   the button down onto its edge, so a tap feels physical. `btn-depth` is
+   the solid red action; `btn-depth-soft` is the white/outline kind with a
+   quiet grey edge. Placed after the utilities so it beats shadow-* and
+   active:scale-* on the same element. */
+.btn-depth, .btn-depth-soft {
+  --depth: 4px;
+  --depth-edge: var(--edge, color-mix(in srgb, var(--primary) 68%, #000));
+  position: relative;
+  transform: translateY(0);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 var(--depth) 0 var(--depth-edge),
+    0 calc(var(--depth) + 5px) 14px -8px rgb(23 24 28 / 0.45);
+  transition:
+    transform 90ms cubic-bezier(0.3, 0.7, 0.4, 1),
+    box-shadow 90ms cubic-bezier(0.3, 0.7, 0.4, 1),
+    background-color 150ms ease, color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-depth-soft {
+  --depth: 3px;
+  --depth-edge: var(--edge, color-mix(in srgb, var(--border) 70%, #8f8a82));
+  box-shadow:
+    0 var(--depth) 0 var(--depth-edge),
+    0 calc(var(--depth) + 4px) 10px -8px rgb(23 24 28 / 0.25);
+}
+/* Small pills sit lower: a 3px edge keeps them in proportion. */
+.btn-depth:is(.rounded-full, .rounded-lg, .py-1\.5, .py-2) { --depth: 3px; }
+.btn-depth:hover { filter: brightness(1.04); }
+.btn-depth:active:not(:disabled):not([aria-disabled='true']),
+.btn-depth-soft:active:not(:disabled):not([aria-disabled='true']) {
+  transform: translateY(var(--depth));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 0 0 var(--depth-edge), 0 1px 2px -1px rgb(23 24 28 / 0.3);
+  transition-duration: 40ms;
+}
+.btn-depth-soft:active:not(:disabled):not([aria-disabled='true']) {
+  box-shadow: 0 0 0 var(--depth-edge);
+}
+/* Disabled buttons look flat: nothing to press. */
+.btn-depth:disabled, .btn-depth-soft:disabled,
+.btn-depth[aria-disabled='true'], .btn-depth-soft[aria-disabled='true'] {
+  box-shadow: none;
+  transform: none;
+  filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-depth, .btn-depth-soft { transition: background-color 150ms ease, opacity 150ms ease; }
+}

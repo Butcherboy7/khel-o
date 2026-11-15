@@ -8,43 +8,39 @@ import { cn } from '@/lib/cn';
 const buttonVariants = cva(
   // Base
   [
-    'inline-flex items-center justify-center gap-2 rounded-xl font-body text-btn font-medium',
+    'inline-flex items-center justify-center gap-2 rounded-xl font-body text-btn font-semibold',
     'transition duration-normal ease-out-expo',
     'cursor-pointer select-none',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
     'disabled:pointer-events-none disabled:opacity-40',
-    'active:scale-95',
   ],
   {
     variants: {
       variant: {
         primary: [
-          'bg-primary text-white',
-          'hover:bg-primary-dark',
-          'shadow-card hover:shadow-float',
+          // Solid action with a pressable edge (see .btn-depth in globals.css).
+          'btn-depth bg-primary text-white',
         ],
         secondary: [
-          'bg-card text-text-primary border border-border',
-          'hover:bg-surface hover:border-text-secondary',
+          'btn-depth-soft bg-card text-text-primary border border-border',
+          'hover:bg-surface',
         ],
         ghost: [
-          'text-text-secondary bg-transparent',
+          'text-text-secondary bg-transparent active:scale-95',
           'hover:bg-surface hover:text-text-primary',
         ],
         destructive: [
-          'bg-error text-white',
-          'hover:bg-red-600',
+          'btn-depth bg-error text-white',
         ],
         'destructive-outline': [
-          'border border-error/30 text-error bg-transparent',
-          'hover:bg-error/10',
+          'btn-depth-soft border border-error/30 text-error bg-card [--edge:color-mix(in_srgb,var(--error)_30%,#fff)]',
+          'hover:bg-error/5',
         ],
         accent: [
-          'bg-accent text-white',
-          'hover:opacity-90',
+          'btn-depth bg-accent text-white',
         ],
         outline: [
-          'border border-primary text-primary bg-transparent',
+          'btn-depth-soft border border-primary text-primary bg-card [--edge:color-mix(in_srgb,var(--primary)_55%,#fff)]',
           'hover:bg-primary/5',
         ],
       },

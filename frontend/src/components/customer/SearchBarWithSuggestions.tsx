@@ -267,7 +267,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
                       setIsOpen(false);
                       router.push(`/bookings/new?cafeId=${cafe.id}`);
                     }}
-                    className="flex min-h-[40px] flex-shrink-0 items-center rounded-full bg-primary px-3.5 text-[12px] font-bold text-white"
+                    className="btn-depth flex min-h-[40px] flex-shrink-0 items-center rounded-full bg-primary px-3.5 text-[12px] font-bold text-white"
                   >
                     Book now
                   </button>

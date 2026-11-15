@@ -451,9 +451,9 @@ function WeekPost({ post }: { post: { headline: string; line: string | null; ima
         {post.line && <p className="text-body text-text-secondary">{post.line}</p>}
         {post.buttonLabel && post.buttonUrl && (
           internal ? (
-            <Link href={post.buttonUrl} className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 self-start rounded-full bg-primary px-5 text-caption font-bold text-white">{post.buttonLabel} <ArrowRight className="h-4 w-4" aria-hidden /></Link>
+            <Link href={post.buttonUrl} className="btn-depth mt-2 inline-flex min-h-[44px] items-center gap-1.5 self-start rounded-full bg-primary px-5 text-caption font-bold text-white">{post.buttonLabel} <ArrowRight className="h-4 w-4" aria-hidden /></Link>
           ) : (
-            <a href={post.buttonUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 self-start rounded-full bg-primary px-5 text-caption font-bold text-white">{post.buttonLabel} <ArrowRight className="h-4 w-4" aria-hidden /></a>
+            <a href={post.buttonUrl} target="_blank" rel="noopener noreferrer" className="btn-depth mt-2 inline-flex min-h-[44px] items-center gap-1.5 self-start rounded-full bg-primary px-5 text-caption font-bold text-white">{post.buttonLabel} <ArrowRight className="h-4 w-4" aria-hidden /></a>
           )
         )}
       </div>
@@ -651,7 +651,7 @@ function PhotosTab({ contributors, photos }: { contributors: string[]; photos: {
         <div className={cn(card, 'flex flex-col gap-2')}>
           <p className="font-heading text-body-emphasis font-bold text-text-primary">Know a café we are missing?</p>
           <p className="text-caption text-text-secondary">Tell us the name and area. We reach out to the owner.</p>
-          <button type="button" onClick={() => { trackAction('community_tile_tap', { tile: 'suggest_cafe' }); setSheet('cafe'); }} className="min-h-[46px] rounded-xl bg-primary font-bold text-white">Suggest a café</button>
+          <button type="button" onClick={() => { trackAction('community_tile_tap', { tile: 'suggest_cafe' }); setSheet('cafe'); }} className="btn-depth min-h-[46px] rounded-xl bg-primary font-bold text-white">Suggest a café</button>
         </div>
         <div className={cn(card, 'flex flex-col gap-2')}>
           <p className="font-heading text-body-emphasis font-bold text-text-primary">Got photos from a challenge?</p>
@@ -732,7 +732,7 @@ function ContributeSheet({ kind, draft, onClose, onDone }: { kind: 'cafe' | 'pho
             Put my first name on the contributors list
           </label>
           {error && <p role="alert" className="text-caption text-error">{error}</p>}
-          <button type="button" onClick={() => submit()} disabled={busy} className="min-h-[48px] rounded-xl bg-primary font-extrabold text-white disabled:opacity-60">{busy ? 'Sending…' : 'Send'}</button>
+          <button type="button" onClick={() => submit()} disabled={busy} className="btn-depth min-h-[48px] rounded-xl bg-primary font-extrabold text-white disabled:opacity-60">{busy ? 'Sending…' : 'Send'}</button>
         </div>
       </div>
       {ask && (

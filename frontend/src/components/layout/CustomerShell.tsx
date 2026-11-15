@@ -185,7 +185,7 @@ function CustomerHeader() {
             <Link
               prefetch={prefetch}
               href={`/login?redirect=${encodeURIComponent(pathname)}`}
-              className="inline-flex min-h-[36px] items-center rounded-full bg-primary px-4 text-caption font-semibold text-white transition-colors hover:bg-primary-dark"
+              className="btn-depth inline-flex min-h-[36px] items-center rounded-full bg-primary px-4 text-caption font-semibold text-white transition-colors hover:bg-primary-dark"
             >
               Log in
             </Link>

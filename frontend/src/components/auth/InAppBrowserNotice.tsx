@@ -55,7 +55,7 @@ export function InAppBrowserNotice({ className, keeps = 'Your offer stays saved.
           <a
             href={chromeIntent()}
             onClick={() => trackAction('inapp_open_chrome')}
-            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-primary px-4 font-bold text-white"
+            className="btn-depth inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-primary px-4 font-bold text-white"
           >
             <ExternalLink className="h-4 w-4" aria-hidden /> Open in Chrome
           </a>

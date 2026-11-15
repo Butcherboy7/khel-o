@@ -85,7 +85,7 @@ export default function Gta6GuidePage() {
             Customers reserve a seat on KHEL-O with a small online fee. They pay the rest at your café. You can also write down seats you sold yourself, so the app stops selling them.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Link href="/owner/drops" className="flex h-11 items-center justify-center rounded-xl bg-primary px-5 font-semibold text-white hover:bg-primary-dark">
+            <Link href="/owner/drops" className="btn-depth flex h-11 items-center justify-center rounded-xl bg-primary px-5 font-semibold text-white hover:bg-primary-dark">
               Start my GTA 6 drop
             </Link>
             {tourReady && (

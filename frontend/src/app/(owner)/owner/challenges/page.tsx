@@ -98,7 +98,7 @@ function ChallengeCard({ ch }: { ch: HostedChallenge }) {
             href={`/challenge/${ch.slug}/bracket`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-body font-semibold text-white hover:bg-primary-dark"
+            className="btn-depth inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-body font-semibold text-white hover:bg-primary-dark"
           >
             <MonitorPlay className="h-4 w-4" aria-hidden /> Open live bracket
           </a>

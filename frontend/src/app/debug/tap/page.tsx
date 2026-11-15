@@ -192,7 +192,7 @@ export default function TapDiagnosticPage() {
               <button
                 type="button"
                 onClick={handleCopy}
-                className="rounded-xl bg-primary px-4 py-2 text-caption font-bold text-white active:scale-[0.96] transition-all"
+                className="btn-depth rounded-xl bg-primary px-4 py-2 text-caption font-bold text-white active:scale-[0.96] transition-all"
               >
                 Copy log
               </button>

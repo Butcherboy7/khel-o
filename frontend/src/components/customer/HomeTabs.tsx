@@ -135,7 +135,7 @@ export function DropsPanel() {
         <div className="rounded-2xl border border-border bg-card p-5 text-center">
           <p className="font-heading text-body-emphasis font-bold text-text-primary">No drops open right now</p>
           <p className="mt-1 text-caption text-text-secondary">The next one goes to the community first.</p>
-          <Link href="/community" className="mt-3 inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-primary px-4 text-caption font-bold text-white">
+          <Link href="/community" className="btn-depth mt-3 inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-primary px-4 text-caption font-bold text-white">
             Hear about it first <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         </div>
@@ -176,12 +176,12 @@ function ChallengeCard({ c }: { c: Challenge }) {
           <Link
             href={`/challenge/${c.slug}?join=1`}
             onClick={() => trackAction('challenge_teaser_click', { challenge: c.slug, where: 'home_tab' })}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-caption font-bold text-white"
+            className="btn-depth inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-caption font-bold text-white"
           >
             Sign up to play <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         ) : (
-          <Link href={`/challenge/${c.slug}`} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-caption font-bold text-white">
+          <Link href={`/challenge/${c.slug}`} className="btn-depth inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-caption font-bold text-white">
             See the photos and results <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         )}

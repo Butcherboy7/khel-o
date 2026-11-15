@@ -22,7 +22,7 @@ export function SuspendedNotice() {
         Bookings, offers, insights and payouts come back once KHEL-O lifts the suspension. Your dashboard shows why.
       </p>
       <div className="flex gap-2">
-        <Link href="/owner/dashboard" className="rounded-xl bg-primary px-4 py-2 text-caption font-semibold text-white">
+        <Link href="/owner/dashboard" className="btn-depth rounded-xl bg-primary px-4 py-2 text-caption font-semibold text-white">
           Open dashboard
         </Link>
         <Link href="/owner/support" className="rounded-xl border border-border px-4 py-2 text-caption font-semibold text-text-primary">

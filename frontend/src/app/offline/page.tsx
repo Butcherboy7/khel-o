@@ -23,7 +23,7 @@ export default function OfflinePage() {
       {/* A plain link, not router.refresh(): reloads the page the person was on. */}
       <a
         href=""
-        className="mt-2 inline-flex h-11 items-center rounded-xl bg-primary px-5 text-body font-semibold text-white"
+        className="btn-depth mt-2 inline-flex h-11 items-center rounded-xl bg-primary px-5 text-body font-semibold text-white"
       >
         Try again
       </a>

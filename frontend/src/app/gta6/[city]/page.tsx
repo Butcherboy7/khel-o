@@ -244,7 +244,7 @@ export default async function Gta6PlacePage({ params }: PageProps) {
           )}
         </p>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Link href={`/gta6?utm_source=seo&utm_medium=organic&utm_campaign=gta6-${slug}`} className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-5 font-semibold text-white">
+          <Link href={`/gta6?utm_source=seo&utm_medium=organic&utm_campaign=gta6-${slug}`} className="btn-depth inline-flex h-12 items-center justify-center rounded-xl bg-primary px-5 font-semibold text-white">
             Reserve a launch-week seat
           </Link>
           {rows.length > 0 && (

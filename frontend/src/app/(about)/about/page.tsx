@@ -311,7 +311,7 @@ export default function AboutPage() {
         <p className="font-heading text-h2 font-bold">-uzzu</p>
         <Link
           href="/browse"
-          className="mt-1.5 inline-flex min-h-[48px] w-fit items-center rounded-full bg-primary px-6 text-body font-semibold text-white transition-colors hover:bg-primary-dark"
+          className="btn-depth mt-1.5 inline-flex min-h-[48px] w-fit items-center rounded-full bg-primary px-6 text-body font-semibold text-white transition-colors hover:bg-primary-dark"
         >
           Find a café near you
         </Link>

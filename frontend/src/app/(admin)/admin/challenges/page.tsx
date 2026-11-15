@@ -44,7 +44,7 @@ export default function AdminChallengesPage() {
         </div>
         <Link
           href="/admin/challenges/new"
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-caption font-semibold text-white hover:bg-primary-dark"
+          className="btn-depth inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-caption font-semibold text-white hover:bg-primary-dark"
         >
           <Plus className="h-4 w-4" /> New challenge
         </Link>

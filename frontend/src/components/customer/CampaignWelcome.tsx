@@ -96,7 +96,7 @@ function DealCard({
               trackAction(`campaign_${where}_book_cafe`, { code, cafe: cafe.name }, cafe.id);
               onBook?.();
             }}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-primary px-4 text-body font-semibold text-white hover:bg-primary-dark"
+            className="btn-depth inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-primary px-4 text-body font-semibold text-white hover:bg-primary-dark"
           >
             Book
             <ArrowRight className="h-4 w-4" aria-hidden />
@@ -198,7 +198,7 @@ export function CampaignWelcome() {
           setOpen(true);
         }}
         aria-label="Special prices for you"
-        className="fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom)_+_16px)] right-4 z-overlay flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-float transition hover:bg-primary-dark active:scale-95 md:bottom-6"
+        className="btn-depth fixed bottom-[calc(var(--bottom-nav-height)_+_env(safe-area-inset-bottom)_+_16px)] right-4 z-overlay flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-float transition hover:bg-primary-dark active:scale-95 md:bottom-6"
       >
         <Gift className="h-6 w-6" aria-hidden />
         <span aria-hidden className="absolute right-1 top-1 h-3 w-3 rounded-full border-2 border-white bg-amber-400" />

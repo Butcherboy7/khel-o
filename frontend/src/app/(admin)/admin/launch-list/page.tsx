@@ -216,7 +216,7 @@ export default function AdminLaunchListPage() {
                         href={contactHref(r, message)}
                         target={r.contactMethod === 'whatsapp' ? '_blank' : undefined}
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 font-bold text-white hover:bg-primary-dark"
+                        className="btn-depth inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 font-bold text-white hover:bg-primary-dark"
                       >
                         <Icon className="h-3.5 w-3.5" /> {label}
                       </a>

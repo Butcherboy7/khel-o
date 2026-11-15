@@ -569,7 +569,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                   setBusy(true);
                   pay(pending, { orderId: pending.orderId!, amount: pending.deposit, currency: 'INR' });
                 }}
-                className="mt-3 inline-flex h-12 w-full items-center justify-center rounded-xl bg-primary font-bold text-white"
+                className="btn-depth mt-3 inline-flex h-12 w-full items-center justify-center rounded-xl bg-primary font-bold text-white"
               >
                 Pay {rupees(pending.deposit)} now
               </button>
@@ -593,7 +593,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           <div className="rounded-2xl border border-border bg-card p-4">
             <p className="font-heading text-body-emphasis font-bold text-text-primary">The launch drop is over</p>
             <p className="mt-1 text-body text-text-secondary">You can still play it. Book a normal slot at {drop.cafe.name}.</p>
-            <Link href={`/cafe/${drop.cafe.slug || drop.cafe.id}`} className="mt-3 inline-flex h-12 w-full items-center justify-center rounded-xl bg-primary font-bold text-white">
+            <Link href={`/cafe/${drop.cafe.slug || drop.cafe.id}`} className="btn-depth mt-3 inline-flex h-12 w-full items-center justify-center rounded-xl bg-primary font-bold text-white">
               Book a slot at {drop.cafe.name}
             </Link>
           </div>
@@ -1006,7 +1006,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 type="button"
                 onClick={reserve}
                 disabled={busy}
-                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[18px] font-extrabold text-white shadow-[0_6px_18px_-6px_var(--primary)] transition-transform active:scale-[0.98] hover:bg-primary-dark disabled:opacity-60"
+                className="btn-depth flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[18px] font-extrabold text-white shadow-[0_6px_18px_-6px_var(--primary)] transition-transform active:scale-[0.98] hover:bg-primary-dark disabled:opacity-60"
               >
                 {busy ? 'Opening payment…' : 'Reserve now'}
               </button>
@@ -1018,12 +1018,12 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <button
               type="button"
               onClick={() => daysRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              className="flex h-14 w-full items-center justify-center rounded-2xl bg-primary text-[18px] font-extrabold text-white"
+              className="btn-depth flex h-14 w-full items-center justify-center rounded-2xl bg-primary text-[18px] font-extrabold text-white"
             >
               Reserve another day
             </button>
           ) : ended ? (
-            <Link href={`/cafe/${drop.cafe.slug || drop.cafe.id}`} className="flex h-14 w-full items-center justify-center rounded-2xl bg-primary text-[17px] font-bold text-white">
+            <Link href={`/cafe/${drop.cafe.slug || drop.cafe.id}`} className="btn-depth flex h-14 w-full items-center justify-center rounded-2xl bg-primary text-[17px] font-bold text-white">
               Book a slot at {drop.cafe.name}
             </Link>
           ) : (

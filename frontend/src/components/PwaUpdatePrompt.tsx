@@ -66,7 +66,7 @@ export function PwaUpdatePrompt() {
       <button
         type="button"
         onClick={applyUpdate}
-        className="rounded-full bg-primary px-4 py-1.5 font-medium text-white"
+        className="btn-depth rounded-full bg-primary px-4 py-1.5 font-medium text-white"
       >
         Update
       </button>

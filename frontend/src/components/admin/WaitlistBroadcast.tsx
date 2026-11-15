@@ -108,7 +108,7 @@ export function WaitlistBroadcast({ lead, onClose }: { lead: CafeDemandLead; onC
           onClick={() => (confirming ? send(false) : setConfirming(true))}
           disabled={!valid || !tested || busy !== null || lead.emailableCount === 0}
           title={tested ? undefined : 'Send yourself a test of this exact message first'}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-caption font-semibold text-white hover:bg-primary-dark disabled:opacity-40"
+          className="btn-depth inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-caption font-semibold text-white hover:bg-primary-dark disabled:opacity-40"
         >
           <Send className="h-3.5 w-3.5" aria-hidden />
           {busy === 'send'

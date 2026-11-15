@@ -521,7 +521,7 @@ function NewDropForm({ list, onCancel, onCreated }: { list: OwnerDropList; onCan
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {cover && <img src={cover} alt="Your drop photo" className="aspect-[16/9] w-full rounded-xl object-cover" />}
           <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white">
+            <label className="btn-depth inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white">
               <ImagePlus className="h-4 w-4" /> {uploading ? 'Uploading…' : cover ? 'Change photo' : 'Add a photo'}
               <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => upload(e.target.files?.[0])} />
             </label>

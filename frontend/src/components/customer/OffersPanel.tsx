@@ -97,7 +97,7 @@ export function OffersPanel({
           type="button"
           onClick={submitCode}
           disabled={!input.trim()}
-          className="h-11 flex-shrink-0 rounded-xl bg-primary px-4 text-caption font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-depth h-11 flex-shrink-0 rounded-xl bg-primary px-4 text-caption font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Apply
         </button>

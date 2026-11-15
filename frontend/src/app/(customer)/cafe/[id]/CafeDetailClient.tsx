@@ -1341,7 +1341,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
               the Link itself as the button avoids the nesting entirely. */}
           <Link
             href={`/bookings/new?cafeId=${cafe.id}${activeTier ? `&tierId=${activeTier.id}` : ''}${promoSuffix}`}
-            className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-primary px-6 py-3.5 font-heading text-btn font-semibold text-white shadow-float hover:bg-primary-dark transition-colors"
+            className="btn-depth inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-primary px-6 py-3.5 font-heading text-btn font-semibold text-white shadow-float hover:bg-primary-dark transition-colors"
           >
             Pick a time
             <ArrowRight className="h-4 w-4" />

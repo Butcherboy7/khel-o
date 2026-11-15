@@ -191,7 +191,7 @@ export default function AdminChallengeDetailPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <HostTutorialButton onClick={tour.start} />
-          <Link href={`/admin/challenges/${c.id}/day`} data-host-tour="day-link" className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3 text-caption font-semibold text-white hover:bg-primary/90">
+          <Link href={`/admin/challenges/${c.id}/day`} data-host-tour="day-link" className="btn-depth inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3 text-caption font-semibold text-white hover:bg-primary/90">
             <Swords className="h-4 w-4" /> Challenge day
           </Link>
           <Link href={`/admin/challenges/${c.id}/rewards`} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-caption font-semibold text-text-primary hover:bg-surface">
