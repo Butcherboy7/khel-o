@@ -12,7 +12,9 @@ const FLICK = 0.55;
 
 /**
  * The phone menu. It rises out of the bottom bar, where the More button is, and
- * goes back down: swipe it, tap outside, press Escape or tap the X.
+ * goes back down: swipe it, tap outside, tap More again, press Escape or tap
+ * the X. The bar stays on top of it (callers lift it with BAR_ABOVE_SHEET while
+ * open), so a second tap on More can never land on something inside the sheet.
  * Phones only (lg:hidden); the desktop keeps its sidebar.
  */
 export function NavSheet({
@@ -144,7 +146,7 @@ export function NavSheet({
         aria-modal="true"
         aria-label={label}
         tabIndex={-1}
-        className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(88dvh,760px)] w-full max-w-lg flex-col rounded-t-[28px] bg-surface shadow-overlay outline-none motion-reduce:transition-none"
+        className="absolute inset-x-0 bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px))] mx-auto flex max-h-[calc(min(90dvh,800px)-var(--bottom-nav-height)-env(safe-area-inset-bottom,0px))] w-full max-w-lg flex-col rounded-t-[28px] bg-surface shadow-overlay outline-none motion-reduce:transition-none"
         style={{ transform: `translate3d(0, ${y}px, 0)`, transition: `transform ${ms}ms ${ease}` }}
       >
         <div
@@ -159,13 +161,31 @@ export function NavSheet({
           </div>
           {header}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
           {children}
         </div>
       </div>
     </div>,
     portal,
   );
+}
+
+/** z-index for the bottom bar while the sheet is open: just above the sheet. */
+export const BAR_ABOVE_SHEET = 'z-[61]';
+
+/** True while the sheet is open and while it slides away, so the bar stays on
+ *  top of it the whole time (and drops back under other dialogs after). */
+export function useBarLifted(open: boolean): boolean {
+  const [lifted, setLifted] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setLifted(true);
+      return;
+    }
+    const t = window.setTimeout(() => setLifted(false), EXIT_MS + 40);
+    return () => window.clearTimeout(t);
+  }, [open]);
+  return lifted;
 }
 
 /** Two-letter initials for the account card. */

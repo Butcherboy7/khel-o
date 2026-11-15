@@ -39,7 +39,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
-import { NavSheet, initialsOf } from '@/components/layout/NavSheet';
+import { NavSheet, initialsOf, useBarLifted, BAR_ABOVE_SHEET } from '@/components/layout/NavSheet';
 
 /* ── Navigation Items ────────────────────────────────────────────── */
 
@@ -324,6 +324,7 @@ function AdminMobileNav() {
   const { group, item } = locate(pathname);
 
   const close = useCallback(() => setIsOpen(false), []);
+  const lifted = useBarLifted(isOpen);
 
   // Close the menu whenever the route changes.
   useEffect(() => {
@@ -343,8 +344,13 @@ function AdminMobileNav() {
       </header>
 
       <nav
-        className="safe-bottom fixed bottom-0 left-0 right-0 z-nav flex min-h-bottom-nav items-stretch justify-around border-t border-border bg-card lg:hidden"
+        className={cn(
+          'safe-bottom fixed bottom-0 left-0 right-0 flex min-h-bottom-nav items-stretch justify-around border-t border-border bg-card lg:hidden',
+          lifted ? BAR_ABOVE_SHEET : 'z-nav',
+        )}
         aria-label="Admin bottom navigation"
+        // Any tap on the bar while the sheet is up also puts the sheet away.
+        onClickCapture={() => isOpen && close()}
       >
         {bottom.map((g) => {
           const Icon = AREA_ICON[g.label ?? ''] ?? BarChart3;
@@ -368,7 +374,7 @@ function AdminMobileNav() {
         })}
         <button
           type="button"
-          onClick={() => setIsOpen(true)}
+          onClick={() => setIsOpen(!isOpen)}
           aria-label="All admin areas"
           aria-haspopup="dialog"
           aria-expanded={isOpen}

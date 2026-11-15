@@ -33,7 +33,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useGuideSession } from '@/hooks/useOwnerGuide';
 import { OwnerTour } from '@/components/owner/OwnerTour';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
-import { NavSheet, initialsOf } from '@/components/layout/NavSheet';
+import { NavSheet, initialsOf, useBarLifted, BAR_ABOVE_SHEET } from '@/components/layout/NavSheet';
 import { PlatformReconfirmModal } from '@/components/owner/PlatformReconfirmModal';
 import { apiClient } from '@/lib/api/client';
 import { getHostingChallenges } from '@/lib/api/challenges';
@@ -498,13 +498,14 @@ function OwnerTopBar({ isStaff }: { isStaff: boolean }) {
 function OwnerBottomNav({
   isStaff,
   menuOpen,
-  onOpenMobileMenu,
+  onToggleMenu,
 }: {
   isStaff: boolean;
   menuOpen: boolean;
-  onOpenMobileMenu: () => void;
+  onToggleMenu: (open: boolean) => void;
 }) {
   const pathname = usePathname();
+  const lifted = useBarLifted(menuOpen);
   const upcoming = useUpcomingBookings();
   const sectionLabel = useCurrentSectionLabel(isStaff);
 
@@ -525,8 +526,13 @@ function OwnerBottomNav({
 
   return (
     <nav
-      className="safe-bottom fixed bottom-0 left-0 right-0 z-nav flex min-h-bottom-nav items-stretch justify-around border-t border-border bg-card lg:hidden"
+      className={cn(
+        'safe-bottom fixed bottom-0 left-0 right-0 flex min-h-bottom-nav items-stretch justify-around border-t border-border bg-card lg:hidden',
+        lifted ? BAR_ABOVE_SHEET : 'z-nav',
+      )}
       aria-label="Owner bottom navigation"
+      // Any tap on the bar while the menu is up also puts the menu away.
+      onClickCapture={() => menuOpen && onToggleMenu(false)}
     >
       {items.map((item) => {
         if (item.isMenu) {
@@ -535,7 +541,7 @@ function OwnerBottomNav({
             <button
               key="mobile-more-menu"
               type="button"
-              onClick={onOpenMobileMenu}
+              onClick={() => onToggleMenu(!menuOpen)}
               aria-label={inMenu ? `More: you are on ${sectionLabel}` : 'More: the full menu'}
               aria-haspopup="dialog"
               aria-expanded={menuOpen}
@@ -634,6 +640,8 @@ export function OwnerShell({
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   useGuideSession();
+  const pathname = usePathname();
+  useEffect(() => setIsMobileMenuOpen(false), [pathname]);
 
   return (
     <OwnerAlertProvider>
@@ -666,7 +674,7 @@ export function OwnerShell({
       <OwnerBottomNav
         isStaff={isStaff}
         menuOpen={isMobileMenuOpen}
-        onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+        onToggleMenu={setIsMobileMenuOpen}
       />
 
       <OwnerMobileMenu
