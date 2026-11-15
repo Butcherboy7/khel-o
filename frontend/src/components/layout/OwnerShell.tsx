@@ -18,9 +18,9 @@ import {
   BarChart3,
   QrCode,
   Settings,
-  Menu,
   X,
-  MoreHorizontal,
+  LayoutGrid,
+  ChevronRight,
   LifeBuoy,
   Bell,
   Swords,
@@ -33,6 +33,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useGuideSession } from '@/hooks/useOwnerGuide';
 import { OwnerTour } from '@/components/owner/OwnerTour';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
+import { NavSheet, initialsOf } from '@/components/layout/NavSheet';
 import { PlatformReconfirmModal } from '@/components/owner/PlatformReconfirmModal';
 import { apiClient } from '@/lib/api/client';
 import { getHostingChallenges } from '@/lib/api/challenges';
@@ -290,107 +291,119 @@ function OwnerMobileMenu({
 }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
-
   const sections = useOwnerSections(isStaff);
-
-  if (!isOpen) return null;
+  const { open: openFind } = useQuickFind();
 
   return (
-    <div className="fixed inset-0 z-modal flex lg:hidden">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
-      />
-
-      {/* Slide-over Drawer (Left Aligned to match top-left hamburger icon) */}
-      <div className="relative mr-auto flex h-full w-4/5 max-w-xs flex-col overflow-y-auto bg-secondary p-5 shadow-2xl text-white animate-in slide-in-from-left duration-200">
-        <div className="flex items-center justify-between border-b border-white/10 pb-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
-              <span className="font-heading text-body-emphasis text-white">K</span>
-            </div>
-            <span className="font-heading text-h3 text-white">KHEL-O Menu</span>
-          </div>
+    <NavSheet
+      open={isOpen}
+      onClose={onClose}
+      label="Menu"
+      header={
+        <div className="flex items-center gap-2 px-4 pb-3 pt-1">
+          {/* The sheet is the one place with room to say what a screen is FOR;
+              owners who already know what they want can just search. */}
           <button
-            onClick={onClose}
-            className="flex h-11 w-11 items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 active:scale-95"
-            aria-label="Close menu"
+            type="button"
+            onClick={() => {
+              onClose();
+              openFind();
+            }}
+            className="flex min-h-[48px] min-w-0 flex-1 items-center gap-3 rounded-2xl bg-card px-4 text-left text-body text-text-secondary shadow-sm ring-1 ring-border transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            <X className="h-6 w-6" />
+            <Search className="h-5 w-5 flex-shrink-0" aria-hidden />
+            <span className="truncate">Search anything or do something…</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close menu"
+            className="flex h-12 w-12 flex-none items-center justify-center rounded-full bg-card text-text-secondary shadow-sm ring-1 ring-border transition-transform hover:text-text-primary active:scale-95"
+          >
+            <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
-
-        {/* The drawer is the one place with room to say what a screen is FOR.
-            An owner opening this menu for the first time should be able to pick
-            the right destination without tapping through all twelve. */}
-        <DrawerSearch onClose={onClose} />
-
-        <nav className="flex-1 space-y-6 py-4">
-          {sections.map((section) => (
-            <div key={section.heading}>
-              <p className="mb-2 text-overline uppercase tracking-widest text-white/40">
-                {section.heading}
-              </p>
-              <div className="space-y-0.5">
-                {section.items.map((item) => {
-                  const isActive = pathname.startsWith(item.href);
-                  return (
+      }
+    >
+      <nav className="flex flex-col gap-4" aria-label="Owner menu">
+        {sections.map((section) => (
+          <section key={section.heading} aria-label={section.heading}>
+            <p className="mb-1.5 px-1 text-overline uppercase tracking-widest text-text-tertiary">{section.heading}</p>
+            <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-border">
+              {section.items.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <li key={item.href}>
                     <Link
-                      key={item.href}
                       href={item.href}
                       data-tour={`nav:${item.href}`}
                       onClick={onClose}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'flex min-h-[52px] items-start gap-3 rounded-xl px-3 py-2.5 transition-colors',
-                        isActive
-                          ? 'bg-white/15 text-white'
-                          : 'text-white/70 hover:bg-white/10 hover:text-white',
+                        'flex min-h-[60px] items-center gap-3 px-3.5 py-2.5 transition-colors',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
+                        isActive ? 'bg-primary/[0.06]' : 'hover:bg-surface active:bg-surface',
                       )}
                     >
-                      <item.icon className="mt-0.5 h-5 w-5 shrink-0" />
-                      <span className="flex min-w-0 flex-col">
-                        <span className={cn('text-body-emphasis', isActive && 'font-bold')}>
+                      <span
+                        className={cn(
+                          'flex h-10 w-10 flex-none items-center justify-center rounded-xl',
+                          isActive ? 'bg-primary text-white' : 'bg-primary/10 text-primary',
+                        )}
+                      >
+                        <item.icon className="h-5 w-5" aria-hidden />
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className={cn('text-body-emphasis text-text-primary', isActive && 'font-bold')}>
                           {item.label}
                         </span>
                         {item.hint && (
-                          <span className="text-caption leading-snug text-white/45">
-                            {item.hint}
-                          </span>
+                          <span className="truncate text-caption leading-snug text-text-tertiary">{item.hint}</span>
                         )}
                       </span>
+                      {isActive ? (
+                        <span className="flex-none rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                          Here
+                        </span>
+                      ) : (
+                        <ChevronRight className="h-4 w-4 flex-none text-text-tertiary" aria-hidden />
+                      )}
                     </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
 
-        <div className="border-t border-white/10 pt-4 flex flex-col gap-4">
-          <div className="flex justify-center">
-            <RoleSwitcher />
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-caption text-white/60 truncate max-w-[180px]">
-              {user?.fullName || user?.email || 'Café Owner'}
+        {/* You: on its own card, with log out last and apart from the menu. */}
+        <div className="flex flex-col gap-3 rounded-2xl bg-secondary p-4 text-white">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-accent text-caption font-bold">
+              {initialsOf(user?.fullName, user?.email, 'O')}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-body-emphasis font-semibold">
+                {user?.fullName || user?.email || 'Café Owner'}
+              </span>
+              <span className="text-caption text-white/55">{isStaff ? 'Staff' : 'Owner'}</span>
             </span>
             <button
+              type="button"
               onClick={() => {
                 onClose();
                 logout();
               }}
-              className="flex items-center gap-1.5 text-caption font-semibold text-rose-400 hover:text-rose-300"
+              className="flex min-h-[44px] flex-none items-center gap-1.5 rounded-xl px-3 text-body font-semibold text-rose-300 ring-1 ring-inset ring-rose-300/30 transition-colors hover:bg-rose-400/10"
             >
-              <LogOut className="h-4 w-4" />
-              <span>Log out</span>
+              <LogOut className="h-4 w-4" aria-hidden />
+              Log out
             </button>
           </div>
+          <RoleSwitcher />
         </div>
-      </div>
-    </div>
+      </nav>
+    </NavSheet>
   );
 }
 
@@ -452,29 +465,15 @@ function OwnerNotificationBell() {
   );
 }
 
-function OwnerTopBar({
-  isStaff,
-  onOpenMobileMenu,
-}: {
-  isStaff: boolean;
-  onOpenMobileMenu: () => void;
-}) {
+function OwnerTopBar({ isStaff }: { isStaff: boolean }) {
   const sectionLabel = useCurrentSectionLabel(isStaff);
 
   return (
-    <header className="sticky top-0 z-nav flex h-14 items-center justify-between gap-2 border-b border-border bg-card px-2 lg:px-8">
-      {/* Mobile: the menu button and the name of where you are. The KHEL-O
-          wordmark used to occupy this space on every screen — it told the owner
-          nothing they didn't know and left no room to say which of the twelve
-          screens they had landed on. */}
+    <header className="sticky top-0 z-nav flex h-14 items-center justify-between gap-2 border-b border-border bg-card px-4 lg:px-8">
+      {/* Mobile: the name of where you are. The menu is More in the bottom bar
+          and rises from there; a second menu button up here opened a drawer
+          from the opposite corner. */}
       <div className="flex min-w-0 items-center gap-1 lg:hidden">
-        <button
-          onClick={onOpenMobileMenu}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-text-primary transition-colors hover:bg-surface active:scale-95"
-          aria-label="Open navigation menu"
-        >
-          <Menu className="h-6 w-6" />
-        </button>
         <span className="truncate font-heading text-h3 text-text-primary">{sectionLabel}</span>
       </div>
 
@@ -498,13 +497,16 @@ function OwnerTopBar({
 
 function OwnerBottomNav({
   isStaff,
+  menuOpen,
   onOpenMobileMenu,
 }: {
   isStaff: boolean;
+  menuOpen: boolean;
   onOpenMobileMenu: () => void;
 }) {
   const pathname = usePathname();
   const upcoming = useUpcomingBookings();
+  const sectionLabel = useCurrentSectionLabel(isStaff);
 
   // Same four destinations, same order, for owner and staff — the desk phone is
   // often shared, and muscle memory shouldn't depend on who is logged in.
@@ -514,10 +516,12 @@ function OwnerBottomNav({
     { label: 'Bookings', href: '/owner/bookings', icon: CalendarDays },
     { label: 'Scan', href: '/owner/scanner', icon: QrCode },
     { label: 'Free slots', href: '/owner/availability', icon: CalendarClock },
-    { label: 'More', href: '#menu', icon: MoreHorizontal, isMenu: true },
+    { label: 'More', href: '#menu', icon: LayoutGrid, isMenu: true },
   ];
 
   const items = quickItems;
+  // On a page that lives in the menu (Offers, Payouts…), More is "where you are".
+  const inMenu = !items.some((i) => !i.isMenu && pathname.startsWith(i.href)) && pathname.startsWith('/owner/');
 
   return (
     <nav
@@ -526,18 +530,25 @@ function OwnerBottomNav({
     >
       {items.map((item) => {
         if (item.isMenu) {
+          const lit = menuOpen || inMenu;
           return (
             <button
               key="mobile-more-menu"
+              type="button"
               onClick={onOpenMobileMenu}
-              aria-label="Open navigation menu"
+              aria-label={inMenu ? `More: you are on ${sectionLabel}` : 'More: the full menu'}
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
               data-tour="nav-more"
-              className="flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-text-secondary transition-colors hover:text-primary"
+              className={cn(
+                'flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors duration-fast',
+                lit ? 'text-primary' : 'text-text-secondary hover:text-text-primary',
+              )}
             >
-              <span className="flex items-center justify-center rounded-full px-3.5 py-1">
-                <item.icon className="h-5 w-5" />
+              <span className={cn('flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast', lit && 'bg-primary/12')}>
+                <item.icon className="h-5 w-5" aria-hidden />
               </span>
-              <span className="text-caption font-medium">{item.label}</span>
+              <span className={cn('text-caption', inMenu ? 'font-bold' : 'font-medium')}>{item.label}</span>
             </button>
           );
         }
@@ -612,24 +623,6 @@ function QuickFindTrigger() {
   );
 }
 
-/** The drawer's first row, for owners who open the menu looking for something. */
-function DrawerSearch({ onClose }: { onClose: () => void }) {
-  const { open } = useQuickFind();
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        onClose();
-        open();
-      }}
-      className="mt-4 flex min-h-[48px] w-full items-center gap-3 rounded-xl bg-white/10 px-3 text-left text-body text-white/75 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-    >
-      <Search className="h-5 w-5 flex-shrink-0" aria-hidden />
-      <span className="truncate">Search anything or do something…</span>
-    </button>
-  );
-}
-
 /* ── Exported Shell ──────────────────────────────────────────────── */
 
 export function OwnerShell({
@@ -660,10 +653,7 @@ export function OwnerShell({
 
       {/* Main content — offset by owner sidebar on desktop */}
       <div className="lg:pl-owner-sidebar">
-        <OwnerTopBar
-          isStaff={isStaff}
-          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-        />
+        <OwnerTopBar isStaff={isStaff} />
         {/* pb clears the bottom nav (64px) plus the home indicator plus a
             breath of space, so the last control on a page is never sitting
             under the bar. Pages must NOT add their own px-* or max-w-* — the
@@ -675,6 +665,7 @@ export function OwnerShell({
 
       <OwnerBottomNav
         isStaff={isStaff}
+        menuOpen={isMobileMenuOpen}
         onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
       />
 

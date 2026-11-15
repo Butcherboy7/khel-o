@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -18,7 +18,8 @@ import {
   ExternalLink,
   LifeBuoy,
   Settings,
-  MoreHorizontal,
+  LayoutGrid,
+  LogOut,
   X,
   Activity,
   TrendingUp,
@@ -38,6 +39,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
+import { NavSheet, initialsOf } from '@/components/layout/NavSheet';
 
 /* ── Navigation Items ────────────────────────────────────────────── */
 
@@ -321,25 +323,12 @@ function AdminMobileNav() {
   const [isOpen, setIsOpen] = useState(false);
   const { group, item } = locate(pathname);
 
+  const close = useCallback(() => setIsOpen(false), []);
+
   // Close the menu whenever the route changes.
   useEffect(() => {
     setIsOpen(false);
   }, [pathname]);
-
-  // Lock body scroll and wire Escape while the menu is open.
-  useEffect(() => {
-    if (!isOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [isOpen]);
 
   const bottom = adminNavGroups.filter((g) => BOTTOM_AREAS.includes(g.label ?? ''));
 
@@ -381,51 +370,140 @@ function AdminMobileNav() {
           type="button"
           onClick={() => setIsOpen(true)}
           aria-label="All admin areas"
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
           className={cn(
             'flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors',
-            group && !BOTTOM_AREAS.includes(group.label ?? '') ? 'text-primary' : 'text-text-secondary hover:text-text-primary',
+            isOpen || (group && !BOTTOM_AREAS.includes(group.label ?? '')) ? 'text-primary' : 'text-text-secondary hover:text-text-primary',
           )}
         >
-          <span className="flex items-center justify-center rounded-full px-3.5 py-1">
-            <MoreHorizontal className="h-5 w-5" aria-hidden />
+          <span
+            className={cn(
+              'flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast',
+              (isOpen || (group && !BOTTOM_AREAS.includes(group.label ?? ''))) && 'bg-primary/12',
+            )}
+          >
+            <LayoutGrid className="h-5 w-5" aria-hidden />
           </span>
-          <span className="text-caption font-medium">More</span>
+          <span className={cn('text-caption', group && !BOTTOM_AREAS.includes(group.label ?? '') ? 'font-bold' : 'font-medium')}>More</span>
         </button>
       </nav>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-overlay lg:hidden">
+      <NavSheet
+        open={isOpen}
+        onClose={close}
+        label="All admin areas"
+        header={
+          <div className="flex items-center justify-between px-5 pb-2 pt-1">
+            <div>
+              <p className="text-overline uppercase tracking-widest text-text-tertiary">KHEL-O Admin</p>
+              <h2 className="font-heading text-h3 text-text-primary">Go to</h2>
+            </div>
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Close menu"
+              className="-mr-1 flex h-11 w-11 items-center justify-center rounded-full bg-card text-text-secondary shadow-sm ring-1 ring-border transition-transform hover:text-text-primary active:scale-95"
+            >
+              <X className="h-5 w-5" aria-hidden />
+            </button>
+          </div>
+        }
+      >
+        <AdminSheetBody onNavigate={close} />
+      </NavSheet>
+    </>
+  );
+}
+
+/** What the phone's More sheet holds: every area as a tile, then you. */
+function AdminSheetBody({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  const { user, logout } = useAuthStore();
+  const openTickets = useOpenTickets();
+  const here = locate(pathname);
+
+  return (
+    <div className="flex flex-col gap-4 pt-2">
+      <ul className="grid grid-cols-3 gap-2.5" aria-label="Areas">
+        {adminNavGroups.map((g) => {
+          const Icon = AREA_ICON[g.label ?? ''] ?? BarChart3;
+          const on = here.group === g;
+          const badge = g.label === 'Home' ? openTickets : 0;
+          return (
+            <li key={g.label}>
+              <Link
+                href={g.items[0].href}
+                onClick={onNavigate}
+                aria-current={on ? 'true' : undefined}
+                className={cn(
+                  'relative flex aspect-[1/0.92] flex-col justify-between rounded-2xl p-3 transition-[transform,box-shadow] duration-fast active:scale-[0.97]',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                  on ? 'bg-secondary text-white shadow-md' : 'bg-card text-text-primary shadow-sm ring-1 ring-border',
+                )}
+              >
+                <span
+                  className={cn(
+                    'flex h-10 w-10 items-center justify-center rounded-xl',
+                    on ? 'bg-primary text-white' : 'bg-primary/10 text-primary',
+                  )}
+                >
+                  <Icon className="h-5 w-5" aria-hidden />
+                </span>
+                <span className="flex flex-col">
+                  <span className="font-heading text-body-emphasis font-bold leading-tight">{g.label}</span>
+                  <span className={cn('truncate text-caption', on ? 'text-white/65' : 'text-text-tertiary')}>
+                    {on && here.item ? here.item.label : `${g.items.length} pages`}
+                  </span>
+                </span>
+                {badge > 0 && (
+                  <span
+                    className="absolute right-2.5 top-2.5 rounded-full bg-error px-1.5 text-[11px] font-bold leading-5 text-white"
+                    aria-label={`${badge} open support tickets`}
+                  >
+                    {badge}
+                  </span>
+                )}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* You: kept apart from the areas, sign-out last and on its own. */}
+      <div className="flex flex-col gap-3 rounded-2xl bg-secondary p-4 text-white">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-primary text-caption font-bold">
+            {initialsOf(user?.fullName, user?.email, 'A')}
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-body-emphasis font-semibold">{user?.fullName ?? 'Admin'}</span>
+            <span className="text-caption text-white/55">Admin</span>
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            href="/"
+            onClick={onNavigate}
+            className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-white/10 px-3 text-body font-semibold text-white transition-colors hover:bg-white/15"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden />
+            Open the site
+          </Link>
           <button
             type="button"
-            aria-label="Close admin menu"
-            onClick={() => setIsOpen(false)}
-            className="absolute inset-0 h-full w-full cursor-default bg-black/60"
-          />
-          <aside
-            className="absolute left-0 top-0 flex h-full w-[82%] max-w-xs flex-col bg-secondary shadow-overlay"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Admin navigation"
+            onClick={() => {
+              onNavigate();
+              logout();
+            }}
+            className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-3 text-body font-semibold text-rose-300 ring-1 ring-inset ring-rose-300/30 transition-colors hover:bg-rose-400/10"
           >
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-primary" aria-hidden />
-                <span className="font-heading text-h3 text-white">KHEL-O Admin</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                aria-label="Close admin menu"
-                className="-mr-2 flex h-11 w-11 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
-              >
-                <X className="h-5 w-5" aria-hidden />
-              </button>
-            </div>
-            <AdminNavBody onNavigate={() => setIsOpen(false)} />
-          </aside>
+            <LogOut className="h-4 w-4" aria-hidden />
+            Sign out
+          </button>
         </div>
-      )}
-    </>
+      </div>
+    </div>
   );
 }
 
