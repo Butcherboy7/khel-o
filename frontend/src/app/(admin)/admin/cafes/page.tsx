@@ -34,6 +34,8 @@ import {
   ErrorState,
   EmptyState,
 } from '@/components/ui';
+import { useShowMore, ShowMoreButton } from '@/components/ui/ShowMore';
+import { SubTabs } from '@/components/ui/SubTabs';
 import type { AdminCafe, VerificationStatus } from '@/types';
 
 /* ─── helpers ─────────────────────────────────────────────────────── */
@@ -145,6 +147,7 @@ export default function AdminCafesPage() {
       c.owner?.fullName?.toLowerCase().includes(q)
     );
   });
+  const page = useShowMore(cafes, 12, `${statusFilter}|${search}`);
 
   const suspendMutation = useMutation({
     mutationFn: ({ cafeId, reason }: { cafeId: string; reason: string }) =>
@@ -255,31 +258,14 @@ export default function AdminCafesPage() {
 
   return (
     <div className="flex flex-col gap-6 pb-12">
-      {/* Tab switcher */}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveCafesTab('all')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-            activeCafesTab === 'all'
-              ? 'bg-primary text-white shadow-sm'
-              : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
-          }`}
-        >
-          All Cafés
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveCafesTab('performance')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-            activeCafesTab === 'performance'
-              ? 'bg-primary text-white shadow-sm'
-              : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
-          }`}
-        >
-          Performance
-        </button>
-      </div>
+      <SubTabs
+        tabs={[{ key: 'all', label: 'All cafés', icon: Store }, { key: 'performance', label: 'Performance' }]}
+        value={activeCafesTab}
+        onChange={setActiveCafesTab}
+        label="Cafés sections"
+        idPrefix="cafes"
+        sticky={false}
+      />
 
       {activeCafesTab === 'performance' ? (
         <PerformanceTab />
@@ -317,14 +303,14 @@ export default function AdminCafesPage() {
         </div>
 
         {/* Status filter tabs */}
-        <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-surface border border-border">
-          <Filter className="h-4 w-4 text-text-tertiary ml-1 flex-shrink-0" />
+        <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 [scrollbar-width:none]">
+          <Filter className="ml-1 h-4 w-4 flex-shrink-0 text-text-tertiary" aria-hidden />
           {STATUS_FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
               onClick={() => setStatusFilter(f.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+              className={`min-h-[36px] shrink-0 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors ${
                 statusFilter === f.value
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
@@ -362,9 +348,9 @@ export default function AdminCafesPage() {
       {/* Café Grid */}
       {!isLoading && !isError && cafes.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {cafes.map((cafe) => (
+          {page.visible.map((cafe) => (
             <Card key={cafe.id} elevation="resting" className="overflow-hidden hover:border-primary/30 transition-colors">
-              <CardContent className="p-5 flex flex-col gap-3">
+              <CardContent className="flex flex-col gap-2.5 p-4">
                 {/* Top row */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -385,7 +371,7 @@ export default function AdminCafesPage() {
                 </div>
 
                 {/* Meta row */}
-                <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary border-t border-border pt-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-secondary">
                   <span className="flex items-center gap-1">
                     <Users className="h-3 w-3" />
                     {cafe.totalSeats ?? '—'} stations
@@ -451,6 +437,7 @@ export default function AdminCafesPage() {
           ))}
         </div>
       )}
+        <ShowMoreButton rest={page.rest} step={page.step} onClick={page.more} />
 
       {/* Detail Modal */}
       <Modal

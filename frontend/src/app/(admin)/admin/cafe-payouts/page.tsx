@@ -22,10 +22,12 @@ import { queryKeys } from '@/hooks/queries/keys';
 import { Card, CardContent, Button, Badge, SkeletonCard, ErrorState, EmptyState, Tooltip, Modal } from '@/components/ui';
 import { KheloFundedAddBackSection } from '@/components/admin/KheloFundedAddBack';
 import { WeeklyStatementsSection } from '@/components/admin/WeeklyStatements';
+import { SubTabs, useSubTab } from '@/components/ui/SubTabs';
 
 export default function AdminCafePayoutsPage() {
   const queryClient = useQueryClient();
   const [selectedCafeId, setSelectedCafeId] = useState<string | null>(null);
+  const [tab, setTab] = useSubTab<'owed' | 'statements' | 'addbacks' | 'history'>(['owed', 'statements', 'addbacks', 'history'], 'owed');
   const [utrReference, setUtrReference] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('neft');
   const [destinationType, setDestinationType] = useState<'upi' | 'bank'>('upi');
@@ -227,6 +229,21 @@ export default function AdminCafePayoutsPage() {
         </div>
       )}
 
+      <SubTabs
+        tabs={[
+          { key: 'owed', label: 'To pay', icon: Banknote, count: cafes.length },
+          { key: 'statements', label: 'Weekly statements' },
+          { key: 'addbacks', label: 'KHEL-O add-backs' },
+          { key: 'history', label: 'History' },
+        ]}
+        value={tab}
+        onChange={setTab}
+        label="Café payables sections"
+        idPrefix="payables"
+        sticky={false}
+      />
+
+      {tab === 'owed' && (<>
       {isLoading && (
         <div className="flex flex-col gap-2">
           {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
@@ -288,9 +305,11 @@ export default function AdminCafePayoutsPage() {
         </div>
       )}
 
-      <WeeklyStatementsSection />
+      </>)}
 
-      <KheloFundedAddBackSection />
+      {tab === 'statements' && <WeeklyStatementsSection />}
+
+      {tab === 'addbacks' && <KheloFundedAddBackSection />}
 
       {selectedCafe && (
         <Modal
@@ -484,12 +503,14 @@ export default function AdminCafePayoutsPage() {
         </Modal>
       )}
 
+      {tab === 'history' && (
       <Card elevation="raised" className="bg-surface border border-border">
-        <CardContent className="p-6 flex flex-col gap-4">
-          <h2 className="font-heading text-h2 text-text-primary">Payout history</h2>
+        <CardContent className="flex flex-col gap-4 p-4 sm:p-6">
+          <h2 className="font-heading text-h3 text-text-primary">Payout history</h2>
           <PayoutHistoryTable />
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

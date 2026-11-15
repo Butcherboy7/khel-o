@@ -8,6 +8,7 @@ import {
   type EmailCampaign,
 } from '@/lib/api/admin';
 import { Badge, Button, Card, CardContent, ErrorState, PageSpinner } from '@/components/ui';
+import { SubTabs } from '@/components/ui/SubTabs';
 
 const LABEL: Record<string, string> = {
   c1: 'Email 1: the confession',
@@ -131,6 +132,7 @@ function CampaignCard({ c, onChanged }: { c: EmailCampaign; onChanged: () => voi
 export default function AdminCommunityEmailPage() {
   const qc = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['admin', 'email-schedule'], queryFn: getEmailSchedule, refetchInterval: 30000 });
+  const [pick, setPick] = useState<string | null>(null);
 
   if (isLoading) return <PageSpinner />;
   if (error || !data) return <ErrorState title="Could not load the emails" message={(error as Error)?.message} onRetry={() => refetch()} />;
@@ -143,7 +145,16 @@ export default function AdminCommunityEmailPage() {
           Six emails from Abdullah, Founder, two days apart. Each goes out by itself at its time (shown in IST) once you have sent yourself a test. Real accounts and people who ticked the promotions box only, once each. Everyone gets a one-tap unsubscribe.
         </p>
       </div>
-      {data.map((c) => (
+      {/* One email at a time: all six open was nearly four phone screens. */}
+      <SubTabs
+        tabs={data.map((c, i) => ({ key: c.id, label: `Email ${i + 1}` }))}
+        value={pick ?? data[0]?.id ?? ''}
+        onChange={setPick}
+        label="Emails"
+        idPrefix="emails"
+        sticky={false}
+      />
+      {data.filter((c) => c.id === (pick ?? data[0]?.id)).map((c) => (
         <CampaignCard key={`${c.id}-${c.status}-${c.testedAt}-${c.scheduledFor}`} c={c} onChanged={() => qc.invalidateQueries({ queryKey: ['admin', 'email-schedule'] })} />
       ))}
     </div>

@@ -19,6 +19,7 @@ import { listAuditLog } from '@/lib/api/admin';
 import type { AdminAuditEntry } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
 import { Badge, SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
+import { useShowMore, ShowMoreButton } from '@/components/ui/ShowMore';
 
 /* ─── helpers ─────────────────────────────────────────────────────── */
 
@@ -77,6 +78,7 @@ export default function AdminAuditLogPage() {
       e.entityId.toLowerCase().includes(q)
     );
   });
+  const page = useShowMore(entries, 25, `${entityFilter}|${search}`);
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -114,14 +116,14 @@ export default function AdminAuditLogPage() {
           />
         </div>
 
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface border border-border">
-          <Filter className="h-4 w-4 text-text-tertiary ml-1 flex-shrink-0" />
+        <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 [scrollbar-width:none]">
+          <Filter className="ml-1 h-4 w-4 flex-shrink-0 text-text-tertiary" aria-hidden />
           {ENTITY_FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
               onClick={() => setEntityFilter(f.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+              className={`min-h-[36px] shrink-0 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors ${
                 entityFilter === f.value
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
@@ -154,7 +156,7 @@ export default function AdminAuditLogPage() {
       {!isLoading && !isError && entries.length > 0 && (
         <div className="rounded-2xl border border-border overflow-hidden bg-surface">
           <div className="divide-y divide-border">
-            {entries.map((e) => (
+            {page.visible.map((e) => (
               <div
                 key={e.id}
                 className="px-4 md:px-5 py-3.5 flex flex-col md:flex-row gap-3 md:items-start hover:bg-surface-hover transition-colors"
@@ -191,6 +193,7 @@ export default function AdminAuditLogPage() {
           </div>
         </div>
       )}
+      <ShowMoreButton rest={page.rest} step={page.step} onClick={page.more} />
     </div>
   );
 }

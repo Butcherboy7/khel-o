@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, Lightbulb, CalendarClock, Users } from 'lucide-react';
+import { SubTabs, SubTabPanel, useSubTab, type SubTab } from '@/components/ui/SubTabs';
 import { getOwnerAnalytics, type OwnerInsights } from '@/lib/api/owner';
 import { SkeletonCard, EmptyState } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
@@ -29,6 +30,13 @@ const PERIODS = [
   { days: 90, label: '3 months' },
 ];
 
+type InsightsTab = 'summary' | 'busy' | 'players';
+const INSIGHTS_TABS: SubTab<InsightsTab>[] = [
+  { key: 'summary', label: 'Summary', icon: Lightbulb },
+  { key: 'busy', label: 'Busy times', icon: CalendarClock },
+  { key: 'players', label: 'Players', icon: Users },
+];
+
 /**
  * Insights, written for an owner who doesn't read dashboards: each section
  * opens with a plain sentence, says why it matters, and the "What to do next"
@@ -36,6 +44,7 @@ const PERIODS = [
  */
 export default function OwnerAnalyticsPage() {
   const [days, setDays] = useState(30);
+  const [tab, setTab] = useSubTab<InsightsTab>(['summary', 'busy', 'players'], 'summary');
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ['owner-insights', days],
     queryFn: () => getOwnerAnalytics(days) as Promise<AnalyticsResponse>,
@@ -105,15 +114,29 @@ export default function OwnerAnalyticsPage() {
           className={cn('flex flex-col gap-4 transition-opacity duration-200', isFetching && 'opacity-60')}
           aria-busy={isFetching}
         >
-          <EarningsStory key={`earn-${days}`} data={insights} />
-          <NextSteps data={insights} />
-          <WeekGrid key={`week-${days}`} data={insights} />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <CustomersPanel data={insights} />
-            <FunnelPanel data={insights} />
-          </div>
-          <StationsPanel data={insights} />
-          <GamesAndReviews data={insights} topGames={data?.topGames ?? []} />
+          {/* Three short tabs instead of one page of seven panels. */}
+          <SubTabs tabs={INSIGHTS_TABS} value={tab} onChange={setTab} label="Insights sections" idPrefix="insights" />
+          {tab === 'summary' && (
+            <SubTabPanel idPrefix="insights" tab="summary">
+              <EarningsStory key={`earn-${days}`} data={insights} />
+              <NextSteps data={insights} />
+            </SubTabPanel>
+          )}
+          {tab === 'busy' && (
+            <SubTabPanel idPrefix="insights" tab="busy">
+              <WeekGrid key={`week-${days}`} data={insights} />
+              <StationsPanel data={insights} />
+            </SubTabPanel>
+          )}
+          {tab === 'players' && (
+            <SubTabPanel idPrefix="insights" tab="players">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <CustomersPanel data={insights} />
+                <FunnelPanel data={insights} />
+              </div>
+              <GamesAndReviews data={insights} topGames={data?.topGames ?? []} />
+            </SubTabPanel>
+          )}
         </div>
       )}
     </div>

@@ -16,6 +16,7 @@ import { listAdminPayments } from '@/lib/api/admin';
 import type { AdminPayment } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
 import { SkeletonCard, ErrorState, EmptyState } from '@/components/ui';
+import { useShowMore, ShowMoreButton } from '@/components/ui/ShowMore';
 
 /* ─── helpers ─────────────────────────────────────────────────────── */
 
@@ -99,6 +100,7 @@ export default function AdminPaymentsPage() {
       p.cafeName?.toLowerCase().includes(q)
     );
   });
+  const page = useShowMore(payments, 20, `${statusFilter}|${search}`);
 
   // Totals for summary strip
   const totalCaptured = (data?.items ?? [])
@@ -164,14 +166,14 @@ export default function AdminPaymentsPage() {
           />
         </div>
 
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface border border-border">
-          <Filter className="h-4 w-4 text-text-tertiary ml-1 flex-shrink-0" />
+        <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 [scrollbar-width:none]">
+          <Filter className="ml-1 h-4 w-4 flex-shrink-0 text-text-tertiary" aria-hidden />
           {STATUS_FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
               onClick={() => setStatusFilter(f.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+              className={`min-h-[36px] shrink-0 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors ${
                 statusFilter === f.value
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
@@ -221,7 +223,7 @@ export default function AdminPaymentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {payments.map((p) => (
+                {page.visible.map((p) => (
                   <tr key={p.id} className="align-middle transition-colors hover:bg-surface-hover">
                     <td className="whitespace-nowrap py-3 pl-5 pr-3">
                       <PayStatus s={p.status} reason={p.failureReason} />
@@ -262,7 +264,7 @@ export default function AdminPaymentsPage() {
           </div>
 
           <ul className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card md:hidden">
-            {payments.map((p) => (
+            {page.visible.map((p) => (
               <li key={p.id} className="flex flex-col gap-1.5 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -278,6 +280,7 @@ export default function AdminPaymentsPage() {
               </li>
             ))}
           </ul>
+          <ShowMoreButton rest={page.rest} step={page.step} onClick={page.more} />
         </>
       )}
     </div>

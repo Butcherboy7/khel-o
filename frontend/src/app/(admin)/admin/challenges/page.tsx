@@ -6,6 +6,7 @@ import { Plus, Trophy } from 'lucide-react';
 import { adminListChallenges } from '@/lib/api/challenges';
 import { challengeDay, challengeTimeRange } from '@/lib/challenge';
 import { Card, CardContent, EmptyState, ErrorState, PageSpinner } from '@/components/ui';
+import { SubTabs, useSubTab } from '@/components/ui/SubTabs';
 
 const STATUS_STYLE: Record<string, string> = {
   draft: 'bg-surface text-text-secondary',
@@ -15,7 +16,12 @@ const STATUS_STYLE: Record<string, string> = {
   finished: 'bg-surface text-text-secondary',
 };
 
+const PAST = new Set(['finished', 'cancelled']);
+const shown = <T extends { status: string }>(list: T[], tab: 'upcoming' | 'past') =>
+  list.filter((c) => (tab === 'past' ? PAST.has(c.status) : !PAST.has(c.status)));
+
 export default function AdminChallengesPage() {
+  const [tab, setTab] = useSubTab<'upcoming' | 'past'>(['upcoming', 'past'], 'upcoming');
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin', 'challenges'],
     queryFn: adminListChallenges,
@@ -42,16 +48,31 @@ export default function AdminChallengesPage() {
         </Link>
       </div>
 
-      {data.length === 0 ? (
-        <EmptyState title="No challenges yet" description="Create one; it stays a draft (invisible) until you open it." />
+      <SubTabs
+        tabs={[
+          { key: 'upcoming', label: 'Coming up', count: data.filter((c) => !PAST.has(c.status)).length },
+          { key: 'past', label: 'Past' },
+        ]}
+        value={tab}
+        onChange={setTab}
+        label="Challenges"
+        idPrefix="challenges"
+        sticky={false}
+      />
+
+      {shown(data, tab).length === 0 ? (
+        <EmptyState
+          title={tab === 'past' ? 'No past challenges' : 'Nothing coming up'}
+          description={tab === 'past' ? 'Finished and cancelled challenges show here.' : 'Create one; it stays a draft (invisible) until you open it.'}
+        />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {data.map((c) => (
+          {shown(data, tab).map((c) => (
             <Link key={c.id} href={`/admin/challenges/${c.id}`}>
               <Card className="transition-colors hover:border-text-secondary">
                 <CardContent className="flex flex-col gap-2 p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <p className="font-heading text-h2 text-text-primary">{c.title}</p>
+                    <p className="font-heading text-h3 text-text-primary">{c.title}</p>
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${STATUS_STYLE[c.status]}`}>{c.status}</span>
                   </div>
                   <p className="text-caption text-text-secondary">

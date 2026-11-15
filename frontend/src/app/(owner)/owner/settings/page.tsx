@@ -4,7 +4,8 @@ import Link from 'next/link';
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings as SettingsIcon, Clock, MapPin, AlertCircle, RefreshCw, Store, Sparkles, Gamepad2, ChevronRight } from 'lucide-react';
+import { Clock, MapPin, AlertCircle, RefreshCw, Store, Sparkles, Gamepad2, ChevronRight, PauseCircle, Wallet, UserRound } from 'lucide-react';
+import { SubTabs, SubTabPanel, useSubTab, type SubTab } from '@/components/ui/SubTabs';
 import { Card, CardContent, Button, Skeleton } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
 import { getOwnerSettings, toggleEmergencyMode, toggleBookingsPaused, type OwnerSettings } from '@/lib/api/settings';
@@ -17,7 +18,20 @@ import { PayoutDetailsCard } from '@/components/owner/PayoutDetailsCard';
 import { AccountCredentialsCard } from '@/components/shared/AccountCredentialsCard';
 import { EditCafeModal, EDIT_CAFE_TABS, type EditCafeTab } from '@/components/owner/EditCafeModal';
 
+type SettingsTab = 'cafe' | 'pause' | 'money' | 'account';
+const SETTINGS_TABS: SubTab<SettingsTab>[] = [
+  { key: 'cafe', label: 'Café', icon: Store },
+  { key: 'pause', label: 'Pause', icon: PauseCircle },
+  { key: 'money', label: 'Payouts', icon: Wallet },
+  { key: 'account', label: 'Account', icon: UserRound },
+];
+// Quick Find (?qf=) and Tutorial targets → the tab that holds them.
+const SETTINGS_REVEAL: Record<string, SettingsTab> = {
+  'settings-stop': 'pause', pause: 'pause', emergency: 'pause', payout: 'money', login: 'account',
+};
+
 export default function OwnerSettingsPage() {
+  const [tab, setTab] = useSubTab<SettingsTab>(['cafe', 'pause', 'money', 'account'], 'cafe', { reveal: SETTINGS_REVEAL });
   const router = useRouter();
   const activeRole = useAuthStore((s) => s.activeRole);
 
@@ -163,9 +177,13 @@ export default function OwnerSettingsPage() {
         </div>
       )}
 
+      {/* One job per tab: as one page this was two phone screens of switches and forms. */}
+      <SubTabs tabs={SETTINGS_TABS} value={tab} onChange={setTab} label="Settings sections" idPrefix="settings" />
+
+      {tab === 'cafe' && (
+      <SubTabPanel idPrefix="settings" tab="cafe">
       {/* Your café, as a list: each row says what's set now and opens straight to its edit tab. */}
-      <section className="flex flex-col gap-2" aria-labelledby="cafe-details-title">
-        <h2 id="cafe-details-title" className="font-heading text-h3 font-bold text-text-primary">Your café</h2>
+      <section className="flex flex-col gap-2" aria-label="Your café">
         <Card elevation="resting">
           <CardContent className="p-0">
             <ul className="divide-y divide-border">
@@ -204,8 +222,11 @@ export default function OwnerSettingsPage() {
           </CardContent>
         </Card>
       </section>
+      </SubTabPanel>
+      )}
 
-      {/* Section 1: Operational Controls */}
+      {tab === 'pause' && (
+      <SubTabPanel idPrefix="settings" tab="pause">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1" data-tour="settings-stop">
           <h2 className="flex items-center gap-1 font-heading text-h3 font-bold text-text-primary">
@@ -230,14 +251,21 @@ export default function OwnerSettingsPage() {
 
       </div>
       </div>
+      </SubTabPanel>
+      )}
 
-      {/* Section 1b: Payouts */}
+      {tab === 'money' && (
+      <SubTabPanel idPrefix="settings" tab="money">
       <div className="flex flex-col gap-2" data-qf="payout">
         {/* Sits below the pause/emergency controls now, so its own loading
             growth can only move the login card, never a bookings switch. */}
         <PayoutDetailsCard />
       </div>
+      </SubTabPanel>
+      )}
 
+      {tab === 'account' && (
+      <SubTabPanel idPrefix="settings" tab="account">
       {/* Section 1a: Login & Security */}
       <div className="flex flex-col gap-2" data-qf="login">
         <AccountCredentialsCard />
@@ -257,7 +285,7 @@ export default function OwnerSettingsPage() {
           >
             support@khel-o.com
           </a>
-          . Just need a break? Pause bookings above instead.
+          . Just need a break? Use the Pause tab instead.
         </p>
         <p className="max-w-prose text-caption text-text-secondary">
           To close your KHEL-O account as well, use{' '}
@@ -270,6 +298,8 @@ export default function OwnerSettingsPage() {
           . We settle any payout you&apos;re owed first.
         </p>
       </div>
+      </SubTabPanel>
+      )}
 
       {settings && (
         <EditCafeModal

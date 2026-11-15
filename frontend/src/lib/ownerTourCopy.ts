@@ -342,13 +342,13 @@ export const TOUR_LESSONS: TourLesson[] = [
 const INTRO: TourStep = {
   kind: 'look', page: D,
   title: 'Welcome to KHEL-O',
-  body: 'This tutorial lights up the buttons you need, one at a time. About 4 minutes. Tap Skip any time. To replay a lesson, tap the ? at the top of any page, then Show me how.',
+  body: 'This tutorial lights up the buttons you need, one at a time. About 4 minutes. Tap Skip any time. To replay a lesson, tap Tutorial at the top of any page.',
 };
 
 const OUTRO: TourStep = {
   kind: 'look', page: D,
   title: 'You’re ready',
-  body: 'Reviews, Insights and Alerts are in the menu too. Want a lesson again? Tap the ? at the top of any page. Selling GTA 6 seats? Open Launch drops and read the GTA 6 guide.',
+  body: 'Reviews, Insights and Alerts are in the menu too. Want a lesson again? Tap Tutorial at the top of any page. Selling GTA 6 seats? Open Launch drops and read the GTA 6 guide.',
 };
 
 /** One step as it plays, with its place in the lesson and the tour. */

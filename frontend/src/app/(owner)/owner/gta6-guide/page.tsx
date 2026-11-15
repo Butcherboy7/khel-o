@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Banknote, CalendarPlus, CheckCircle2, GraduationCap, HandCoins, Share2, Ticket, UserPlus } from 'lucide-react';
+import { Banknote, CalendarPlus, CheckCircle2, GraduationCap, HandCoins, HelpCircle, ListOrdered, Share2, Store, ThumbsUp, Ticket, UserPlus } from 'lucide-react';
+import { SubTabs, SubTabPanel, useSubTab, type SubTab } from '@/components/ui/SubTabs';
 import { Button, Card, CardContent } from '@/components/ui';
 import { OwnerPageHeader } from '@/components/owner/OwnerPageHeader';
 import { useOwnerTourStore } from '@/store/ownerTourStore';
@@ -57,7 +58,16 @@ const FAQ = [
   ['Do normal bookings still work?', 'Yes. The rigs you give the drop show as taken for normal bookings during the drop hours only. Make the hours shorter to free them.'],
 ];
 
+type GuideTab = 'steps' | 'cafe' | 'why' | 'faq';
+const GUIDE_TABS: SubTab<GuideTab>[] = [
+  { key: 'steps', label: 'Steps', icon: ListOrdered },
+  { key: 'cafe', label: 'At the café', icon: Store },
+  { key: 'why', label: 'Why it helps', icon: ThumbsUp },
+  { key: 'faq', label: 'Questions', icon: HelpCircle },
+];
+
 export default function Gta6GuidePage() {
+  const [tab, setTab] = useSubTab<GuideTab>(['steps', 'cafe', 'why', 'faq'], 'steps');
   const startLesson = useOwnerTourStore((s) => s.startLesson);
   const tourReady = useOwnerTourStore((s) => s.enabled);
 
@@ -87,8 +97,12 @@ export default function Gta6GuidePage() {
         </CardContent>
       </Card>
 
-      <section className="flex flex-col gap-3" aria-labelledby="gta-how">
-        <h2 id="gta-how" className="font-heading text-h2 font-semibold text-text-primary">How it works</h2>
+      {/* Four short tabs instead of nearly four phone screens of reading. */}
+      <SubTabs tabs={GUIDE_TABS} value={tab} onChange={setTab} label="Guide sections" idPrefix="guide" />
+
+      {tab === 'steps' && (
+      <SubTabPanel idPrefix="guide" tab="steps">
+      <section className="flex flex-col gap-3" aria-label="How it works">
         <ol className="flex flex-col gap-3">
           {STEPS.map(({ icon: Icon, title, body }) => (
             <li key={title} className="flex gap-3 rounded-2xl border border-border bg-card p-4">
@@ -103,9 +117,12 @@ export default function Gta6GuidePage() {
           ))}
         </ol>
       </section>
+      </SubTabPanel>
+      )}
 
-      <section className="flex flex-col gap-3" aria-labelledby="gta-offline">
-        <h2 id="gta-offline" className="font-heading text-h2 font-semibold text-text-primary">Taking bookings at the café</h2>
+      {tab === 'cafe' && (
+      <SubTabPanel idPrefix="guide" tab="cafe">
+      <section className="flex flex-col gap-3" aria-label="Taking bookings at the café">
         <Card elevation="resting">
           <CardContent className="flex flex-col gap-3 p-5">
             <p className="text-body text-text-secondary">
@@ -124,9 +141,12 @@ export default function Gta6GuidePage() {
           </CardContent>
         </Card>
       </section>
+      </SubTabPanel>
+      )}
 
-      <section className="flex flex-col gap-3" aria-labelledby="gta-help">
-        <h2 id="gta-help" className="font-heading text-h2 font-semibold text-text-primary">How it helps you</h2>
+      {tab === 'why' && (
+      <SubTabPanel idPrefix="guide" tab="why">
+      <section className="flex flex-col gap-3" aria-label="How it helps you">
         <ul className="grid gap-3 sm:grid-cols-2">
           {HELPS.map(([t, b]) => (
             <li key={t} className="rounded-2xl border border-border bg-card p-4">
@@ -136,9 +156,12 @@ export default function Gta6GuidePage() {
           ))}
         </ul>
       </section>
+      </SubTabPanel>
+      )}
 
-      <section className="flex flex-col gap-3" aria-labelledby="gta-faq">
-        <h2 id="gta-faq" className="font-heading text-h2 font-semibold text-text-primary">Questions owners ask</h2>
+      {tab === 'faq' && (
+      <SubTabPanel idPrefix="guide" tab="faq">
+      <section className="flex flex-col gap-3" aria-label="Questions owners ask">
         <div className="flex flex-col gap-2">
           {FAQ.map(([q, a]) => (
             <details key={q} className="group rounded-2xl border border-border bg-card p-4">
@@ -152,6 +175,8 @@ export default function Gta6GuidePage() {
           ))}
         </div>
       </section>
+      </SubTabPanel>
+      )}
 
       <Link href="/owner/support" className="self-start text-body font-semibold text-primary">
         Need help? Ask KHEL-O

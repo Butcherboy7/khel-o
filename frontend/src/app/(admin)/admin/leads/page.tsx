@@ -7,6 +7,7 @@ import { listCafeDemand, updateCafeWaitlistGoal, downloadWaitlistCsv, type CafeD
 import { WaitlistBroadcast } from '@/components/admin/WaitlistBroadcast';
 import { OwnerIntrosPanel } from '@/components/admin/OwnerIntrosPanel';
 import { HelperBadgesPanel } from '@/components/admin/HelperBadgesPanel';
+import { SubTabs, useSubTab } from '@/components/ui/SubTabs';
 import { Card, CardContent, Badge, ErrorState, EmptyState, PageSpinner } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
 
@@ -77,6 +78,7 @@ export default function AdminLeadsPage() {
   const [composeCafeId, setComposeCafeId] = useState<string | null>(null);
   const [linkCopiedId, setLinkCopiedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [tab, setTab] = useSubTab<'demand' | 'intros' | 'badges'>(['demand', 'intros', 'badges'], 'demand');
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin', 'leads-demand'],
@@ -151,10 +153,24 @@ export default function AdminLeadsPage() {
         )}
       </div>
 
-      <OwnerIntrosPanel />
-      <HelperBadgesPanel />
+      {/* Three tabs: these were three long sections stacked on one page. */}
+      <SubTabs
+        tabs={[
+          { key: 'demand', label: 'Demand', icon: Megaphone, count: leads.length },
+          { key: 'intros', label: 'Owner intros' },
+          { key: 'badges', label: 'Helper badges' },
+        ]}
+        value={tab}
+        onChange={setTab}
+        label="Café demand sections"
+        idPrefix="leads"
+        sticky={false}
+      />
 
-      {leads.length === 0 ? (
+      {tab === 'intros' && <OwnerIntrosPanel />}
+      {tab === 'badges' && <HelperBadgesPanel />}
+
+      {tab !== 'demand' ? null : leads.length === 0 ? (
         <EmptyState
           title="No demand yet"
           description="No one has requested a café that isn't bookable yet. Check back once lead listings start collecting interest."

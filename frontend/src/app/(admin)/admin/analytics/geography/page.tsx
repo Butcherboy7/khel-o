@@ -7,6 +7,7 @@ import { getAreaReport, getGeography, type AreaReport, type AreaRow } from '@/li
 import { formatCurrency } from '@/lib/format';
 import { SkeletonCard } from '@/components/ui';
 import { cn } from '@/lib/cn';
+import { SubTabs, useSubTab } from '@/components/ui/SubTabs';
 
 /** The backend's catch-all bucket for cafés whose address names no neighbourhood. */
 const OTHER_AREA = 'Other areas';
@@ -157,6 +158,7 @@ export default function AreasPage() {
   const [city, setCity] = useState('Hyderabad');
   const [days, setDays] = useState(90);
   const [copied, setCopied] = useState<string | null>(null);
+  const [tab, setTab] = useSubTab<'areas' | 'travel' | 'cities'>(['areas', 'travel', 'cities'], 'areas');
 
   const { data: report, isLoading } = useQuery({
     queryKey: ['admin', 'analytics', 'areas', city, days],
@@ -229,6 +231,20 @@ export default function AreasPage() {
             </div>
           </section>
 
+          <SubTabs
+            tabs={[
+              { key: 'areas', label: 'Neighbourhoods' },
+              { key: 'travel', label: 'Who travels' },
+              { key: 'cities', label: 'Cities' },
+            ]}
+            value={tab}
+            onChange={setTab}
+            label="Areas sections"
+            idPrefix="areas"
+            sticky={false}
+          />
+
+          {tab === 'areas' && (
           <section className="flex flex-col gap-3">
             <div>
               <h2 className="font-heading text-h3 text-text-primary">Neighbourhoods</h2>
@@ -251,8 +267,9 @@ export default function AreasPage() {
               </p>
             )}
           </section>
+          )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {tab === 'travel' && (
             <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
               <div>
                 <h2 className="font-heading text-h3 text-text-primary">Players who travel to play</h2>
@@ -277,7 +294,9 @@ export default function AreasPage() {
                 </ul>
               )}
             </section>
+          )}
 
+          {tab === 'cities' && (
             <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
               <div>
                 <h2 className="font-heading text-h3 text-text-primary">Which city people picked</h2>
@@ -299,11 +318,11 @@ export default function AreasPage() {
                 </ul>
               )}
             </section>
-          </div>
+          )}
         </>
       )}
 
-      {cityTable && cityTable.length > 0 && (
+      {tab === 'cities' && cityTable && cityTable.length > 0 && (
         <section className="flex flex-col gap-2">
           <div>
             <h2 className="font-heading text-h3 text-text-primary">Every city, since launch</h2>

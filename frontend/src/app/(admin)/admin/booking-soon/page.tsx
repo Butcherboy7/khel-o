@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/admin';
 import { PHOTO_CATEGORIES } from '@/constants/photoCategories';
 import { Button, Card, CardContent, Badge, Modal, ErrorState, EmptyState, PageSpinner } from '@/components/ui';
+import { useShowMore, ShowMoreButton } from '@/components/ui/ShowMore';
 
 type Filter = 'all' | 'no-photos' | 'photos';
 
@@ -37,6 +38,13 @@ export default function AdminBookingSoonPage() {
     },
   });
 
+  const all = data ?? [];
+  const needle = q.trim().toLowerCase();
+  const rows = all
+    .filter((c) => !needle || [c.name, c.area, c.city].some((v) => (v ?? '').toLowerCase().includes(needle)))
+    .filter((c) => (filter === 'all' ? true : filter === 'photos' ? c.photos.length > 0 : c.photos.length === 0));
+  const page = useShowMore(rows, 10, `${filter}|${q}`);
+
   if (isLoading) return <PageSpinner label="Loading Booking soon cafés" />;
   if (isError) {
     return (
@@ -48,18 +56,13 @@ export default function AdminBookingSoonPage() {
     );
   }
 
-  const all = data ?? [];
-  const needle = q.trim().toLowerCase();
-  const rows = all
-    .filter((c) => !needle || [c.name, c.area, c.city].some((v) => (v ?? '').toLowerCase().includes(needle)))
-    .filter((c) => (filter === 'all' ? true : filter === 'photos' ? c.photos.length > 0 : c.photos.length === 0));
   const withPhotos = all.filter((c) => c.photos.length > 0).length;
 
   const chip = (key: Filter, label: string) => (
     <button
       key={key}
       onClick={() => setFilter(key)}
-      className={`rounded-full border px-3 py-1 text-caption font-semibold transition-colors ${
+      className={`min-h-[36px] shrink-0 whitespace-nowrap rounded-full border px-3 text-caption font-semibold transition-colors ${
         filter === key ? 'border-primary bg-primary/10 text-primary' : 'border-border text-text-secondary hover:bg-surface'
       }`}
     >
@@ -90,7 +93,7 @@ export default function AdminBookingSoonPage() {
             className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-surface text-caption text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </label>
-        <div className="flex gap-2 flex-wrap">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0">
           {chip('all', `All (${all.length})`)}
           {chip('no-photos', `Needs photos (${all.length - withPhotos})`)}
           {chip('photos', `Has photos (${withPhotos})`)}
@@ -101,11 +104,12 @@ export default function AdminBookingSoonPage() {
         <EmptyState title="Nothing here" description="No Booking soon café matches this search." />
       ) : (
         <div className="flex flex-col gap-3">
-          {rows.map((cafe) => (
+          {page.visible.map((cafe) => (
             <CafeRow key={cafe.id} cafe={cafe} onLogin={() => setLoginTarget(cafe)} />
           ))}
         </div>
       )}
+      <ShowMoreButton rest={page.rest} step={page.step} onClick={page.more} />
 
       <Modal isOpen={!!loginTarget} onClose={() => setLoginTarget(null)} title="Get owner login">
         <div className="flex flex-col gap-4">

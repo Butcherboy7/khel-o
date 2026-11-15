@@ -22,6 +22,8 @@ import {
   ErrorState,
   EmptyState,
 } from '@/components/ui';
+import { useShowMore, ShowMoreButton } from '@/components/ui/ShowMore';
+import { SubTabs } from '@/components/ui/SubTabs';
 import type { Promotion } from '@/types';
 
 /* ─── helpers ─────────────────────────────────────────────────────── */
@@ -85,6 +87,8 @@ export default function AdminPromotionsPage() {
     );
   });
 
+  const page = useShowMore(promotions, 20, `${statusFilter}|${search}`);
+
   const deactivateMut = useMutation({
     mutationFn: (promotionId: string) => deactivatePromotion(promotionId),
     onSuccess: () => {
@@ -95,31 +99,14 @@ export default function AdminPromotionsPage() {
 
   return (
     <div className="flex flex-col gap-6 pb-12">
-      {/* Tab switcher */}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('promotions')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-            activeTab === 'promotions'
-              ? 'bg-primary text-white shadow-sm'
-              : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
-          }`}
-        >
-          Promotions
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('campaignLinks')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-            activeTab === 'campaignLinks'
-              ? 'bg-primary text-white shadow-sm'
-              : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
-          }`}
-        >
-          Campaign Links
-        </button>
-      </div>
+      <SubTabs
+        tabs={[{ key: 'promotions', label: 'Offers', icon: Tag }, { key: 'campaignLinks', label: 'Campaign links' }]}
+        value={activeTab}
+        onChange={setActiveTab}
+        label="Offers sections"
+        idPrefix="promos"
+        sticky={false}
+      />
 
       {activeTab === 'campaignLinks' ? (
         <CampaignLinksTab />
@@ -160,14 +147,15 @@ export default function AdminPromotionsPage() {
           />
         </div>
 
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface border border-border overflow-x-auto">
-          <Filter className="h-4 w-4 text-text-tertiary ml-1 flex-shrink-0" />
+        <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 [scrollbar-width:none]">
+          <Filter className="ml-1 h-4 w-4 flex-shrink-0 text-text-tertiary" aria-hidden />
           {STATUS_FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
               onClick={() => setStatusFilter(f.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+              aria-pressed={statusFilter === f.value}
+              className={`min-h-[36px] shrink-0 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors ${
                 statusFilter === f.value
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
@@ -214,7 +202,7 @@ export default function AdminPromotionsPage() {
           </div>
 
           <div className="divide-y divide-border">
-            {promotions.map((p) => {
+            {page.visible.map((p) => {
               const expired = isExpired(p.validUntil);
               const exhausted = p.maxUses != null && p.currentUses >= p.maxUses;
               return (
@@ -298,6 +286,7 @@ export default function AdminPromotionsPage() {
           </div>
         </div>
       )}
+      <ShowMoreButton rest={page.rest} step={page.step} onClick={page.more} />
 
       <Modal
         isOpen={!!deactivateTarget}

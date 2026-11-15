@@ -10,7 +10,7 @@ interface OwnerPageHeaderProps {
   description?: string;
   /** The single most likely action on this screen. Goes full-width on mobile. */
   action?: ReactNode;
-  /** Adds the page's "?" help (what it's for + Show me how). */
+  /** Adds the page's labelled Tutorial button. */
   guide?: GuidePage;
   className?: string;
 }

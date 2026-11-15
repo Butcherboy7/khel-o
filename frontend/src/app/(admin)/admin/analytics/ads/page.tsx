@@ -17,6 +17,7 @@ import {
 import { SkeletonCard } from '@/components/ui';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/cn';
+import { SubTabs, SubTabPanel, useSubTab } from '@/components/ui/SubTabs';
 
 const isoDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 const pct = (n: number) => `${Math.round(n * 100)}%`;
@@ -489,6 +490,7 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
   const [startedOn, setStartedOn] = useState(campaign.startedOn);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const { copied, copy } = useCopy();
+  const [ctab, setCtab] = useSubTab<'next' | 'funnel' | 'setup'>(['next', 'funnel', 'setup'], 'next', { param: 'view' });
 
   useEffect(() => {
     setView(readView(campaign.id));
@@ -677,8 +679,43 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
 
       </section>
 
-      {report && !upcoming && <NextSteps report={report} />}
+      {/* Three tabs under the summary: as one page this was four and a half phone screens. */}
+      <SubTabs
+        tabs={[
+          { key: 'next', label: 'What to do' },
+          { key: 'funnel', label: 'Where people went' },
+          { key: 'setup', label: 'Settings' },
+        ]}
+        value={ctab}
+        onChange={setCtab}
+        label="Campaign sections"
+        idPrefix="campaign"
+        sticky={false}
+      />
 
+      {ctab === 'next' && (
+        <SubTabPanel idPrefix="campaign" tab="next">
+          {report && !upcoming && <NextSteps report={report} />}
+          {report && report.totals.visitors > 0 && (
+          <section className="flex flex-col gap-2 rounded-2xl bg-secondary p-4 text-white">
+            <span className="text-caption font-semibold text-white/70">Line for café owner pitches</span>
+            <p className="text-body">{pitchLine(report, spendNum)}</p>
+            <button
+              type="button"
+              onClick={() => copy('pitch', pitchLine(report, spendNum))}
+              className="inline-flex min-h-[36px] w-fit items-center gap-1.5 rounded-lg bg-white/10 px-3 text-caption font-semibold hover:bg-white/20"
+            >
+              {copied === 'pitch' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied === 'pitch' ? 'Copied' : 'Copy'}
+            </button>
+          </section>
+          )}
+          {(!report || upcoming) && <p className="text-body text-text-secondary">Nothing to suggest until people start tapping the link.</p>}
+        </SubTabPanel>
+      )}
+
+      {ctab === 'setup' && (
+      <SubTabPanel idPrefix="campaign" tab="setup">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -733,9 +770,14 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
       </form>
 
       <ExtraTags campaign={campaign} />
+      </SubTabPanel>
+      )}
 
-      {report && report.totals.visitors > 0 && (
-        <>
+      {ctab === 'funnel' && (!report || report.totals.visitors === 0) && (
+        <p className="text-body text-text-secondary">Nobody has tapped this link yet in these dates.</p>
+      )}
+      {ctab === 'funnel' && report && report.totals.visitors > 0 && (
+        <SubTabPanel idPrefix="campaign" tab="funnel">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <DropOff report={report} />
             <DayByDay report={report} />
@@ -749,18 +791,6 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
             </p>
           )}
 
-          <section className="flex flex-col gap-2 rounded-2xl bg-secondary p-4 text-white">
-            <span className="text-overline text-white/70">Line for café owner pitches</span>
-            <p className="text-body">{pitchLine(report, spendNum)}</p>
-            <button
-              type="button"
-              onClick={() => copy('pitch', pitchLine(report, spendNum))}
-              className="inline-flex min-h-[36px] w-fit items-center gap-1.5 rounded-lg bg-white/10 px-3 text-caption font-semibold hover:bg-white/20"
-            >
-              {copied === 'pitch' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied === 'pitch' ? 'Copied' : 'Copy'}
-            </button>
-          </section>
 
           <details className="group rounded-2xl border border-border bg-card p-4">
             <summary className="min-h-[32px] cursor-pointer font-heading text-body-emphasis text-text-primary">
@@ -807,7 +837,7 @@ function CampaignDetail({ campaign }: { campaign: MarketingCampaign }) {
               )}
             </div>
           </details>
-        </>
+        </SubTabPanel>
       )}
     </div>
   );

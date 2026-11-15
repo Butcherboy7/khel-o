@@ -28,6 +28,8 @@ import {
 } from '@/components/ui';
 import type { User, UserRole } from '@/types';
 import { BotsStoppedCard } from '@/components/admin/BotsStoppedCard';
+import { useShowMore, ShowMoreButton } from '@/components/ui/ShowMore';
+import { SubTabs, useSubTab } from '@/components/ui/SubTabs';
 
 /* ─── helpers ─────────────────────────────────────────────────────── */
 
@@ -85,6 +87,9 @@ export default function AdminUsersPage() {
     );
   });
 
+  const page = useShowMore(users, 20, `${roleFilter}|${search}`);
+  const [tab, setTab] = useSubTab<'people' | 'bots'>(['people', 'bots'], 'people');
+
   const deactivateMut = useMutation({
     mutationFn: (userId: string) => deactivateUser(userId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.all }),
@@ -135,8 +140,18 @@ export default function AdminUsersPage() {
         </Button>
       </div>
 
-      <BotsStoppedCard />
+      <SubTabs
+        tabs={[{ key: 'people', label: 'People', icon: Users }, { key: 'bots', label: 'Bots stopped', icon: ShieldPlus }]}
+        value={tab}
+        onChange={setTab}
+        label="Users sections"
+        idPrefix="users"
+        sticky={false}
+      />
 
+      {tab === 'bots' && <BotsStoppedCard />}
+
+      {tab === 'people' && (<>
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -150,14 +165,15 @@ export default function AdminUsersPage() {
           />
         </div>
 
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface border border-border">
-          <Filter className="h-4 w-4 text-text-tertiary ml-1 flex-shrink-0" />
+        <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 [scrollbar-width:none]">
+          <Filter className="ml-1 h-4 w-4 flex-shrink-0 text-text-tertiary" aria-hidden />
           {ROLE_FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
               onClick={() => setRoleFilter(f.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+              aria-pressed={roleFilter === f.value}
+              className={`min-h-[36px] shrink-0 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors ${
                 roleFilter === f.value
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
@@ -203,7 +219,7 @@ export default function AdminUsersPage() {
           </div>
 
           <div className="divide-y divide-border">
-            {users.map((u) => {
+            {page.visible.map((u) => {
               const initials = u.fullName
                 ? u.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
                 : u.email[0].toUpperCase();
@@ -296,6 +312,8 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
+      <ShowMoreButton rest={page.rest} step={page.step} onClick={page.more} />
+      </>)}
 
       <Modal
         isOpen={!!confirmPromoteId}
