@@ -9,13 +9,19 @@ import { cn } from '@/lib/cn';
  * `resetKey` (a filter, a search) jumps back to the first page when it changes.
  */
 export function useShowMore<T>(items: readonly T[], step = 20, resetKey?: unknown) {
-  const [n, setN] = useState(step);
-  useEffect(() => setN(step), [resetKey, step]);
+  // Half as many rows at a time on a phone, where each row is taller. Decided
+  // after mount so the server and the first browser render agree.
+  const [size, setSize] = useState(step);
+  useEffect(() => {
+    setSize(window.matchMedia('(max-width: 767px)').matches ? Math.max(5, Math.ceil(step / 2)) : step);
+  }, [step]);
+  const [n, setN] = useState(size);
+  useEffect(() => setN(size), [resetKey, size]);
   return {
     visible: items.slice(0, n),
     rest: Math.max(0, items.length - n),
-    more: () => setN((v) => v + step),
-    step,
+    more: () => setN((v) => v + size),
+    step: size,
   };
 }
 

@@ -105,7 +105,7 @@ export default function ChallengeDayPage() {
           ← {c.title}
         </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="font-heading text-h1 text-text-primary">Challenge day</h1>
+          <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Challenge day</h1>
           <HostTutorialButton onClick={tour.start} />
         </div>
         <div className="mt-2 flex flex-wrap gap-2" data-host-tour="screens">

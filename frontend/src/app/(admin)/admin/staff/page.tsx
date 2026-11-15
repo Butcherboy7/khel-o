@@ -53,8 +53,7 @@ export default function AdminStaffPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <UsersRound className="h-5 w-5 text-primary" />
-            <h1 className="font-heading text-h1 text-text-primary">Staff Oversight</h1>
+            <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Staff</h1>
           </div>
           <p className="text-caption text-text-secondary">
             {data?.total ?? '—'} active staff · {pending.length} pending invitations.

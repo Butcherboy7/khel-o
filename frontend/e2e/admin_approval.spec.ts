@@ -37,13 +37,13 @@ test.describe('Admin Verification Queue E2E (Tier B)', () => {
 
     // 3. Navigate to admin page
     // The verification queue moved off the /admin dashboard onto its own
-    // route; the <h1>Admin Verification Queue</h1> this test asserts on now
+    // route; the <h1>Applications</h1> this test asserts on now
     // lives in (admin)/admin/verification-queue/page.tsx.
     await page.goto('/admin/verification-queue');
     await page.waitForTimeout(1500);
 
     // 4. Check pending queue exists
-    const heading = page.locator('h1:has-text("Admin Verification Queue")');
+    const heading = page.locator('h1:has-text("Applications")');
     await expect(heading).toBeVisible({ timeout: 10000 });
 
     // 5. If we created a pending cafe, approve it

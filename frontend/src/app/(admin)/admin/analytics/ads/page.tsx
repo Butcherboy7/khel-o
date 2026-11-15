@@ -986,8 +986,7 @@ export default function CampaignsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <Target className="h-6 w-6 text-primary" />
-            <h1 className="font-heading text-h1 text-text-primary">Campaigns</h1>
+            <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Campaigns</h1>
           </div>
           <p className="max-w-xl text-body text-text-secondary">
             Every link you post and what it brought in. Only campaigns created here show up.

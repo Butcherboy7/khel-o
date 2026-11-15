@@ -190,8 +190,7 @@ export default function AreasPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <MapPin className="h-6 w-6 text-primary" />
-            <h1 className="font-heading text-h1 text-text-primary">Areas</h1>
+            <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Areas</h1>
           </div>
           <p className="max-w-2xl text-body text-text-secondary">
             Which neighbourhoods players are interested in, and which ones already make money. Use it to decide which

@@ -116,8 +116,7 @@ export default function AdminPage() {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <ShieldCheck className="h-6 w-6 text-primary" />
-          <h1 className="font-heading text-h1 text-text-primary">Admin Verification Queue</h1>
+          <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Applications</h1>
         </div>
         <p className="text-body text-text-secondary">
           Review partner applications, verify café venues, and oversee platform health.

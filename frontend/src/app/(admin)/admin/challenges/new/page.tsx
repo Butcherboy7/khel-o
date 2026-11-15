@@ -12,7 +12,7 @@ export default function NewChallengePage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 pb-12">
       <Link href="/admin/challenges" className="text-caption font-semibold text-text-secondary hover:text-text-primary">← Challenges</Link>
-      <h1 className="font-heading text-h1 text-text-primary">New challenge</h1>
+      <h1 className="font-heading text-h2 text-text-primary lg:text-h1">New challenge</h1>
       <ChallengeForm
         submitLabel="Create challenge"
         onSubmit={async (body) => {

@@ -183,7 +183,7 @@ export default function AdminChallengeDetailPage() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <Link href="/admin/challenges" className="text-caption font-semibold text-text-secondary hover:text-text-primary">← Challenges</Link>
-          <h1 className="mt-1 font-heading text-h1 text-text-primary">{c.title}</h1>
+          <h1 className="mt-1 font-heading text-h2 text-text-primary lg:text-h1">{c.title}</h1>
           <p className="mt-0.5 text-body text-text-secondary">
             <span className="font-semibold capitalize text-text-primary">{c.status}</span> · {c.cafe.name} · {challengeDay(c.startsAt)},{' '}
             {challengeTimeRange(c.startsAt, c.endsAt)}

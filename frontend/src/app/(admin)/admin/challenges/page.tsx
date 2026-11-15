@@ -7,6 +7,7 @@ import { adminListChallenges } from '@/lib/api/challenges';
 import { challengeDay, challengeTimeRange } from '@/lib/challenge';
 import { Card, CardContent, EmptyState, ErrorState, PageSpinner } from '@/components/ui';
 import { SubTabs, useSubTab } from '@/components/ui/SubTabs';
+import { useShowMore, ShowMoreButton } from '@/components/ui/ShowMore';
 
 const STATUS_STYLE: Record<string, string> = {
   draft: 'bg-surface text-text-secondary',
@@ -27,6 +28,7 @@ export default function AdminChallengesPage() {
     queryFn: adminListChallenges,
     staleTime: 15_000,
   });
+  const page = useShowMore(shown(data ?? [], tab), 10, tab);
 
   if (isLoading) return <PageSpinner label="Loading challenges" />;
   if (isError || !data) return <ErrorState message={(error as Error)?.message} onRetry={() => refetch()} />;
@@ -35,8 +37,8 @@ export default function AdminChallengesPage() {
     <div className="flex flex-col gap-6 pb-12">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 font-heading text-h1 text-text-primary">
-            <Trophy className="h-6 w-6 text-primary" /> Challenges
+          <h1 className="font-heading text-h2 text-text-primary lg:text-h1">
+            Challenges
           </h1>
           <p className="mt-0.5 text-body text-text-secondary">Free in-person challenges at partner cafés: sign-ups, waitlist and who&apos;s coming.</p>
         </div>
@@ -67,7 +69,7 @@ export default function AdminChallengesPage() {
         />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {shown(data, tab).map((c) => (
+          {page.visible.map((c) => (
             <Link key={c.id} href={`/admin/challenges/${c.id}`}>
               <Card className="transition-colors hover:border-text-secondary">
                 <CardContent className="flex flex-col gap-2 p-4">
@@ -88,6 +90,7 @@ export default function AdminChallengesPage() {
           ))}
         </div>
       )}
+      <ShowMoreButton rest={page.rest} step={page.step} onClick={page.more} />
     </div>
   );
 }

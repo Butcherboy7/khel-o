@@ -177,7 +177,7 @@ export default function AdminInstagramPage() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
       <header>
-        <h1 className="font-heading text-h1 font-bold text-text-primary">Instagram</h1>
+        <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Instagram</h1>
         <p className="mt-1 max-w-prose text-body text-text-secondary">
           Every reel you add here shows on the Explore page and the Community page as &ldquo;This is us on Instagram&rdquo;, newest first, with a Follow button. Tapping a reel opens it on Instagram.
         </p>

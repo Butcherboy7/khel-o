@@ -73,8 +73,7 @@ export default function AdminBookingSoonPage() {
   return (
     <div className="flex flex-col gap-6 pb-12">
       <div>
-        <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-          <Clock className="h-6 w-6 text-primary" />
+        <h1 className="font-heading text-h2 text-text-primary lg:text-h1">
           Booking soon cafés
         </h1>
         <p className="text-body text-text-secondary mt-0.5">

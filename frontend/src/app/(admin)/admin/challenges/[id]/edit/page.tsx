@@ -23,7 +23,7 @@ export default function EditChallengePage() {
       <Link href={`/admin/challenges/${id}`} className="text-caption font-semibold text-text-secondary hover:text-text-primary">
         ← {data.challenge.title}
       </Link>
-      <h1 className="font-heading text-h1 text-text-primary">Edit challenge</h1>
+      <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Edit challenge</h1>
       <ChallengeForm
         initial={data.challenge}
         submitLabel="Save changes"

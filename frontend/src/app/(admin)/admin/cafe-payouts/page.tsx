@@ -175,8 +175,7 @@ export default function AdminCafePayoutsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <Banknote className="h-5 w-5 text-primary" />
-            <h1 className="font-heading text-h1 text-text-primary">Café Payables</h1>
+            <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Café payables</h1>
           </div>
           <p className="text-caption text-text-secondary">
             Flow: payment captured → settled by Razorpay → available for payout → allocated in the
@@ -360,7 +359,7 @@ export default function AdminCafePayoutsPage() {
 
             <div>
               <span className="text-caption font-semibold text-text-secondary">Outstanding</span>
-              <div className="font-heading text-h1 text-text-primary">₹{selectedCafe.outstandingAmount.toFixed(2)}</div>
+              <div className="font-heading text-h2 text-text-primary lg:text-h1">₹{selectedCafe.outstandingAmount.toFixed(2)}</div>
             </div>
 
             {breakdownQuery.data && (

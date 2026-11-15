@@ -136,9 +136,8 @@ export default function AdminLeadsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-          <Megaphone className="h-6 w-6 text-primary" />
-          Café Demand
+        <h1 className="font-heading text-h2 text-text-primary lg:text-h1">
+          Café demand
         </h1>
         <p className="text-body text-text-secondary mt-0.5">
           Cafés ranked by how many players tapped &ldquo;Notify me&rdquo; — the pitch data and the reach-out

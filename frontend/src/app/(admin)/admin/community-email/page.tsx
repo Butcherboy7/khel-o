@@ -140,7 +140,7 @@ export default function AdminCommunityEmailPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
       <div>
-        <h1 className="flex items-center gap-2 font-heading text-h2 font-bold text-text-primary"><Mail className="h-6 w-6" /> Community emails</h1>
+        <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Community emails</h1>
         <p className="mt-1 text-body text-text-secondary">
           Six emails from Abdullah, Founder, two days apart. Each goes out by itself at its time (shown in IST) once you have sent yourself a test. Real accounts and people who ticked the promotions box only, once each. Everyone gets a one-tap unsubscribe.
         </p>

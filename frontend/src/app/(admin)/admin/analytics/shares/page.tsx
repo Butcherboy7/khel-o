@@ -84,8 +84,7 @@ export default function SharesPage() {
     <div className="flex flex-col gap-6 pb-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Share2 className="h-6 w-6 text-primary" />
-          <h1 className="font-heading text-h1 text-text-primary">Shares</h1>
+          <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Shares</h1>
         </div>
         <div className="flex rounded-xl border border-border bg-surface p-1" role="group" aria-label="Date range">
           {RANGES.map((r) => (

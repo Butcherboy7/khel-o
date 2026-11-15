@@ -88,8 +88,7 @@ export default function AdminLaunchListPage() {
     <div className="flex flex-col gap-6 pb-12">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-heading text-h1 text-text-primary flex items-center gap-2">
-            <Rocket className="h-6 w-6 text-primary" />
+          <h1 className="font-heading text-h2 text-text-primary lg:text-h1">
             {data.title} launch list
           </h1>
           <p className="text-body text-text-secondary mt-0.5">

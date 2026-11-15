@@ -95,8 +95,7 @@ export default function AdminCafeReviewPage() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <ShieldCheck className="h-5 w-5 text-primary" />
-                <h1 className="font-heading text-h1 text-text-primary">{cafe.name}</h1>
+                <h1 className="font-heading text-h2 text-text-primary lg:text-h1">{cafe.name}</h1>
               </div>
               <div className="flex items-center gap-1 text-caption text-text-secondary">
                 <MapPin className="h-3.5 w-3.5 text-primary" />

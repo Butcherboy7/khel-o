@@ -53,8 +53,7 @@ export default function TrafficPage() {
     <div className="flex flex-col gap-6 pb-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <TrendingUp className="h-6 w-6 text-primary" />
-          <h1 className="font-heading text-h1 text-text-primary">Traffic</h1>
+          <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Traffic</h1>
         </div>
         <div className="flex rounded-xl border border-border bg-surface p-1" role="tablist" aria-label="Granularity">
           {(Object.keys(RANGES) as TrafficGranularity[]).map((g) => (

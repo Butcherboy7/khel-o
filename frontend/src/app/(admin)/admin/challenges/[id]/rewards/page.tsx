@@ -56,7 +56,7 @@ export default function ChallengeRewardsPage() {
       <div>
         <Link href={`/admin/challenges/${id}`} className="text-caption font-semibold text-text-secondary hover:text-text-primary">← {title}</Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="font-heading text-h1 text-text-primary">Rewards</h1>
+          <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Rewards</h1>
           <HostTutorialButton onClick={tour.start} />
         </div>
         <p className="text-body text-text-secondary">
