@@ -10,6 +10,7 @@ import { adSource, joinedHere, recordJoin, suggestedHere, votedHere } from '@/li
 import { getThisWeek } from '@/lib/api/community';
 import { COMMUNITY_URL } from '@/lib/challenge';
 import { cn } from '@/lib/cn';
+import { COOKIE_NOTICE_KEY } from '@/components/layout/CookieConsentBanner';
 
 /** One next step after a win. Not in the group yet: the invite. In it: the first thing still undone
  *  (vote, suggest a café), else nothing. Same card on every confirmation screen. */
@@ -118,18 +119,34 @@ export function CampaignJoinStrip({ campaign, where }: { campaign: string; where
       /* private window */
     }
     if (dismissed || joinedHere()) return;
-    const reveal = () => {
-      if (adSource() !== campaign) return;
+    const cookieDone = () => {
+      try {
+        return !!localStorage.getItem(COOKIE_NOTICE_KEY);
+      } catch {
+        return true;
+      }
+    };
+    let ready = false;
+    const tryReveal = () => {
+      // Wait for the cookie notice to go (it sits in the same spot) and the ad tag to be known.
+      if (!ready || !cookieDone() || adSource() !== campaign) return;
       setShow(true);
       trackAction('drops_join_strip_shown', { campaign });
       cleanup();
     };
     const onScroll = () => {
-      if (window.scrollY > 260) reveal();
+      if (window.scrollY > 260) {
+        ready = true;
+        tryReveal();
+      }
     };
-    const timer = window.setTimeout(reveal, 9000);
+    const timer = window.setTimeout(() => {
+      ready = true;
+    }, 9000);
+    const poll = window.setInterval(tryReveal, 1000);
     function cleanup() {
       window.clearTimeout(timer);
+      window.clearInterval(poll);
       window.removeEventListener('scroll', onScroll);
     }
     window.addEventListener('scroll', onScroll, { passive: true });
