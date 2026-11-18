@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { GTA6_PLACES, GTA6_RELEASE } from '@/constants/gta6';
+import { GTA6_PLACES, GTA6_TOP_CITY_SLUGS, GTA6_RELEASE } from '@/constants/gta6';
+import { SuggestCafeForm } from '@/components/gta6/SuggestCafeForm';
+import { FreePlayCard } from '@/components/gta6/FreePlayCard';
 import { getPublicEnv } from '@/lib/runtimeEnv';
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
@@ -27,8 +29,8 @@ const FAQ = [
     answer: 'Yes. Where a café has opened launch-week seats on KHEL-O you reserve a slot in advance with a small booking fee and pay the rest when you play. Where none is open yet, join the launch list and we tell you first.',
   },
   {
-    question: 'Is it free to play GTA 6 at a café?',
-    answer: 'No. Cafés charge per hour for their PS5 setups, and KHEL-O shows each café’s price before you pay. GTA 6 itself is a paid game; a café lets you play without buying a console.',
+    question: 'Can I play GTA 6 for free at a café?',
+    answer: 'You can earn free play time: join the KHEL-O WhatsApp community and play in our next tournament, and participants get free GTA 6 time as a reward. Otherwise cafés charge per hour for their PS5 setups, and KHEL-O shows each price before you pay.',
   },
   {
     question: 'Which consoles will GTA 6 run on?',
@@ -63,7 +65,7 @@ export default function Gta6NearMePage() {
       ],
     },
   ];
-  const places = Object.entries(GTA6_PLACES);
+  const places = GTA6_TOP_CITY_SLUGS.map((s) => [s, GTA6_PLACES[s]] as const);
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8 text-text-primary">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
@@ -88,11 +90,23 @@ export default function Gta6NearMePage() {
           {places.map(([slug, p]) => (
             <li key={slug}>
               <Link href={`/gta6/${slug}`} className="flex h-12 items-center rounded-xl border border-border bg-card px-4 font-semibold">
-                {slug === 'india' ? 'All of India' : p.name}
+                {p.name}
               </Link>
             </li>
           ))}
+          <li>
+            <Link href="/gta6/cities" className="flex h-12 items-center rounded-xl border border-border px-4 font-semibold text-text-secondary">
+              All cities
+            </Link>
+          </li>
         </ul>
+      </section>
+
+      <FreePlayCard utmCampaign="gta6-near-me" />
+
+      <section id="suggest" aria-labelledby="suggest-h" className="flex flex-col gap-3">
+        <h2 id="suggest-h" className="font-heading text-h2 font-bold">Your café isn’t listed?</h2>
+        <SuggestCafeForm source="gta6-near-me" />
       </section>
 
       <section aria-labelledby="faq-h" className="flex flex-col gap-3">

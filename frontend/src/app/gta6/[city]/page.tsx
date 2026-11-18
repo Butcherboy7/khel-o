@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { listCafes, cafePath } from '@/lib/api/cafes';
-import { GTA6_PLACES, GTA6_RELEASE, PREORDERED_CAFE_IDS } from '@/constants/gta6';
+import { GTA6_PLACES, GTA6_CITY_SLUGS, GTA6_TOP_CITY_SLUGS, GTA6_RELEASE, PREORDERED_CAFE_IDS } from '@/constants/gta6';
+import { SuggestCafeForm } from '@/components/gta6/SuggestCafeForm';
+import { FreePlayCard } from '@/components/gta6/FreePlayCard';
 import { shownPriceRange } from '@/lib/format';
 import { cleanName, venueArea } from '@/lib/venueKind';
 import { getPublicEnv } from '@/lib/runtimeEnv';
@@ -150,8 +152,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title,
     description,
     alternates: { canonical: `/gta6/${slug}`, languages: { 'en-IN': url } },
-    // Kept out of search only if there is nothing real to show: neither a PS5 café nor any listed café.
-    robots: rows.length > 0 || listed.length > 0 ? { index: true, follow: true } : { index: false, follow: true },
+    // Every city page is indexable: with no café yet it still answers the search (launch list + suggest a café).
+    robots: { index: true, follow: true },
     openGraph: {
       title,
       description,
@@ -217,7 +219,7 @@ export default async function Gta6PlacePage({ params }: PageProps) {
     },
   ];
 
-  const others = Object.entries(GTA6_PLACES).filter(([s]) => s !== slug);
+  const others = GTA6_CITY_SLUGS.filter((s) => s !== slug).map((s) => [s, GTA6_PLACES[s]] as const);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8 text-text-primary">
@@ -322,6 +324,15 @@ export default async function Gta6PlacePage({ params }: PageProps) {
         )}
       </section>
 
+      <FreePlayCard utmCampaign={`gta6-${slug}`} />
+
+      <section id="suggest" aria-labelledby="suggest-h" className="flex flex-col gap-3">
+        <h2 id="suggest-h" className="font-heading text-h2 font-bold">
+          {rows.length > 0 ? `Know another café in ${where}?` : `Want GTA 6 at a café in ${where}?`}
+        </h2>
+        <SuggestCafeForm place={where} source={`gta6-${slug}`} />
+      </section>
+
       <section aria-labelledby="faq-h" className="flex flex-col gap-3">
         <h2 id="faq-h" className="font-heading text-h2 font-bold">GTA 6 in {where}: questions</h2>
         <div className="flex flex-col gap-4">
@@ -336,7 +347,8 @@ export default async function Gta6PlacePage({ params }: PageProps) {
 
       <nav aria-label="More GTA 6 pages" className="flex flex-wrap gap-x-4 gap-y-2 border-t border-border pt-4 text-body">
         <Link href="/gta6" className="text-text-primary underline underline-offset-2">GTA 6 launch list</Link>
-        {others.map(([s, p]) => (
+        <Link href="/gta6/cities" className="text-text-primary underline underline-offset-2">All cities</Link>
+        {others.filter(([s]) => GTA6_TOP_CITY_SLUGS.includes(s)).map(([s, p]) => (
           <Link key={s} href={`/gta6/${s}`} className="text-text-primary underline underline-offset-2">GTA 6 in {p.name}</Link>
         ))}
         {slug !== 'india' && <Link href={`/cafes/${slug}`} className="text-text-primary underline underline-offset-2">All gaming cafés in {where}</Link>}

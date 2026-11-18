@@ -92,6 +92,7 @@ const adminNavGroups: NavGroup[] = [
       { label: 'Offers', href: '/admin/promotions', icon: Tag },
       { label: 'Challenges', href: '/admin/challenges', icon: Trophy },
       { label: 'GTA 6 list', href: '/admin/launch-list', icon: Rocket },
+      { label: 'Café suggestions', href: '/admin/cafe-suggestions', icon: Store },
       { label: 'Community', href: '/admin/community', icon: Users },
       { label: 'Emails', href: '/admin/community-email', icon: Megaphone },
       { label: 'Instagram', href: '/admin/instagram', icon: Clapperboard },

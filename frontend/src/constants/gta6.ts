@@ -9,18 +9,59 @@ export const PREORDERED_CAFE_IDS = new Set([
 
 export const GTA6_RELEASE = { iso: '2026-11-19', label: '19 November 2026' };
 
+// [slug, shown name, the city names a café's address can carry (see constants/cities.ts)]
+const CITY_ROWS: [string, string, string[]][] = [
+  ['hyderabad', 'Hyderabad', ['Hyderabad']],
+  ['bengaluru', 'Bengaluru', ['Bengaluru']],
+  ['mumbai', 'Mumbai', ['Mumbai', 'Thane', 'Navi Mumbai']],
+  ['delhi', 'Delhi NCR', ['Delhi', 'Gurugram', 'Noida', 'Ghaziabad', 'Faridabad']],
+  ['chennai', 'Chennai', ['Chennai']],
+  ['pune', 'Pune', ['Pune']],
+  ['kolkata', 'Kolkata', ['Kolkata', 'Howrah']],
+  ['ahmedabad', 'Ahmedabad', ['Ahmedabad', 'Gandhinagar']],
+  ['jaipur', 'Jaipur', ['Jaipur']],
+  ['lucknow', 'Lucknow', ['Lucknow']],
+  ['chandigarh', 'Chandigarh', ['Chandigarh', 'Mohali']],
+  ['surat', 'Surat', ['Surat']],
+  ['indore', 'Indore', ['Indore']],
+  ['bhopal', 'Bhopal', ['Bhopal']],
+  ['nagpur', 'Nagpur', ['Nagpur']],
+  ['kochi', 'Kochi', ['Kochi']],
+  ['thiruvananthapuram', 'Thiruvananthapuram', ['Thiruvananthapuram']],
+  ['coimbatore', 'Coimbatore', ['Coimbatore']],
+  ['visakhapatnam', 'Visakhapatnam', ['Visakhapatnam']],
+  ['vijayawada', 'Vijayawada', ['Vijayawada', 'Guntur']],
+  ['patna', 'Patna', ['Patna']],
+  ['bhubaneswar', 'Bhubaneswar', ['Bhubaneswar', 'Cuttack']],
+  ['guwahati', 'Guwahati', ['Guwahati']],
+  ['ranchi', 'Ranchi', ['Ranchi']],
+  ['raipur', 'Raipur', ['Raipur']],
+  ['dehradun', 'Dehradun', ['Dehradun']],
+  ['vadodara', 'Vadodara', ['Vadodara']],
+  ['rajkot', 'Rajkot', ['Rajkot']],
+  ['mysuru', 'Mysuru', ['Mysuru']],
+  ['mangaluru', 'Mangaluru', ['Mangaluru']],
+  ['nashik', 'Nashik', ['Nashik']],
+  ['kanpur', 'Kanpur', ['Kanpur']],
+  ['agra', 'Agra', ['Agra']],
+  ['varanasi', 'Varanasi', ['Varanasi']],
+  ['ludhiana', 'Ludhiana', ['Ludhiana']],
+  ['amritsar', 'Amritsar', ['Amritsar']],
+  ['jodhpur', 'Jodhpur', ['Jodhpur']],
+  ['udaipur', 'Udaipur', ['Udaipur']],
+  ['goa', 'Goa', ['Panaji', 'Margao', 'Mapusa', 'Vasco da Gama']],
+  ['madurai', 'Madurai', ['Madurai']],
+  ['jammu', 'Jammu', ['Jammu']],
+];
+
 /** The pages under /gta6/<slug>. "india" lists every city KHEL-O has a PS5 café in. */
 export const GTA6_PLACES: Record<string, { name: string; cities: string[] }> = {
-  hyderabad: { name: 'Hyderabad', cities: ['Hyderabad'] },
-  bengaluru: { name: 'Bengaluru', cities: ['Bengaluru'] },
-  mumbai: { name: 'Mumbai', cities: ['Mumbai', 'Thane', 'Navi Mumbai'] },
-  delhi: { name: 'Delhi NCR', cities: ['Delhi', 'Gurugram', 'Noida', 'Ghaziabad', 'Faridabad'] },
-  chennai: { name: 'Chennai', cities: ['Chennai'] },
-  pune: { name: 'Pune', cities: ['Pune'] },
-  kolkata: { name: 'Kolkata', cities: ['Kolkata'] },
-  ahmedabad: { name: 'Ahmedabad', cities: ['Ahmedabad'] },
-  india: {
-    name: 'India',
-    cities: ['Hyderabad', 'Bengaluru', 'Mumbai', 'Thane', 'Navi Mumbai', 'Delhi', 'Gurugram', 'Noida', 'Ghaziabad', 'Faridabad', 'Chennai', 'Pune', 'Kolkata', 'Ahmedabad'],
-  },
+  ...Object.fromEntries(CITY_ROWS.map(([slug, name, cities]) => [slug, { name, cities }])),
+  india: { name: 'India', cities: CITY_ROWS.flatMap(([, , cities]) => cities) },
 };
+
+/** Every city page, not the all-India one. */
+export const GTA6_CITY_SLUGS = CITY_ROWS.map(([slug]) => slug);
+
+/** The biggest cities, linked from the top of /gta6 and /gta6/near-me. */
+export const GTA6_TOP_CITY_SLUGS = ['hyderabad', 'bengaluru', 'mumbai', 'delhi', 'chennai', 'pune', 'kolkata', 'ahmedabad'];

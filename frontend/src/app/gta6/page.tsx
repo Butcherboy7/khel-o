@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { listDrops } from '@/lib/api/drops';
 import { dropDestination } from '@/lib/drops';
 import { Gta6Client } from './Gta6Client';
+import { GTA6_PLACES, GTA6_TOP_CITY_SLUGS } from '@/constants/gta6';
 
 export const metadata: Metadata = {
   title: 'Play GTA 6 in Hyderabad, Bengaluru & India: PS5 Cafés',
@@ -41,9 +42,10 @@ export default async function Gta6Page({ searchParams }: { searchParams: Promise
       <Gta6Client />
       <nav aria-label="GTA 6 by city" className="mx-auto flex max-w-3xl flex-wrap justify-center gap-x-5 gap-y-2 px-4 py-6 text-body">
         <Link href="/gta6/near-me" className="underline underline-offset-2">GTA 6 near me</Link>
-        <Link href="/gta6/hyderabad" className="underline underline-offset-2">Where to play GTA 6 in Hyderabad</Link>
-        <Link href="/gta6/bengaluru" className="underline underline-offset-2">GTA 6 in Bengaluru</Link>
-        <Link href="/gta6/india" className="underline underline-offset-2">GTA 6 in India</Link>
+        {GTA6_TOP_CITY_SLUGS.map((slug) => (
+          <Link key={slug} href={`/gta6/${slug}`} className="underline underline-offset-2">GTA 6 in {GTA6_PLACES[slug].name}</Link>
+        ))}
+        <Link href="/gta6/cities" className="underline underline-offset-2">All cities</Link>
       </nav>
     </>
   );
