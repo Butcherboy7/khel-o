@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { listCafes, cafePath } from '@/lib/api/cafes';
 import { getSeoPages } from '@/lib/api/seo';
+import { GTA6_PLACES } from '@/constants/gta6';
 import { citySlugToName } from '@/constants/cities';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
@@ -17,8 +18,8 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/browse`, changeFrequency: 'weekly', priority: 0.6 },
   { url: `${SITE_URL}/about`, changeFrequency: 'monthly', priority: 0.5 },
   { url: `${SITE_URL}/gta6`, changeFrequency: 'daily', priority: 0.9 },
+  { url: `${SITE_URL}/gta6/near-me`, changeFrequency: 'daily', priority: 0.9 },
   { url: `${SITE_URL}/gta6/hyderabad`, changeFrequency: 'daily', priority: 0.9 },
-  { url: `${SITE_URL}/gta6/bengaluru`, changeFrequency: 'daily', priority: 0.8 },
   { url: `${SITE_URL}/gta6/india`, changeFrequency: 'daily', priority: 0.9 },
   { url: `${SITE_URL}/community`, changeFrequency: 'weekly', priority: 0.5 },
   { url: `${SITE_URL}/contact`, changeFrequency: 'yearly', priority: 0.3 },
@@ -69,7 +70,27 @@ async function getLandingUrls(): Promise<MetadataRoute.Sitemap> {
   }
 }
 
+// A city's GTA 6 page is only advertised once KHEL-O lists a café there (the page itself is noindex otherwise).
+async function getGta6CityUrls(): Promise<MetadataRoute.Sitemap> {
+  const slugs = Object.keys(GTA6_PLACES).filter((s) => s !== 'india' && s !== 'hyderabad');
+  const found = await Promise.all(
+    slugs.map(async (slug) => {
+      try {
+        for (const city of GTA6_PLACES[slug].cities) {
+          if ((await listCafes({ city, limit: 1 })).items.length > 0) return slug;
+        }
+      } catch {
+        // Skip rather than fail the sitemap.
+      }
+      return null;
+    }),
+  );
+  return found
+    .filter((s): s is string => s != null)
+    .map((s) => ({ url: `${SITE_URL}/gta6/${s}`, changeFrequency: 'daily' as const, priority: 0.8 }));
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [landing, cafes] = await Promise.all([getLandingUrls(), getCafeUrls()]);
-  return [...STATIC_ROUTES, ...landing, ...cafes];
+  const [landing, cafes, gta6] = await Promise.all([getLandingUrls(), getCafeUrls(), getGta6CityUrls()]);
+  return [...STATIC_ROUTES, ...gta6, ...landing, ...cafes];
 }

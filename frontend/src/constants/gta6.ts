@@ -13,5 +13,14 @@ export const GTA6_RELEASE = { iso: '2026-11-19', label: '19 November 2026' };
 export const GTA6_PLACES: Record<string, { name: string; cities: string[] }> = {
   hyderabad: { name: 'Hyderabad', cities: ['Hyderabad'] },
   bengaluru: { name: 'Bengaluru', cities: ['Bengaluru'] },
-  india: { name: 'India', cities: ['Hyderabad', 'Bengaluru'] },
+  mumbai: { name: 'Mumbai', cities: ['Mumbai', 'Thane', 'Navi Mumbai'] },
+  delhi: { name: 'Delhi NCR', cities: ['Delhi', 'Gurugram', 'Noida', 'Ghaziabad', 'Faridabad'] },
+  chennai: { name: 'Chennai', cities: ['Chennai'] },
+  pune: { name: 'Pune', cities: ['Pune'] },
+  kolkata: { name: 'Kolkata', cities: ['Kolkata'] },
+  ahmedabad: { name: 'Ahmedabad', cities: ['Ahmedabad'] },
+  india: {
+    name: 'India',
+    cities: ['Hyderabad', 'Bengaluru', 'Mumbai', 'Thane', 'Navi Mumbai', 'Delhi', 'Gurugram', 'Noida', 'Ghaziabad', 'Faridabad', 'Chennai', 'Pune', 'Kolkata', 'Ahmedabad'],
+  },
 };
