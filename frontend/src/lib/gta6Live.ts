@@ -2,6 +2,8 @@ import { cache } from 'react';
 import { listDrops, type DropListItem } from '@/lib/api/drops';
 import { PREORDERED_CAFE_IDS } from '@/constants/gta6';
 import { cleanName } from '@/lib/venueKind';
+import { listCafes } from '@/lib/api/cafes';
+import { shownFromPrice } from '@/lib/format';
 
 /** One café you can play GTA 6 at today, as the GTA 6 block on the home screen shows it. */
 export interface Gta6Cafe {
@@ -10,7 +12,7 @@ export interface Gta6Cafe {
   area: string | null;
   city: string;
   photo: string | null;
-  /** Price per hour, from the café's live GTA 6 listing. */
+  /** "From" price per hour: the café's own lowest price (what its page books), or the GTA 6 listing's price when it has none. */
   price: number;
   /** "HH:MM" or null when the café has not set its hours. */
   opens: string | null;
@@ -33,14 +35,14 @@ function areaFrom(address: string, city: string): string | null {
 
 const hhmm = (t: string | null | undefined) => (t ? t.slice(0, 5) : null);
 
-function toCafe(d: DropListItem): Gta6Cafe {
+function toCafe(d: DropListItem, fromPrice: Map<string, number>): Gta6Cafe {
   return {
     id: d.cafe.id,
     name: cleanName(d.cafe.name),
     area: areaFrom(d.cafe.address, d.cafe.city),
     city: d.cafe.city,
     photo: d.cafe.photo ?? d.coverImageUrl ?? null,
-    price: Math.round(d.pricePerHour),
+    price: Math.round((d.casual && fromPrice.get(d.cafe.id)) || d.pricePerHour),
     opens: hhmm(d.cafe.openingTime),
     closes: hhmm(d.cafe.closingTime),
     // Game is out: a normal-hours time is the café's own booking page. Before that, the drop.
@@ -50,14 +52,32 @@ function toCafe(d: DropListItem): Gta6Cafe {
   };
 }
 
+/** Café id -> the "from ₹X/hr" its listing card shows, so the GTA 6 block says the same price. */
+async function cafeFromPrices(): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  try {
+    for (let page = 1; page <= 10; page++) {
+      const res = await listCafes({ page, limit: 50 });
+      for (const c of res.items) {
+        const p = shownFromPrice(c);
+        if (p != null) out.set(c.id, p);
+      }
+      if (page >= res.totalPages) break;
+    }
+  } catch {
+    // Fall back to the listing price.
+  }
+  return out;
+}
+
 /** Cafés taking GTA 6 bookings right now, read from the live listings (never typed in by hand). */
 export const getGta6Cafes = cache(async (): Promise<Gta6Cafe[]> => {
   try {
-    const drops = await listDrops();
+    const [drops, fromPrice] = await Promise.all([listDrops(), cafeFromPrices()]);
     const seen = new Set<string>();
     return drops
       .filter((d) => /gta\s*6/i.test(d.game) && (d.state === 'open' || d.state === 'early'))
-      .map(toCafe)
+      .map((d) => toCafe(d, fromPrice))
       .filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)))
       .sort((a, b) => Number(b.preordered) - Number(a.preordered) || a.price - b.price);
   } catch {

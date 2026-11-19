@@ -61,7 +61,7 @@ export async function Gta6SearchPage(p: Gta6SearchPageProps) {
           name: c.name,
           url: `${SITE_URL}${c.cafeHref}`,
           address: { '@type': 'PostalAddress', addressLocality: c.area ?? c.city, addressRegion: c.city, addressCountry: 'IN' },
-          priceRange: `₹${c.price}/hr`,
+          priceRange: `From ₹${c.price}/hr`,
           ...(c.photo ? { image: c.photo } : {}),
         },
       })),
