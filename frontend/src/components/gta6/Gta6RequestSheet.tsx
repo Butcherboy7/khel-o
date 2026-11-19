@@ -103,7 +103,7 @@ export function Gta6RequestSheet({ isOpen, onClose, mode = 'ask', onSent, summar
           )}
           {(defaultPhone || phone.replace(/\D/g, '').length >= 10) && (
             <p className="rounded-xl bg-success/10 px-3 py-2 text-caption font-semibold text-text-primary">
-              After you send this, message us on WhatsApp so we can confirm the seat with the café. It is not instant.
+              After you send this, message us on WhatsApp or call us so we can confirm the seat with the café. It is not instant; a call is usually faster.
             </p>
           )}
           {error && <p role="alert" className="rounded-xl bg-error/10 px-3 py-2 text-body text-error">{error}</p>}

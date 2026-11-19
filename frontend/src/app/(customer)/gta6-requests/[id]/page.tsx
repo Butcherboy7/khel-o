@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Check, Clock, MessageCircle, X } from 'lucide-react';
+import { ArrowRight, Check, Clock, MessageCircle, Phone, X } from 'lucide-react';
 import { PageSpinner, ErrorState } from '@/components/ui';
-import { founderWhatsAppUrl, getGta6Config, getGta6Request, type Gta6Request } from '@/lib/api/gta6Requests';
+import { founderCallUrl, founderWhatsAppUrl, getGta6Config, getGta6Request, type Gta6Request } from '@/lib/api/gta6Requests';
 
 const left = (iso: string | null, now: number): string => {
   if (!iso) return '';
@@ -38,6 +38,7 @@ export default function Gta6RequestPage() {
 
   const cafeHref = `/cafe/${r.cafe?.slug || r.cafe?.id || ''}`;
   const wa = cfg?.whatsapp ? founderWhatsAppUrl(cfg.whatsapp, r) : null;
+  const call = founderCallUrl(cfg?.whatsapp);
   const card = 'rounded-2xl border border-border bg-card p-4 shadow-card';
 
   return (
@@ -75,6 +76,14 @@ export default function Gta6RequestPage() {
               className="btn-depth flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-5 text-body-emphasis font-bold text-white"
             >
               <MessageCircle className="h-5 w-5" aria-hidden /> Message us on WhatsApp
+            </a>
+          ) : null}
+          {call ? (
+            <a
+              href={call}
+              className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border-2 border-primary bg-card px-5 text-body-emphasis font-bold text-primary-dark transition-colors hover:bg-surface"
+            >
+              <Phone className="h-5 w-5" aria-hidden /> Call us, it is usually faster
             </a>
           ) : null}
           <p className="text-caption text-text-secondary">

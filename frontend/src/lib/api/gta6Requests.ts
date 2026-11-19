@@ -92,3 +92,9 @@ export function founderWhatsAppUrl(whatsapp: string, r: Pick<Gta6Request, 'refer
     `Request ${r.reference}. Can you ask the café if this slot is free so I can book?`;
   return `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
 }
+
+/** tel: link to the founder: calling is usually faster than chat. Null when the number is missing or too short. */
+export function founderCallUrl(phone: string | null | undefined): string | null {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  return digits.length >= 10 ? `tel:+${digits}` : null;
+}

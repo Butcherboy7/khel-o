@@ -54,6 +54,9 @@ import { createShare } from '@/lib/share';
 import { LoginRequiredDialog } from '@/components/auth/LoginRequiredDialog';
 import { ActivitiesSection } from '@/components/customer/ActivitiesSection';
 import { SetupPhotosSection } from '@/components/customer/SetupPhotosSection';
+import { PhotoCarousel, Dots } from '@/components/customer/PhotoCarousel';
+import { SetupExtras, SetupSpecGrid, pcSpecItems } from '@/components/customer/SetupSpecs';
+import { GamePoster } from '@/components/customer/GamePoster';
 import { PcCompare, ConsoleCompare } from '@/components/customer/TierCompare';
 import { OfferChip, OfferLine } from '@/components/customer/OfferChip';
 import { useCampaign } from '@/hooks/useCampaign';
@@ -433,23 +436,14 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
     <div className="grid grid-cols-1 gap-6 max-w-6xl mx-auto pb-40 md:pb-20 lg:grid-cols-2 lg:gap-x-10">
       {/* Hero Header Image with Gallery Arrows */}
       <div ref={heroRef} className="relative h-48 sm:h-64 md:h-96 lg:col-span-2 lg:h-[26rem] w-full overflow-hidden rounded-3xl bg-secondary shadow-float group scroll-mt-4" style={photoBg(photoIndex)}>
-        {currentPhoto ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            {...optimizedImg(currentPhoto, '(min-width: 896px) 896px, 100vw', { maxWidth: 1920 })}
-            onError={fallBackToOriginal(currentPhoto)}
-            alt={`${cafe.name} photo ${photoIndex + 1}`}
-            className="h-full w-full object-cover cursor-pointer"
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-            // This banner frame is deliberately cropped (object-cover) to
-            // stay a consistent hero height regardless of photo orientation.
-            // A portrait photo shown only here would look wrongly cropped
-            // with no way to see it whole — clicking opens the lightbox
-            // (object-contain) which renders the photo at its true aspect
-            // ratio/orientation instead.
-            onClick={() => openLightbox(photosList, photoIndex)}
+        {photosList.length > 0 ? (
+          <PhotoCarousel
+            photos={(cafe.photos ?? []).map((p) => ({ url: p.url, color: p.color }))}
+            alt={cafe.name}
+            index={photoIndex}
+            onIndexChange={setPhotoIndex}
+            onOpen={(i) => openLightbox(photosList, i)}
+            sizes="(min-width: 896px) 896px, 100vw"
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-6 text-center">
@@ -457,7 +451,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-secondary/80 via-transparent to-black/30" />
+        {/* Scrim for the buttons. It must never catch taps: it used to sit over the photo and swallow the click that opens it. */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-secondary/60 via-transparent to-black/30" />
 
         {/* Top Controls */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
@@ -476,28 +471,8 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
           </button>
         </div>
 
-        {/* Desktop Carousel Arrows */}
         {photosList.length > 1 && (
-          <>
-            <button
-              onClick={prevPhoto}
-              aria-label="Previous photo"
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors opacity-0 group-hover:opacity-100"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={nextPhoto}
-              aria-label="Next photo"
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors opacity-0 group-hover:opacity-100"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </>
-        )}
-
-        {photosList.length > 1 && (
-          <span className="absolute bottom-3 right-3 z-10 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-bold text-white tabular-nums">
+          <span className="pointer-events-none absolute right-3 top-16 z-10 rounded-full bg-black/50 px-2.5 py-1 text-[11px] font-bold text-white tabular-nums backdrop-blur-sm">
             {(photoIndex % photosList.length) + 1} / {photosList.length}
           </span>
         )}
@@ -677,47 +652,13 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
 
                     <div className="flex-1 min-w-0">
                       <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
-                      {(isPc || (!modelRepeatsName && modelLabel !== 'Gaming Station')) && (
-                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-text-secondary">
-                          {isPc ? (
-                            <>
-                              <span className="font-semibold text-text-primary">{tier.specs.gpu}</span>
-                              {tier.specs?.ram && (
-                                <>
-                                  <span className="text-text-secondary/50">·</span>
-                                  <span>{tier.specs.ram}</span>
-                                </>
-                              )}
-                              {/* Screen speed is what esports players ask about first. */}
-                              {tier.refreshRateHz ? (
-                                <>
-                                  <span className="text-text-secondary/50">·</span>
-                                  <span className="font-semibold text-text-primary">{tier.refreshRateHz} Hz</span>
-                                </>
-                              ) : null}
-                            </>
-                          ) : (
-                            <span className="font-semibold text-text-primary">{modelLabel}</span>
-                          )}
-                        </div>
-                      )}
-                      {/* What to expect in the games people actually play. A number the
-                          owner measured shows plain; one we worked out from the GPU is
-                          marked with ~ and explained under the list. */}
-                      {(tier.expectedFps?.length ?? 0) > 0 && (
-                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-text-secondary">
-                          {tier.expectedFps!.slice(0, 3).map((g) => (
-                            <span key={g.key} className="whitespace-nowrap">
-                              {g.game}{' '}
-                              <span className="font-data font-semibold text-text-primary">
-                                {g.estimated ? '~' : ''}{g.fps} FPS
-                              </span>
-                            </span>
-                          ))}
-                          {tier.expectedFps!.some((g) => g.estimated) && (
-                            <span className="text-[11px] text-text-tertiary">estimated</span>
-                          )}
-                        </p>
+                      {isPc ? (
+                        <SetupSpecGrid items={pcSpecItems(tier)} />
+                      ) : (
+                        !modelRepeatsName &&
+                        modelLabel !== 'Gaming Station' && (
+                          <p className="text-caption font-semibold text-text-primary">{modelLabel}</p>
+                        )
                       )}
                       {campaign.active && (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -741,19 +682,14 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                           urgency={offerUrgency({ slotsRemaining: promo.slotsRemaining, validUntil: promo.validUntil })}
                         />
                       )}
-                      {(tier.photos?.length ?? 0) > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPhotoTierId(tier.id);
-                            document.getElementById('setup-photos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                          }}
-                          className="relative z-10 mt-1 inline-flex min-h-[28px] items-center gap-1 text-caption font-semibold text-primary-dark hover:underline"
-                        >
-                          <Images className="h-3.5 w-3.5" aria-hidden />
-                          See {tier.photos!.length} {tier.photos!.length === 1 ? 'photo' : 'photos'}
-                        </button>
-                      )}
+                      <SetupExtras
+                        fps={tier.expectedFps ?? []}
+                        photoCount={tier.photos?.length ?? 0}
+                        onPhotos={() => {
+                          setPhotoTierId(tier.id);
+                          document.getElementById('setup-photos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
+                      />
                       {/* Co-op on every co-op setup, so PS4 and PS5 read the same. */}
                       {tier.coopEnabled && tier.isRoom && (
                         // A private cabin: say what the price is made of, in the owner's two numbers.
@@ -884,17 +820,11 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                     <PlatformIcon platform={platform} className="h-3.5 w-3.5 text-primary" />
                     {PLATFORMS.find((p) => p.value === platform)?.label || platform}
                   </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0" aria-label={`${PLATFORMS.find((p) => p.value === platform)?.label || platform} games`}>
                     {games.map((game) => (
-                      <div
-                        key={game}
-                        className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-2.5 font-medium text-body text-text-primary"
-                      >
-                        <Gamepad2 className="h-4 w-4 flex-shrink-0 text-accent" />
-                        <span>{noBreakHyphens(game)}</span>
-                      </div>
+                      <GamePoster key={game} game={game} platform={platform} />
                     ))}
-                  </div>
+                  </ul>
                 </div>
               ))}
           </div>
@@ -1382,6 +1312,9 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
       {lightbox.open && (
         <div
           className="fixed inset-0 z-[100] flex flex-col bg-black/95"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${cafe.name} photos`}
           onClick={closeLightbox}
           onTouchStart={(e) => {
             touchStartXRef.current = e.touches[0].clientX;
@@ -1404,7 +1337,11 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
             </span>
             <button
               type="button"
-              onClick={closeLightbox}
+              onClick={(e) => {
+                e.stopPropagation();
+                closeLightbox();
+              }}
+              autoFocus
               aria-label="Close"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
             >
@@ -1412,20 +1349,27 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
             </button>
           </div>
 
-          <div className="relative flex-1 flex items-center justify-center px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+          {/* min-h-0 lets this shrink to the screen, so a tall (vertical) photo fits instead of overflowing.
+              Taps on the empty space around the photo fall through to the backdrop and close the viewer. */}
+          <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pb-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               {...optimizedImg(lightbox.images[lightbox.index], '100vw', { maxWidth: 1920, quality: 80 })}
               onError={fallBackToOriginal(lightbox.images[lightbox.index])}
               alt={`${cafe.name} enlarged photo ${lightbox.index + 1}`}
-              className="max-h-full max-w-full object-contain select-none"
+              className="max-h-full max-w-full select-none object-contain"
+              onClick={(e) => e.stopPropagation()}
+              draggable={false}
             />
 
             {lightbox.images.length > 1 && (
               <>
                 <button
                   type="button"
-                  onClick={lightboxPrev}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    lightboxPrev();
+                  }}
                   aria-label="Previous photo"
                   className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
                 >
@@ -1433,7 +1377,10 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                 </button>
                 <button
                   type="button"
-                  onClick={lightboxNext}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    lightboxNext();
+                  }}
                   aria-label="Next photo"
                   className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
                 >
@@ -1442,6 +1389,15 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
               </>
             )}
           </div>
+          {lightbox.images.length > 1 && (
+            <div className="pb-5" onClick={(e) => e.stopPropagation()}>
+              <Dots
+                total={lightbox.images.length}
+                current={lightbox.index}
+                onPick={(i) => setLightbox((prev) => ({ ...prev, index: i }))}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
