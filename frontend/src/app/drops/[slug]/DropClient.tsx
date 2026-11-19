@@ -521,7 +521,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-primary">{casual ? 'Late night launch session' : 'Launch drop'}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-primary">{casual ? (gta6Cfg?.enabled ? `Play ${drop.game} here` : 'Late night launch session') : 'Launch drop'}</p>
               <h1 className="font-heading text-h2 font-bold leading-tight text-text-primary lg:text-h1">{drop.title}</h1>
               {/* Where it happens: people book the game and miss which café it is */}
               <a
@@ -1096,7 +1096,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 {busy ? 'Opening payment…' : askFirst ? 'Ask for this slot' : 'Reserve now'}
               </button>
               <p className="mt-1.5 text-center text-[11px] text-text-secondary">
-                Pay {rupees(payNow)} now · {rupees(Math.max(0, total - payNow))} at the café ·{' '}
+                {askFirst ? `Pay ${rupees(total)} in full after the café says yes` : `Pay ${rupees(payNow)} now · ${rupees(Math.max(0, total - payNow))} at the café`} ·{' '}
                 <WhatsAppHelp variant="link" about={`${drop.title} at ${drop.cafe.name}`} className="min-h-0" />
               </p>
             </>
