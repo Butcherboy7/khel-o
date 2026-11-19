@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { listCafes, cafePath } from '@/lib/api/cafes';
-import { getSeoPages, FACET_GROUP_LABELS, type SeoIndexEntry } from '@/lib/api/seo';
-import type { CafeListItem } from '@/types';
-import { ExploreHub } from '@/components/customer/ExploreHub';
+import { cafePath } from '@/lib/api/cafes';
+import { FACET_GROUP_LABELS } from '@/lib/api/seo';
+import { ExploreScreen, loadExplore } from '@/components/customer/ExploreScreen';
+import { Gta6Block } from '@/components/gta6/Gta6Block';
+import { getGta6Cafes } from '@/lib/gta6Live';
 
 // HTML sitemap: one crawlable page linking every indexable landing page and
 // every café, so nothing is an orphan even if no other page links to it.
@@ -17,37 +18,25 @@ export const metadata: Metadata = {
   alternates: { canonical: '/browse' },
 };
 
-async function load() {
-  const [pages, cafes] = await Promise.all([
-    getSeoPages().catch(() => [] as SeoIndexEntry[]),
-    (async () => {
-      const all: CafeListItem[] = [];
-      try {
-        for (let page = 1; page <= 20; page++) {
-          const res = await listCafes({ page, limit: 50 });
-          all.push(...res.items);
-          if (page >= res.totalPages) break;
-        }
-      } catch {
-        // Partial list beats no page.
-      }
-      return all;
-    })(),
-  ]);
-  return { pages, cafes };
-}
-
 export default async function BrowsePage() {
-  const { pages, cafes } = await load();
+  const [{ pages, cafes }, gta6] = await Promise.all([loadExplore(), getGta6Cafes()]);
 
   const cities = pages
     .filter((p) => p.type === 'city')
     .sort((a, b) => b.cafeCount - a.cafeCount || a.city.localeCompare(b.city));
 
   return (
-    <div className="w-full flex flex-col gap-8 py-6">
-      <h1 className="sr-only">Explore gaming cafés, drops, challenges and the community on KHEL-O</h1>
-      <ExploreHub cafes={cafes} cities={cities.map((c) => c.city)} />
+    <ExploreScreen
+      cafes={cafes}
+      cities={cities.map((c) => c.city)}
+      top={
+        <>
+          <h1 className="sr-only">Explore gaming cafés, drops, challenges and the community on KHEL-O</h1>
+          {/* While GTA 6 cafés are live, Explore opens with them. */}
+          {gta6.length > 0 && <Gta6Block cafes={gta6} heading="GTA 6 is out. Play it at a café near you." source="explore" />}
+        </>
+      }
+    >
 
       <p className="text-body text-text-secondary">
         {cafes.length} venue{cafes.length === 1 ? '' : 's'} across {cities.length} cit{cities.length === 1 ? 'y' : 'ies'}.
@@ -89,6 +78,6 @@ export default async function BrowsePage() {
           </section>
         );
       })}
-    </div>
+    </ExploreScreen>
   );
 }

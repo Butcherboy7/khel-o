@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { CustomerShell } from '@/components/layout/CustomerShell';
-import { HomeScreen } from '@/components/customer/HomeScreen';
+import { ExploreScreen, loadExplore } from '@/components/customer/ExploreScreen';
 import { Gta6Block } from '@/components/gta6/Gta6Block';
 import { FreePlayCard } from '@/components/gta6/FreePlayCard';
 import { GTA6_INTENTS, type Gta6Sort } from '@/constants/gta6Intents';
@@ -30,11 +30,12 @@ export interface Gta6SearchPageProps {
 }
 
 /**
- * A GTA 6 search page: the KHEL-O home screen with the GTA 6 cafés on top
- * (the visible h1), and this page's own answer, FAQ and GTA 6 links lower
+ * A GTA 6 search page: the KHEL-O Explore tab with the GTA 6 cafés on top
+ * (the visible h1) on the Explore tab, and this page's own answer, FAQ and GTA 6 links lower
  * down, so each URL stays a distinct answer for Google.
  */
-export function Gta6SearchPage(p: Gta6SearchPageProps) {
+export async function Gta6SearchPage(p: Gta6SearchPageProps) {
+  const { cafes: allCafes, cities } = await loadExplore();
   const url = `${SITE_URL}${p.path}`;
   const jsonLd = [
     {
@@ -133,8 +134,9 @@ export function Gta6SearchPage(p: Gta6SearchPageProps) {
   return (
     <CustomerShell>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <HomeScreen
-        hideHeading
+      <ExploreScreen
+        cafes={allCafes}
+        cities={cities}
         top={
           <Gta6Block
             cafes={p.cafes}
@@ -147,8 +149,9 @@ export function Gta6SearchPage(p: Gta6SearchPageProps) {
             sort={p.sort}
           />
         }
-        after={after}
-      />
+      >
+        {after}
+      </ExploreScreen>
     </CustomerShell>
   );
 }

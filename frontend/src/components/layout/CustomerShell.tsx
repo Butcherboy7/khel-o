@@ -31,11 +31,18 @@ interface NavItem {
   href: string;
   icon: LucideIcon;
   matchPrefix?: boolean;
+  /** Other sections this tab owns (the GTA 6 search pages open inside Explore). */
+  alsoMatch?: string[];
+}
+
+function isNavActive(item: NavItem, pathname: string): boolean {
+  if (item.alsoMatch?.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
+  return item.matchPrefix ? pathname.startsWith(item.href) && item.href !== '/' : pathname === item.href;
 }
 
 const customerNavItems: NavItem[] = [
   { label: 'Home', href: '/', icon: Home, matchPrefix: false },
-  { label: 'Explore', href: '/browse', icon: Compass, matchPrefix: true },
+  { label: 'Explore', href: '/browse', icon: Compass, matchPrefix: true, alsoMatch: ['/gta6'] },
   { label: 'Bookings', href: '/bookings', icon: CalendarDays, matchPrefix: true },
   { label: 'Community', href: '/community', icon: Users, matchPrefix: true },
   { label: 'Me', href: '/profile', icon: UserCircle, matchPrefix: false },
@@ -131,9 +138,7 @@ function CustomerHeader() {
         {/* Center Navigation Links with Active State Highlighting */}
         <nav className="hidden items-center gap-1 md:flex" aria-label="Desktop navigation">
           {customerNavItems.map((item) => {
-            const isActive = item.matchPrefix
-              ? pathname.startsWith(item.href) && item.href !== '/'
-              : pathname === item.href;
+            const isActive = isNavActive(item, pathname);
 
             return (
               <Link
@@ -211,9 +216,7 @@ function CustomerBottomNav() {
       aria-label="Mobile navigation"
     >
       {customerNavItems.map((item) => {
-        const isActive = item.matchPrefix
-          ? pathname.startsWith(item.href) && item.href !== '/'
-          : pathname === item.href;
+        const isActive = isNavActive(item, pathname);
 
         return (
           <Link
