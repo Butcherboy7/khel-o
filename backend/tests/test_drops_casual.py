@@ -153,6 +153,8 @@ async def test_drop_page_shows_normal_bookings_and_opens_a_week_ahead():
             seats_count=1, status=BookingStatus.CONFIRMED))
         await db.commit()
         from sqlalchemy import select as _sel
+        await db.execute(update(Drop).where(Drop.cafe_id == cafe.id).values(advance_hours=48))   # as on prod
+        await db.commit()
         slug = (await db.execute(_sel(Drop.slug).where(Drop.cafe_id == cafe.id))).scalar_one()
     async with _client() as c:
         d = (await c.get(f"/api/v1/drops/{slug}")).json()["data"]
@@ -161,4 +163,4 @@ async def test_drop_page_shows_normal_bookings_and_opens_a_week_ahead():
         # a casual drop opens a week ahead for normal-hours requests, whatever its 48-hour setting
         from datetime import datetime as _dt, timezone as _tz
         limit = _dt.fromisoformat(d["bookableUntil"])
-        assert limit - _dt.now(_tz.utc) > timedelta(days=6, hours=20) if d["bookableUntil"] else True
+        assert limit - _dt.now(_tz.utc) > timedelta(days=6, hours=20)
