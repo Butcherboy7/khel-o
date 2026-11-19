@@ -117,7 +117,7 @@ export function Gta6Block({ cafes, heading, headingAs = 'h2', line, place = null
                     </span>
                     <span className="flex shrink-0 flex-col items-end gap-1.5 md:flex-row md:items-center md:justify-between">
                       <span className="text-caption text-text-secondary">
-                        from <b className="font-data text-body font-bold text-text-primary">₹{c.price}</b>/hr
+                        <b className="font-data text-body font-bold text-text-primary">₹{c.price}</b>/hr
                       </span>
                       <span className="btn-depth inline-flex min-h-[36px] items-center gap-0.5 rounded-xl bg-primary pl-3.5 pr-2.5 text-caption font-bold text-white">
                         Book
