@@ -96,7 +96,7 @@ from tests.test_drops import DAY, NOW, _cafe_with_rig, _rig_body  # noqa: E402
 async def _rig_drop(start="10:00", end="23:00", seats=2, total=2):
     owner, cafe, tier = await _cafe_with_rig(total=total)
     async with _client() as c:
-        r = await c.post("/api/v1/owner/drops", json=_rig_body(cafe, tier, start, end, seats=seats), headers=_h(owner))
+        r = await c.post("/api/v1/owner/drops", json={**_rig_body(cafe, tier, start, end, seats=seats), "maxHours": 5, "depositAmountLong": 200}, headers=_h(owner))
         assert r.status_code == 201, r.text
     return owner, cafe, tier
 
@@ -138,3 +138,27 @@ async def test_a_real_drop_reservation_in_normal_hours_still_blocks_a_normal_boo
         await db.commit()
         wins = {(s, e, n) for s, e, n, _t in await svc.dedicated_windows(db, tier.id, DAY)}
         assert (14 * 60, 16 * 60, 1) in wins
+
+
+@pytest.mark.asyncio
+async def test_drop_page_shows_normal_bookings_and_opens_a_week_ahead():
+    from app.models.booking import Booking, BookingStatus
+    owner, cafe, tier = await _rig_drop("10:00", "23:00", seats=2, total=2)
+    u = await _user()
+    async with AsyncSessionLocal() as db:
+        db.add(Booking(
+            id=uuid4(), booking_reference=f"GC-{uuid4().hex[:8].upper()}", gamer_id=u.id, cafe_id=cafe.id,
+            hardware_tier_id=tier.id, session_date=DAY, start_time=time(14, 0), end_time=time(16, 0), duration_hours=2.0,
+            base_amount=200.0, discount_amount=0.0, gateway_fee=0.0, total_amount=200.0, convenience_fee=0.0,
+            seats_count=1, status=BookingStatus.CONFIRMED))
+        await db.commit()
+        from sqlalchemy import select as _sel
+        slug = (await db.execute(_sel(Drop.slug).where(Drop.cafe_id == cafe.id))).scalar_one()
+    async with _client() as c:
+        d = (await c.get(f"/api/v1/drops/{slug}")).json()["data"]
+        blk = next(b for b in d["blocks"] if b["date"] == str(DAY))
+        assert {"startTime": "14:00", "endTime": "16:00", "seatsCount": 1} in blk["bookedSlots"]
+        # a casual drop opens a week ahead for normal-hours requests, whatever its 48-hour setting
+        from datetime import datetime as _dt, timezone as _tz
+        limit = _dt.fromisoformat(d["bookableUntil"])
+        assert limit - _dt.now(_tz.utc) > timedelta(days=6, hours=20) if d["bookableUntil"] else True

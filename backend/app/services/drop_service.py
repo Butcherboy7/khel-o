@@ -1399,6 +1399,26 @@ async def _normal_hour_holds(db: AsyncSession, drop: Drop, cafe: Cafe, tier_id: 
     return out
 
 
+async def normal_booking_windows(db: AsyncSession, drop: Drop, block: DropBlock) -> list[tuple[int, int, int]]:
+    """Ordinary bookings (and 15-minute holds) on this drop's consoles that day, as (start, end, seats) from the
+    session day's midnight. Once the game is out they share the same consoles as the drop, so its page shows them
+    as busy too."""
+    from app.models.booking import Booking, BookingStatus, SEAT_HOLDING_STATUSES
+    tiers = [UUID(t) for t in tier_counts(drop)]
+    if not tiers:
+        return []
+    ttl = datetime.now(timezone.utc) - timedelta(minutes=15)
+    rows = (await db.execute(select(Booking).where(
+        Booking.hardware_tier_id.in_(tiers), Booking.session_date == block.session_date,
+        or_(Booking.status.in_(SEAT_HOLDING_STATUSES),
+            and_(Booking.status == BookingStatus.PENDING_PAYMENT, Booking.created_at >= ttl))))).scalars().all()
+    out = []
+    for bk in rows:
+        s, e = span(bk.start_time, bk.end_time)
+        out.append((s, e, bk.seats_count))
+    return out
+
+
 async def dedicated_windows(db: AsyncSession, tier_id: UUID, day) -> list[tuple[int, int, int, str]]:
     """Seats of a rig kept for a live drop on this calendar day: (start_min, end_min, seats, title),
     end_min at most 1440. Normal booking sees these seats as taken during the drop's hours on

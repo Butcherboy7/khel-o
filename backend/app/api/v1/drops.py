@@ -47,6 +47,15 @@ def _site() -> str:
     return settings.FRONTEND_URL.rstrip("/")
 
 
+def _open_until(drop: Drop) -> Optional[datetime]:
+    """Latest start people can book online. Once the game is out, normal-hours slots can be asked for a week
+    ahead, so a casual drop never closes earlier than that (a late-night session keeps its own 48 hours)."""
+    limit = svc.bookable_until(drop)
+    if limit is not None and svc.casual(drop):
+        limit = max(limit, svc.now_utc() + timedelta(days=7))
+    return limit
+
+
 def _block_out(drop: Drop, b: DropBlock, hour_free: Optional[dict] = None) -> dict:
     per_seat = svc.block_price_per_seat(drop, b)
     return {
@@ -164,7 +173,7 @@ def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
         "dailyEnd": drop.daily_end_time.strftime("%H:%M") if drop.daily_end_time else None,
         "advanceHours": drop.advance_hours,
         "advanceFrom": drop.advance_from.isoformat() if drop.advance_from else None,
-        "bookableUntil": _iso(svc.bookable_until(drop)),
+        "bookableUntil": _iso(_open_until(drop)),
         "startsOn": drop.starts_on.isoformat() if drop.starts_on else None,
         "endsOn": drop.ends_on.isoformat() if drop.ends_on else None,
         "rolling": drop.daily_start_time is not None,
@@ -269,6 +278,8 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
     if drop.max_hours:
         for bd, blk in zip(data["blocks"], blocks):
             wins = await svc._holding_windows(db, blk)
+            if svc.casual(drop):     # the game is out: normal bookings share these consoles
+                wins = wins + await svc.normal_booking_windows(db, drop, blk)
             bd["hourFree"] = svc.seats_free(wins, blk)
             bd["bookedSlots"] = svc.booked_windows(wins)
             # The same picture for each console type, so a PS5 booking never hides a free Xbox.
