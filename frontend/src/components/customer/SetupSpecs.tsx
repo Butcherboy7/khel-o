@@ -28,7 +28,7 @@ export function pcSpecItems(tier: Pick<HardwareTier, 'specs' | 'refreshRateHz'>)
 export function SetupSpecGrid({ items }: { items: SpecItem[] }) {
   if (items.length === 0) return null;
   return (
-    <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-caption">
+    <dl className={`mt-1 grid gap-x-3 gap-y-0.5 text-caption ${items.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
       {items.map((it) => (
         <div key={it.label} className="flex min-w-0 gap-1.5">
           <dt className="flex-none text-text-secondary">{it.label}</dt>

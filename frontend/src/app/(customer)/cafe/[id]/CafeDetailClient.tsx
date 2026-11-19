@@ -820,7 +820,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                     <PlatformIcon platform={platform} className="h-3.5 w-3.5 text-primary" />
                     {PLATFORMS.find((p) => p.value === platform)?.label || platform}
                   </h3>
-                  <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0" aria-label={`${PLATFORMS.find((p) => p.value === platform)?.label || platform} games`}>
+                  <ul className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0" aria-label={`${PLATFORMS.find((p) => p.value === platform)?.label || platform} games`}>
                     {games.map((game) => (
                       <GamePoster key={game} game={game} platform={platform} />
                     ))}
