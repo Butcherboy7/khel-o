@@ -23,6 +23,9 @@ class Gta6SlotRequest(Base):
     hours: Mapped[float] = mapped_column(Float, nullable=False)
     seats: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # "gta6": priced by the café's GTA 6 listing. "other": any other game on the same console, tier price.
+    game: Mapped[str] = mapped_column(String(8), nullable=False, default="gta6", server_default="gta6")
+    console_label: Mapped[str | None] = mapped_column(String(60), nullable=True)   # "PS5 Pro 2", as the player picked it
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="requested", index=True)
     admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     suggestion: Mapped[str | None] = mapped_column(Text, nullable=True)

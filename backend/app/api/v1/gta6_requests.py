@@ -7,7 +7,7 @@ straight away. The founder checks it with the café on WhatsApp, then taps Allow
 import random
 import string
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -45,6 +45,7 @@ router = APIRouter(prefix="/gta6-requests", tags=["GTA 6 requests"])
 admin_router = APIRouter(prefix="/admin/gta6-requests", tags=["Admin GTA 6 requests"])
 
 ASK_EXPIRES_AFTER = timedelta(minutes=60)   # an unanswered request lapses
+MAX_DAYS_AHEAD = 7                          # requests are taken for the next week
 HOLD_MINUTES = 15                           # the held (pending-payment) booking, set by BookingService
 
 
@@ -70,6 +71,9 @@ class RequestIn(BaseModel):
     duration_hours: float = Field(..., ge=0.25, le=8.0)
     seats_count: int = Field(1, ge=1, le=6)
     phone: Optional[str] = Field(None, max_length=20)
+    # "gta6": priced from the café's GTA 6 listing. "other": any other game on the same console.
+    game: Literal["gta6", "other"] = "gta6"
+    console_label: Optional[str] = Field(None, max_length=60)
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
@@ -128,6 +132,7 @@ async def _out(db: AsyncSession, req: Gta6SlotRequest, *, admin: bool = False) -
         "cafe": {"id": str(cafe.id), "name": cafe.name, "slug": cafe.slug, "city": cafe.city} if cafe else None,
         "tier": {"id": str(tier.id), "name": tier.name} if tier else None,
         "date": req.session_date.isoformat(), "startTime": _hhmm(req.start_time), "hours": req.hours, "seats": req.seats,
+        "game": req.game, "consoleLabel": req.console_label,
         "note": req.admin_note, "suggestion": req.suggestion,
         "bookingId": str(req.booking_id) if req.booking_id else None,
         "payBy": (booking.created_at + timedelta(minutes=HOLD_MINUTES)).isoformat() if booking and _state(req, booking) == "approved" else None,
@@ -197,6 +202,8 @@ async def create_request(payload: RequestIn, user: User = Depends(require_gamer)
         raise ValidationException(message="That console can't run GTA 6. Book it normally.", error_code="NOT_A_GTA6_CONSOLE")
     if datetime.combine(payload.session_date, payload.start_time).replace(tzinfo=IST) <= datetime.now(IST):
         raise ValidationException(message="That start time has already passed. Pick a later time.", error_code="INVALID_START_TIME")
+    if payload.session_date > datetime.now(IST).date() + timedelta(days=MAX_DAYS_AHEAD):
+        raise ValidationException(message="We take GTA 6 requests for the next 7 days. Pick a nearer day.", error_code="TOO_FAR_AHEAD")
     try:
         phone = normalise_phone(payload.phone or user.phone_number or "")
     except ValueError:
@@ -212,7 +219,8 @@ async def create_request(payload: RequestIn, user: User = Depends(require_gamer)
 
     req = Gta6SlotRequest(reference=_ref(), user_id=user.id, cafe_id=cafe.id, tier_id=tier.id,
                           session_date=payload.session_date, start_time=payload.start_time,
-                          hours=payload.duration_hours, seats=payload.seats_count, phone=phone)
+                          hours=payload.duration_hours, seats=payload.seats_count, phone=phone,
+                          game=payload.game, console_label=(payload.console_label or "").strip() or None)
     db.add(req)
     await db.commit()
     await db.refresh(req)
@@ -294,9 +302,15 @@ async def allow(request_id: UUID, db: AsyncSession = Depends(get_db), admin=Depe
     # second Allow for the last console fails here (nothing is created).
     booking_repo, cafe_repo, tier_repo = BookingRepository(db), CafeRepository(db), HardwareTierRepository(db)
     service = BookingService(booking_repo, cafe_repo, tier_repo)
+    # The price is worked out here, never taken from the player: GTA 6 uses the café's GTA 6 listing price,
+    # anything else on the same console uses the setup's own price.
+    from app.services import drop_service as dsvc
+    gta = req.game == "gta6"
+    price = await dsvc.gta6_price_for(db, req.cafe_id, req.tier_id, req.session_date, req.start_time, req.hours, req.seats) if gta else None
     result = await service.create_booking(req.user_id, BookingCreateRequest(
         cafe_id=req.cafe_id, hardware_tier_id=req.tier_id, session_date=req.session_date,
-        start_time=req.start_time, duration_hours=req.hours, seats_count=req.seats, game="GTA 6"))
+        start_time=req.start_time, duration_hours=req.hours, seats_count=req.seats, game="GTA 6" if gta else None),
+        base_amount_override=price)
     req.booking_id = result.id
     req.status = "approved"
     req.decided_by, req.decided_at = admin.id, datetime.now(timezone.utc)

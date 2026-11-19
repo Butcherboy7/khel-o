@@ -851,6 +851,18 @@ def seat_price(drop: Drop, begin: int, length: int, day: Optional[date] = None) 
     return money(max(total, Decimal("0")))
 
 
+async def gta6_price_for(db: AsyncSession, cafe_id: UUID, tier_id: UUID, session_date: date, start: time,
+                         hours: float, seats: int) -> Optional[Decimal]:
+    """What a GTA 6 player pays for this window on this console: the café's GTA 6 listing price (its time and
+    package prices apply), times the seats. None when the café has no live GTA 6 listing for the console,
+    so the setup's own price is used."""
+    for d in await _cafe_drops(db, cafe_id, session_date, session_date):
+        if (d.game or "").strip().lower() == "gta6" or (d.game or "").replace(" ", "").lower() == "gta6":
+            if tier_seats(d, tier_id) > 0 and casual(d):
+                return money(seat_price(d, _mins(start), round(hours * 60), session_date) * seats)
+    return None
+
+
 def clean_price_options(length_prices, time_prices) -> tuple[Optional[list], Optional[list]]:
     """Check and normalise the owner's package and time prices. Raises DropError in plain words."""
     lp = None

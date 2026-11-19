@@ -15,7 +15,9 @@ from app.models.hardware_tier import HardwareTier, PlatformType
 from app.models.platform_setting import PlatformSetting
 from app.models.user import UserRole
 
-from tests.test_drops import DAY, _cafe_with_rig, _client, _h, _user, fake_razorpay  # noqa: F401
+from tests.test_drops import DAY, _cafe_with_rig, _client, _h, _rig_body, _user, fake_razorpay  # noqa: F401
+
+SOON = date.today() + timedelta(days=3)     # requests are taken up to a week ahead
 
 
 async def _switch(on=True, until=None):
@@ -28,9 +30,9 @@ async def _switch(on=True, until=None):
         await db.commit()
 
 
-def _body(cafe, tier, start="19:00", hours=2):
-    return {"cafeId": str(cafe.id), "hardwareTierId": str(tier.id), "sessionDate": str(DAY),
-            "startTime": start, "durationHours": hours, "seatsCount": 1}
+def _body(cafe, tier, start="19:00", hours=2, day=SOON, **extra):
+    return {"cafeId": str(cafe.id), "hardwareTierId": str(tier.id), "sessionDate": str(day),
+            "startTime": start, "durationHours": hours, "seatsCount": 1, **extra}
 
 
 def test_gate_and_console_rules():
@@ -153,3 +155,49 @@ async def test_admin_can_set_the_switch_and_the_flags_are_on_the_cafe():
         listing = (await c.get("/api/v1/cafes", params={"limit": 50, "query": cafe.name})).json()["data"]["items"]
         mine = [i for i in listing if i["id"] == str(cafe.id)]
         assert mine and mine[0]["hasGta6"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_request_more_than_a_week_ahead_is_refused():
+    owner, cafe, ps5 = await _cafe_with_rig(total=2)
+    await _switch()
+    u = await _user()
+    async with _client() as c:
+        far = await c.post("/api/v1/gta6-requests", headers=_h(u), json=_body(cafe, ps5, day=date.today() + timedelta(days=9)))
+        assert far.status_code == 422 and "TOO_FAR_AHEAD" in far.text
+        ok = await c.post("/api/v1/gta6-requests", headers=_h(u), json=_body(cafe, ps5, day=date.today() + timedelta(days=7)))
+        assert ok.status_code == 201, ok.text
+
+
+@pytest.mark.asyncio
+async def test_request_keeps_the_game_and_console_the_player_picked():
+    owner, cafe, ps5 = await _cafe_with_rig(total=2)
+    await _switch()
+    u = await _user()
+    async with _client() as c:
+        r = (await c.post("/api/v1/gta6-requests", headers=_h(u),
+                          json=_body(cafe, ps5, game="other", consoleLabel="PS5 Pro 2"))).json()["data"]["request"]
+        assert r["game"] == "other" and r["consoleLabel"] == "PS5 Pro 2"
+        d = (await c.post("/api/v1/gta6-requests", headers=_h(u), json=_body(cafe, ps5, "21:00"))).json()["data"]["request"]
+        assert d["game"] == "gta6" and d["consoleLabel"] is None
+
+
+@pytest.mark.casual
+@pytest.mark.asyncio
+async def test_allow_charges_the_gta_price_for_gta_and_the_tier_price_for_other_games():
+    owner, cafe, ps5 = await _cafe_with_rig(total=4)       # tier price 100/hr
+    await _switch()
+    async with _client() as c:
+        made = await c.post("/api/v1/owner/drops", json=_rig_body(cafe, ps5, "10:00", "23:00", seats=2, first=SOON), headers=_h(owner))
+        assert made.status_code == 201, made.text           # drop price 250/hr, whole café day
+        p1, p2, admin = await _user(), await _user(), await _user(UserRole.ADMIN)
+        a = (await c.post("/api/v1/gta6-requests", headers=_h(p1), json=_body(cafe, ps5, "19:00", 2))).json()["data"]["request"]
+        b = (await c.post("/api/v1/gta6-requests", headers=_h(p2), json=_body(cafe, ps5, "15:00", 2, game="other"))).json()["data"]["request"]
+        ra = (await c.post(f"/api/v1/admin/gta6-requests/{a['id']}/allow", headers=_h(admin))).json()
+        rb = (await c.post(f"/api/v1/admin/gta6-requests/{b['id']}/allow", headers=_h(admin))).json()
+        assert ra["success"] and rb["success"], (ra, rb)
+        async with AsyncSessionLocal() as db:
+            ba = await db.get(Booking, UUID(ra["data"]["request"]["bookingId"]))
+            bb = await db.get(Booking, UUID(rb["data"]["request"]["bookingId"]))
+            assert float(ba.base_amount) == 500.0 and ba.game == "GTA 6"      # 250 x 2 hr, from the drop
+            assert float(bb.base_amount) == 200.0                              # 100 x 2 hr, the setup's own price

@@ -58,7 +58,10 @@ class BookingService:
         random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         return f"GC-{year}-{random_suffix}"
 
-    async def create_booking(self, gamer_id: UUID, booking_in: BookingCreateRequest) -> BookingResponse:
+    async def create_booking(self, gamer_id: UUID, booking_in: BookingCreateRequest,
+                             base_amount_override: Optional[Decimal] = None) -> BookingResponse:
+        """`base_amount_override` is for server-side callers only (an Allowed GTA 6 request is priced from the
+        café's GTA 6 listing); it is never part of the public request body."""
         # Validate Cafe
         cafe = None
         if self.cafe_repo:
@@ -181,6 +184,8 @@ class BookingService:
         # Financial Math (Decimal) & Promotion Application
         duration = Decimal(str(booking_in.duration_hours))
         base_amount = base_price(tier, booking_in.duration_hours, players=players, is_coop=is_coop, seats=seats_requested)
+        if base_amount_override is not None:
+            base_amount = base_amount_override
 
         discount_amount = Decimal('0.00')
         # promotion_id wins if both are somehow present — it's the
