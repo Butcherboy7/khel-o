@@ -1348,18 +1348,66 @@ async def can_manage(db: AsyncSession, user: User, cafe_id: UUID) -> bool:
     return cafe is not None and cafe.owner_id == user.id
 
 
+def _runs(cafe: Cafe, begin: int, end: int, *, inside: bool) -> list[tuple[int, int]]:
+    """Split a stretch (minutes, 30-minute steps) into the runs that are inside / outside the café's normal hours."""
+    out: list[tuple[int, int]] = []
+    run: Optional[int] = None
+    for m in range(begin, end, STEP):
+        if inside_normal(cafe, m, m + STEP) == inside:
+            run = m if run is None else run
+        elif run is not None:
+            out.append((run, m))
+            run = None
+    if run is not None:
+        out.append((run, end))
+    return out
+
+
+async def _normal_hour_holds(db: AsyncSession, drop: Drop, cafe: Cafe, tier_id: UUID, day) -> list[tuple[int, int, int, str]]:
+    """A casual drop's real reservations that fall in the café's normal hours on this date, per console of this setup.
+    These are the only seats it still keeps there: the rest of normal hours is open to ordinary booking."""
+    blocks = (await db.execute(select(DropBlock).where(
+        DropBlock.drop_id == drop.id, DropBlock.session_date.in_((day, day - timedelta(days=1)))))).scalars().all()
+    out = []
+    for b in blocks:
+        off = 0 if b.session_date == day else DAY_MIN
+        rows = (await db.execute(select(DropReservation).where(
+            DropReservation.block_id == b.id, DropReservation.status.in_(HOLDING)))).scalars().all()
+        for r in rows:
+            if r.units:
+                n = sum(1 for u in r.units if key_tier(u) == str(tier_id))
+            else:
+                n = r.seats if str(tier_id) == primary_tier(drop) else 0
+            if n <= 0:
+                continue
+            rs, re_ = res_window(r, b)
+            lo, hi = max(rs - off, 0), min(re_ - off, DAY_MIN)
+            if hi > lo:
+                out += [(a, z, n, drop.title) for a, z in _runs(cafe, lo, hi, inside=True)]
+    return out
+
+
 async def dedicated_windows(db: AsyncSession, tier_id: UUID, day) -> list[tuple[int, int, int, str]]:
     """Seats of a rig kept for a live drop on this calendar day: (start_min, end_min, seats, title),
     end_min at most 1440. Normal booking sees these seats as taken during the drop's hours on
-    that date (each date can have its own hours), plus the night before's hours past midnight."""
+    that date (each date can have its own hours), plus the night before's hours past midnight.
+    Once the game is out (casual drop) the café's normal hours are open to ordinary booking: only the drop's
+    late-night / early-morning hours stay held, plus the real reservations it has already sold in normal hours."""
     out = []
     for d in await dedicated_drops(db, tier_id, day):
         n = tier_seats(d, tier_id)
+        spans = []
         if runs_on(d, day):
-            for s, e in day_intervals(d, day):
-                out.append((s, min(e, DAY_MIN), n, d.title))
-        for s, e in tails_into(d, day):
-            out.append((s, e, n, d.title))
+            spans += [(s, min(e, DAY_MIN)) for s, e in day_intervals(d, day)]
+        spans += list(tails_into(d, day))
+        if casual(d):
+            cafe = await db.get(Cafe, d.cafe_id)
+            if cafe is not None and normal_windows(cafe) is not None:
+                for s, e in spans:
+                    out += [(a, z, n, d.title) for a, z in _runs(cafe, s, e, inside=False)]
+                out += await _normal_hour_holds(db, d, cafe, tier_id, day)
+                continue
+        out += [(s, e, n, d.title) for s, e in spans]
     return out
 
 

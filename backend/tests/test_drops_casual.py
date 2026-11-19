@@ -83,3 +83,58 @@ def test_helpers():
         opening_time = None
         closing_time = None
     assert svc.normal_windows(C()) is None and svc.inside_normal(C(), 600, 700) is False
+
+
+# ---------------------------------------------------------------- one ledger in normal hours (2026-11-20)
+from datetime import timedelta  # noqa: E402
+from uuid import uuid4  # noqa: E402
+
+from app.models.drop import DropReservation  # noqa: E402
+from tests.test_drops import DAY, NOW, _cafe_with_rig, _rig_body  # noqa: E402
+
+
+async def _rig_drop(start="10:00", end="23:00", seats=2, total=2):
+    owner, cafe, tier = await _cafe_with_rig(total=total)
+    async with _client() as c:
+        r = await c.post("/api/v1/owner/drops", json=_rig_body(cafe, tier, start, end, seats=seats), headers=_h(owner))
+        assert r.status_code == 201, r.text
+    return owner, cafe, tier
+
+
+@pytest.mark.asyncio
+async def test_casual_drop_no_longer_blankets_normal_hours():
+    _o, _cafe, tier = await _rig_drop("10:00", "23:00", seats=2)
+    async with AsyncSessionLocal() as db:
+        assert await svc.dedicated_windows(db, tier.id, DAY) == []        # nothing kept at 2 PM
+
+
+@pytest.mark.asyncio
+async def test_casual_drop_still_keeps_its_late_night_hours():
+    # Drop 10:00-23:00, but the café closes at 20:00: 20:00-23:00 is a special session and stays held.
+    _o, cafe, tier = await _rig_drop("10:00", "23:00", seats=2)
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(Cafe).where(Cafe.id == cafe.id).values(closing_time=time(20, 0)))
+        await db.commit()
+        wins = {(s, e, n) for s, e, n, _t in await svc.dedicated_windows(db, tier.id, DAY)}
+        assert wins == {(20 * 60, 23 * 60, 2)}
+
+
+@pytest.mark.asyncio
+async def test_a_real_drop_reservation_in_normal_hours_still_blocks_a_normal_booking():
+    _o, _cafe, tier = await _rig_drop("10:00", "23:00", seats=2)
+    u = await _user()
+    async with AsyncSessionLocal() as db:
+        block = (await db.execute(__import__("sqlalchemy").select(DropBlock).where(
+            DropBlock.session_date == DAY).order_by(DropBlock.created_at.desc()).limit(1))).scalars().first()
+        if block is None:                                          # blocks are made when the date comes into view
+            from app.models.drop import Drop as _D
+            drop = (await db.execute(__import__("sqlalchemy").select(_D).order_by(_D.created_at.desc()).limit(1))).scalars().first()
+            await svc.ensure_blocks(db, drop)
+            block = (await svc.blocks_of(db, drop.id))[0]
+        db.add(DropReservation(
+            id=uuid4(), reference=f"R{uuid4().hex[:8]}", drop_id=block.drop_id, block_id=block.id, user_id=u.id, seats=1,
+            start_time=time(14, 0), end_time=time(16, 0), hours=2, status="confirmed", block_price=500, deposit_amount=150,
+            balance_due=350, expires_at=NOW() + timedelta(days=1), checkin_token=uuid4().hex))
+        await db.commit()
+        wins = {(s, e, n) for s, e, n, _t in await svc.dedicated_windows(db, tier.id, DAY)}
+        assert (14 * 60, 16 * 60, 1) in wins
