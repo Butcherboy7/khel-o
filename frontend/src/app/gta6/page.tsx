@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { listDrops } from '@/lib/api/drops';
-import { dropDestination } from '@/lib/drops';
+import { dropDestination, gameKey } from '@/lib/drops';
 import { Gta6Client } from './Gta6Client';
 import { GTA6_PLACES, GTA6_TOP_CITY_SLUGS } from '@/constants/gta6';
 
@@ -25,7 +25,8 @@ export default async function Gta6Page({ searchParams }: { searchParams: Promise
   try {
     const live = (await listDrops()).filter((d) => /gta\s*6/i.test(d.game) && (d.state === 'open' || d.state === 'early'));
     // One café: straight to its drop. Several: the pick-your-café screen, nearest first.
-    to = live.length ? dropDestination(live, live[0].game).href : null;
+    // Game out: always the café list, where each café opens its normal booking page. Before that: straight to the drop.
+    to = live.length ? (live[0].casual ? `/drops?game=${gameKey(live[0].game)}` : dropDestination(live, live[0].game).href) : null;
   } catch {
     to = null;
   }

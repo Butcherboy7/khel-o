@@ -21,6 +21,8 @@ export interface CafeListItem {
   activityKinds?: string[];
   /** A setup here lets friends share one console (co-op pricing). */
   hasCoop?: boolean;
+  /** Some setup here runs GTA 6: the card shows a "Plays GTA 6" chip. */
+  hasGta6?: boolean;
   /** Normalized activity keys ('pc-gaming', 'console', 'snooker', ...). */
   activities?: string[];
   /** Taxonomy style keys on offer ("pool.american") — for style filters. */

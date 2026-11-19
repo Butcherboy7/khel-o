@@ -25,6 +25,7 @@ from app.api.v1.contact import router as contact_router
 from app.api.v1.locations import router as locations_router
 from app.api.v1.owner_intros import router as owner_intros_router
 from app.api.v1.cafe_suggestions import public_router as cafe_suggestions_router, admin_router as admin_cafe_suggestions_router
+from app.api.v1.gta6_requests import router as gta6_requests_router, admin_router as admin_gta6_requests_router
 from app.api.v1.launch_list import public_router as launch_list_router, admin_router as admin_launch_list_router
 from app.api.v1.challenges import public_router as challenges_router, admin_router as admin_challenges_router
 from app.api.v1.community import router as community_router, admin_router as community_admin_router
@@ -60,6 +61,8 @@ api_router.include_router(owner_intros_router)
 api_router.include_router(launch_list_router)
 api_router.include_router(cafe_suggestions_router)
 api_router.include_router(admin_cafe_suggestions_router)
+api_router.include_router(gta6_requests_router)
+api_router.include_router(admin_gta6_requests_router)
 api_router.include_router(admin_launch_list_router)
 api_router.include_router(campaign_links_router)
 api_router.include_router(marketing_campaigns_router)

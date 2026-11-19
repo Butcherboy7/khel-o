@@ -122,7 +122,15 @@ export interface Drop {
   hasEarlyAccessCode: boolean;
   state: DropState;
   status: 'draft' | 'live' | 'cancelled';
-  cafe: { id: string; name: string; slug: string | null; address: string; city: string; mapsUrl: string; lat?: number | null; lng?: number | null; photo?: string | null };
+  cafe: {
+    id: string; name: string; slug: string | null; address: string; city: string; mapsUrl: string; lat?: number | null; lng?: number | null; photo?: string | null;
+    /** The café's normal opening hours (null = not set). */
+    openingTime?: string | null; closingTime?: string | null;
+  };
+  /** The game is out: a time inside the café's normal hours is a normal booking. */
+  casual?: boolean;
+  /** Still has sessions outside the café's normal hours (late night / early morning), reserved with the booking fee. */
+  hasSpecial?: boolean;
   blocks: DropBlock[];
   seatsLeft: number;
   seatsTotal: number;
@@ -398,6 +406,8 @@ export interface DropListItem {
   publicStartsAt: string;
   /** You already hold a seat in this drop. */
   iHold: boolean;
+  casual?: boolean;
+  hasSpecial?: boolean;
 }
 
 export async function listDrops(): Promise<DropListItem[]> {

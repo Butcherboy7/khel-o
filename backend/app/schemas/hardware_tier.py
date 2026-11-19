@@ -234,6 +234,13 @@ class HardwareTierResponse(HardwareTierBase):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def runs_gta6(self) -> bool:
+        """Can this setup run GTA 6 (PS5, PS5 Pro, Xbox Series)? Drives the GTA 6 request question at checkout."""
+        from app.core.game_platforms import tier_runs_gta6
+        return tier_runs_gta6(self)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def console_info(self) -> Optional[Dict[str, Any]]:
         """What this console is, in plain facts, when we recognise it."""
         if self.tier_type != TierType.GAMING:

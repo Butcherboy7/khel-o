@@ -30,6 +30,7 @@ from app.models.marketing_campaign import MarketingCampaign
 from app.models.auth_attempt import AuthAttempt
 from app.models.launch_signup import LaunchSignup
 from app.models.cafe_suggestion import CafeSuggestion
+from app.models.gta6_request import Gta6SlotRequest
 from app.models.photo_color import PhotoColor
 from app.models.challenge import Challenge, ChallengeEntry, ChallengeMatch
 from app.models.drop import Drop, DropBlock, DropReservation, DropWaitlist
@@ -76,6 +77,7 @@ __all__ = [
     "AuthAttempt",
     "LaunchSignup",
     "CafeSuggestion",
+    "Gta6SlotRequest",
     "PhotoColor",
     "Challenge",
     "ChallengeEntry",

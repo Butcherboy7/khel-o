@@ -342,6 +342,51 @@ def block_span(block: DropBlock) -> tuple[int, int]:
     return span(block.start_time, block.end_time)
 
 
+# ---------------------------------------------------------------- normal hours vs special sessions
+def casual(drop: Drop) -> bool:
+    """The game is out, so a time inside the café's normal hours is an ordinary booking.
+    Only sessions outside those hours (a late-night or early-morning launch) stay reservations."""
+    from app.core.game_platforms import rule_for
+    rule = rule_for(drop.game)
+    live = (rule or {}).get("liveFrom")
+    return bool(live and datetime.now(IST).date() >= date.fromisoformat(live))
+
+
+def normal_windows(cafe: Cafe) -> Optional[list[tuple[int, int]]]:
+    """The café's normal hours as minute windows from a session day's midnight (the night before's
+    overhang included), or None when the café has not set any hours."""
+    if not cafe.opening_time or not cafe.closing_time:
+        return None
+    o, c = span(cafe.opening_time, cafe.closing_time)
+    if c - o >= DAY_MIN:
+        return [(-DAY_MIN, 2 * DAY_MIN)]
+    return [(o, c), (o - DAY_MIN, c - DAY_MIN)]
+
+
+def inside_normal(cafe: Cafe, begin: int, end: int) -> bool:
+    """True when the whole stretch (minutes from midnight, may pass 24:00) is in the café's normal hours."""
+    wins = normal_windows(cafe)
+    return bool(wins) and any(a <= begin and end <= b for a, b in wins)
+
+
+def touches_normal(cafe: Cafe, begin: int, end: int) -> bool:
+    """True when any part of the stretch is inside the café's normal hours. A reservation must be wholly outside them."""
+    wins = normal_windows(cafe)
+    return bool(wins) and any(begin < b and end > a for a, b in wins)
+
+
+def has_special(cafe: Cafe, blocks: list[DropBlock]) -> bool:
+    """Does any session include time outside the café's normal hours (a launch-night reservation)?"""
+    if normal_windows(cafe) is None:
+        return True
+    for b in blocks:
+        s, e = block_span(b)
+        for m in range(s, e, 30):
+            if not inside_normal(cafe, m, m + 30):
+                return True
+    return False
+
+
 def at_in_block(t: time, block: DropBlock) -> int:
     """A clock time inside a session, as minutes from the session day's midnight:
     01:00 in an 18:00-04:00 session is 25:00 (1500)."""
@@ -1029,6 +1074,12 @@ async def reserve(
         r_end = clock_of(end_min)
         if datetime.combine(block.session_date, time(0, 0)).replace(tzinfo=IST) + timedelta(minutes=begin) <= now_utc():
             raise DropError("That hour has already started.", "BLOCK_STARTED")
+
+    if casual(drop):
+        cafe_ = await db.get(Cafe, drop.cafe_id)
+        w0, w1 = (begin, end_min) if drop.max_hours else block_span(block)
+        if cafe_ is not None and touches_normal(cafe_, w0, w1):
+            raise DropError("This time is within the café's normal hours, so it is a normal booking. Book it from the café page and pay in full.", "NORMAL_HOURS")
 
     # Which console type the player wants (PS5 or Xbox...). Old pages send nothing: the main one.
     counts = tier_counts(drop)

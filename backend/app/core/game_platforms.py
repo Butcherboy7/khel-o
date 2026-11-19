@@ -17,6 +17,9 @@ GAME_RULES: List[Dict[str, Any]] = [
     {
         "key": "gta6",
         "label": "GTA 6",
+        # Out on 19 Nov 2026. From then, a time inside the café's normal hours is a normal booking
+        # (paid in full); only special sessions outside those hours are reserved with the booking fee.
+        "liveFrom": "2026-11-19",
         "words": ["gta 6", "gta6", "gta vi", "grand theft auto vi", "grand theft auto 6"],
         "consoles": ["ps5", "ps5pro", "seriesx", "seriess"],
         # A PlayStation/Xbox setup whose model we cannot read: allowed, but the owner is asked to check.
@@ -55,3 +58,11 @@ def fit(rule: Optional[Dict[str, Any]], platform: Optional[str], specs: Optional
     if platform in rule["families"]:
         return "check"
     return "no"
+
+
+def tier_runs_gta6(tier: Any) -> bool:
+    """True when this café setup can run GTA 6 (PS5 / PS5 Pro / Xbox Series, or a PlayStation/Xbox we cannot
+    identify and the owner has to confirm). Never for PCs, VR, racing rigs or activities."""
+    platform = getattr(tier, "platform", None)
+    return fit(rule_for("GTA 6"), platform.value if platform else None, getattr(tier, "specs", None),
+               getattr(tier, "name", None), getattr(tier, "model", None), getattr(tier, "tier_type", None)) in ("yes", "check")

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, time
@@ -134,6 +134,8 @@ class CafeListItem(BaseModel):
     activity_kinds: List[str] = Field(default_factory=list)
     # Any active setup lets friends share one console (co-op pricing).
     has_coop: bool = False
+    # Some setup here runs GTA 6 (PS5 / PS5 Pro / Xbox Series): the card shows a "Plays GTA 6" chip.
+    has_gta6: bool = False
     # Normalized activity keys (app/core/activities.py) — what the filters use.
     activities: List[str] = Field(default_factory=list)
     # Taxonomy style keys the café offers ("pool.american"), for style filters.
@@ -194,6 +196,11 @@ class CafeResponse(CafeBase):
     recent_reviews: List[Dict[str, Any]] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def has_gta6(self) -> bool:
+        return any(t.runs_gta6 for t in self.tiers)
 
     model_config = ConfigDict(
         from_attributes=True,

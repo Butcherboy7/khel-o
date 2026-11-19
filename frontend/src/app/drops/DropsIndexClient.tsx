@@ -9,7 +9,7 @@ import { dropArt } from '@/components/customer/HomeTabs';
 import { CampaignJoinStrip, CommunityInviteCard } from '@/components/customer/CommunityInvite';
 import { listDrops, type DropListItem } from '@/lib/api/drops';
 import { trackAction } from '@/lib/api/analyticsEvents';
-import { distanceKm, gameKey, rupees } from '@/lib/drops';
+import { clock, distanceKm, gameKey, rupees } from '@/lib/drops';
 import { useLocationStore } from '@/store/locationStore';
 
 type Row = DropListItem & { km: number | null };
@@ -85,7 +85,11 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
     );
   };
 
-  const title = picked ? `${picked.name}: pick your café` : 'Launch drops';
+  // The game is out: a time in the café's normal hours is a normal booking, paid in full.
+  // Only late-night or early-morning launch sessions are still reserved with a small fee.
+  const casual = rows.length > 0 && rows.every((d) => d.casual);
+  const special = rows.some((d) => d.hasSpecial);
+  const title = picked ? (casual ? `Play ${picked.name}: pick your café` : `${picked.name}: pick your café`) : casual ? 'Play it at a café' : 'Launch drops';
   const cafes = rows.length;
   // Distances only work for cafés with a map pin. Never promise "nearest first" without one.
   const sorted = rows.some((d) => d.km != null);
@@ -102,7 +106,11 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
               : cafes === 0
               ? 'No café is taking seats right now.'
               : picked
-              ? `${cafes} ${cafes === 1 ? 'café is' : 'cafés are'} taking seats. ${sorted ? 'Nearest to you first.' : 'Tap a café to see days and times.'}`
+              ? casual
+                ? `${cafes} ${cafes === 1 ? 'café has' : 'cafés have'} it. ${sorted ? 'Nearest to you first. ' : ''}Tap a café, pick a time and book like any other slot.`
+                : `${cafes} ${cafes === 1 ? 'café is' : 'cafés are'} taking seats. ${sorted ? 'Nearest to you first.' : 'Tap a café to see days and times.'}`
+              : casual
+              ? 'Pick a café, pick a time and book like any other slot.'
               : 'Reserve a seat with a small booking fee. You pay the rest at the café.'}
           </p>
         </header>
@@ -171,12 +179,15 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
           {rows.map((d, i) => {
             const art = d.coverImageUrl || d.cafe.photo || dropArt(d);
             const soon = d.state === 'soon';
+            // Game is out and the café has a normal booking page: tap goes there, no drop page in between.
+            const normal = !!d.casual && !soon;
+            const hours = d.cafe.openingTime && d.cafe.closingTime ? `Open ${clock(d.cafe.openingTime)} – ${clock(d.cafe.closingTime)}` : null;
             const nearest = i === 0 && d.km != null && cafes > 1;
             return (
               <li key={d.id}>
                 <Link
-                  href={`/drops/${d.slug}`}
-                  onClick={() => trackAction('drops_cafe_picked', { drop: d.slug, position: i + 1, km: d.km != null ? Math.round(d.km) : null }, d.cafe.id)}
+                  href={normal ? `/cafe/${d.cafe.slug || d.cafe.id}` : `/drops/${d.slug}`}
+                  onClick={() => trackAction('drops_cafe_picked', { drop: d.slug, position: i + 1, km: d.km != null ? Math.round(d.km) : null, mode: normal ? 'normal' : 'reserve' }, d.cafe.id)}
                   className="group flex gap-3 rounded-2xl border border-border bg-card p-3 shadow-card transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <div className="relative h-24 w-24 flex-none overflow-hidden rounded-xl bg-gradient-to-br from-[#5B1A2A] to-[#D0463C] sm:h-28 sm:w-40">
@@ -197,15 +208,25 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
                       {rupees(d.pricePerHour)} an hour{d.playsOn ? ` · ${d.playsOn}` : ''}
                     </p>
                     <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-                      <span className={`text-caption font-bold ${soon ? 'text-text-secondary' : 'text-error'}`}>
-                        {soon ? 'Opens soon' : d.seatsPerSlot ? `${d.seatsPerSlot} seats a night` : `${d.seatsLeft} seats left`}
+                      <span className={`text-caption font-bold ${soon ? 'text-text-secondary' : normal ? 'text-success' : 'text-error'}`}>
+                        {soon ? 'Opens soon' : normal ? hours ?? 'Open now' : d.seatsPerSlot ? `${d.seatsPerSlot} seats a night` : `${d.seatsLeft} seats left`}
                       </span>
                       <span className="inline-flex min-h-[36px] items-center gap-1 rounded-full bg-primary px-4 text-caption font-bold text-white transition-transform group-active:scale-95">
-                        {d.iHold ? 'Your seats' : soon ? 'Notify me' : 'Reserve'} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                        {soon ? 'Notify me' : normal ? 'Book' : d.iHold ? 'Your seats' : 'Reserve'} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                       </span>
                     </div>
                   </div>
                 </Link>
+                {normal && d.hasSpecial && (
+                  <Link
+                    href={`/drops/${d.slug}`}
+                    onClick={() => trackAction('drops_special_tap', { drop: d.slug }, d.cafe.id)}
+                    className="mt-1.5 flex min-h-[44px] items-center justify-between gap-2 rounded-xl border border-dashed border-primary/40 px-3.5 text-caption font-semibold text-text-primary hover:border-primary"
+                  >
+                    <span>Late night or early morning launch session? Reserve with a small fee</span>
+                    <ArrowRight className="h-3.5 w-3.5 flex-none text-primary" aria-hidden />
+                  </Link>
+                )}
               </li>
             );
           })}
@@ -215,7 +236,11 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
 
         {cafes > 0 && (
           <p className="px-1 pb-4 text-caption text-text-secondary">
-            You pay a small booking fee online to hold the seat. It comes off your bill at the café.
+            {casual
+              ? special
+                ? 'Times inside the café’s normal hours are paid in full when you book. Late-night and early-morning launch sessions are reserved with a small fee that comes off your bill at the café.'
+                : 'Times are paid in full when you book.'
+              : 'You pay a small booking fee online to hold the seat. It comes off your bill at the café.'}
           </p>
         )}
       </div>

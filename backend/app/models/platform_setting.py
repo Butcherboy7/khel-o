@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, DateTime, Numeric, ForeignKey
+from datetime import date, datetime, timezone
+from sqlalchemy import String, Boolean, Date, DateTime, Numeric, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -30,6 +30,11 @@ class PlatformSetting(Base):
     # nothing changes until an admin explicitly flips it, and it's meant to
     # be turned back on once the backlog of no-booking reviews is in.
     reviews_require_booking: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # GTA 6 launch: while on, a player booking a GTA 6-capable console asks for a slot and the founder
+    # checks it with the café before the player can pay. Off (or past the until date) = normal booking.
+    gta6_requests_on: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+    gta6_requests_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    gta6_whatsapp: Mapped[str | None] = mapped_column(String(20), nullable=True)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -253,6 +253,12 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
             )}
           </div>
 
+          {/* GTA 6 is out: this café has a setup that runs it. Bottom-left so it never fights the status pills. */}
+          {cafe.hasGta6 && !isLead && (
+            <span className="pointer-events-none absolute bottom-1.5 left-1.5 z-10 inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-[11px] font-extrabold text-white shadow-card">
+              Plays GTA 6
+            </span>
+          )}
         </CardImage>
 
         {/* Card Body — one scan-line per fact, so two cards can be compared

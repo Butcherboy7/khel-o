@@ -9,6 +9,8 @@ export interface HardwareTier {
   name: string;
   description: string | null;
   specs: TierSpecs;
+  /** This setup can run GTA 6 (PS5, PS5 Pro, Xbox Series). Computed by the backend. */
+  runsGta6?: boolean;
   totalSeats: number;
   appBookableSeats: number;
   activeSeatsCount: number;

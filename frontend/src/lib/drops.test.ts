@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockTimes, calDate, clock, dropLengths, dropSeatPrice, minHoursAt, paintBands, priceSplit, wireTime } from './drops';
+import { blockTimes, calDate, clock, dropLengths, dropSeatPrice, minHoursAt, paintBands, priceSplit, wireTime, insideNormal, normalWindows, touchesNormal } from './drops';
 
 describe('launch midnight', () => {
   it('12 AM on launch day is shown as the next date of the night before', () => {
@@ -63,5 +63,30 @@ describe('priceSplit and minHoursAt', () => {
     expect(minHoursAt(d.timePrices, 2 * 60)).toBe(3);
     expect(minHoursAt(d.timePrices, 26 * 60)).toBe(3);
     expect(minHoursAt(d.timePrices, 7 * 60)).toBe(1);
+  });
+});
+
+describe('normal hours vs special sessions', () => {
+  const cafe = { openingTime: '10:00', closingTime: '23:00' };
+  it('a time inside the opening hours is normal', () => {
+    expect(insideNormal(cafe, 19 * 60, 21 * 60)).toBe(true);
+  });
+  it('late night and early morning are special', () => {
+    expect(insideNormal(cafe, 23 * 60, 24 * 60)).toBe(false);
+    expect(insideNormal(cafe, 5 * 60, 7 * 60)).toBe(false);
+    expect(insideNormal(cafe, 22 * 60, 24 * 60)).toBe(false); // runs past closing
+  });
+  it('a stretch that only touches normal hours is not a reservation', () => {
+    expect(touchesNormal(cafe, 22 * 60, 24 * 60)).toBe(true);
+    expect(touchesNormal(cafe, 23 * 60, 25 * 60)).toBe(false);
+  });
+  it('an overnight café counts the small hours as normal', () => {
+    const night = { openingTime: '10:00', closingTime: '02:00' };
+    expect(insideNormal(night, 0, 60)).toBe(true);
+    expect(insideNormal(night, 3 * 60, 4 * 60)).toBe(false);
+  });
+  it('no hours set means nothing is normal, so nothing changes', () => {
+    expect(normalWindows({})).toBeNull();
+    expect(insideNormal({}, 600, 700)).toBe(false);
   });
 });

@@ -115,6 +115,10 @@ async def _out(db: AsyncSession, drop: Drop, cafe: Cafe, blocks: list[DropBlock]
     data = _drop_out(drop, cafe, blocks)
     tier = await db.get(HardwareTier, drop.hardware_tier_id) if drop.hardware_tier_id else None
     data["tierId"] = str(tier.id) if tier else None
+    # Game is out: normal-hours times are normal bookings. special = it still has launch-night
+    # sessions outside the café's normal hours, which are reserved with the booking fee.
+    data["casual"] = svc.casual(drop)
+    data["hasSpecial"] = svc.has_special(cafe, blocks)
     data["playsOn"] = (tier.model or tier.name) if tier else None
     data["platform"] = tier.platform.value if tier is not None and tier.platform else None
     # The consoles of the drop (PS5 Pro 1, PS5 Pro 2, Xbox 1...) and the types players can pick from.
@@ -175,6 +179,9 @@ def _drop_out(drop: Drop, cafe: Cafe, blocks: list[DropBlock]) -> dict:
             "id": str(cafe.id), "name": cafe.name, "slug": cafe.slug,
             "address": ", ".join(p for p in (cafe.address_line1, cafe.address_line2, cafe.city) if p),
             "city": cafe.city, "mapsUrl": svc.maps_url(cafe),
+            # Normal opening hours (None = not set). Inside them, once the game is out, it is a normal booking.
+            "openingTime": cafe.opening_time.strftime("%H:%M") if cafe.opening_time else None,
+            "closingTime": cafe.closing_time.strftime("%H:%M") if cafe.closing_time else None,
             # The café's public map pin, so the "pick a café" screen can put the nearest one first.
             "lat": float(cafe.latitude) if cafe.latitude is not None else None,
             "lng": float(cafe.longitude) if cafe.longitude is not None else None,

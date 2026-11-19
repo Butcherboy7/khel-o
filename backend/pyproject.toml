@@ -57,4 +57,5 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = ["casual: runs with the GTA 6-is-out rule (normal-hours times are normal bookings)"]
 testpaths = ["tests"]

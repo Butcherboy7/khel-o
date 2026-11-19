@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_, case, cast, Float, String
 from sqlalchemy.dialects.postgresql import JSONB
 
+from app.core.game_platforms import tier_runs_gta6
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.user import User
 from app.models.hardware_tier import HardwareTier, TierType
@@ -341,6 +342,7 @@ class CafeRepository(BaseRepository[Cafe]):
                 "starting_price": starting_price,
                 "tier_names": tier_names,
                 "platforms": platforms,
+                "has_gta6": any(tier_runs_gta6(t) for t in gaming_tiers_for_platforms),
                 "platforms_complete": platforms_complete,
                 "activity_kinds": activity_kinds,
                 "has_coop": any(getattr(t, 'coop_enabled', False) and not getattr(t, 'is_room', False) and t.is_active for t in cafe_tiers),

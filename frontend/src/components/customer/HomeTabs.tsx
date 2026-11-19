@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { listDrops, type DropListItem } from '@/lib/api/drops';
-import { dropDestination } from '@/lib/drops';
+import { dropDestination, gameKey } from '@/lib/drops';
 import { getChallenge, type Challenge } from '@/lib/api/challenges';
 import { recordJoin } from '@/lib/communityJoin';
 import { getThisWeek } from '@/lib/api/community';
@@ -268,7 +268,9 @@ export function DropSpotlight() {
   if (!d) return null;
   const art = dropArt(d);
   // Several cafés have this game: the banner opens the pick-your-café screen, nearest first.
-  const to = dropDestination(live, d.game);
+  // Game is out: the banner always opens the café list, where each café goes to its normal booking page.
+  const casual = !!d.casual;
+  const to = casual ? { href: `/drops?game=${gameKey(d.game)}`, count: live.length } : dropDestination(live, d.game);
   const many = to.count > 1;
   return (
     <Link
@@ -285,14 +287,16 @@ export function DropSpotlight() {
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-3 pt-14 text-white md:p-4">
         <span className="min-w-0">
           <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-[#FFB4AC]">
-            Live now · {many ? 'few seats a night' : d.seatsPerSlot ? `only ${d.seatsPerSlot} seats a night` : `${d.seatsLeft} ${d.seatsLeft === 1 ? 'seat' : 'seats'} left`}
+            {casual
+              ? `${d.game} is out now`
+              : `Live now · ${many ? 'few seats a night' : d.seatsPerSlot ? `only ${d.seatsPerSlot} seats a night` : `${d.seatsLeft} ${d.seatsLeft === 1 ? 'seat' : 'seats'} left`}`}
           </span>
           <span className="block truncate font-heading text-body-emphasis font-bold md:text-h3">
             {many ? `Play ${d.game} at ${to.count} cafés` : `Play ${d.game} at ${d.cafe.name}`}
           </span>
         </span>
         <span className="btn-depth flex-shrink-0 rounded-full bg-primary px-4 py-2.5 text-body font-extrabold">
-          {many ? 'Pick a café' : 'Reserve now'}
+          {many || casual ? 'Pick a café' : 'Reserve now'}
         </span>
       </div>
     </Link>

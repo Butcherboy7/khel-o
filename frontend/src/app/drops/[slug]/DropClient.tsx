@@ -20,7 +20,7 @@ import {
   type DropBlock,
   type DropReservation,
 } from '@/lib/api/drops';
-import { atMinutes, blockEnd, blockStart, blockTimes, calDate, clock, clockRange, dayLabel, dropLengths, dropSeatPrice, gameKey, minHoursAt, priceSplit, rupees, whenText, wireTime } from '@/lib/drops';
+import { atMinutes, blockEnd, blockStart, blockTimes, calDate, clock, clockRange, dayLabel, dropLengths, dropSeatPrice, gameKey, insideNormal, minHoursAt, touchesNormal, priceSplit, rupees, whenText, wireTime } from '@/lib/drops';
 import { calculateWindowRemainingSeats, timeToMinutes } from '@/lib/format';
 import { CommunityButton, CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 import { CustomerShell } from '@/components/layout/CustomerShell';
@@ -175,10 +175,39 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const nameOf = (k: string) => allConsoles.find((c) => c.key === k)?.label ?? 'That console';
   const pickedNames = picked.map(nameOf).join(' and ');
   const pickedKey = picked.join(',');
+  // The game is out: times inside the café's normal hours are booked as a normal booking (paid in full),
+  // so here they show as unavailable. Only late-night / early-morning launch sessions are reserved.
+  const casual = !!drop?.casual;
+  const normalSlots = useMemo(() => {
+    if (!casual || !block || !drop) return [];
+    const out: { startTime: string; endTime: string; seatsCount: number; kind: 'blocked'; label: string }[] = [];
+    const from = inBlock(block.startTime, block);
+    const to = Math.max(from, inBlock(block.endTime, block)) || from + 24 * 60;
+    let runStart: number | null = null;
+    const flush = (end: number) => {
+      if (runStart == null) return;
+      out.push({ startTime: wireTime(hhmm(runStart)), endTime: wireTime(hhmm(end)), seatsCount: block.seatsTotal, kind: 'blocked', label: 'Normal hours' });
+      runStart = null;
+    };
+    for (let m = from; m < to; m += 30) {
+      if (insideNormal(drop.cafe, m, m + 30)) runStart ??= m;
+      else flush(m);
+    }
+    flush(to);
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casual, block, drop?.cafe.openingTime, drop?.cafe.closingTime]);
+  const normalOnly = (b: DropBlock) => {
+    if (!casual || !drop) return false;
+    const from = inBlock(b.startTime, b);
+    const to = Math.max(from + 30, inBlock(b.endTime, b));
+    return insideNormal(drop.cafe, from, to);
+  };
+  const cafeHref = drop ? `/cafe/${drop.cafe.slug || drop.cafe.id}` : '/browse';
   const booked = useMemo(() => {
-    if (exact && block?.byConsole) return pickedKey.split(',').filter(Boolean).flatMap((k) => block.byConsole?.[k] ?? []);
-    return block?.bookedSlots ?? [];
-  }, [block, exact, pickedKey]);
+    if (exact && block?.byConsole) return [...pickedKey.split(',').filter(Boolean).flatMap((k) => block.byConsole?.[k] ?? []), ...normalSlots];
+    return [...(block?.bookedSlots ?? []), ...normalSlots];
+  }, [block, exact, pickedKey, normalSlots]);
   // Online booking may be open only a set time ahead (48 hours): later starts are "not open yet".
   const limitMs = drop?.bookableUntil ? Date.parse(drop.bookableUntil) : null;
   const beyond = (b: DropBlock) => limitMs != null && atMinutes(b.date, timeToMinutes(b.startTime)).getTime() > limitMs;
@@ -220,7 +249,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const total = totalPerSeat * seatCount;
 
   const pick = (b: DropBlock) => {
-    if (b.started || sessionLeft(b) === 0 || beyond(b)) return;
+    if (b.started || sessionLeft(b) === 0 || beyond(b) || normalOnly(b)) return;
     setBlockId(b.id);
     setError(null);
     // Pre-pick the best open slot so one tap reserves: an evening 2-hour slot if there is one.
@@ -228,7 +257,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     const own = b.timePrices ?? drop?.timePrices ?? [];
     const ok = (m: number, len: number) =>
       m + len <= timeToMinutes(b.endTime) && b.seatsTotal - peakIn(b, m, m + len) >= 1 && atMinutes(b.date, m).getTime() > Date.now() &&
-      (lim == null || m <= lim) && len >= minHoursAt(own, m) * 60;
+      (lim == null || m <= lim) && len >= minHoursAt(own, m) * 60 && !(casual && drop && touchesNormal(drop.cafe, m, m + len));
     const slots = b.bookedSlots ? hourRange(b) : [];
     // A café selling packages (1, 3, 5 hours) starts on its shortest one of 2 hours or more.
     const lens = drop ? dropLengths(drop) : [1, 2];
@@ -466,7 +495,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-primary">Launch drop</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-primary">{casual ? 'Late night launch session' : 'Launch drop'}</p>
               <h1 className="font-heading text-h2 font-bold leading-tight text-text-primary lg:text-h1">{drop.title}</h1>
               {/* Where it happens: people book the game and miss which café it is */}
               <a
@@ -751,6 +780,24 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               <p className="mt-1 text-caption text-text-secondary">Bringing a friend? Tap a second console.</p>
             )}
           </section>
+        )}
+
+        {casual && (
+          <div className="rounded-2xl border border-border bg-card p-3.5 text-body text-text-primary">
+            <p>
+              {drop.cafe.openingTime && drop.cafe.closingTime
+                ? `Between ${clock(drop.cafe.openingTime)} and ${clock(drop.cafe.closingTime)} this café takes normal bookings, paid in full. `
+                : 'Normal-hours slots are booked from the café page, paid in full. '}
+              This page is for the late night and early morning launch sessions, reserved with a small fee.
+            </p>
+            <Link
+              href={cafeHref}
+              onClick={() => track('drop_normal_booking_tap')}
+              className="mt-2 inline-flex min-h-[44px] items-center font-bold text-primary"
+            >
+              Book a normal slot instead
+            </Link>
+          </div>
         )}
 
         {/* Time and length: the same slider as a normal booking */}

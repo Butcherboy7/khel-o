@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { getCafe, getCafeAvailability } from '@/lib/api/cafes';
-import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
+import { fireAnalyticsEvent, trackAction } from '@/lib/api/analyticsEvents';
 import { listBookings, createBooking, getBookingQuote, getPlatformFeePercentage } from '@/lib/api/bookings';
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments';
 import { queryKeys } from '@/hooks/queries/keys';
@@ -33,6 +33,8 @@ import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { useAuthStore } from '@/store/authStore';
 import { Skeleton, ErrorState, BottomSheet } from '@/components/ui';
 import { CheckoutSignInSheet } from '@/components/auth/CheckoutSignInSheet';
+import { Gta6RequestSheet } from '@/components/gta6/Gta6RequestSheet';
+import { getGta6Config } from '@/lib/api/gta6Requests';
 import { saveBookingIntent } from '@/lib/bookingIntent';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
 import { OffersPanel } from '@/components/customer/OffersPanel';
@@ -161,6 +163,11 @@ function BookingWizardContent() {
   const [selectedTierId, setSelectedTierId] = useState<string | null>(searchParams.get('tierId'));
 
   const [selectedGame, setSelectedGame] = useState('');
+  // GTA 6 launch: on a console that runs it, ask "Are you playing GTA 6?" and, on yes, send a request
+  // (we check with the café, then the player pays) instead of paying straight away.
+  const { data: gta6Cfg } = useQuery({ queryKey: ['gta6-config'], queryFn: getGta6Config, staleTime: 60_000, retry: false });
+  const [gta6Open, setGta6Open] = useState(false);
+  const gta6NotPlaying = useRef(false);
 
   // Offers apply on their own: the server picks the best one for the slot
   // (see the quote query below). These two only record an explicit choice: a
@@ -745,6 +752,15 @@ function BookingWizardContent() {
       setError(null);
       setShowLoginPrompt(true);
       fireAnalyticsEvent('checkout_login_shown', { cafeId, metadata: { tierId: activeTier.id } });
+      return;
+    }
+
+    // Launch period: GTA 6 on a console that runs it is requested, not paid, until the café says yes.
+    const otherGame = selectedGame !== '' && !/gta/i.test(selectedGame);
+    if (gta6Cfg?.enabled && activeTier.runsGta6 && !gta6NotPlaying.current && !otherGame) {
+      setError(null);
+      setGta6Open(true);
+      trackAction('gta6_request_prompt', { tierId: activeTier.id }, cafeId);
       return;
     }
 
@@ -1408,6 +1424,33 @@ function BookingWizardContent() {
         onUseEmail={handleLoginFromPrompt}
         onCreateAccount={handleRegisterFromPrompt}
       />
+
+      {activeTier && cafe && (
+        <Gta6RequestSheet
+          isOpen={gta6Open}
+          onClose={() => setGta6Open(false)}
+          onNotPlaying={() => {
+            gta6NotPlaying.current = true;
+            setGta6Open(false);
+            void handleCheckout();
+          }}
+          onSent={(r) => {
+            trackAction('gta6_request_sent', { tierId: activeTier.id, ref: r.reference }, cafeId);
+            setGta6Open(false);
+            router.push(`/gta6-requests/${r.id}`);
+          }}
+          summary={`${cafe.name} · ${activeTier.name} · ${new Date(`${effectiveSessionDate}T12:00:00+05:30`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}, ${selectedTime.slice(0, 5)} · ${durationHours} hr`}
+          body={{
+            cafeId: cafe.id,
+            hardwareTierId: activeTier.id,
+            sessionDate: effectiveSessionDate,
+            startTime: selectedTime,
+            durationHours,
+            seatsCount: consolesCount,
+          }}
+          defaultPhone={user?.phoneNumber}
+        />
+      )}
 
       {/* Mock Payment Modal for Sandbox Mode */}
       <MockPaymentModal

@@ -424,6 +424,24 @@ class NotificationService:
             logger.error("send_support_ticket_error", error=str(e))
             return False
 
+    async def send_gta6_mail(self, to_email: str, subject: str, heading: str, rows: list[tuple[str, str]],
+                             url: str, button_label: str) -> bool:
+        """One small email for a GTA 6 slot request: to the founder when a request comes in, to the player
+        when it is answered. `rows` are (label, value) pairs."""
+        try:
+            body = "".join(
+                f'<p style="margin: 4px 0;"><strong>{html.escape(k)}:</strong> {html.escape(v)}</p>' for k, v in rows
+            )
+            html_body = _email_wrapper(f"""
+                <h2 style="margin-top: 0; color: {_BRAND_TEXT_PRIMARY};">{html.escape(heading)}</h2>
+                {body}
+                <p style="margin-top: 20px;">{_email_button(url, button_label)}</p>
+            """)
+            return await self._send_resend_email(to_email, subject, html_body, "GTA6-REQUEST")
+        except Exception as e:
+            logger.error("send_gta6_mail_error", error=str(e))
+            return False
+
     async def send_owner_intro(self, to_email: str, rows: list[tuple[str, str]], admin_url: str) -> bool:
         """Tell the outreach inbox a player introduced a café owner. `rows`
         are (label, value) pairs already chosen by the caller."""

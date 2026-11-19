@@ -205,3 +205,26 @@ export function paintBands(bands: TimePrice[], from: number, to: number, perHour
   }
   return out;
 }
+
+/** The café's normal hours as minute windows from a session day's midnight (the night before's overhang included),
+ *  or null when it has not set any. Mirrors backend drop_service.normal_windows. */
+export function normalWindows(cafe: { openingTime?: string | null; closingTime?: string | null }): [number, number][] | null {
+  if (!cafe.openingTime || !cafe.closingTime) return null;
+  const o = minutesOf(cafe.openingTime);
+  let c = minutesOf(cafe.closingTime);
+  if (c <= o) c += 1440;
+  if (c - o >= 1440) return [[-1440, 2880]];
+  return [[o, c], [o - 1440, c - 1440]];
+}
+
+/** True when any part of the stretch is inside the café's normal hours (a reservation must be wholly outside them). */
+export function touchesNormal(cafe: { openingTime?: string | null; closingTime?: string | null }, begin: number, end: number): boolean {
+  const w = normalWindows(cafe);
+  return !!w && w.some(([a, b]) => begin < b && end > a);
+}
+
+/** True when the whole stretch (minutes from midnight, may pass 24:00) is inside the café's normal hours. */
+export function insideNormal(cafe: { openingTime?: string | null; closingTime?: string | null }, begin: number, end: number): boolean {
+  const w = normalWindows(cafe);
+  return !!w && w.some(([a, b]) => a <= begin && end <= b);
+}

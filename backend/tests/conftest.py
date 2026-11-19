@@ -211,3 +211,12 @@ def strict_bot_guard(monkeypatch):
     monkeypatch.setattr(_bot_guard, "MIN_SECONDS", dict(_REAL_GUARD[0]))
     monkeypatch.setattr(_bot_guard, "LIMITS", dict(_REAL_GUARD[1]))
     monkeypatch.setattr(_bot_guard, "NEEDS_TICKET", set(_REAL_GUARD[2]))
+
+
+@pytest.fixture(autouse=True)
+def _drops_before_launch(request, monkeypatch):
+    """Drop tests were written for the pre-launch rules (every time is a reservation).
+    Mark a test @pytest.mark.casual to run it with the game out."""
+    if "casual" not in request.keywords:
+        from app.services import drop_service
+        monkeypatch.setattr(drop_service, "casual", lambda drop: False)
