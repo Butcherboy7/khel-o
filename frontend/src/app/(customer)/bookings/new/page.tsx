@@ -167,7 +167,6 @@ function BookingWizardContent() {
   // (we check with the café, then the player pays) instead of paying straight away.
   const { data: gta6Cfg } = useQuery({ queryKey: ['gta6-config'], queryFn: getGta6Config, staleTime: 60_000, retry: false });
   const [gta6Open, setGta6Open] = useState(false);
-  const gta6NotPlaying = useRef(false);
 
   // Offers apply on their own: the server picks the best one for the slot
   // (see the quote query below). These two only record an explicit choice: a
@@ -755,9 +754,9 @@ function BookingWizardContent() {
       return;
     }
 
-    // Launch period: GTA 6 on a console that runs it is requested, not paid, until the café says yes.
-    const otherGame = selectedGame !== '' && !/gta/i.test(selectedGame);
-    if (gta6Cfg?.enabled && activeTier.runsGta6 && !gta6NotPlaying.current && !otherGame) {
+    // Launch period: a console that runs GTA 6 is requested, not paid, until the café says yes. This holds for
+    // any game on it (GTA 6 at the GTA 6 price, anything else at the normal price): the café may be full of GTA 6.
+    if (gta6Cfg?.enabled && activeTier.runsGta6) {
       setError(null);
       setGta6Open(true);
       trackAction('gta6_request_prompt', { tierId: activeTier.id }, cafeId);
@@ -1429,11 +1428,6 @@ function BookingWizardContent() {
         <Gta6RequestSheet
           isOpen={gta6Open}
           onClose={() => setGta6Open(false)}
-          onNotPlaying={() => {
-            gta6NotPlaying.current = true;
-            setGta6Open(false);
-            void handleCheckout();
-          }}
           onSent={(r) => {
             trackAction('gta6_request_sent', { tierId: activeTier.id, ref: r.reference }, cafeId);
             setGta6Open(false);

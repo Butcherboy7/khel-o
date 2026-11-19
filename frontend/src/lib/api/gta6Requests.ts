@@ -15,6 +15,9 @@ export interface Gta6Request {
   startTime: string;
   hours: number;
   seats: number;
+  /** "gta6": asked to play GTA 6 (GTA 6 price). "other": another game on the same console. */
+  game: 'gta6' | 'other';
+  consoleLabel: string | null;
   note: string | null;
   suggestion: string | null;
   bookingId: string | null;
@@ -49,6 +52,9 @@ export interface Gta6RequestBody {
   durationHours: number;
   seatsCount: number;
   phone?: string;
+  game?: 'gta6' | 'other';
+  /** The console the player picked, e.g. "PS5 Pro 2". */
+  consoleLabel?: string;
 }
 
 export const getGta6Config = (): Promise<Gta6Config> => call(() => apiClient.get('/api/v1/gta6-requests/config'));
@@ -78,10 +84,11 @@ export const putGta6Settings = (body: Partial<Pick<Gta6Settings, 'on' | 'until' 
   call(() => apiClient.put('/api/v1/admin/gta6-requests/settings', body));
 
 /** wa.me link to the founder, pre-filled with the slot and the reference. */
-export function founderWhatsAppUrl(whatsapp: string, r: Pick<Gta6Request, 'reference' | 'cafe' | 'tier' | 'date' | 'startTime' | 'hours'>): string {
+export function founderWhatsAppUrl(whatsapp: string, r: Pick<Gta6Request, 'reference' | 'cafe' | 'tier' | 'date' | 'startTime' | 'hours'> & Partial<Pick<Gta6Request, 'game' | 'consoleLabel'>>): string {
   const day = new Date(`${r.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
+  const what = r.game === 'other' ? 'book' : 'play GTA 6 on';
   const text =
-    `Hi KHEL-O, I want to play GTA 6 at ${r.cafe?.name ?? 'a café'} (${r.tier?.name ?? 'console'}), ${day}, ${r.startTime} for ${r.hours} hr. ` +
+    `Hi KHEL-O, I want to ${what} ${r.consoleLabel ?? r.tier?.name ?? 'a console'} at ${r.cafe?.name ?? 'a café'}, ${day}, ${r.startTime} for ${r.hours} hr. ` +
     `Request ${r.reference}. Can you ask the café if this slot is free so I can book?`;
   return `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
 }

@@ -7,30 +7,33 @@ import { createGta6Request, type Gta6Request, type Gta6RequestBody } from '@/lib
 interface Gta6RequestSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  /** "No, something else": carry on to the normal booking. */
-  onNotPlaying: () => void;
+  /** "ask": checkout asks "Are you playing GTA 6?" first. "direct": the GTA 6 page, they already said yes. */
+  mode?: 'ask' | 'direct';
   /** The request was saved. */
   onSent: (request: Gta6Request) => void;
   /** "AdamsDen · PS5 Pro · Fri 20 Nov, 11 PM · 2 hr": what is being asked for. */
   summary: string;
-  body: Omit<Gta6RequestBody, 'phone'>;
+  body: Omit<Gta6RequestBody, 'phone' | 'game'>;
   /** The phone on the account, if any. */
   defaultPhone?: string | null;
 }
 
 /**
  * At checkout on a console that runs GTA 6, during the launch: "Are you playing GTA 6?".
- * Yes: due to high demand we confirm with the café first, so we save a request (the founder is told) and
- * the player then messages us on WhatsApp. No: back to the normal booking.
+ * Either answer is a request while the launch switch is on: due to high demand we confirm with the café first
+ * (the founder is told). Yes books GTA 6 at the GTA 6 price; No books the console for another game at the normal
+ * price. The player then pays in full once the café says yes.
  */
-export function Gta6RequestSheet({ isOpen, onClose, onNotPlaying, onSent, summary, body, defaultPhone }: Gta6RequestSheetProps) {
-  const [step, setStep] = useState<'ask' | 'yes'>('ask');
+export function Gta6RequestSheet({ isOpen, onClose, mode = 'ask', onSent, summary, body, defaultPhone }: Gta6RequestSheetProps) {
+  const direct = mode === 'direct';
+  const [step, setStep] = useState<'ask' | 'yes'>(direct ? 'yes' : 'ask');
+  const [game, setGame] = useState<'gta6' | 'other'>('gta6');
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const close = () => {
-    setStep('ask');
+    setStep(direct ? 'yes' : 'ask');
     setError(null);
     onClose();
   };
@@ -39,8 +42,8 @@ export function Gta6RequestSheet({ isOpen, onClose, onNotPlaying, onSent, summar
     setBusy(true);
     setError(null);
     try {
-      const request = await createGta6Request({ ...body, phone: defaultPhone ? undefined : phone.trim() || undefined });
-      setStep('ask');
+      const request = await createGta6Request({ ...body, game, phone: defaultPhone ? undefined : phone.trim() || undefined });
+      setStep(direct ? 'yes' : 'ask');
       onSent(request);
     } catch (e) {
       setError((e as Error)?.message || 'We could not send that. Please try again.');
@@ -54,18 +57,35 @@ export function Gta6RequestSheet({ isOpen, onClose, onNotPlaying, onSent, summar
       <p className="text-caption text-text-secondary">{summary}</p>
       {step === 'ask' ? (
         <div className="mt-4 flex flex-col gap-2.5">
-          <Button fullWidth size="lg" onClick={() => setStep('yes')}>
+          <Button
+            fullWidth
+            size="lg"
+            onClick={() => {
+              setGame('gta6');
+              setStep('yes');
+            }}
+          >
             Yes, GTA 6
           </Button>
-          <Button fullWidth size="lg" variant="secondary" onClick={onNotPlaying}>
+          <Button
+            fullWidth
+            size="lg"
+            variant="secondary"
+            onClick={() => {
+              setGame('other');
+              setStep('yes');
+            }}
+          >
             No, something else
           </Button>
         </div>
       ) : (
         <div className="mt-3 flex flex-col gap-3">
           <p className="text-body text-text-primary">
-            GTA 6 is in very high demand, so we check with the café that this slot is really free before you pay. Send us the request and
-            message us on WhatsApp. When the café says yes, you get a notification and 15 minutes to pay.
+            {game === 'gta6'
+              ? 'GTA 6 is in very high demand right now. We confirm with the café that this slot is really free, in 5 to 10 minutes.'
+              : 'GTA 6 is in very high demand right now, so these consoles can be busy. We confirm with the café first, in 5 to 10 minutes.'}{' '}
+            When they say yes, you get a message and 15 minutes to pay the full amount. Then it is booked.
           </p>
           {!defaultPhone && (
             <label className="block">
@@ -83,10 +103,10 @@ export function Gta6RequestSheet({ isOpen, onClose, onNotPlaying, onSent, summar
           )}
           {error && <p role="alert" className="rounded-xl bg-error/10 px-3 py-2 text-body text-error">{error}</p>}
           <Button fullWidth size="lg" onClick={send} disabled={busy || (!defaultPhone && phone.replace(/\D/g, '').length < 10)}>
-            {busy ? 'Sending…' : 'Request this slot'}
+            {busy ? 'Sending…' : 'Ask for this slot'}
           </Button>
-          <button type="button" onClick={() => setStep('ask')} className="min-h-[44px] text-body font-semibold text-text-secondary">
-            Back
+          <button type="button" onClick={() => (direct ? close() : setStep('ask'))} className="min-h-[44px] text-body font-semibold text-text-secondary">
+            {direct ? 'Not now' : 'Back'}
           </button>
         </div>
       )}

@@ -2,6 +2,7 @@
 
 import { WhatsAppHelp } from '@/components/support/WhatsAppHelp';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Bell, Check, Clock, KeyRound, MapPin, Minus, Plus, Ticket } from 'lucide-react';
@@ -22,6 +23,8 @@ import {
 } from '@/lib/api/drops';
 import { atMinutes, blockEnd, blockStart, blockTimes, calDate, clock, clockRange, dayLabel, dropLengths, dropSeatPrice, gameKey, insideNormal, minHoursAt, touchesNormal, priceSplit, rupees, whenText, wireTime } from '@/lib/drops';
 import { calculateWindowRemainingSeats, timeToMinutes } from '@/lib/format';
+import { Gta6RequestSheet } from '@/components/gta6/Gta6RequestSheet';
+import { getGta6Config } from '@/lib/api/gta6Requests';
 import { CommunityButton, CommunityInviteCard, LastChallengeLink } from '@/components/customer/CommunityInvite';
 import { CustomerShell } from '@/components/layout/CustomerShell';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
@@ -75,6 +78,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const [error, setError] = useState<string | null>(null);
   const [justPaid, setJustPaid] = useState<string | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
+  // GTA 6 launch week: normal-hours slots are asked for, the café confirms, then the player pays in full.
+  const { data: gta6Cfg } = useQuery({ queryKey: ['gta6-config'], queryFn: getGta6Config, staleTime: 60_000, retry: false });
+  const [askOpen, setAskOpen] = useState(false);
   const reserveAfterSignIn = useRef(false);
   const reserveRef = useRef<() => void>(() => {});
   const [otherCafes, setOtherCafes] = useState(0);
@@ -178,8 +184,12 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   // The game is out: times inside the café's normal hours are booked as a normal booking (paid in full),
   // so here they show as unavailable. Only late-night / early-morning launch sessions are reserved.
   const casual = !!drop?.casual;
+  // Normal hours are refused here only once the launch switch is off (then the café page books them). While it is
+  // on, or still loading, every hour is open and a normal-hours pick is an "Ask for this slot" request.
+  const normalBlocked = casual && gta6Cfg !== undefined && !gta6Cfg.enabled;
+  const askFirst = Boolean(casual && gta6Cfg?.enabled && win && drop && touchesNormal(drop.cafe, win.s, win.e));
   const normalSlots = useMemo(() => {
-    if (!casual || !block || !drop) return [];
+    if (!normalBlocked || !block || !drop) return [];
     const out: { startTime: string; endTime: string; seatsCount: number; kind: 'blocked'; label: string }[] = [];
     const from = inBlock(block.startTime, block);
     const to = Math.max(from, inBlock(block.endTime, block)) || from + 24 * 60;
@@ -196,9 +206,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     flush(to);
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [casual, block, drop?.cafe.openingTime, drop?.cafe.closingTime]);
+  }, [normalBlocked, block, drop?.cafe.openingTime, drop?.cafe.closingTime]);
   const normalOnly = (b: DropBlock) => {
-    if (!casual || !drop) return false;
+    if (!normalBlocked || !drop) return false;
     const from = inBlock(b.startTime, b);
     const to = Math.max(from + 30, inBlock(b.endTime, b));
     return insideNormal(drop.cafe, from, to);
@@ -231,7 +241,12 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   // Flexible: free seats for the exact window picked, counted the same way the booking slider does.
   const windowFree = useMemo(() => {
     if (!block || !startTime) return 0;
-    if (exact) return picked.length && picked.every(freeAt) ? picked.length : 0;
+    if (exact) {
+      if (!picked.length || !picked.every(freeAt)) return 0;
+      // Ordinary bookings are counted per setup, not per console: enough seats must also be free by count.
+      const a = inBlock(startTime, block);
+      return calculateWindowRemainingSeats(block.seatsTotal, block.bookedSlots ?? [], a, a + Math.round(hours * 60)) >= picked.length ? picked.length : 0;
+    }
     const s = inBlock(startTime, block);
     return calculateWindowRemainingSeats(block.seatsTotal, booked, s, s + Math.round(hours * 60));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,7 +272,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     const own = b.timePrices ?? drop?.timePrices ?? [];
     const ok = (m: number, len: number) =>
       m + len <= timeToMinutes(b.endTime) && b.seatsTotal - peakIn(b, m, m + len) >= 1 && atMinutes(b.date, m).getTime() > Date.now() &&
-      (lim == null || m <= lim) && len >= minHoursAt(own, m) * 60 && !(casual && drop && touchesNormal(drop.cafe, m, m + len));
+      (lim == null || m <= lim) && len >= minHoursAt(own, m) * 60 && !(normalBlocked && drop && touchesNormal(drop.cafe, m, m + len));
     const slots = b.bookedSlots ? hourRange(b) : [];
     // A café selling packages (1, 3, 5 hours) starts on its shortest one of 2 hours or more.
     const lens = drop ? dropLengths(drop) : [1, 2];
@@ -373,6 +388,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const pending = drop.myReservations.find((r) => r.status === 'pending_payment' && r.expiresAt && new Date(r.expiresAt) > new Date());
   const firstBlock = paid[0]?.block ?? block ?? drop.blocks.find((b) => !b.started) ?? drop.blocks[0];
   const art = drop.coverImageUrl || (/gta/i.test(drop.game) ? GTA_ART : null);
+  const requestTierId = exact ? allConsoles.find((c) => c.key === picked[0])?.tierId : (setup ?? drop.tierId ?? setups[0]?.tierId ?? null);
   const endLabel = startTime && block ? hhmm(inBlock(startTime, block) + Math.round(hours * 60)) : '';
 
   const pay = (reservation: DropReservation, order: { orderId: string; amount: number; currency: string; keyId?: string }) => {
@@ -440,6 +456,16 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     }
     if (flex && (!startTime || windowFree < seatCount)) {
       setError('Pick a time that still has a free seat.');
+      return;
+    }
+    if (askFirst) {
+      if (!requestTierId) {
+        setError('Pick a console first.');
+        return;
+      }
+      setError(null);
+      track('drop_request_prompt', { block: block.id });
+      setAskOpen(true);
       return;
     }
     if (drop.needsPhone && phone.replace(/\D/g, '').length < 10) {
@@ -782,7 +808,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           </section>
         )}
 
-        {casual && (
+        {normalBlocked && (
           <div className="rounded-2xl border border-border bg-card p-3.5 text-body text-text-primary">
             <p>
               {drop.cafe.openingTime && drop.cafe.closingTime
@@ -948,17 +974,25 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 </span>
                 <span className="flex-shrink-0 font-semibold text-text-primary">{rupees(total)}</span>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <span>Booking fee, paid now</span>
-                <span className="flex-shrink-0 font-semibold text-success">− {rupees(payNow)}</span>
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-3 border-t border-border/70 pt-2">
-                <span className="font-semibold text-text-primary">Left to pay at the café</span>
-                <span className="font-heading text-body-emphasis font-bold text-text-primary">{rupees(Math.max(0, total - payNow))}</span>
-              </div>
+              {askFirst ? (
+                <p className="mt-1 border-t border-border/70 pt-2 text-text-primary">
+                  GTA 6 is in high demand, so we confirm with the café first (5 to 10 minutes). You pay the full {rupees(total)} only after they say yes.
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Booking fee, paid now</span>
+                    <span className="flex-shrink-0 font-semibold text-success">− {rupees(payNow)}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3 border-t border-border/70 pt-2">
+                    <span className="font-semibold text-text-primary">Left to pay at the café</span>
+                    <span className="font-heading text-body-emphasis font-bold text-text-primary">{rupees(Math.max(0, total - payNow))}</span>
+                  </div>
+                </>
+              )}
             </div>
 
-            {flex && (
+            {flex && !askFirst && (
               <p className="px-1 text-caption text-text-secondary">
                 Arrive within 15 min of your start. The booking fee isn’t refunded if you don’t show.{' '}
                 <button type="button" onClick={() => setRulesOpen((o) => !o)} className="font-semibold text-primary underline-offset-2 hover:underline">
@@ -1059,7 +1093,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 disabled={busy}
                 className="btn-depth flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[18px] font-extrabold text-white shadow-[0_6px_18px_-6px_var(--primary)] transition-transform active:scale-[0.98] hover:bg-primary-dark disabled:opacity-60"
               >
-                {busy ? 'Opening payment…' : 'Reserve now'}
+                {busy ? 'Opening payment…' : askFirst ? 'Ask for this slot' : 'Reserve now'}
               </button>
               <p className="mt-1.5 text-center text-[11px] text-text-secondary">
                 Pay {rupees(payNow)} now · {rupees(Math.max(0, total - payNow))} at the café ·{' '}
@@ -1096,6 +1130,30 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
         onUseEmail={() => router.push(`/login?redirect=${encodeURIComponent(back())}`)}
         onCreateAccount={() => router.push(`/register?redirect=${encodeURIComponent(back())}`)}
       />
+
+      {askFirst && block && startTime && requestTierId && (
+        <Gta6RequestSheet
+          isOpen={askOpen}
+          mode="direct"
+          onClose={() => setAskOpen(false)}
+          onSent={(r) => {
+            track('drop_request_sent', { ref: r.reference });
+            setAskOpen(false);
+            router.push(`/gta6-requests/${r.id}`);
+          }}
+          summary={`${drop.cafe.name} · ${exact ? pickedNames : 'PS5'} · ${dayLabel(calDate(block.date, startTime))}, ${clock(startTime)} – ${clock(endLabel)} · ${lengthText(hours)}`}
+          body={{
+            cafeId: drop.cafe.id,
+            hardwareTierId: requestTierId,
+            sessionDate: calDate(block.date, startTime),
+            startTime: wireTime(startTime),
+            durationHours: hours,
+            seatsCount: seatCount,
+            consoleLabel: exact ? pickedNames : undefined,
+          }}
+          defaultPhone={user?.phoneNumber}
+        />
+      )}
 
       <MockPaymentModal
         isOpen={mockModalState?.isOpen || false}

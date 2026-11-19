@@ -52,7 +52,7 @@ export default function Gta6RequestPage() {
           {r.status === 'expired' && 'This request ran out of time'}
         </h1>
         <p className="mt-1 text-body text-text-secondary">
-          {r.cafe?.name} · {r.tier?.name} · {when(r)}
+          {r.cafe?.name} · {r.consoleLabel ?? r.tier?.name} · {when(r)}
         </p>
       </header>
 
@@ -63,8 +63,8 @@ export default function Gta6RequestPage() {
               <Clock className="h-4 w-4 text-primary" aria-hidden /> We are asking the café now
             </p>
             <p className="mt-1 text-body text-text-secondary">
-              GTA 6 is in high demand, so we confirm the slot with the café before you pay. This usually takes about 10 minutes. We will notify you here, by
-              notification and by email.
+              GTA 6 is in high demand, so we confirm the slot with the café first. This takes 5 to 10 minutes. When they say yes, you pay the full amount
+              here and it is booked. We will tell you by notification and email.
             </p>
           </div>
           {wa ? (
@@ -90,7 +90,7 @@ export default function Gta6RequestPage() {
             <Check className="h-4 w-4 text-success" aria-hidden /> Your seat is held
           </p>
           <p className="mt-1 text-body text-text-secondary">
-            Pay within <span className="font-bold tabular-nums text-text-primary">{left(r.payBy, now)}</span> to lock it. After that the hold ends.
+            Pay the full amount within <span className="font-bold tabular-nums text-text-primary">{left(r.payBy, now)}</span> to lock it. After that the hold ends.
           </p>
           <Link
             href={`/bookings/${r.bookingId}`}
