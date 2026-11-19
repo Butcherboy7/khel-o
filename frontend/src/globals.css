@@ -483,6 +483,16 @@ body:has(.gta6) [aria-label='Cookie notice'] { display: none; }
    the headline comes in like a title card and the countdown digits roll. ── */
 .gta6-scene { --h: 150px; --sun: 116px; }
 @media (min-width: 768px) { .gta6-scene { --h: 286px; --sun: 196px; } }
+/* Inside the GTA 6 block on the home screen: a shorter sky, the sun to the right so the headline reads on the left. */
+/* While the "No GTA 6 café in your city?" bar is up, the cookie note waits for another page
+   (same rule as pages with their own bottom action bar). */
+html:has(.gta6-askbar) .cookie-notice { display: none; }
+.gta6-scene--card { --h: 112px; --sun: 92px; }
+.gta6-scene--card .gta6-sun-wrap, .gta6-scene--card .gta6-reflect { left: 74%; }
+@media (min-width: 768px) {
+  .gta6-scene--card { --h: 138px; --sun: 118px; }
+  .gta6-scene--card .gta6-sun-wrap, .gta6-scene--card .gta6-reflect { left: 78%; }
+}
 .gta6-sky {
   position: absolute; inset: 0 0 auto 0; height: var(--h);
   background: linear-gradient(180deg, #150B22 0%, #2E1340 26%, #6E2563 52%, #C93C6A 76%, #FF7A4F 100%);
@@ -544,11 +554,14 @@ body:has(.gta6) [aria-label='Cookie notice'] { display: none; }
 @keyframes gta6-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes gta6-word { from { transform: translateY(108%); } to { transform: none; } }
 @keyframes gta6-digit { from { transform: translateY(-60%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes gta6-askbar-in { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes gta6-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 @keyframes gta6-star { 0% { transform: scale(0) rotate(-40deg); opacity: 0; } 70% { transform: scale(1.25) rotate(6deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
 @keyframes gta6-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
 
 @media (prefers-reduced-motion: no-preference) {
+  .gta6-live-dot { animation: gta6-blink 1.6s ease-in-out infinite; }
+  .gta6-askbar { animation: gta6-askbar-in 0.35s var(--ease-out) both; }
   .gta6-scene { animation: gta6-fade-in 0.8s var(--ease-out) both; }
   .gta6-sun-wrap { animation: gta6-sun-rise 1.6s var(--ease-out) 0.1s both; }
   .gta6-sun { animation: gta6-stripes 2.6s linear infinite; }

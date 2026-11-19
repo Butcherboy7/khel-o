@@ -79,9 +79,13 @@ interface ExploreClientProps {
   initialActivities?: ActivityFacet[];
   /** Secondary homepage content, rendered below the café grid. */
   children?: React.ReactNode;
+  /** Shown right under the search bar, above the tabs (e.g. the GTA 6 block). */
+  top?: React.ReactNode;
+  /** Set when `top` carries the page's own visible h1, so the hidden generic one is left out. */
+  hideHeading?: boolean;
 }
 
-export function ExploreClient({ initialCafes, initialActivities, children }: ExploreClientProps) {
+export function ExploreClient({ initialCafes, initialActivities, children, top, hideHeading = false }: ExploreClientProps) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const {
@@ -541,7 +545,7 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
       {/* What KHEL-O is now lives in the header tagline (beside Log in), so
           the first screen is search, tabs, then cafés. The h1 stays for
           crawlers and screen readers. */}
-      <h1 className="sr-only">Book gaming cafés &amp; game zones near you. PCs, consoles, VR, snooker and bowling. See free slots live, pay online, walk in and play.</h1>
+      {!hideHeading && <h1 className="sr-only">Book gaming cafés &amp; game zones near you. PCs, consoles, VR, snooker and bowling. See free slots live, pay online, walk in and play.</h1>}
 
       {/* One bar: where (city), what (search), and how (filters). */}
       <div className="relative flex h-[52px] items-center gap-2.5 rounded-full border border-border bg-card pl-3.5 pr-1.5 shadow-card focus-within:border-primary">
@@ -592,6 +596,8 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
           )}
         </button>
       </div>
+
+      {top}
 
       <HomeTabRow
         tab={tab}

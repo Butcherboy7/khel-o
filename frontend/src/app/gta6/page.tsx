@@ -5,27 +5,58 @@ import { listDrops } from '@/lib/api/drops';
 import { dropDestination, gameKey } from '@/lib/drops';
 import { Gta6Client } from './Gta6Client';
 import { GTA6_PLACES, GTA6_TOP_CITY_SLUGS } from '@/constants/gta6';
+import { Gta6SearchPage } from '@/components/gta6/Gta6SearchPage';
+import { getGta6Cafes } from '@/lib/gta6Live';
 
 export const metadata: Metadata = {
-  title: 'Play GTA 6 in Hyderabad, Bengaluru & India: PS5 Cafés',
+  title: { absolute: 'Play GTA 6 at a PS5 Café Near You | KHEL-O' },
   description:
-    'GTA 6 releases 19 Nov 2026 on PS5 and Xbox. No console at home? Play it at a PS5 gaming café: compare cafés and prices in Hyderabad, Bengaluru and across India, and book on KHEL-O.',
+    'GTA 6 is out on PS5 and Xbox. No console? Play it at a PS5 gaming café: see live cafés, prices and hours, book in a minute on KHEL-O and walk in with a QR pass.',
   alternates: { canonical: '/gta6', languages: { 'en-IN': '/gta6' } },
   openGraph: {
-    title: 'GTA 6 drops 19 Nov. No PS5? Play it at a café.',
-    description: 'Hyderabad PS5 cafés have pre-ordered it. Reserve your KHEL-O launch-week seat.',
+    title: 'GTA 6 is out. No PS5? Play it at a café.',
+    description: 'PS5 cafés with GTA 6, live on KHEL-O. Book in a minute, walk in with a QR pass.',
     url: '/gta6',
   },
 };
 
-// Once a GTA drop is taking seats, this link is the booking page: no waitlist step in between.
-// Campaign tags on the link are kept so ad tracking still works.
+// GTA 6 is out: while cafés take bookings, this page is the KHEL-O home screen
+// with the GTA 6 cafés on top (Book goes straight to the café). Campaign tags
+// stay in the address bar, so ad tracking still works. Before any café is
+// live, the launch-list page below shows instead.
+export const dynamic = 'force-dynamic';
+
 export default async function Gta6Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const cafes = await getGta6Cafes();
+  if (cafes.length > 0) {
+    const min = Math.min(...cafes.map((c) => c.price));
+    const cities = Array.from(new Set(cafes.map((c) => c.city)));
+    return (
+      <Gta6SearchPage
+        path="/gta6"
+        cafes={cafes}
+        h1="GTA 6 is out. Play it at a café near you."
+        line={`PS5 cafés from ₹${min}/hr. Book in a minute, walk in with a QR pass.`}
+        crumb="GTA 6"
+        answerTitle="Where to play GTA 6 without a console"
+        answer={[
+          `GTA 6 came out on 19 November 2026 on PS5 and Xbox, not PC. KHEL-O lists PS5 gaming cafés with GTA 6 in ${cities.join(', ')}: pick one, choose a time, pay online and show your QR pass at the desk.`,
+          'Your city not on the list? Tap "Your city not listed?" and message us. We bring a café near you on KHEL-O.',
+        ]}
+        faq={[
+          { question: 'Where can I play GTA 6 without a PS5?', answer: `At a PS5 gaming café. KHEL-O cafés with GTA 6 start from ₹${min} an hour.` },
+          { question: 'When did GTA 6 come out?', answer: 'GTA 6 released on 19 November 2026 on PS5 and Xbox Series X|S.' },
+          { question: 'Can I play GTA 6 free?', answer: 'You can earn free play time: join the KHEL-O WhatsApp community and play in our next tournament. Players who take part get free GTA 6 time.' },
+        ]}
+        source="gta6"
+      />
+    );
+  }
+
+  // No café live: the old behaviour (an open drop, else the launch list).
   let to: string | null = null;
   try {
     const live = (await listDrops()).filter((d) => /gta\s*6/i.test(d.game) && (d.state === 'open' || d.state === 'early'));
-    // One café: straight to its drop. Several: the pick-your-café screen, nearest first.
-    // Game out: always the café list, where each café opens its normal booking page. Before that: straight to the drop.
     to = live.length ? (live[0].casual ? `/drops?game=${gameKey(live[0].game)}` : dropDestination(live, live[0].game).href) : null;
   } catch {
     to = null;

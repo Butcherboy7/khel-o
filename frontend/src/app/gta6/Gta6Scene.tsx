@@ -32,9 +32,14 @@ const RIPPLES = [
   { top: 55, w: 0.3, delay: 2 },
 ];
 
-export function Gta6Scene() {
+/** `card` fits the scene inside the GTA 6 block on the home screen (fills its parent). */
+export function Gta6Scene({ variant = 'page' }: { variant?: 'page' | 'card' }) {
+  const box =
+    variant === 'card'
+      ? 'gta6-scene gta6-scene--card pointer-events-none absolute inset-0 overflow-hidden'
+      : 'gta6-scene pointer-events-none absolute inset-x-0 top-0 h-[260px] overflow-hidden md:h-[460px]';
   return (
-    <div aria-hidden="true" className="gta6-scene pointer-events-none absolute inset-x-0 top-0 h-[260px] overflow-hidden md:h-[460px]">
+    <div aria-hidden="true" className={box}>
       <div className="gta6-sky" />
       <div className="gta6-twinkle" />
       <div className="gta6-sun-wrap">

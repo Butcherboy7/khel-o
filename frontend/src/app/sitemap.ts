@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { listCafes, cafePath } from '@/lib/api/cafes';
 import { getSeoPages } from '@/lib/api/seo';
 import { GTA6_CITY_SLUGS } from '@/constants/gta6';
+import { GTA6_INTENTS } from '@/constants/gta6Intents';
 import { citySlugToName } from '@/constants/cities';
 
 import { getPublicEnv } from '@/lib/runtimeEnv';
@@ -35,6 +36,13 @@ const GTA6_CITY_URLS: MetadataRoute.Sitemap = GTA6_CITY_SLUGS.map((slug) => ({
   url: `${SITE_URL}/gta6/${slug}`,
   changeFrequency: 'daily' as const,
   priority: ['hyderabad', 'bengaluru', 'mumbai', 'delhi'].includes(slug) ? 0.9 : 0.7,
+}));
+
+// GTA 6 by what people search for ("free", "with friends", "at night"…).
+const GTA6_INTENT_URLS: MetadataRoute.Sitemap = GTA6_INTENTS.map((i) => ({
+  url: `${SITE_URL}/gta6/${i.slug}`,
+  changeFrequency: 'daily' as const,
+  priority: 0.8,
 }));
 
 // Café pages come from the public list; every landing page (city, platform,
@@ -79,5 +87,5 @@ async function getLandingUrls(): Promise<MetadataRoute.Sitemap> {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [landing, cafes] = await Promise.all([getLandingUrls(), getCafeUrls()]);
-  return [...STATIC_ROUTES, ...GTA6_CITY_URLS, ...landing, ...cafes];
+  return [...STATIC_ROUTES, ...GTA6_CITY_URLS, ...GTA6_INTENT_URLS, ...landing, ...cafes];
 }
