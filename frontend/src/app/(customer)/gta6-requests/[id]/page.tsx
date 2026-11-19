@@ -78,7 +78,7 @@ export default function Gta6RequestPage() {
             </a>
           ) : null}
           <p className="text-caption text-text-secondary">
-            {wa ? 'Tap the button and send the message, so we can reply faster. ' : ''}
+            {wa ? 'Tap the button and send the message, so we can confirm the seat with the café. It is not instant. ' : ''}
             If nobody answers within an hour, this request closes and you can try another time.
           </p>
         </>

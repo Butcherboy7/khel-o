@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGta6Config } from '@/lib/api/gta6Requests';
 import { overGoalLine } from '@/lib/voteHype';
 import Link from 'next/link';
 import { useParams, useRouter, usePathname } from 'next/navigation';
@@ -171,6 +172,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
   // café isn't bookable on KHEL-O yet, so it shows its own price.
   const shownPrice = (n: number) => (isLead ? n : customerPrice(n));
 
+  const { data: gta6Cfg } = useQuery({ queryKey: ['gta6-config'], queryFn: getGta6Config, staleTime: 60_000, retry: false });
   const { data: waitlist, refetch: refetchWaitlist } = useQuery({
     queryKey: ['waitlist', cafeId],
     queryFn: () => getWaitlistStatus(cafeId),
@@ -620,6 +622,12 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
               ? 'Approx prices from our research. Online booking opens once they join KHEL-O.'
               : 'Price per hour. Tap one to pick your time.'}
           </p>
+          {!isLead && gta6Cfg?.enabled && gamingTiers.some((t) => t.runsGta6) && (
+            <p className="mt-1.5 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-caption text-text-primary">
+              The PS5 may not be free right now because of GTA 6. Playing GTA 6? Tap the GTA 6 banner above and reserve it. Playing something else? Pick a
+              time and we will check with the café first.
+            </p>
+          )}
         </div>
 
         <>

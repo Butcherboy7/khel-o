@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { getGta6Config } from '@/lib/api/gta6Requests';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, LocateFixed, MapPin } from 'lucide-react';
 import { CustomerShell } from '@/components/layout/CustomerShell';
@@ -88,6 +89,9 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
   // The game is out: a time in the café's normal hours is a normal booking, paid in full.
   // Only late-night or early-morning launch sessions are still reserved with a small fee.
   const casual = rows.length > 0 && rows.every((d) => d.casual);
+  // Launch week: GTA 6 times are asked for on the drop page (day, console, slider), not booked on the café page.
+  const { data: gta6Cfg } = useQuery({ queryKey: ['gta6-config'], queryFn: getGta6Config, staleTime: 60_000, retry: false });
+  const asking = casual && !!gta6Cfg?.enabled;
   const special = rows.some((d) => d.hasSpecial);
   const title = picked ? (casual ? `Play ${picked.name}: pick your café` : `${picked.name}: pick your café`) : casual ? 'Play it at a café' : 'Launch drops';
   const cafes = rows.length;
@@ -180,7 +184,7 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
             const art = d.coverImageUrl || d.cafe.photo || dropArt(d);
             const soon = d.state === 'soon';
             // Game is out and the café has a normal booking page: tap goes there, no drop page in between.
-            const normal = !!d.casual && !soon;
+            const normal = !!d.casual && !soon && !asking;
             const hours = d.cafe.openingTime && d.cafe.closingTime ? `Open ${clock(d.cafe.openingTime)} – ${clock(d.cafe.closingTime)}` : null;
             const nearest = i === 0 && d.km != null && cafes > 1;
             return (
@@ -208,11 +212,11 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
                       {rupees(d.pricePerHour)} an hour{d.playsOn ? ` · ${d.playsOn}` : ''}
                     </p>
                     <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-                      <span className={`text-caption font-bold ${soon ? 'text-text-secondary' : normal ? 'text-success' : 'text-error'}`}>
-                        {soon ? 'Opens soon' : normal ? hours ?? 'Open now' : d.seatsPerSlot ? `${d.seatsPerSlot} seats a night` : `${d.seatsLeft} seats left`}
+                      <span className={`text-caption font-bold ${soon ? 'text-text-secondary' : normal || asking ? 'text-success' : 'text-error'}`}>
+                        {soon ? 'Opens soon' : normal || asking ? hours ?? 'Open now' : d.seatsPerSlot ? `${d.seatsPerSlot} seats a night` : `${d.seatsLeft} seats left`}
                       </span>
                       <span className="inline-flex min-h-[36px] items-center gap-1 rounded-full bg-primary px-4 text-caption font-bold text-white transition-transform group-active:scale-95">
-                        {soon ? 'Notify me' : normal ? 'Book' : d.iHold ? 'Your seats' : 'Reserve'} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                        {soon ? 'Notify me' : normal || asking ? 'Book' : d.iHold ? 'Your seats' : 'Reserve'} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                       </span>
                     </div>
                   </div>
@@ -236,7 +240,9 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
 
         {cafes > 0 && (
           <p className="px-1 pb-4 text-caption text-text-secondary">
-            {casual
+            {asking
+              ? 'GTA 6 is in high demand, so we confirm your time with the café first (5 to 10 minutes). You pay in full after they say yes.'
+              : casual
               ? special
                 ? 'Times inside the café’s normal hours are paid in full when you book. Late-night and early-morning launch sessions are reserved with a small fee that comes off your bill at the café.'
                 : 'Times are paid in full when you book.'

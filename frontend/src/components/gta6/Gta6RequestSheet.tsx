@@ -84,7 +84,7 @@ export function Gta6RequestSheet({ isOpen, onClose, mode = 'ask', onSent, summar
           <p className="text-body text-text-primary">
             {game === 'gta6'
               ? 'GTA 6 is in very high demand right now. We confirm with the café that this slot is really free, in 5 to 10 minutes.'
-              : 'GTA 6 is in very high demand right now, so these consoles can be busy. We confirm with the café first, in 5 to 10 minutes.'}{' '}
+              : 'The PS5 may not be available right now because of GTA 6. We will confirm with the café whether it is free at your time. Add your number and send the request.'}{' '}
             When they say yes, you get a message and 15 minutes to pay the full amount. Then it is booked.
           </p>
           {!defaultPhone && (
@@ -100,6 +100,11 @@ export function Gta6RequestSheet({ isOpen, onClose, mode = 'ask', onSent, summar
                 className="mt-1 min-h-[48px] w-full rounded-xl border border-border bg-card px-3 text-body text-text-primary"
               />
             </label>
+          )}
+          {(defaultPhone || phone.replace(/\D/g, '').length >= 10) && (
+            <p className="rounded-xl bg-success/10 px-3 py-2 text-caption font-semibold text-text-primary">
+              After you send this, message us on WhatsApp so we can confirm the seat with the café. It is not instant.
+            </p>
           )}
           {error && <p role="alert" className="rounded-xl bg-error/10 px-3 py-2 text-body text-error">{error}</p>}
           <Button fullWidth size="lg" onClick={send} disabled={busy || (!defaultPhone && phone.replace(/\D/g, '').length < 10)}>
