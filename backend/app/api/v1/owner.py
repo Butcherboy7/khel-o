@@ -9,6 +9,7 @@ from datetime import date, datetime, timezone, time, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
+from app.services.admin_alerts import alert_admins
 from app.database import get_db
 from app.config import settings
 from app.schemas.owner import (
@@ -1074,6 +1075,7 @@ async def submit_onboarding_application(
 
     await db.commit()
     await db.refresh(cafe)
+    await alert_admins(db, "New café application", f"{cafe.name} is waiting for verification.", "/admin/verification-queue")
 
     return {
         "success": True,

@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.admin_alerts import alert_admins
 from app.api.deps import get_current_active_user
 from app.config import settings
 from app.core.exceptions import BadRequestException, BaseAppException
@@ -138,6 +139,7 @@ async def create_owner_intro(
     )
     db.add(intro)
     await db.commit()
+    await alert_admins(db, "Owner intro", f"{current_user.full_name} knows the owner of {cafe_name}.", "/admin/leads#owner-intros")
 
     try:
         platform = await PlatformSettingsRepository(db).get_or_create()

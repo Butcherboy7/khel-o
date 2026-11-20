@@ -14,6 +14,7 @@ from pydantic.alias_generators import to_camel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.admin_alerts import alert_admins
 from app.api.deps import require_admin
 from app.api.v1.owner_intros import normalise_phone
 from app.core import bot_guard
@@ -101,6 +102,7 @@ async def suggest_cafe(payload: SuggestRequest, request: Request, db: AsyncSessi
         source=payload.source,
     ))
     await db.commit()
+    await alert_admins(db, "Café suggestion", f"{payload.cafe_name}, {payload.city or ''}".strip(', '), "/admin/cafe-suggestions")
     return {"success": True, "data": {"received": True}}
 
 

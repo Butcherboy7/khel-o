@@ -16,6 +16,7 @@ from pydantic.alias_generators import to_camel
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.admin_alerts import alert_admins
 from app.api.deps import get_current_active_user, get_user_roles, require_admin, require_gamer
 from app.api.v1.owner_intros import normalise_phone
 from app.config import settings as app_settings
@@ -166,10 +167,7 @@ async def _tell_admins(db: AsyncSession, req: Gta6SlotRequest, user: User, cafe:
     try:
         when = f"{req.session_date:%a %d %b}, {_hhmm(req.start_time)} for {req.hours:g} hr"
         msg = f"{user.full_name} wants {cafe.name} ({tier.name}), {when}."
-        ids = list((await db.execute(
-            select(UserRoleMapping.user_id).where(UserRoleMapping.role == UserRole.ADMIN))).scalars().all())
-        await PushService().send_to_users(db, ids, {"title": "GTA 6 slot request", "body": msg,
-                                                    "url": "/admin/gta6-requests", "type": "system"})
+        await alert_admins(db, "GTA 6 slot request", msg, "/admin/gta6-requests")
         platform = await _platform(db)
         await NotificationService().send_gta6_mail(
             platform.support_email, "GTA 6 slot request", "New GTA 6 slot request",

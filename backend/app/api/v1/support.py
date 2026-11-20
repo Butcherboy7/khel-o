@@ -11,6 +11,7 @@ from app.models.user import User
 from app.config import settings
 from app.repositories.platform_settings_repository import PlatformSettingsRepository
 from app.services.notification_service import NotificationService
+from app.services.admin_alerts import alert_admins
 import structlog
 
 logger = structlog.get_logger()
@@ -26,6 +27,8 @@ async def create_ticket(
 ):
     service = SupportTicketService(SupportTicketRepository(db))
     ticket = await service.create_ticket(current_user.id, payload)
+
+    await alert_admins(db, "New support ticket", f"{current_user.full_name}: {payload.subject}", "/admin/support")
 
     # Tell the support inbox right away. The ticket is already saved, so a
     # failed email never fails the request.

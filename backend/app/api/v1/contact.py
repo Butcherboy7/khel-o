@@ -2,6 +2,7 @@ from fastapi import APIRouter, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
+from app.services.admin_alerts import alert_admins
 from app.database import get_db
 from app.schemas.contact import ContactMessageCreateRequest
 from app.repositories.platform_settings_repository import PlatformSettingsRepository
@@ -26,6 +27,7 @@ async def submit_contact_message(
     settings_repo = PlatformSettingsRepository(db)
     settings = await settings_repo.get_or_create()
 
+    await alert_admins(db, "New message from the contact form", f"{payload.name}: {payload.message[:90]}", "/admin/support")
     notification_service = NotificationService()
     await notification_service.send_contact_message(
         to_email=settings.support_email,

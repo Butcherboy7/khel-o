@@ -52,6 +52,7 @@ self.addEventListener('push', (event) => {
         // Keeps it on screen until acknowledged rather than auto-dismissing
         // after a few seconds while nobody is at the counter.
         requireInteraction: true,
+        vibrate: [200, 100, 200],
         data: { url },
       });
     })()
