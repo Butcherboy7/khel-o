@@ -23,7 +23,7 @@ const STEPS: { icon: typeof Ticket; title: string; body: string }[] = [
   {
     icon: Ticket,
     title: '3. Reservations come in',
-    body: 'Each person pays a small booking fee online. It comes off their bill. They get a QR pass. You see their name, phone, seats and time under Who is coming.',
+    body: 'Each person pays 50% of the price online in advance. It comes off their bill. They get a QR pass. You see their name, phone, seats and time under Who is coming.',
   },
   {
     icon: UserPlus,

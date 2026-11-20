@@ -24,7 +24,7 @@ import secrets
 import urllib.request
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from typing import Optional
 from urllib.parse import quote_plus
 from uuid import UUID
@@ -911,6 +911,16 @@ def clean_price_options(length_prices, time_prices) -> tuple[Optional[list], Opt
     return lp, tp
 
 
+ADVANCE_SHARE = Decimal("0.5")
+
+
+def advance_due(total: Decimal, base_fee: Decimal) -> Decimal:
+    """What a player pays up front to pre-book: at least half the price (rounded up to a whole rupee), or the owner's
+    booking fee if that is higher. Never more than the price. Players who book and don't turn up were holding seats."""
+    half = (money(total) * ADVANCE_SHARE).to_integral_value(rounding=ROUND_CEILING)
+    return money(min(money(total), max(half, money(base_fee))))
+
+
 def fee_per_seat(drop: Drop, hours: float) -> Decimal:
     """₹100 up to 3 hours, ₹200 for 4 or 5 (owner can change both)."""
     short = Decimal(str(drop.deposit_amount))
@@ -1120,11 +1130,12 @@ async def reserve(
 
     if r_start is not None:
         per_seat = seat_price(drop, begin, length, block.session_date)
-        deposit = money(fee_per_seat(drop, hours) * seats)
+        base_fee = money(fee_per_seat(drop, hours) * seats)
     else:
         per_seat = block_price_per_seat(drop, block)
-        deposit = money(Decimal(str(drop.deposit_amount)) * seats)
+        base_fee = money(Decimal(str(drop.deposit_amount)) * seats)
     total = money(per_seat * seats)
+    deposit = advance_due(total, base_fee)
     reservation = DropReservation(
         reference=_reference(), drop_id=drop.id, block_id=block.id, user_id=user.id, seats=seats,
         status="pending_payment", block_price=total, deposit_amount=deposit,

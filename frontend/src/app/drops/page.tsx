@@ -13,7 +13,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   }
   return {
     title: 'Launch drops: reserve a seat at a gaming café',
-    description: 'Big game launches at gaming cafés near you. Pick a café, reserve your seat with a small booking fee and pay the rest when you play.',
+    description: 'Big game launches at gaming cafés near you. Pick a café, reserve your seat with 50% in advance and pay the rest when you play.',
     alternates: { canonical: '/drops' },
   };
 }

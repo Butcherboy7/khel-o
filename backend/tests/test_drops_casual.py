@@ -46,7 +46,7 @@ async def test_late_night_session_outside_normal_hours_is_still_a_reservation():
     async with _client() as c:
         r = await _book(c, drop, block, u, "23:30", 2)
         assert r.status_code == 201, r.text
-        assert r.json()["data"]["reservation"]["deposit"] == 100
+        assert r.json()["data"]["reservation"]["deposit"] == 250
 
 
 @pytest.mark.asyncio

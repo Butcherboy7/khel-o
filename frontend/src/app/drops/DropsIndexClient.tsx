@@ -115,7 +115,7 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
                 : `${cafes} ${cafes === 1 ? 'café is' : 'cafés are'} taking seats. ${sorted ? 'Nearest to you first.' : 'Tap a café to see days and times.'}`
               : casual
               ? 'Pick a café, pick a time and book like any other slot.'
-              : 'Reserve a seat with a small booking fee. You pay the rest at the café.'}
+              : 'Reserve a seat by paying 50% in advance. You pay the rest at the café.'}
           </p>
         </header>
 
@@ -246,7 +246,7 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
               ? special
                 ? 'Times inside the café’s normal hours are paid in full when you book. Late-night and early-morning launch sessions are reserved with a small fee that comes off your bill at the café.'
                 : 'Times are paid in full when you book.'
-              : 'You pay a small booking fee online to hold the seat. It comes off your bill at the café.'}
+              : 'You pay 50% online in advance to hold the seat. It comes off your bill at the café.'}
           </p>
         )}
       </div>

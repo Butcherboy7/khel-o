@@ -260,8 +260,10 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const priceAt = (h: number) => (priced && block && startTime ? dropSeatPrice(priced, inBlock(startTime, block), h) : 0);
   const split = priced && block && startTime && flex ? priceSplit(priced, inBlock(startTime, block), hours) : [];
   const totalPerSeat = !drop || !block ? 0 : flex ? priceAt(hours) : block.pricePerSeat;
-  const payNow = feePerSeat * seatCount;
   const total = totalPerSeat * seatCount;
+  // Pre-booking takes half the price up front (never less than the owner's fee, never more than the price): people were
+  // booking and not turning up, and the held seat was lost.
+  const payNow = Math.min(total, Math.max(feePerSeat * seatCount, Math.ceil(total / 2)));
 
   const pick = (b: DropBlock) => {
     if (b.started || sessionLeft(b) === 0 || beyond(b) || normalOnly(b)) return;
@@ -617,7 +619,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <p className="font-semibold text-text-primary">
               {pending.seats} {pending.seats === 1 ? 'seat' : 'seats'} held for you · <Countdown to={pending.expiresAt!} />
             </p>
-            <p className="mt-1 text-body text-text-secondary">Pay the {rupees(pending.deposit)} booking fee to keep them. If you don’t, they go back to everyone.</p>
+            <p className="mt-1 text-body text-text-secondary">Pay the {rupees(pending.deposit)} advance (half the price) to keep them. If you don’t, they go back to everyone.</p>
             {pending.orderId && (
               <button
                 type="button"
@@ -981,7 +983,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <span>Booking fee, paid now</span>
+                    <span>50% in advance, paid now</span>
                     <span className="flex-shrink-0 font-semibold text-success">− {rupees(payNow)}</span>
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-3 border-t border-border/70 pt-2">
@@ -994,14 +996,14 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
 
             {flex && !askFirst && (
               <p className="px-1 text-caption text-text-secondary">
-                Arrive within 15 min of your start. The booking fee isn’t refunded if you don’t show.{' '}
+                Be there 10 to 15 minutes before your start. If you aren’t, the café can give your seat to someone else and the advance isn’t refunded.{' '}
                 <button type="button" onClick={() => setRulesOpen((o) => !o)} className="font-semibold text-primary underline-offset-2 hover:underline">
                   {rulesOpen ? 'Hide' : 'Details'}
                 </button>
                 {rulesOpen && (
                   <span className="mt-2 block rounded-xl border border-border bg-card p-3 text-body">
-                    The booking fee comes off your bill when you play and is not refunded. Arrive from 15 minutes before to 15 minutes after your start time.
-                    After that the café can give your seat to someone waiting and you do not get the booking fee back. If the café cancels, you get everything back.
+                    The 50% advance comes off your bill when you play and is not refunded if you don’t come. Be there 10 to 15 minutes before your start time.
+                    If you are not, the café can give your seat to someone waiting and you do not get the advance back. If the café cancels, you get everything back.
                   </span>
                 )}
               </p>
@@ -1046,17 +1048,17 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <Faq
               q="What do I pay now?"
               a={flex
-                ? `A booking fee of ${rupees(drop.deposit)} a seat for up to 3 hours, or ${rupees(drop.depositLong)} for 4 or 5 hours. It is taken off your bill at the café.`
-                : `A booking fee of ${rupees(drop.deposit)} for each seat. It holds your seat and comes off your bill. You pay the rest at the café on the day.`}
+                ? `Half the price (50%) in advance. The amount is shown before you pay and is taken off your bill at the café.`
+                : `Half the price (50%) in advance. It holds your seat and comes off your bill. You pay the rest at the café on the day.`}
             />
             <Faq q="How do I get in?" a="After you pay, you get a QR pass here. Show it at the café." />
             <Faq q="Can I bring friends?" a={`Yes. You can reserve up to ${drop.maxSeatsPerUser} seats a day, on as many days as you like. Friends can also reserve their own.`} />
             <Faq q="Can I use a coupon?" a="No. Drop prices are fixed. Coupons and café offers don’t work on drops." />
-            <Faq q="What if the café cancels?" a="You get your booking fee back in full." />
+            <Faq q="What if the café cancels?" a="You get your advance back in full." />
             {flex && (
               <Faq
                 q="What if I am late or cannot come?"
-                a="Arrive between 15 minutes before and 15 minutes after your start time. After that the café can give your seat away and the booking fee is not refunded."
+                a="Be there 10 to 15 minutes before your start time. If you are not, the café can give your seat to someone else and the advance is not refunded."
               />
             )}
           </dl>
@@ -1240,7 +1242,7 @@ function Confirmation({
         </div>
       )}
       <dl className="mt-4 space-y-1 text-body">
-        <Row k="Booking fee paid" v={rupees(r.depositPaid)} />
+        <Row k="Advance paid (50%)" v={rupees(r.depositPaid)} />
         <Row k="Pay at the café" v={rupees(r.balanceDue)} strong />
       </dl>
       {r.passUrl && (

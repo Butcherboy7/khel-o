@@ -155,11 +155,11 @@ async def test_reserve_pay_and_get_a_qr_pass(fake_razorpay):
         r = await _reserve(c, drop, block, gamer, seats=2)
         assert r.status_code == 201, r.text
         data = r.json()["data"]
-        assert data["order"]["amount"] == 198  # 2 x ₹99 deposit
-        assert fake_razorpay[0][1]["amount"] == 19800  # paise
+        assert data["order"]["amount"] == 1250  # half of the 2 x 1250 price, paid up front
+        assert fake_razorpay[0][1]["amount"] == 125000  # paise
         res = data["reservation"]
         assert res["status"] == "pending_payment" and res["qr"] is None
-        assert res["blockPrice"] == 2500 and res["balanceDue"] == 2302
+        assert res["blockPrice"] == 2500 and res["balanceDue"] == 1250
         assert await _taken(block.id) == 2
 
         r = await _pay(c, gamer, data["order"]["orderId"])
@@ -236,7 +236,7 @@ async def test_no_coupon_or_cafe_offer_touches_a_drop():
                          json={"blockId": str(block.id), "seats": 1, "promoCode": "HALF", "code": "HALF"})
     assert r.status_code == 201
     res = r.json()["data"]["reservation"]
-    assert res["blockPrice"] == 1250 and res["deposit"] == 99 and res["balanceDue"] == 1151
+    assert res["blockPrice"] == 1250 and res["deposit"] == 625 and res["balanceDue"] == 625
 
 
 # ---------------------------------------------------------------- early access
@@ -408,7 +408,7 @@ async def test_cafe_sees_reservations_checks_in_and_exports_csv():
         assert r.json()["data"]["outcome"] == "already"
 
         detail = (await c.get(f"/api/v1/owner/drops/{drop.id}", headers=_h(owner))).json()["data"]
-        assert detail["totals"]["checkedIn"] == 1 and detail["totals"]["depositsCollected"] == 99
+        assert detail["totals"]["checkedIn"] == 1 and detail["totals"]["depositsCollected"] == 625
         assert detail["blocks"][0]["reservations"][0]["status"] == "checked_in"
         assert detail["earlyAccessCode"] == "EARLY1"
         assert detail["funnel"]["paymentStarted"] == 1 and detail["funnel"]["paymentSuccess"] == 1
