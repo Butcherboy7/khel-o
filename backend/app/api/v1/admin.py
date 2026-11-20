@@ -327,6 +327,7 @@ async def list_users_admin(
     role: Optional[str] = Query(None),
     isActive: Optional[bool] = Query(None, alias="isActive"),
     email: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, max_length=100),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
     current_admin: User = Depends(require_admin),
@@ -344,7 +345,8 @@ async def list_users_admin(
         is_active=isActive,
         email_search=email,
         page=page,
-        limit=limit
+        limit=limit,
+        search=search,
     )
     return {
         "success": True,

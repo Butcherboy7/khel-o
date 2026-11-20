@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
+  Search,
   ShieldCheck,
   Store,
   Users,
@@ -191,6 +192,37 @@ function Count({ n, className = '' }: { n: number; className?: string }) {
   );
 }
 
+/** Find anyone fast: name, email or phone number. Opens the Users page with the search already filled in. */
+function AdminSearchBox({ onDone }: { onDone?: () => void }) {
+  const router = useRouter();
+  const [q, setQ] = useState('');
+  return (
+    <form
+      role="search"
+      className="px-3 pt-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const term = q.trim();
+        router.push(term ? `/admin/users?q=${encodeURIComponent(term)}` : '/admin/users?focus=1');
+        setQ('');
+        onDone?.();
+      }}
+    >
+      <label className="relative block">
+        <span className="sr-only">Search users by name, email or phone number</span>
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/60" aria-hidden />
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Find a user or number"
+          className="h-10 w-full rounded-xl border border-white/15 bg-white/10 pl-9 pr-3 text-caption text-white placeholder:text-white/55 focus:outline-none focus:ring-2 focus:ring-primary/60"
+        />
+      </label>
+    </form>
+  );
+}
+
 function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
@@ -203,6 +235,7 @@ function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <>
+      <AdminSearchBox onDone={onNavigate} />
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4" aria-label="Admin navigation">
         {adminNavGroups.map((group) => {
           const Icon = AREA_ICON[group.label ?? ''] ?? BarChart3;
@@ -373,6 +406,13 @@ function AdminMobileNav() {
           {group?.label ?? 'KHEL-O Admin'}
           {item && <span className="font-normal text-white/60"> · {item.label}</span>}
         </span>
+        <Link
+          href="/admin/users?focus=1"
+          aria-label="Search users by name, email or phone number"
+          className="ml-auto flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-white/85 hover:bg-white/10"
+        >
+          <Search className="h-5 w-5" aria-hidden />
+        </Link>
       </header>
 
       <nav

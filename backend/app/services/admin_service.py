@@ -176,7 +176,8 @@ class AdminService:
         is_active: Optional[bool] = None,
         email_search: Optional[str] = None,
         page: int = 1,
-        limit: int = 20
+        limit: int = 20,
+        search: Optional[str] = None,
     ) -> Dict[str, Any]:
         limit = min(limit, 50)
         users, total = await self.user_repo.get_all_admin(
@@ -184,7 +185,8 @@ class AdminService:
             is_active=is_active,
             email_search=email_search,
             page=page,
-            limit=limit
+            limit=limit,
+            search=search,
         )
 
         item_responses = [UserResponse.model_validate(u) for u in users]

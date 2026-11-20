@@ -50,7 +50,7 @@ export async function verifyCafe(cafeId: string, body: AdminCafeVerifyRequest): 
 }
 
 export async function listAdminUsers(
-  params: { role?: string; isActive?: boolean; email?: string; page?: number; limit?: number } = {},
+  params: { role?: string; isActive?: boolean; email?: string; search?: string; page?: number; limit?: number } = {},
 ): Promise<PaginatedResponse<User>> {
   return call(() => apiClient.get('/api/v1/admin/users', { params }));
 }

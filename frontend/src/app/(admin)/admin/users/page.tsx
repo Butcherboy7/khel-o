@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users,
@@ -15,6 +16,7 @@ import {
   KeyRound,
   Copy,
   Check,
+  Phone,
 } from 'lucide-react';
 import { listAdminUsers, deactivateUser, activateUser, changeUserRole, resetUserPassword } from '@/lib/api/admin';
 import { queryKeys } from '@/hooks/queries/keys';
@@ -64,28 +66,29 @@ export default function AdminUsersPage() {
   const queryClient = useQueryClient();
 
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
-  const [search, setSearch] = useState('');
+  // The search box finds people across ALL accounts (the server does the matching: name, email or phone number).
+  // /admin/users?q=98765 (from the admin search box) opens with the search already filled in.
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
+  const [debounced, setDebounced] = useState(search.trim());
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const params = {
     ...(roleFilter !== 'all' ? { role: roleFilter } : {}),
+    ...(debounced ? { search: debounced } : {}),
     limit: 50,
   };
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: [...queryKeys.admin.all, 'users', roleFilter],
+    queryKey: [...queryKeys.admin.all, 'users', roleFilter, debounced],
     queryFn: () => listAdminUsers(params),
     staleTime: 30_000,
   });
 
-  const users: User[] = (data?.items ?? []).filter((u) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      u.email.toLowerCase().includes(q) ||
-      u.fullName?.toLowerCase().includes(q) ||
-      u.phoneNumber?.includes(q)
-    );
-  });
+  const users: User[] = data?.items ?? [];
 
   const page = useShowMore(users, 20, `${roleFilter}|${search}`);
   const [tab, setTab] = useSubTab<'people' | 'bots'>(['people', 'bots'], 'people');
@@ -130,7 +133,7 @@ export default function AdminUsersPage() {
             <h1 className="font-heading text-h2 text-text-primary lg:text-h1">Users</h1>
           </div>
           <p className="text-caption text-text-secondary">
-            {data?.total ?? '—'} registered accounts · manage access and status.
+            {debounced ? `${data?.total ?? '—'} match “${debounced}”` : `${data?.total ?? '—'} registered accounts`} · manage access and status.
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => refetch()} className="gap-1.5">
@@ -157,7 +160,8 @@ export default function AdminUsersPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
           <input
             type="text"
-            placeholder="Search by name, email or phone…"
+            placeholder="Search every account by name, email or phone number…"
+            autoFocus={searchParams.get('focus') === '1'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-10 pl-9 pr-4 rounded-xl border border-border bg-surface text-caption text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -236,6 +240,17 @@ export default function AdminUsersPage() {
                     <div className="min-w-0">
                       <p className="text-caption font-semibold text-text-primary truncate">{u.fullName || '—'}</p>
                       <p className="text-[11px] text-text-tertiary truncate">{u.email}</p>
+                      {u.phoneNumber ? (
+                        <a
+                          href={`tel:${u.phoneNumber}`}
+                          className="mt-0.5 inline-flex items-center gap-1 text-[12px] font-semibold tabular-nums text-text-primary hover:text-primary"
+                        >
+                          <Phone className="h-3 w-3" aria-hidden />
+                          {u.phoneNumber}
+                        </a>
+                      ) : (
+                        <p className="mt-0.5 text-[11px] text-text-tertiary">No number given</p>
+                      )}
                     </div>
                   </div>
 

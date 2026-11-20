@@ -31,7 +31,8 @@ class UserRepository(BaseRepository[User]):
         is_active: Optional[bool] = None,
         email_search: Optional[str] = None,
         page: int = 1,
-        limit: int = 20
+        limit: int = 20,
+        search: Optional[str] = None,
     ) -> Tuple[List[User], int]:
         stmt = select(User)
         filters = [not_demo_user()]
@@ -42,6 +43,15 @@ class UserRepository(BaseRepository[User]):
             filters.append(User.is_active == is_active)
         if email_search:
             filters.append(func.lower(User.email).contains(email_search.strip().lower()))
+        if search and search.strip():
+            # One box finds a person by name, email or phone number, across every account (not just a loaded page).
+            from sqlalchemy import or_
+            term = search.strip().lower()
+            digits = "".join(ch for ch in term if ch.isdigit())
+            conds = [func.lower(User.email).contains(term), func.lower(func.coalesce(User.full_name, "")).contains(term)]
+            if len(digits) >= 3:
+                conds.append(func.regexp_replace(func.coalesce(User.phone_number, ""), "[^0-9]", "", "g").contains(digits))
+            filters.append(or_(*conds))
 
         if filters:
             stmt = stmt.where(and_(*filters))
