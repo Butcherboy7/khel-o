@@ -63,6 +63,22 @@ export async function Gta6SearchPage(p: Gta6SearchPageProps) {
           address: { '@type': 'PostalAddress', addressLocality: c.area ?? c.city, addressRegion: c.city, addressCountry: 'IN' },
           priceRange: `₹${c.price}/hr`,
           ...(c.photo ? { image: c.photo } : {}),
+          ...(c.opens && c.closes
+            ? {
+                openingHoursSpecification: {
+                  '@type': 'OpeningHoursSpecification',
+                  dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                  opens: c.opens,
+                  closes: c.opens === c.closes ? '23:59' : c.closes,
+                },
+              }
+            : {}),
+          // Answer engines read this as "book it here": the link goes straight to booking.
+          potentialAction: {
+            '@type': 'ReserveAction',
+            name: `Book GTA 6 at ${c.name}`,
+            target: { '@type': 'EntryPoint', urlTemplate: `${SITE_URL}${c.href}` },
+          },
         },
       })),
     },

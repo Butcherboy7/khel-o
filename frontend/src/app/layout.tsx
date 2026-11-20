@@ -42,9 +42,16 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   // Google Search Console ownership check — set NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
   // to the token from Search Console's "HTML tag" method; omitted when unset.
-  verification: getPublicEnv('NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION', '')
-    ? { google: getPublicEnv('NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION', '') }
-    : undefined,
+  // Bing Webmaster Tools (ChatGPT and Copilot search read Bing's index): NEXT_PUBLIC_BING_SITE_VERIFICATION.
+  verification:
+    getPublicEnv('NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION', '') || getPublicEnv('NEXT_PUBLIC_BING_SITE_VERIFICATION', '')
+      ? {
+          ...(getPublicEnv('NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION', '') ? { google: getPublicEnv('NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION', '') } : {}),
+          ...(getPublicEnv('NEXT_PUBLIC_BING_SITE_VERIFICATION', '')
+            ? { other: { 'msvalidate.01': getPublicEnv('NEXT_PUBLIC_BING_SITE_VERIFICATION', '') } }
+            : {}),
+        }
+      : undefined,
   title: {
     default: 'KHEL-O — Pre-Book Gaming Cafés & Game Zones Near You',
     template: '%s | KHEL-O',

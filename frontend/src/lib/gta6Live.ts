@@ -68,7 +68,7 @@ export const getGta6Cafes = cache(async (): Promise<Gta6Cafe[]> => {
 /** "10:00"-"23:00" -> "10 AM – 11 PM"; a café open round the clock says so. */
 export function hoursLabel(opens: string | null, closes: string | null): string | null {
   if (!opens || !closes) return null;
-  if (opens === '00:00' && (closes === '23:59' || closes === '00:00')) return 'Open 24 hours';
+  if (opens === closes || (opens === '00:00' && closes === '23:59')) return 'Open 24 hours';
   const fmt = (t: string) => {
     const [h, m] = t.split(':').map(Number);
     const ap = h >= 12 ? 'PM' : 'AM';
