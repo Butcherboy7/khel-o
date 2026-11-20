@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore, markRoleSwitch, type UserActiveRole } from '@/store/authStore';
-import { Gamepad2, Store, Shield, Headset, RefreshCw, AlertCircle } from 'lucide-react';
+import { Gamepad2, Store, Shield, Headset, RefreshCw, AlertCircle, ArrowLeftRight } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 const ROLE_META: Record<
@@ -30,7 +30,7 @@ const BADGE_VARIANT: Record<string, 'success' | 'warning' | 'secondary' | 'error
   rose: 'error',
 };
 
-export function RoleSwitcher() {
+export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const activeRole = useAuthStore((s) => s.activeRole);
@@ -38,6 +38,17 @@ export function RoleSwitcher() {
 
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
+  }, [open]);
 
   // Every account can use the app as a gamer (the server allows it even when no gamer role row exists, as for
   // owner-only accounts), so Gamer Mode is always on offer from any other mode.
@@ -68,6 +79,54 @@ export function RoleSwitcher() {
       setIsSwitching(false);
     }
   };
+
+  // Tight headers (the customer top bar on a phone) get one small icon that opens the list, so two or three wide
+  // pills never wrap over the logo and the greeting.
+  if (compact) {
+    return (
+      <div ref={box} className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label="Switch mode"
+          title="Switch mode"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-text-secondary transition hover:bg-border/60 hover:text-text-primary active:scale-95"
+        >
+          {isSwitching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ArrowLeftRight className="h-4 w-4" />}
+        </button>
+        {open && (
+          <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-border bg-card p-1 shadow-overlay">
+            <p className="px-3 pb-1 pt-2 text-caption font-semibold text-text-secondary">Switch to</p>
+            {targets.map((role) => {
+              const meta = ROLE_META[role];
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  role="menuitem"
+                  disabled={isSwitching}
+                  onClick={async () => { setOpen(false); await handleSwitch(role); }}
+                  className="flex min-h-[44px] w-full items-center gap-2.5 rounded-xl px-3 text-left text-body font-semibold text-text-primary transition hover:bg-surface active:bg-border/60 disabled:opacity-60"
+                >
+                  <Icon className="h-4 w-4 text-text-secondary" />
+                  {meta.label}
+                </button>
+              );
+            })}
+            {error && (
+              <p className="flex items-center gap-1 px-3 py-2 text-caption font-medium text-error">
+                <AlertCircle className="h-3 w-3" />
+                {error}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="relative inline-flex flex-wrap items-center gap-1.5">

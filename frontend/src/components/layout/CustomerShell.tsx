@@ -169,7 +169,7 @@ function CustomerHeader() {
         <div className="flex items-center gap-3">
           {isAuthenticated ? (
             <>
-              <RoleSwitcher />
+              <RoleSwitcher compact />
               <Link
                 prefetch={prefetch}
                 href="/notifications"
