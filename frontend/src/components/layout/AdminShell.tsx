@@ -41,6 +41,7 @@ import { enablePush, resolvePushState, resyncPushSubscription, type PushState } 
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
+import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 import { NavSheet, initialsOf, useBarLifted, BAR_ABOVE_SHEET } from '@/components/layout/NavSheet';
 
 /* ── Navigation Items ────────────────────────────────────────────── */
@@ -275,6 +276,9 @@ function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
               Sign out
             </button>
           </div>
+        </div>
+        <div className="mt-3">
+          <RoleSwitcher />
         </div>
       </div>
     </>
@@ -543,6 +547,7 @@ function AdminSheetBody({ onNavigate }: { onNavigate: () => void }) {
             Sign out
           </button>
         </div>
+        <RoleSwitcher />
       </div>
     </div>
   );
