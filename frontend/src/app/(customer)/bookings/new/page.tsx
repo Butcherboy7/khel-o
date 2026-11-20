@@ -301,6 +301,16 @@ function BookingWizardContent() {
     refetchInterval: 3_000,
   });
 
+  const offerToken = searchParams.get('offer');
+  const { data: offerData } = useQuery({
+    queryKey: ['gta6-offer', offerToken],
+    queryFn: () => getGta6Offer(offerToken!),
+    enabled: Boolean(offerToken),
+    retry: false,
+    refetchInterval: 20_000,
+  });
+  const offer = offerData?.offer;
+
   // Same-day slots plus tomorrow's slots shifted +1440 minutes so they land
   // in the picker's "minutes past midnight of the opening day" space (e.g. a
   // 00:30 booking stored under tomorrow becomes "24:30" here). Deliberately
@@ -319,8 +329,20 @@ function BookingWizardContent() {
         endTime: toShiftedTimeStr(shiftedEnd),
       };
     });
-    return [...sameDay, ...nextDay];
-  }, [availabilityData?.bookedSlots, nextDayAvailabilityData?.bookedSlots]);
+    const all = [...sameDay, ...nextDay];
+    // A slot the café confirmed free through the founder's link is open, whatever the grid still shows over it.
+    if (offer && offer.status === 'open' && offer.tier?.id === activeTier?.id && offer.date === selectedDate) {
+      const from = timeToMinutes(offer.startTime);
+      const to = from + Math.round(offer.hours * 60);
+      return all.filter((bs) => {
+        const bS = timeToMinutes(bs.startTime);
+        let bE = timeToMinutes(bs.endTime);
+        if (bE <= bS) bE += 1440;
+        return !(bS < to && bE > from);
+      });
+    }
+    return all;
+  }, [availabilityData?.bookedSlots, nextDayAvailabilityData?.bookedSlots, offer, activeTier?.id, selectedDate]);
 
   // Seats actually free for the currently selected time window — same calculation
   // TimelineRangePicker uses for its "Only N seats left!" badge, so the seats
@@ -361,15 +383,6 @@ function BookingWizardContent() {
   // A confirmed-slot link from the founder (?offer=token): the slot is already chosen and confirmed free with the
   // café, so Pay takes the player straight to payment (no ask-first step). It only counts while the picks still match
   // the link; change the time or console and it is an ordinary booking again.
-  const offerToken = searchParams.get('offer');
-  const { data: offerData } = useQuery({
-    queryKey: ['gta6-offer', offerToken],
-    queryFn: () => getGta6Offer(offerToken!),
-    enabled: Boolean(offerToken),
-    retry: false,
-    refetchInterval: 20_000,
-  });
-  const offer = offerData?.offer;
   const offerMatches = Boolean(
     offer && offer.status === 'open' && activeTier && offer.tier?.id === activeTier.id &&
       offer.date === effectiveSessionDate && offer.startTime === selectedTime.slice(0, 5) &&
