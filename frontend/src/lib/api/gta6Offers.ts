@@ -5,7 +5,7 @@ import { apiClient, call } from './client';
 export interface Gta6Offer {
   id: string;
   token: string;
-  status: 'open' | 'claimed' | 'cancelled' | 'expired';
+  status: 'open' | 'held' | 'claimed' | 'lapsed' | 'cancelled' | 'expired';
   cafe: { id: string; name: string; slug: string | null; city: string; area?: string | null } | null;
   tier: { id: string; name: string } | null;
   date: string;

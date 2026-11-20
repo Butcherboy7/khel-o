@@ -26,10 +26,23 @@ export default function OfferClient({ token }: { token: string }) {
   if (isError || !o) return <Shell title="This link isn't valid" body="Ask us on WhatsApp and we will check the slot for you." />;
 
   const secs = left(o.expiresAt, now);
+  if (o.status === 'lapsed') {
+    // Not paid in time: the slot is no longer confirmed, so it goes back to the normal ask-for-a-slot flow.
+    return (
+      <Shell
+        title="This slot is no longer confirmed"
+        body="It wasn't paid for in time, so it is open to everyone again and may be booked by someone else. Ask for it and we will check with the café."
+      >
+        <a href={o.cafe?.slug ? `/cafe/${o.cafe.slug}` : '/gta6'} className="btn-depth inline-flex min-h-[52px] items-center justify-center rounded-xl bg-primary px-6 text-body font-bold text-white">
+          Ask for a slot
+        </a>
+      </Shell>
+    );
+  }
   if (o.status !== 'open' || secs <= 0) {
     return (
       <Shell
-        title={o.status === 'claimed' ? 'This slot was just taken' : 'This link has run out'}
+        title={o.status === 'claimed' || o.status === 'held' ? 'This slot was just taken' : 'This link has run out'}
         body="It was first come, first served. Message us on WhatsApp and we will find you another time."
       />
     );

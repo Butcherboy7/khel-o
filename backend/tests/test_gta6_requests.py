@@ -235,4 +235,9 @@ async def test_a_confirmed_slot_link_goes_to_the_first_player_only():
             assert b.status == BookingStatus.PENDING_PAYMENT and str(b.gamer_id) == str(p1.id)
         late = await c.post(f"/api/v1/gta6-requests/offers/{token}/claim", headers=_h(p2))
         assert late.status_code == 422
-        assert (await c.get(f"/api/v1/gta6-requests/offers/{token}")).json()["data"]["offer"]["status"] == "claimed"
+        assert (await c.get(f"/api/v1/gta6-requests/offers/{token}")).json()["data"]["offer"]["status"] == "held"
+        # the player never pays: the hold lapses and the link goes back to the normal ask-for-a-slot flow
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(Booking).where(Booking.id == UUID(won.json()["data"]["bookingId"])).values(status=BookingStatus.CANCELLED))
+            await db.commit()
+        assert (await c.get(f"/api/v1/gta6-requests/offers/{token}")).json()["data"]["offer"]["status"] == "lapsed"

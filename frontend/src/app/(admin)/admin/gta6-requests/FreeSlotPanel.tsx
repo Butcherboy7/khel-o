@@ -64,7 +64,7 @@ export default function FreeSlotPanel() {
   const [start, setStart] = useState('14:00');
   const [hours, setHours] = useState(3);
   const [game, setGame] = useState<'gta6' | 'other'>('gta6');
-  const [mins, setMins] = useState(60);
+  const [mins, setMins] = useState(30);
   const [phone, setPhone] = useState('');
   const [made, setMade] = useState<Gta6Offer | null>(null);
 
@@ -206,7 +206,7 @@ export default function FreeSlotPanel() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-surface px-2.5 py-1 text-caption font-bold text-text-primary">
-                  {o.status === 'claimed' ? 'Taken' : o.status === 'open' ? 'Open' : o.status === 'cancelled' ? 'Cancelled' : 'Ran out'}
+                  {o.status === 'claimed' ? 'Paid' : o.status === 'held' ? 'Held, awaiting payment' : o.status === 'lapsed' ? 'Not paid, back to normal' : o.status === 'open' ? 'Open' : o.status === 'cancelled' ? 'Cancelled' : 'Ran out'}
                 </span>
                 {o.status === 'open' && (
                   <>

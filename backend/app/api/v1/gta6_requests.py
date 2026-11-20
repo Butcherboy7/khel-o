@@ -374,7 +374,7 @@ class OfferIn(BaseModel):
     duration_hours: float = Field(..., ge=0.25, le=8.0)
     seats_count: int = Field(1, ge=1, le=6)
     game: Literal["gta6", "other"] = "gta6"
-    minutes_open: int = Field(60, ge=10, le=24 * 60)
+    minutes_open: int = Field(30, ge=10, le=24 * 60)
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
@@ -382,6 +382,13 @@ async def _offer_out(db: AsyncSession, o: Gta6SlotOffer) -> dict:
     cafe = await db.get(Cafe, o.cafe_id)
     tier = await db.get(HardwareTier, o.tier_id)
     state = o.status
+    if state == "claimed" and o.booking_id:
+        # Claimed means held for 15 minutes. Paid = taken. Not paid in time = back to the normal ask-for-a-slot flow.
+        b = await db.get(Booking, o.booking_id)
+        if b is not None and b.status == BookingStatus.PENDING_PAYMENT:
+            state = "held"
+        elif b is None or b.status not in (BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.ACTIVE, BookingStatus.COMPLETED):
+            state = "lapsed"
     ends = o.expires_at if o.expires_at.tzinfo else o.expires_at.replace(tzinfo=timezone.utc)
     if state == "open" and ends <= datetime.now(timezone.utc):
         state = "expired"
