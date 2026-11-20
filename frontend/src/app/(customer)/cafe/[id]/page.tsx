@@ -161,16 +161,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // A Booking Soon listing can't be booked, so it keeps the descriptive
   // "— Snooker & Pool in Hyderabad" form.
   const place = `${name}${area ? `, ${area}` : ''}`;
+  const plays6 = !cafe.isLeadListing && (cafe.tiers ?? []).some((t) => t.runsGta6);
   const title = cafe.isLeadListing
     ? `${place} — ${kind.label} in ${city}`
-    : `${place} — Book Online${headlinePrice ? ` from ₹${headlinePrice.price}/hr` : minPrice ? ` from ₹${minPrice}/hr` : ''}`;
+    : `${place} — Pre-Book${plays6 ? ' GTA 6' : ''}${headlinePrice ? ` from ₹${headlinePrice.price}/hr` : minPrice ? ` from ₹${minPrice}/hr` : ''}`;
   // A Booking Soon listing can't be booked yet; never say it can.
   const description = `${kind.label} at ${name}, ${where}.${factLine}${offerLine} ${
     cafe.isLeadListing
       ? (waitlist?.count ?? 0) >= WAITLIST_SHOW_MIN
         ? `${waitlist!.count} players want to book it online — add your vote and get notified when it opens on KHEL-O.`
         : 'Online booking on KHEL-O is coming soon: see the location and photos, and get notified.'
-      : 'See live availability and book online on KHEL-O.'
+      : `${plays6 ? 'Plays GTA 6 on PS5. ' : ''}Pre-book your slot: see live availability and pay online on KHEL-O.`
   }`;
   const image = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0].url : undefined;
 

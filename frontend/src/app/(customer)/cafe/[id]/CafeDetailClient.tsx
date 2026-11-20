@@ -57,6 +57,7 @@ import { SetupPhotosSection } from '@/components/customer/SetupPhotosSection';
 import { PhotoCarousel, Dots } from '@/components/customer/PhotoCarousel';
 import { SetupExtras, SetupSpecGrid, pcSpecItems } from '@/components/customer/SetupSpecs';
 import { GamePoster } from '@/components/customer/GamePoster';
+import { Gta6Sticker } from '@/components/gta6/Gta6Sticker';
 import { PcCompare, ConsoleCompare } from '@/components/customer/TierCompare';
 import { OfferChip, OfferLine } from '@/components/customer/OfferChip';
 import { useCampaign } from '@/hooks/useCampaign';
@@ -455,11 +456,7 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-secondary/60 via-transparent to-black/30" />
 
         {/* GTA 6 is out and this café has a console that runs it: same pill as on the café card. */}
-        {!isLead && (cafe.tiers ?? []).some((t) => t.runsGta6) && (
-          <span className="pointer-events-none absolute bottom-3 left-3 z-10 inline-flex items-center rounded-full bg-primary px-2.5 py-1 text-[12px] font-extrabold text-white shadow-card">
-            Plays GTA 6
-          </span>
-        )}
+        {!isLead && (cafe.tiers ?? []).some((t) => t.runsGta6) && <Gta6Sticker size="lg" />}
 
         {/* Top Controls */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">

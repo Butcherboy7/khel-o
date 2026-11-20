@@ -19,9 +19,9 @@ const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: { absolute: 'KHEL-O: Book Gaming Cafés, Snooker & Bowling in Hyderabad' },
+  title: { absolute: 'Pre-Book Gaming Cafés in Hyderabad: PS5, GTA 6, PC | KHEL-O' },
   description:
-    'Find gaming cafés, snooker clubs and bowling alleys in Hyderabad. Compare prices and timings, see live availability and book online on KHEL-O.',
+    'Pre-book a PS5, PC or VR slot at gaming cafés in Hyderabad. Play GTA 6, compare prices, see live availability and pay online. No calling ahead.',
   alternates: {
     canonical: '/',
   },

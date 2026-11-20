@@ -46,12 +46,17 @@ export const metadata: Metadata = {
     ? { google: getPublicEnv('NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION', '') }
     : undefined,
   title: {
-    default: 'KHEL-O — Book Gaming Cafés & Game Zones Near You',
+    default: 'KHEL-O — Pre-Book Gaming Cafés & Game Zones Near You',
     template: '%s | KHEL-O',
   },
   description:
-    'Find and book gaming cafés, VR, snooker, pool and bowling near you. See live availability, compare prices and pay online — no calling ahead.',
+    'Pre-book gaming cafés, PS5, GTA 6, VR, snooker, pool and bowling near you. See live availability, compare prices and pay online — no calling ahead.',
   keywords: [
+    'pre-book gaming cafe',
+    'GTA 6 gaming cafe near me',
+    'play GTA 6 PS5 cafe',
+    'PS5 gaming cafe Hyderabad',
+    'book PS5 slot',
     'gaming café',
     'book gaming PC',
     'esports café India',

@@ -1,5 +1,6 @@
 'use client';
 
+import { Gta6ArtRotator } from '@/components/gta6/Gta6ArtRotator';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -278,7 +279,9 @@ export function DropSpotlight() {
       onClick={() => trackAction('home_spotlight_tap', { drop: many ? null : d.slug, cafes: to.count })}
       className="group relative block overflow-hidden rounded-2xl border border-border/70 shadow-card"
     >
-      {art ? (
+      {!d.coverImageUrl && /gta/i.test(d.game) ? (
+        <Gta6ArtRotator className="aspect-[2/1] w-full md:aspect-[3/1]" alt={`${d.game} artwork`} />
+      ) : art ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={art} alt={`${d.game} artwork`} className="aspect-[2/1] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02] md:aspect-[3/1]" />
       ) : (

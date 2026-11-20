@@ -541,7 +541,7 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
       {/* What KHEL-O is now lives in the header tagline (beside Log in), so
           the first screen is search, tabs, then cafés. The h1 stays for
           crawlers and screen readers. */}
-      <h1 className="sr-only">Book gaming cafés &amp; game zones near you. PCs, consoles, VR, snooker and bowling. See free slots live, pay online, walk in and play.</h1>
+      <h1 className="sr-only">Pre-book gaming cafés &amp; game zones near you. PS5 with GTA 6, PCs, VR, snooker and bowling. See free slots live, reserve and pay online, walk in and play.</h1>
 
       {/* One bar: where (city), what (search), and how (filters). */}
       <div className="relative flex h-[52px] items-center gap-2.5 rounded-full border border-border bg-card pl-3.5 pr-1.5 shadow-card focus-within:border-primary">

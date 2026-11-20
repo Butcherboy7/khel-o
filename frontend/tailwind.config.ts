@@ -201,6 +201,16 @@ const config: Config = {
         // Rotates a conic-gradient sweep behind the card to read as a slow,
         // premium light pass rather than a blinking "sale" pulse. Opacity
         // never modulates — that would read as glow-throb clutter.
+        // GTA 6 sticker: a light pass that sweeps across the ribbon, then rests.
+        'gta-sheen': {
+          '0%, 55%': { transform: 'translateX(-130%)' },
+          '100%': { transform: 'translateX(130%)' },
+        },
+        // Slow push-in on the GTA 6 art that is on screen.
+        'gta-drift': {
+          '0%': { transform: 'scale(1)' },
+          '100%': { transform: 'scale(1.08)' },
+        },
         'live-sweep': {
           '0%': { transform: 'rotate(0deg)' },
           '100%': { transform: 'rotate(360deg)' },
@@ -242,6 +252,8 @@ const config: Config = {
         'skeleton-pulse': 'skeleton-pulse 2s ease-in-out infinite',
         'fade-in-up': 'fade-in-up var(--duration-slow) var(--ease-out) both',
         'live-sweep': 'live-sweep 6s linear infinite',
+        'gta-sheen': 'gta-sheen 3.6s ease-in-out infinite',
+        'gta-drift': 'gta-drift 7s ease-out both',
         'live-dot': 'live-dot 2s ease-in-out infinite',
         'guide-ring': 'guide-ring 1.8s ease-out infinite',
       },

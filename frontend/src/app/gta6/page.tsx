@@ -9,9 +9,9 @@ import { Gta6SearchPage } from '@/components/gta6/Gta6SearchPage';
 import { getGta6Cafes } from '@/lib/gta6Live';
 
 export const metadata: Metadata = {
-  title: { absolute: 'Play GTA 6 at a PS5 Café Near You | KHEL-O' },
+  title: { absolute: 'Pre-Book GTA 6 at a PS5 Café Near You | KHEL-O' },
   description:
-    'GTA 6 is out on PS5 and Xbox. No console? Play it at a PS5 gaming café: see live cafés, prices and hours, book in a minute on KHEL-O and walk in with a QR pass.',
+    'GTA 6 is out on PS5 and Xbox. No console? Pre-book a PS5 gaming café slot: see live cafés, prices and hours, reserve in a minute on KHEL-O and walk in with a QR pass.',
   alternates: { canonical: '/gta6', languages: { 'en-IN': '/gta6' } },
   openGraph: {
     title: 'GTA 6 is out. No PS5? Play it at a café.',
