@@ -390,13 +390,16 @@ function BookingWizardContent() {
   const offerMatches = Boolean(
     offer && offerOpenHere && offer.date === effectiveSessionDate && offer.seats === consolesCount &&
       pickFrom >= offerFrom && pickFrom + Math.round(durationHours * 60) <= offerFrom + Math.round(offer.hours * 60) &&
-      (Math.abs(durationHours - Math.round(durationHours)) < 0.01 || Math.abs(durationHours - offer.hours) < 0.01),
+      (offer.packages?.length
+        ? offer.packages.some((p) => Math.abs(p.hours - durationHours) < 0.01) || Math.abs(durationHours - offer.hours) < 0.01
+        : Math.abs(durationHours - Math.round(durationHours)) < 0.01 || Math.abs(durationHours - offer.hours) < 0.01),
   );
   // Inside a confirmed window the length goes in whole hours (plus the whole window itself).
   const offerLengths = useMemo(() => {
     if (!offer || !offerOpenHere || offer.date !== selectedDate) return undefined;
     const out: number[] = [];
-    for (let h = 1; h <= Math.floor(offer.hours); h += 1) out.push(h * 60);
+    if (offer.packages?.length) offer.packages.forEach((p) => out.push(Math.round(p.hours * 60)));
+    else for (let h = 1; h <= Math.floor(offer.hours); h += 1) out.push(h * 60);
     const full = Math.round(offer.hours * 60);
     if (!out.includes(full)) out.push(full);
     return out;
@@ -1054,6 +1057,36 @@ function BookingWizardContent() {
         <p className="rounded-2xl border border-primary/20 bg-primary/5 px-3.5 py-3 text-caption font-semibold text-text-primary">
           Your GTA 6 slot is confirmed. Have fun playing!
         </p>
+      )}
+      {offerOpenHere && offer && offer.packages && offer.packages.length > 1 && (
+        <section aria-label="KHEL-O prices" className="rounded-2xl border border-border bg-card p-3.5">
+          <p className="text-caption font-bold text-text-primary">KHEL-O exclusive prices</p>
+          <p className="mb-2 text-[11px] text-text-secondary">We brought these down for you. You will not find them anywhere else.</p>
+          <div className="flex flex-col gap-1.5">
+            {offer.packages.map((p) => {
+              const on = Math.abs(p.hours - durationHours) < 0.01;
+              return (
+                <button
+                  key={p.hours}
+                  type="button"
+                  onClick={() => {
+                    const len = Math.round(p.hours * 60);
+                    const from = Math.max(offerFrom, Math.min(pickFrom, offerFrom + Math.round(offer.hours * 60) - len));
+                    handleTimelineChange(`${String(Math.floor(from / 60)).padStart(2, '0')}:${String(from % 60).padStart(2, '0')}`, p.hours, 0);
+                  }}
+                  aria-pressed={on}
+                  className={`flex min-h-[44px] items-center justify-between rounded-xl border px-3 text-left transition ${on ? 'border-primary bg-primary/5' : 'border-border bg-surface hover:bg-border/40'}`}
+                >
+                  <span className="text-body font-semibold text-text-primary">{p.hours} {p.hours === 1 ? 'hour' : 'hours'}</span>
+                  <span className="flex items-center gap-2">
+                    {p.save > 0 && <span className="rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-bold text-success">Save ₹{p.save}</span>}
+                    <span className="text-body font-bold text-text-primary">₹{p.price}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
       )}
       {!offerOpenHere && (availabilityData?.keptForDrops || []).map((k) => (
         <a

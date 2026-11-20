@@ -393,9 +393,11 @@ async def _offer_out(db: AsyncSession, o: Gta6SlotOffer) -> dict:
     if state == "open" and ends <= datetime.now(timezone.utc):
         state = "expired"
     price = None
+    packages = None
     try:
         from app.services import drop_service as dsvc
         if o.game == "gta6":
+            packages = await dsvc.gta6_packages(db, o.cafe_id, o.tier_id, o.session_date, o.start_time, o.hours, o.seats)
             price = float(await dsvc.gta6_price_for(db, o.cafe_id, o.tier_id, o.session_date, o.start_time, o.hours, o.seats))
         elif tier is not None:
             price = float(tier.price_per_hour) * o.hours * o.seats
@@ -406,7 +408,7 @@ async def _offer_out(db: AsyncSession, o: Gta6SlotOffer) -> dict:
         "cafe": {"id": str(cafe.id), "name": cafe.name, "slug": cafe.slug, "city": cafe.city, "area": cafe.address_line2} if cafe else None,
         "tier": {"id": str(tier.id), "name": tier.name} if tier else None,
         "date": o.session_date.isoformat(), "startTime": _hhmm(o.start_time), "hours": o.hours, "seats": o.seats,
-        "game": o.game, "price": price, "expiresAt": ends.isoformat(), "bookingId": str(o.booking_id) if o.booking_id else None,
+        "game": o.game, "price": price, "packages": packages, "expiresAt": ends.isoformat(), "bookingId": str(o.booking_id) if o.booking_id else None,
     }
 
 
@@ -460,12 +462,22 @@ class ClaimIn(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
-def offer_fits(o: Gta6SlotOffer, start: time, hours: float, seats: int) -> bool:
-    """Is this pick inside the window the café confirmed? The whole window always counts; a part of it must be whole hours."""
+async def offer_lengths(db: AsyncSession, o: Gta6SlotOffer) -> Optional[set]:
+    """Hours a player may book inside this window: the café's package lengths (1, 3, 5), plus the whole window."""
+    if o.game != "gta6":
+        return None
+    from app.services import drop_service as dsvc
+    pk = await dsvc.gta6_packages(db, o.cafe_id, o.tier_id, o.session_date, o.start_time, o.hours, o.seats)
+    return None if pk is None else {float(p["hours"]) for p in pk} | {float(o.hours)}
+
+
+def offer_fits(o: Gta6SlotOffer, start: time, hours: float, seats: int, allowed: Optional[set] = None) -> bool:
+    """Is this pick inside the window the café confirmed? The whole window always counts; a part of it must be one of the
+    café's package lengths (or whole hours when it sells none)."""
     mins = lambda t: t.hour * 60 + t.minute
     s, e = mins(start), mins(start) + round(hours * 60)
     os_, oe = mins(o.start_time), mins(o.start_time) + round(o.hours * 60)
-    whole = abs(hours - round(hours)) < 0.01 or abs(hours - o.hours) < 0.01
+    whole = (any(abs(hours - a) < 0.01 for a in allowed) if allowed else abs(hours - round(hours)) < 0.01) or abs(hours - o.hours) < 0.01
     return hours > 0 and o.seats == seats and os_ <= s and e <= oe and whole
 
 
@@ -478,8 +490,8 @@ async def claim_offer(token: str, body: Optional[ClaimIn] = None, user: User = D
     now = datetime.now(timezone.utc)
     pick_start = (body.start_time if body and body.start_time else o.start_time)
     pick_hours = (body.duration_hours if body and body.duration_hours else o.hours)
-    if not offer_fits(o, pick_start, pick_hours, o.seats):
-        raise ValidationException(message="That time is outside the slot we confirmed. Pick inside it, in whole hours.", error_code="OFFER_OUTSIDE_WINDOW")
+    if not offer_fits(o, pick_start, pick_hours, o.seats, await offer_lengths(db, o)):
+        raise ValidationException(message="That time is outside the slot we confirmed. Pick one of the lengths shown, inside it.", error_code="OFFER_OUTSIDE_WINDOW")
     ends = o.expires_at if o.expires_at.tzinfo else o.expires_at.replace(tzinfo=timezone.utc)
     taken = await db.execute(
         update(Gta6SlotOffer)

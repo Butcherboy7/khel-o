@@ -863,6 +863,26 @@ async def gta6_price_for(db: AsyncSession, cafe_id: UUID, tier_id: UUID, session
     return None
 
 
+async def gta6_packages(db: AsyncSession, cafe_id: UUID, tier_id: UUID, session_date: date, start: time,
+                        max_hours: float, seats: int = 1) -> Optional[list[dict]]:
+    """The lengths a player can pick inside a confirmed GTA 6 window, from the café's own GTA 6 listing (a café
+    selling 1, 3 and 5 hour packages offers exactly those, never 4), each with its KHEL-O price and what it saves
+    against paying the one-hour rate for every hour. None when the café has no live GTA 6 listing for the console."""
+    for d in await _cafe_drops(db, cafe_id, session_date, session_date):
+        if (d.game or "").replace(" ", "").lower() == "gta6" and tier_seats(d, tier_id) > 0 and casual(d):
+            begin = _mins(start)
+            one = seat_price(d, begin, 60, session_date)
+            out = []
+            for h in lengths(d):
+                if h > max_hours + 0.01:
+                    continue
+                price = seat_price(d, begin, h * 60, session_date)
+                save = (one * h - price).quantize(Decimal("1"))
+                out.append({"hours": h, "price": float(money(price * seats)), "save": float(save * seats) if save > 0 else 0.0})
+            return out
+    return None
+
+
 def clean_price_options(length_prices, time_prices) -> tuple[Optional[list], Optional[list]]:
     """Check and normalise the owner's package and time prices. Raises DropError in plain words."""
     lp = None

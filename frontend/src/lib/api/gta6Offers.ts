@@ -14,6 +14,8 @@ export interface Gta6Offer {
   seats: number;
   game: 'gta6' | 'other';
   price: number | null;
+  /** The lengths the café sells inside this window, with the KHEL-O price and what each saves. */
+  packages?: { hours: number; price: number; save: number }[] | null;
   expiresAt: string;
   bookingId: string | null;
 }

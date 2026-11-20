@@ -282,3 +282,15 @@ async def test_a_confirmed_window_can_be_booked_in_whole_hours_inside_it_only():
         async with AsyncSessionLocal() as db:
             b = await db.get(Booking, UUID(won.json()["data"]["bookingId"]))
             assert b.start_time.hour == 15 and float(b.duration_hours) == 2.0
+
+
+def test_a_cafe_selling_1_3_and_5_hour_packages_never_gets_4_hours_inside_a_5_hour_window():
+    from types import SimpleNamespace
+    from datetime import time as t
+    from app.api.v1.gta6_requests import offer_fits
+    o = SimpleNamespace(start_time=t(14, 0), hours=5.0, seats=1)
+    packs = {1.0, 3.0, 5.0}
+    assert offer_fits(o, t(14, 0), 5.0, 1, packs) and offer_fits(o, t(14, 0), 3.0, 1, packs) and offer_fits(o, t(16, 0), 1.0, 1, packs)
+    assert not offer_fits(o, t(14, 0), 4.0, 1, packs)      # 4 hours is not a package
+    assert not offer_fits(o, t(14, 0), 2.0, 1, packs)
+    assert not offer_fits(o, t(17, 0), 3.0, 1, packs)      # runs past the confirmed window
