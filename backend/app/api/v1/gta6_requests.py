@@ -453,13 +453,33 @@ async def view_offer(token: str, db: AsyncSession = Depends(get_db)):
     return {"success": True, "data": {"offer": await _offer_out(db, o)}}
 
 
+class ClaimIn(BaseModel):
+    """Optional: take a shorter, whole-hour part of the confirmed window instead of all of it."""
+    start_time: Optional[time] = None
+    duration_hours: Optional[float] = Field(None, ge=1.0, le=8.0)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+def offer_fits(o: Gta6SlotOffer, start: time, hours: float, seats: int) -> bool:
+    """Is this pick inside the window the café confirmed? The whole window always counts; a part of it must be whole hours."""
+    mins = lambda t: t.hour * 60 + t.minute
+    s, e = mins(start), mins(start) + round(hours * 60)
+    os_, oe = mins(o.start_time), mins(o.start_time) + round(o.hours * 60)
+    whole = abs(hours - round(hours)) < 0.01 or abs(hours - o.hours) < 0.01
+    return hours > 0 and o.seats == seats and os_ <= s and e <= oe and whole
+
+
 @router.post("/offers/{token}/claim")
-async def claim_offer(token: str, user: User = Depends(require_gamer), db: AsyncSession = Depends(get_db)):
+async def claim_offer(token: str, body: Optional[ClaimIn] = None, user: User = Depends(require_gamer), db: AsyncSession = Depends(get_db)):
     """First player wins. Takes the offer atomically, then makes the normal held booking (15 minutes to pay)."""
     o = (await db.execute(select(Gta6SlotOffer).where(Gta6SlotOffer.token == token))).scalar_one_or_none()
     if o is None:
         raise NotFoundException(message="This link isn't valid.", error_code="OFFER_NOT_FOUND")
     now = datetime.now(timezone.utc)
+    pick_start = (body.start_time if body and body.start_time else o.start_time)
+    pick_hours = (body.duration_hours if body and body.duration_hours else o.hours)
+    if not offer_fits(o, pick_start, pick_hours, o.seats):
+        raise ValidationException(message="That time is outside the slot we confirmed. Pick inside it, in whole hours.", error_code="OFFER_OUTSIDE_WINDOW")
     ends = o.expires_at if o.expires_at.tzinfo else o.expires_at.replace(tzinfo=timezone.utc)
     taken = await db.execute(
         update(Gta6SlotOffer)
@@ -473,10 +493,10 @@ async def claim_offer(token: str, user: User = Depends(require_gamer), db: Async
         service = BookingService(BookingRepository(db), CafeRepository(db), HardwareTierRepository(db))
         from app.services import drop_service as dsvc
         gta = o.game == "gta6"
-        price = await dsvc.gta6_price_for(db, o.cafe_id, o.tier_id, o.session_date, o.start_time, o.hours, o.seats) if gta else None
+        price = await dsvc.gta6_price_for(db, o.cafe_id, o.tier_id, o.session_date, pick_start, pick_hours, o.seats) if gta else None
         result = await service.create_booking(user.id, BookingCreateRequest(
-            cafe_id=o.cafe_id, hardware_tier_id=o.tier_id, session_date=o.session_date, start_time=o.start_time,
-            duration_hours=o.hours, seats_count=o.seats, game="GTA 6" if gta else None), base_amount_override=price)
+            cafe_id=o.cafe_id, hardware_tier_id=o.tier_id, session_date=o.session_date, start_time=pick_start,
+            duration_hours=pick_hours, seats_count=o.seats, game="GTA 6" if gta else None), base_amount_override=price)
     except Exception:
         # The slot could not be held (someone booked it another way): put the link back so it is not wasted.
         await db.rollback()

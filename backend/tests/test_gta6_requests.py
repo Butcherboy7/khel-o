@@ -263,3 +263,22 @@ async def test_checkout_quote_shows_the_price_claiming_the_link_charges():
             charged = float(b.total_amount)
         got = linked.get("total", linked.get("totalAmount"))
         assert abs(got - charged) < 0.01, (got, charged)
+
+
+@pytest.mark.asyncio
+async def test_a_confirmed_window_can_be_booked_in_whole_hours_inside_it_only():
+    owner, cafe, ps5 = await _cafe_with_rig(total=1)
+    p1, admin = await _user(), await _user(UserRole.ADMIN)
+    body = {"cafeId": str(cafe.id), "hardwareTierId": str(ps5.id), "sessionDate": str(SOON), "startTime": "14:00", "durationHours": 3}
+    async with _client() as c:
+        token = (await c.post("/api/v1/admin/gta6-requests/offers", headers=_h(admin), json=body)).json()["data"]["offer"]["token"]
+        claim = lambda **b: c.post(f"/api/v1/gta6-requests/offers/{token}/claim", headers=_h(p1), json=b)
+        # half hours, or a time that runs past the confirmed window, are refused and leave the link open
+        assert (await claim(startTime="14:00", durationHours=1.5)).status_code == 422
+        assert (await claim(startTime="16:00", durationHours=2)).status_code == 422
+        assert (await c.get(f"/api/v1/gta6-requests/offers/{token}")).json()["data"]["offer"]["status"] == "open"
+        won = await claim(startTime="15:00", durationHours=2)
+        assert won.status_code == 200, won.text
+        async with AsyncSessionLocal() as db:
+            b = await db.get(Booking, UUID(won.json()["data"]["bookingId"]))
+            assert b.start_time.hour == 15 and float(b.duration_hours) == 2.0

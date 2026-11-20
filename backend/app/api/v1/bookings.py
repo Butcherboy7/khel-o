@@ -59,13 +59,13 @@ async def get_quote(
     if payload.offer_token:
         # A confirmed-slot link: show the price claiming it will charge, but only for the exact slot it confirms.
         from app.models.gta6_offer import Gta6SlotOffer
+        from app.api.v1.gta6_requests import offer_fits
         from app.services import drop_service as dsvc
         o = (await db.execute(select(Gta6SlotOffer).where(Gta6SlotOffer.token == payload.offer_token))).scalar_one_or_none()
         if (o is not None and o.status == "open" and o.game == "gta6" and o.cafe_id == payload.cafe_id
                 and o.tier_id == payload.hardware_tier_id and o.session_date == payload.session_date
-                and o.start_time == payload.start_time and abs(o.hours - payload.duration_hours) < 0.01
-                and o.seats == payload.seats_count):
-            override = await dsvc.gta6_price_for(db, o.cafe_id, o.tier_id, o.session_date, o.start_time, o.hours, o.seats)
+                and offer_fits(o, payload.start_time, payload.duration_hours, payload.seats_count)):
+            override = await dsvc.gta6_price_for(db, o.cafe_id, o.tier_id, o.session_date, payload.start_time, payload.duration_hours, o.seats)
     result = await service.get_quote(payload, gamer_id=current_user.id if current_user else None, base_amount_override=override)
     return {
         "success": True,

@@ -35,8 +35,8 @@ export const listGta6Offers = (): Promise<{ offers: Gta6Offer[] }> => call(() =>
 export const cancelGta6Offer = (id: string): Promise<{ offer: Gta6Offer }> =>
   call(() => apiClient.post(`/api/v1/admin/gta6-requests/offers/${id}/cancel`));
 export const getGta6Offer = (token: string): Promise<{ offer: Gta6Offer }> => call(() => apiClient.get(`/api/v1/gta6-requests/offers/${token}`));
-export const claimGta6Offer = (token: string): Promise<{ bookingId: string; payBy: string }> =>
-  call(() => apiClient.post(`/api/v1/gta6-requests/offers/${token}/claim`));
+export const claimGta6Offer = (token: string, pick?: { startTime: string; durationHours: number }): Promise<{ bookingId: string; payBy: string }> =>
+  call(() => apiClient.post(`/api/v1/gta6-requests/offers/${token}/claim`, pick ?? {}));
 
 const clock = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number);

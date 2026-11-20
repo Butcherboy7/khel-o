@@ -383,11 +383,24 @@ function BookingWizardContent() {
   // A confirmed-slot link from the founder (?offer=token): the slot is already chosen and confirmed free with the
   // café, so Pay takes the player straight to payment (no ask-first step). It only counts while the picks still match
   // the link; change the time or console and it is an ordinary booking again.
+  // The whole confirmed window counts, and so does a whole-hour part of it (2 of 3 hours confirmed → 1 or 2 hours).
+  const offerOpenHere = Boolean(offer && offer.status === 'open' && activeTier && offer.tier?.id === activeTier.id);
+  const offerFrom = offer ? timeToMinutes(offer.startTime) : 0;
+  const pickFrom = timeToMinutes(selectedTime.slice(0, 5));
   const offerMatches = Boolean(
-    offer && offer.status === 'open' && activeTier && offer.tier?.id === activeTier.id &&
-      offer.date === effectiveSessionDate && offer.startTime === selectedTime.slice(0, 5) &&
-      Math.abs(offer.hours - durationHours) < 0.01 && offer.seats === consolesCount,
+    offer && offerOpenHere && offer.date === effectiveSessionDate && offer.seats === consolesCount &&
+      pickFrom >= offerFrom && pickFrom + Math.round(durationHours * 60) <= offerFrom + Math.round(offer.hours * 60) &&
+      (Math.abs(durationHours - Math.round(durationHours)) < 0.01 || Math.abs(durationHours - offer.hours) < 0.01),
   );
+  // Inside a confirmed window the length goes in whole hours (plus the whole window itself).
+  const offerLengths = useMemo(() => {
+    if (!offer || !offerOpenHere || offer.date !== selectedDate) return undefined;
+    const out: number[] = [];
+    for (let h = 1; h <= Math.floor(offer.hours); h += 1) out.push(h * 60);
+    const full = Math.round(offer.hours * 60);
+    if (!out.includes(full)) out.push(full);
+    return out;
+  }, [offer, offerOpenHere, selectedDate]);
   const offerActive = offerMatches ? (offerToken as string) : null;
   const [offerDialogSeen, setOfferDialogSeen] = useState(false);
   const offerGone = Boolean(offerToken && offer && offer.status !== 'open');
@@ -809,7 +822,7 @@ function BookingWizardContent() {
     try {
       // Step 1: Create booking (a confirmed-slot link holds the seat for you instead, first come first served)
       const bookingRes = offerActive
-        ? { booking: { id: (await claimGta6Offer(offerActive)).bookingId } }
+        ? { booking: { id: (await claimGta6Offer(offerActive, { startTime: selectedTime.slice(0, 5), durationHours })).bookingId } }
         : await createBooking({
         cafeId: cafe.id,
         hardwareTierId: activeTier.id,
@@ -1037,7 +1050,12 @@ function BookingWizardContent() {
       )}
 
       {/* Seats a launch drop keeps on this setup show as taken below; say why, and offer the drop. */}
-      {(availabilityData?.keptForDrops || []).map((k) => (
+      {offerOpenHere && offer?.game === 'gta6' && (
+        <p className="rounded-2xl border border-primary/20 bg-primary/5 px-3.5 py-3 text-caption font-semibold text-text-primary">
+          Your GTA 6 slot is confirmed. Have fun playing!
+        </p>
+      )}
+      {!offerOpenHere && (availabilityData?.keptForDrops || []).map((k) => (
         <a
           key={k.slug}
           href={`/drops/${k.slug}`}
@@ -1068,6 +1086,7 @@ function BookingWizardContent() {
         minDurationMinutes={minDurationMin}
         maxDurationMinutes={maxDurationMin}
         stepMinutes={durationStep}
+        onlyDurationsMinutes={offerLengths}
         confirmedSlot={offer && offer.status === 'open' && offer.tier?.id === activeTier?.id ? { date: offer.date, start: offer.startTime, hours: offer.hours } : null}
       >
         {/* Players, inside the time card: how many people, and for 2+ on a
