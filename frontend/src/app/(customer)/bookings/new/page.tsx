@@ -1059,10 +1059,9 @@ function BookingWizardContent() {
         </p>
       )}
       {offerOpenHere && offer && offer.packages && offer.packages.length > 1 && (
-        <section aria-label="KHEL-O prices" className="rounded-2xl border border-border bg-card p-3.5">
-          <p className="text-caption font-bold text-text-primary">KHEL-O exclusive prices</p>
-          <p className="mb-2 text-[11px] text-text-secondary">We brought these down for you. You will not find them anywhere else.</p>
-          <div className="flex flex-col gap-1.5">
+        <section aria-label="KHEL-O prices" className="rounded-2xl border border-border bg-card p-3">
+          <p className="mb-2 text-caption font-bold text-text-primary">KHEL-O exclusive prices <span className="font-medium text-text-secondary">· only here, we brought them down</span></p>
+          <div className="grid grid-cols-3 gap-2">
             {offer.packages.map((p) => {
               const on = Math.abs(p.hours - durationHours) < 0.01;
               return (
@@ -1075,13 +1074,11 @@ function BookingWizardContent() {
                     handleTimelineChange(`${String(Math.floor(from / 60)).padStart(2, '0')}:${String(from % 60).padStart(2, '0')}`, p.hours, 0);
                   }}
                   aria-pressed={on}
-                  className={`flex min-h-[44px] items-center justify-between rounded-xl border px-3 text-left transition ${on ? 'border-primary bg-primary/5' : 'border-border bg-surface hover:bg-border/40'}`}
+                  className={`flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-xl border px-1.5 py-1.5 text-center transition ${on ? 'border-primary bg-primary/5' : 'border-border bg-surface hover:bg-border/40'}`}
                 >
-                  <span className="text-body font-semibold text-text-primary">{p.hours} {p.hours === 1 ? 'hour' : 'hours'}</span>
-                  <span className="flex items-center gap-2">
-                    {p.save > 0 && <span className="rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-bold text-success">Save ₹{p.save}</span>}
-                    <span className="text-body font-bold text-text-primary">₹{p.price}</span>
-                  </span>
+                  <span className="text-caption font-semibold text-text-secondary">{p.hours} {p.hours === 1 ? 'hour' : 'hours'}</span>
+                  <span className="text-body font-bold text-text-primary">₹{p.price.toLocaleString('en-IN')}</span>
+                  {p.save > 0 ? <span className="rounded-full bg-success/10 px-1.5 text-[11px] font-bold text-success">Save ₹{p.save.toLocaleString('en-IN')}</span> : <span className="text-[11px] text-transparent" aria-hidden="true">.</span>}
                 </button>
               );
             })}
