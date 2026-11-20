@@ -64,7 +64,7 @@ export default function OfferClient({ token }: { token: string }) {
           <Row k="Console" v={o.tier?.name ?? ''} />
           <Row k="When" v={offerWhen(o)} />
           {o.price != null && <Row k="Total" v={`₹${Math.round(o.price)}`} />}
-          <Row k="Pay now" v={o.price != null ? `₹${Math.ceil(o.price / 2)} (50% in advance)` : '50% in advance'} />
+          <Row k="Pay now" v={o.price != null ? `₹${Math.round(o.price)} (full amount)` : 'Full amount'} />
         </dl>
         <p className="text-caption text-text-secondary">
           Link open for <b className="text-text-primary">{clockText(secs)}</b>. After you tap below you have 15 minutes to pay. Be there 10 to 15 minutes before your start or the café can give your seat away.

@@ -121,7 +121,7 @@ async def test_page_needs_no_login_and_shows_prices_and_seats():
     assert d["state"] == "open" and d["cafe"]["mapsUrl"].startswith("https://www.google.com/maps/")
     b = d["blocks"][0]
     assert b["seatsLeft"] == 4 and b["seatsTotal"] == 4 and b["hours"] == 5
-    assert b["pricePerSeat"] == 1250 and b["balancePerSeat"] == 1151
+    assert b["pricePerSeat"] == 1250 and b["balancePerSeat"] == 625
     assert "earlyAccessCode" not in d and d["myReservations"] == []
 
 

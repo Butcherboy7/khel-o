@@ -42,7 +42,7 @@ async def test_packages_set_the_price_and_only_those_lengths_book():
         r = await _reserve(c, d["slug"], blk, "12:00", 3, "9876520001")
         assert r.status_code == 201, r.text
         res = r.json()["data"]["reservation"]
-        assert res["blockPrice"] == 650 and res["deposit"] == 150 and res["balanceDue"] == 500
+        assert res["blockPrice"] == 650 and res["deposit"] == 325 and res["balanceDue"] == 325
         r = await _reserve(c, d["slug"], blk, "16:00", 5, "9876520002")
         assert r.json()["data"]["reservation"]["blockPrice"] == 850
         r = await _reserve(c, d["slug"], blk, "12:00", 2, "9876520003")

@@ -69,7 +69,7 @@ def _block_out(drop: Drop, b: DropBlock, hour_free: Optional[dict] = None) -> di
         "seatsTotal": b.seats_total,
         "seatsLeft": max(0, b.seats_total - b.seats_taken),
         "pricePerSeat": float(per_seat),
-        "balancePerSeat": float(max(0, per_seat - svc.money(drop.deposit_amount))),
+        "balancePerSeat": float(max(0, per_seat - svc.advance_due(svc.money(per_seat), svc.money(drop.deposit_amount)))),
         "hourFree": hour_free or {},
         "started": svc.block_closed(drop, b),
         # This date's price windows (its own, or the drop's usual ones).

@@ -416,6 +416,8 @@ async def create_offer(payload: OfferIn, db: AsyncSession = Depends(get_db), adm
     tier = await db.get(HardwareTier, payload.hardware_tier_id)
     if tier is None or tier.cafe_id != payload.cafe_id:
         raise ValidationException(message="That setup doesn't belong to that café.", error_code="BAD_SETUP")
+    if payload.session_date < datetime.now(IST).date():
+        raise ValidationException(message="That day has already passed. Pick today or later.", error_code="PAST_DATE")
     token = "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
     o = Gta6SlotOffer(
         token=token, cafe_id=payload.cafe_id, tier_id=payload.hardware_tier_id, session_date=payload.session_date,

@@ -56,7 +56,7 @@ export function DropsManager({ base = '/owner/drops', admin = false, extra }: { 
         title="Launch drops"
         description={
           admin
-            ? 'Set up and run a launch drop for any café. People reserve with a small booking fee that comes off their bill, and pay the rest at the café.'
+            ? 'Set up and run a launch drop for any café. People reserve by paying 50% in advance, which comes off their bill, and pay the rest at the café.'
             : 'Sell seats before a big game launch. Players pay a small fee now, the rest at your café.'
         }
         action={

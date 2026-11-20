@@ -124,7 +124,7 @@ function EditPrices({ d, onDone }: { d: OwnerDrop; onDone: () => void }) {
           ))}
         </div>
         {d.maxHours ? <DropPriceOptions base={Number(price) || 0} value={opts} onChange={setOpts} /> : null}
-        <p className="text-caption text-text-secondary">Booking fee = paid online to hold a seat, then taken off their bill. New prices are for new bookings only.</p>
+        <p className="text-caption text-text-secondary">Players always pay at least 50% of the price online to hold a seat; this fee is the minimum if it is higher. It is taken off their bill. New prices are for new bookings only.</p>
         <div className="flex items-center gap-3">
           <Button onClick={save} disabled={busy || !changed || !Number(price) || overlapping(opts.timePrices)}>Save prices</Button>
           {msg && <span className={`text-caption ${msg.ok ? 'text-success' : 'text-error'}`}>{msg.text}</span>}
@@ -549,7 +549,7 @@ function GiveAway({ id, name, onDone }: { id: string; name: string; onDone: () =
       <Confirm
         open={asking}
         title="Give this seat away?"
-        body={`${name} is more than 15 minutes late. The seat opens for someone else and ${name} does not get the booking fee back.`}
+        body={`${name} is more than 15 minutes late. The seat opens for someone else and ${name} does not get the advance back.`}
         yes="Yes, give it away"
         no="Wait a bit longer"
         busy={busy}
@@ -801,7 +801,7 @@ export function DropManage({ id, base = '/owner/drops', admin = false }: { id: s
       <OwnerPageHeader
         guide={admin ? undefined : 'drop'}
         title={d.title}
-        description={[d.cafe.name, consolesLine(d) || d.playsOn, `${rupees(d.pricePerHour)} an hour`, `${rupees(d.deposit)} to book a seat`].filter(Boolean).join(' · ')}
+        description={[d.cafe.name, consolesLine(d) || d.playsOn, `${rupees(d.pricePerHour)} an hour`, '50% in advance to book a seat'].filter(Boolean).join(' · ')}
       />
 
       <StatusBar d={d} onChanged={refresh} />
