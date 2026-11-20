@@ -916,7 +916,8 @@ function BookingWizardContent() {
       <div className="relative">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => router.back()}
+            // A shared link opens straight on this page, so there is nothing behind it to go back to: land on Home.
+            onClick={() => (offerToken || window.history.length <= 1 ? router.push('/') : router.back())}
             aria-label="Back"
             className="flex h-11 w-11 -ml-2 flex-shrink-0 items-center justify-center rounded-full text-secondary hover:bg-surface transition-colors"
           >
