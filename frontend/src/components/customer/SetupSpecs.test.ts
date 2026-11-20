@@ -33,3 +33,13 @@ describe('founderCallUrl', () => {
   it('builds a tel link', () => expect(founderCallUrl('918142128389')).toBe('tel:+918142128389'));
   it('refuses a short number', () => expect(founderCallUrl('123')).toBeNull());
 });
+
+import { gameArtFor } from '@/lib/gameArt';
+describe('poster art lookup', () => {
+  it('finds art however the café typed the name', () => {
+    for (const n of ['Counter-Strike 2', 'CS2', 'GTA V Online', 'GTA5', 'EA Sports FC 24', 'FIFA', "Marvel's Spider-Man 2", 'God of War Ragnark', 'GTA 6']) {
+      expect(gameArtFor(n), n).toBeTruthy();
+    }
+  });
+  it('leaves a game with no licensed art to the generated poster', () => expect(gameArtFor('Valorant')).toBeNull());
+});

@@ -53,12 +53,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { page, facet, cafes } = data;
   const stats = withShownPrices(page.stats, cafes);
   const bookable = cafes.filter((c) => !c.isLeadListing).length;
-  const title = `${pageHeading(facet, page.city.name)}: Prices & Timings`;
+  // A page whose cafés include a PS5 / Xbox Series setup also answers "GTA 6 near me" and "pre-book PS5" searches.
+  const gta6 = cafes.some((c) => c.hasGta6 && !c.isLeadListing);
+  const title = `${pageHeading(facet, page.city.name)}: ${gta6 ? 'Pre-Book GTA 6 & PS5' : 'Prices & Timings'}`;
   const description = `${stats.cafeCount} place${stats.cafeCount === 1 ? '' : 's'}: ${cafes
     .slice(0, 3)
     .map((c) => cleanName(c.name))
     .join(', ')}${cafes.length > 3 ? ' and more' : ''}.${stats.minPrice != null ? ` From ₹${stats.minPrice}/hr.` : ''} ${
-    bookable > 0 ? 'Compare timings and book online on KHEL-O.' : 'Compare locations and timings on KHEL-O; online booking is coming soon.'
+    bookable > 0 ? `${gta6 ? 'Play GTA 6 on PS5. ' : ''}Compare timings, pre-book a slot and pay online on KHEL-O.` : 'Compare locations and timings on KHEL-O; online booking is coming soon.'
   }`;
 
   return {
