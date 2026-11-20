@@ -284,6 +284,9 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
             bd["bookedSlots"] = svc.booked_windows(wins)
             # The same picture for each console type, so a PS5 booking never hides a free Xbox.
             per = svc.setup_windows(drop, blk, await svc.holding_rows(db, blk))
+            normal = await svc.normal_booking_rows(db, drop, blk) if svc.casual(drop) else []
+            for s_, e_, n_, t_ in normal:   # an ordinary booking on this setup (Xbox Series S...) is busy there too
+                per.setdefault(t_, []).append((s_, e_, n_))
             keys = svc.block_keys(drop, blk)
             bd["bySetup"] = {}
             for t in svc.tier_counts(drop):
@@ -292,8 +295,9 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
                 bd["bySetup"][t] = {"seatsTotal": total, "hourFree": svc.seats_free(w, blk, total),
                                     "bookedSlots": svc.booked_windows(w)}
             # And for every single console, so a player can pick PS5 Pro 1 or 2 and see when it is free.
-            bd["byConsole"] = {k: svc.booked_windows(w)
-                               for k, w in svc.console_windows(drop, blk, await svc.holding_rows(db, blk)).items()}
+            cw = svc.console_windows(drop, blk, await svc.holding_rows(db, blk))
+            svc.add_normal_to_consoles(drop, blk, cw, normal)
+            bd["byConsole"] = {k: svc.booked_windows(w) for k, w in cw.items()}
     mine = []
     if user is not None:
         by_id = {b.id: b for b in blocks}

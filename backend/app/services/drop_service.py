@@ -1450,6 +1450,37 @@ async def normal_booking_windows(db: AsyncSession, drop: Drop, block: DropBlock)
     return out
 
 
+async def normal_booking_rows(db: AsyncSession, drop: Drop, block: DropBlock) -> list[tuple[int, int, int, str]]:
+    """The same ordinary bookings as normal_booking_windows, with the setup (tier id) each one sits on, so the
+    drop page can show them against that setup and console (an Xbox Series S booking marks the Xbox busy)."""
+    from app.models.booking import Booking, BookingStatus, SEAT_HOLDING_STATUSES
+    tiers = [UUID(t) for t in tier_counts(drop)]
+    if not tiers:
+        return []
+    ttl = datetime.now(timezone.utc) - timedelta(minutes=15)
+    rows = (await db.execute(select(Booking).where(
+        Booking.hardware_tier_id.in_(tiers), Booking.session_date == block.session_date,
+        or_(Booking.status.in_(SEAT_HOLDING_STATUSES),
+            and_(Booking.status == BookingStatus.PENDING_PAYMENT, Booking.created_at >= ttl))))).scalars().all()
+    out = []
+    for bk in rows:
+        s, e = span(bk.start_time, bk.end_time)
+        out.append((s, e, bk.seats_count, str(bk.hardware_tier_id)))
+    return out
+
+
+def add_normal_to_consoles(drop: Drop, block: DropBlock, per_console: dict, normal: list) -> None:
+    """Put each ordinary booking on the first console of its setup that is free then (greedy), in place."""
+    keys = block_keys(drop, block)
+    for s, e, n, tier in sorted(normal, key=lambda x: x[0]):
+        mine = [k for k in keys if key_tier(k) == tier and k in per_console]
+        for _ in range(max(1, n)):
+            free = [k for k in mine if not any(a < e and s < z for a, z, _n in per_console[k])]
+            pick = (free or mine or [None])[0]
+            if pick is not None:
+                per_console[pick].append((s, e, 1))
+
+
 async def dedicated_windows(db: AsyncSession, tier_id: UUID, day) -> list[tuple[int, int, int, str]]:
     """Seats of a rig kept for a live drop on this calendar day: (start_min, end_min, seats, title),
     end_min at most 1440. Normal booking sees these seats as taken during the drop's hours on
@@ -1707,6 +1738,8 @@ async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict],
         m %= DAY_MIN
         return f"{m // 60:02d}:{m % 60:02d}"
 
+    normal = await normal_booking_windows(db, drop, block) if casual(drop) else []
+
     def counts(lo: int, hi: int) -> tuple[int, int]:
         booked = pending = 0
         for r, _ in live:
@@ -1716,6 +1749,9 @@ async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict],
                     booked += r.seats
                 else:
                     pending += r.seats
+        for s, e, n in normal:
+            if s < hi and e > lo:
+                booked += n
         return booked, pending
 
     timeline = []
