@@ -179,3 +179,8 @@ def test_ordinary_booking_marks_its_own_console_busy_on_the_drop_board():
         assert pc["ps:1"] == [(780, 1080, 1)] and pc["xb:1"] == [(780, 1080, 1)]
     finally:
         svc.block_keys = real
+
+
+def test_a_drop_with_no_setup_chosen_has_no_real_tiers_and_does_not_crash():
+    drop = Drop(hardware_tier_id=None, consoles=None, daily_seats=2)   # keys are the "_" placeholder
+    assert svc._real_tiers(drop) == []

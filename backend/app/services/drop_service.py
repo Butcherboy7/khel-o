@@ -1438,12 +1438,24 @@ async def _normal_hour_holds(db: AsyncSession, drop: Drop, cafe: Cafe, tier_id: 
     return out
 
 
+def _real_tiers(drop: Drop) -> list[UUID]:
+    """The drop's setup ids as UUIDs. A drop with no setup chosen yet keeps a placeholder ('_'): no real setup, so
+    there are no ordinary bookings to count against it."""
+    out = []
+    for t in tier_counts(drop):
+        try:
+            out.append(UUID(t))
+        except ValueError:
+            continue
+    return out
+
+
 async def normal_booking_windows(db: AsyncSession, drop: Drop, block: DropBlock) -> list[tuple[int, int, int]]:
     """Ordinary bookings (and 15-minute holds) on this drop's consoles that day, as (start, end, seats) from the
     session day's midnight. Once the game is out they share the same consoles as the drop, so its page shows them
     as busy too."""
     from app.models.booking import Booking, BookingStatus, SEAT_HOLDING_STATUSES
-    tiers = [UUID(t) for t in tier_counts(drop)]
+    tiers = _real_tiers(drop)
     if not tiers:
         return []
     ttl = datetime.now(timezone.utc) - timedelta(minutes=15)
@@ -1462,7 +1474,7 @@ async def normal_booking_rows(db: AsyncSession, drop: Drop, block: DropBlock) ->
     """The same ordinary bookings as normal_booking_windows, with the setup (tier id) each one sits on, so the
     drop page can show them against that setup and console (an Xbox Series S booking marks the Xbox busy)."""
     from app.models.booking import Booking, BookingStatus, SEAT_HOLDING_STATUSES
-    tiers = [UUID(t) for t in tier_counts(drop)]
+    tiers = _real_tiers(drop)
     if not tiers:
         return []
     ttl = datetime.now(timezone.utc) - timedelta(minutes=15)
