@@ -294,3 +294,18 @@ def test_a_cafe_selling_1_3_and_5_hour_packages_never_gets_4_hours_inside_a_5_ho
     assert not offer_fits(o, t(14, 0), 4.0, 1, packs)      # 4 hours is not a package
     assert not offer_fits(o, t(14, 0), 2.0, 1, packs)
     assert not offer_fits(o, t(17, 0), 3.0, 1, packs)      # runs past the confirmed window
+
+
+@pytest.mark.asyncio
+async def test_the_same_player_tapping_pay_again_keeps_their_held_seat_and_the_public_link_hides_the_booking():
+    owner, cafe, ps5 = await _cafe_with_rig(total=1)
+    p1, p2, admin = await _user(), await _user(), await _user(UserRole.ADMIN)
+    body = {"cafeId": str(cafe.id), "hardwareTierId": str(ps5.id), "sessionDate": str(SOON), "startTime": "14:00", "durationHours": 2}
+    async with _client() as c:
+        token = (await c.post("/api/v1/admin/gta6-requests/offers", headers=_h(admin), json=body)).json()["data"]["offer"]["token"]
+        first = await c.post(f"/api/v1/gta6-requests/offers/{token}/claim", headers=_h(p1), json={})
+        again = await c.post(f"/api/v1/gta6-requests/offers/{token}/claim", headers=_h(p1), json={})
+        assert first.status_code == 200 and again.status_code == 200
+        assert first.json()["data"]["bookingId"] == again.json()["data"]["bookingId"]
+        assert (await c.post(f"/api/v1/gta6-requests/offers/{token}/claim", headers=_h(p2), json={})).status_code == 422
+        assert "bookingId" not in (await c.get(f"/api/v1/gta6-requests/offers/{token}")).json()["data"]["offer"]

@@ -17,7 +17,7 @@ export interface Gta6Offer {
   /** The lengths the café sells inside this window, with the KHEL-O price and what each saves. */
   packages?: { hours: number; price: number; save: number }[] | null;
   expiresAt: string;
-  bookingId: string | null;
+  bookingId?: string | null;
 }
 
 export interface Gta6OfferBody {

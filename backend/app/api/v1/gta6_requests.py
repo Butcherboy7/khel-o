@@ -420,6 +420,9 @@ async def create_offer(payload: OfferIn, db: AsyncSession = Depends(get_db), adm
         raise ValidationException(message="That setup doesn't belong to that café.", error_code="BAD_SETUP")
     if payload.session_date < datetime.now(IST).date():
         raise ValidationException(message="That day has already passed. Pick today or later.", error_code="PAST_DATE")
+    now_ist = datetime.now(IST)
+    if payload.session_date == now_ist.date() and payload.start_time <= now_ist.time().replace(tzinfo=None):
+        raise ValidationException(message="That start time has already passed today. Pick a later time.", error_code="PAST_TIME")
     token = "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
     o = Gta6SlotOffer(
         token=token, cafe_id=payload.cafe_id, tier_id=payload.hardware_tier_id, session_date=payload.session_date,
@@ -452,7 +455,9 @@ async def view_offer(token: str, db: AsyncSession = Depends(get_db)):
     o = (await db.execute(select(Gta6SlotOffer).where(Gta6SlotOffer.token == token))).scalar_one_or_none()
     if o is None:
         raise NotFoundException(message="This link isn't valid.", error_code="OFFER_NOT_FOUND")
-    return {"success": True, "data": {"offer": await _offer_out(db, o)}}
+    out = await _offer_out(db, o)
+    out.pop("bookingId", None)   # public link: never hand out who holds what
+    return {"success": True, "data": {"offer": out}}
 
 
 class ClaimIn(BaseModel):
@@ -488,6 +493,12 @@ async def claim_offer(token: str, body: Optional[ClaimIn] = None, user: User = D
     if o is None:
         raise NotFoundException(message="This link isn't valid.", error_code="OFFER_NOT_FOUND")
     now = datetime.now(timezone.utc)
+    # The same player tapping Pay again (the payment screen failed to open, a double tap) gets the seat they already
+    # hold, not a "taken" error for their own slot.
+    if o.status == "claimed" and o.claimed_by == user.id and o.booking_id:
+        held = await db.get(Booking, o.booking_id)
+        if held is not None and held.status == BookingStatus.PENDING_PAYMENT:
+            return {"success": True, "data": {"bookingId": str(held.id), "payBy": (now + timedelta(minutes=HOLD_MINUTES)).isoformat()}}
     pick_start = (body.start_time if body and body.start_time else o.start_time)
     pick_hours = (body.duration_hours if body and body.duration_hours else o.hours)
     if not offer_fits(o, pick_start, pick_hours, o.seats, await offer_lengths(db, o)):
