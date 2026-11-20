@@ -173,7 +173,7 @@ export default function FreeSlotPanel() {
           </select>
         </label>
         <label className={label}>
-          Player's number (optional, opens their chat)
+          Player&apos;s number (optional, opens their chat)
           <input className={field} inputMode="tel" placeholder="98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </label>
       </div>
