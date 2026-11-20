@@ -1,4 +1,4 @@
-import { gameArtFor, posterColors } from '@/lib/gameArt';
+import { gameArtFor, isGta6, posterColors } from '@/lib/gameArt';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 
 /**
@@ -8,9 +8,12 @@ import { PlatformIcon } from '@/components/icons/PlatformIcons';
 export function GamePoster({ game, platform }: { game: string; platform: string }) {
   const art = gameArtFor(game);
   const { from, to } = posterColors(game);
+  const ready = isGta6(game);
   return (
     <li
-      className="relative aspect-[3/4] w-[104px] flex-none snap-start overflow-hidden rounded-2xl border border-black/10 shadow-card"
+      className={`relative aspect-[3/4] flex-none snap-start overflow-hidden rounded-2xl shadow-card ${
+        ready ? 'w-[124px] border-2 border-primary' : 'w-[104px] border border-black/10'
+      }`}
       style={art ? undefined : { backgroundImage: `linear-gradient(155deg, ${from}, ${to})` }}
     >
       {art && (
@@ -18,6 +21,11 @@ export function GamePoster({ game, platform }: { game: string; platform: string 
         <img src={art} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" decoding="async" />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" aria-hidden />
+      {ready && (
+        <span className="absolute left-2 top-2 z-10 rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white shadow-md">
+          Ready to play
+        </span>
+      )}
       <div className="relative flex h-full flex-col justify-end gap-1.5 p-2.5">
         <span className="font-heading text-[15px] font-extrabold uppercase leading-[1.05] tracking-tight text-white [overflow-wrap:anywhere]">
           {game}

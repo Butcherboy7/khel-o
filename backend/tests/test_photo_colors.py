@@ -43,7 +43,7 @@ async def test_attach_colors_adds_known_and_reports_missing(db_session):
     db_session.add(PhotoColor(url=known, color="#112233"))
     await db_session.commit()
 
-    photos = [{"url": known, "category": "interior"}, {"url": unknown, "category": "setup"}, {"url": foreign, "category": "x"}]
+    photos = [{"url": known, "category": "interior", "orient": "h"}, {"url": unknown, "category": "setup"}, {"url": foreign, "category": "x"}]
     missing = await attach_colors(db_session, [photos, None, []])
 
     assert photos[0]["color"] == "#112233"
@@ -86,7 +86,7 @@ async def _cafe(db, photos):
 async def test_cafe_page_and_list_carry_photo_colours(async_client, db_session, monkeypatch):
     known, unknown = BUCKET + f"{uuid.uuid4().hex}.jpg", BUCKET + f"{uuid.uuid4().hex}.jpg"
     db_session.add(PhotoColor(url=known, color="#abcdef"))
-    cafe = await _cafe(db_session, [{"url": known, "category": "interior"}, {"url": unknown, "category": "setup"}])
+    cafe = await _cafe(db_session, [{"url": known, "category": "interior", "orient": "h"}, {"url": unknown, "category": "setup"}])
 
     queued = []
 
@@ -105,3 +105,19 @@ async def test_cafe_page_and_list_carry_photo_colours(async_client, db_session, 
     assert r.status_code == 200
     item = next(i for i in r.json()["data"]["items"] if i["id"] == str(cafe.id))
     assert item["photos"][0]["color"] == "#abcdef"
+
+
+def test_wide_photos_come_first_unless_the_owner_picked_a_cover():
+    from app.services.photo_colors import order_photos, orientation_of
+    photos = [{"url": "tall", "orient": "v"}, {"url": "wide", "orient": "h"}, {"url": "unknown"}, {"url": "tall2", "orient": "v"}]
+    order_photos(photos)
+    assert [p["url"] for p in photos] == ["wide", "unknown", "tall", "tall2"]
+    pinned = [{"url": "wide", "orient": "h"}, {"url": "tall", "orient": "v", "cover": "1"}]
+    order_photos(pinned)
+    assert pinned[0]["url"] == "tall"
+
+    def png(w, h):
+        out = io.BytesIO()
+        Image.new("RGB", (w, h), (10, 10, 10)).save(out, "PNG")
+        return out.getvalue()
+    assert orientation_of(png(200, 100)) == "h" and orientation_of(png(100, 200)) == "v" and orientation_of(png(100, 100)) == "h"

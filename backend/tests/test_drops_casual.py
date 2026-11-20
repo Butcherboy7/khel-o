@@ -164,3 +164,18 @@ async def test_drop_page_shows_normal_bookings_and_opens_a_week_ahead():
         from datetime import datetime as _dt, timezone as _tz
         limit = _dt.fromisoformat(d["bookableUntil"])
         assert limit - _dt.now(_tz.utc) > timedelta(days=6, hours=20)
+
+
+def test_ordinary_booking_marks_its_own_console_busy_on_the_drop_board():
+    """A slot-link booking on the Xbox (not a drop reservation) must show as booked on the Xbox, not on the PS5."""
+    pc = {"ps:1": [], "ps:2": [(780, 900, 1)], "xb:1": []}
+    real = svc.block_keys
+    svc.block_keys = lambda d, b: ["ps:1", "ps:2", "xb:1"]
+    try:
+        svc.add_normal_to_consoles(None, None, pc, [(780, 1080, 1, "xb")])
+        assert pc["xb:1"] == [(780, 1080, 1)] and pc["ps:1"] == []
+        # An ordinary PS5 booking takes the free PS5 (ps:2 is already busy then) and never lands on the Xbox.
+        svc.add_normal_to_consoles(None, None, pc, [(780, 1080, 1, "ps")])
+        assert pc["ps:1"] == [(780, 1080, 1)] and pc["xb:1"] == [(780, 1080, 1)]
+    finally:
+        svc.block_keys = real

@@ -28,6 +28,8 @@ export const GAME_ART: Record<string, string> = {
   eafc25: steam('eafc25'), easportsfc25: steam('eafc25'), fifa: steam('eafc25'), eafc: steam('eafc25'), easportsfc: steam('eafc25'), fc25: steam('eafc25'),
   forza: steam('forzahorizon5'), forzahorizon5: steam('forzahorizon5'),
   callofduty: steam('callofduty'), callofdutywarzone: steam('callofduty'), callofdutymodernwarfareiii: steam('callofduty'), warzone: steam('callofduty'), cod: steam('callofduty'),
+  valorant: steam('valorant'), valo: steam('valorant'),
+  fortnite: steam('fortnite'),
   needforspeed: steam('needforspeedunbound'), nfs: steam('needforspeedunbound'), needforspeedunbound: steam('needforspeedunbound'),
 };
 
@@ -36,8 +38,31 @@ export function gameArtKey(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+/**
+ * Cafés type game names their own way ("COD Warzone 2", "Valorant PC", "GTA VI"), so after the exact spellings above
+ * a name that merely contains a known game still gets its art. Order matters: GTA 6 before GTA V.
+ */
+const LOOSE: Array<[string, string]> = [
+  ['gta6', 'gta6'], ['gtavi', 'gta6'], ['grandtheftautovi', 'gta6'],
+  ['valorant', 'valorant'], ['fortnite', 'fortnite'],
+  ['warzone', 'callofduty'], ['callofduty', 'callofduty'],
+  ['counterstrike', 'counterstrike2'], ['cs2', 'counterstrike2'],
+  ['apexlegends', 'apexlegends'], ['gtav', 'gtav'], ['grandtheftauto', 'gtav'],
+  ['eafc', 'eafc25'], ['fifa', 'eafc25'], ['tekken', 'tekken8'], ['mortalkombat', 'mortalkombat1'],
+  ['forza', 'forza'], ['needforspeed', 'needforspeed'], ['dota', 'dota2'],
+];
+
 export function gameArtFor(name: string): string | null {
-  return GAME_ART[gameArtKey(name)] ?? null;
+  const key = gameArtKey(name);
+  if (GAME_ART[key]) return GAME_ART[key];
+  const hit = LOOSE.find(([part]) => key.includes(part));
+  return hit ? GAME_ART[hit[1]] ?? null : null;
+}
+
+/** True for GTA 6 under any spelling: it gets the "ready to play" treatment on the poster. */
+export function isGta6(name: string): boolean {
+  const key = gameArtKey(name);
+  return key.includes('gta6') || key.includes('gtavi') || key.includes('grandtheftautovi');
 }
 
 function hash(s: string): number {

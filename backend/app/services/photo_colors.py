@@ -56,6 +56,25 @@ def dominant_color(data: bytes) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
+def orientation_of(data: bytes) -> str:
+    """'h' for a wide photo, 'v' for a tall one (width less than 90% of height), 'h' when square-ish."""
+    with Image.open(io.BytesIO(data)) as img:
+        w, h = img.size
+    return "v" if w < h * 0.9 else "h"
+
+
+def order_photos(photos) -> None:
+    """Customer view: horizontal photos first (they fill the card and the wide gallery), vertical ones after,
+    each keeping the owner's order. The owner can override by marking a photo as cover ("cover": "1"):
+    then their order is kept exactly. Sorts the list in place."""
+    if not photos or not isinstance(photos, list):
+        return
+    if any(isinstance(p, dict) and p.get("cover") == "1" for p in photos):
+        photos.sort(key=lambda p: 0 if isinstance(p, dict) and p.get("cover") == "1" else 1)
+        return
+    photos.sort(key=lambda p: 1 if isinstance(p, dict) and p.get("orient") == "v" else 0)
+
+
 async def colors_for(db: AsyncSession, urls: Iterable[str]) -> dict[str, str]:
     wanted = {u for u in urls if u}
     if not wanted:
@@ -70,11 +89,15 @@ async def attach_colors(db: AsyncSession, photo_lists: Iterable[list]) -> list[s
     lists = [pl for pl in photo_lists if pl]
     urls = [u for pl in lists for u in (_url_of(p) for p in pl) if u]
     known = await colors_for(db, urls)
+    no_orient = set()
     for pl in lists:
         for p in pl:
             if isinstance(p, dict) and p.get("url") in known:
                 p["color"] = known[p["url"]]
-    return [u for u in dict.fromkeys(urls) if u not in known and _ALLOWED.match(u)]
+            if isinstance(p, dict) and not p.get("orient") and p.get("url"):
+                no_orient.add(p["url"])
+        order_photos(pl)
+    return [u for u in dict.fromkeys(urls) if (u not in known or u in no_orient) and _ALLOWED.match(u)]
 
 
 async def _download(client: httpx.AsyncClient, url: str) -> bytes | None:
@@ -94,6 +117,7 @@ async def fill_colors(db: AsyncSession, urls: Iterable[str]) -> int:
     if not todo:
         return 0
     stored = 0
+    orient: dict[str, str] = {}
     async with httpx.AsyncClient(follow_redirects=True) as client:
         for url in todo:
             data = await _download(client, url)
@@ -101,21 +125,38 @@ async def fill_colors(db: AsyncSession, urls: Iterable[str]) -> int:
                 continue
             try:
                 color = await asyncio.to_thread(dominant_color, data)
+                orient[url] = await asyncio.to_thread(orientation_of, data)
             except Exception:  # not an image Pillow can read
                 continue
             # merge: insert, or overwrite if another run got there first.
             await db.merge(PhotoColor(url=url, color=color))
             stored += 1
     await db.commit()
+    await _write_orientation(db, orient)
     return stored
+
+
+async def _write_orientation(db: AsyncSession, orient: dict[str, str]) -> None:
+    """Remember each photo's orientation inside the café's own photo list (a plain text field on the photo)."""
+    if not orient:
+        return
+    for cafe in (await db.execute(select(Cafe))).scalars().all():
+        photos = cafe.photos or []
+        if not any(isinstance(p, dict) and p.get("url") in orient for p in photos):
+            continue
+        cafe.photos = [({**p, "orient": orient[p["url"]]} if isinstance(p, dict) and p.get("url") in orient else p)
+                       for p in photos]
+    await db.commit()
 
 
 async def missing_urls(db: AsyncSession) -> list[str]:
     """Every café photo URL that has no colour yet."""
     rows = await db.execute(select(Cafe.photos))
-    urls = [u for (photos,) in rows.all() for u in (_url_of(p) for p in (photos or [])) if u]
+    all_photos = [p for (photos,) in rows.all() for p in (photos or [])]
+    urls = [u for u in (_url_of(p) for p in all_photos) if u]
     known = await colors_for(db, urls)
-    return [u for u in dict.fromkeys(urls) if u not in known and _ALLOWED.match(u)]
+    no_orient = {p["url"] for p in all_photos if isinstance(p, dict) and p.get("url") and not p.get("orient")}
+    return [u for u in dict.fromkeys(urls) if (u not in known or u in no_orient) and _ALLOWED.match(u)]
 
 
 async def fill_in_background(urls: list[str]) -> None:

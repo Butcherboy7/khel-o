@@ -133,6 +133,26 @@ class CafeService:
                 if platform in active_gaming_platforms
             }
 
+        # GTA 6 leads the games row of every café that has a console which runs it (PS5 / Xbox Series), because
+        # that is the game players are searching for. Computed for the customer response only: the café's own
+        # saved game list is never changed, and a café with no such console never claims it.
+        if response_cls is CafeResponse:
+            from app.core.game_platforms import fit, rule_for
+            rule = rule_for("GTA 6")
+            runs_on: list[str] = []
+            for t in tiers_res:
+                plat = getattr(t.platform, "value", t.platform)
+                if not plat or t.tier_type == "activity" or plat in runs_on:
+                    continue
+                if fit(rule, plat, t.specs, t.name, getattr(t, "model", None), t.tier_type) == "yes":
+                    runs_on.append(plat)
+            if runs_on:
+                games = dict(resp.supported_games or {})
+                for plat in runs_on:
+                    kept = [g for g in games.get(plat, []) if rule_for(g) is None]
+                    games[plat] = ["GTA 6"] + kept
+                resp.supported_games = games
+
         if hasattr(resp, "owner") and getattr(resp, "owner", None) is None and self.user_repo:
             owner_obj = await self.user_repo.get_by_id(cafe.owner_id)
             if owner_obj:

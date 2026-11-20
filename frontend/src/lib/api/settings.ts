@@ -5,6 +5,12 @@ import axios from 'axios';
 export interface CafePhoto {
   url: string;
   category: string;
+  /** Worked out by the server: 'h' wide, 'v' tall. Kept as-is when the owner edits. */
+  orient?: string;
+  /** The owner's choice for the card: 'whole' shows the full photo, 'fill' crops it to fill. Unset = automatic. */
+  fit?: string;
+  /** '1' when the owner picked this photo as the cover (it then stays first, wide or tall). */
+  cover?: string;
 }
 
 export interface OwnerSettings {

@@ -581,10 +581,18 @@ async def _place(db: AsyncSession, drop: Drop, block_id: UUID, new: Optional[dic
         items = [_item(drop, block, keys, r) for r in rows if new is None or str(r.id) != new.get("id")]
         if new is not None:
             items.append({**new, "id": "new"})
+            # Ordinary bookings (slot links, normal bookings) on these setups hold consoles too: a drop seat must
+            # never land on a console an ordinary booking already has in the same time.
+            for j, (ns, ne, nn, nt) in enumerate(await normal_booking_rows(db, drop, block)):
+                if ns < new["e"] and new["s"] < ne:
+                    allowed = [k for k in keys if key_tier(k) == nt]
+                    if allowed:
+                        items.append({"id": f"nb{j}", "s": ns, "e": ne, "n": min(max(nn, 1), len(allowed)),
+                                      "fixed": None, "cur": [], "allowed": allowed})
         got = fit_consoles(keys, items)
         if got is None:
             return None
-        peak = _peak([(it["s"], it["e"], it["n"]) for it in items], block)
+        peak = _peak([(it["s"], it["e"], it["n"]) for it in items if not str(it["id"]).startswith("nb")], block)
         if peak > block.seats_total:
             return None
         # The row lock already makes this safe on Postgres; the rev check also stops a write made from a
@@ -1738,7 +1746,7 @@ async def owner_day_grid(db: AsyncSession, drop: Drop, day) -> tuple[list[dict],
         m %= DAY_MIN
         return f"{m // 60:02d}:{m % 60:02d}"
 
-    normal = await normal_booking_windows(db, drop, block) if casual(drop) else []
+    normal = await normal_booking_windows(db, drop, block)
 
     def counts(lo: int, hi: int) -> tuple[int, int]:
         booked = pending = 0

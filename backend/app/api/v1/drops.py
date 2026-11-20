@@ -278,13 +278,12 @@ async def get_drop(slug: str, db: AsyncSession = Depends(get_db), user: Optional
     if drop.max_hours:
         for bd, blk in zip(data["blocks"], blocks):
             wins = await svc._holding_windows(db, blk)
-            if svc.casual(drop):     # the game is out: normal bookings share these consoles
-                wins = wins + await svc.normal_booking_windows(db, drop, blk)
+            wins = wins + await svc.normal_booking_windows(db, drop, blk)   # ordinary bookings share these consoles
             bd["hourFree"] = svc.seats_free(wins, blk)
             bd["bookedSlots"] = svc.booked_windows(wins)
             # The same picture for each console type, so a PS5 booking never hides a free Xbox.
             per = svc.setup_windows(drop, blk, await svc.holding_rows(db, blk))
-            normal = await svc.normal_booking_rows(db, drop, blk) if svc.casual(drop) else []
+            normal = await svc.normal_booking_rows(db, drop, blk)
             for s_, e_, n_, t_ in normal:   # an ordinary booking on this setup (Xbox Series S...) is busy there too
                 per.setdefault(t_, []).append((s_, e_, n_))
             keys = svc.block_keys(drop, blk)

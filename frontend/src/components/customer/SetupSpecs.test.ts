@@ -34,12 +34,16 @@ describe('founderCallUrl', () => {
   it('refuses a short number', () => expect(founderCallUrl('123')).toBeNull());
 });
 
-import { gameArtFor } from '@/lib/gameArt';
+import { gameArtFor, isGta6 } from '@/lib/gameArt';
 describe('poster art lookup', () => {
+  it('knows GTA 6 under any spelling and not GTA V', () => {
+    expect(['GTA 6', 'gta6', 'GTA VI', 'Grand Theft Auto VI'].every(isGta6)).toBe(true);
+    expect(isGta6('GTA V Online')).toBe(false);
+  });
   it('finds art however the café typed the name', () => {
-    for (const n of ['Counter-Strike 2', 'CS2', 'GTA V Online', 'GTA5', 'EA Sports FC 24', 'FIFA', "Marvel's Spider-Man 2", 'God of War Ragnark', 'GTA 6']) {
+    for (const n of ['Counter-Strike 2', 'CS2', 'GTA V Online', 'GTA5', 'EA Sports FC 24', 'FIFA', "Marvel's Spider-Man 2", 'God of War Ragnark', 'GTA 6', 'Valorant', 'Fortnite', 'COD Warzone', 'Call of Duty: Warzone 2.0', 'GTA VI', 'Valorant PC']) {
       expect(gameArtFor(n), n).toBeTruthy();
     }
   });
-  it('leaves a game with no licensed art to the generated poster', () => expect(gameArtFor('Valorant')).toBeNull());
+  it('leaves a game with no licensed art to the generated poster', () => expect(gameArtFor('Among Us')).toBeNull());
 });

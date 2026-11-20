@@ -2,6 +2,7 @@
 
 import { Gta6Sticker } from '@/components/gta6/Gta6Sticker';
 import Link from 'next/link';
+import { useState } from 'react';
 import { optimizedImg } from '@/lib/imageUrl';
 import { MapPin, Star, Zap, ArrowRight, Users, Clock, ThumbsUp } from 'lucide-react';
 import { Card, CardImage, PriceDisplay } from '@/components/ui';
@@ -76,6 +77,10 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
   // renders. No rotation, no swipe: the card shows one deliberate photo,
   // not whichever one a timer landed on.
   const coverPhoto = cafe.photos && cafe.photos.length > 0 ? cafe.photos[0] : null;
+  // A tall photo in a wide card used to be cropped to a zoomed sliver. Unless the owner chose "fill", a tall cover
+  // (known from the server, or found out when it loads) is shown whole over a soft blur of itself.
+  const [loadedTall, setLoadedTall] = useState(false);
+  const showWhole = coverPhoto?.fit === 'whole' || (coverPhoto?.fit !== 'fill' && (coverPhoto?.orient === 'v' || loadedTall));
 
   const isLead = cafe.isLeadListing === true;
   // The one real, non-fabricated signal that makes a café "the launch café":
@@ -192,10 +197,27 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
             // own colour until then.
             (priority || pageLoaded) && (
               /* eslint-disable-next-line @next/next/no-img-element */
+              <>
+              {showWhole && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  {...optimizedImg(coverPhoto.url, '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw', { maxWidth: 256 })}
+                  alt=""
+                  aria-hidden
+                  className="absolute inset-0 block h-full w-full scale-125 object-cover opacity-70 blur-2xl"
+                  loading="lazy"
+                  decoding="async"
+                />
+              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 {...optimizedImg(coverPhoto.url, '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw', { maxWidth: 828 })}
                 alt={cafe.name}
-                className="block h-full w-full object-cover object-center transition-transform duration-700 [@media(hover:hover)]:group-hover:scale-105"
+                onLoad={(e) => {
+                  const im = e.currentTarget;
+                  if (im.naturalHeight > im.naturalWidth * 1.1) setLoadedTall(true);
+                }}
+                className={`relative block h-full w-full ${showWhole ? 'object-contain' : 'object-cover'} object-center transition-transform duration-700 [@media(hover:hover)]:group-hover:scale-105`}
                 loading={priority ? 'eager' : 'lazy'}
                 fetchPriority={priority ? 'high' : undefined}
                 decoding="async"
@@ -211,6 +233,7 @@ export function CafeCard({ cafe, isFeatured = false, priority = false }: CafeCar
                   img.style.display = 'none';
                 }}
               />
+              </>
             )
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary/90 to-primary/40 flex items-center justify-center p-3 text-center">

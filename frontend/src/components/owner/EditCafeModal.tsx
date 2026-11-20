@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, type FormEvent } from 'react';
-import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff, ExternalLink, Star, Gamepad2 } from 'lucide-react';
+import { MapPin, Clock, Sparkles, Store, Plus, Trash2, CheckCircle2, Upload, ChevronUp, ChevronDown, ImageOff, ExternalLink, Star, Gamepad2, Maximize2 } from 'lucide-react';
 import { Modal, Button, Input, Textarea } from '@/components/ui';
 import { updateCafeDetails, updateOperatingHours, uploadCafePhoto, deleteCafePhoto, uploadMenuPhoto, deleteMenuPhoto, type OwnerSettings, type CafePhoto } from '@/lib/api/settings';
 import { getAmenityDisplay } from '@/lib/amenities';
@@ -379,13 +379,26 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, init
   // repeatedly from wherever a photo happens to sit in the grid.
   const setAsCover = async (idx: number) => {
     if (idx <= 0) return;
-    const updated = [...photos];
+    const updated = photos.map(({ cover: _c, ...rest }) => rest as CafePhoto);   // only one cover at a time
     const [photo] = updated.splice(idx, 1);
-    updated.unshift(photo);
+    updated.unshift({ ...photo, cover: '1' });   // the owner's pick stays first even if it is a tall photo
     try {
       await persistPhotos(updated);
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : 'Couldn’t set cover photo. Please try again.');
+    }
+  };
+
+  // How the card shows a photo: whole (nothing cut off, soft blur at the sides) or filled (cropped to the card).
+  // Unset = automatic: tall photos are shown whole, wide ones fill.
+  const toggleFit = async (idx: number) => {
+    const p = photos[idx];
+    const showsWhole = p.fit === 'whole' || (p.fit !== 'fill' && p.orient === 'v');
+    const updated = photos.map((x, i) => (i === idx ? { ...x, fit: showsWhole ? 'fill' : 'whole' } : x));
+    try {
+      await persistPhotos(updated);
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Couldn’t change how this photo is shown. Please try again.');
     }
   };
 
@@ -705,6 +718,15 @@ export function EditCafeModal({ isOpen, onClose, cafeId, settings, onSaved, init
                                   <Star className="h-4 w-4" />
                                 </button>
                               )}
+                              <button
+                                type="button"
+                                onClick={() => toggleFit(idx)}
+                                className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 text-text-primary"
+                                aria-label={photo.fit === 'whole' || (photo.fit !== 'fill' && photo.orient === 'v') ? 'Fill the card (crops the photo)' : 'Show the whole photo on the card'}
+                                title={photo.fit === 'whole' || (photo.fit !== 'fill' && photo.orient === 'v') ? 'Fill the card (crops the photo)' : 'Show the whole photo on the card'}
+                              >
+                                <Maximize2 className="h-4 w-4" />
+                              </button>
                               {idx > 0 && (
                                 <button
                                   type="button"

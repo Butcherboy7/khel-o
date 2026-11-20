@@ -31,7 +31,7 @@ export interface CafeListItem {
   platformsComplete?: boolean;
   /** color: the photo's main colour ('#rrggbb'), painted behind it while it
    *  loads. Missing for photos not worked out yet. */
-  photos: { url: string; category: string; color?: string }[];
+  photos: { url: string; category: string; color?: string; orient?: 'h' | 'v'; fit?: 'whole' | 'fill'; cover?: string }[];
   hasActivePromotion: boolean;
   /** Stations bookable on KHEL-O right now; null when closed or paused. */
   freeNow?: number | null;
@@ -89,7 +89,7 @@ export interface Cafe {
   supportedGames?: Record<string, string[]>;
   /** color: the photo's main colour ('#rrggbb'), painted behind it while it
    *  loads. Missing for photos not worked out yet. */
-  photos: { url: string; category: string; color?: string }[];
+  photos: { url: string; category: string; color?: string; orient?: 'h' | 'v'; fit?: 'whole' | 'fill'; cover?: string }[];
   menuPhotos: string[];
   rejectionReason: string | null;
   businessPan?: string;
