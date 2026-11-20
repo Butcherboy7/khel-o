@@ -36,6 +36,8 @@ export interface QuoteRequest {
   playersCount?: number | null;
   promotionId?: string | null;
   promoCode?: string | null;
+  /** A founder-shared confirmed-slot link: price it the way claiming it will. */
+  offerToken?: string | null;
 }
 
 export interface QuoteAppliedOffer {

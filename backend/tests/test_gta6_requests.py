@@ -241,3 +241,25 @@ async def test_a_confirmed_slot_link_goes_to_the_first_player_only():
             await db.execute(update(Booking).where(Booking.id == UUID(won.json()["data"]["bookingId"])).values(status=BookingStatus.CANCELLED))
             await db.commit()
         assert (await c.get(f"/api/v1/gta6-requests/offers/{token}")).json()["data"]["offer"]["status"] == "lapsed"
+
+
+@pytest.mark.asyncio
+async def test_checkout_quote_shows_the_price_claiming_the_link_charges():
+    owner, cafe, ps5 = await _cafe_with_rig(total=1)
+    p1, admin = await _user(), await _user(UserRole.ADMIN)
+    body = {"cafeId": str(cafe.id), "hardwareTierId": str(ps5.id), "sessionDate": str(SOON), "startTime": "14:00", "durationHours": 3}
+    quote = {"cafeId": str(cafe.id), "hardwareTierId": str(ps5.id), "sessionDate": str(SOON), "startTime": "14:00", "durationHours": 3, "seatsCount": 1}
+    async with _client() as c:
+        token = (await c.post("/api/v1/admin/gta6-requests/offers", headers=_h(admin), json=body)).json()["data"]["offer"]["token"]
+        plain = (await c.post("/api/v1/bookings/quote", json=quote)).json()["data"]
+        linked = (await c.post("/api/v1/bookings/quote", json={**quote, "offerToken": token})).json()["data"]
+        # a different slot never borrows the link's price
+        other = (await c.post("/api/v1/bookings/quote", json={**quote, "startTime": "17:00", "offerToken": token})).json()["data"]
+        assert other["base_amount"] == plain["base_amount"] if "base_amount" in other else other["baseAmount"] == plain["baseAmount"]
+        won = await c.post(f"/api/v1/gta6-requests/offers/{token}/claim", headers=_h(p1))
+        assert won.status_code == 200, won.text
+        async with AsyncSessionLocal() as db:
+            b = await db.get(Booking, UUID(won.json()["data"]["bookingId"]))
+            charged = float(b.total_amount)
+        got = linked.get("total", linked.get("totalAmount"))
+        assert abs(got - charged) < 0.01, (got, charged)

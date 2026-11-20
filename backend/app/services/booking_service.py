@@ -320,7 +320,8 @@ class BookingService:
 
         return BookingResponse.model_validate(created)
 
-    async def get_quote(self, quote_in: 'QuoteRequest', gamer_id: Optional[UUID] = None) -> 'QuoteResponse':
+    async def get_quote(self, quote_in: 'QuoteRequest', gamer_id: Optional[UUID] = None,
+                        base_amount_override: Optional[Decimal] = None) -> 'QuoteResponse':
         """Read-only price/eligibility preview for checkout — same math as
         create_booking (base_price, allowed lengths, fee, auto-picked
         offer), no booking is created and nothing is written. This is what
@@ -349,6 +350,8 @@ class BookingService:
         start_datetime = datetime.combine(quote_in.session_date, quote_in.start_time).replace(tzinfo=IST)
         duration = Decimal(str(quote_in.duration_hours))
         base_amount = base_price(tier, quote_in.duration_hours, players=players, is_coop=is_coop, seats=seats_requested)
+        if base_amount_override is not None:
+            base_amount = base_amount_override   # a confirmed-slot link: same price claiming it will charge
 
         discount_amount = Decimal('0.00')
         applied_offer = None

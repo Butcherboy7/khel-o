@@ -152,6 +152,8 @@ class QuoteRequest(BaseModel):
     players_count: Optional[int] = Field(None, ge=1, le=60)
     promotion_id: Optional[UUID] = None
     promo_code: Optional[str] = Field(None, max_length=20)
+    # A founder-shared confirmed-slot link: price the slot the way claiming it will (GTA 6 price), so checkout matches.
+    offer_token: Optional[str] = Field(None, max_length=24)
 
     model_config = ConfigDict(
         alias_generator=to_camel,

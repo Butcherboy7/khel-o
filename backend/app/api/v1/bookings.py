@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, Query
 from typing import Optional
 from uuid import UUID
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -54,7 +55,18 @@ async def get_quote(
     promo_service = PromotionService(promo_repo, cafe_repo, tier_repo)
 
     service = BookingService(booking_repo, cafe_repo, tier_repo, promo_service=promo_service)
-    result = await service.get_quote(payload, gamer_id=current_user.id if current_user else None)
+    override = None
+    if payload.offer_token:
+        # A confirmed-slot link: show the price claiming it will charge, but only for the exact slot it confirms.
+        from app.models.gta6_offer import Gta6SlotOffer
+        from app.services import drop_service as dsvc
+        o = (await db.execute(select(Gta6SlotOffer).where(Gta6SlotOffer.token == payload.offer_token))).scalar_one_or_none()
+        if (o is not None and o.status == "open" and o.game == "gta6" and o.cafe_id == payload.cafe_id
+                and o.tier_id == payload.hardware_tier_id and o.session_date == payload.session_date
+                and o.start_time == payload.start_time and abs(o.hours - payload.duration_hours) < 0.01
+                and o.seats == payload.seats_count):
+            override = await dsvc.gta6_price_for(db, o.cafe_id, o.tier_id, o.session_date, o.start_time, o.hours, o.seats)
+    result = await service.get_quote(payload, gamer_id=current_user.id if current_user else None, base_amount_override=override)
     return {
         "success": True,
         "data": result

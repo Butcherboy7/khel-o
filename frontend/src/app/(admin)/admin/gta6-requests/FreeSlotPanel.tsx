@@ -23,7 +23,13 @@ const tomorrow = () => {
 };
 
 function linkFor(o: Gta6Offer) {
-  return `${typeof window !== 'undefined' ? window.location.origin : 'https://khel-o.com'}/gta6/offer/${o.token}`;
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://khel-o.com';
+  // Opens the normal checkout with the confirmed slot already chosen, so it is the page players already know.
+  const q = new URLSearchParams({
+    cafeId: o.cafe?.id ?? '', tierId: o.tier?.id ?? '', date: o.date, time: o.startTime, dayOffset: '0',
+    duration: String(o.hours), seats: String(o.seats), offer: o.token,
+  });
+  return `${origin}/bookings/new?${q.toString()}`;
 }
 
 function ShareBox({ offer, phone }: { offer: Gta6Offer; phone: string }) {

@@ -31,10 +31,11 @@ import { queryKeys } from '@/hooks/queries/keys';
 import { useRazorpay } from '@/hooks/useRazorpay';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { useAuthStore } from '@/store/authStore';
-import { Skeleton, ErrorState, BottomSheet } from '@/components/ui';
+import { Skeleton, ErrorState, BottomSheet, Modal } from '@/components/ui';
 import { CheckoutSignInSheet } from '@/components/auth/CheckoutSignInSheet';
 import { Gta6RequestSheet } from '@/components/gta6/Gta6RequestSheet';
 import { getGta6Config } from '@/lib/api/gta6Requests';
+import { claimGta6Offer, getGta6Offer } from '@/lib/api/gta6Offers';
 import { saveBookingIntent } from '@/lib/bookingIntent';
 import { TimelineRangePicker } from '@/components/customer/TimelineRangePicker';
 import { OffersPanel } from '@/components/customer/OffersPanel';
@@ -274,6 +275,8 @@ function BookingWizardContent() {
     // Keep an applied offer code in the URL so it survives a reload, a login
     // round-trip, or reopening the link in another browser.
     if (appliedCode) params.set('promoCode', appliedCode);
+    const keepOffer = new URLSearchParams(window.location.search).get('offer');
+    if (keepOffer) params.set('offer', keepOffer);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [cafeId, selectedDate, selectedTime, selectedDateOffset, durationHours, seatsCount, coopChosen, activeTier?.id, selectedTierId, appliedCode, pathname, router]);
 
@@ -354,6 +357,27 @@ function BookingWizardContent() {
   const canSeparate = !isRoom && seatsCount <= windowRemainingSeats;
   const isCoop = canCoop && (isRoom || coopChosen || !canSeparate);
   const consolesCount = isRoom || isCoop ? 1 : seatsCount;
+
+  // A confirmed-slot link from the founder (?offer=token): the slot is already chosen and confirmed free with the
+  // café, so Pay takes the player straight to payment (no ask-first step). It only counts while the picks still match
+  // the link; change the time or console and it is an ordinary booking again.
+  const offerToken = searchParams.get('offer');
+  const { data: offerData } = useQuery({
+    queryKey: ['gta6-offer', offerToken],
+    queryFn: () => getGta6Offer(offerToken!),
+    enabled: Boolean(offerToken),
+    retry: false,
+    refetchInterval: 20_000,
+  });
+  const offer = offerData?.offer;
+  const offerMatches = Boolean(
+    offer && offer.status === 'open' && activeTier && offer.tier?.id === activeTier.id &&
+      offer.date === effectiveSessionDate && offer.startTime === selectedTime.slice(0, 5) &&
+      Math.abs(offer.hours - durationHours) < 0.01 && offer.seats === consolesCount,
+  );
+  const offerActive = offerMatches ? (offerToken as string) : null;
+  const [offerDialogSeen, setOfferDialogSeen] = useState(false);
+  const offerGone = Boolean(offerToken && offer && offer.status !== 'open');
   // Owner lowered the cabin cap after a "Book again" link was made: pull the group back inside it.
   useEffect(() => {
     if (isRoom && coopMax > 0 && seatsCount > coopMax) setSeatsCount(coopMax);
@@ -567,6 +591,7 @@ function BookingWizardContent() {
       playersToSend,
       chosenOfferId,
       appliedCode,
+      offerActive,
       // Signed in or not changes the first-booking offer, so re-ask on login.
       user?.id ?? null,
     ],
@@ -581,6 +606,7 @@ function BookingWizardContent() {
         playersCount: playersToSend,
         promotionId: chosenOfferId,
         promoCode: appliedCode,
+        offerToken: offerActive,
       }),
     enabled: Boolean(cafe?.id && activeTier?.id && selectedTime),
     placeholderData: keepPreviousData,
@@ -756,7 +782,7 @@ function BookingWizardContent() {
 
     // Launch period: a console that runs GTA 6 is requested, not paid, until the café says yes. This holds for
     // any game on it (GTA 6 at the GTA 6 price, anything else at the normal price): the café may be full of GTA 6.
-    if (gta6Cfg?.enabled && activeTier.runsGta6) {
+    if (gta6Cfg?.enabled && activeTier.runsGta6 && !offerActive) {
       setError(null);
       setGta6Open(true);
       trackAction('gta6_request_prompt', { tierId: activeTier.id }, cafeId);
@@ -768,8 +794,10 @@ function BookingWizardContent() {
     setIsProcessing(true);
 
     try {
-      // Step 1: Create booking
-      const bookingRes = await createBooking({
+      // Step 1: Create booking (a confirmed-slot link holds the seat for you instead, first come first served)
+      const bookingRes = offerActive
+        ? { booking: { id: (await claimGta6Offer(offerActive)).bookingId } }
+        : await createBooking({
         cafeId: cafe.id,
         hardwareTierId: activeTier.id,
         sessionDate: effectiveSessionDate,
@@ -1423,6 +1451,34 @@ function BookingWizardContent() {
         onUseEmail={handleLoginFromPrompt}
         onCreateAccount={handleRegisterFromPrompt}
       />
+
+      {/* The founder's confirmed-slot link: say plainly that this slot is confirmed free and will not wait. */}
+      <Modal
+        isOpen={!offerDialogSeen && (Boolean(offerActive) || offerGone)}
+        onClose={() => setOfferDialogSeen(true)}
+        title={offerGone ? 'This slot is no longer confirmed' : 'This is the only slot available'}
+        description={
+          offerGone
+            ? 'It was taken or not paid for in time, so it is open to everyone again. You can still ask for a slot and we will check with the café.'
+            : 'It is confirmed free with the café. Book it right now, or it might be taken by someone else.'
+        }
+        size="sm"
+        footer={
+          <button
+            type="button"
+            onClick={() => setOfferDialogSeen(true)}
+            className="btn-depth min-h-[48px] w-full rounded-xl bg-primary px-6 text-body font-bold text-white"
+          >
+            {offerGone ? 'OK' : 'Got it, take me to pay'}
+          </button>
+        }
+      >
+        {!offerGone && offerActive && offer && (
+          <p className="text-body text-text-secondary">
+            {offer.tier?.name} at {offer.cafe?.name}. Be there 10 to 15 minutes before your start or the café can give your seat away.
+          </p>
+        )}
+      </Modal>
 
       {activeTier && cafe && (
         <Gta6RequestSheet
