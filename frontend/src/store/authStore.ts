@@ -28,6 +28,14 @@ export function sanitizeActiveRole(
   return 'gamer';
 }
 
+// The page you are leaving has a route guard that snaps the mode back to what that page allows (right for deep links,
+// wrong while the user is deliberately switching). The switcher marks a short window during which guards stand down.
+let roleSwitchUntil = 0;
+export const markRoleSwitch = () => {
+  roleSwitchUntil = Date.now() + 5000;
+};
+export const roleSwitchInFlight = () => Date.now() < roleSwitchUntil;
+
 interface AuthState {
   user: User | null;
   accessToken: string | null;

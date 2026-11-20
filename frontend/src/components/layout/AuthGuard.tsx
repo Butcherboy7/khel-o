@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { sanitizeActiveRole, useAuthStore } from '@/store/authStore';
+import { roleSwitchInFlight, sanitizeActiveRole, useAuthStore } from '@/store/authStore';
 import type { UserRole } from '@/types';
 import { Loader2 } from 'lucide-react';
 
@@ -45,6 +45,7 @@ export function AuthGuard({
     // activeRole is a client-persisted preference, not a permission — re-validate
     // it against the server-issued roles before trusting it to gate a route.
     const effectiveRole = sanitizeActiveRole(activeRole, user?.roles);
+    if (roleSwitchInFlight()) return;
     if (!allowedRoles.includes(effectiveRole as UserRole)) {
       // A multi-role account (e.g. same account is both cafe_owner and admin)
       // landing on a route via bookmark/deep-link/fresh tab has activeRole

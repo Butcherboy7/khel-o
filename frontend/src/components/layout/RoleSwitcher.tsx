@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore, type UserActiveRole } from '@/store/authStore';
+import { useAuthStore, markRoleSwitch, type UserActiveRole } from '@/store/authStore';
 import { Gamepad2, Store, Shield, Headset, RefreshCw, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
@@ -56,6 +56,7 @@ export function RoleSwitcher() {
   const handleSwitch = async (role: UserActiveRole) => {
     setError(null);
     setIsSwitching(true);
+    markRoleSwitch();
     try {
       await switchActiveRole(role);
       router.push(ROLE_META[role].route);
