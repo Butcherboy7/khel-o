@@ -454,6 +454,13 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
         {/* Scrim for the buttons. It must never catch taps: it used to sit over the photo and swallow the click that opens it. */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-secondary/60 via-transparent to-black/30" />
 
+        {/* GTA 6 is out and this café has a console that runs it: same pill as on the café card. */}
+        {!isLead && (cafe.tiers ?? []).some((t) => t.runsGta6) && (
+          <span className="pointer-events-none absolute bottom-3 left-3 z-10 inline-flex items-center rounded-full bg-primary px-2.5 py-1 text-[12px] font-extrabold text-white shadow-card">
+            Plays GTA 6
+          </span>
+        )}
+
         {/* Top Controls */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
           <Link href="/">
@@ -651,7 +658,12 @@ export function CafeDetailClient({ initialCafe, initialWaitlist }: CafeDetailCli
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-heading text-body-emphasis font-bold text-text-primary">{tier.name}</h3>
+                      <h3 className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-heading text-body-emphasis font-bold text-text-primary">
+                        {tier.name}
+                        {!isLead && tier.runsGta6 && (
+                          <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-extrabold leading-4 text-white">Plays GTA 6</span>
+                        )}
+                      </h3>
                       {isPc ? (
                         <SetupSpecGrid items={pcSpecItems(tier)} />
                       ) : (

@@ -61,8 +61,9 @@ def fit(rule: Optional[Dict[str, Any]], platform: Optional[str], specs: Optional
 
 
 def tier_runs_gta6(tier: Any) -> bool:
-    """True when this café setup can run GTA 6 (PS5 / PS5 Pro / Xbox Series, or a PlayStation/Xbox we cannot
-    identify and the owner has to confirm). Never for PCs, VR, racing rigs or activities."""
+    """True only when the setup is positively a PS5, PS5 Pro or Xbox Series console. A PlayStation/Xbox we cannot
+    identify (say "Gaming Station") is NOT counted: players would be told a PS4 is short of seats because of GTA 6.
+    Never for PCs, VR, racing rigs or activities."""
     platform = getattr(tier, "platform", None)
     return fit(rule_for("GTA 6"), platform.value if platform else None, getattr(tier, "specs", None),
-               getattr(tier, "name", None), getattr(tier, "model", None), getattr(tier, "tier_type", None)) in ("yes", "check")
+               getattr(tier, "name", None), getattr(tier, "model", None), getattr(tier, "tier_type", None)) == "yes"

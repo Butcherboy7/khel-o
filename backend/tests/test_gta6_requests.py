@@ -204,3 +204,13 @@ async def test_allow_charges_the_gta_price_for_gta_and_the_tier_price_for_other_
             bb = await db.get(Booking, UUID(rb["data"]["request"]["bookingId"]))
             assert float(ba.base_amount) == 500.0 and ba.game == "GTA 6"      # 250 x 2 hr, from the drop
             assert float(bb.base_amount) == 200.0                              # 100 x 2 hr, the setup's own price
+
+
+def test_an_unidentified_playstation_is_not_told_gta6_is_busy():
+    """A PS4 whose setup name does not say PS4 must not get the "busy because of GTA 6" treatment."""
+    from types import SimpleNamespace as N
+    ps = lambda name, specs=None: N(platform=N(value="playstation"), specs=specs or {}, name=name, model=None, tier_type=None)  # noqa: E731
+    assert not tier_runs_gta6(ps("Gaming Station"))
+    assert not tier_runs_gta6(ps("PS4"))
+    assert not tier_runs_gta6(ps("Gaming Station", {"console": "PS4"}))
+    assert tier_runs_gta6(ps("PS5")) and tier_runs_gta6(ps("Gaming Station", {"console": "PS5 Pro"}))
