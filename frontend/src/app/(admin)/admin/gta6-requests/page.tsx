@@ -12,6 +12,7 @@ import {
   suggestGta6Request,
   type Gta6Request,
 } from '@/lib/api/gta6Requests';
+import FreeSlotPanel from './FreeSlotPanel';
 import { Card, CardContent, EmptyState, ErrorState, PageSpinner } from '@/components/ui';
 
 type Tab = 'waiting' | 'allowed' | 'declined';
@@ -210,6 +211,7 @@ export default function AdminGta6RequestsPage() {
         <h1 className="font-heading text-h2 font-bold text-text-primary">GTA 6 slot requests</h1>
         <p className="text-body text-text-secondary">Check each one with the café on WhatsApp, then Allow. Allow holds the seat for the player for 15 minutes.</p>
       </div>
+      <FreeSlotPanel />
       <SettingsPanel />
       <div className="flex gap-2" role="tablist" aria-label="Request status">
         {TABS.map((t) => (

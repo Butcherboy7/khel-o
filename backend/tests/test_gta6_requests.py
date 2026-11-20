@@ -214,3 +214,25 @@ def test_an_unidentified_playstation_is_not_told_gta6_is_busy():
     assert not tier_runs_gta6(ps("PS4"))
     assert not tier_runs_gta6(ps("Gaming Station", {"console": "PS4"}))
     assert tier_runs_gta6(ps("PS5")) and tier_runs_gta6(ps("Gaming Station", {"console": "PS5 Pro"}))
+
+
+@pytest.mark.asyncio
+async def test_a_confirmed_slot_link_goes_to_the_first_player_only():
+    owner, cafe, ps5 = await _cafe_with_rig(total=1)
+    p1, p2, admin = await _user(), await _user(), await _user(UserRole.ADMIN)
+    body = {"cafeId": str(cafe.id), "hardwareTierId": str(ps5.id), "sessionDate": str(SOON), "startTime": "14:00", "durationHours": 3}
+    async with _client() as c:
+        assert (await c.post("/api/v1/admin/gta6-requests/offers", headers=_h(p1), json=body)).status_code in (401, 403)
+        made = await c.post("/api/v1/admin/gta6-requests/offers", headers=_h(admin), json=body)
+        assert made.status_code == 201, made.text
+        token = made.json()["data"]["offer"]["token"]
+        seen = (await c.get(f"/api/v1/gta6-requests/offers/{token}")).json()["data"]["offer"]
+        assert seen["status"] == "open" and seen["startTime"] == "14:00" and seen["hours"] == 3
+        won = await c.post(f"/api/v1/gta6-requests/offers/{token}/claim", headers=_h(p1))
+        assert won.status_code == 200, won.text
+        async with AsyncSessionLocal() as db:
+            b = await db.get(Booking, UUID(won.json()["data"]["bookingId"]))
+            assert b.status == BookingStatus.PENDING_PAYMENT and str(b.gamer_id) == str(p1.id)
+        late = await c.post(f"/api/v1/gta6-requests/offers/{token}/claim", headers=_h(p2))
+        assert late.status_code == 422
+        assert (await c.get(f"/api/v1/gta6-requests/offers/{token}")).json()["data"]["offer"]["status"] == "claimed"

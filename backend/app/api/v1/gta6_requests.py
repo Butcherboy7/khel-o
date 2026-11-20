@@ -28,6 +28,7 @@ from app.database import get_db
 from app.models.booking import Booking, BookingStatus
 from app.models.cafe import Cafe
 from app.models.gta6_request import Gta6SlotRequest
+from app.models.gta6_offer import Gta6SlotOffer
 from app.models.hardware_tier import HardwareTier
 from app.models.notification import Notification, NotificationType
 from app.models.platform_setting import PlatformSetting
@@ -359,3 +360,121 @@ async def suggest(request_id: UUID, payload: SuggestIn, db: AsyncSession = Depen
                        f"{cafe.name} can't do that exact time, but: {req.suggestion}",
                        f"/gta6-requests/{req.id}", "See the suggestion")
     return {"success": True, "data": {"request": await _out(db, req, admin=True)}}
+
+
+# ------------------------------------------------------------------ confirmed-slot offers (shared on WhatsApp)
+OFFER_LIVES = timedelta(minutes=60)
+
+
+class OfferIn(BaseModel):
+    cafe_id: UUID
+    hardware_tier_id: UUID
+    session_date: date
+    start_time: time
+    duration_hours: float = Field(..., ge=0.25, le=8.0)
+    seats_count: int = Field(1, ge=1, le=6)
+    game: Literal["gta6", "other"] = "gta6"
+    minutes_open: int = Field(60, ge=10, le=24 * 60)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+async def _offer_out(db: AsyncSession, o: Gta6SlotOffer) -> dict:
+    cafe = await db.get(Cafe, o.cafe_id)
+    tier = await db.get(HardwareTier, o.tier_id)
+    state = o.status
+    ends = o.expires_at if o.expires_at.tzinfo else o.expires_at.replace(tzinfo=timezone.utc)
+    if state == "open" and ends <= datetime.now(timezone.utc):
+        state = "expired"
+    price = None
+    try:
+        from app.services import drop_service as dsvc
+        if o.game == "gta6":
+            price = float(await dsvc.gta6_price_for(db, o.cafe_id, o.tier_id, o.session_date, o.start_time, o.hours, o.seats))
+        elif tier is not None:
+            price = float(tier.price_per_hour) * o.hours * o.seats
+    except Exception:  # noqa: BLE001 - the price is a convenience on this card, never a reason to fail
+        price = None
+    return {
+        "id": str(o.id), "token": o.token, "status": state,
+        "cafe": {"id": str(cafe.id), "name": cafe.name, "slug": cafe.slug, "city": cafe.city, "area": cafe.address_line2} if cafe else None,
+        "tier": {"id": str(tier.id), "name": tier.name} if tier else None,
+        "date": o.session_date.isoformat(), "startTime": _hhmm(o.start_time), "hours": o.hours, "seats": o.seats,
+        "game": o.game, "price": price, "expiresAt": ends.isoformat(), "bookingId": str(o.booking_id) if o.booking_id else None,
+    }
+
+
+@admin_router.post("/offers", status_code=status.HTTP_201_CREATED)
+async def create_offer(payload: OfferIn, db: AsyncSession = Depends(get_db), admin=Depends(require_admin)):
+    """The founder has the café's yes (WhatsApp, phone). This makes a link that holds nothing until a player claims it."""
+    tier = await db.get(HardwareTier, payload.hardware_tier_id)
+    if tier is None or tier.cafe_id != payload.cafe_id:
+        raise ValidationException(message="That setup doesn't belong to that café.", error_code="BAD_SETUP")
+    token = "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
+    o = Gta6SlotOffer(
+        token=token, cafe_id=payload.cafe_id, tier_id=payload.hardware_tier_id, session_date=payload.session_date,
+        start_time=payload.start_time, hours=payload.duration_hours, seats=payload.seats_count, game=payload.game,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=payload.minutes_open), created_by=admin.id)
+    db.add(o)
+    await db.commit()
+    return {"success": True, "data": {"offer": await _offer_out(db, o)}}
+
+
+@admin_router.get("/offers")
+async def list_offers(db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    rows = (await db.execute(select(Gta6SlotOffer).order_by(Gta6SlotOffer.created_at.desc()).limit(30))).scalars().all()
+    return {"success": True, "data": {"offers": [await _offer_out(db, o) for o in rows]}}
+
+
+@admin_router.post("/offers/{offer_id}/cancel")
+async def cancel_offer(offer_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    o = await db.get(Gta6SlotOffer, offer_id)
+    if o is None:
+        raise NotFoundException(message="We couldn't find that offer.", error_code="OFFER_NOT_FOUND")
+    if o.status == "open":
+        o.status = "cancelled"
+        await db.commit()
+    return {"success": True, "data": {"offer": await _offer_out(db, o)}}
+
+
+@router.get("/offers/{token}")
+async def view_offer(token: str, db: AsyncSession = Depends(get_db)):
+    o = (await db.execute(select(Gta6SlotOffer).where(Gta6SlotOffer.token == token))).scalar_one_or_none()
+    if o is None:
+        raise NotFoundException(message="This link isn't valid.", error_code="OFFER_NOT_FOUND")
+    return {"success": True, "data": {"offer": await _offer_out(db, o)}}
+
+
+@router.post("/offers/{token}/claim")
+async def claim_offer(token: str, user: User = Depends(require_gamer), db: AsyncSession = Depends(get_db)):
+    """First player wins. Takes the offer atomically, then makes the normal held booking (15 minutes to pay)."""
+    o = (await db.execute(select(Gta6SlotOffer).where(Gta6SlotOffer.token == token))).scalar_one_or_none()
+    if o is None:
+        raise NotFoundException(message="This link isn't valid.", error_code="OFFER_NOT_FOUND")
+    now = datetime.now(timezone.utc)
+    ends = o.expires_at if o.expires_at.tzinfo else o.expires_at.replace(tzinfo=timezone.utc)
+    taken = await db.execute(
+        update(Gta6SlotOffer)
+        .where(Gta6SlotOffer.id == o.id, Gta6SlotOffer.status == "open")
+        .values(status="claimed", claimed_by=user.id)) if ends > now else None
+    if taken is None or taken.rowcount != 1:
+        await db.rollback()
+        raise ValidationException(message="Sorry, this slot has been taken or the link has run out. Ask us on WhatsApp for another.", error_code="OFFER_GONE")
+    await db.commit()
+    try:
+        service = BookingService(BookingRepository(db), CafeRepository(db), HardwareTierRepository(db))
+        from app.services import drop_service as dsvc
+        gta = o.game == "gta6"
+        price = await dsvc.gta6_price_for(db, o.cafe_id, o.tier_id, o.session_date, o.start_time, o.hours, o.seats) if gta else None
+        result = await service.create_booking(user.id, BookingCreateRequest(
+            cafe_id=o.cafe_id, hardware_tier_id=o.tier_id, session_date=o.session_date, start_time=o.start_time,
+            duration_hours=o.hours, seats_count=o.seats, game="GTA 6" if gta else None), base_amount_override=price)
+    except Exception:
+        # The slot could not be held (someone booked it another way): put the link back so it is not wasted.
+        await db.rollback()
+        await db.execute(update(Gta6SlotOffer).where(Gta6SlotOffer.id == o.id).values(status="open", claimed_by=None))
+        await db.commit()
+        raise
+    o.booking_id = result.id
+    await db.commit()
+    await alert_admins(db, "Slot link claimed", f"{user.full_name or 'A player'} took the {o.session_date:%a %d %b} {_hhmm(o.start_time)} slot.", "/admin/gta6-requests")
+    return {"success": True, "data": {"bookingId": str(result.id), "payBy": (now + timedelta(minutes=HOLD_MINUTES)).isoformat()}}
