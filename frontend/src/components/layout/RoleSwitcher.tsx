@@ -39,7 +39,9 @@ export function RoleSwitcher() {
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const availableRoles = (user?.roles || []) as UserActiveRole[];
+  // Every account can use the app as a gamer (the server allows it even when no gamer role row exists, as for
+  // owner-only accounts), so Gamer Mode is always on offer from any other mode.
+  const availableRoles = Array.from(new Set([...(user?.roles || []), 'gamer'])) as UserActiveRole[];
 
   // One button for every other mode this account holds, labelled with where it goes. (The old single "cycle" button
   // vanished for accounts that hold only gamer + admin while in admin mode, leaving no way out.)
