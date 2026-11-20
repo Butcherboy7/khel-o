@@ -13,7 +13,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_user_roles, require_admin, require_gamer
@@ -270,6 +270,15 @@ async def put_settings(payload: SettingsIn, db: AsyncSession = Depends(get_db), 
     s.updated_by = admin.id
     await db.commit()
     return await get_settings(db, admin)
+
+
+@admin_router.get("/waiting-count")
+async def waiting_count(db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    """How many requests are waiting for an answer: drives the red dot in the admin menu."""
+    await _expire_stale(db)
+    n = (await db.execute(select(func.count()).select_from(Gta6SlotRequest)
+                          .where(Gta6SlotRequest.status == "requested"))).scalar_one()
+    return {"success": True, "data": {"count": int(n)}}
 
 
 @admin_router.get("")

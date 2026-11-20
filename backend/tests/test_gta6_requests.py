@@ -89,6 +89,9 @@ async def test_request_is_saved_once_and_only_the_player_or_admin_can_read_it():
         q = (await c.get("/api/v1/admin/gta6-requests", headers=_h(admin))).json()["data"]
         assert q["waiting"] >= 1 and any(i["id"] == ra["id"] and i["player"]["phone"] for i in q["items"])
         assert (await c.get("/api/v1/admin/gta6-requests", headers=_h(u))).status_code == 403
+        n = (await c.get("/api/v1/admin/gta6-requests/waiting-count", headers=_h(admin))).json()["data"]["count"]
+        assert n == q["waiting"] and n >= 1
+        assert (await c.get("/api/v1/admin/gta6-requests/waiting-count", headers=_h(u))).status_code == 403
 
 
 @pytest.mark.asyncio

@@ -34,8 +34,10 @@ import {
   Clock,
   type LucideIcon,
   Target,
+  BellRing,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { enablePush, resolvePushState, resyncPushSubscription, type PushState } from '@/lib/alerts/subscribe';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
@@ -160,10 +162,38 @@ function useOpenTickets(): number {
   );
 }
 
+/** Things waiting for the admin, by page. Drives the red counts so nothing sits unseen. */
+function useAdminBadges(): Record<string, number> {
+  const tickets = useOpenTickets();
+  const requests =
+    useQuery({
+      queryKey: ['admin', 'gta6-requests', 'waiting-count'],
+      queryFn: async () => (await apiClient.get('/api/v1/admin/gta6-requests/waiting-count')).data?.data?.count as number,
+      refetchInterval: 30_000,
+      staleTime: 15_000,
+    }).data ?? 0;
+  return { '/admin/support': tickets, '/admin/gta6-requests': requests };
+}
+
+const groupBadge = (g: { items: { href: string }[] }, b: Record<string, number>) =>
+  g.items.reduce((n, it) => n + (b[it.href] ?? 0), 0);
+
+function Count({ n, className = '' }: { n: number; className?: string }) {
+  if (n <= 0) return null;
+  return (
+    <span
+      className={cn('inline-flex min-w-[20px] items-center justify-center rounded-full bg-error px-1.5 text-[11px] font-bold leading-5 text-white', className)}
+      aria-label={`${n} waiting`}
+    >
+      {n > 99 ? '99+' : n}
+    </span>
+  );
+}
+
 function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
-  const openTickets = useOpenTickets();
+  const badges = useAdminBadges();
   const here = locate(pathname);
 
   const initials = user?.fullName
@@ -189,14 +219,7 @@ function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
               >
                 <Icon className="h-[18px] w-[18px] flex-shrink-0" aria-hidden />
                 <span>{group.label}</span>
-                {group.label === 'Home' && openTickets > 0 && (
-                  <span
-                    className="ml-auto rounded-full bg-error px-2 py-0.5 text-[11px] font-bold leading-none text-white"
-                    aria-label={`${openTickets} open support tickets`}
-                  >
-                    {openTickets}
-                  </span>
-                )}
+                <Count n={groupBadge(group, badges)} className="ml-auto" />
               </Link>
               {/* The pages inside the open area, so the sidebar still works as a map. */}
               {active && group.items.length > 1 && (
@@ -215,6 +238,7 @@ function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
                         )}
                       >
                         {item.label}
+                        <Count n={badges[item.href] ?? 0} className="ml-auto" />
                       </Link>
                     );
                   })}
@@ -261,7 +285,7 @@ function AdminNavBody({ onNavigate }: { onNavigate?: () => void }) {
 
 function AdminAreaTabs() {
   const pathname = usePathname();
-  const openTickets = useOpenTickets();
+  const badges = useAdminBadges();
   const { group, item } = locate(pathname);
   const activeRef = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
@@ -291,9 +315,7 @@ function AdminAreaTabs() {
           >
             <it.icon className={cn('hidden h-4 w-4 sm:block', on && 'text-primary')} aria-hidden />
             {it.label}
-            {it.href === '/admin/support' && openTickets > 0 && (
-              <span className="rounded-full bg-primary px-1.5 text-[11px] font-bold leading-5 text-white">{openTickets}</span>
-            )}
+            <Count n={badges[it.href] ?? 0} />
           </Link>
         );
       })}
@@ -334,6 +356,10 @@ function AdminMobileNav() {
   }, [pathname]);
 
   const bottom = adminNavGroups.filter((g) => BOTTOM_AREAS.includes(g.label ?? ''));
+  const badges = useAdminBadges();
+  const moreWaiting = adminNavGroups
+    .filter((g) => !BOTTOM_AREAS.includes(g.label ?? ''))
+    .reduce((n, g) => n + groupBadge(g, badges), 0);
 
   return (
     <>
@@ -370,8 +396,11 @@ function AdminMobileNav() {
               )}
               aria-current={active ? 'page' : undefined}
             >
-              <span className={cn('flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast', active && 'bg-primary/12')}>
+              <span className={cn('relative flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast', active && 'bg-primary/12')}>
                 <Icon className="h-5 w-5" aria-hidden />
+                {groupBadge(g, badges) > 0 && (
+                  <span className="absolute right-1 top-0 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-card" aria-label={`${groupBadge(g, badges)} waiting`} />
+                )}
               </span>
               <span className={cn('text-caption', active ? 'font-bold' : 'font-medium')}>{g.label}</span>
             </Link>
@@ -390,11 +419,12 @@ function AdminMobileNav() {
         >
           <span
             className={cn(
-              'flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast',
+              'relative flex items-center justify-center rounded-full px-3.5 py-1 transition-all duration-fast',
               (isOpen || (group && !BOTTOM_AREAS.includes(group.label ?? ''))) && 'bg-primary/12',
             )}
           >
             <LayoutGrid className="h-5 w-5" aria-hidden />
+            {moreWaiting > 0 && <span className="absolute right-1 top-0 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-card" aria-label={`${moreWaiting} waiting`} />}
           </span>
           <span className={cn('text-caption', group && !BOTTOM_AREAS.includes(group.label ?? '') ? 'font-bold' : 'font-medium')}>More</span>
         </button>
@@ -431,7 +461,7 @@ function AdminMobileNav() {
 function AdminSheetBody({ onNavigate }: { onNavigate: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
-  const openTickets = useOpenTickets();
+  const badges = useAdminBadges();
   const here = locate(pathname);
 
   return (
@@ -440,7 +470,7 @@ function AdminSheetBody({ onNavigate }: { onNavigate: () => void }) {
         {adminNavGroups.map((g) => {
           const Icon = AREA_ICON[g.label ?? ''] ?? BarChart3;
           const on = here.group === g;
-          const badge = g.label === 'Home' ? openTickets : 0;
+          const badge = groupBadge(g, badges);
           return (
             <li key={g.label}>
               <Link
@@ -470,7 +500,7 @@ function AdminSheetBody({ onNavigate }: { onNavigate: () => void }) {
                 {badge > 0 && (
                   <span
                     className="absolute right-2.5 top-2.5 rounded-full bg-error px-1.5 text-[11px] font-bold leading-5 text-white"
-                    aria-label={`${badge} open support tickets`}
+                    aria-label={`${badge} waiting`}
                   >
                     {badge}
                   </span>
@@ -518,6 +548,65 @@ function AdminSheetBody({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
+/* ── Phone alerts: nobody is ever subscribed until they tap this once ── */
+
+function AdminAlertsPrompt() {
+  const [state, setState] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    let off = false;
+    resolvePushState().then((s) => {
+      if (off) return;
+      setState(s);
+      // Heal a browser subscription whose server row was pruned.
+      if (s === 'granted') resyncPushSubscription().catch(() => undefined);
+    });
+    return () => {
+      off = true;
+    };
+  }, []);
+  if (state === null || state === 'granted' || state === 'unsupported') return null;
+  const turnOn = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const r = await enablePush();
+      if (r === 'granted') setState('granted');
+      else if (r === 'denied') setState('denied');
+      else setNote(r === 'unconfigured' ? 'Alerts are not set up on this server.' : 'This phone cannot receive alerts.');
+    } catch {
+      setNote('Could not turn on alerts. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const denied = state === 'denied';
+  return (
+    <div className="mb-4 flex items-center gap-3 rounded-2xl bg-card p-3 shadow-sm ring-1 ring-border lg:mt-8">
+      <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <BellRing className="h-5 w-5" aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-body-emphasis font-bold text-text-primary">{denied ? 'Alerts are blocked on this phone' : 'Get alerts on this phone'}</p>
+        <p className="text-caption text-text-secondary">
+          {note ?? (denied ? 'Allow notifications for KHEL-O in the phone settings, then reload.' : 'New GTA 6 requests and support tickets, with sound.')}
+        </p>
+      </div>
+      {!denied && (
+        <button
+          type="button"
+          onClick={turnOn}
+          disabled={busy}
+          className="btn-depth min-h-[44px] flex-none rounded-xl bg-primary px-4 text-body font-bold text-white disabled:opacity-60"
+        >
+          {busy ? 'Turning on…' : 'Turn on'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ── Exported Shell ──────────────────────────────────────────────── */
 
 export function AdminShell({ children }: { children: ReactNode }) {
@@ -527,6 +616,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <AdminMobileNav />
       <main className="lg:pl-owner-sidebar">
         <div className="mx-auto w-full max-w-admin px-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-8">
+          <AdminAlertsPrompt />
           <AdminAreaTabs />
           {/* Pages without area tabs still need their top gap. */}
           <div className="pt-4 [nav+&]:pt-0 lg:pt-8 lg:[nav+&]:pt-0">{children}</div>
