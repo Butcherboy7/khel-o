@@ -113,6 +113,8 @@ interface TimelineRangePickerProps {
   maxDurationMinutes?: number | null;
   /** Only these lengths can be picked (a café selling 1, 3 and 5 hour packages). */
   onlyDurationsMinutes?: number[];
+  /** A slot the café has confirmed free (a founder-shared link). Everything else free-looking is drawn "ask first". */
+  confirmedSlot?: { date: string; start: string; hours: number } | null;
   /** Rendered inside the same card under the slider (checkout puts Players here). */
   children?: React.ReactNode;
   /** Café view: colour booked hours by what they are (online, walk-in, blocked). */
@@ -166,6 +168,7 @@ export function TimelineRangePicker({
   stepMinutes = 30,
   maxDurationMinutes,
   onlyDurationsMinutes,
+  confirmedSlot = null,
   children,
   ownerView = false,
   priceBands,
@@ -730,8 +733,14 @@ export function TimelineRangePicker({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 pt-2 pb-0">
         <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary" aria-hidden="true">
           <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: '#22c55e' }} />
-          Available
+          {confirmedSlot ? 'Confirmed free' : 'Available'}
         </span>
+        {confirmedSlot && (
+          <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary" aria-hidden="true">
+            <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: '#f59e0b' }} />
+            Ask first
+          </span>
+        )}
         <span className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary" aria-hidden="true">
           <span
             className="h-1.5 w-4 rounded-full"
@@ -904,7 +913,16 @@ export function TimelineRangePicker({
                   backgroundColor: '#22c55e', // Available: solid green
                 };
                 let stateLabel = 'Available';
-                if (seg.state === 'BOOKED') {
+                const askFirst =
+                  confirmedSlot != null && seg.state === 'AVAILABLE' && !(
+                    selectedDate === confirmedSlot.date &&
+                    seg.start >= timeToMinutes(confirmedSlot.start) &&
+                    seg.start < timeToMinutes(confirmedSlot.start) + Math.round(confirmedSlot.hours * 60)
+                  );
+                if (askFirst) {
+                  style = { backgroundColor: '#f59e0b' };
+                  stateLabel = 'Ask first, we check with the café';
+                } else if (seg.state === 'BOOKED') {
                   style = KIND_STYLE[ownerView ? seg.kind ?? 'online' : 'online'];
                   stateLabel = ownerView ? `Full, ${KIND_LABEL[seg.kind ?? 'online'].toLowerCase()}` : 'Booked';
                 } else if (seg.state === 'LATER') {

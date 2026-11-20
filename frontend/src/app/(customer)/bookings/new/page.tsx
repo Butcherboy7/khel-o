@@ -1055,6 +1055,7 @@ function BookingWizardContent() {
         minDurationMinutes={minDurationMin}
         maxDurationMinutes={maxDurationMin}
         stepMinutes={durationStep}
+        confirmedSlot={offer && offer.status === 'open' && offer.tier?.id === activeTier?.id ? { date: offer.date, start: offer.startTime, hours: offer.hours } : null}
       >
         {/* Players, inside the time card: how many people, and for 2+ on a
             shareable setup, co-op vs own consoles. */}
@@ -1431,6 +1432,8 @@ function BookingWizardContent() {
               ? (isRoom ? 'Cabins full at this time' : 'Sold out')
               : windowRemainingSeats < consolesCount
               ? `Only ${windowRemainingSeats} left`
+              : offer && offer.status === 'open' && !offerActive && gta6Cfg?.enabled && activeTier?.runsGta6
+              ? 'Ask for this slot'
               : `Pay ₹${money(finalTotal)}`}
           </button>
         </div>

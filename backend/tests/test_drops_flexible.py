@@ -30,11 +30,11 @@ async def _book(c, drop, block, user, start="18:00", hours=1, seats=1):
 
 
 @pytest.mark.asyncio
-async def test_fee_is_100_up_to_3_hours_and_200_for_4_or_5_and_counts_toward_bill():
+async def test_half_the_price_is_paid_up_front_at_every_length_and_counts_toward_bill():
     drop, block, _ = await _flex(seats=5)
     u = await _user()
     async with _client() as c:
-        for hours, fee in ((1, 100), (3, 100), (4, 200), (5, 200)):
+        for hours, fee in ((1, 125), (3, 375), (4, 500), (5, 625)):  # 50% of the price
             u = await _user()
             r = await _book(c, drop, block, u, hours=hours)
             assert r.status_code == 201, r.text
