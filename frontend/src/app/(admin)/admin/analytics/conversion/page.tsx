@@ -268,6 +268,36 @@ function Report({ r }: { r: ConversionReport }) {
         </div>
       </Section>
 
+      <Section
+        title="What people tap"
+        hint={`Buttons and pop-ups, by visits that tapped them. ${fmt(r.invitedVisits)} visits came from a friend's invite link.`}
+      >
+        {r.actions.length === 0 ? (
+          <p className="text-body text-text-secondary">No taps recorded in this range.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-border bg-card">
+            <table className="w-full min-w-[420px] text-left text-caption">
+              <thead className="border-b border-border text-text-secondary">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">Tap · where</th>
+                  <th className="px-3 py-2 text-right font-semibold">Visits</th>
+                  <th className="px-3 py-2 text-right font-semibold">Times</th>
+                </tr>
+              </thead>
+              <tbody className="tabular-nums">
+                {r.actions.map((a) => (
+                  <tr key={a.action} className="border-b border-border/60 last:border-0">
+                    <td className="max-w-[360px] truncate px-3 py-2 font-data text-text-primary" title={a.action}>{a.action.replace(/_/g, ' ')}</td>
+                    <td className="px-3 py-2 text-right">{fmt(a.sessions)}</td>
+                    <td className="px-3 py-2 text-right">{fmt(a.times)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+
       <Section title="Opened payment, never paid" hint="Real people who got to the last step. Call or WhatsApp them from the booking.">
         {r.unpaid.length === 0 ? (
           <p className="text-body text-text-secondary">Nobody in this range.</p>

@@ -216,6 +216,13 @@ export default function LoginPage() {
           Create an account
         </Link>
       </p>
+      {/* Many people arrive here from a link and leave: give them a way in without signing in. */}
+      <p className="mt-3 text-center text-caption text-text-secondary">
+        Just looking?{' '}
+        <Link href="/gta6/near-me" className="font-semibold text-primary hover:underline">
+          See GTA 6 cafés near you
+        </Link>
+      </p>
     </div>
   );
 }

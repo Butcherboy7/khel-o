@@ -3,6 +3,7 @@ import { CustomerShell } from '@/components/layout/CustomerShell';
 import { ExploreScreen, loadExplore } from '@/components/customer/ExploreScreen';
 import { Gta6Block } from '@/components/gta6/Gta6Block';
 import { FreePlayCard } from '@/components/gta6/FreePlayCard';
+import { InviteCard } from '@/components/customer/InviteCard';
 import { GTA6_INTENTS, type Gta6Sort } from '@/constants/gta6Intents';
 import { GTA6_PLACES, GTA6_RELEASE, GTA6_TOP_CITY_SLUGS } from '@/constants/gta6';
 import { getPublicEnv } from '@/lib/runtimeEnv';
@@ -111,6 +112,8 @@ export async function Gta6SearchPage(p: Gta6SearchPageProps) {
       </section>
 
       {p.freePlay && <FreePlayCard utmCampaign={p.source} />}
+
+      <InviteCard where={`gta6_${p.source}`} className="max-w-xl" />
 
       {p.faq.length > 0 && (
         <section aria-labelledby="gta6-faq-h" className="flex flex-col gap-2">

@@ -1,5 +1,6 @@
 'use client';
 
+import { InviteCard } from '@/components/customer/InviteCard';
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Check, ShieldAlert, ShieldCheck } from 'lucide-react';
@@ -132,6 +133,7 @@ export default function DropPassPage({ params }: { params: Promise<{ slug: strin
             {pass.valid && !pass.canCheckIn && (
               <div className="mt-5 flex flex-col gap-3">
                 <CommunityInviteCard where="drop_pass" />
+                <InviteCard where="drop_pass" />
                 <LastChallengeLink where="drop_pass_challenge" />
               </div>
             )}

@@ -380,6 +380,8 @@ export interface ConversionReport {
     zeroResults: { query: string; times: number; cities: string[] }[];
   };
   devices: { device: string; sessions: number; start: number; pay: number }[];
+  actions: { action: string; sessions: number; times: number }[];
+  invitedVisits: number;
   unpaid: { reference: string; bookingStatus: string; amount: number; reason: string | null; at: string | null; cafe: string }[];
 }
 

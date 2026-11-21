@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { PlayGta6Cta } from '@/components/customer/PlayGta6Cta';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -316,6 +317,8 @@ export default function AboutPage() {
           Find a café near you
         </Link>
       </section>
+
+      <PlayGta6Cta from="about" />
 
       <section
         aria-label="Company"

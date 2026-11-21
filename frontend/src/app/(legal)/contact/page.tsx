@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { PlayGta6Cta } from '@/components/customer/PlayGta6Cta';
 import { Mail, Phone, MapPin } from 'lucide-react';
 import { ContactForm } from './ContactForm';
 
@@ -64,6 +65,9 @@ export default function ContactPage() {
 
       <h2>Send Us a Message</h2>
       <ContactForm />
+      <div className="not-prose mt-8">
+        <PlayGta6Cta from="contact" />
+      </div>
     </>
   );
 }

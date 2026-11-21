@@ -1,5 +1,7 @@
 'use client';
 
+import { PlayGta6Cta } from '@/components/customer/PlayGta6Cta';
+import { InviteCard } from '@/components/customer/InviteCard';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +16,7 @@ import { getBracket, getChallenge } from '@/lib/api/challenges';
 import { QuickSignIn } from '@/components/auth/QuickSignIn';
 import { useAuthStore } from '@/store/authStore';
 import { DEFAULT_SETTINGS, getThisWeek, leaveContact, removeVote, sendContribution, voteInPoll, type CommunityPost } from '@/lib/api/community';
-import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll } from '@/lib/challenge';
+import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll, COMMUNITY_MEMBERS_FLOOR } from '@/lib/challenge';
 import {
   SEEN_POST_KEY,
   joinedHere,
@@ -150,7 +152,8 @@ export function CommunityPage() {
     qc.invalidateQueries({ queryKey: ['community-week'] });
   };
 
-  const members = data?.members ?? 0;
+  // Same number everywhere: the real WhatsApp group size, or our join count once it is bigger.
+  const members = Math.max(data?.members ?? 0, COMMUNITY_MEMBERS_FLOOR);
   const showMembers = st.showMemberCount && members >= 10;
 
   return (
@@ -164,7 +167,7 @@ export function CommunityPage() {
         <h1 className="mt-1 font-heading text-[30px] font-bold leading-[1.05] md:text-[44px]">{st.headline}</h1>
         <p className="mt-2 max-w-xl text-body text-white/85">
           {st.line}{' '}
-          {showMembers ? <b className="text-white">{members} gamers are already in.</b> : 'Free to join, leave any time.'}
+          {showMembers ? <b className="text-white">{members}+ gamers are already in.</b> : 'Free to join, leave any time.'}
         </p>
         <div className="mt-4 hidden self-start md:block">{mounted && !member && <JoinButton where="community_page_top" onJoin={onJoin} label={st.joinLabel} />}</div>
       </section>
@@ -255,6 +258,10 @@ export function CommunityPage() {
       )}
 
       {tab === 'photos' && <PhotosTab contributors={data?.contributors ?? []} photos={data?.photos ?? WALL.map((n) => ({ url: `/community/${n}.webp`, caption: null }))} />}
+
+      {/* Something to do today, and a reason to bring friends. */}
+      <PlayGta6Cta from="community" />
+      <InviteCard where="community" />
 
       {/* Our reels, under every tab: follow the journey on Instagram too. */}
       <InstagramReels where="community" className="mt-2 rounded-3xl border border-border bg-card p-4 md:p-5 [&>div:last-child]:mx-0 [&>div:last-child]:px-0 [&>div:last-child]:scroll-px-0" />

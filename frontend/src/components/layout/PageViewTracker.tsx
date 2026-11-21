@@ -41,7 +41,11 @@ export function PageViewTracker() {
         ref = undefined;
       }
     }
-    fireAnalyticsEvent('page_view', { metadata: ref ? { path: pathname, ref, land: 1 } : { path: pathname } });
+    // A friend's invite link (?inv=<code>) credits them when this browser signs up or books.
+    const inv = params.get('inv');
+    const meta: Record<string, unknown> = ref ? { path: pathname, ref, land: 1 } : { path: pathname };
+    if (inv && /^[0-9a-f]{10}$/.test(inv)) meta.inv = inv;
+    fireAnalyticsEvent('page_view', { metadata: meta });
   }, [pathname]);
 
   // How long they stayed on this page and how far down they scrolled, sent

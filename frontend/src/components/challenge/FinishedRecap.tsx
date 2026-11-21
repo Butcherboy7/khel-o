@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { PlayGta6Cta } from '@/components/customer/PlayGta6Cta';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Trophy } from 'lucide-react';
 import { fightFont } from '@/components/challenge/ChallengeHero';
@@ -58,6 +59,9 @@ export function FinishedRecap({ ch }: { ch: Challenge }) {
           <span className="block text-[#E8675D]">#02 is coming, and the group hears first.</span>
         </h1>
       </div>
+
+      {/* Most people land here from old challenge links: give them something to do today. */}
+      <PlayGta6Cta from="challenge_finished" tone="dark" />
 
       <div className="grid grid-cols-3 gap-2 text-center">
         {[

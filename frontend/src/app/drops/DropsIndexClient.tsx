@@ -93,7 +93,11 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
   const { data: gta6Cfg } = useQuery({ queryKey: ['gta6-config'], queryFn: getGta6Config, staleTime: 60_000, retry: false });
   const asking = casual && !!gta6Cfg?.enabled;
   const special = rows.some((d) => d.hasSpecial);
-  const title = picked ? (casual ? `Play ${picked.name}: pick your café` : `${picked.name}: pick your café`) : casual ? 'Play it at a café' : 'Launch drops';
+  // One game on (GTA 6): name it in the headline, ad visitors land here and must see it in a second.
+  const only = !picked && games.length === 1 ? games[0] : null;
+  const title = picked
+    ? casual ? `Play ${picked.name}: pick your café` : `${picked.name}: pick your café`
+    : casual ? (only ? `Play ${only.name} at a café near you` : 'Play it at a café') : 'Launch drops';
   const cafes = rows.length;
   // Distances only work for cafés with a map pin. Never promise "nearest first" without one.
   const sorted = rows.some((d) => d.km != null);
@@ -114,7 +118,7 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
                 ? `${cafes} ${cafes === 1 ? 'café has' : 'cafés have'} it. ${sorted ? 'Nearest to you first. ' : ''}Tap a café, pick a time and book like any other slot.`
                 : `${cafes} ${cafes === 1 ? 'café is' : 'cafés are'} taking seats. ${sorted ? 'Nearest to you first.' : 'Tap a café to see days and times.'}`
               : casual
-              ? 'Pick a café, pick a time and book like any other slot.'
+              ? `${cafes} ${cafes === 1 ? 'café has' : 'cafés have'} it. Pick a café, pick a time and pay online. Walk in with a QR pass.`
               : 'Reserve a seat by paying 50% in advance. You pay the rest at the café.'}
           </p>
         </header>

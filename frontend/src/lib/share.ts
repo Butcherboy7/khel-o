@@ -8,7 +8,7 @@ import { getPublicEnv } from '@/lib/runtimeEnv';
 // shares → opens → signups → bookings per channel and per café.
 
 export type ShareChannel = 'whatsapp' | 'telegram' | 'facebook' | 'x' | 'copy' | 'native';
-export type ShareContext = 'cafe' | 'booking' | 'waitlist' | 'campaign' | 'community';
+export type ShareContext = 'cafe' | 'booking' | 'waitlist' | 'campaign' | 'community' | 'invite';
 
 export interface ShareTarget {
   /** Site path being shared, e.g. /cafe/dg-gaming-cafe-hyderabad. */
@@ -17,6 +17,8 @@ export interface ShareTarget {
   cafeId?: string;
   /** Café slug — becomes utm_campaign so signups map back to the café. */
   campaign?: string;
+  /** The sharer's invite code: friends who sign up or book from this link count for them. */
+  inv?: string;
 }
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.com');
@@ -36,6 +38,7 @@ export function createShare(target: ShareTarget, channel: ShareChannel): string 
   url.searchParams.set('utm_medium', channel);
   if (target.campaign) url.searchParams.set('utm_campaign', target.campaign);
   url.searchParams.set('sid', sid);
+  if (target.inv) url.searchParams.set('inv', target.inv);
 
   fireAnalyticsEvent('share_created', {
     cafeId: target.cafeId,

@@ -295,8 +295,23 @@ def build_report(
         r["pay"] += int(s.has("payment_opened") or s.has("ui_action", "drop_payment_started"))
     devices = sorted(({"device": k, **v} for k, v in dev.items()), key=lambda r: -r["sessions"])
 
+    # ---- taps: what people press (pop-ups, CTAs, invites, filters) ----
+    taps: dict[str, set[str]] = defaultdict(set)
+    tap_count: Counter[str] = Counter()
+    for s in real:
+        for e in s.events:
+            if e.type == "ui_action" and e.meta.get("action"):
+                where = e.meta.get("where") or e.meta.get("from")
+                key = f"{e.meta['action']}" + (f" · {where}" if isinstance(where, str) and where else "")
+                taps[key].add(s.id)
+                tap_count[key] += 1
+    actions = sorted(({"action": k, "sessions": len(v), "times": tap_count[k]} for k, v in taps.items()), key=lambda r: -r["sessions"])[:30]
+    invited = sum(1 for s in real if any(v.meta.get("inv") for v in s.views))
+
     report = {
         "days": days,
+        "actions": actions,
+        "invitedVisits": invited,
         "sessions": n,
         "instantBounces": len(bots),
         "loginAsked": login_asked,

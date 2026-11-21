@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { PlayGta6Cta } from '@/components/customer/PlayGta6Cta';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default function NotFound() {
           The link may be old, or the café may have changed its name. Try one of these instead:
         </p>
       </div>
+      <PlayGta6Cta from="404" className="w-full text-left" />
       <nav aria-label="Popular pages" className="flex w-full flex-col gap-2">
         {LINKS.map((l) => (
           <Link

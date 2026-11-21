@@ -12,6 +12,7 @@ import { SpecialAccessBadge, OG_BADGE_NAME } from '@/components/customer/Special
 import { OgBadgeSheet } from '@/components/customer/OgBadgeSheet';
 import { HelperEmblem, isHelperBadgeKey } from '@/components/customer/HelperEmblem';
 import { PhoneCaptureCard } from '@/components/layout/PhoneNumberPrompt';
+import { InviteCard } from '@/components/customer/InviteCard';
 import { useChallengeNudge } from '@/lib/challengeNudge';
 import {
   Avatar,
@@ -414,6 +415,9 @@ export default function ProfilePage() {
           ))}
         </div>
       )}
+
+      {/* Squad: the invite link and how many friends it brought in. */}
+      {user.role === 'gamer' && <InviteCard where="profile" />}
 
       {/* Gamer Preferences Breakdown */}
       <Card elevation="resting">
