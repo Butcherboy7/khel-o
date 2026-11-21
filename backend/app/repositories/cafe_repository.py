@@ -6,6 +6,7 @@ from sqlalchemy import select, func, or_, and_, case, cast, Float, String
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.game_platforms import tier_runs_gta6
+from app.core.search_words import strip_gta6_words
 from app.models.cafe import Cafe, VerificationStatus
 from app.models.user import User
 from app.models.hardware_tier import HardwareTier, TierType
@@ -171,6 +172,28 @@ class CafeRepository(BaseRepository[Cafe]):
             # this stays resilient to whitespace drift in already-stored rows
             # rather than dropping them from their own city's filter.
             stmt = stmt.where(func.lower(func.trim(Cafe.city)) == city.strip().lower())
+
+        if query and query.strip():
+            # Typed a city ("Delhi") while another city is picked: search that city.
+            typed = query.strip().lower()
+            if len(typed.split()) <= 2:
+                city_hit = (await self.db.execute(
+                    select(func.min(Cafe.city)).where(func.lower(func.trim(Cafe.city)) == typed)
+                )).scalar()
+                if city_hit:
+                    stmt = self._visible_cafes().where(func.lower(func.trim(Cafe.city)) == typed)
+                    query = None
+
+        if query and query.strip():
+            # "gta", "gta 6", "gta vi kukatpally": cafés with a setup that runs GTA 6, plus any other words.
+            rest, wants_gta6 = strip_gta6_words(query)
+            if wants_gta6:
+                tiers = (await self.db.execute(
+                    select(HardwareTier).where(HardwareTier.is_active == True, HardwareTier.tier_type == TierType.GAMING)
+                )).scalars().all()
+                ids = sorted({t.cafe_id for t in tiers if tier_runs_gta6(t)}, key=str)
+                stmt = stmt.where(Cafe.id.in_(ids) if ids else Cafe.id.is_(None))
+                query = rest
 
         if query and query.strip():
             def matches(word: str):

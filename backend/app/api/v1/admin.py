@@ -515,6 +515,7 @@ async def list_all_bookings_admin(
     dateFrom: Optional[date] = Query(None, alias="dateFrom"),
     dateTo: Optional[date] = Query(None, alias="dateTo"),
     campaignOnly: bool = Query(False, alias="campaignOnly"),
+    search: Optional[str] = Query(None, max_length=100),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
     current_admin: User = Depends(require_admin),
@@ -529,6 +530,7 @@ async def list_all_bookings_admin(
     )
     result = await service.list_all_bookings(
         campaign_only=campaignOnly,
+        search=search,
         cafe_id=cafeId,
         gamer_id=gamerId,
         status=status,

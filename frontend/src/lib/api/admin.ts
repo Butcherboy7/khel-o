@@ -954,3 +954,44 @@ export interface CommunityAnalytics {
 export async function getCommunityAnalytics(days: number): Promise<CommunityAnalytics> {
   return call(() => apiClient.get('/api/v1/admin/community/analytics', { params: { days } }));
 }
+
+// ---- Admin global search ----
+export interface AdminSearchItem {
+  kind: 'user' | 'contact' | 'cafe' | 'booking' | 'drop_seat' | 'payment' | 'drop' | 'challenge' | 'offer' | 'link';
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  phone?: string | null;
+  badge?: string | null;
+  meta?: string | null;
+  href: string;
+  external?: string | null;
+  date?: string | null;
+  active?: boolean;
+}
+export interface AdminSearchGroup {
+  key: string;
+  label: string;
+  items: AdminSearchItem[];
+  more: boolean;
+  seeAll: string | null;
+}
+export interface AdminSearchResult {
+  query: string;
+  kind: 'short' | 'phone' | 'payment' | 'email' | 'text';
+  digits?: string | null;
+  groups: AdminSearchGroup[];
+}
+export interface AdminPerson {
+  digits: string | null;
+  name?: string | null;
+  groups: AdminSearchGroup[];
+}
+
+export async function adminSearch(q: string, signal?: AbortSignal): Promise<AdminSearchResult> {
+  return call(() => apiClient.get('/api/v1/admin/search', { params: { q }, signal }));
+}
+
+export async function adminPerson(phone: string): Promise<AdminPerson> {
+  return call(() => apiClient.get('/api/v1/admin/search/person', { params: { phone } }));
+}

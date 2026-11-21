@@ -9,6 +9,9 @@ import { useAnalyticsStore } from '@/store/analyticsStore';
 // Records one first-party page_view per client-side route change, feeding the
 // admin Traffic page. Admin routes are skipped (and dropped server-side too) so
 // staff browsing the console doesn't count as product traffic.
+// One per page load: the first page view carries the referrer.
+let landed = false;
+
 export function PageViewTracker() {
   const pathname = usePathname();
 
@@ -26,7 +29,19 @@ export function PageViewTracker() {
       useAnalyticsStore.getState().captureAttributionFromUrl(params);
       if (params.get('utm_source')) recordShareOpen(params);
     }
-    fireAnalyticsEvent('page_view', { metadata: { path: pathname } });
+    // The first page of a visit also says which site sent them (host only, never the full
+    // URL), so Google, Instagram, WhatsApp and ChatGPT show up even without a tagged link.
+    let ref: string | undefined;
+    if (!landed) {
+      landed = true;
+      try {
+        const host = document.referrer ? new URL(document.referrer).hostname.replace(/^www\./, '') : '';
+        ref = host && host !== window.location.hostname.replace(/^www\./, '') ? host : 'direct';
+      } catch {
+        ref = undefined;
+      }
+    }
+    fireAnalyticsEvent('page_view', { metadata: ref ? { path: pathname, ref, land: 1 } : { path: pathname } });
   }, [pathname]);
 
   // How long they stayed on this page and how far down they scrolled, sent

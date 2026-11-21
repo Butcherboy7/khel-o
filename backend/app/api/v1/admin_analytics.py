@@ -234,3 +234,14 @@ async def get_area_report(
     from app.services import growth_report_service
 
     return {"success": True, "data": await growth_report_service.area_report(db, city, days)}
+
+
+@router.get("/conversion", status_code=status.HTTP_200_OK)
+async def get_conversion(
+    days: int = Query(30, ge=1, le=90),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Why people don't book: funnels, sources, pages, searches, unpaid payments."""
+    from app.services.conversion_report import conversion_report
+    return {"success": True, "data": await conversion_report(db, days)}

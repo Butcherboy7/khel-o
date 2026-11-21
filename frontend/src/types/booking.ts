@@ -109,6 +109,8 @@ export interface AdminBookingListParams {
   dateTo?: string;
   /** Only bookings that used an offer from a campaign. */
   campaignOnly?: boolean;
+  /** Reference, player name/email/phone or café name, searched on the server. */
+  search?: string;
   page?: number;
   limit?: number;
 }

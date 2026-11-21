@@ -341,3 +341,48 @@ export interface BotBlocks {
 export async function getBotBlocks(days = 14): Promise<BotBlocks> {
   return call(() => apiClient.get('/api/v1/admin/analytics/bot-blocks', { params: { days } }));
 }
+
+// ---- Conversion: why people don't book ----
+export interface FunnelStep {
+  key: string;
+  label: string;
+  sessions: number;
+  fromPrevious: number | null;
+  lost: number;
+  fromDatabase?: boolean;
+}
+export interface ConversionPageRow {
+  path: string;
+  views: number;
+  avgSecs: number | null;
+  medianSecs: number | null;
+  avgScroll: number | null;
+  exits: number;
+  exitRate: number | null;
+}
+export interface ConversionReport {
+  days: number;
+  sessions: number;
+  instantBounces: number;
+  loginAsked: number;
+  paymentProblems: number;
+  leaks: { title: string; detail: string; area: string }[];
+  bookingFunnel: FunnelStep[];
+  dropFunnel: FunnelStep[];
+  channels: { channel: string; sessions: number; cafe: number; start: number; pay: number; bounced: number; bounceRate: number | null; startRate: number | null }[];
+  pages: ConversionPageRow[];
+  sections: ConversionPageRow[];
+  landings: { path: string; sessions: number; bounced: number; start: number; bounceRate: number | null; startRate: number | null }[];
+  searches: {
+    total: number;
+    typed: number;
+    top: { query: string; times: number }[];
+    zeroResults: { query: string; times: number; cities: string[] }[];
+  };
+  devices: { device: string; sessions: number; start: number; pay: number }[];
+  unpaid: { reference: string; bookingStatus: string; amount: number; reason: string | null; at: string | null; cafe: string }[];
+}
+
+export async function getConversion(days: number): Promise<ConversionReport> {
+  return call(() => apiClient.get('/api/v1/admin/analytics/conversion', { params: { days } }));
+}

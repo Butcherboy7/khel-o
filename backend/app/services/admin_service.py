@@ -6,7 +6,7 @@ from uuid import UUID
 from datetime import datetime, timezone, date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.demo import demo_cafe_ids, not_demo_booking, not_demo_cafe
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 
 from app.repositories.user_repository import UserRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -264,6 +264,7 @@ class AdminService:
         page: int = 1,
         limit: int = 20,
         campaign_only: bool = False,
+        search: Optional[str] = None,
     ) -> Dict[str, Any]:
         limit = min(limit, 50)
         stmt = select(
@@ -306,6 +307,20 @@ class AdminService:
             filters.append(Booking.session_date >= date_from)
         if date_to:
             filters.append(Booking.session_date <= date_to)
+        if search and search.strip():
+            # Reference, player name or email, café name, or the player's phone (digits only).
+            from app.core.phone_search import phone_digits, phone_column_digits
+            term = f"%{search.strip().lower()}%"
+            ors = [
+                func.lower(Booking.booking_reference).like(term),
+                func.lower(User.full_name).like(term),
+                func.lower(User.email).like(term),
+                func.lower(Cafe.name).like(term),
+            ]
+            digits = phone_digits(search)
+            if digits:
+                ors.append(phone_column_digits(User.phone_number).like(f"%{digits}%"))
+            filters.append(or_(*ors))
 
         if filters:
             stmt = stmt.where(and_(*filters))

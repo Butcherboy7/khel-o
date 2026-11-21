@@ -1,4 +1,5 @@
 'use client';
+import { useSearchParams } from 'next/navigation';
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -86,7 +87,8 @@ export default function AdminCafesPage() {
 
   const [activeCafesTab, setActiveCafesTab] = useState<'all' | 'performance'>('all');
   const [statusFilter, setStatusFilter] = useState<VerificationStatus | 'all'>('all');
-  const [search, setSearch] = useState('');
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [selectedCafe, setSelectedCafe] = useState<AdminCafe | null>(null);
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');

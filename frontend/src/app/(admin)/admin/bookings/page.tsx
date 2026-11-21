@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useDebounce } from '@/hooks/useDebounce';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarDays,
@@ -163,7 +165,9 @@ function AmountCell({ b, align = 'right' }: { b: BookingDetail; align?: 'left' |
 export default function AdminBookingsPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<BookingStatus | 'all'>('all');
-  const [search, setSearch] = useState('');
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
+  const serverSearch = useDebounce(search.trim(), 300);
   const [campaignOnly, setCampaignOnly] = useState(false);
   const [actionTarget, setActionTarget] = useState<{ booking: BookingDetail; kind: 'cancel' | 'refund' } | null>(null);
   const [reason, setReason] = useState('');
@@ -171,17 +175,19 @@ export default function AdminBookingsPage() {
   const params = {
     ...(statusFilter !== 'all' ? { status: statusFilter as BookingStatus } : {}),
     ...(campaignOnly ? { campaignOnly: true } : {}),
+    ...(serverSearch.length >= 2 ? { search: serverSearch } : {}),
     limit: 50,
   };
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: [...queryKeys.admin.all, 'bookings', statusFilter, campaignOnly],
+    queryKey: [...queryKeys.admin.all, 'bookings', statusFilter, campaignOnly, serverSearch.length >= 2 ? serverSearch : ''],
     queryFn: () => listAdminBookings(params),
     staleTime: 30_000,
   });
 
+  // The server already searched every booking; this only narrows while the debounce catches up.
   const bookings = (data?.items ?? []).filter((b) => {
-    if (!search.trim()) return true;
+    if (!search.trim() || serverSearch.length >= 2) return true;
     const q = search.toLowerCase();
     return (
       b.bookingReference?.toLowerCase().includes(q) ||
@@ -241,7 +247,7 @@ export default function AdminBookingsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
           <input
             type="text"
-            placeholder="Search by booking ref, gamer name or café…"
+            placeholder="Search by booking ref, player name, phone or café…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-10 pl-9 pr-4 rounded-xl border border-border bg-surface text-caption text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/40"

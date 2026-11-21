@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   Search,
   ShieldCheck,
@@ -35,11 +35,13 @@ import {
   Clock,
   type LucideIcon,
   Target,
+  Filter,
   BellRing,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { enablePush, resolvePushState, resyncPushSubscription, type PushState } from '@/lib/alerts/subscribe';
 import { apiClient } from '@/lib/api/client';
+import { AdminFindProvider, useAdminFind } from '@/components/admin/AdminFind';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
@@ -106,6 +108,7 @@ const adminNavGroups: NavGroup[] = [
   {
     label: 'Insights',
     items: [
+      { label: 'Conversion', href: '/admin/analytics/conversion', icon: Filter },
       { label: 'Traffic', href: '/admin/analytics/traffic', icon: TrendingUp },
       { label: 'Campaigns', href: '/admin/analytics/ads', icon: Target },
       { label: 'Revenue', href: '/admin/analytics/revenue', icon: IndianRupee },
@@ -194,32 +197,39 @@ function Count({ n, className = '' }: { n: number; className?: string }) {
 
 /** Find anyone fast: name, email or phone number. Opens the Users page with the search already filled in. */
 function AdminSearchBox({ onDone }: { onDone?: () => void }) {
-  const router = useRouter();
-  const [q, setQ] = useState('');
+  const { open } = useAdminFind();
+  const [mac, setMac] = useState(false);
+  useEffect(() => setMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)), []);
   return (
-    <form
-      role="search"
-      className="px-3 pt-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const term = q.trim();
-        router.push(term ? `/admin/users?q=${encodeURIComponent(term)}` : '/admin/users?focus=1');
-        setQ('');
-        onDone?.();
-      }}
+    <div className="px-3 pt-3">
+      <button
+        type="button"
+        onClick={() => {
+          onDone?.();
+          open();
+        }}
+        className="flex h-10 w-full items-center gap-2 rounded-xl border border-white/15 bg-white/10 pl-3 pr-2 text-left text-caption text-white/60 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+        aria-label="Search people, numbers, cafés, bookings and pages"
+      >
+        <Search className="h-4 w-4 flex-shrink-0" aria-hidden />
+        <span className="flex-1 truncate">Search anything</span>
+        <kbd className="rounded-md border border-white/20 px-1.5 py-0.5 font-sans text-[11px] font-semibold text-white/70">{mac ? '⌘K' : 'Ctrl K'}</kbd>
+      </button>
+    </div>
+  );
+}
+
+function MobileSearchButton() {
+  const { open } = useAdminFind();
+  return (
+    <button
+      type="button"
+      onClick={() => open()}
+      aria-label="Search people, numbers, cafés, bookings and pages"
+      className="ml-auto flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-white/85 hover:bg-white/10"
     >
-      <label className="relative block">
-        <span className="sr-only">Search users by name, email or phone number</span>
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/60" aria-hidden />
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Find a user or number"
-          className="h-10 w-full rounded-xl border border-white/15 bg-white/10 pl-9 pr-3 text-caption text-white placeholder:text-white/55 focus:outline-none focus:ring-2 focus:ring-primary/60"
-        />
-      </label>
-    </form>
+      <Search className="h-5 w-5" aria-hidden />
+    </button>
   );
 }
 
@@ -406,13 +416,7 @@ function AdminMobileNav() {
           {group?.label ?? 'KHEL-O Admin'}
           {item && <span className="font-normal text-white/60"> · {item.label}</span>}
         </span>
-        <Link
-          href="/admin/users?focus=1"
-          aria-label="Search users by name, email or phone number"
-          className="ml-auto flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-white/85 hover:bg-white/10"
-        >
-          <Search className="h-5 w-5" aria-hidden />
-        </Link>
+        <MobileSearchButton />
       </header>
 
       <nav
@@ -656,6 +660,7 @@ function AdminAlertsPrompt() {
 
 export function AdminShell({ children }: { children: ReactNode }) {
   return (
+    <AdminFindProvider>
     <div className="min-h-screen bg-surface">
       <AdminSidebar />
       <AdminMobileNav />
@@ -668,5 +673,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
       </main>
     </div>
+    </AdminFindProvider>
   );
 }

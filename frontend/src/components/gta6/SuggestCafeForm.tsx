@@ -29,9 +29,9 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
 }
 
 /** Public, no account. `place` is the city this page is about (prefilled, editable). */
-export function SuggestCafeForm({ place, source }: { place?: string; source: string }) {
+export function SuggestCafeForm({ place, source, cafe }: { place?: string; source: string; cafe?: string }) {
   const { guardFields, trap } = useBotGuard();
-  const [cafeName, setCafeName] = useState('');
+  const [cafeName, setCafeName] = useState(cafe ?? '');
   const [city, setCity] = useState(place && place !== 'India' ? place : '');
   const [mapsUrl, setMapsUrl] = useState('');
   const [cafePhone, setCafePhone] = useState('');

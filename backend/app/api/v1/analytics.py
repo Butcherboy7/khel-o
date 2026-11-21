@@ -12,6 +12,10 @@ from app.schemas.analytics import AnalyticsEventCreateRequest, AnalyticsEventTyp
 from app.repositories.analytics_event_repository import AnalyticsEventRepository
 from app.core.localities import locality_for
 
+import re
+
+# Crawlers, link previewers and headless browsers: kept but marked, never counted as people.
+_BOT_UA = re.compile(r"bot|crawler|spider|slurp|headless|lighthouse|pingdom|uptimerobot", re.I)
 INTERNAL_ROLES = {UserRole.ADMIN, UserRole.CAFE_OWNER, UserRole.STAFF}
 router = APIRouter()
 
@@ -76,7 +80,10 @@ async def create_analytics_event(
             if created.tzinfo is None:
                 created = created.replace(tzinfo=timezone.utc)
             metadata["new"] = datetime.now(timezone.utc) - created < timedelta(minutes=15)
-    device, iab = _device(request.headers.get("user-agent", ""))
+    ua = request.headers.get("user-agent", "")
+    if _BOT_UA.search(ua):
+        metadata["bot"] = True
+    device, iab = _device(ua)
     metadata["dev"] = device
     if iab:
         metadata["iab"] = iab

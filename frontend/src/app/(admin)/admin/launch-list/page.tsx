@@ -1,4 +1,5 @@
 'use client';
+import { useSearchParams } from 'next/navigation';
 
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -27,7 +28,8 @@ function contactHref(row: LaunchSignupRow, message: string): string {
 }
 
 export default function AdminLaunchListPage() {
-  const [q, setQ] = useState('');
+  const searchParams = useSearchParams();
+  const [q, setQ] = useState(searchParams.get('q') ?? '');
   const [method, setMethod] = useState<ReachBy | 'all'>('all');
   const [message, setMessage] = useState(DEFAULT_MESSAGE);
   const [copied, setCopied] = useState(false);

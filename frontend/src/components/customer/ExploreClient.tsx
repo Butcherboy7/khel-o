@@ -38,6 +38,7 @@ import {
   type SortOption,
 } from '@/components/customer/CafeFilterSheet';
 import { SkeletonCafeGrid, ErrorState, EmptyState } from '@/components/ui';
+import { SuggestCafeForm } from '@/components/gta6/SuggestCafeForm';
 import type { ActivityFacet, CafeListItem, PaginatedResponse } from '@/types';
 
 
@@ -676,12 +677,23 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
         )}
 
         {!isLoading && !isError && sortedCafes.length === 0 && (
-          <EmptyState
-            title="No gaming cafés found"
-            description={`No places match${searchQuery ? ` "${searchQuery}"` : ''} in ${selectedCity === 'All Cities' ? 'any city' : selectedCity} yet. Try a different search, or explore what's nearby instead.`}
-            actionLabel="Clear All Filters"
-            onAction={handleResetFilters}
-          />
+          <div className="flex flex-col gap-4">
+            <EmptyState
+              title="No gaming cafés found"
+              description={`No places match${searchQuery ? ` "${searchQuery}"` : ''} in ${selectedCity === 'All Cities' ? 'any city' : selectedCity} yet. Try a different search, or tell us the place and we'll try to bring it on.`}
+              actionLabel="Clear All Filters"
+              onAction={handleResetFilters}
+            />
+            {/* Never a dead end: a café we don't list yet goes to the suggestions inbox. */}
+            <div className="mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-4">
+              <p className="mb-3 text-body font-semibold text-text-primary">Know a café we should add?</p>
+              <SuggestCafeForm
+                source="explore-empty"
+                cafe={searchQuery || undefined}
+                place={selectedCity === 'All Cities' ? undefined : selectedCity}
+              />
+            </div>
+          </div>
         )}
 
         {/* Caps at 5 columns on purpose. The container keeps widening past
