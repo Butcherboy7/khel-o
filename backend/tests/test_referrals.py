@@ -38,6 +38,7 @@ def test_lines_are_trimmed_to_the_ceiling_last_first():
 def test_codes_are_matched_ignoring_case_and_spaces():
     class S: community_code = "KHELO-TEST"
     assert R.matches_community_code(S, " khelo-test ") and not R.matches_community_code(S, "KHELO")
+    assert R.matches_community_code(S, "KHELOTEST")  # checkout's box drops the dash
     S.community_code = None
     assert not R.matches_community_code(S, "")
 

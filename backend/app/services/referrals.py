@@ -41,12 +41,18 @@ def invite_code(user_id: UUID) -> str:
 
 
 def norm_code(code: Optional[str]) -> str:
+    """How a code is stored: upper case, no spaces ("squad-nov " -> "SQUAD-NOV")."""
     return re.sub(r"\s+", "", (code or "")).upper()
 
 
+def _bare(code: Optional[str]) -> str:
+    # Checkout's code box keeps letters and digits only, so "SQUAD-NOV" arrives as "SQUADNOV".
+    return re.sub(r"[^A-Z0-9]", "", (code or "").upper())
+
+
 def matches_community_code(settings, code: Optional[str]) -> bool:
-    want = norm_code(getattr(settings, "community_code", None))
-    return bool(want) and norm_code(code) == want
+    want = _bare(getattr(settings, "community_code", None))
+    return bool(want) and _bare(code) == want
 
 
 @dataclass
