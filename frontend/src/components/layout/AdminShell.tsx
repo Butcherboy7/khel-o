@@ -37,6 +37,7 @@ import {
   Target,
   Filter,
   BellRing,
+  Gift,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { enablePush, resolvePushState, resyncPushSubscription, type PushState } from '@/lib/alerts/subscribe';
@@ -97,6 +98,7 @@ const adminNavGroups: NavGroup[] = [
       { label: 'Drops', href: '/admin/drops', icon: Rocket },
       { label: 'Offers', href: '/admin/promotions', icon: Tag },
       { label: 'Challenges', href: '/admin/challenges', icon: Trophy },
+      { label: 'Referrals', href: '/admin/referrals', icon: Gift },
       { label: 'GTA 6 list', href: '/admin/launch-list', icon: Rocket },
       { label: 'GTA 6 requests', href: '/admin/gta6-requests', icon: Rocket },
       { label: 'Café suggestions', href: '/admin/cafe-suggestions', icon: Store },

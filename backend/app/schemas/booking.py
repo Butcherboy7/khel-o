@@ -96,6 +96,9 @@ class BookingResponse(BookingBase):
     gateway_fee: float
     total_amount: float
     khelo_discount: float = 0.0
+    # The part of khelo_discount that is a KHEL-O credit, and what it was ("welcome+community").
+    khelo_credit: float = 0.0
+    credit_note: Optional[str] = None
     first_booking_offer: bool = False
     convenience_fee: float
     status: BookingStatus
@@ -195,6 +198,15 @@ class OfferOption(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
+class CreditLineOut(BaseModel):
+    """One KHEL-O credit on a booking: welcome | community | referral."""
+    kind: str
+    label: str
+    amount: float
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
 class QuoteResponse(BaseModel):
     base_amount: float
     discount_amount: float
@@ -220,6 +232,11 @@ class QuoteResponse(BaseModel):
     session_price: float = 0.0
     platform_fee_before_offer: float = 0.0
     first_booking_offer: bool = False
+    # KHEL-O credits off the total (welcome / community code / friend reward), already in `total`.
+    khelo_credit: float = 0.0
+    credit_lines: list[CreditLineOut] = []
+    # First booking, community code not typed yet: "+₹N with the code from the WhatsApp community".
+    community_hint: int = 0
 
     model_config = ConfigDict(
         alias_generator=to_camel,

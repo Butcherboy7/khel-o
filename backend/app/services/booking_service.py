@@ -11,7 +11,8 @@ from datetime import datetime, timezone, timedelta, date, time
 
 from app.core.time import IST, session_end_ist
 from app.core.duration import length_text, tier_allowed_minutes
-from app.services.checkout_maths import checkout_money, first_booking_offer_for
+from app.services.checkout_maths import checkout_money, first_booking_offer_for, has_paid_booking, price_drop
+from app.services.referrals import credits_for, matches_community_code
 from app.services.pricing_service import base_price
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cafe_repository import CafeRepository
@@ -187,6 +188,13 @@ class BookingService:
         if base_amount_override is not None:
             base_amount = base_amount_override
 
+        # The WhatsApp community code is a KHEL-O credit, not a café offer: take it out of the
+        # café-promo path before that path calls it "not valid for this café".
+        community_code = None
+        if booking_in.promo_code and matches_community_code(
+            await PlatformSettingsRepository(self.booking_repo.db).get_or_create(), booking_in.promo_code
+        ):
+            community_code, booking_in.promo_code = booking_in.promo_code, None
         discount_amount = Decimal('0.00')
         # promotion_id wins if both are somehow present — it's the
         # auto-applied-at-checkout offer path already validated client-side;
@@ -267,7 +275,15 @@ class BookingService:
         # KHEL-O's ₹1 price drop and the first-booking launch offer (no booking
         # fee) — see services/checkout_maths.py. The café's share stays `subtotal`.
         first_offer = await first_booking_offer_for(self.booking_repo.db, gamer_id)
-        money = checkout_money(subtotal, service_fee_percent, first_offer)
+        before = checkout_money(subtotal, service_fee_percent, first_offer)
+        # KHEL-O credits (welcome, community code, friend reward): services/referrals.py.
+        is_first = gamer_id is None or not await has_paid_booking(self.booking_repo.db, gamer_id)
+        credits = await credits_for(
+            self.booking_repo.db, platform_settings, gamer_id,
+            session_price=before.session_price, charge_before=before.total,
+            community_code=community_code, first_booking=is_first,
+        )
+        money = checkout_money(subtotal, service_fee_percent, first_offer, credits.total)
         gateway_fee = money.booking_fee
         convenience_fee = Decimal('0.00')
         total_amount = money.total + convenience_fee
@@ -291,7 +307,10 @@ class BookingService:
             "gateway_fee": float(gateway_fee),
             "convenience_fee": float(convenience_fee),
             "total_amount": float(total_amount),
-            "khelo_discount": float(money.khelo_discount),
+            "khelo_discount": float(money.khelo_paid),
+            "khelo_credit": float(money.credit),
+            "credit_note": credits.note,
+            "referral_credit_id": credits.referral_credit_id,
             "first_booking_offer": money.first_booking_offer,
             "status": BookingStatus.PENDING_PAYMENT,
             "promotion_id": resolved_promotion_id,
@@ -353,6 +372,13 @@ class BookingService:
         if base_amount_override is not None:
             base_amount = base_amount_override   # a confirmed-slot link: same price claiming it will charge
 
+        # The WhatsApp community code is a KHEL-O credit, not a café offer: take it out of the
+        # café-promo path before that path calls it "not valid for this café".
+        community_code = None
+        if quote_in.promo_code and matches_community_code(
+            await PlatformSettingsRepository(self.booking_repo.db).get_or_create(), quote_in.promo_code
+        ):
+            community_code, quote_in.promo_code = quote_in.promo_code, None
         discount_amount = Decimal('0.00')
         applied_offer = None
         offer_hint = None
@@ -435,11 +461,21 @@ class BookingService:
         platform_settings = await PlatformSettingsRepository(self.booking_repo.db).get_or_create()
         service_fee_percent = Decimal(str(platform_settings.platform_fee_percentage))
         first_offer = await first_booking_offer_for(self.booking_repo.db, gamer_id)
-        money = checkout_money(subtotal, service_fee_percent, first_offer)
+        before = checkout_money(subtotal, service_fee_percent, first_offer)
+        # KHEL-O credits (welcome, community code, friend reward): services/referrals.py.
+        is_first = gamer_id is None or not await has_paid_booking(self.booking_repo.db, gamer_id)
+        credits = await credits_for(
+            self.booking_repo.db, platform_settings, gamer_id,
+            session_price=before.session_price, charge_before=before.total,
+            community_code=community_code, first_booking=is_first,
+        )
+        money = checkout_money(subtotal, service_fee_percent, first_offer, credits.total)
         platform_fee = money.booking_fee
         total = money.total
 
-        from app.schemas.booking import QuoteResponse, AppliedOffer, OfferHint
+        from app.schemas.booking import QuoteResponse, AppliedOffer, OfferHint, CreditLineOut
+        if credits.community_note and not offer_note:
+            offer_note = credits.community_note
 
         prices_by_minutes = {
             m: float(base_price_for_minutes(tier, m, players=players, is_coop=is_coop, seats=seats_requested))
@@ -467,6 +503,9 @@ class BookingService:
             session_price=float(money.session_price),
             platform_fee_before_offer=float(money.fee_before_offer),
             first_booking_offer=money.first_booking_offer,
+            khelo_credit=float(money.credit),
+            credit_lines=[CreditLineOut(kind=l.kind, label=l.label, amount=float(l.amount)) for l in credits.lines],
+            community_hint=credits.community_hint,
         )
 
     @staticmethod
@@ -692,6 +731,8 @@ class BookingService:
             "cancelled_at": now_utc,
             "cancellation_reason": reason
         })
+        from app.services import referrals
+        await referrals.on_cancelled(self.booking_repo.db, booking_id)
 
         # Trigger refund for CONFIRMED (paid) bookings
         if was_confirmed:

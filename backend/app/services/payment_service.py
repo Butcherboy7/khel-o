@@ -504,6 +504,8 @@ class PaymentService:
             "status": BookingStatus.CONFIRMED,
             "qr_code_url": qr_url
         })
+        from app.services import referrals
+        await referrals.on_paid(self.booking_repo.db, booking)
 
         # Trigger confirmation email
         notifier = NotificationService()
@@ -668,6 +670,8 @@ class PaymentService:
                             "status": BookingStatus.CONFIRMED,
                             "qr_code_url": qr_url
                         })
+                        from app.services import referrals
+                        await referrals.on_paid(self.booking_repo.db, booking)
                         await notifier.send_booking_confirmation(self.payment_repo.db, booking.id)
                         # This path confirmed the booking but notified nobody —
                         # verify_payment did. A customer who closes the tab
@@ -909,6 +913,8 @@ class PaymentService:
             await self.payment_repo.db.commit()
 
         await self.booking_repo.update(booking_id, {"status": BookingStatus.CANCELLED})
+        from app.services import referrals
+        await referrals.on_cancelled(self.booking_repo.db, booking_id)
 
         notifier = NotificationService()
         await notifier.send_refund_confirmation(self.payment_repo.db, booking_id)

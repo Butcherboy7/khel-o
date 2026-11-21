@@ -2854,6 +2854,8 @@ async def cancel_booking_as_owner(
         "cancelled_at": now_utc,
         "cancellation_reason": reason or "Cancelled by cafe owner"
     })
+    from app.services import referrals
+    await referrals.on_cancelled(booking_repo.db, booking_id)
 
     if was_confirmed:
         try:

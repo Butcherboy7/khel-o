@@ -294,6 +294,9 @@ class OwnerService:
         updated = await self.booking_repo.update(booking_id, update_fields)
         if updated:
             updated = await self.auto_transition_booking(updated)
+            # The friend played: reward whoever invited them (best-effort, never blocks check-in).
+            from app.services import referrals
+            await referrals.on_checked_in(self.booking_repo.db, updated)
 
         # Notify the owner when a staff member (not the owner themself) performs the check-in
         if current_user.role == UserRole.STAFF:
@@ -341,6 +344,8 @@ class OwnerService:
                 "cancelled_at": now_utc,
                 "cancellation_reason": "Emergency café closure"
             })
+            from app.services import referrals
+            await referrals.on_cancelled(self.booking_repo.db, b.id)
             cancelled_bookings.append(BookingResponse.model_validate(updated))
 
             # Café-initiated cancellations always refund in full, regardless of

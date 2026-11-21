@@ -1,5 +1,6 @@
 'use client';
 
+import { ReferralClaimer } from '@/components/referral/ReferralClaimer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect, type ReactNode } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -74,6 +75,7 @@ export function Providers({ children }: { children: ReactNode }) {
           {children}
           <PwaUpdatePrompt />
           <PageViewTracker />
+          <ReferralClaimer />
           <PageMemory />
         </RoleSyncProvider>
       </AuthInitializer>

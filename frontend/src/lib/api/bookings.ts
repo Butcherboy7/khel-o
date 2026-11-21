@@ -83,6 +83,11 @@ export interface QuoteResponse {
   /** Booking fee had it not been waived, for the "you save" line. */
   platformFeeBeforeOffer: number;
   firstBookingOffer: boolean;
+  /** KHEL-O credits already taken off `total`: welcome, community code, friend reward. */
+  kheloCredit?: number;
+  creditLines?: { kind: 'welcome' | 'community' | 'referral'; label: string; amount: number }[];
+  /** First booking, no community code typed yet: ₹ more off with the code from WhatsApp. */
+  communityHint?: number;
   total: number;
   appliedOffer: QuoteAppliedOffer | null;
   offerHint: QuoteOfferHint | null;
