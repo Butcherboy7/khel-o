@@ -109,7 +109,10 @@ const nextConfig = {
   },
   async rewrites() {
     // Thank-you pages for interns are plain HTML in public/thanks/ (built by marketing/certificates/).
-    return [{ source: '/thanks/maleeha', destination: '/thanks/maleeha.html' }];
+    return [
+      { source: '/thanks/maleeha', destination: '/thanks/maleeha.html' },
+      { source: '/thanks/ashwith', destination: '/thanks/ashwith.html' },
+    ];
   },
   // The frontend is its own app: without this, Next 15 looks up the folder tree
   // for a lockfile and can pick the repo root, which moves server.js inside
