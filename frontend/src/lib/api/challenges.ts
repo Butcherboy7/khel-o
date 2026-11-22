@@ -132,6 +132,10 @@ export interface BracketMatch {
   bye: boolean;
   /** Put off because a player is late: waits at the back of the queue. */
   postponed: boolean;
+  /** Team challenges: the set start time, the lobby (A/B) and each game's rounds. */
+  startsAt?: string | null;
+  lobby?: string | null;
+  games?: { a: number | null; b: number | null }[] | null;
 }
 
 export interface Bracket {

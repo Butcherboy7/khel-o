@@ -18,11 +18,16 @@ import { ShareIconRow, WhatsAppButton, type ShareChannel } from '@/components/sh
 import { hasTappedCommunity, markCommunityTapped } from '@/lib/challenge-signup';
 import { COMMUNITY_URL, challengeDay, challengeMoment, challengeTime, challengeTimeRange, calendarUrl, handle, openToAll, whatsappShare } from '@/lib/challenge';
 import { Celebration } from '@/components/challenge/Celebration';
+import { teamChallengeConfig } from '@/challenges';
+import { TeamMe } from '@/components/challenge/team/TeamMe';
 
 export default function MyChallengePage() {
+  const { slug } = useParams<{ slug: string }>();
+  const teamCfg = teamChallengeConfig(slug);
+  const isNew = useSearchParams().get('new') === '1';
   return (
     <AuthGuard allowedRoles={['gamer', 'cafe_owner', 'staff', 'admin']}>
-      <MyChallenge />
+      {teamCfg ? <TeamMe cfg={teamCfg} isNew={isNew} /> : <MyChallenge />}
     </AuthGuard>
   );
 }

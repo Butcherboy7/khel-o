@@ -30,6 +30,7 @@ from app.api.v1.cafe_suggestions import public_router as cafe_suggestions_router
 from app.api.v1.gta6_requests import router as gta6_requests_router, admin_router as admin_gta6_requests_router
 from app.api.v1.launch_list import public_router as launch_list_router, admin_router as admin_launch_list_router
 from app.api.v1.challenges import public_router as challenges_router, admin_router as admin_challenges_router
+from app.api.v1.challenge_teams import public_router as team_challenges_router, admin_router as admin_team_challenges_router
 from app.api.v1.community import router as community_router, admin_router as community_admin_router
 from app.api.v1.instagram import public_router as instagram_router, admin_router as instagram_admin_router
 from app.api.v1.drops import public_router as drops_public_router, owner_router as drops_owner_router, admin_router as drops_admin_router
@@ -71,6 +72,8 @@ api_router.include_router(admin_gta6_requests_router)
 api_router.include_router(admin_launch_list_router)
 api_router.include_router(campaign_links_router)
 api_router.include_router(marketing_campaigns_router)
+api_router.include_router(team_challenges_router)
+api_router.include_router(admin_team_challenges_router)
 api_router.include_router(challenges_router)
 api_router.include_router(admin_challenges_router)
 api_router.include_router(community_router)

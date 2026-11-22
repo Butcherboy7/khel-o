@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -125,6 +125,13 @@ class ChallengeEntry(Base):
     utm_content: Mapped[str | None] = mapped_column(String(80), nullable=True)
     # Our own test sign-ups: left out of every count and report.
     is_test: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Team challenges only (None on a solo challenge like Tekken): this row is a
+    # whole team. 'team' = a captain's own team, 'solo_group' = solo players
+    # KHEL-O put together. The invite code lets teammates join it.
+    kind: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    invite_code: Mapped[str | None] = mapped_column(String(12), nullable=True, unique=True, index=True)
+    # A waitlisted team offered a freed spot: they may pay for it now.
+    offered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
 
@@ -155,5 +162,82 @@ class ChallengeMatch(Base):
     bye: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Put off (a player is late): goes to the back of the ready queue until it is brought back.
     postponed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Team challenges: when and where (lobby 'A' or 'B') the match is played,
+    # and each game's round score for a best of 3: [{"a": 10, "b": 7}, ...].
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lobby: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    games: Mapped[list[Any] | None] = mapped_column(JSON, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class ChallengePlayer(Base):
+    """One person in a team challenge: a captain, a teammate, a substitute, or a
+    solo player waiting for KHEL-O to put them in a team (entry_id is None until
+    then). user_id is None only for a teammate the captain typed in by hand.
+
+    role: captain | player | sub | solo
+    status: active | waitlist | refunded | removed
+    riot_key is the Riot ID in lower case, so the same ID can't be in two teams.
+    """
+    __tablename__ = "challenge_players"
+    __table_args__ = (
+        UniqueConstraint("challenge_id", "user_id", name="uq_challenge_players_user"),
+        UniqueConstraint("challenge_id", "riot_key", name="uq_challenge_players_riot"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    challenge_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False, index=True)
+    entry_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("challenge_entries.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    role: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(12), default="active", nullable=False)
+    full_name: Mapped[str] = mapped_column(String(60), nullable=False)
+    phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    riot_id: Mapped[str] = mapped_column(String(30), nullable=False)
+    riot_key: Mapped[str] = mapped_column(String(30), nullable=False)
+    rank: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    instagram: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    college: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    play_style: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    tapped_community_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tapped_insta_khelo_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tapped_insta_venue_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    agreed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 'self' (joined with their own account), 'captain' (typed in by the
+    # captain) or 'admin' (KHEL-O moved them).
+    added_by: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    is_test: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
+
+
+class ChallengePayment(Base):
+    """One Razorpay order for a team challenge: a team's entry or a solo entry.
+    While 'created' and not expired, a team order holds one team spot, so two
+    captains can never pay for the last spot. The form the person filled in is
+    kept here and only turned into a team or a player once the money is in.
+
+    kind: team | solo
+    status: created | paid | expired | failed | refunded
+    """
+    __tablename__ = "challenge_payments"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    challenge_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    amount: Mapped[Any] = mapped_column(Numeric(10, 2), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), default="created", nullable=False)
+    razorpay_order_id: Mapped[str] = mapped_column(String(60), unique=True, nullable=False)
+    razorpay_payment_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    form: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    entry_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("challenge_entries.id", ondelete="SET NULL"), nullable=True)
+    player_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("challenge_players.id", ondelete="SET NULL"), nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    refund_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    refunded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    refund_reason: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

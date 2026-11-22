@@ -582,6 +582,11 @@ class PaymentService:
                     outcome = await drop_service.handle_webhook_capture(self.payment_repo.db, order_id, payment_id)
                     if outcome is not None:
                         return {"status": f"drop_{outcome}"}
+                    # ...or a team challenge entry (Valorant 3v3 and later).
+                    from app.services import challenge_teams
+                    done = await challenge_teams.confirm(self.payment_repo.db, order_id, payment_id)
+                    if done is not None:
+                        return {"status": f"challenge_{done.outcome}"}
                 if payment:
                     # Row-locked for the same reason as verify_payment: this must
                     # not interleave with a concurrent owner "Release Slot" action.

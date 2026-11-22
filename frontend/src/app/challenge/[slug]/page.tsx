@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 import { getChallenge, type Challenge } from '@/lib/api/challenges';
 import { challengeDay, challengeTimeRange, introCookie } from '@/lib/challenge';
 import { ChallengeClient } from './ChallengeClient';
+import { teamChallengeConfig } from '@/challenges';
+import { TeamLanding } from '@/components/challenge/team/TeamLanding';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -24,6 +26,17 @@ const load = cache(async (slug: string): Promise<Challenge | null> => {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const ch = await load(slug);
+  const team = teamChallengeConfig(slug);
+  if (team) {
+    const description = `${team.subtitle} ${team.mode} at ${team.venue.name}, ${team.venue.city}. Sat 5 Dec.`;
+    return {
+      title: team.title,
+      description,
+      alternates: { canonical: `/challenge/${slug}` },
+      openGraph: { title: team.title, description, url: `/challenge/${slug}`, type: 'website', images: [team.media.photos[0].src] },
+      twitter: { card: 'summary_large_image', title: team.title, description },
+    };
+  }
   if (!ch) return { title: 'Challenge', robots: { index: false } };
   const when = `${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)}`;
   const description = `Free sign-up. ${ch.game} at ${ch.cafe.name}, ${ch.cafe.city}. ${when}. ${ch.capacity >= 100 ? 'Everyone who signs up plays.' : `${ch.capacity} player spots, then a reserve list.`} Anyone can come to watch.`;
@@ -38,6 +51,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ChallengePage({ params, searchParams }: PageProps) {
   const { slug } = await params;
+  const team = teamChallengeConfig(slug);
+  if (team) return <TeamLanding cfg={team} initial={await load(slug)} />;
   const query = await searchParams;
   // The short intro is for people arriving from an ad, reel or shared link,
   // once per device. Decided here so it is in the first paint.

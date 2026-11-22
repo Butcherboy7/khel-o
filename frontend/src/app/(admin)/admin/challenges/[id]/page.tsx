@@ -13,6 +13,7 @@ import {
   type AdminChallengeDetail, type AdminEntry, type Challenge, type EntryAction,
 } from '@/lib/api/challenges';
 import { challengeDay, challengeTime, challengeTimeRange, whatsappLink } from '@/lib/challenge';
+import { teamChallengeConfig } from '@/challenges';
 import { Button, Card, CardContent, ErrorState, Modal, PageSpinner } from '@/components/ui';
 import { HostTour, HostTutorialButton, useHostTour } from '@/components/challenge/admin/HostTour';
 import { CHALLENGE_PAGE_STEPS } from '@/components/challenge/admin/hostTourSteps';
@@ -194,6 +195,11 @@ export default function AdminChallengeDetailPage() {
           <Link href={`/admin/challenges/${c.id}/day`} data-host-tour="day-link" className="btn-depth inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3 text-caption font-semibold text-white hover:bg-primary/90">
             <Swords className="h-4 w-4" /> Challenge day
           </Link>
+          {teamChallengeConfig(c.slug) && (
+            <Link href={`/admin/challenges/${c.id}/teams`} className="btn-depth inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3 text-caption font-semibold text-white hover:bg-primary/90">
+              <Swords className="h-4 w-4" /> Team desk
+            </Link>
+          )}
           <Link href={`/admin/challenges/${c.id}/rewards`} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-caption font-semibold text-text-primary hover:bg-surface">
             <Gift className="h-4 w-4" /> Rewards
           </Link>

@@ -33,7 +33,7 @@ from app.models.cafe_suggestion import CafeSuggestion
 from app.models.gta6_request import Gta6SlotRequest
 from app.models.gta6_offer import Gta6SlotOffer
 from app.models.photo_color import PhotoColor
-from app.models.challenge import Challenge, ChallengeEntry, ChallengeMatch
+from app.models.challenge import Challenge, ChallengeEntry, ChallengeMatch, ChallengePayment, ChallengePlayer
 from app.models.drop import Drop, DropBlock, DropReservation, DropWaitlist
 from app.models.instagram_reel import InstagramReel
 from app.models.community import CommunityPoll, CommunityPollVote, CommunityMember, CommunityContribution

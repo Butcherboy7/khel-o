@@ -105,11 +105,17 @@ const nextConfig = {
     // The page was called Rewards before it became Achievements.
     return [
       { source: '/rewards', destination: '/achievements', permanent: true },
+      // The Valorant brief links /challenges/<slug>; the pages live at /challenge/<slug>.
+      // Paths with a dot are files in public/challenges/ (photos, video): never redirected.
+      { source: '/challenges/:path([^.]*)', destination: '/challenge/:path', permanent: false },
     ];
   },
   async rewrites() {
     // Thank-you pages for interns are plain HTML in public/thanks/ (built by marketing/certificates/).
-    return [{ source: '/thanks/maleeha', destination: '/thanks/maleeha.html' }];
+    return [
+      { source: '/thanks/maleeha', destination: '/thanks/maleeha.html' },
+      { source: '/thanks/ashwith', destination: '/thanks/ashwith.html' },
+    ];
   },
   // The frontend is its own app: without this, Next 15 looks up the folder tree
   // for a lockfile and can pick the repo root, which moves server.js inside

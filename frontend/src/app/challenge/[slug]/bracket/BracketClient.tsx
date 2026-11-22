@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, Swords, Trophy } from 'lucide-react';
-import { getBracket, type BracketMatch } from '@/lib/api/challenges';
+import { getBracket, type Bracket, type BracketMatch } from '@/lib/api/challenges';
 import { BracketView, Podium } from '@/components/challenge/BracketView';
 import { Celebration } from '@/components/challenge/Celebration';
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
@@ -41,6 +41,7 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
 
   const ch = data.challenge;
   const finished = ch.status === 'finished';
+  const isTeam = Boolean((ch as typeof ch & { team?: unknown }).team);
 
   if (projector) {
     // The big-screen sizes (vw/vh) only make sense on a real screen. On a phone
@@ -89,7 +90,9 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
 
         {!data.drawn ? (
           <p className="mt-10 rounded-2xl border border-dashed border-[#3A3E4A] p-6 text-center text-[#A3A6B1]">
-            We make the matches at the café when check-in closes. You will see them here.
+            {isTeam
+              ? 'We draw the bracket live on Instagram on Friday, 4 Dec at 7 PM. Your match time shows here after that.'
+              : 'We make the matches at the café when check-in closes. You will see them here.'}
           </p>
         ) : (
           <>
@@ -127,6 +130,7 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
             <section className="mt-6">
               <BracketView bracket={data} />
             </section>
+            {isTeam && <MatchTimes bracket={data} />}
           </>
         )}
       </main>
@@ -169,5 +173,40 @@ function UpNext({ matches, big = false }: { matches: BracketMatch[]; big?: boole
         </div>
       )}
     </div>
+  );
+}
+
+/** Team challenges: every match with its time and lobby, in playing order. */
+function MatchTimes({ bracket }: { bracket: Bracket }) {
+  const rows = bracket.rounds
+    .flatMap((r) => r.matches)
+    .filter((m) => !m.bye && m.startsAt)
+    .sort((x, y) => new Date(x.startsAt!).getTime() - new Date(y.startsAt!).getTime() || (x.lobby ?? '').localeCompare(y.lobby ?? ''));
+  if (!rows.length) return null;
+  const time = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+  return (
+    <section className="mt-8">
+      <h2 className="font-heading text-xl font-bold">Match times</h2>
+      <p className="mt-1 text-sm text-[#A3A6B1]">Be seated 5 minutes before. Late = you lose the match.</p>
+      <div className="mt-3 overflow-hidden rounded-2xl border border-[#262932]">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-[#16181E] text-xs uppercase tracking-wider text-[#A3A6B1]">
+            <tr><th className="px-3 py-2">Time</th><th className="px-3 py-2">Lobby</th><th className="px-3 py-2">Match</th></tr>
+          </thead>
+          <tbody className="divide-y divide-[#262932]">
+            {rows.map((m) => (
+              <tr key={m.id} className={m.winner ? 'text-[#8A8D99]' : ''}>
+                <td className="whitespace-nowrap px-3 py-2.5 font-semibold tabular-nums">{time(m.startsAt!)}</td>
+                <td className="px-3 py-2.5">{m.lobby ?? '–'}</td>
+                <td className="px-3 py-2.5">
+                  <span className="font-semibold">{m.a?.name ?? 'TBD'}</span> <span className="text-[#A3A6B1]">vs</span> <span className="font-semibold">{m.b?.name ?? 'TBD'}</span>
+                  <span className="block text-xs text-[#A3A6B1]">{m.name}{m.bestOf > 1 ? ' · best of 3' : ''}{m.games?.length ? ` · ${m.games.map((g) => `${g.a ?? '-'}–${g.b ?? '-'}`).join(', ')}` : ''}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

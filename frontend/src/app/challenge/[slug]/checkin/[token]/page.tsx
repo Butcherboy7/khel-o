@@ -7,15 +7,22 @@ import { CheckCircle2, AlertTriangle, Hourglass, RotateCcw } from 'lucide-react'
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { doorCheckin, type DoorResult } from '@/lib/api/challenges';
 import { ApiError } from '@/lib/api/errors';
+import { TeamDoor } from '@/components/challenge/team/TeamDoor';
 
 /** Opened by scanning a player's QR at the door. Signed in as KHELO staff or
  *  the café's owner, it checks them in straight away and says who it was. */
 export default function DoorCheckinPage() {
   return (
     <AuthGuard allowedRoles={['gamer', 'cafe_owner', 'staff', 'admin']}>
-      <Door />
+      <DoorFor />
     </AuthGuard>
   );
+}
+
+/** Team challenges give each player their own QR ("p…" token). */
+function DoorFor() {
+  const { slug, token } = useParams<{ slug: string; token: string }>();
+  return /^p[0-9a-f]{48}$/i.test(token) ? <TeamDoor slug={slug} token={token} /> : <Door />;
 }
 
 function Door() {

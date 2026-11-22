@@ -172,6 +172,9 @@ async def fill_spots(db: AsyncSession, challenge: Challenge) -> list[ChallengeEn
     """Move waitlist people up, in join order, until every spot is taken.
     Skips anyone who already said they aren't coming. Doesn't commit: run it
     inside change_spots."""
+    # A team challenge's waitlist hasn't paid: KHEL-O offers freed spots by hand.
+    if isinstance(challenge.plan_config, dict) and isinstance(challenge.plan_config.get("team"), dict):
+        return []
     rows = await entries(db, challenge.id)
     free = challenge.capacity - sum(1 for e in rows if e.status == "confirmed")
     moved = []

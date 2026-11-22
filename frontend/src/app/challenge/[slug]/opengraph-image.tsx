@@ -36,6 +36,11 @@ export default async function Image({ params }: { params: { slug: string } | Pro
     when = `${challengeDay(ch.startsAt)}, ${challengeTimeRange(ch.startsAt, ch.endsAt)}`;
     where = `${ch.cafe.name}, ${ch.cafe.city}`;
     spots = `${ch.capacity} player spots · anyone can watch`;
+    const team = (ch as typeof ch & { team?: { maxTeams: number; priceTeam: number; size: number } }).team;
+    if (team) {
+      kicker = `${ch.game} · ${team.size}v${team.size} Challenge`;
+      spots = `${team.maxTeams} team spots · ₹${Math.round(team.priceTeam / team.size)} per player`;
+    }
   } catch {
     /* a draft or a wrong link: the plain card */
   }

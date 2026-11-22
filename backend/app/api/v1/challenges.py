@@ -43,6 +43,7 @@ from app.services import challenge_rehearsal as rehearsal
 from app.services import challenge_results as results
 from app.services import challenge_rewards as rewards
 from app.services import challenge_service as svc
+from app.services import challenge_teams as teams
 
 public_router = APIRouter(prefix="/challenges", tags=["Challenges"])
 admin_router = APIRouter(prefix="/admin/challenges", tags=["Admin Challenges"])
@@ -275,7 +276,10 @@ async def hosting(db: AsyncSession = Depends(get_db), user: User = Depends(get_c
 @public_router.get("/{slug}")
 async def get_challenge(slug: str, db: AsyncSession = Depends(get_db), user: Optional[User] = Depends(get_optional_user)):
     ch, cafe = await _load(db, slug, user)
-    return {"success": True, "data": _challenge_out(ch, cafe, await svc.counts(db, ch.id))}
+    data = _challenge_out(ch, cafe, await svc.counts(db, ch.id))
+    if teams.is_team(ch):
+        data["team"] = await team_public(db, ch)
+    return {"success": True, "data": data}
 
 
 class JoinRequest(_Camel):
@@ -1018,7 +1022,10 @@ def _bracket_out(ch: Challenge, rows, by_id: dict) -> dict:
             "position": m.position,
             "isThirdPlace": m.is_third_place,
             "name": bracket.round_name(m.round, rounds, m.is_third_place),
-            "bestOf": ch.final_best_of if (m.round == rounds - 1 and not m.is_third_place) else ch.best_of,
+            "bestOf": teams.best_of(ch, rounds, m) if teams.is_team(ch) else (ch.final_best_of if (m.round == rounds - 1 and not m.is_third_place) else ch.best_of),
+            "startsAt": _iso(m.starts_at),
+            "lobby": m.lobby,
+            "games": m.games,
             "a": side(m.entry_a_id),
             "b": side(m.entry_b_id),
             "winner": None if m.winner_entry_id is None else ("a" if m.winner_entry_id == m.entry_a_id else "b"),
@@ -1383,3 +1390,25 @@ async def admin_champion_photo(
     await db.commit()
     ch, cafe = await _admin_get(db, challenge_id)
     return {"success": True, "data": _challenge_out(ch, cafe, await svc.counts(db, ch.id))}
+
+
+async def team_public(db: AsyncSession, ch: Challenge) -> dict:
+    """What anyone may see about a team challenge: prices, sizes, spots left."""
+    cfg = teams.config(ch)
+    st = await teams.stats(db, ch)
+    return {
+        "size": cfg["size"],
+        "maxSubs": cfg["maxSubs"],
+        "priceTeam": cfg["priceTeam"],
+        "priceSolo": cfg["priceSolo"],
+        "maxTeams": cfg["maxTeams"],
+        "minTeams": cfg["minTeams"],
+        "holdMinutes": cfg["holdMinutes"],
+        "registrationClosesAt": _iso(teams.closes_at(ch)),
+        "signupsOpen": teams.signups_open(ch),
+        "teams": st["teams"],
+        "spotsLeft": st["spotsLeft"],
+        "holding": st["holding"],
+        "waitlistTeams": st["waitlistTeams"],
+        "solosWaiting": st["solosWaiting"],
+    }

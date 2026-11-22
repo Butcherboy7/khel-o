@@ -849,3 +849,32 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
 @media (prefers-reduced-motion: reduce) {
   .btn-depth, .btn-depth-soft { transition: background-color 150ms ease, opacity 150ms ease; }
 }
+
+/* ── Team challenge (Valorant 3v3 at XQZ): the live café hero and the slot board.
+   One authored moment: the title is cut in by a scan line, then the 16 team slots
+   light up in order. The café itself (video / Ken Burns photos) is the only loop.
+   The global reduced-motion rule above snaps all of it to its end state. ── */
+.vx-kb { animation: vx-kb 14s ease-out both; }
+@keyframes vx-kb { from { transform: scale(1) translate3d(0, 0, 0); } to { transform: scale(1.08) translate3d(-1.5%, -1%, 0); } }
+.vx-fade { transition: opacity 1.4s ease; }
+.vx-cut { clip-path: inset(0 100% 0 0); animation: vx-cut .7s .15s cubic-bezier(.16, 1, .3, 1) forwards; }
+.vx-cut-2 { animation-delay: .32s; }
+@keyframes vx-cut { to { clip-path: inset(-30% -10% -60% -10%); } }
+.vx-scan { animation: vx-scan .9s .1s cubic-bezier(.16, 1, .3, 1) both; }
+@keyframes vx-scan { from { transform: translateX(-10%) scaleX(.2); opacity: 0; } 30% { opacity: 1; } to { transform: translateX(105%) scaleX(1); opacity: 0; } }
+.vx-rise { animation: vx-rise .6s cubic-bezier(.16, 1, .3, 1) both; }
+@keyframes vx-rise { from { opacity: 0; transform: translateY(14px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+.vx-slot { animation: vx-slot .45s cubic-bezier(.16, 1, .3, 1) both; }
+@keyframes vx-slot { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+.vx-slot-lit::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / .35) 50%, transparent 70%); transform: translateX(-120%); animation: vx-shine 2.6s 1.2s ease-in-out infinite; }
+@keyframes vx-shine { 0%, 60% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+.vx-live-dot { animation: vx-pulse 1.6s ease-in-out infinite; }
+@keyframes vx-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(255 70 70 / .7); } 60% { box-shadow: 0 0 0 7px rgb(255 70 70 / 0); } }
+.vx-grain { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); opacity: .07; mix-blend-mode: overlay; }
+.vx-corner { clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px)); }
+.vx-corner-sm { clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); }
+.vx-tick { animation: vx-tick .45s cubic-bezier(.3, 1.6, .5, 1) both; }
+@keyframes vx-tick { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
+.vx-step-in { animation: vx-step-in .45s cubic-bezier(.16, 1, .3, 1) both; }
+@keyframes vx-step-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .vx-slot-lit::after, .vx-scan { display: none; } .vx-cut { clip-path: none; } }
