@@ -523,6 +523,8 @@ function MatchRow({ m, busy, onTime, onResult }: {
   const [games, setGames] = useState<{ a: string; b: string }[]>(() =>
     Array.from({ length: n }, (_, i) => ({ a: m.games?.[i]?.a?.toString() ?? '', b: m.games?.[i]?.b?.toString() ?? '' })));
   useEffect(() => { setAt(toLocalInput(m.startsAt)); setLobby(m.lobby ?? ''); }, [m.startsAt, m.lobby]);
+  // Walkover: a team didn't turn up in time (rule 13). Tap once to pick, tap again to confirm.
+  const [walkover, setWalkover] = useState<'a' | 'b' | null>(null);
 
   if (m.bye) return <li className="rounded-xl bg-surface px-3 py-2 text-body-sm text-text-secondary">{m.a?.name ?? m.b?.name ?? '—'} · bye</li>;
   const both = m.a && m.b;
@@ -562,6 +564,26 @@ function MatchRow({ m, busy, onTime, onResult }: {
             onClick={() => winner && onResult(m.id, winner, parsed.filter((g) => g.a !== null || g.b !== null))}>
             {winner ? `Save: ${winner === 'a' ? m.a?.name : m.b?.name} wins` : 'Enter round scores (first to 10)'}
           </button>
+        </div>
+      )}
+      {both && !m.winner && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-caption text-text-secondary">
+          <span>Team didn’t show?</span>
+          {(['a', 'b'] as const).map((side) => {
+            const name = side === 'a' ? m.a?.name : m.b?.name;
+            const armed = walkover === side;
+            return (
+              <button key={side} type="button" className={armed ? btnPrimary : btn} disabled={busy === `s${m.id}`}
+                onClick={() => {
+                  if (!armed) return setWalkover(side);
+                  setWalkover(null);
+                  onResult(m.id, side, []);
+                }}>
+                {armed ? `Tap again: ${name} wins by walkover` : `Walkover to ${name}`}
+              </button>
+            );
+          })}
+          {walkover && <button type="button" className={btn} onClick={() => setWalkover(null)}>Cancel</button>}
         </div>
       )}
     </li>

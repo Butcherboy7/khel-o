@@ -278,3 +278,18 @@ async def test_team_made_from_practice_solos_is_cleared_and_draw_refuses_empty_t
     await db_session.commit()
     res = await async_client.post(f"{base}/draw", json={"redo": False}, headers=auth_headers(admin))
     assert res.status_code == 409 and "Night Owls" in res.json()["error"]["message"], res.text
+
+
+@pytest.mark.asyncio
+async def test_walkover_result_with_no_scores_moves_the_team_on(async_client, db_session):
+    ch, admin = await _team_challenge(async_client, db_session, maxTeams=16)
+    base = f"/api/v1/admin/challenges/{ch['id']}/teams"
+    await async_client.post(f"{base}/practice", headers=auth_headers(admin))
+    assert (await async_client.post(f"{base}/draw", json={"redo": False}, headers=auth_headers(admin))).status_code == 200
+    b = (await async_client.get(f"/api/v1/challenges/{ch['slug']}/bracket")).json()["data"]
+    m = b["ready"][0]
+    res = await async_client.post(f"{base}/matches/{m['id']}/result", json={"winner": "b", "games": []}, headers=auth_headers(admin))
+    assert res.status_code == 200, res.text
+    b = (await async_client.get(f"/api/v1/challenges/{ch['slug']}/bracket")).json()["data"]
+    done = next(x for r in b["rounds"] for x in r["matches"] if x["id"] == m["id"])
+    assert done["winner"] == "b"
