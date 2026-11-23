@@ -57,9 +57,12 @@ export default function TeamDeskPage() {
 
   if (!desk) return <div className="p-6 text-text-secondary">{msg?.text ?? 'Loading the desk…'}</div>;
   const { stats, challenge: c, money } = desk;
+  // Count the same teams the challenge list counts: real ones plus practice ones.
+  const practiceTeams = stats.teamsWithTest - stats.teams;
+  const teamCount = stats.teamsWithTest;
 
   const tabs: [Tab, string][] = [
-    ['teams', `Teams ${stats.teams}/${stats.maxTeams}`],
+    ['teams', `Teams ${teamCount}/${stats.maxTeams}`],
     ['solos', `Solos ${desk.solos.filter((s) => s.status === 'active').length}`],
     ['waitlist', `Waitlist ${desk.waitlist.length + stats.solosWaitlist}`],
     ['checkin', 'Check-in'],
@@ -77,15 +80,15 @@ export default function TeamDeskPage() {
       <p className="text-body-sm text-text-secondary">{c.cafe} · {new Date(c.startsAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} · status {c.status}</p>
 
       <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <Stat label="Paid teams" value={`${stats.teams} / ${stats.maxTeams}`} />
+        <Stat label={practiceTeams > 0 ? `Teams (${practiceTeams} practice)` : 'Paid teams'} value={`${teamCount} / ${stats.maxTeams}`} />
         <Stat label="Paying now (held)" value={String(stats.holding)} />
         <Stat label="Solos without team" value={String(stats.solosWaiting)} />
         <Stat label="Waitlist teams" value={String(stats.waitlistTeams)} />
         <Stat label="Money in" value={`${rupees(money.paid)}${money.refunded ? ` (−${rupees(money.refunded)})` : ''}`} />
       </dl>
-      {stats.teams < desk.config.minTeams && (
+      {teamCount < desk.config.minTeams && (
         <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-body-sm text-text-primary">
-          {desk.config.minTeams - stats.teams} more teams needed for the minimum of {desk.config.minTeams}. Below that, cancel and refund everyone (bottom of Teams).
+          {desk.config.minTeams - teamCount} more teams needed for the minimum of {desk.config.minTeams}. Below that, cancel and refund everyone (bottom of Teams).
         </p>
       )}
 
@@ -480,13 +483,13 @@ function DrawDesk({ desk, bracket, busy, onDraw, onTime, onResult }: {
   return (
     <div className="flex flex-col gap-5">
       <div className="rounded-2xl border border-border bg-card p-4">
-        <p className="text-body font-bold text-text-primary">{drawn ? 'Bracket is drawn' : `Draw the bracket (${desk.stats.teams} paid teams)`}</p>
+        <p className="text-body font-bold text-text-primary">{drawn ? 'Bracket is drawn' : `Draw the bracket (${desk.stats.teamsWithTest} teams)`}</p>
         <p className="text-body-sm text-text-secondary">
           Teams are shuffled into a 16-slot bracket; missing teams become byes. Times: 2 lobbies (A/B), first match 12:00.
           {desk.challenge.drawSeed != null && <> Seed: <b className="tabular-nums">{desk.challenge.drawSeed}</b> (saved, so the same draw can be shown again).</>}
         </p>
         {!drawn ? (
-          <button type="button" className={`${btnPrimary} mt-3`} disabled={busy === 'draw' || desk.stats.teams < 2} onClick={() => onDraw(false)}><Shuffle className="h-4 w-4" /> Make the draw</button>
+          <button type="button" className={`${btnPrimary} mt-3`} disabled={busy === 'draw' || desk.stats.teamsWithTest < 2} onClick={() => onDraw(false)}><Shuffle className="h-4 w-4" /> Make the draw</button>
         ) : !sure ? (
           <button type="button" className={`${btn} mt-3`} onClick={() => setSure(true)}>Draw again…</button>
         ) : (

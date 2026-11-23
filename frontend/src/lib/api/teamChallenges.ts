@@ -203,7 +203,7 @@ export interface DeskTeam {
 
 export interface TeamDesk {
   challenge: { id: string; slug: string; title: string; status: string; drawnAt: string | null; startsAt: string; cafe: string; drawSeed: number | null };
-  stats: { maxTeams: number; teams: number; holding: number; spotsLeft: number; waitlistTeams: number; solosWaiting: number; solosWaitlist: number; players: number };
+  stats: { maxTeams: number; teams: number; teamsWithTest: number; holding: number; spotsLeft: number; waitlistTeams: number; solosWaiting: number; solosWaitlist: number; players: number };
   config: { size: number; maxSubs: number; priceTeam: number; priceSolo: number; maxTeams: number; minTeams: number };
   teams: DeskTeam[];
   waitlist: DeskTeam[];
