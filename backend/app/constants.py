@@ -96,9 +96,9 @@ def validate_google_maps_url(url):
 # in this codebase before this redesign.
 PLATFORM_MODELS = {
     "pc": ["RTX 4090", "RTX 4070", "RTX 3060", "Budget", "Custom"],
-    "playstation": ["PS5 Pro", "PS5", "PS4 Pro", "PS4", "Custom"],
+    "playstation": ["PS5 Pro", "PS5 Slim", "PS5", "PS4 Pro", "PS4 Slim", "PS4", "Custom"],
     "xbox": ["Series X", "Series S", "One X", "One S", "Custom"],
-    "nintendo": ["Switch OLED", "Switch", "Switch Lite", "Custom"],
+    "nintendo": ["Switch 2", "Switch OLED", "Switch", "Switch Lite", "Custom"],
 }
 
 _PC_GPU_LABELS = {
@@ -110,13 +110,16 @@ _PC_GPU_LABELS = {
 
 _CONSOLE_LABELS = {
     "PS5 Pro": "PlayStation 5 Pro",
+    "PS5 Slim": "PlayStation 5 Slim",
     "PS5": "PlayStation 5",
     "PS4 Pro": "PlayStation 4 Pro",
+    "PS4 Slim": "PlayStation 4 Slim",
     "PS4": "PlayStation 4",
     "Series X": "Xbox Series X",
     "Series S": "Xbox Series S",
     "One X": "Xbox One X",
     "One S": "Xbox One S",
+    "Switch 2": "Nintendo Switch 2",
     "Switch OLED": "Nintendo Switch OLED",
     "Switch": "Nintendo Switch",
     "Switch Lite": "Nintendo Switch Lite",

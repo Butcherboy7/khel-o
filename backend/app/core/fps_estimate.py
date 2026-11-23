@@ -97,6 +97,9 @@ def _console_for(platform: Optional[str], specs: Optional[Dict[str, Any]], name:
         return None
     sp = specs or {}
     text = " ".join(str(x) for x in (name, model, sp.get("console"), sp.get("other")) if x).lower()
+    # Owners type "PS-5", "PS_5" or "PS 5": all one console. Hyphens/underscores become spaces, then "ps 5" -> "ps5"
+    # so "PS-5 Pro" still reaches the Pro entry.
+    text = re.sub(r"(?<![a-z0-9])ps\s+(\d)", r"ps\1", re.sub(r"[-_]+", " ", text))
     if not text.strip():
         return None
     if platform == "other" and not any(w in text for w in ("ps", "playstation", "xbox", "switch")):

@@ -16,9 +16,9 @@ PC_GUESS_KEYWORDS = ["rtx", "gtx", "radeon", "nvidia", "amd"]
 # first (e.g. "ps5 pro" must be checked before "ps5"). Used only to guess a
 # *model* that derive_tier_display will actually accept — see _guess_model.
 _MODEL_GUESS_KEYWORDS = {
-    "playstation": [("ps5 pro", "PS5 Pro"), ("ps5", "PS5"), ("ps4 pro", "PS4 Pro"), ("ps4", "PS4")],
+    "playstation": [("ps5 pro", "PS5 Pro"), ("ps5 slim", "PS5 Slim"), ("ps5", "PS5"), ("ps4 pro", "PS4 Pro"), ("ps4 slim", "PS4 Slim"), ("ps4", "PS4")],
     "xbox": [("series x", "Series X"), ("series s", "Series S"), ("one x", "One X"), ("one s", "One S")],
-    "nintendo": [("switch oled", "Switch OLED"), ("switch lite", "Switch Lite"), ("switch", "Switch")],
+    "nintendo": [("switch 2", "Switch 2"), ("switch oled", "Switch OLED"), ("switch lite", "Switch Lite"), ("switch", "Switch")],
     "pc": [("4090", "RTX 4090"), ("4070", "RTX 4070"), ("3060", "RTX 3060")],
 }
 

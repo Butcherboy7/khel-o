@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Trash2, ChevronRight, Pencil } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, Pencil, Check } from 'lucide-react';
 import { PLATFORMS, PLATFORM_MODELS, type Platform } from '@/constants/platforms';
 import { PlatformIcon } from '@/components/icons/PlatformIcons';
 import { ACTIVITY_PRESETS, ActivityIcon } from '@/components/icons/ActivityIcons';
@@ -14,6 +14,23 @@ import { safeRandomUUID } from '@/lib/uuid';
 import { SetupBookingOptions } from './SetupBookingOptions';
 import { PcChargeChoice, PcSpeedFields } from './PcSetupExtras';
 import { TaxonomyDetails } from './TaxonomyDetails';
+import { ConsoleModelPicker, CUSTOM_MODEL } from './ConsoleModelPicker';
+import { InfoTip } from './InfoTip';
+import { isConsolePlatform } from '@/constants/consoles';
+
+const PLATFORM_HINTS: Record<Platform, string> = {
+  pc: 'Gaming PCs',
+  playstation: 'PS5 and PS4',
+  xbox: 'Series X, S and One',
+  nintendo: 'Switch 2, OLED, Lite',
+  other: 'VR, sims, anything else',
+};
+
+const CUSTOM_PLACEHOLDER: Record<'playstation' | 'xbox' | 'nintendo', string> = {
+  playstation: 'e.g. PS5 Digital Edition',
+  xbox: 'e.g. Xbox Series X 2TB',
+  nintendo: 'e.g. Switch OLED Mario edition',
+};
 interface PlatformTierConfiguratorProps {
   configs: TierConfig[];
   onChange: (configs: TierConfig[]) => void;
@@ -189,25 +206,40 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <label className="text-caption font-semibold text-text-primary mb-2 block">
-          What does your café offer?
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {PLATFORMS.map((p) => (
-            <button
-              key={p.value}
-              type="button"
-              onClick={() => togglePlatform(p.value)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-caption font-semibold border transition-all ${
-                selectedPlatforms.includes(p.value)
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-surface text-text-secondary border-border hover:border-primary/60'
-              }`}
-            >
-              <PlatformIcon platform={p.value} className="h-4 w-4" />
-              {p.label}
-            </button>
-          ))}
+        <div className="mb-2 flex items-center gap-1">
+          <span id="platforms-label" className="text-caption font-semibold text-text-primary">
+            What does your café offer?
+          </span>
+          <InfoTip label="About picking platforms">
+            Tap every kind you have. You will pick the exact console or PC next. Tap a picked one again to remove it.
+          </InfoTip>
+        </div>
+        <div role="group" aria-labelledby="platforms-label" className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]">
+          {PLATFORMS.map((p) => {
+            const on = selectedPlatforms.includes(p.value);
+            return (
+              <button
+                key={p.value}
+                type="button"
+                aria-pressed={on}
+                onClick={() => togglePlatform(p.value)}
+                className={cn(
+                  'relative flex min-h-[4.5rem] items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-[border-color,background-color] duration-200',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                  on ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50',
+                )}
+              >
+                <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-xl', on ? 'bg-primary text-white' : 'bg-surface text-text-secondary')}>
+                  <PlatformIcon platform={p.value} className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-caption font-bold text-text-primary">{p.label}</span>
+                  <span className="block text-[12px] leading-snug text-text-secondary">{PLATFORM_HINTS[p.value]}</span>
+                </span>
+                {on && <Check className="absolute right-2 top-2 h-4 w-4 text-primary" strokeWidth={3} aria-hidden />}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -427,8 +459,53 @@ export function PlatformTierConfigurator({ configs, onChange, maxConfigs }: Plat
                 )}
               >
                 <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <label className="text-overline font-semibold text-text-secondary">Model</label>
-                  {p.value === 'other' ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-overline font-semibold text-text-secondary">
+                      {isConsolePlatform(p.value) ? 'Which console is it?' : 'Model'}
+                    </span>
+                    {isConsolePlatform(p.value) && (
+                      <InfoTip label="Why the exact console matters">
+                        Customers see this name, and it decides tags like &ldquo;Plays GTA 6&rdquo;. Not sure which one
+                        you have? Tap the i on a card to see how to tell them apart.
+                      </InfoTip>
+                    )}
+                  </div>
+                  {isConsolePlatform(p.value) ? (
+                    <>
+                      <ConsoleModelPicker
+                        platform={p.value}
+                        value={showCustomInput ? CUSTOM_MODEL : config.model}
+                        onChange={(v) => {
+                          if (v === CUSTOM_MODEL) {
+                            setCustomModelIds((prev) => new Set(prev).add(config.id));
+                            updateConfig(config.id, { model: '', isCustomModel: true });
+                          } else {
+                            setCustomModelIds((prev) => {
+                              const next = new Set(prev);
+                              next.delete(config.id);
+                              return next;
+                            });
+                            updateConfig(config.id, { model: v, isCustomModel: false });
+                          }
+                        }}
+                      />
+                      {showCustomInput && (
+                        <div className="flex flex-col gap-1">
+                          <Input
+                            aria-label="Your console"
+                            placeholder={CUSTOM_PLACEHOLDER[p.value]}
+                            value={config.model}
+                            onChange={(e) => updateConfig(config.id, { model: e.target.value })}
+                            maxLength={100}
+                            autoFocus
+                          />
+                          <span className="text-[12px] text-text-secondary">
+                            Start with the console name, like &ldquo;{CUSTOM_PLACEHOLDER[p.value].replace('e.g. ', '')}&rdquo;, so we can recognise it.
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  ) : p.value === 'other' ? (
                     <Input
                       placeholder="e.g. VR arcade"
                       value={config.model}

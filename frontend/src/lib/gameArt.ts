@@ -30,6 +30,7 @@ export const GAME_ART: Record<string, string> = {
   callofduty: steam('callofduty'), callofdutywarzone: steam('callofduty'), callofdutymodernwarfareiii: steam('callofduty'), warzone: steam('callofduty'), cod: steam('callofduty'),
   valorant: steam('valorant'), valo: steam('valorant'),
   fortnite: steam('fortnite'),
+  marvelrivals: steam('marvelrivals'), rivals: steam('marvelrivals'),
   needforspeed: steam('needforspeedunbound'), nfs: steam('needforspeedunbound'), needforspeedunbound: steam('needforspeedunbound'),
 };
 
@@ -44,7 +45,7 @@ export function gameArtKey(name: string): string {
  */
 const LOOSE: Array<[string, string]> = [
   ['gta6', 'gta6'], ['gtavi', 'gta6'], ['grandtheftautovi', 'gta6'],
-  ['valorant', 'valorant'], ['fortnite', 'fortnite'],
+  ['valorant', 'valorant'], ['fortnite', 'fortnite'], ['marvelrivals', 'marvelrivals'],
   ['warzone', 'callofduty'], ['callofduty', 'callofduty'],
   ['counterstrike', 'counterstrike2'], ['cs2', 'counterstrike2'],
   ['apexlegends', 'apexlegends'], ['gtav', 'gtav'], ['grandtheftauto', 'gtav'],
