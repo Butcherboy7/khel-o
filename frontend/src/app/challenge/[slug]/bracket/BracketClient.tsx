@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { teamChallengeConfig } from '@/challenges';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, Swords, Trophy } from 'lucide-react';
 import { getBracket, type Bracket, type BracketMatch } from '@/lib/api/challenges';
@@ -41,7 +42,8 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
 
   const ch = data.challenge;
   const finished = ch.status === 'finished';
-  const isTeam = Boolean((ch as typeof ch & { team?: unknown }).team);
+  // The bracket data has no team flag; the challenge's own config says it's a team challenge.
+  const isTeam = Boolean((ch as typeof ch & { team?: unknown }).team) || !!teamChallengeConfig(slug);
 
   if (projector) {
     // The big-screen sizes (vw/vh) only make sense on a real screen. On a phone
