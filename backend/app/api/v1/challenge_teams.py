@@ -768,7 +768,7 @@ async def admin_clear_result(challenge_id: UUID, match_id: UUID, db: AsyncSessio
 
 class TimeIn(_Camel):
     starts_at: Optional[datetime] = None
-    lobby: Optional[Literal["A", "B"]] = None
+    lobby: Optional[Literal["A", "B", "C", "D"]] = None
 
 
 @admin_router.post("/{challenge_id}/teams/matches/{match_id}/time")

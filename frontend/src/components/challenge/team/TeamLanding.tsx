@@ -166,7 +166,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
             <dl className="vx-rise mt-5 grid grid-cols-3 border-y border-white/15 [animation-delay:.55s]">
               <Readout label="When" value={istDay(cfg.dates.firstMatch).replace(',', '')} sub={`from ${istTime(cfg.dates.firstMatch)}`} />
               <Readout label="Where" value={cfg.venue.shortName} sub="Gachibowli" />
-              <Readout label="Format" value="3v3" sub={cfg.mode.replace(' 3v3', '')} />
+              <Readout label="Format" value="5v5" sub={cfg.mode.replace(' 5v5', '')} />
             </dl>
 
             <div className="vx-rise mt-4 [animation-delay:.65s]">
@@ -265,7 +265,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
                 <PriceCard
                   href={open ? (full ? `${joinHref}?waitlist=1&kind=team` : `${joinHref}?kind=team`) : undefined}
                   badge="Best value"
-                  title="Team of 3"
+                  title="Team of 5"
                   price={team?.priceTeam ?? 750}
                   line={`Just ${rupees(perPlayer)} per player`}
                   note="One person books. Your 2 teammates join free with your link."
@@ -330,8 +330,8 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
                 ))}
               </ol>
 
-              <PanelTitle className="mt-7">What is Skirmish?</PanelTitle>
-              <p className="text-[15px] text-[#DCD7E0]">A short Valorant mode for small teams. Easy to learn, fast to play.</p>
+              <PanelTitle className="mt-7">What is Swift Play?</PanelTitle>
+              <p className="text-[15px] text-[#DCD7E0]">A short, fast Valorant mode. Five rounds win the game.</p>
               <ul className="mt-3 grid border-t border-[#2A2530]">
                 {cfg.skirmish.map((sk) => (
                   <li key={sk.text} className="flex items-start gap-3 border-b border-[#2A2530] py-2.5">

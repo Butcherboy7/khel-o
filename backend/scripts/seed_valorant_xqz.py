@@ -5,7 +5,7 @@ Creates (once; a second run only refreshes the challenge settings):
   the real onboarding on prod gives the owner their own login),
 - the café "XQZ Hyderabad" (Gachibowli), verified and bookable, with its PCs,
   PS5s and racing sims from the owner's onboarding form,
-- the challenge `valorant-3v3-xqz`, open, Sat 5 Dec 2026, 16 team slots.
+- the challenge `valorant-3v3-xqz`, open, Sat 5 Dec 2026, 8 team slots.
 
 The page text lives in the frontend config (frontend/src/challenges/
 valorant-3v3-xqz.ts). This row holds what the server must enforce: prices,
@@ -50,7 +50,7 @@ RULES_MD = """**Teams**
 6. Log in before your match time. Login problems do not stop the clock.
 
 **Match format**
-7. Mode: Skirmish, 3v3. First team to win 10 rounds wins the game.
+7. Mode: Swift Play, 5v5. First team to win 5 rounds wins the game.
 8. Round of 16 and quarterfinals: 1 game.
 9. Semifinals and final: best of 3 games. First to win 2 games wins.
 10. 1-game matches: coin toss. The team that wins the toss picks the map.
@@ -75,16 +75,18 @@ RULES_MD = """**Teams**
 """
 
 TEAM = {
-    "size": 3,
+    "size": 5,
     "maxSubs": 1,
-    "priceTeam": 750,
-    "priceSolo": 300,
+    "priceTeam": 1250,
+    "priceSolo": 250,
     "holdMinutes": 10,
-    "maxTeams": 16,
-    "minTeams": 8,
+    "maxTeams": 8,
+    "minTeams": 4,
     "slotMinutes": 20,
     "bo3Minutes": 50,
     "bo3RoundsLeft": 2,
+    "gameTo": 5,
+    "lobbies": 1,
     "registrationClosesAt": "2026-12-03T21:00:00+05:30",
     "teammatesBy": "2026-12-03T21:00:00+05:30",
 }
@@ -143,8 +145,8 @@ async def main() -> None:
         start = datetime(2026, 12, 5, 12, 0, tzinfo=IST)
         ch = (await db.execute(select(Challenge).where(Challenge.slug == SLUG))).scalar_one_or_none()
         fields = dict(
-            title="KHELO Valorant 3v3 Challenge", cafe_id=cafe.id, game="Valorant",
-            setup_line="Skirmish 3v3 on XQZ's PCs", format="Skirmish 3v3, knockout",
+            title="KHELO Valorant 5v5 Challenge", cafe_id=cafe.id, game="Valorant",
+            setup_line="Swift Play 5v5 on XQZ's PCs", format="Swift Play 5v5, knockout",
             best_of=1, final_best_of=3, starts_at=start, ends_at=datetime(2026, 12, 5, 15, 45, tzinfo=IST),
             checkin_opens_at=datetime(2026, 12, 5, 11, 0, tzinfo=IST),
             checkin_closes_at=datetime(2026, 12, 5, 11, 45, tzinfo=IST),

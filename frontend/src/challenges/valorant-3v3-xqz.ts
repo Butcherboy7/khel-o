@@ -1,7 +1,7 @@
 import type { TeamChallengeConfig } from './types';
 
 /**
- * KHELO Valorant 3v3 Challenge at XQZ Hyderabad (Sat 5 Dec 2026).
+ * KHELO Valorant 5v5 Challenge at XQZ Hyderabad (Sat 5 Dec 2026).
  *
  * Everything this challenge's pages SAY lives here: words, photos, sponsors,
  * timeline, rules, FAQ. What the server must ENFORCE (prices, team slots,
@@ -18,12 +18,12 @@ import type { TeamChallengeConfig } from './types';
  */
 export const valorant3v3Xqz: TeamChallengeConfig = {
   slug: 'valorant-3v3-xqz',
-  title: 'Khelo Valorant 3v3 Challenge',
+  title: 'Khelo Valorant 5v5 Challenge',
   titleTop: 'Valorant',
-  titleBottom: '3v3 Challenge',
-  subtitle: 'Form your team of 3. Play at XQZ. Exciting rewards worth ₹5,000.',
+  titleBottom: '5v5 Challenge',
+  subtitle: 'Form your team of 5. Play at XQZ. Exciting rewards worth ₹5,000.',
   game: 'Valorant',
-  mode: 'Skirmish 3v3',
+  mode: 'Swift Play 5v5',
   prizeTotal: 5000,
 
   venue: {
@@ -75,9 +75,9 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   },
 
   skirmish: [
-    { icon: 'crosshair', text: 'No Spike. Only gunfights.' },
-    { icon: 'users', text: 'Your 3 vs their 3.' },
-    { icon: 'timer', text: 'First team to win 10 rounds wins. About 10 minutes per game.' },
+    { icon: 'crosshair', text: 'Swift Play: a short, fast Valorant game.' },
+    { icon: 'users', text: 'Your 5 vs their 5.' },
+    { icon: 'timer', text: 'First team to win 5 rounds wins. About 15 to 20 minutes per game.' },
   ],
 
   howItWorks: [
@@ -110,7 +110,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
 
   rules: [
     { group: 'Teams', items: [
-      'Each team has 3 players. You can add 1 substitute when you sign up.',
+      'Each team has 5 players. You can add 1 substitute when you sign up.',
       'The players who play must be the ones who signed up. We check names at check-in.',
       'A team can change players only by using its registered substitute.',
     ] },
@@ -120,8 +120,8 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
       'Log in before your match time. Login problems do not stop the clock.',
     ] },
     { group: 'Match format', items: [
-      'Mode: Skirmish, 3v3. First team to win 10 rounds wins the game.',
-      'Round of 16 and quarterfinals: 1 game.',
+      'Mode: Swift Play, 5v5. First team to win 5 rounds wins the game.',
+      'Quarterfinals: 1 game.',
       'Semifinals and final: best of 3 games. First to win 2 games wins.',
       '1-game matches: coin toss. The team that wins the toss picks the map.',
       'Best of 3: the team that wins the coin toss picks the first map. The team that lost game 1 picks the second map. The last map is game 3.',
@@ -129,11 +129,11 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     { group: 'Time', items: [
       'Report at XQZ by 11:00 AM. Check-in closes at 11:45 AM.',
       'Your match starts at the time in the bracket. If your team is not seated 5 minutes after that time, you lose the match.',
-      'If only 2 players are there, you can play 2 vs 3 or use your substitute. You cannot wait.',
+      'If only 4 players are there, you can play 4 vs 5 or use your substitute. You cannot wait.',
     ] },
     { group: 'During the game', items: [
       'Each team gets 1 pause per game, up to 5 minutes, only for a PC or internet problem.',
-      'If a player disconnects in the first 2 rounds, the game restarts. After that, the game continues. If they cannot come back in 5 minutes, the team plays 2 vs 3.',
+      'If a player disconnects in the first 2 rounds, the game restarts. After that, the game continues. If they cannot come back in 5 minutes, the team plays 4 vs 5.',
       'If the power or internet goes off for everyone, the game is played again from 0-0.',
       'No cheats, scripts, macros or changing cafe PC settings. You will be removed with no refund.',
       'No abuse of players or staff. You will be removed with no refund.',
@@ -151,14 +151,14 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     { q: 'What rank do I need?', a: 'All ranks can join. You may play against much stronger players.' },
     { q: 'What if my team is late?', a: 'You lose that match. Matches do not wait.' },
     { q: 'Can I get a refund?', a: 'No refund after 3 December. Full refund if the challenge is cancelled, or if you signed up solo and we could not find you a team.' },
-    { q: 'What if fewer teams join?', a: 'We need at least 8 teams. If fewer join, the challenge is cancelled and everyone gets a full refund.' },
+    { q: 'What if fewer teams join?', a: 'We need at least 4 teams. If fewer join, the challenge is cancelled and everyone gets a full refund.' },
   ],
 
   agreeLine: 'I joined the Khelo community, I follow Khelo and XQZ on Instagram, I read the rules (if my team is late, we lose the match), I know there is no refund after 3 December (except if the challenge is cancelled or I am a solo player without a team), and I am OK with my photos and videos from the challenge being posted on Instagram.',
 
   // {link} is replaced with the captain's invite link.
-  shareText: 'I signed us up for the Khelo Valorant 3v3 Challenge at XQZ on 5 Dec. Tap this link, log in, and fill your details: {link}',
-  storyLine: "I'm playing the Khelo Valorant 3v3 Challenge",
+  shareText: 'I signed us up for the Khelo Valorant 5v5 Challenge at XQZ on 5 Dec. Tap this link, log in, and fill your details: {link}',
+  storyLine: "I'm playing the Khelo Valorant 5v5 Challenge",
 
   disclaimer: 'This challenge is not made, run or supported by Riot Games.',
 };

@@ -15,7 +15,7 @@ export function StoryCardButton({ cfg, teamName, onShared }: { cfg: TeamChalleng
     setBusy(true);
     try {
       const blob = await draw(cfg, teamName);
-      const file = new File([blob], 'khelo-valorant-3v3.png', { type: 'image/png' });
+      const file = new File([blob], 'khelo-valorant-5v5.png', { type: 'image/png' });
       const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
       if (nav.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], text: `${cfg.storyLine} · @${cfg.links.kheloInstagramHandle}` }).catch(() => undefined);

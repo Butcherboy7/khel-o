@@ -39,7 +39,7 @@ export function ChallengeTeaser({ where = 'home', className = 'mx-auto w-full ma
             {challengeDay(ch.startsAt)}, {challengeTimeRange(ch.startsAt, ch.endsAt)} · {ch.cafe.name}
           </span>
           <span className="block text-caption font-semibold text-[#F2C94C]">
-            {prices ? `Team of 3 · ₹${prices.team.toLocaleString('en-IN')} · ₹5,000 in rewards` : spots}
+            {prices ? `Team of 5 · ₹${prices.team.toLocaleString('en-IN')} · ₹5,000 in rewards` : spots}
           </span>
           <span className="block text-caption text-[#DADCE3]">
             {prices ? `No team? Join solo for ₹${prices.solo}. Tap to sign up.` : `Anyone can come to watch${ch.visitorOffer ? ` · ${ch.visitorOffer}` : ''}`}

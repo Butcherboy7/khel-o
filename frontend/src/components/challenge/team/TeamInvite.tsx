@@ -94,7 +94,7 @@ export function TeamInvite({ cfg, code }: { cfg: TeamChallengeConfig; code: stri
           </p>
           {(info ?? peek) && (
             <p className="mt-3 text-[14px] font-semibold text-[#F2C94C]">
-              {(info ?? peek)!.full ? 'This team is full.' : (info ?? peek)!.mainFull ? 'The 3 players are in. You can join as the substitute.' : `${(info ?? peek)!.players} of ${(info ?? peek)!.size} players in`}
+              {(info ?? peek)!.full ? 'This team is full.' : (info ?? peek)!.mainFull ? 'The 5 players are in. You can join as the substitute.' : `${(info ?? peek)!.players} of ${(info ?? peek)!.size} players in`}
             </p>
           )}
         </section>

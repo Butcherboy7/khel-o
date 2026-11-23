@@ -80,6 +80,8 @@ DEFAULTS: dict[str, Any] = {
     "slotMinutes": 20,      # one single-game match, start to start
     "bo3Minutes": 50,       # a best of 3, start to start
     "bo3RoundsLeft": 2,     # semi-finals and the final are best of 3
+    "gameTo": 10,           # rounds a team must win to take one game (Swift Play: 5)
+    "lobbies": 2,           # games that run at the same time (PCs for 2 teams each)
     "registrationClosesAt": None,
     "teammatesBy": None,    # after this the captain may type teammates in by hand
 }
@@ -939,9 +941,10 @@ def schedule(ch: Challenge, rows: list[ChallengeMatch]) -> None:
             if m.bye:
                 m.starts_at, m.lobby = None, None
         for i, m in enumerate(real):
-            m.starts_at = t + step * (i // 2)
-            m.lobby = "A" if i % 2 == 0 else "B"
-        t = t + step * ((len(real) + 1) // 2)
+            lobbies = max(int(cfg.get("lobbies") or 2), 1)
+            m.starts_at = t + step * (i // lobbies)
+            m.lobby = "ABCD"[(i % lobbies) % 4]
+        t = t + step * ((len(real) + lobbies - 1) // lobbies)
 
 
 def rounds_of(rows: list[ChallengeMatch]) -> int:
@@ -1027,7 +1030,7 @@ async def set_match_time(db: AsyncSession, ch: Challenge, match_id: UUID, starts
     if m is None or m.challenge_id != ch.id:
         raise TeamError("No such match.", "MATCH_NOT_FOUND", 404)
     m.starts_at = _aware(starts_at)
-    m.lobby = lobby if lobby in ("A", "B") else None
+    m.lobby = lobby if lobby in ("A", "B", "C", "D") else None
     await db.commit()
 
 
@@ -1041,16 +1044,17 @@ async def record_result(db: AsyncSession, ch: Challenge, match_id: UUID, winner:
     if m is None:
         raise TeamError("No such match.", "MATCH_NOT_FOUND", 404)
     bo = best_of(ch, rounds_of(rows), m)
+    to = int(config(ch).get("gameTo") or 10)
     clean: list[dict] = []
     for g in games or []:
         a, b = g.get("a"), g.get("b")
         if a is None and b is None:
             continue
-        if not (isinstance(a, int) and isinstance(b, int) and 0 <= a <= 10 and 0 <= b <= 10 and (a == 10) != (b == 10)):
-            raise TeamError("Each game ends when one team wins 10 rounds, like 10–7.", "BAD_SCORE")
+        if not (isinstance(a, int) and isinstance(b, int) and 0 <= a <= to and 0 <= b <= to and (a == to) != (b == to)):
+            raise TeamError(f"Each game ends when one team wins {to} rounds, like {to}–{to - 3}.", "BAD_SCORE")
         clean.append({"a": a, "b": b})
-    wins_a = sum(1 for g in clean if g["a"] == 10)
-    wins_b = sum(1 for g in clean if g["b"] == 10)
+    wins_a = sum(1 for g in clean if g["a"] == to)
+    wins_b = sum(1 for g in clean if g["b"] == to)
     need = bo // 2 + 1
     if clean:
         if len(clean) > bo:

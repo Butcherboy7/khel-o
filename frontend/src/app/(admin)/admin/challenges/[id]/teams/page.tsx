@@ -602,8 +602,9 @@ function MatchRow({ m, busy, onTime, onResult }: {
   if (m.bye) return <li className="rounded-xl bg-surface px-3 py-2 text-body-sm text-text-secondary">{m.a?.name ?? m.b?.name ?? '—'} · bye</li>;
   const both = m.a && m.b;
   const parsed = games.map((g) => ({ a: g.a === '' ? null : Number(g.a), b: g.b === '' ? null : Number(g.b) }));
-  const wonA = parsed.filter((g) => g.a === 10 && (g.b ?? 0) < 10).length;
-  const wonB = parsed.filter((g) => g.b === 10 && (g.a ?? 0) < 10).length;
+  const gameTo = 5; // Swift Play: first to 5 rounds (matches backend gameTo)
+  const wonA = parsed.filter((g) => g.a === gameTo && (g.b ?? 0) < gameTo).length;
+  const wonB = parsed.filter((g) => g.b === gameTo && (g.a ?? 0) < gameTo).length;
   const need = n === 3 ? 2 : 1;
   const winner: 'a' | 'b' | null = wonA >= need ? 'a' : wonB >= need ? 'b' : null;
 
@@ -635,7 +636,7 @@ function MatchRow({ m, busy, onTime, onResult }: {
           ))}
           <button type="button" className={btnPrimary} disabled={!winner || busy === `s${m.id}`}
             onClick={() => winner && onResult(m.id, winner, parsed.filter((g) => g.a !== null || g.b !== null))}>
-            {winner ? `Save: ${winner === 'a' ? m.a?.name : m.b?.name} wins` : 'Enter round scores (first to 10)'}
+            {winner ? `Save: ${winner === 'a' ? m.a?.name : m.b?.name} wins` : `Enter round scores (first to ${gameTo})`}
           </button>
         </div>
       )}

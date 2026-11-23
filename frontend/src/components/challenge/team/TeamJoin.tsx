@@ -200,7 +200,7 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
         currency: order.currency,
         key: order.keyId,
         name: 'KHEL-O',
-        description: `${cfg.title}: ${kind === 'team' ? 'Team of 3' : 'Solo'} entry`,
+        description: `${cfg.title}: ${kind === 'team' ? 'Team of 5' : 'Solo'} entry`,
         prefill: { name: me.fullName, email: user?.email, contact: phoneDigits(me.phone) },
         onDismiss: () => setBusy(false),
         handler: async (rsp) => {
@@ -317,7 +317,7 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
             <h2 className="text-[22px] font-bold">How are you joining?</h2>
             <KindCard
               icon={<Users className="h-6 w-6" aria-hidden />}
-              title="Team of 3"
+              title="Team of 5"
               price={info?.priceTeam ?? 750}
               line={`${rupees(Math.round((info?.priceTeam ?? 750) / (info?.size ?? 3)))} per player. You pay for the team, your 2 friends join free with your link.`}
               badge="Best value"
@@ -340,7 +340,7 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[22px] font-bold">{kind === 'team' ? 'Your team' : 'Your details'}</h2>
               <button type="button" onClick={() => go('kind')} className="min-h-[44px] rounded-full px-3 text-sm font-semibold text-[#E8675D] hover:bg-white/5">
-                {kind === 'team' ? 'Team of 3' : 'Solo'} · Change
+                {kind === 'team' ? 'Team of 5' : 'Solo'} · Change
               </button>
             </div>
             {kind === 'team' && (
@@ -420,7 +420,7 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
 
             <div className="mt-2 rounded-2xl border border-[#2C2530] bg-[#141017] p-4">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[16px] font-bold">{kind === 'team' ? `Team of 3 · ${teamName.trim()}` : 'Solo entry'}</span>
+                <span className="text-[16px] font-bold">{kind === 'team' ? `Team of 5 · ${teamName.trim()}` : 'Solo entry'}</span>
                 <span className={`${fightFont.className} text-[36px] font-bold leading-none`}>{waitlist ? 'Free' : rupees(price)}</span>
               </div>
               <p className="mt-1 text-[14px] text-[#B4B0B8]">

@@ -188,7 +188,7 @@ export function ChallengePopup() {
           <>
             <p className="mt-3 font-heading text-[2.2rem] font-bold leading-none text-[#F2C94C]">₹5,000 in rewards</p>
             <p className="mt-1 text-sm text-[#DADCE3]">Exciting rewards worth ₹5,000 for the top teams. Semi-finalists get Khelo coupons.</p>
-            <p className="mt-2 text-base font-bold text-white">Team of 3 · {rupee(prices.team)} <span className="font-medium text-[#A3A6B1]">({rupee(Math.round(prices.team / 3))} each)</span></p>
+            <p className="mt-2 text-base font-bold text-white">Team of 5 · {rupee(prices.team)} <span className="font-medium text-[#A3A6B1]">({rupee(Math.round(prices.team / 3))} each)</span></p>
           </>
         ) : (
           <>
