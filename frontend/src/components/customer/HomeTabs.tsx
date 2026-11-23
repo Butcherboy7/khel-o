@@ -12,7 +12,7 @@ import { getChallenge, type Challenge } from '@/lib/api/challenges';
 import { recordJoin } from '@/lib/communityJoin';
 import { getThisWeek } from '@/lib/api/community';
 import { trackAction } from '@/lib/api/analyticsEvents';
-import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll } from '@/lib/challenge';
+import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll, challengePoster, teamPrices, teamSpots } from '@/lib/challenge';
 import { useAuthStore } from '@/store/authStore';
 import { useHomeBadges, type BadgeTab } from '@/lib/homeBadges';
 import { RedBadge } from '@/components/customer/RedBadge';
@@ -160,7 +160,7 @@ function ChallengeCard({ c }: { c: Challenge }) {
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
       <Link href={`/challenge/${c.slug}`} className="relative block aspect-[16/10] overflow-hidden bg-[#0b0708]">
         {/* eslint-disable-next-line @next/next/no-img-element -- static photo from /public */}
-        <img src="/community/full-house.webp" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={challengePoster(c)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
         <span className={cn('absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-wider', upcoming ? 'bg-error text-white' : 'bg-black/60 text-white backdrop-blur')}>
           {upcoming ? 'Next challenge' : 'Last challenge'}
@@ -168,18 +168,18 @@ function ChallengeCard({ c }: { c: Challenge }) {
         <span className="absolute inset-x-3 bottom-3 text-white">
           <span className="block font-heading text-h3 font-bold leading-tight">{c.title}</span>
           <span className="block text-caption text-white/80">
-            {c.cafe.name} · {challengeDay(c.startsAt)} · {upcoming ? (openToAll(c.capacity) ? 'Free to play' : `${c.spotsLeft} of ${c.capacity} spots left`) : `${c.confirmed} players`}
+            {c.cafe.name} · {challengeDay(c.startsAt)} · {upcoming ? (teamSpots(c) ? `${teamSpots(c)!.left} of ${teamSpots(c)!.max} team spots left` : openToAll(c.capacity) ? 'Free to play' : `${c.spotsLeft} of ${c.capacity} spots left`) : `${c.confirmed} players`}
           </span>
         </span>
       </Link>
       <div className="flex flex-wrap gap-2 p-3">
         {upcoming ? (
           <Link
-            href={`/challenge/${c.slug}?join=1`}
+            href={teamPrices(c) ? `/challenge/${c.slug}/join?kind=team` : `/challenge/${c.slug}?join=1`}
             onClick={() => trackAction('challenge_teaser_click', { challenge: c.slug, where: 'home_tab' })}
             className="btn-depth inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-caption font-bold text-white"
           >
-            Sign up to play <ArrowRight className="h-4 w-4" aria-hidden />
+            {teamPrices(c) ? `Sign up your team · ₹${teamPrices(c)!.team.toLocaleString('en-IN')}` : 'Sign up to play'} <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         ) : (
           <Link href={`/challenge/${c.slug}`} className="btn-depth inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-caption font-bold text-white">

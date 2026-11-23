@@ -14,7 +14,7 @@ import { getChallenge } from '@/lib/api/challenges';
 import { getThisWeek } from '@/lib/api/community';
 import { listBookings } from '@/lib/api/bookings';
 import { listActivities, cafePath } from '@/lib/api/cafes';
-import { FEATURED_CHALLENGE_SLUG, isUpcoming } from '@/lib/challenge';
+import { FEATURED_CHALLENGE_SLUG, challengePoster, isUpcoming, teamPrices } from '@/lib/challenge';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { useAuthStore } from '@/store/authStore';
 import type { CafeListItem } from '@/types';
@@ -198,15 +198,15 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
               className="relative aspect-[4/5] w-[72%] max-w-[300px] flex-none lg:w-auto lg:max-w-none snap-start overflow-hidden rounded-3xl bg-[#0b0708] shadow-card sm:w-[280px] lg:w-auto"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/community/full-house.webp" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={challenge ? challengePoster(challenge, true) : '/community/full-house.webp'} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
               <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-white backdrop-blur">
                 {challengeUpcoming ? <Swords className="h-3 w-3" aria-hidden /> : <Trophy className="h-3 w-3" aria-hidden />}
                 {challengeUpcoming ? 'Next challenge' : 'Last challenge'}
               </span>
               <div className="absolute inset-x-0 bottom-0 p-3.5 text-white">
-                <p className="font-heading text-h3 font-bold leading-tight">{challenge?.title ?? 'Tekken Challenge #01'}</p>
-                <p className="mt-0.5 text-caption text-white/80">{challengeUpcoming ? 'Free to enter' : 'See the photos and who won'}</p>
+                <p className="font-heading text-h3 font-bold leading-tight">{challenge?.title ?? 'Valorant 3v3 Challenge'}</p>
+                <p className="mt-0.5 text-caption text-white/80">{challengeUpcoming ? (teamPrices(challenge) ? `Team of 3 · ₹${teamPrices(challenge)!.team.toLocaleString('en-IN')} · ₹5,000 prizes` : 'Free to enter') : 'See the photos and who won'}</p>
                 <span className="mt-2.5 inline-flex min-h-[40px] items-center rounded-full bg-white px-4 text-caption font-extrabold text-[#1c1c1e]">
                   {challengeUpcoming ? 'Sign up' : 'See recap'}
                 </span>

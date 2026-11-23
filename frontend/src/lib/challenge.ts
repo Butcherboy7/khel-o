@@ -167,6 +167,17 @@ export function hoursAndMinutes(total: number): string {
  *  printed on reels and posters, so it never changes. */
 export const FEATURED_CHALLENGE_SLUG = 'valorant-3v3-xqz';
 
+/** Team spots of a paid team challenge, in teams (not players); null for the other kind. */
+export function teamSpots(c: unknown): { left: number; max: number } | null {
+  const t = (c as { team?: { spotsLeft?: number; maxTeams?: number } | null } | null)?.team;
+  return t && typeof t.spotsLeft === 'number' && typeof t.maxTeams === 'number' ? { left: t.spotsLeft, max: t.maxTeams } : null;
+}
+
+/** The card picture for a challenge: its own poster when it has one, else the community photo. */
+export function challengePoster(c: { slug: string }, tall = false): string {
+  return c.slug === 'valorant-3v3-xqz' ? `/challenges/valorant-3v3-xqz/poster${tall ? '-portrait' : ''}.webp` : '/community/full-house.webp';
+}
+
 /** Entry prices of a paid team challenge (null for the free, single-player ones). */
 export function teamPrices(c: unknown): { team: number; solo: number } | null {
   const t = (c as { team?: { priceTeam?: number; priceSolo?: number } | null } | null)?.team;
