@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { QrCode, Swords } from 'lucide-react';
+import { ChallengeGlyph } from '@/components/icons/ValorantIcon';
 import { getMyChallenges, type MyChallengeSummary } from '@/lib/api/challenges';
 import { challengeDay, challengeTime } from '@/lib/challenge';
 import { FEATURED_CHALLENGE_SLUG } from '@/lib/challenge';
@@ -34,7 +35,7 @@ function Row({ c }: { c: MyChallengeSummary }) {
       <CardContent className="flex items-center gap-3 p-3.5">
         <Link href={`/challenge/${c.slug}`} className="flex min-w-0 flex-1 items-center gap-3">
           <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Swords className="h-5 w-5" aria-hidden />
+            <ChallengeGlyph game={c.game} className="h-5 w-5" />
           </span>
           <span className="min-w-0">
             <span className="block truncate font-heading text-body-emphasis font-bold text-text-primary">{c.title}</span>

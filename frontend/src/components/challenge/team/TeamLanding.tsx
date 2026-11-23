@@ -206,7 +206,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
             <p className="mt-4 border-t border-[#1A1306]/20 pt-3 text-[15px] font-semibold">{cfg.prizeExtra}</p>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <p className="text-sm text-[#B4B0B8]">{cfg.sponsors.length ? 'Prize money given by' : 'Prize money given by our sponsors.'}</p>
+            <p className="text-sm text-[#B4B0B8]">{cfg.sponsors.length ? 'Prize money given by' : `Prize pool by ${cfg.venue.shortName} and Team Khelo.`}</p>
             {cfg.sponsors.map((s) => (
               <a key={s.name} href={s.url ?? undefined} target="_blank" rel="noopener noreferrer" className="flex h-12 items-center rounded-xl bg-white px-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}

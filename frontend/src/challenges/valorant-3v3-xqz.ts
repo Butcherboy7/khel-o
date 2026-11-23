@@ -41,7 +41,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     supportWhatsApp: null, // TODO: '91XXXXXXXXXX'
   },
 
-  // TODO: real sponsors. Until then the page says "Prize money given by our sponsors" with no logos.
+  // Sponsors: XQZ and Team Khelo (partnership, both fund the prize pool). No logos yet; the page names them in text.
   sponsors: [],
 
   dates: {

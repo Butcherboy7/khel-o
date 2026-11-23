@@ -82,12 +82,14 @@ export function useChallengeToNudge(): Challenge | null {
 }
 
 /** Pop-up state for the featured challenge: whether it may show, or the New tag is on. */
-export function useChallengeNudge(): { challenge: Challenge | null; mayPopUp: boolean; showNew: boolean } {
+export function useChallengeNudge(): { challenge: Challenge | null; mayPopUp: boolean; showNew: boolean; unseen: boolean } {
   const challenge = useChallengeToNudge();
   const state = useNudgeState(FEATURED_CHALLENGE_SLUG);
   return {
     challenge,
     mayPopUp: !!challenge && state === null,
     showNew: !!challenge && state === 'docked',
+    // Not opened yet on this phone: the Community tab carries a red dot until it is.
+    unseen: !!challenge && state !== undefined && state !== 'seen',
   };
 }

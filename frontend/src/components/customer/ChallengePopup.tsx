@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, MapPin, MessageCircle, Swords, Users, X } from 'lucide-react';
+import { CalendarDays, MapPin, MessageCircle, Users, X } from 'lucide-react';
+import { ChallengeGlyph } from '@/components/icons/ValorantIcon';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { recordJoin } from '@/lib/communityJoin';
-import { COMMUNITY_URL, challengeDay, challengeTimeRange, openToAll, startsInWords } from '@/lib/challenge';
+import { COMMUNITY_URL, challengeDay, challengeTimeRange, openToAll, startsInWords, teamPrices } from '@/lib/challenge';
 import { markChallengeSeen, useChallengeNudge, writeNudge } from '@/lib/challengeNudge';
 
 const SHOW_AFTER_MS = 2500;
@@ -115,6 +116,8 @@ export function ChallengePopup() {
   }, [open, dock]);
 
   if (!open || !ch) return null;
+  const prices = teamPrices(ch);
+  const rupee = (n: number) => `₹${n.toLocaleString('en-IN')}`;
   const spots =
     ch.status !== 'open'
       ? 'Player sign-ups closed · come watch'
@@ -149,7 +152,7 @@ export function ChallengePopup() {
         <div className="mt-3 flex items-start justify-between gap-3">
           <p className="pt-1 text-[11px] font-bold uppercase tracking-[0.1em] text-[#E8675D]">
             <span className="mr-2 rounded bg-[#F2C94C] px-1.5 py-0.5 text-[10px] text-[#1A1114]">NEW</span>
-            Free challenge · {ch.game}
+            {prices ? `Cash prize · ${ch.game}` : `Free challenge · ${ch.game}`}
           </p>
           <button
             type="button"
@@ -163,7 +166,7 @@ export function ChallengePopup() {
 
         <div className="mt-1 flex items-center gap-3">
           <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-[#D0463C] text-white">
-            <Swords className="h-7 w-7" aria-hidden />
+            <ChallengeGlyph game={ch.game} className="h-7 w-7" />
           </span>
           <h2 className="font-heading text-[1.7rem] font-bold leading-tight">{ch.title}</h2>
         </div>
@@ -181,26 +184,48 @@ export function ChallengePopup() {
           </div>
         </div>
 
-        <p className="mt-3 text-base font-bold text-[#F2C94C]">{spots} · free sign-up</p>
-        <div className="mt-2 flex items-start gap-2 rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-3 text-sm text-[#DADCE3]">
-          <Users className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FE0A0]" aria-hidden />
-          <span>
-            <b className="text-[#7FE0A0]">Not playing? Come watch.</b> Anyone can come.
-            {ch.visitorOffer ? ` ${ch.visitorOffer}.` : ''}
-          </span>
-        </div>
+        {prices ? (
+          <>
+            <p className="mt-3 font-heading text-[2.2rem] font-bold leading-none text-[#F2C94C]">₹5,000 in prizes</p>
+            <p className="mt-1 text-sm text-[#DADCE3]">Winners get ₹3,000. Runner-up gets ₹2,000. Semi-finalists and finalists also get 1 hour of free play.</p>
+            <p className="mt-2 text-base font-bold text-white">Team of 3 · {rupee(prices.team)} <span className="font-medium text-[#A3A6B1]">({rupee(Math.round(prices.team / 3))} each)</span></p>
+          </>
+        ) : (
+          <>
+            <p className="mt-3 text-base font-bold text-[#F2C94C]">{spots} · free sign-up</p>
+            <div className="mt-2 flex items-start gap-2 rounded-2xl border border-[#3B6B4A] bg-[#13221A] p-3 text-sm text-[#DADCE3]">
+              <Users className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FE0A0]" aria-hidden />
+              <span>
+                <b className="text-[#7FE0A0]">Not playing? Come watch.</b> Anyone can come.
+                {ch.visitorOffer ? ` ${ch.visitorOffer}.` : ''}
+              </span>
+            </div>
+          </>
+        )}
 
         <div className="mt-auto flex flex-col gap-2 pt-5">
           <Link
-            href={`/challenge/${ch.slug}?join=1`}
+            href={prices ? `/challenge/${ch.slug}/join?kind=team` : `/challenge/${ch.slug}?join=1`}
             onClick={() => {
-              trackAction('challenge_teaser_click', { challenge: ch.slug, where: 'popup' });
+              trackAction('challenge_teaser_click', { challenge: ch.slug, where: 'popup', kind: prices ? 'team' : '' });
               markChallengeSeen(ch.slug);
             }}
-            className="flex min-h-[52px] items-center justify-center rounded-2xl bg-[#D0463C] text-base font-bold text-white hover:bg-[#E8675D]"
+            className="flex min-h-[56px] items-center justify-center rounded-2xl bg-[#D0463C] text-lg font-bold text-white hover:bg-[#E8675D]"
           >
-            Lock my spot
+            {prices ? `Sign up your team · ${rupee(prices.team)}` : 'Lock my spot'}
           </Link>
+          {prices && (
+            <Link
+              href={`/challenge/${ch.slug}/join?kind=solo`}
+              onClick={() => {
+                trackAction('challenge_teaser_click', { challenge: ch.slug, where: 'popup', kind: 'solo' });
+                markChallengeSeen(ch.slug);
+              }}
+              className="flex min-h-[48px] items-center justify-center rounded-2xl border border-white/25 text-base font-semibold text-white hover:bg-white/5"
+            >
+              No team? Join solo · {rupee(prices.solo)}
+            </Link>
+          )}
           <a
             href={COMMUNITY_URL}
             target="_blank"
@@ -210,7 +235,7 @@ export function ChallengePopup() {
           >
             <MessageCircle className="h-4 w-4" aria-hidden /> Join our WhatsApp Community
           </a>
-          <p className="text-center text-[11px] text-[#7D808B]">Close it any time. It stays in Profile → My challenges.</p>
+          <p className="text-center text-[11px] text-[#7D808B]">Close it any time. You will find it in Community.</p>
         </div>
       </div>
     </>

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { QrCode, Swords, X } from 'lucide-react';
+import { QrCode, X } from 'lucide-react';
+import { ChallengeGlyph } from '@/components/icons/ValorantIcon';
 import { answerComing, getMyActiveChallenges, type MyActiveChallenge } from '@/lib/api/challenges';
 import { challengeDay, challengeTime } from '@/lib/challenge';
 import { useAuthStore } from '@/store/authStore';
@@ -86,7 +87,7 @@ export function MyChallengeCard() {
         >
           <Link href={`/challenge/${c.slug}`} className="flex min-w-0 flex-1 items-center gap-3">
             <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#D0463C]/20 text-[#E8675D]">
-              <Swords className="h-5 w-5" aria-hidden />
+              <ChallengeGlyph game={c.game} className="h-5 w-5" />
             </span>
             <span className="min-w-0">
               <span className="block truncate font-heading text-body-emphasis font-bold">{c.title}</span>

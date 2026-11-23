@@ -21,7 +21,7 @@ import { RoleSwitcher } from '@/components/layout/RoleSwitcher';
 import { RedBadge } from '@/components/customer/RedBadge';
 import { CampaignBadgeClaimer } from '@/components/customer/CampaignBadgeClaimer';
 import { ChallengePopup } from '@/components/customer/ChallengePopup';
-import { useChallengeNudge } from '@/lib/challengeNudge';
+import { markChallengeSeen, useChallengeNudge } from '@/lib/challengeNudge';
 import { apiClient } from '@/lib/api/client';
 import { getThisWeek } from '@/lib/api/community';
 import { SEEN_POST_KEY } from '@/lib/communityJoin';
@@ -52,17 +52,19 @@ const customerNavItems: NavItem[] = [
  *  tag is on, signed-out visitors go straight to My challenges (Profile would
  *  only ask them to log in). */
 function useProfileNav() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { showNew } = useChallengeNudge();
-  return {
-    showNew,
-    href: (item: NavItem) => (item.href === '/profile' && showNew && !isAuthenticated ? '/my-challenges' : item.href),
-  };
+  // The upcoming-challenge nudge now lives on Community (red dot), not Profile.
+  return { showNew: false, href: (item: NavItem) => item.href };
 }
 
 /** Red dot on Community while this week's post has not been opened on this phone. */
 function useCommunityDot(): boolean {
   const { data } = useQuery({ queryKey: ['community-week'], queryFn: getThisWeek, staleTime: 300_000, retry: false });
+  const { challenge, unseen } = useChallengeNudge();
+  const pathnameNow = usePathname();
+  // Opening Community is how you see the upcoming challenge: that clears the dot (and the pop-up).
+  useEffect(() => {
+    if (challenge && pathnameNow.startsWith('/community')) markChallengeSeen(challenge.slug);
+  }, [challenge, pathnameNow]);
   const [seen, setSeen] = useState<string | null | undefined>(undefined);
   const pathname = usePathname();
   useEffect(() => {
@@ -72,11 +74,12 @@ function useCommunityDot(): boolean {
       setSeen(null);
     }
   }, [pathname]);
-  return Boolean(data?.post && seen !== undefined && seen !== data.post.id && pathname !== '/community');
+  const newPost = Boolean(data?.post && seen !== undefined && seen !== data.post.id);
+  return (newPost || unseen) && !pathname.startsWith('/community');
 }
 
 function Dot({ className }: { className?: string }) {
-  return <span aria-label="New post" className={cn('h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card', className)} />;
+  return <span aria-label="New" className={cn('h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card', className)} />;
 }
 
 function NewTag({ className }: { className?: string }) {
@@ -145,7 +148,7 @@ function CustomerHeader() {
                 prefetch={prefetch}
                 key={item.href}
                 href={profileNav.href(item)}
-                data-challenge-dock={item.href === '/profile' ? '' : undefined}
+                data-challenge-dock={item.href === '/community' ? '' : undefined}
                 className={cn(
                   'relative rounded-full px-4 py-2 text-body font-medium transition duration-fast',
                   isActive
@@ -223,7 +226,7 @@ function CustomerBottomNav() {
             prefetch={prefetch}
             key={item.href}
             href={profileNav.href(item)}
-            data-challenge-dock={item.href === '/profile' ? '' : undefined}
+            data-challenge-dock={item.href === '/community' ? '' : undefined}
             className={cn(
               'relative flex flex-col items-center gap-0.5 px-4 py-1.5 transition duration-fast',
               isActive ? 'text-primary-dark font-bold' : 'text-text-secondary hover:text-text-primary',

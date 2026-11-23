@@ -165,7 +165,13 @@ export function hoursAndMinutes(total: number): string {
 
 /** The challenge the home page and /community point people to. Its link is
  *  printed on reels and posters, so it never changes. */
-export const FEATURED_CHALLENGE_SLUG = 'tekken-01';
+export const FEATURED_CHALLENGE_SLUG = 'valorant-3v3-xqz';
+
+/** Entry prices of a paid team challenge (null for the free, single-player ones). */
+export function teamPrices(c: unknown): { team: number; solo: number } | null {
+  const t = (c as { team?: { priceTeam?: number; priceSolo?: number } | null } | null)?.team;
+  return t && typeof t.priceTeam === 'number' && typeof t.priceSolo === 'number' ? { team: t.priceTeam, solo: t.priceSolo } : null;
+}
 
 /** KHEL-O's WhatsApp community invite (Announcements, Lobby, Challengers). */
 export const COMMUNITY_URL = 'https://chat.whatsapp.com/FWVq1Iv7EgaDlyspNkS3ps';
