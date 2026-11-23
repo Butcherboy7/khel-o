@@ -276,7 +276,7 @@ async def test_team_made_from_practice_solos_is_cleared_and_draw_refuses_empty_t
     for p in (await db_session.execute(select(ChallengePlayer).where(ChallengePlayer.entry_id == entry.id))).scalars():
         p.status = "refunded"
     await db_session.commit()
-    res = await async_client.post(f"{base}/draw", json={"redo": False}, headers=auth_headers(admin))
+    res = await async_client.post(f"{base}/draw", json={"redo": False, "earlyOk": True}, headers=auth_headers(admin))
     assert res.status_code == 409 and "Night Owls" in res.json()["error"]["message"], res.text
 
 
@@ -285,7 +285,7 @@ async def test_walkover_result_with_no_scores_moves_the_team_on(async_client, db
     ch, admin = await _team_challenge(async_client, db_session, maxTeams=16)
     base = f"/api/v1/admin/challenges/{ch['id']}/teams"
     await async_client.post(f"{base}/practice", headers=auth_headers(admin))
-    assert (await async_client.post(f"{base}/draw", json={"redo": False}, headers=auth_headers(admin))).status_code == 200
+    assert (await async_client.post(f"{base}/draw", json={"redo": False, "earlyOk": True}, headers=auth_headers(admin))).status_code == 200
     b = (await async_client.get(f"/api/v1/challenges/{ch['slug']}/bracket")).json()["data"]
     m = b["ready"][0]
     res = await async_client.post(f"{base}/matches/{m['id']}/result", json={"winner": "b", "games": []}, headers=auth_headers(admin))
@@ -293,3 +293,64 @@ async def test_walkover_result_with_no_scores_moves_the_team_on(async_client, db
     b = (await async_client.get(f"/api/v1/challenges/{ch['slug']}/bracket")).json()["data"]
     done = next(x for r in b["rounds"] for x in r["matches"] if x["id"] == m["id"])
     assert done["winner"] == "b"
+
+
+@pytest.mark.asyncio
+async def test_draw_guards_numbers_late_payments_names_and_clear(async_client, db_session):
+    ch, admin = await _team_challenge(async_client, db_session, maxTeams=16)
+    cid, slug = ch["id"], ch["slug"]
+    base = f"/api/v1/admin/challenges/{cid}/teams"
+    H = auth_headers(admin)
+    d = (await async_client.post(f"{base}/practice", headers=H)).json()["data"]
+    # Team numbers are 1..N with no gaps.
+    assert sorted(t["number"] for t in d["teams"]) == list(range(1, len(d["teams"]) + 1))
+    # Two solo teams never share a name.
+    a, b = d["solos"][0]["id"], d["solos"][1]["id"]
+    r1 = (await async_client.post(f"{base}/solo-team", json={"playerIds": [a]}, headers=H)).json()["data"]
+    r2 = (await async_client.post(f"{base}/solo-team", json={"playerIds": [b], "name": "Night Owls"}, headers=H))
+    assert r2.status_code == 409 and r2.json()["error"]["code"] == "TEAM_NAME_TAKEN"
+    r3 = (await async_client.post(f"{base}/solo-team", json={"playerIds": [b]}, headers=H)).json()["data"]
+    names = [t["name"] for t in r3["teams"] if t["kind"] == "solo_group"]
+    assert len(names) == len(set(names)) == 2
+    # Drawing while sign-ups are open needs a confirm.
+    res = await async_client.post(f"{base}/draw", json={}, headers=H)
+    assert res.status_code == 409 and res.json()["error"]["code"] == "SIGNUPS_OPEN"
+    assert (await async_client.post(f"{base}/draw", json={"earlyOk": True}, headers=H)).status_code == 200
+    bk = (await async_client.get(f"/api/v1/challenges/{slug}/bracket")).json()["data"]
+    nums = {s["number"] for r in bk["rounds"] for m in r["matches"] for s in (m["a"], m["b"]) if s}
+    assert nums == set(range(1, 12))
+    # Real round-1 matches fill lobby A and B (byes take no slot).
+    lobbies = [m["lobby"] for m in bk["rounds"][0]["matches"] if not m["bye"]]
+    assert lobbies.count("A") >= lobbies.count("B") >= 1
+    # A result can be cleared, then re-entered.
+    m = bk["ready"][0]
+    assert (await async_client.post(f"{base}/matches/{m['id']}/result", json={"winner": "a", "games": [{"a": 10, "b": 4}]}, headers=H)).status_code == 200
+    assert (await async_client.post(f"{base}/matches/{m['id']}/clear", headers=H)).status_code == 200
+    bk = (await async_client.get(f"/api/v1/challenges/{slug}/bracket")).json()["data"]
+    again = next(x for r in bk["rounds"] for x in r["matches"] if x["id"] == m["id"])
+    assert again["winner"] is None and again["games"] is None
+    # No offers once drawn.
+    from app.services import challenge_teams as teams_svc
+    from app.models.challenge import Challenge as Ch
+    row = await db_session.get(Ch, __import__("uuid").UUID(cid))
+    assert row.drawn_at is not None
+
+
+@pytest.mark.asyncio
+async def test_payment_that_lands_after_the_draw_is_refunded_not_left_outside_the_bracket(async_client, db_session, monkeypatch):
+    from tests.test_challenge_teams import _entry, _pay, _verify
+    import app.services.drop_service as drops
+    refunded = []
+    monkeypatch.setattr(drops, "refund_payment", lambda pid, amount, reason: refunded.append(reason) or "rfnd_x")
+    ch, admin = await _team_challenge(async_client, db_session, maxTeams=16)
+    await _paid_team(async_client, db_session, ch["slug"])
+    await _paid_team(async_client, db_session, ch["slug"])
+    late = await _player(db_session, "Late")
+    r = await _pay(async_client, ch["slug"], late, _entry(kind="team"))  # started paying before the draw
+    assert r.status_code == 200, r.text
+    assert (await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/teams/draw", json={"earlyOk": True}, headers=auth_headers(admin))).status_code == 200
+    res = await _verify(async_client, ch["slug"], late, r.json()["data"]["orderId"])  # money arrives after
+    assert res.status_code in (200, 409), res.text
+    desk = (await async_client.get(f"/api/v1/admin/challenges/{ch['id']}/teams", headers=auth_headers(admin))).json()["data"]
+    assert len(desk["teams"]) == 2  # not added to a drawn bracket
+    assert refunded and "drawn" in refunded[0]

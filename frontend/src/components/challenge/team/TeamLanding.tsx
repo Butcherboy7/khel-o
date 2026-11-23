@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Check, ChevronDown, ChevronRight, Gamepad2, Instagram, MapPin } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Gamepad2, Instagram, MapPin } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { fightFont } from '@/components/challenge/ChallengeHero';
 import { trackAction } from '@/lib/api/analyticsEvents';
@@ -113,6 +113,14 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
       <section className="relative isolate flex min-h-[86svh] flex-col overflow-hidden">
         <LiveBackdrop cfg={cfg} />
         <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 pt-4 md:px-8">
+          <span className="flex min-w-0 items-center gap-2">
+          <Link
+            href="/"
+            aria-label="Back to KHEL-O"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/55 backdrop-blur hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          >
+            <ArrowLeft className="h-5 w-5" aria-hidden />
+          </Link>
           <Link
             href="/"
             className="inline-flex h-11 items-center gap-2.5 text-[16px] font-bold tracking-[0.08em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
@@ -129,6 +137,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={cfg.venue.logo} alt={cfg.venue.shortName} className="h-[17px] w-auto" />
           </Link>
+          </span>
           <span className="flex items-center gap-2">
             <span className="inline-flex h-9 items-center gap-2 rounded-full bg-black/60 px-3.5 text-[12px] font-bold uppercase tracking-[0.16em] backdrop-blur-md">
               <span className="vx-live-dot h-2 w-2 rounded-full bg-[#FF4A4A]" aria-hidden />

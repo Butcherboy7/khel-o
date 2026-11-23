@@ -233,7 +233,7 @@ async def test_draw_sets_times_and_lobbies_from_the_schedule(async_client, db_se
     for _ in range(11):
         await _paid_team(async_client, db_session, ch["slug"])
     h = auth_headers(admin, is_admin=True)
-    res = await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/teams/draw", json={}, headers=h)
+    res = await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/teams/draw", json={"earlyOk": True}, headers=h)
     assert res.status_code == 200, res.text
     rows = (await db_session.execute(select(ChallengeMatch).where(ChallengeMatch.challenge_id == uuid.UUID(ch["id"]))
                                      .execution_options(populate_existing=True))).scalars().all()
@@ -245,11 +245,15 @@ async def test_draw_sets_times_and_lobbies_from_the_schedule(async_client, db_se
         m = next(x for x in rows if x.round == r and x.position == p)
         return None if m.starts_at is None else (teams._aware(m.starts_at) - start, m.lobby)
 
-    # 11 teams in 16 slots: 5 byes; round 1 runs 12:00–13:00 in pairs, QF 13:20/13:40, SF 14:00, final 14:50.
+    # 11 teams in 16 slots: 5 byes. Byes take no lobby time, so the 3 real round-1 matches use
+    # both lobbies: 12:00 A+B, 12:20 A. QF 12:40 A+B, 13:00 A+B. SF 13:20 A+B. Final 14:10.
     assert sum(1 for m in rows if m.bye) == 5
-    assert at(1, 0) == (timedelta(minutes=80), "A") and at(1, 3) == (timedelta(minutes=100), "B")
-    assert at(2, 0) == (timedelta(minutes=120), "A") and at(2, 1) == (timedelta(minutes=120), "B")
-    assert at(3, 0) == (timedelta(minutes=170), "A")
+    r1 = sorted((teams._aware(m.starts_at) - start, m.lobby) for m in rows if m.round == 0 and not m.bye)
+    assert r1 == [(timedelta(0), "A"), (timedelta(0), "B"), (timedelta(minutes=20), "A")]
+    assert all(m.starts_at is None and m.lobby is None for m in rows if m.bye)
+    assert at(1, 0) == (timedelta(minutes=40), "A") and at(1, 3) == (timedelta(minutes=60), "B")
+    assert at(2, 0) == (timedelta(minutes=80), "A") and at(2, 1) == (timedelta(minutes=80), "B")
+    assert at(3, 0) == (timedelta(minutes=130), "A")
     bk = (await async_client.get(f"/api/v1/challenges/{ch['slug']}/bracket")).json()["data"]
     semi = bk["rounds"][2]["matches"][0]
     assert semi["bestOf"] == 3 and semi["lobby"] == "A"
@@ -262,7 +266,7 @@ async def test_results_move_winners_on_with_round_scores(async_client, db_sessio
     for _ in range(4):
         await _paid_team(async_client, db_session, ch["slug"])
     h = auth_headers(admin, is_admin=True)
-    assert (await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/teams/draw", json={}, headers=h)).status_code == 200
+    assert (await async_client.post(f"/api/v1/admin/challenges/{ch['id']}/teams/draw", json={"earlyOk": True}, headers=h)).status_code == 200
     bk = (await async_client.get(f"/api/v1/challenges/{ch['slug']}/bracket")).json()["data"]
     # 4 teams: both rounds are best of 3 (semis + final).
     sf = bk["rounds"][0]["matches"][0]

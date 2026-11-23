@@ -110,6 +110,9 @@ export interface BracketSide {
   entryId: string;
   name: string;
   mainCharacter: string | null;
+  /** Team challenges: the team number (1..N, fixed at the draw) and whether it was refunded out. */
+  number?: number | null;
+  withdrawn?: boolean;
 }
 
 export interface BracketMatch {

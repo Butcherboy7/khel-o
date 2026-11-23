@@ -228,7 +228,8 @@ export const adminTeams = {
   refundTeam: (id: string, entryId: string, reason: string) => call<TeamDesk>(() => apiClient.post(`${admin(id)}/${entryId}/refund`, { reason })),
   cancelAll: (id: string, reason: string) => call<TeamDesk & { cancelResult: { refunded: number; failed: number } }>(() => apiClient.post(`${admin(id)}/cancel-all`, { reason, confirm: 'CANCEL' })),
   checkin: (id: string, playerId: string, present: boolean) => call<TeamDesk>(() => apiClient.post(`${admin(id)}/players/${playerId}/checkin`, { present })),
-  draw: (id: string, redo = false) => call<{ teams: number }>(() => apiClient.post(`${admin(id)}/draw`, { redo })),
+  draw: (id: string, redo = false, earlyOk = false) => call<{ teams: number }>(() => apiClient.post(`${admin(id)}/draw`, { redo, earlyOk })),
+  clearResult: (id: string, matchId: string) => call<void>(() => apiClient.post(`${admin(id)}/matches/${matchId}/clear`)),
   matchTime: (id: string, matchId: string, startsAt: string | null, lobby: 'A' | 'B' | null) => call<void>(() => apiClient.post(`${admin(id)}/matches/${matchId}/time`, { startsAt, lobby })),
   result: (id: string, matchId: string, winner: 'a' | 'b', games: { a: number | null; b: number | null }[]) =>
     call<void>(() => apiClient.post(`${admin(id)}/matches/${matchId}/result`, { winner, games })),

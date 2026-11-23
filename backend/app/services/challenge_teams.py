@@ -438,6 +438,8 @@ async def start_offer_payment(db: AsyncSession, ch: Challenge, user: User) -> St
     entry = await svc.entry_for(db, ch.id, entry_id=me.entry_id) if me and me.entry_id else None
     if entry is None or me.role != "captain" or entry.status != "waitlist" or entry.offered_at is None:
         raise TeamError("There's no spot offered to your team right now.", "NO_OFFER", 409)
+    if ch.drawn_at is not None:
+        raise TeamError("The bracket is already drawn, so no new teams can join. Sorry!", "ALREADY_DRAWN", 409)
     existing = (await db.execute(
         select(ChallengePayment).where(
             ChallengePayment.entry_id == entry.id, ChallengePayment.status == "created",
@@ -486,6 +488,11 @@ async def confirm(db: AsyncSession, order_id: str, payment_id: str) -> Optional[
         p.razorpay_payment_id = payment_id
         p.paid_at = now()
         form = p.form or {}
+        if locked.drawn_at is not None:
+            result["outcome"] = "refund"
+            result["reason"] = "The bracket was already drawn when your payment arrived"
+            p.status = "paid"
+            return p
 
         if form.get("kind") == "offer":
             entry = await svc.entry_for(db, locked.id, entry_id=p.entry_id)
@@ -573,7 +580,7 @@ async def confirm(db: AsyncSession, order_id: str, payment_id: str) -> Optional[
             logger.warning("challenge_unmade_mail_failed", error=str(exc)[:200])
         return Confirmed("refunded", p)
     if result.get("outcome") == "refund":
-        await refund(db, p, "No team spot was free when the payment arrived")
+        await refund(db, p, result.get("reason") or "No team spot was free when the payment arrived")
         return Confirmed("refunded", p)
     if result.get("outcome") == "paid":
         try:
@@ -774,8 +781,16 @@ async def make_solo_team(db: AsyncSession, ch: Challenge, player_ids: list[UUID]
             raise TeamError(f"A team has {cfg['size']} players.", "TOO_MANY")
         if await _room(db, locked) <= 0:
             raise TeamError("No team spot is free.", "FULL", 409)
-        n = sum(1 for e in await team_entries(db, locked.id) if e.kind == "solo_group") + 1
-        team_name = clean_team_name(name) if name else f"Solo Squad {n}"
+        taken = {e.name.lower() for e in await team_entries(db, locked.id) if e.status in ("confirmed", "waitlist")}
+        if name:
+            team_name = clean_team_name(name)
+            if team_name.lower() in taken:
+                raise TeamError(f"A team called {team_name} already exists. Pick another name.", "TEAM_NAME_TAKEN", 409)
+        else:
+            n = 1
+            while f"solo squad {n}" in taken:
+                n += 1
+            team_name = f"Solo Squad {n}"
         lead = chosen[0]
         if (await db.execute(select(ChallengeEntry.id).where(
                 ChallengeEntry.challenge_id == locked.id, ChallengeEntry.phone == lead.phone))).first():
@@ -834,6 +849,8 @@ async def offer_slot(db: AsyncSession, ch: Challenge, entry_id: UUID, on: bool =
         entry = await svc.entry_for(db, locked.id, entry_id=entry_id)
         if entry is None or entry.status != "waitlist":
             raise TeamError("Pick a team on the waitlist.", "BAD_TEAM")
+        if on and locked.drawn_at is not None:
+            raise TeamError("The bracket is already drawn. No new teams can join now.", "ALREADY_DRAWN", 409)
         if on and await _room(db, locked) <= 0:
             raise TeamError("No team spot is free to offer.", "FULL", 409)
         entry.offered_at = now() if on else None
@@ -917,11 +934,14 @@ def schedule(ch: Challenge, rows: list[ChallengeMatch]) -> None:
         ms = sorted((m for m in rows if m.round == r and not m.is_third_place), key=lambda m: m.position)
         bo3 = (total - r) <= cfg["bo3RoundsLeft"]
         step = timedelta(minutes=cfg["bo3Minutes"] if bo3 else cfg["slotMinutes"])
-        for i, m in enumerate(ms):
-            pair = i // 2
-            m.starts_at = None if m.bye else t + step * pair
-            m.lobby = None if m.bye else ("A" if i % 2 == 0 else "B")
-        t = t + step * ((len(ms) + 1) // 2)
+        real = [m for m in ms if not m.bye]
+        for m in ms:
+            if m.bye:
+                m.starts_at, m.lobby = None, None
+        for i, m in enumerate(real):
+            m.starts_at = t + step * (i // 2)
+            m.lobby = "A" if i % 2 == 0 else "B"
+        t = t + step * ((len(real) + 1) // 2)
 
 
 def rounds_of(rows: list[ChallengeMatch]) -> int:
@@ -933,7 +953,17 @@ def best_of(ch: Challenge, rounds: int, m: ChallengeMatch) -> int:
     return 3 if (rounds - m.round) <= cfg["bo3RoundsLeft"] else 1
 
 
-async def draw(db: AsyncSession, ch: Challenge, redo: bool = False) -> int:
+def team_numbers(ch: Challenge, entries: list[ChallengeEntry]) -> dict:
+    """One team number everywhere: 1..N in the order teams were confirmed (join order).
+    Frozen at the draw, so a later refund never renumbers anyone."""
+    frozen = ((ch.plan_config or {}).get("team") or {}).get("numbers") if ch.drawn_at else None
+    if frozen:
+        return {k: int(v) for k, v in frozen.items()}
+    live = sorted((e for e in entries if e.status == "confirmed"), key=lambda e: e.position)
+    return {str(e.id): i for i, e in enumerate(live, start=1)}
+
+
+async def draw(db: AsyncSession, ch: Challenge, redo: bool = False, early_ok: bool = False) -> int:
     """Shuffle the paid teams into a bracket (byes for the empty spots) and set
     the match times. Done on Friday, before check-in, so it doesn't need anyone
     to be here. Can be redone until the first real result is in."""
@@ -942,6 +972,9 @@ async def draw(db: AsyncSession, ch: Challenge, redo: bool = False) -> int:
 
     locked = await svc.lock(db, ch.id)
     existing = await day.matches(db, ch.id)
+    if not existing and not early_ok and signups_open(locked):
+        await db.commit()
+        raise TeamError("Sign-ups are still open. Drawing now closes them for everyone.", "SIGNUPS_OPEN", 409)
     if existing and not redo:
         await db.commit()
         raise TeamError("The draw is already made. Use “Draw again” to redo it.", "ALREADY_DRAWN", 409)
@@ -979,6 +1012,8 @@ async def draw(db: AsyncSession, ch: Challenge, redo: bool = False) -> int:
     cfg_all = dict(locked.plan_config or {})
     team_cfg = dict(cfg_all.get("team") or {})
     team_cfg["drawSeed"] = seed
+    numbers = {str(e.id): i for i, e in enumerate(sorted(teams, key=lambda e: e.position), start=1)}
+    team_cfg["numbers"] = numbers
     cfg_all["team"] = team_cfg
     locked.plan_config = cfg_all
     locked.drawn_at = now()

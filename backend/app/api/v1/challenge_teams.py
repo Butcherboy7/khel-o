@@ -487,6 +487,8 @@ async def _desk(db: AsyncSession, ch: Challenge) -> dict:
         ChallengeMail.challenge_id == ch.id, ChallengeMail.kind.like("nudge%")).order_by(ChallengeMail.sent_at))).scalars().all()
     last_nudge = {m.player_id: m.sent_at for m in nudges}
 
+    numbers = teams.team_numbers(ch, entries)
+
     def team_out(e: ChallengeEntry) -> dict:
         mates = [p for p in ppl if p.entry_id == e.id]
         live = [p for p in mates if p.status in ("active", "waitlist")]
@@ -494,7 +496,7 @@ async def _desk(db: AsyncSession, ch: Challenge) -> dict:
         pay = pay_by_entry.get(e.id)
         cap = next((p for p in live if p.role == "captain"), None)
         return {
-            "id": str(e.id), "name": e.name, "kind": e.kind, "status": e.status, "number": e.position,
+            "id": str(e.id), "name": e.name, "kind": e.kind, "status": e.status, "number": numbers.get(str(e.id)),
             "players": main, "subs": subs, "present": e.present, "offered": e.offered_at is not None,
             "inviteCode": e.invite_code, "isTest": e.is_test,
             "paid": pay is not None and pay.status == "paid", "refunded": pay is not None and pay.status == "refunded",
@@ -733,19 +735,35 @@ async def admin_checkin(challenge_id: UUID, player_id: UUID, body: AdminCheckinI
 
 class DrawIn(_Camel):
     redo: bool = False
+    early_ok: bool = False  # "Draw anyway" while sign-ups are still open
 
 
 @admin_router.post("/{challenge_id}/teams/draw")
 async def admin_draw(challenge_id: UUID, body: DrawIn, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
     ch = await _admin_challenge(db, challenge_id)
     try:
-        n = await teams.draw(db, ch, redo=body.redo)
+        n = await teams.draw(db, ch, redo=body.redo, early_ok=body.early_ok)
     except teams.TeamError as e:
         await db.rollback()
         raise _err(e)
     logger.info("challenge_team_draw", challenge=str(challenge_id), teams=n)
     await _safe(team_mail.notify_draw(db, ch))
     return {"success": True, "data": {"teams": n}}
+
+
+@admin_router.post("/{challenge_id}/teams/matches/{match_id}/clear")
+async def admin_clear_result(challenge_id: UUID, match_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    """Undo a result typed by mistake. Only when the next match has no result yet."""
+    ch = await _admin_challenge(db, challenge_id)
+    try:
+        await day.clear_result(db, ch.id, match_id)
+    except day.DayError as e:
+        raise AppException(message=e.message, error_code=e.code, status_code=409)
+    m = await db.get(ChallengeMatch, match_id)
+    if m is not None:
+        m.games = None
+        await db.commit()
+    return {"success": True, "data": None}
 
 
 class TimeIn(_Camel):

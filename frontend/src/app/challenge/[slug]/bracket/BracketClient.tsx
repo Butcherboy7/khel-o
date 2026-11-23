@@ -9,6 +9,7 @@ import { getBracket, type Bracket, type BracketMatch } from '@/lib/api/challenge
 import { BracketView, Podium } from '@/components/challenge/BracketView';
 import { Celebration } from '@/components/challenge/Celebration';
 import { ShareCardButton } from '@/components/challenge/ShareCardButton';
+import { Roster, TeamBracket, UpNextStrip } from '@/components/challenge/team/TeamBracket';
 
 /** Refreshes on its own every few seconds, so the projector and phones
  *  follow the results as the referee enters them. */
@@ -44,6 +45,31 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
   const finished = ch.status === 'finished';
   // The bracket data has no team flag; the challenge's own config says it's a team challenge.
   const isTeam = Boolean((ch as typeof ch & { team?: unknown }).team) || !!teamChallengeConfig(slug);
+
+  if (projector && isTeam) {
+    return (
+      <div className="fixed inset-0 z-[200] flex flex-col gap-[1.5vh] bg-[#0A0809] px-[2.5vw] py-[2.5vh] text-[#F4F1EC]">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[min(1.6vw,2.6vh)] font-bold uppercase tracking-[0.2em] text-[#E8675D]">{ch.title}</p>
+          <Link href={`/challenge/${slug}/bracket`} className="shrink-0 rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white/50 hover:text-white">
+            Exit projector
+          </Link>
+        </div>
+        {!data.drawn ? (
+          <p className="mt-[20vh] text-center font-heading text-[min(4vw,7vh)] font-bold">The bracket is coming up</p>
+        ) : (
+          <>
+            {finished && data.standings.length > 0 && <Celebration id={`projector-${slug}`} big={wide} />}
+            {!finished && <UpNextStrip b={data} big />}
+            {data.standings.length > 0 && (finished || !data.upNext) && <Podium bracket={data} big={wide} team />}
+            <div className="min-h-0 flex-1">
+              <TeamBracket b={data} mode="projector" />
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
 
   if (projector) {
     // The big-screen sizes (vw/vh) only make sense on a real screen. On a phone
@@ -83,12 +109,12 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
 
   return (
     <div className="min-h-screen bg-[#0E0F13] text-[#F4F1EC]">
-      <header className="mx-auto flex max-w-5xl items-center gap-2 px-4 pt-4">
+      <header className={`mx-auto flex items-center gap-2 px-4 pt-4 ${isTeam ? 'max-w-7xl' : 'max-w-5xl'}`}>
         <Link href={`/challenge/${slug}`} className="flex items-center gap-1 text-sm font-semibold text-[#A3A6B1] hover:text-[#F4F1EC]">
           <ChevronLeft className="h-4 w-4" /> Challenge
         </Link>
       </header>
-      <main className="mx-auto max-w-5xl px-4 pb-16 pt-5">
+      <main className={`mx-auto px-4 pb-16 pt-5 ${isTeam ? 'max-w-7xl' : 'max-w-5xl'}`}>
         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#E8675D]">{finished ? 'Results' : 'Live bracket'}</p>
         <h1 className="mt-1 font-heading text-2xl font-bold">{ch.title}</h1>
         <p className="mt-1 text-sm text-[#A3A6B1]">
@@ -132,14 +158,24 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
                 )}
               </section>
             )}
-            {data.ready.length > 0 && !finished && (
-              <div className="mt-5">
-                <UpNext matches={data.ready} />
-              </div>
+            {isTeam ? (
+              <>
+                {!finished && data.ready.length > 0 && <div className="mt-5"><UpNextStrip b={data} /></div>}
+                <div className="mt-5"><Roster b={data} tone="dark" /></div>
+                <section className="mt-6"><TeamBracket b={data} /></section>
+              </>
+            ) : (
+              <>
+                {data.ready.length > 0 && !finished && (
+                  <div className="mt-5">
+                    <UpNext matches={data.ready} />
+                  </div>
+                )}
+                <section className="mt-6">
+                  <BracketView bracket={data} />
+                </section>
+              </>
             )}
-            <section className="mt-6">
-              <BracketView bracket={data} />
-            </section>
             {isTeam && <MatchTimes bracket={data} />}
           </>
         )}
@@ -209,7 +245,7 @@ function MatchTimes({ bracket }: { bracket: Bracket }) {
                 <td className="whitespace-nowrap px-3 py-2.5 font-semibold tabular-nums">{time(m.startsAt!)}</td>
                 <td className="px-3 py-2.5">{m.lobby ?? '–'}</td>
                 <td className="px-3 py-2.5">
-                  <span className="font-semibold">{m.a?.name ?? 'TBD'}</span> <span className="text-[#A3A6B1]">vs</span> <span className="font-semibold">{m.b?.name ?? 'TBD'}</span>
+                  <span className="font-semibold">{m.a ? `#${m.a.number ?? ''} ${m.a.name}` : 'TBD'}</span> <span className="text-[#A3A6B1]">vs</span> <span className="font-semibold">{m.b ? `#${m.b.number ?? ''} ${m.b.name}` : 'TBD'}</span>
                   <span className="block text-xs text-[#A3A6B1]">{m.name}{m.bestOf > 1 ? ' · best of 3' : ''}{m.games?.length ? ` · ${m.games.map((g) => `${g.a ?? '-'}–${g.b ?? '-'}`).join(', ')}` : ''}</span>
                 </td>
               </tr>

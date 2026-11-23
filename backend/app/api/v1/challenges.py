@@ -1062,9 +1062,17 @@ def _bracket_out(ch: Challenge, rows, by_id: dict) -> dict:
     """The bracket as public pages show it: display names only."""
     rounds = day.rounds_of(rows)
 
+    numbers = teams.team_numbers(ch, list(by_id.values())) if teams.is_team(ch) else {}
+
     def side(entry_id):
         e = by_id.get(entry_id)
-        return {"entryId": str(e.id), "name": svc.public_name(e), "mainCharacter": e.main_character} if e else None
+        if not e:
+            return None
+        out = {"entryId": str(e.id), "name": svc.public_name(e), "mainCharacter": e.main_character}
+        if numbers:
+            out["number"] = numbers.get(str(e.id))
+            out["withdrawn"] = e.status not in ("confirmed",)
+        return out
 
     def match(m):
         return {

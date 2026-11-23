@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { AlertTriangle, Check, Copy, Download, ExternalLink, Mail, Search, Shuffle, Users } from 'lucide-react';
 import { getBracket, type Bracket, type BracketMatch } from '@/lib/api/challenges';
 import { teamChallengeConfig } from '@/challenges';
+import { Roster, TeamBracket, matchNumbers } from '@/components/challenge/team/TeamBracket';
 import { adminTeams, downloadTeamsCsv, type DeskTeam, type Member, type TeamDesk } from '@/lib/api/teamChallenges';
 
 type Tab = 'teams' | 'solos' | 'waitlist' | 'checkin' | 'draw' | 'rewards' | 'removed';
@@ -40,7 +41,7 @@ export default function TeamDeskPage() {
     load();
   }, [load]);
 
-  const act = async (key: string, fn: () => Promise<unknown>, done: string) => {
+  const act = async (key: string, fn: () => Promise<unknown>, done: string, quietCodes: string[] = []): Promise<string | null> => {
     setBusy(key);
     setMsg(null);
     try {
@@ -48,8 +49,11 @@ export default function TeamDeskPage() {
       if (r && typeof r === 'object' && 'teams' in (r as object) && 'stats' in (r as object)) setDesk(r as TeamDesk);
       await load();
       setMsg({ ok: true, text: done });
+      return null;
     } catch (e) {
-      setMsg({ ok: false, text: (e as Error).message || 'That didn’t work.' });
+      const code = (e as { code?: string }).code ?? 'ERROR';
+      if (!quietCodes.includes(code)) setMsg({ ok: false, text: (e as Error).message || 'That didn’t work.' });
+      return code;
     } finally {
       setBusy(null);
     }
@@ -155,9 +159,10 @@ export default function TeamDeskPage() {
         {tab === 'checkin' && <CheckinDesk desk={desk} busy={busy} onToggle={(pid, present) => act(`c${pid}`, () => adminTeams.checkin(id, pid, present), present ? 'Checked in.' : 'Check-in undone.')} />}
         {tab === 'draw' && (
           <DrawDesk desk={desk} bracket={bracket} busy={busy}
-            onDraw={(redo) => act('draw', () => adminTeams.draw(id, redo), 'Bracket drawn. Times and lobbies are set.')}
+            onDraw={(redo, early) => act('draw', () => adminTeams.draw(id, redo, early), 'Bracket drawn. Times and lobbies are set.', ['SIGNUPS_OPEN'])}
             onTime={(mid, at, lobby) => act(`t${mid}`, () => adminTeams.matchTime(id, mid, at, lobby), 'Time saved.')}
-            onResult={(mid, w, games) => act(`s${mid}`, () => adminTeams.result(id, mid, w, games), 'Result saved.')} />
+            onResult={(mid, w, games) => act(`s${mid}`, () => adminTeams.result(id, mid, w, games), 'Result saved.')}
+            onClear={(mid) => act(`c${mid}`, () => adminTeams.clearResult(id, mid), 'Result cleared. Enter it again.')} />
         )}
         {tab === 'removed' && <TeamList list={desk.removed} empty="Nobody removed." render={(t) => <span className="text-caption text-text-secondary">{t.refunded ? 'Refunded' : t.status}</span>} />}
       </div>
@@ -257,7 +262,7 @@ function ago(iso: string | null) {
 /** Teams still short of players: who to chase, and what to do about each. */
 function NeedsAttention({ desk, busy, id, act, goSolos }: {
   desk: TeamDesk; busy: string | null; id: string; goSolos: () => void;
-  act: (key: string, fn: () => Promise<unknown>, done: string) => Promise<void>;
+  act: (key: string, fn: () => Promise<unknown>, done: string) => Promise<unknown>;
 }) {
   const size = desk.config.size;
   const short = desk.teams.filter((t) => t.kind === 'team' && t.paid && t.players < size);
@@ -376,7 +381,7 @@ function CancelAll({ busy, onCancel }: { busy: boolean; onCancel: (reason: strin
   );
 }
 
-function Solos({ desk, busy, act, id }: { desk: TeamDesk; busy: string | null; act: (k: string, fn: () => Promise<unknown>, done: string) => Promise<void>; id: string }) {
+function Solos({ desk, busy, act, id }: { desk: TeamDesk; busy: string | null; act: (k: string, fn: () => Promise<unknown>, done: string) => Promise<unknown>; id: string }) {
   const solos = desk.solos.filter((s) => s.status === 'active');
   const [picked, setPicked] = useState<string[]>([]);
   const [name, setName] = useState('');
@@ -472,42 +477,91 @@ function fromLocalInput(v: string): string | null {
   return v ? `${v}:00+05:30` : null;
 }
 
-function DrawDesk({ desk, bracket, busy, onDraw, onTime, onResult }: {
+function DrawDesk({ desk, bracket, busy, onDraw, onTime, onResult, onClear }: {
   desk: TeamDesk; bracket: Bracket | null; busy: string | null;
-  onDraw: (redo: boolean) => void;
-  onTime: (mid: string, at: string | null, lobby: 'A' | 'B' | null) => void;
-  onResult: (mid: string, winner: 'a' | 'b', games: { a: number | null; b: number | null }[]) => void;
+  onDraw: (redo: boolean, early: boolean) => Promise<string | null>;
+  onTime: (mid: string, at: string | null, lobby: 'A' | 'B' | null) => Promise<string | null>;
+  onResult: (mid: string, winner: 'a' | 'b', games: { a: number | null; b: number | null }[]) => Promise<string | null>;
+  onClear: (mid: string) => Promise<string | null>;
 }) {
   const drawn = !!desk.challenge.drawnAt;
   const [sure, setSure] = useState(false);
+  const [early, setEarly] = useState(false);
+  const [pick, setPick] = useState<string | null>(null);
+  const picked = bracket?.rounds.flatMap((r) => r.matches).find((m) => m.id === pick) ?? null;
+  const nos = bracket ? matchNumbers(bracket) : new Map<string, number>();
+  const draw = async (redo: boolean, ok: boolean) => {
+    const code = await onDraw(redo, ok);
+    setEarly(code === 'SIGNUPS_OPEN');
+    if (!code) setSure(false);
+  };
   return (
     <div className="flex flex-col gap-5">
       <div className="rounded-2xl border border-border bg-card p-4">
         <p className="text-body font-bold text-text-primary">{drawn ? 'Bracket is drawn' : `Draw the bracket (${desk.stats.teamsWithTest} teams)`}</p>
         <p className="text-body-sm text-text-secondary">
-          Teams are shuffled into a 16-slot bracket; missing teams become byes. Times: 2 lobbies (A/B), first match 12:00.
-          {desk.challenge.drawSeed != null && <> Seed: <b className="tabular-nums">{desk.challenge.drawSeed}</b> (saved, so the same draw can be shown again).</>}
+          Teams are shuffled into the bracket; empty spots become byes (that team goes straight to the next round).
+          Times use 2 lobbies (A and B) from the first match.
+          {desk.challenge.drawSeed != null && <> Seed: <b className="tabular-nums">{desk.challenge.drawSeed}</b>.</>}
         </p>
-        {!drawn ? (
-          <button type="button" className={`${btnPrimary} mt-3`} disabled={busy === 'draw' || desk.stats.teamsWithTest < 2} onClick={() => onDraw(false)}><Shuffle className="h-4 w-4" /> Make the draw</button>
+        {early ? (
+          <div className="mt-3 rounded-xl bg-warning/10 p-3">
+            <p className="text-body-sm font-semibold text-text-primary">Sign-ups are still open. Drawing now closes them for everyone. Draw anyway?</p>
+            <span className="mt-2 flex gap-2">
+              <button type="button" className={btnPrimary} disabled={busy === 'draw'} onClick={() => draw(drawn, true)}>Yes, close sign-ups and draw</button>
+              <button type="button" className={btn} onClick={() => setEarly(false)}>Not yet</button>
+            </span>
+          </div>
+        ) : !drawn ? (
+          <button type="button" className={`${btnPrimary} mt-3`} disabled={busy === 'draw' || desk.stats.teamsWithTest < 2} onClick={() => draw(false, false)}><Shuffle className="h-4 w-4" /> Make the draw</button>
         ) : !sure ? (
           <button type="button" className={`${btn} mt-3`} onClick={() => setSure(true)}>Draw again…</button>
         ) : (
-          <span className="mt-3 flex gap-2">
-            <button type="button" className={btnPrimary} disabled={busy === 'draw'} onClick={() => { onDraw(true); setSure(false); }}>Yes, new draw</button>
+          <span className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-body-sm text-text-secondary">A new draw replaces every match and time. Only before the first result.</span>
+            <button type="button" className={btnPrimary} disabled={busy === 'draw'} onClick={() => draw(true, false)}>Yes, new draw</button>
             <button type="button" className={btn} onClick={() => setSure(false)}>No</button>
           </span>
         )}
       </div>
 
-      {bracket?.rounds.map((r) => (
-        <section key={r.round}>
-          <h2 className="text-body font-bold text-text-primary">{r.name}</h2>
-          <ul className="mt-2 flex flex-col gap-2">
-            {r.matches.map((m) => <MatchRow key={m.id} m={m} busy={busy} onTime={onTime} onResult={onResult} />)}
-          </ul>
-        </section>
-      ))}
+      {bracket?.drawn && (
+        <>
+          <div className="rounded-2xl border border-border bg-card p-4"><Roster b={bracket} tone="light" /></div>
+          <div className="rounded-2xl border border-border bg-surface p-3 md:p-4">
+            <p className="mb-3 text-body-sm text-text-secondary">Tap a match to enter its result, give a walkover, or change its time.</p>
+            <TeamBracket b={bracket} tone="light" onPick={(m) => setPick(m.id)} />
+          </div>
+        </>
+      )}
+
+      {picked && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-stretch md:justify-end" onClick={() => setPick(null)}>
+          <div role="dialog" aria-modal="true" aria-label={`Match ${nos.get(picked.id)}`}
+            className="max-h-[88vh] w-full overflow-y-auto rounded-t-2xl bg-background p-4 shadow-xl md:max-h-none md:w-[460px] md:rounded-none"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-caption font-semibold uppercase tracking-wider text-text-secondary">M{nos.get(picked.id)} · {picked.name}{picked.bestOf > 1 ? ' · best of 3' : ''}</p>
+                <p className="mt-1 text-body font-bold text-text-primary">
+                  #{picked.a?.number} {picked.a?.name} <span className="font-normal text-text-secondary">vs</span> #{picked.b?.number} {picked.b?.name}
+                </p>
+              </div>
+              <button type="button" className={btn} onClick={() => setPick(null)}>Close</button>
+            </div>
+            <ul className="mt-3">
+              <MatchRow key={`${picked.id}-${picked.winner ?? 'open'}`} m={picked} busy={busy} onTime={onTime}
+                onResult={async (mid, w, games) => { if (!(await onResult(mid, w, games))) setPick(null); }} />
+            </ul>
+            {picked.winner && (
+              <div className="mt-3 rounded-xl border border-border p-3">
+                <p className="text-body-sm text-text-secondary">Typed the wrong result? Clear it and enter it again. Only possible while the next match has no result.</p>
+                <button type="button" className={`${btn} mt-2`} disabled={busy === `c${picked.id}`} onClick={() => onClear(picked.id)}>Clear result</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
