@@ -786,6 +786,7 @@ async def make_solo_team(db: AsyncSession, ch: Challenge, player_ids: list[UUID]
             phone=lead.phone, position=await _next_position(db, locked.id), status="confirmed",
             consent_rules=True, consent_age=True, consent_filming=True, consent_updates=True,
             consent_version="team-1", kind="solo_group", invite_code=await _new_invite_code(db),
+            is_test=any(p.is_test for p in chosen),
         )
         db.add(entry)
         await db.flush()
@@ -947,6 +948,11 @@ async def draw(db: AsyncSession, ch: Challenge, redo: bool = False) -> int:
     if any(m.completed_at and not m.bye for m in existing):
         raise TeamError("Results are already in. The draw can't be redone now.", "RESULTS_IN")
     teams = [e for e in await team_entries(db, ch.id) if e.status == "confirmed"]
+    ppl = await players(db, ch.id)
+    empty = [e.name for e in teams if not any(p.entry_id == e.id and p.status == "active" for p in ppl)]
+    if empty:
+        await db.rollback()
+        raise TeamError(f"These teams have no players: {', '.join(empty)}. Remove and refund them (Teams tab) before the draw.", "EMPTY_TEAM", 409)
     if len(teams) < 2:
         raise TeamError("At least 2 paid teams are needed for a draw.", "TOO_FEW")
     await db.execute(delete(ChallengeMatch).where(ChallengeMatch.challenge_id == ch.id))

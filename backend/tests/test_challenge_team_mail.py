@@ -253,3 +253,28 @@ async def test_practice_fills_whole_teams_and_clears_again(async_client, db_sess
     assert again.json()["data"]["made"] == {"teams": 0, "short": 0, "solos": 0}
     gone = await async_client.delete(url, headers=auth_headers(admin))
     assert gone.json()["data"]["teams"] == [] and gone.json()["data"]["practicePlayers"] == 0
+
+
+@pytest.mark.asyncio
+async def test_team_made_from_practice_solos_is_cleared_and_draw_refuses_empty_teams(async_client, db_session):
+    ch, admin = await _team_challenge(async_client, db_session, maxTeams=16)
+    cid = ch["id"]
+    base = f"/api/v1/admin/challenges/{cid}/teams"
+    d = (await async_client.post(f"{base}/practice", headers=auth_headers(admin))).json()["data"]
+    solo_ids = [s["id"] for s in d["solos"]]
+    res = await async_client.post(f"{base}/solo-team", json={"playerIds": solo_ids, "name": "Grouped"}, headers=auth_headers(admin))
+    assert res.status_code == 200, res.text
+    # Clearing practice removes the team built from practice solos too: nothing empty is left behind.
+    d = (await async_client.delete(f"{base}/practice", headers=auth_headers(admin))).json()["data"]
+    assert d["teams"] == []
+
+    # A confirmed team with nobody in it (old data) blocks the draw with its name.
+    from sqlalchemy import select
+    from app.models.challenge import ChallengeEntry, ChallengePlayer
+    await async_client.post(f"{base}/practice", headers=auth_headers(admin))
+    entry = (await db_session.execute(select(ChallengeEntry).where(ChallengeEntry.challenge_id == __import__("uuid").UUID(cid), ChallengeEntry.name == "Night Owls"))).scalar_one()
+    for p in (await db_session.execute(select(ChallengePlayer).where(ChallengePlayer.entry_id == entry.id))).scalars():
+        p.status = "refunded"
+    await db_session.commit()
+    res = await async_client.post(f"{base}/draw", json={"redo": False}, headers=auth_headers(admin))
+    assert res.status_code == 409 and "Night Owls" in res.json()["error"]["message"], res.text

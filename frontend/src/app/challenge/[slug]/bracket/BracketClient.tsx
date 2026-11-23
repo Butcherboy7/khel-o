@@ -52,7 +52,13 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
           wide ? 'overflow-hidden px-[4vw] py-[4vh]' : 'overflow-auto px-4 py-4'
         }`}
       >
-        <p className={`font-bold uppercase tracking-[0.2em] text-[#E8675D] ${wide ? 'text-[min(1.8vw,2.8vh)]' : 'text-xs'}`}>{ch.title}</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className={`font-bold uppercase tracking-[0.2em] text-[#E8675D] ${wide ? 'text-[min(1.8vw,2.8vh)]' : 'text-xs'}`}>{ch.title}</p>
+          {/* Quiet on the big screen, there when the host needs to leave. */}
+          <Link href={`/challenge/${slug}/bracket`} className="shrink-0 rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white/40 hover:text-white focus-visible:text-white">
+            Exit projector
+          </Link>
+        </div>
         {!data.drawn ? (
           <p className="mt-[20vh] text-center font-heading text-[min(4vw,7vh)] font-bold">The bracket is coming up</p>
         ) : (
@@ -61,7 +67,7 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
             {finished && data.standings.length > 0 && <Celebration id={`projector-${slug}`} big={wide} />}
             {data.standings.length > 0 && (finished || !data.upNext) && (
               <div className="mt-[2vh]">
-                <Podium bracket={data} big={wide} />
+                <Podium bracket={data} big={wide} team={isTeam} />
               </div>
             )}
             <div className={wide ? 'mt-[3vh] flex-1' : 'mt-4 pb-10'}>
@@ -99,7 +105,7 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
             {data.standings.length > 0 && (
               <section className="mt-5">
                 {finished && <Celebration id={`results-${slug}`} />}
-                <Podium bracket={data} />
+                <Podium bracket={data} team={isTeam} />
                 {finished && (
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {ch.championPhotoUrl && (

@@ -84,6 +84,11 @@ async def clear(db, ch: Challenge) -> int:
     await db.execute(delete(ChallengeMatch).where(ChallengeMatch.challenge_id == ch.id))
     await db.execute(delete(ChallengePlayer).where(ChallengePlayer.challenge_id == ch.id, ChallengePlayer.is_test.is_(True)))
     await db.execute(delete(ChallengeEntry).where(ChallengeEntry.challenge_id == ch.id, ChallengeEntry.is_test.is_(True)))
+    # A team the admin grouped from solos that are now gone (made before teams carried is_test)
+    # would be left with nobody in it: remove those too. Real teams always keep their captain.
+    left = select(ChallengePlayer.entry_id).where(ChallengePlayer.challenge_id == ch.id, ChallengePlayer.entry_id.is_not(None))
+    await db.execute(delete(ChallengeEntry).where(ChallengeEntry.challenge_id == ch.id, ChallengeEntry.kind == "solo_group",
+                                                  ChallengeEntry.id.not_in(left)))
     await db.execute(update(OfferCampaign).where(OfferCampaign.challenge_id == ch.id, OfferCampaign.superseded_at.is_(None))
                      .values(is_active=False, superseded_at=svc.now()))
     ch.drawn_at = None

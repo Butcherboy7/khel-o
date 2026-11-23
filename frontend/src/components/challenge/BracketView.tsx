@@ -5,6 +5,8 @@ import type { Bracket, BracketMatch, BracketSide } from '@/lib/api/challenges';
 
 const MEDAL: Record<number, string> = { 1: '#F2C27A', 2: '#C9CBD3', 3: '#D79A6B' };
 const PLACE: Record<number, string> = { 1: '1st', 2: '2nd', 3: '3rd' };
+// Team challenges: no amounts in public, just the names the rewards go with.
+const TEAM_PLACE: Record<number, string> = { 1: 'Top team', 2: 'Second team', 3: 'Semi-finalist' };
 
 /** The bracket: one column per round, the 3rd-place match under the final.
  *  `onPick` makes matches tappable (the admin's result entry). */
@@ -97,7 +99,7 @@ function Row({
 }
 
 /** 1st, 2nd, 3rd: only the places already decided. */
-export function Podium({ bracket, big = false }: { bracket: Bracket; big?: boolean }) {
+export function Podium({ bracket, big = false, team = false }: { bracket: Bracket; big?: boolean; team?: boolean }) {
   if (bracket.standings.length === 0) return null;
   return (
     <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${bracket.standings.length}, minmax(0, 1fr))` }}>
@@ -115,7 +117,7 @@ export function Podium({ bracket, big = false }: { bracket: Bracket; big?: boole
           )}
           <Trophy className={`mx-auto ${big ? 'h-[5vh] w-[5vh]' : 'h-6 w-6'}`} style={{ color: MEDAL[s.place] }} />
           <p className={`mt-1 font-bold uppercase tracking-[0.14em] ${big ? 'text-[min(1.4vw,2.2vh)]' : 'text-[11px]'}`} style={{ color: MEDAL[s.place] }}>
-            {PLACE[s.place]}
+            {(team ? TEAM_PLACE : PLACE)[s.place]}
           </p>
           <p className={`mt-0.5 truncate font-heading font-bold ${big ? 'text-[min(2.6vw,4vh)]' : 'text-lg'}`}>{s.name}</p>
         </div>
