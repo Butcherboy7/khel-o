@@ -209,6 +209,8 @@ export interface MyActiveChallenge {
   rank: number | null;
   /** Their answer to "Coming on the day?"; null until they answer. */
   coming: Coming | null;
+  /** A team captain whose team isn't full: how many are in, and the link to send. */
+  teamNeeds?: { players: number; size: number; inviteUrl: string };
 }
 
 /** One of the player's own sign-ups, coming up or past (My challenges). */

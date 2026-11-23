@@ -195,6 +195,23 @@ async def _me_payload(db: AsyncSession, slug: str, user_id) -> dict:
 # ── Public ────────────────────────────────────────────────────────────────
 
 
+async def _team_needs(db: AsyncSession, ch: Challenge, e: ChallengeEntry, user: User):
+    """For a team captain whose team isn't full: how many are in, and the link to send."""
+    from app.services import challenge_teams as teams
+    cfg = teams.config(ch)
+    if cfg is None or e.kind != "team" or e.status != "confirmed" or not e.invite_code:
+        return None
+    me = await teams.player_for(db, ch.id, user.id)
+    if me is None or me.role != "captain" or me.entry_id != e.id:
+        return None
+    mates = [p for p in await teams.players(db, ch.id) if p.entry_id == e.id]
+    main, _ = teams._team_counts(cfg, mates)
+    if main >= cfg["size"]:
+        return None
+    base = settings.FRONTEND_URL.rstrip("/")
+    return {"players": main, "size": cfg["size"], "inviteUrl": f"{base}/challenge/{ch.slug}/invite/{e.invite_code}"}
+
+
 @public_router.get("/mine/active")
 async def my_active_challenges(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
     """Challenges this player is in that haven't ended: for the home screen card."""
@@ -213,11 +230,15 @@ async def my_active_challenges(db: AsyncSession = Depends(get_db), user: User = 
     out = []
     for ch, cafe, e in rows:
         everyone = await svc.entries(db, ch.id)
-        out.append({
+        item = {
             "slug": ch.slug, "title": ch.title, "game": ch.game, "status": ch.status,
             "startsAt": _iso(ch.starts_at), "cafeName": cafe.name,
             "entryStatus": e.status, "rank": svc.rank(e, everyone), "coming": e.coming,
-        })
+        }
+        needs = await _team_needs(db, ch, e, user)
+        if needs:
+            item["teamNeeds"] = needs
+        out.append(item)
     return {"success": True, "data": out}
 
 

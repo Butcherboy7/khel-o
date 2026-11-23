@@ -176,7 +176,7 @@ def clean_phone(raw: str) -> str:
 
 def clean_player(raw: dict, *, solo: bool = False, by_someone_else: bool = False) -> dict:
     """One person's details, checked. Raises TeamError with a plain message.
-    Typed in by the captain or KHEL-O: rank and Instagram may be left empty."""
+    Instagram is optional for everyone. Typed in by the captain or KHEL-O: rank may be left empty too."""
     name = re.sub(r"\s+", " ", str(raw.get("fullName") or "").strip())
     if not 2 <= len(name) <= 50:
         raise TeamError("Full name: 2 to 50 letters.", "BAD_NAME")
@@ -191,7 +191,7 @@ def clean_player(raw: dict, *, solo: bool = False, by_someone_else: bool = False
         "riot_id": riot,
         "riot_key": key,
         "rank": rank,
-        "instagram": clean_insta(raw.get("instagram"), required=not by_someone_else),
+        "instagram": clean_insta(raw.get("instagram"), required=False),
         "college": college,
         "play_style": None,
     }

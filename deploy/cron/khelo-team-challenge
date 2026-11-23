@@ -1,0 +1,9 @@
+# /etc/cron.d/khelo-team-challenge: team challenge emails (server clock is UTC)
+#
+# Source of truth for what SHOULD be installed at /etc/cron.d/khelo-team-challenge.
+# Not applied automatically: copy it to the server after any change.
+#
+# Every 30 minutes: captain nudges (24h, 72h, last day before sign-ups close),
+# the evening before and the morning of match day. Each email goes once per person.
+# Dev box: same line with khel_o_dev_backend (only reaches EMAIL_ALLOWLIST there).
+*/30 * * * * root flock -n /tmp/khelo-team-challenge.lock docker exec -e PYTHONPATH=/app khel_o_backend python scripts/send_team_challenge_mail.py >> /var/log/khelo-team-challenge.log 2>&1

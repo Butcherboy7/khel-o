@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { QrCode, X } from 'lucide-react';
+import { QrCode, UserPlus, X } from 'lucide-react';
+import { teamChallengeConfig } from '@/challenges';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { ChallengeGlyph } from '@/components/icons/ValorantIcon';
 import { answerComing, getMyActiveChallenges, type MyActiveChallenge } from '@/lib/api/challenges';
 import { challengeDay, challengeTime } from '@/lib/challenge';
@@ -62,6 +64,36 @@ function ComingPrompt({ c }: { c: MyActiveChallenge }) {
   );
 }
 
+/** A captain whose team isn't full: shown every time they open Home until the last teammate joins. */
+function TeamNeedsPrompt({ c }: { c: MyActiveChallenge }) {
+  const n = c.teamNeeds;
+  if (!n) return null;
+  const left = n.size - n.players;
+  const share = (teamChallengeConfig(c.slug)?.shareText ?? 'Join my team: {link}').replace('{link}', n.inviteUrl);
+  return (
+    <div role="group" aria-label="Add your teammates" className="flex flex-col gap-2 rounded-2xl border-2 border-[#D0463C] bg-[#241A1D] px-3 py-3 text-[#F4F1EC]">
+      <p className="flex items-start gap-2 text-caption">
+        <UserPlus className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#E8675D]" aria-hidden />
+        <span>
+          <span className="font-semibold">Your team has {n.players} of {n.size} players.</span>{' '}
+          <span className="text-[#A3A6B1]">Send your link to {left === 1 ? 'your last teammate' : `your ${left} teammates`} so you can play.</span>
+        </span>
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <a
+          href={`https://wa.me/?text=${encodeURIComponent(share)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#25D366] px-4 text-caption font-bold text-[#06210F] hover:bg-[#3BE07A]"
+        >
+          <WhatsAppIcon className="h-4 w-4" /> Send on WhatsApp
+        </a>
+        <Link href={`/challenge/${c.slug}/me#add-teammates`} className="text-caption font-semibold text-[#E8675D] underline">Open my team</Link>
+      </div>
+    </div>
+  );
+}
+
 /** Top of the home screen for a signed-in player who is in an upcoming or
  *  live challenge: when it is, their place, and their check-in QR. */
 export function MyChallengeCard() {
@@ -106,6 +138,7 @@ export function MyChallengeCard() {
             <QrCode className="h-4 w-4" aria-hidden /> My QR
           </Link>
         </div>
+        <TeamNeedsPrompt c={c} />
         <ComingPrompt c={c} />
         </div>
       ))}

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Check, Copy, Download, ExternalLink, Search, Shuffle, Users } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Download, ExternalLink, Mail, Search, Shuffle, Users } from 'lucide-react';
 import { getBracket, type Bracket, type BracketMatch } from '@/lib/api/challenges';
 import { adminTeams, downloadTeamsCsv, type DeskTeam, type Member, type TeamDesk } from '@/lib/api/teamChallenges';
 
@@ -107,6 +107,7 @@ export default function TeamDeskPage() {
       <div className="mt-4">
         {tab === 'teams' && (
           <>
+            <NeedsAttention desk={desk} busy={busy} id={id} act={act} goSolos={() => setTab('solos')} />
             <TeamList list={desk.teams} empty="No paid teams yet." render={(t) => (
               <TeamActions t={t} slug={c.slug} busy={busy} onRefund={(reason) => act(`r${t.id}`, () => adminTeams.refundTeam(id, t.id, reason), `Refunded ${t.name}.`)} />
             )} />
@@ -197,6 +198,79 @@ function MemberLine({ m }: { m: Member }) {
         Community {m.tappedCommunity ? '✓' : '–'} · IG Khelo {m.tappedInstaKhelo ? '✓' : '–'} · IG venue {m.tappedInstaVenue ? '✓' : '–'}
       </span>
     </li>
+  );
+}
+
+function ago(iso: string | null) {
+  if (!iso) return null;
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+  return h < 1 ? 'just now' : h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+}
+
+/** Teams still short of players: who to chase, and what to do about each. */
+function NeedsAttention({ desk, busy, id, act, goSolos }: {
+  desk: TeamDesk; busy: string | null; id: string; goSolos: () => void;
+  act: (key: string, fn: () => Promise<unknown>, done: string) => Promise<void>;
+}) {
+  const size = desk.config.size;
+  const short = desk.teams.filter((t) => t.kind === 'team' && t.paid && t.players < size);
+  const [refunding, setRefunding] = useState<string | null>(null);
+  const [reason, setReason] = useState('Team did not get enough players');
+  if (short.length === 0) return null;
+  return (
+    <section className="mb-5 rounded-2xl border border-warning/50 bg-warning/10 p-4" aria-label="Teams that need attention">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-body font-bold text-text-primary">
+          <AlertTriangle className="h-5 w-5 text-warning" aria-hidden /> {short.length} {short.length === 1 ? 'team needs' : 'teams need'} more players
+        </h2>
+        <button type="button" className={btnPrimary} disabled={busy === 'remind-all'}
+          onClick={() => act('remind-all', () => adminTeams.remindCaptains(id), 'Reminder emails sent to the captains (a captain gets one every 6 hours at most).')}>
+          <Mail className="h-4 w-4" /> Email all captains
+        </button>
+      </div>
+      <p className="mt-1 text-body-sm text-text-secondary">
+        Chase them by WhatsApp or email. Still short on match day? Place a paid solo player into the team, let them play with 2 (a team is
+        here once 2 players check in), or remove the team and refund it.
+      </p>
+      <ul className="mt-3 flex flex-col gap-2">
+        {short.map((t) => (
+          <li key={t.id} className="rounded-xl bg-card p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-body-sm text-text-primary">
+                <b>#{t.number} {t.name}</b> · {t.players}/{size} players
+                {t.captain && <> · captain {t.captain.name}</>}
+                <span className="block text-caption text-text-secondary">
+                  {t.lastRemindedAt ? `Last emailed ${ago(t.lastRemindedAt)}` : 'Not emailed yet'}
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {t.captain && (
+                  <a className={btn} target="_blank" rel="noopener noreferrer"
+                    href={`https://wa.me/${t.captain.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${t.captain.name.split(' ')[0]}, your team ${t.name} has ${t.players} of ${size} players for the Khelo Valorant challenge. Please send your teammate link so they can join.`)}`}>
+                    WhatsApp captain
+                  </a>
+                )}
+                <button type="button" className={btn} disabled={busy === `m${t.id}`}
+                  onClick={() => act(`m${t.id}`, () => adminTeams.remindOne(id, t.id), `Emailed the captain of ${t.name}.`)}>
+                  <Mail className="h-4 w-4" /> Email
+                </button>
+                <button type="button" className={btn} onClick={goSolos}>Place a solo</button>
+                <button type="button" className={btn} onClick={() => setRefunding(refunding === t.id ? null : t.id)}>Remove &amp; refund</button>
+              </div>
+            </div>
+            {refunding === t.id && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input className={`${input} min-w-0 flex-1`} aria-label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+                <button type="button" className={btnPrimary} disabled={!reason.trim() || busy === `r${t.id}`}
+                  onClick={() => act(`r${t.id}`, () => adminTeams.refundTeam(id, t.id, reason.trim()), `Refunded ${t.name}.`).then(() => setRefunding(null))}>
+                  Refund {rupees(t.amount ?? 0)}
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

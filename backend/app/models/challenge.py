@@ -241,3 +241,16 @@ class ChallengePayment(Base):
     refunded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     refund_reason: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class ChallengeMail(Base):
+    """One email a team-challenge player was sent, so each reminder goes out once.
+    kind is e.g. 'nudge_24h', 'joined:<player id>', 'eve', 'matchday'."""
+    __tablename__ = "challenge_mails"
+    __table_args__ = (UniqueConstraint("player_id", "kind", name="uq_challenge_mails_player_kind"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    challenge_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False, index=True)
+    player_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("challenge_players.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(60), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

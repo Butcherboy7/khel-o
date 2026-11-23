@@ -128,6 +128,54 @@ export function TeamMe({ cfg, isNew }: { cfg: TeamChallengeConfig; isNew: boolea
               )}
             </section>
 
+            {/* The captain's link: right under the status, while the team isn't full. */}
+            {team?.inviteUrl && team.players < team.size && (
+              <section
+                id="add-teammates"
+                className={`rounded-3xl border-2 border-[#D0463C] bg-[#1A1114] p-5 ${isNew ? 'vx-rise' : ''}`}
+                aria-label="Add your teammates"
+              >
+                <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#E8675D]">Do this now</p>
+                <h2 className="mt-1 flex items-center gap-2 text-[24px] font-bold leading-tight">
+                  <UserPlus className="h-6 w-6 flex-shrink-0 text-[#E8675D]" aria-hidden />
+                  Send this link to your {team.size - team.players === 1 ? 'last teammate' : `${team.size - team.players} teammates`}
+                </h2>
+                <p className="mt-1 text-[15px] text-[#B4B0B8]">
+                  Your team is not complete until they join. They log in and fill their own details. It is free for them.
+                </p>
+                <ol className="mt-3 flex gap-2" aria-label={`${team.players} of ${team.size} players in`}>
+                  {Array.from({ length: team.size }).map((_, i) => {
+                    const m = team.members.filter((x) => x.role !== 'sub')[i];
+                    return (
+                      <li key={i} className={`flex min-h-[44px] min-w-0 flex-1 items-center justify-center rounded-xl border px-2 text-center text-[13px] font-semibold leading-tight ${m ? 'border-[#25D366]/50 bg-[#102418] text-[#BDF5CF]' : 'border-dashed border-[#5A2A26] text-[#A49EA9]'}`}>
+                        {m ? <span className="truncate">{m.fullName.split(' ')[0]}</span> : 'Waiting…'}
+                      </li>
+                    );
+                  })}
+                </ol>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(cfg.shareText.replace('{link}', team.inviteUrl))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => trackAction('challenge_invite_shared', { challenge: cfg.slug, channel: 'whatsapp' })}
+                  className="mt-4 flex min-h-[60px] items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-4 text-[17px] font-bold text-[#06210F] hover:bg-[#3BE07A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                >
+                  <WhatsAppIcon className="h-6 w-6" /> Send on WhatsApp
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    trackAction('challenge_invite_shared', { challenge: cfg.slug, channel: 'copy' });
+                    navigator.clipboard?.writeText(team.inviteUrl!).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+                  }}
+                  className="mt-2 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-[#3A3340] text-[15px] font-semibold"
+                >
+                  {copied ? <Check className="h-4 w-4 text-[#25D366]" /> : <Copy className="h-4 w-4" />} {copied ? 'Copied' : 'Copy link'}
+                </button>
+                <p className="mt-3 text-[13px] text-[#A49EA9]">We also email you a reminder with this link until your team is full.</p>
+              </section>
+            )}
+
             {/* Community + Instagram, for everyone, every time until tapped. */}
             {(!p.tappedCommunity || !p.tappedInstaKhelo || (cfg.venue.instagramHandle && !p.tappedInstaVenue)) && (
               <section className="flex flex-col gap-2.5">
@@ -143,32 +191,6 @@ export function TeamMe({ cfg, isNew }: { cfg: TeamChallengeConfig; isNew: boolea
                     Follow {cfg.venue.shortName} on Instagram
                   </TapButton>
                 )}
-              </section>
-            )}
-
-            {/* The captain's link, while the team isn't full. */}
-            {team?.inviteUrl && team.players < team.size && (
-              <section className="rounded-3xl border border-[#D0463C]/45 bg-[#141017] p-5">
-                <h2 className="flex items-center gap-2 text-[18px] font-bold"><UserPlus className="h-5 w-5 text-[#E8675D]" aria-hidden /> Add your 2 teammates</h2>
-                <p className="mt-1 text-[15px] text-[#B4B0B8]">Send this link. They log in and fill their own details. Free for them.</p>
-                <a
-                  href={`https://wa.me/?text=${encodeURIComponent(cfg.shareText.replace('{link}', team.inviteUrl))}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => trackAction('challenge_invite_shared', { challenge: cfg.slug, channel: 'whatsapp' })}
-                  className="mt-4 flex min-h-[56px] items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-4 text-[16px] font-bold text-[#06210F] hover:bg-[#3BE07A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
-                >
-                  <WhatsAppIcon className="h-5 w-5" /> Send on WhatsApp
-                </a>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(team.inviteUrl!).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
-                  }}
-                  className="mt-2 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-[#3A3340] text-[15px] font-semibold"
-                >
-                  {copied ? <Check className="h-4 w-4 text-[#25D366]" /> : <Copy className="h-4 w-4" />} {copied ? 'Copied' : 'Copy link'}
-                </button>
               </section>
             )}
 

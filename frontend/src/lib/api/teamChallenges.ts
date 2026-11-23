@@ -190,6 +190,8 @@ export interface DeskTeam {
   paidAt: string | null;
   members: Member[];
   checkedIn: number;
+  captain: { name: string; phone: string } | null;
+  lastRemindedAt: string | null;
 }
 
 export interface TeamDesk {
@@ -218,6 +220,8 @@ export const adminTeams = {
   matchTime: (id: string, matchId: string, startsAt: string | null, lobby: 'A' | 'B' | null) => call<void>(() => apiClient.post(`${admin(id)}/matches/${matchId}/time`, { startsAt, lobby })),
   result: (id: string, matchId: string, winner: 'a' | 'b', games: { a: number | null; b: number | null }[]) =>
     call<void>(() => apiClient.post(`${admin(id)}/matches/${matchId}/result`, { winner, games })),
+  remindCaptains: (id: string) => call<TeamDesk & { remindResult: { sent: number; skipped: number } }>(() => apiClient.post(`${admin(id)}/remind-captains`)),
+  remindOne: (id: string, entryId: string) => call<TeamDesk & { remindResult: { sent: number; skipped: number } }>(() => apiClient.post(`${admin(id)}/${entryId}/remind`)),
   csvUrl: (id: string) => `${admin(id)}.csv`,
 };
 

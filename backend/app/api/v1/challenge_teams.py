@@ -28,11 +28,12 @@ from app.core.exceptions import BaseAppException as AppException
 from app.core.logging import logger
 from app.database import get_db
 from app.models.cafe import Cafe
-from app.models.challenge import Challenge, ChallengeEntry, ChallengePayment, ChallengePlayer
+from app.models.challenge import Challenge, ChallengeEntry, ChallengeMail, ChallengePayment, ChallengePlayer
 from app.models.user import User
 from app.services import challenge_bracket as bracket
 from app.services import challenge_day as day
 from app.services import challenge_service as svc
+from app.services import challenge_team_mail as team_mail
 from app.services import challenge_teams as teams
 from app.services import drop_service
 
@@ -288,13 +289,22 @@ class JoinTeamIn(_Camel):
     agreed: bool = False
 
 
+async def _tell_team(db: AsyncSession, ch: Challenge, joined: ChallengePlayer) -> None:
+    """Welcome + 'a teammate joined' emails. A mail problem never undoes the join."""
+    try:
+        await team_mail.notify_teammate_joined(db, ch, joined)
+    except Exception as exc:
+        logger.warning("challenge_team_mail_failed", error=str(exc)[:200])
+
+
 @public_router.post("/{slug}/team/invite/{code}")
 async def join_with_invite(slug: str, code: str, body: JoinTeamIn, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
     ch = await _team_challenge(db, slug)
     try:
-        await teams.join_team(db, ch, user, code, _payload(body))
+        joined = await teams.join_team(db, ch, user, code, _payload(body))
     except teams.TeamError as e:
         raise _err(e)
+    await _tell_team(db, ch, joined)
     logger.info("challenge_team_member_joined", challenge=slug)
     return {"success": True, "data": await _me(db, ch, user)}
 
@@ -307,9 +317,10 @@ async def captain_adds_teammate(slug: str, body: JoinTeamIn, db: AsyncSession = 
     if me is None or me.role != "captain" or me.entry_id is None:
         raise AppException(message="Only the team captain can add teammates.", error_code="NOT_CAPTAIN", status_code=403)
     try:
-        await teams.join_team(db, ch, None, None, _payload(body), entry_id=me.entry_id, by="captain")
+        joined = await teams.join_team(db, ch, None, None, _payload(body), entry_id=me.entry_id, by="captain")
     except teams.TeamError as e:
         raise _err(e)
+    await _tell_team(db, ch, joined)
     return {"success": True, "data": await _me(db, ch, user)}
 
 
@@ -441,12 +452,16 @@ async def _desk(db: AsyncSession, ch: Challenge) -> dict:
     pay_by_entry = {p.entry_id: p for p in pays if p.entry_id and p.status in ("paid", "refunded")}
     pay_by_player = {p.player_id: p for p in pays if p.player_id}
     cfg = teams.config(ch)
+    nudges = (await db.execute(select(ChallengeMail).where(
+        ChallengeMail.challenge_id == ch.id, ChallengeMail.kind.like("nudge%")).order_by(ChallengeMail.sent_at))).scalars().all()
+    last_nudge = {m.player_id: m.sent_at for m in nudges}
 
     def team_out(e: ChallengeEntry) -> dict:
         mates = [p for p in ppl if p.entry_id == e.id]
         live = [p for p in mates if p.status in ("active", "waitlist")]
         main, subs = teams._team_counts(cfg, live)
         pay = pay_by_entry.get(e.id)
+        cap = next((p for p in live if p.role == "captain"), None)
         return {
             "id": str(e.id), "name": e.name, "kind": e.kind, "status": e.status, "number": e.position,
             "players": main, "subs": subs, "present": e.present, "offered": e.offered_at is not None,
@@ -455,6 +470,8 @@ async def _desk(db: AsyncSession, ch: Challenge) -> dict:
             "amount": float(pay.amount) if pay else None, "paidAt": _iso(pay.paid_at) if pay else None,
             "members": [_player_out(p, private=True) for p in mates],
             "checkedIn": sum(1 for p in live if p.checked_in_at),
+            "captain": ({"name": cap.full_name, "phone": cap.phone} if cap else None),
+            "lastRemindedAt": _iso(last_nudge.get(cap.id)) if cap else None,
         }
 
     solos = [p for p in ppl if p.role == "solo" and p.entry_id is None]
@@ -545,6 +562,21 @@ async def admin_offer(challenge_id: UUID, entry_id: UUID, body: OfferIn, db: Asy
     except teams.TeamError as e:
         raise _err(e)
     return {"success": True, "data": await _desk(db, ch)}
+
+
+@admin_router.post("/{challenge_id}/teams/remind-captains")
+async def admin_remind_captains(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    """Email the captain of every team that is still short of players."""
+    ch = await _admin_challenge(db, challenge_id)
+    result = await team_mail.remind_captains(db, ch)
+    return {"success": True, "data": {**await _desk(db, ch), "remindResult": result}}
+
+
+@admin_router.post("/{challenge_id}/teams/{entry_id}/remind")
+async def admin_remind_one(challenge_id: UUID, entry_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    ch = await _admin_challenge(db, challenge_id)
+    result = await team_mail.remind_captains(db, ch, entry_id)
+    return {"success": True, "data": {**await _desk(db, ch), "remindResult": result}}
 
 
 class ReasonIn(_Camel):

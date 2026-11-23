@@ -25,7 +25,7 @@ export function phoneDigits(v: string): string {
 
 export type PlayerErrors = Partial<Record<keyof PlayerForm | 'teamName' | 'sub', string>>;
 
-export function checkPlayer(p: PlayerForm, { needInsta = true }: { needInsta?: boolean } = {}): PlayerErrors {
+export function checkPlayer(p: PlayerForm, { needInsta = false }: { needInsta?: boolean } = {}): PlayerErrors {
   const e: PlayerErrors = {};
   const name = p.fullName.trim().replace(/\s+/g, ' ');
   if (name.length < 2 || name.length > 50) e.fullName = 'Write your full name.';
@@ -112,7 +112,7 @@ export function PlayerFields({
           ))}
         </select>
       </Labelled>
-      <Labelled id={`${idPrefix}-instagram`} label="Instagram username" hint="We tag you in the reels." error={errors.instagram}>
+      <Labelled id={`${idPrefix}-instagram`} label="Instagram username (optional)" hint="Skip it if you like. We tag you in the reels." error={errors.instagram}>
         <div className="relative">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A49EA9]">@</span>
           <input
