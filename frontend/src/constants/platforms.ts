@@ -13,7 +13,7 @@ export const PLATFORMS: { value: Platform; label: string }[] = [
 
 export const PLATFORM_MODELS: Record<Exclude<Platform, 'other'>, string[]> = {
   pc: ['RTX 4090', 'RTX 4070', 'RTX 3060', 'Budget', 'Custom'],
-  playstation: ['PS5 Pro', 'PS5', 'PS4 Pro', 'PS4', 'Custom'],
+  playstation: ['PS5 Pro', 'PS5 Slim', 'PS5', 'PS4 Pro', 'PS4 Slim', 'PS4', 'Custom'],
   xbox: ['Series X', 'Series S', 'One X', 'One S', 'Custom'],
-  nintendo: ['Switch OLED', 'Switch', 'Switch Lite', 'Custom'],
+  nintendo: ['Switch 2', 'Switch OLED', 'Switch', 'Switch Lite', 'Custom'],
 };
