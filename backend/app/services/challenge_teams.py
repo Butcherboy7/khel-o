@@ -461,11 +461,13 @@ async def confirm(db: AsyncSession, order_id: str, payment_id: str) -> Optional[
     if pay is None:
         return None
     challenge_id = pay.challenge_id
+    # Read the id now: change_spots commits, and an expired row can't lazy-load here (MissingGreenlet).
+    pay_id = pay.id
     result: dict[str, Any] = {}
 
     async def work(locked: Challenge):
         p = (await db.execute(
-            select(ChallengePayment).where(ChallengePayment.id == pay.id).with_for_update()
+            select(ChallengePayment).where(ChallengePayment.id == pay_id).with_for_update()
             .execution_options(populate_existing=True)
         )).scalar_one()
         if p.status in ("paid", "refunded"):
