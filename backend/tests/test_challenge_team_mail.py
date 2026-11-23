@@ -114,3 +114,40 @@ async def test_match_day_mail_goes_to_everyone_once(async_client, db_session, _o
     assert await mail.run_day_mail(db_session, row, at=morning) == 1
     logged = (await db_session.execute(select(ChallengeMail.kind).where(ChallengeMail.challenge_id == row.id))).scalars().all()
     assert sorted(logged) == ["eve", "matchday"]
+
+
+@pytest.mark.asyncio
+async def test_same_phone_is_refused_before_paying_and_a_late_clash_is_refunded(async_client, db_session):
+    """Two captains on one WhatsApp number: the second can't start paying; and if it only
+    shows up after the money is in, the payment is refunded instead of being left stuck."""
+    from app.models.challenge import ChallengePayment
+    from tests.conftest import auth_headers as ah
+    from tests.test_challenge_teams import _entry, _pay, _verify
+    ch, _ = await _team_challenge(async_client, db_session)
+    cap, _me = await _paid_team(async_client, db_session, ch["slug"], player=_person(phone="9876500001"))
+
+    other = await _player(db_session, "Other")
+    res = await _pay(async_client, ch["slug"], other, _entry(player=_person(phone="9876500001")))
+    assert res.status_code == 409 and res.json()["error"]["code"] == "PHONE_TAKEN"
+
+    # The late clash: start with a free number, then the form's number becomes taken before payment lands.
+    res = await _pay(async_client, ch["slug"], other, _entry(player=_person(phone="9876500002")))
+    assert res.status_code == 200, res.text
+    order = res.json()["data"]["orderId"]
+    pay = (await db_session.execute(select(ChallengePayment).where(ChallengePayment.razorpay_order_id == order))).scalar_one()
+    form = dict(pay.form)
+    form["player"] = {**form["player"], "phone": "+919876500001"}
+    pay.form = form
+    await db_session.commit()
+    refunds = []
+    import app.services.drop_service as drops
+    from pytest import MonkeyPatch
+    mp = MonkeyPatch()
+    mp.setattr(drops, "refund_payment", lambda pid, amount, reason: refunds.append(pid) or "rfnd_test")
+    try:
+        res = await _verify(async_client, ch["slug"], other, order)
+    finally:
+        mp.undo()
+    assert res.status_code == 409 and res.json()["error"]["code"] == "FULL_REFUNDED", res.text
+    await db_session.refresh(pay)
+    assert pay.status == "refunded" and len(refunds) == 1

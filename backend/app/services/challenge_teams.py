@@ -38,6 +38,7 @@ from uuid import UUID
 
 import structlog
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -283,8 +284,11 @@ async def player_for(db: AsyncSession, challenge_id, user_id) -> Optional[Challe
     )).scalar_one_or_none()
 
 
-async def _check_free(db: AsyncSession, ch: Challenge, user_id, riot_keys: list[str], team_name: Optional[str] = None) -> None:
-    """Refuse a sign-up that would put a person, a Riot ID or a team name in twice."""
+async def _check_free(db: AsyncSession, ch: Challenge, user_id, riot_keys: list[str], team_name: Optional[str] = None,
+                      phone: Optional[str] = None) -> None:
+    """Refuse a sign-up that would put a person, a Riot ID, a team name or a team's WhatsApp
+    number in twice. (The database allows one team entry per number, so refusing here is what
+    stops someone paying and then getting no entry.)"""
     mine = await player_for(db, ch.id, user_id) if user_id else None
     if mine is not None and mine.status in ("active", "waitlist"):
         raise TeamError("You're already signed up for this challenge. Open “My entry” to see it.", "ALREADY_IN", 409)
@@ -299,6 +303,12 @@ async def _check_free(db: AsyncSession, ch: Challenge, user_id, riot_keys: list[
     )).scalars().first()
     if taken:
         raise TeamError(f"The Riot ID {taken} is already in this challenge.", "RIOT_ID_TAKEN", 409)
+    if phone:
+        owner = (await db.execute(select(ChallengeEntry.name).where(
+            ChallengeEntry.challenge_id == ch.id, ChallengeEntry.phone == phone))).scalars().first()
+        if owner:
+            raise TeamError(f"This WhatsApp number is already used by the team {owner}. Use a different number for your team.",
+                            "PHONE_TAKEN", 409)
     if team_name:
         clash = (await db.execute(
             select(ChallengeEntry.id).where(
@@ -397,7 +407,7 @@ async def start_payment(db: AsyncSession, ch: Challenge, user: User, payload: di
             ).execution_options(populate_existing=True)
         )).scalars().first()
         keys = [captain["riot_key"]] + ([sub["riot_key"]] if sub else [])
-        await _check_free(db, locked, user.id, keys, team_name)
+        await _check_free(db, locked, user.id, keys, team_name, phone=captain["phone"] if kind == "team" else None)
         form = _form_out(kind, team_name, captain, sub, taps, True)
         if mine is not None:
             mine.form = form  # they may have fixed a typo before paying
@@ -540,7 +550,23 @@ async def confirm(db: AsyncSession, order_id: str, payment_id: str) -> Optional[
         result["outcome"] = "paid"
         return p
 
-    p = await svc.change_spots(db, challenge_id, work)
+    try:
+        p = await svc.change_spots(db, challenge_id, work)
+    except (RuntimeError, IntegrityError) as exc:
+        # Money is in but the entry can't be made (for example the number is already on another
+        # team). Never leave that stuck: give it back and say why.
+        await db.rollback()
+        logger.error("challenge_confirm_failed_refunding", payment=str(pay_id), error=str(exc)[:200])
+        p = (await db.execute(select(ChallengePayment).where(ChallengePayment.id == pay_id)
+                              .execution_options(populate_existing=True))).scalar_one()
+        if p.status in ("paid", "refunded"):
+            return Confirmed("already", p)
+        p.razorpay_payment_id = payment_id
+        p.paid_at = now()
+        p.status = "paid"
+        await db.commit()
+        await refund(db, p, "We could not create your entry, so the money is returned")
+        return Confirmed("refunded", p)
     if result.get("outcome") == "refund":
         await refund(db, p, "No team spot was free when the payment arrived")
         return Confirmed("refunded", p)
@@ -591,7 +617,7 @@ async def join_waitlist(db: AsyncSession, ch: Challenge, user: User, payload: di
     async def work(locked: Challenge):
         if not signups_open(locked):
             raise TeamError("Sign-ups are closed.", "SIGNUPS_CLOSED")
-        await _check_free(db, locked, user.id, [captain["riot_key"]], team_name)
+        await _check_free(db, locked, user.id, [captain["riot_key"]], team_name, phone=captain["phone"] if kind == "team" else None)
         if kind == "team":
             entry = ChallengeEntry(
                 challenge_id=locked.id, user_id=user.id, name=team_name, display_name=team_name[:40],
@@ -746,6 +772,10 @@ async def make_solo_team(db: AsyncSession, ch: Challenge, player_ids: list[UUID]
         n = sum(1 for e in await team_entries(db, locked.id) if e.kind == "solo_group") + 1
         team_name = clean_team_name(name) if name else f"Solo Squad {n}"
         lead = chosen[0]
+        if (await db.execute(select(ChallengeEntry.id).where(
+                ChallengeEntry.challenge_id == locked.id, ChallengeEntry.phone == lead.phone))).first():
+            raise TeamError("That player's WhatsApp number is already on another team entry. Pick a different captain for this team.",
+                            "PHONE_TAKEN", 409)
         entry = ChallengeEntry(
             challenge_id=locked.id, user_id=lead.user_id, name=team_name, display_name=team_name[:40],
             phone=lead.phone, position=await _next_position(db, locked.id), status="confirmed",
