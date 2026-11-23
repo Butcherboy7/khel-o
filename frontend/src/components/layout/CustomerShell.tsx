@@ -184,8 +184,19 @@ function CustomerHeader() {
               </Link>
 
               <Link prefetch={prefetch} href="/profile">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary font-heading text-caption font-semibold text-white shadow-card transition-transform hover:scale-105">
+                <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-secondary font-heading text-caption font-semibold text-white shadow-card transition-transform hover:scale-105">
                   {initial}
+                  {user?.avatarUrl && (
+                    // The photo covers the letter; if it fails to load it hides itself and the letter shows.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.avatarUrl}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="absolute inset-0 h-full w-full object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  )}
                 </div>
               </Link>
             </>
