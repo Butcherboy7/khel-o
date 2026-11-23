@@ -119,7 +119,7 @@ function TeamRow({ s, won, lost, score, tbd, byeIn, tone, big, onWin }: {
       {byeIn && !s?.withdrawn && <span className={`shrink-0 rounded border px-1.5 text-[10px] font-bold uppercase ${t.ghost}`}>bye</span>}
       {score != null && <span className={`${fightFont.className} shrink-0 tabular-nums ${big ? 'text-[22px]' : 'text-[19px]'} ${won ? `font-bold ${t.text}` : t.faint}`}>{score}</span>}
       {won && <Check className={`shrink-0 text-[#D0463C] ${big ? 'h-5 w-5' : 'h-4 w-4'}`} aria-label="Won" />}
-      {onWin && <span className="shrink-0 rounded-md border border-[#D0463C]/50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#D0463C] opacity-70 group-hover:bg-[#D0463C] group-hover:text-white group-hover:opacity-100">Won</span>}
+      {onWin && <span className="shrink-0 rounded-md border border-[#D0463C]/50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#D0463C] opacity-70 group-hover:bg-[#D0463C] group-hover:text-white group-hover:opacity-100">Won?</span>}
     </Tag>
   );
 }
