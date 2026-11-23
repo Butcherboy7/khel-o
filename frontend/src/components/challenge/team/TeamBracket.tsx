@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, Crown, Swords } from 'lucide-react';
+import { Check, Crown, Pencil, Swords, Undo2 } from 'lucide-react';
 import type { Bracket, BracketMatch, BracketSide } from '@/lib/api/challenges';
 import { fightFont } from '@/components/challenge/ChallengeHero';
 
@@ -12,10 +12,16 @@ import { fightFont } from '@/components/challenge/ChallengeHero';
  * - Phone: round tabs (opens on the round being played) with big match cards.
  * - Byes never get a full card: the team shows on its next match with a "bye" tag.
  * - Winner: bold with a red edge and a tick. Loser: dimmed and struck through.
- * Admin passes onPick to make playable and finished matches tappable.
+ * Admin passes `admin`: tap a team to make it the winner, Undo to take it back, Edit for time/lobby/scores.
  */
 
 type Side = BracketSide & { number?: number | null; withdrawn?: boolean };
+export interface AdminActions {
+  onWin: (m: BracketMatch, side: 'a' | 'b') => void;
+  onUndo: (m: BracketMatch) => void;
+  onEdit: (m: BracketMatch) => void;
+  busy?: string | null;
+}
 type Tone = 'dark' | 'light';
 
 const TONES = {
@@ -87,12 +93,16 @@ function feederNo(b: Bracket, m: BracketMatch, side: 'a' | 'b', nos: Map<string,
   return no ? `Waiting for M${no}` : 'To be decided';
 }
 
-function TeamRow({ s, won, lost, score, tbd, byeIn, tone, big }: {
+function TeamRow({ s, won, lost, score, tbd, byeIn, tone, big, onWin }: {
   s: Side | null; won: boolean; lost: boolean; score: string | null; tbd: string; byeIn: boolean; tone: Tone; big: boolean;
+  onWin?: () => void;
 }) {
   const t = TONES[tone];
+  const Tag = onWin ? 'button' : 'div';
   return (
-    <div className={`flex items-center gap-2 px-2.5 ${big ? 'h-11' : 'h-9'} ${won ? t.winRow : ''}`}>
+    <Tag
+      {...(onWin ? { type: 'button' as const, onClick: onWin, 'aria-label': `${s?.name} won` } : {})}
+      className={`group flex w-full items-center gap-2 px-2.5 text-left ${big ? 'h-11' : 'h-9'} ${won ? t.winRow : ''} ${onWin ? 'cursor-pointer hover:bg-[#D0463C]/10 active:bg-[#D0463C]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D0463C]' : ''}`}>
       <span
         className={`${fightFont.className} inline-flex shrink-0 items-center justify-center rounded-md font-bold tabular-nums ${big ? 'h-7 min-w-[34px] text-[20px]' : 'h-6 min-w-[28px] text-[17px]'} ${s ? (won ? t.badgeWin : t.badge) : `border border-dashed ${t.ghost}`}`}
         aria-label={s?.number ? `Team ${s.number}` : undefined}
@@ -109,47 +119,55 @@ function TeamRow({ s, won, lost, score, tbd, byeIn, tone, big }: {
       {byeIn && !s?.withdrawn && <span className={`shrink-0 rounded border px-1.5 text-[10px] font-bold uppercase ${t.ghost}`}>bye</span>}
       {score != null && <span className={`${fightFont.className} shrink-0 tabular-nums ${big ? 'text-[22px]' : 'text-[19px]'} ${won ? `font-bold ${t.text}` : t.faint}`}>{score}</span>}
       {won && <Check className={`shrink-0 text-[#D0463C] ${big ? 'h-5 w-5' : 'h-4 w-4'}`} aria-label="Won" />}
-    </div>
+      {onWin && <span className="shrink-0 rounded-md border border-[#D0463C]/50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#D0463C] opacity-70 group-hover:bg-[#D0463C] group-hover:text-white group-hover:opacity-100">Won</span>}
+    </Tag>
   );
 }
 
-function MatchCard({ b, m, nos, tone, upNext, onPick, big = false, width }: {
+function MatchCard({ b, m, nos, tone, upNext, admin, big = false, width }: {
   b: Bracket; m: BracketMatch; nos: Map<string, number>; tone: Tone; upNext: boolean;
-  onPick?: (m: BracketMatch) => void; big?: boolean; width?: number;
+  admin?: AdminActions; big?: boolean; width?: number;
 }) {
   const t = TONES[tone];
   const prevRound = b.rounds[m.round - 1]?.matches ?? [];
   const cameByBye = (side: 'a' | 'b') =>
     m.round === 1 && !!prevRound.find((x) => x.position === m.position * 2 + (side === 'a' ? 0 : 1))?.bye;
-  const walkover = !!m.winner && !m.games?.length && m.scoreA == null;
   const playable = !!(m.a && m.b);
-  const clickable = !!onPick && playable;
+  const canWin = !!admin && playable && !m.winner && admin.busy !== m.id;
+  const win = (side: 'a' | 'b') => (canWin ? () => admin!.onWin(m, side) : undefined);
   const head = [`M${nos.get(m.id) ?? ''}`, time(m.startsAt), m.lobby ? `Lobby ${m.lobby}` : null, m.bestOf > 1 ? 'Best of 3' : null]
     .filter(Boolean).join(' · ');
   const body: ReactNode = (
     <>
       <div className={`flex items-center justify-between gap-2 px-2.5 pt-1.5 ${big ? 'text-[12px]' : 'text-[10.5px]'} font-semibold uppercase tracking-[0.08em] ${t.muted}`}>
         <span className="truncate">{head}</span>
-        {upNext && !m.winner && <span className="shrink-0 rounded-full bg-[#D0463C] px-2 py-0.5 text-[10px] font-bold text-white">UP NEXT</span>}
-        {walkover && <span className="shrink-0">Walkover</span>}
+        {upNext && !m.winner && !admin && <span className="shrink-0 rounded-full bg-[#D0463C] px-2 py-0.5 text-[10px] font-bold text-white">UP NEXT</span>}
+        {admin && playable && (
+          <span className="flex shrink-0 items-center gap-1 normal-case tracking-normal">
+            {m.winner && (
+              <button type="button" onClick={() => admin.onUndo(m)} disabled={admin.busy === m.id}
+                className="inline-flex h-6 items-center gap-1 rounded-md bg-[#D0463C] px-2 text-[11px] font-bold text-white hover:bg-[#B83A31] disabled:opacity-50">
+                <Undo2 className="h-3.5 w-3.5" aria-hidden /> Undo
+              </button>
+            )}
+            <button type="button" onClick={() => admin.onEdit(m)} aria-label={`Edit match ${nos.get(m.id)}: time, lobby, scores`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md border ${t.ghost} hover:opacity-80`}>
+              <Pencil className="h-3 w-3" aria-hidden />
+            </button>
+          </span>
+        )}
       </div>
-      <TeamRow s={m.a as Side | null} won={m.winner === 'a'} lost={m.winner === 'b'} score={scoreOf(m, 'a')} tbd={feederNo(b, m, 'a', nos)} byeIn={cameByBye('a')} tone={tone} big={big} />
+      <TeamRow s={m.a as Side | null} won={m.winner === 'a'} lost={m.winner === 'b'} score={scoreOf(m, 'a')} tbd={feederNo(b, m, 'a', nos)} byeIn={cameByBye('a')} tone={tone} big={big} onWin={win('a')} />
       <div className={`mx-2.5 h-px ${tone === 'dark' ? 'bg-[#2A2430]' : 'bg-[#EFEBE5]'}`} />
-      <TeamRow s={m.b as Side | null} won={m.winner === 'b'} lost={m.winner === 'a'} score={scoreOf(m, 'b')} tbd={feederNo(b, m, 'b', nos)} byeIn={cameByBye('b')} tone={tone} big={big} />
+      <TeamRow s={m.b as Side | null} won={m.winner === 'b'} lost={m.winner === 'a'} score={scoreOf(m, 'b')} tbd={feederNo(b, m, 'b', nos)} byeIn={cameByBye('b')} tone={tone} big={big} onWin={win('b')} />
     </>
   );
-  const cls = `block w-full overflow-hidden rounded-xl border pb-1 text-left transition ${t.card} ${upNext && !m.winner ? t.cardReady : ''} ${clickable ? 'cursor-pointer hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D0463C]' : ''}`;
-  return clickable ? (
-    <button type="button" className={cls} style={width ? { width } : undefined} onClick={() => onPick!(m)} aria-label={`Match ${nos.get(m.id)}: ${m.a?.name} vs ${m.b?.name}. Tap to enter the result.`}>
-      {body}
-    </button>
-  ) : (
-    <div className={cls} style={width ? { width } : undefined}>{body}</div>
-  );
+  const cls = `block w-full overflow-hidden rounded-xl border pb-1 text-left transition ${t.card} ${upNext && !m.winner ? t.cardReady : ''} ${admin?.busy === m.id ? 'opacity-60' : ''}`;
+  return <div className={cls} style={width ? { width } : undefined}>{body}</div>;
 }
 
 /** PC tree. Geometry is computed, so every line meets its card exactly. */
-function Tree({ b, tone, onPick, big = false }: { b: Bracket; tone: Tone; onPick?: (m: BracketMatch) => void; big?: boolean }) {
+function Tree({ b, tone, admin, big = false }: { b: Bracket; tone: Tone; admin?: AdminActions; big?: boolean }) {
   const t = TONES[tone];
   const nos = useMemo(() => matchNumbers(b), [b]);
   const upNextId = b.upNext?.id;
@@ -204,7 +222,7 @@ function Tree({ b, tone, onPick, big = false }: { b: Bracket; tone: Tone; onPick
           }
           return (
             <div key={m.id} className="absolute" style={{ left: x(r.round), top: top - H / 2, width: W }}>
-              <MatchCard b={b} m={m} nos={nos} tone={tone} upNext={m.id === upNextId} onPick={onPick} big={big} />
+              <MatchCard b={b} m={m} nos={nos} tone={tone} upNext={m.id === upNextId} admin={admin} big={big} />
             </div>
           );
         }),
@@ -214,7 +232,7 @@ function Tree({ b, tone, onPick, big = false }: { b: Bracket; tone: Tone; onPick
 }
 
 /** Phone: one round at a time, opening on the round being played. */
-function Rounds({ b, tone, onPick }: { b: Bracket; tone: Tone; onPick?: (m: BracketMatch) => void }) {
+function Rounds({ b, tone, admin }: { b: Bracket; tone: Tone; admin?: AdminActions }) {
   const t = TONES[tone];
   const nos = useMemo(() => matchNumbers(b), [b]);
   const playing = b.upNext?.round ?? b.rounds.findIndex((r) => r.matches.some((m) => !m.bye && !m.winner));
@@ -240,7 +258,7 @@ function Rounds({ b, tone, onPick }: { b: Bracket; tone: Tone; onPick?: (m: Brac
       </div>
       <div className="mt-3 flex flex-col gap-2.5">
         {r.matches.filter((m) => !m.bye).map((m) => (
-          <MatchCard key={m.id} b={b} m={m} nos={nos} tone={tone} upNext={m.id === b.upNext?.id} onPick={onPick} />
+          <MatchCard key={m.id} b={b} m={m} nos={nos} tone={tone} upNext={m.id === b.upNext?.id} admin={admin} />
         ))}
         {byes.length > 0 && (
           <p className={`rounded-xl border border-dashed px-3 py-2 text-[13px] ${t.ghost}`}>
@@ -307,8 +325,8 @@ function FitToScreen({ children, min = 0.5, max = 1.6 }: { children: ReactNode; 
   );
 }
 
-export function TeamBracket({ b, tone = 'dark', mode = 'page', onPick }: {
-  b: Bracket; tone?: Tone; mode?: 'page' | 'projector'; onPick?: (m: BracketMatch) => void;
+export function TeamBracket({ b, tone = 'dark', mode = 'page', admin }: {
+  b: Bracket; tone?: Tone; mode?: 'page' | 'projector'; admin?: AdminActions;
 }) {
   if (mode === 'projector') {
     return (
@@ -319,8 +337,8 @@ export function TeamBracket({ b, tone = 'dark', mode = 'page', onPick }: {
   }
   return (
     <>
-      <div className="md:hidden"><Rounds b={b} tone={tone} onPick={onPick} /></div>
-      <div className="hidden overflow-x-auto pb-3 md:block"><Tree b={b} tone={tone} onPick={onPick} /></div>
+      <div className="md:hidden"><Rounds b={b} tone={tone} admin={admin} /></div>
+      <div className="hidden overflow-x-auto pb-3 md:block"><Tree b={b} tone={tone} admin={admin} /></div>
     </>
   );
 }

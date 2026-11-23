@@ -26,6 +26,11 @@ export default function TeamDeskPage() {
   const [bracket, setBracket] = useState<Bracket | null>(null);
   const [tab, setTab] = useState<Tab>('teams');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(null), msg.ok ? 4000 : 8000);
+    return () => clearTimeout(t);
+  }, [msg]);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -124,7 +129,11 @@ export default function TeamDeskPage() {
         ))}
       </nav>
 
-      {msg && <p role="status" className={`mt-3 rounded-xl px-3 py-2 text-body-sm ${msg.ok ? 'bg-success/10 text-text-primary' : 'bg-error/10 text-error'}`}>{msg.text}</p>}
+      {msg && (
+        <p role="status" className={`fixed bottom-24 left-1/2 z-[400] w-max max-w-[92vw] -translate-x-1/2 rounded-xl px-4 py-2.5 text-body-sm font-semibold shadow-xl md:bottom-8 ${msg.ok ? 'bg-[#17141A] text-white' : 'bg-error text-white'}`}>
+          {msg.text}
+        </p>
+      )}
 
       <div className="mt-4">
         {tab === 'teams' && (
@@ -159,6 +168,7 @@ export default function TeamDeskPage() {
         {tab === 'checkin' && <CheckinDesk desk={desk} busy={busy} onToggle={(pid, present) => act(`c${pid}`, () => adminTeams.checkin(id, pid, present), present ? 'Checked in.' : 'Check-in undone.')} />}
         {tab === 'draw' && (
           <DrawDesk desk={desk} bracket={bracket} busy={busy}
+            onWin={(m, side) => act(`s${m.id}`, () => adminTeams.result(id, m.id, side, []), `${(side === 'a' ? m.a : m.b)?.name} won. Tap Undo if that was wrong.`)}
             onDraw={(redo, early) => act('draw', () => adminTeams.draw(id, redo, early), 'Bracket drawn. Times and lobbies are set.', ['SIGNUPS_OPEN'])}
             onTime={(mid, at, lobby) => act(`t${mid}`, () => adminTeams.matchTime(id, mid, at, lobby), 'Time saved.')}
             onResult={(mid, w, games) => act(`s${mid}`, () => adminTeams.result(id, mid, w, games), 'Result saved.')}
@@ -477,8 +487,9 @@ function fromLocalInput(v: string): string | null {
   return v ? `${v}:00+05:30` : null;
 }
 
-function DrawDesk({ desk, bracket, busy, onDraw, onTime, onResult, onClear }: {
+function DrawDesk({ desk, bracket, busy, onWin, onDraw, onTime, onResult, onClear }: {
   desk: TeamDesk; bracket: Bracket | null; busy: string | null;
+  onWin: (m: BracketMatch, side: 'a' | 'b') => Promise<string | null>;
   onDraw: (redo: boolean, early: boolean) => Promise<string | null>;
   onTime: (mid: string, at: string | null, lobby: 'A' | 'B' | null) => Promise<string | null>;
   onResult: (mid: string, winner: 'a' | 'b', games: { a: number | null; b: number | null }[]) => Promise<string | null>;
@@ -529,8 +540,16 @@ function DrawDesk({ desk, bracket, busy, onDraw, onTime, onResult, onClear }: {
         <>
           <div className="rounded-2xl border border-border bg-card p-4"><Roster b={bracket} tone="light" /></div>
           <div className="rounded-2xl border border-border bg-surface p-3 md:p-4">
-            <p className="mb-3 text-body-sm text-text-secondary">Tap a match to enter its result, give a walkover, or change its time.</p>
-            <TeamBracket b={bracket} tone="light" onPick={(m) => setPick(m.id)} />
+            <p className="mb-3 text-body-sm text-text-secondary">
+              <b className="text-text-primary">Tap the team that won.</b> Wrong team? Tap <b className="text-text-primary">Undo</b> on that match.
+              The pencil changes the time, lobby or scores.
+            </p>
+            <TeamBracket b={bracket} tone="light" admin={{
+              onWin: (m, side) => { void onWin(m, side); },
+              onUndo: (m) => { void onClear(m.id); },
+              onEdit: (m) => setPick(m.id),
+              busy: busy && (busy.startsWith('s') || busy.startsWith('c')) ? busy.slice(1) : null,
+            }} />
           </div>
         </>
       )}
