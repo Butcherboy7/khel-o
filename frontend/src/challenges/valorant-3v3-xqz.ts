@@ -83,7 +83,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   howItWorks: [
     { icon: 'card', text: 'Sign up on Khelo and pay.' },
     { icon: 'whatsapp', text: 'Join the Khelo community and follow us on Instagram.' },
-    { icon: 'instagram', text: 'Friday, 4 Dec: we draw the bracket live on Instagram. You get your match time.' },
+    { icon: 'instagram', text: 'Friday, 4 Dec: we draw the 8-team bracket live on Instagram. You get your match time.' },
     { icon: 'pin', text: 'Saturday, 5 Dec: come to XQZ by 11:00 AM and check in.' },
     { icon: 'trophy', text: 'Play at your match time. Win and go to the next round.' },
   ],
@@ -91,11 +91,10 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   timeline: [
     { time: '11:00 AM', text: 'Report and check in' },
     { time: '11:45 AM', text: 'Check-in closes' },
-    { time: '12:00 PM', text: 'First matches start' },
-    { time: '1:20 PM', text: 'Quarterfinals' },
-    { time: '2:00 PM', text: 'Semifinals (best of 3)' },
-    { time: '2:50 PM', text: 'Final (best of 3)' },
-    { time: '3:35 PM', text: 'Rewards and photos' },
+    { time: '12:00 PM', text: 'Quarterfinals start (one game each)' },
+    { time: '1:20 PM', text: 'Semifinals (best of 3)' },
+    { time: '3:00 PM', text: 'Final (best of 3)' },
+    { time: '3:50 PM', text: 'Rewards and photos' },
   ],
 
   instagramReasons: [
@@ -113,6 +112,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
       'Each team has 5 players. You can add 1 substitute when you sign up.',
       'The players who play must be the ones who signed up. We check names at check-in.',
       'A team can change players only by using its registered substitute.',
+      'If a player is missing on match day, Khelo will find you a player so your team can play.',
     ] },
     { group: 'Accounts', items: [
       'Use your own Riot account. All ranks are allowed.',
@@ -146,6 +146,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   ],
 
   faq: [
+    { q: 'My team has fewer than 5 players.', a: 'Sign up as a team and share your link. If a player is missing on the day, we will give you someone to play with.' },
     { q: "I don't have a team.", a: 'Sign up as solo. We will find you teammates.' },
     { q: 'Can I use my own account?', a: 'Yes, you must. Bring your phone, Riot may send a login code to your email.' },
     { q: 'What rank do I need?', a: 'All ranks can join. You may play against much stronger players.' },
