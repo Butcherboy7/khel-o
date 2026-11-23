@@ -69,9 +69,9 @@ RULES_MD = """**Teams**
 19. No abuse of players or staff. You will be removed with no refund.
 20. The admin's decision is final.
 
-**Prize**
-21. Before the prize is paid, we check the winning players match the sign-up names.
-22. Prize money is sent by UPI to the team captain on the same day. The team shares it.
+**Rewards**
+21. Before rewards are given, we check the players match the sign-up names.
+22. Rewards are sent by UPI to the team captain on the same day. The team shares them.
 """
 
 TEAM = {
@@ -149,7 +149,7 @@ async def main() -> None:
             checkin_opens_at=datetime(2026, 12, 5, 11, 0, tzinfo=IST),
             checkin_closes_at=datetime(2026, 12, 5, 11, 45, tzinfo=IST),
             capacity=16, min_age=0, rules_md=RULES_MD,
-            prizes_md="- Winner: Rs 3,000\n- Runner-up: Rs 2,000\n- Top teams also get free play time at XQZ.",
+            prizes_md="- Top team: Rs 3,000\n- Second team: Rs 2,000\n- Semi-finalists and finalists also get 1 hour of free play at XQZ.",
             community_url="https://chat.whatsapp.com/FWVq1Iv7EgaDlyspNkS3ps", instagram_handle="khelo.journey",
         )
         if ch is None:

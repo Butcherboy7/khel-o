@@ -9,7 +9,8 @@ import type { TeamChallengeConfig } from './types';
  * (backend/scripts/seed_valorant_xqz.py) and comes back from the API; the
  * page always shows the server's prices and counts.
  *
- * Words: "Challenge", never "tournament". Never "ticket". Very simple English.
+ * Words: "Challenge", never "tournament". Never "ticket". Money words are "rewards" (never "prize",
+ * "cash" or "win ₹"): payment partners read the site. Very simple English.
  * No Riot or Valorant logo anywhere.
  *
  * TODO before going live: XQZ Instagram, support WhatsApp number, the two
@@ -20,7 +21,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   title: 'Khelo Valorant 3v3 Challenge',
   titleTop: 'Valorant',
   titleBottom: '3v3 Challenge',
-  subtitle: 'Form your team of 3. Play at XQZ. Win ₹5,000.',
+  subtitle: 'Form your team of 3. Play at XQZ. Top teams share ₹5,000 in rewards.',
   game: 'Valorant',
   mode: 'Skirmish 3v3',
   prizeTotal: 5000,
@@ -30,6 +31,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     shortName: 'XQZ',
     city: 'Hyderabad',
     address: 'Third Floor, Sri Thirumala Platinum, Janardana Hills, Lumbini Avenue, Gachibowli, Hyderabad, Telangana 500032',
+    logo: '/challenges/valorant-3v3-xqz/xqz-logo.png',
     googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=XQZ+Hyderabad+Sri+Thirumala+Platinum+Gachibowli',
     instagramHandle: null, // TODO: XQZ's Instagram username
     bookingSlug: 'xqz-hyderabad',
@@ -41,7 +43,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     supportWhatsApp: null, // TODO: '91XXXXXXXXXX'
   },
 
-  // Sponsors: XQZ and Team Khelo (partnership, both fund the prize pool). No logos yet; the page names them in text.
+  // Rewards come from XQZ and Team Khelo (a partnership). No sponsor logos yet; the page names them in text.
   sponsors: [],
 
   dates: {
@@ -54,10 +56,11 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   },
 
   prizes: [
-    { place: 1, label: 'Winner', cash: 3000 },
-    { place: 2, label: 'Runner-up', cash: 2000 },
+    { place: 1, label: 'Top team', cash: 3000 },
+    { place: 2, label: 'Second team', cash: 2000 },
   ],
   prizeExtra: 'Semi-finalists and finalists also get 1 hour of free play at XQZ.',
+  sponsorLine: 'Rewards from XQZ and Team Khelo.',
 
   media: {
     heroVideo: '/challenges/valorant-3v3-xqz/bg/hero-mobile.mp4',
@@ -90,7 +93,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     { time: '1:20 PM', text: 'Quarterfinals' },
     { time: '2:00 PM', text: 'Semifinals (best of 3)' },
     { time: '2:50 PM', text: 'Final (best of 3)' },
-    { time: '3:35 PM', text: 'Prizes and photos' },
+    { time: '3:35 PM', text: 'Rewards and photos' },
   ],
 
   instagramReasons: [
@@ -98,7 +101,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     'Your match time is posted here first',
     'Live scores on match day',
     'Best plays become reels. You get tagged',
-    'Winners announced here',
+    'Top teams announced here',
   ],
 
   lateRule: 'Matches start on time. If your team is not ready 5 minutes after your match time, you lose the match.',
@@ -134,9 +137,9 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
       'No abuse of players or staff. You will be removed with no refund.',
       "The admin's decision is final.",
     ] },
-    { group: 'Prize', items: [
-      'Before the prize is paid, we check the winning players match the sign-up names.',
-      'Prize money is sent by UPI to the team captain on the same day. The team shares it.',
+    { group: 'Rewards', items: [
+      'Before rewards are given, we check the players match the sign-up names.',
+      'Rewards are sent by UPI to the team captain on the same day. The team shares them.',
     ] },
   ],
 

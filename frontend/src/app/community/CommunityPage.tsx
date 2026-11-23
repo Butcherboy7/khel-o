@@ -226,7 +226,7 @@ export function CommunityPage() {
                 <Row href={`/drops/${liveDrop.slug}`} title={`${liveDrop.game} at ${liveDrop.cafe.name}`} line={liveDrop.seatsPerSlot ? `${liveDrop.seatsPerSlot} seats a night` : `${liveDrop.seatsLeft} of ${liveDrop.seatsTotal} seats left`} cta="Reserve" />
               )}
               {nextChallenge && (
-                <Row href={`/challenge/${nextChallenge.slug}?join=1`} title={nextChallenge.title} line={`${challengeDay(nextChallenge.startsAt)} · ${teamPrices(nextChallenge) ? '₹5,000 in prizes' : openToAll(nextChallenge.capacity) ? 'Free to play' : `${nextChallenge.spotsLeft} of ${nextChallenge.capacity} spots left`}`} cta="Sign up" />
+                <Row href={`/challenge/${nextChallenge.slug}?join=1`} title={nextChallenge.title} line={`${challengeDay(nextChallenge.startsAt)} · ${teamPrices(nextChallenge) ? '₹5,000 in rewards' : openToAll(nextChallenge.capacity) ? 'Free to play' : `${nextChallenge.spotsLeft} of ${nextChallenge.capacity} spots left`}`} cta="Sign up" />
               )}
               {challenge && !nextChallenge && <Row href={`/challenge/${challenge.slug}`} title={challenge.title} line="Finished. See the photos and results." cta="See" />}
               {!liveDrop && !challenge && <p className="py-2 text-body text-text-secondary">Nothing live right now. The next one lands in the group first.</p>}
@@ -245,7 +245,7 @@ export function CommunityPage() {
             <Link href={`/challenge/${challenge.slug}${nextChallenge ? '?join=1' : ''}`} className={cn(card, 'flex flex-col gap-1 transition-colors hover:border-primary/50')}>
               <p className={label}>{nextChallenge ? 'Next challenge' : 'Last challenge'}</p>
               <p className="font-heading text-body-emphasis font-bold text-text-primary">{challenge.title}</p>
-              <p className="text-caption text-text-secondary">{nextChallenge ? `${challengeDay(challenge.startsAt)} · ${teamPrices(challenge) ? '₹5,000 in prizes' : openToAll(challenge.capacity) ? 'Free to play' : `${challenge.spotsLeft} spots left`}` : 'See the photos and who won.'}</p>
+              <p className="text-caption text-text-secondary">{nextChallenge ? `${challengeDay(challenge.startsAt)} · ${teamPrices(challenge) ? '₹5,000 in rewards' : openToAll(challenge.capacity) ? 'Free to play' : `${challenge.spotsLeft} spots left`}` : 'See the photos and who won.'}</p>
               <span className="mt-1 inline-flex items-center gap-1 text-caption font-bold text-primary">{nextChallenge ? 'Sign up to play' : 'See the recap'} <ArrowRight className="h-4 w-4" aria-hidden /></span>
             </Link>
           ) : null}

@@ -18,6 +18,8 @@ export interface TeamChallengeConfig {
     city: string;
     address: string;
     googleMapsUrl: string;
+    /** The café's own logo (white on transparent), shown beside KHEL-O in the header. */
+    logo: string;
     instagramHandle: string | null;
     /** The café's KHEL-O page, for practice bookings. */
     bookingSlug: string | null;
@@ -39,6 +41,8 @@ export interface TeamChallengeConfig {
   };
   prizes: { place: number; label: string; cash: number }[];
   prizeExtra: string;
+  /** The line under the rewards: who gives them. */
+  sponsorLine: string;
   media: {
     heroVideo: string;
     heroPoster: string;

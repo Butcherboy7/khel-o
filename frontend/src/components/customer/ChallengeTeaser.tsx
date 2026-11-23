@@ -33,13 +33,13 @@ export function ChallengeTeaser({ where = 'home', className = 'mx-auto w-full ma
           <ChallengeGlyph game={ch.game} className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-[#E8675D]">{teamPrices(ch) ? `Cash prize · ${ch.game}` : `Free challenge · ${ch.game}`}</span>
+          <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-[#E8675D]">{teamPrices(ch) ? `Challenge · ${ch.game}` : `Free challenge · ${ch.game}`}</span>
           <span className="block truncate font-heading text-body-emphasis font-bold">{ch.title}</span>
           <span className="block text-caption text-[#A3A6B1]">
             {challengeDay(ch.startsAt)}, {challengeTimeRange(ch.startsAt, ch.endsAt)} · {ch.cafe.name}
           </span>
           <span className="block text-caption font-semibold text-[#F2C94C]">
-            {prices ? `Team of 3 · ₹${prices.team.toLocaleString('en-IN')} · ₹5,000 in prizes` : spots}
+            {prices ? `Team of 3 · ₹${prices.team.toLocaleString('en-IN')} · ₹5,000 in rewards` : spots}
           </span>
           <span className="block text-caption text-[#DADCE3]">
             {prices ? `No team? Join solo for ₹${prices.solo}. Tap to sign up.` : `Anyone can come to watch${ch.visitorOffer ? ` · ${ch.visitorOffer}` : ''}`}

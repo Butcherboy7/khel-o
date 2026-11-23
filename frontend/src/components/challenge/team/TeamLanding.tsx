@@ -31,6 +31,19 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
   const { isAuthenticated, isHydrated } = useAuthStore();
   const heroCta = useRef<HTMLAnchorElement>(null);
   const [heroGone, setHeroGone] = useState(false);
+  const [tab, setTab] = useState<TabKey>('rewards');
+  const tabsRef = useRef<HTMLDivElement>(null);
+
+  // A link like /challenge/<slug>#rules opens that tab.
+  useEffect(() => {
+    const fromHash = () => {
+      const h = window.location.hash.replace('#', '');
+      if (TABS.some((t) => t.key === h)) setTab(h as TabKey);
+    };
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
+    return () => window.removeEventListener('hashchange', fromHash);
+  }, []);
 
   // The real counts, kept fresh while the page is open.
   useEffect(() => {
@@ -95,14 +108,24 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
       )}
 
       {/* ── Hero: the café, live ──────────────────────────────────── */}
-      <section className="relative isolate flex min-h-[100svh] flex-col overflow-hidden">
+      <section className="relative isolate flex min-h-[86svh] flex-col overflow-hidden">
         <LiveBackdrop cfg={cfg} />
         <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 pt-4 md:px-8">
           <Link
             href="/"
-            className="inline-flex h-11 items-center gap-2 text-[15px] font-bold tracking-[0.08em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            className="inline-flex h-11 items-center gap-2.5 text-[16px] font-bold tracking-[0.08em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
-            KHEL-O <span className="font-medium text-white/55">×</span> {cfg.venue.shortName}
+            <span className="inline-flex items-center">
+              KHEL-
+              <span
+                className="ml-px inline-block h-[0.78em] w-[0.78em] translate-y-[0.02em] rounded-full bg-[radial-gradient(circle_at_32%_28%,#FF8F85_0%,#D0463C_45%,#9E2D25_100%)] shadow-[0_0_14px_rgba(208,70,60,0.65)]"
+                aria-label="O"
+                role="img"
+              />
+            </span>
+            <span className="font-medium text-white/55">×</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={cfg.venue.logo} alt={cfg.venue.shortName} className="h-[17px] w-auto" />
           </Link>
           <span className="inline-flex h-9 items-center gap-2 rounded-full bg-black/60 px-3.5 text-[12px] font-bold uppercase tracking-[0.16em] backdrop-blur-md">
             <span className="vx-live-dot h-2 w-2 rounded-full bg-[#FF4A4A]" aria-hidden />
@@ -166,173 +189,211 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
         </div>
       </section>
 
-      <main className="mx-auto max-w-xl px-4 md:max-w-6xl md:px-8">
-        {/* ── Entry ───────────────────────────────────────────────── */}
-        <Section title="Entry">
-          <div className="grid gap-3 md:grid-cols-2">
-            <PriceCard
-              href={open ? (full ? `${joinHref}?waitlist=1&kind=team` : `${joinHref}?kind=team`) : undefined}
-              badge="Best value"
-              title="Team of 3"
-              price={team?.priceTeam ?? 750}
-              line={`Just ${rupees(perPlayer)} per player`}
-              note="One person pays. Your 2 teammates join free with your link."
-              strong
-            />
-            <PriceCard
-              href={open ? (full ? `${joinHref}?waitlist=1&kind=solo` : `${joinHref}?kind=solo`) : undefined}
-              title="Solo"
-              price={team?.priceSolo ?? 300}
-              line="We put you in a team with other solo players."
-              note="If we can't make a team, you get your full money back by 4 December."
-            />
-          </div>
-          <p className="mt-3 text-sm text-[#B4B0B8]">No booking fee. Nothing added on top.</p>
-        </Section>
+      {/* ── Tabs: one short page instead of a long scroll ───────── */}
+      <div
+        ref={tabsRef}
+        className="sticky top-0 z-30 border-b border-[#2A2530] bg-[#0A0809]/92 backdrop-blur-md"
+        role="tablist"
+        aria-label="More about the challenge"
+      >
+        <div className="mx-auto flex max-w-xl gap-1.5 overflow-x-auto px-3 py-2 [scrollbar-width:none] md:max-w-6xl md:px-8 [&::-webkit-scrollbar]:hidden">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              id={`tab-${t.key}`}
+              role="tab"
+              type="button"
+              aria-selected={tab === t.key}
+              aria-controls={`panel-${t.key}`}
+              onClick={() => {
+                setTab(t.key);
+                trackAction('challenge_tab', { challenge: cfg.slug, tab: t.key });
+                // Keep the tab bar in view, so the panel opens right under it.
+                const el = tabsRef.current;
+                if (el && el.getBoundingClientRect().top > 8) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+              }}
+              className={`min-h-[44px] flex-shrink-0 rounded-full px-4 text-[15px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+                tab === t.key ? 'bg-[#F4F1EC] text-[#14110F]' : 'text-[#B4B0B8] hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        {/* ── Prize: the one loud surface on the page ─────────────── */}
-        <Section title="Prize">
-          <div className="vx-corner bg-[#F2C94C] px-5 pb-5 pt-4 text-[#1A1306] md:px-8 md:pb-7">
-            <div className="grid divide-y divide-[#1A1306]/20 md:grid-cols-2 md:divide-x md:divide-y-0">
-              {cfg.prizes.map((p, i) => (
-                <div key={p.place} className={i === 0 ? 'pb-4 md:pb-0 md:pr-8' : 'pt-4 md:pl-8 md:pt-0'}>
-                  <p className="text-[14px] font-bold uppercase tracking-[0.12em] text-[#1A1306]/70">{p.label}</p>
-                  <p className={`${fightFont.className} mt-1 font-bold leading-[0.8] ${i === 0 ? 'text-[clamp(72px,22vw,104px)]' : 'text-[clamp(52px,15vw,76px)] text-[#1A1306]/80'}`}>
-                    {rupees(p.cash)}
-                  </p>
+      <main className="mx-auto min-h-[460px] max-w-xl px-4 pb-6 pt-6 md:max-w-6xl md:px-8 md:pt-9">
+        {/* ── Rewards + entry ─────────────────────────────────────── */}
+        <div role="tabpanel" id="panel-rewards" aria-labelledby="tab-rewards" hidden={tab !== 'rewards'}>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-[1.05fr_1fr] md:items-start md:gap-10">
+            <div>
+              <div className="vx-corner bg-[#F2C94C] px-5 pb-4 pt-4 text-[#1A1306]">
+                <div className="grid grid-cols-[1.2fr_1fr] divide-x divide-[#1A1306]/25">
+                  {cfg.prizes.map((p, i) => (
+                    <div key={p.place} className={i === 0 ? 'pr-4' : 'pl-4'}>
+                      <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#1A1306]/70">{p.label}</p>
+                      <p className={`${fightFont.className} mt-0.5 font-bold leading-[0.82] ${i === 0 ? 'text-[clamp(52px,15vw,84px)]' : 'text-[clamp(38px,11vw,60px)] text-[#1A1306]/80'}`}>
+                        {rupees(p.cash)}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
+                <p className="mt-3 border-t border-[#1A1306]/25 pt-3 text-[14.5px] font-semibold">{cfg.prizeExtra}</p>
+              </div>
+              <p className="mt-2.5 text-[13px] text-[#B4B0B8]">{cfg.sponsorLine}</p>
+              {cfg.sponsors.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {cfg.sponsors.map((sp) => (
+                    <a key={sp.name} href={sp.url ?? undefined} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center rounded-xl bg-white px-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={sp.logo} alt={sp.name} className="max-h-7 w-auto" loading="lazy" />
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
-            <p className="mt-4 border-t border-[#1A1306]/20 pt-3 text-[15px] font-semibold">{cfg.prizeExtra}</p>
+
+            <div>
+              <div className="grid gap-3">
+                <PriceCard
+                  href={open ? (full ? `${joinHref}?waitlist=1&kind=team` : `${joinHref}?kind=team`) : undefined}
+                  badge="Best value"
+                  title="Team of 3"
+                  price={team?.priceTeam ?? 750}
+                  line={`Just ${rupees(perPlayer)} per player`}
+                  note="One person books. Your 2 teammates join free with your link."
+                  strong
+                />
+                <PriceCard
+                  href={open ? (full ? `${joinHref}?waitlist=1&kind=solo` : `${joinHref}?kind=solo`) : undefined}
+                  title="Solo"
+                  price={team?.priceSolo ?? 300}
+                  line="We put you in a team with other solo players."
+                  note="If we can't make a team, you get your full money back by 4 December."
+                />
+              </div>
+              <p className="mt-2.5 text-[13px] text-[#B4B0B8]">No booking fee. Nothing added on top.</p>
+            </div>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <p className="text-sm text-[#B4B0B8]">{cfg.sponsors.length ? 'Prize money given by' : `Prize pool by ${cfg.venue.shortName} and Team Khelo.`}</p>
-            {cfg.sponsors.map((s) => (
-              <a key={s.name} href={s.url ?? undefined} target="_blank" rel="noopener noreferrer" className="flex h-12 items-center rounded-xl bg-white px-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={s.logo} alt={s.name} className="max-h-8 w-auto" loading="lazy" />
-              </a>
-            ))}
-          </div>
-        </Section>
-
-        <MidCta cta={cta} choice={choice} slug={cfg.slug} where="after_prize" line={choice ? `${left} of ${max} team spots left` : null} />
-
-        {/* ── Skirmish: three facts on hairlines ─────────────────── */}
-        <Section title="What is Skirmish?">
-          <p className="max-w-[60ch] text-[16px] text-[#DCD7E0]">A short Valorant mode for small teams. Easy to learn, fast to play.</p>
-          <ul className="mt-5 grid border-t border-[#2A2530] md:grid-cols-3 md:divide-x md:divide-[#2A2530] md:border-b">
-            {cfg.skirmish.map((s) => (
-              <li key={s.text} className="flex items-start gap-3.5 border-b border-[#2A2530] py-4 md:border-b-0 md:px-5 md:py-6 md:first:pl-0">
-                <span className="mt-0.5 text-[#E8675D]"><TeamIconGlyph icon={s.icon} className="h-6 w-6" /></span>
-                <span className="text-[17px] font-semibold leading-snug">{s.text}</span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-
-        {/* ── How it works + Match day, side by side on wide screens ─ */}
-        <div className="grid md:grid-cols-2 md:gap-14">
-          <Section title="How it works">
-            <ol className="flex flex-col">
-              {cfg.howItWorks.map((s, i) => (
-                <li key={s.text} className="flex items-start gap-4 border-b border-[#2A2530] py-3.5 first:pt-0 last:border-0">
-                  <span className={`${fightFont.className} w-6 flex-shrink-0 text-[30px] font-bold leading-[0.9] text-[#E8675D]`}>{i + 1}</span>
-                  <span className="pt-0.5 text-[16px] leading-snug">{s.text}</span>
-                </li>
-              ))}
-            </ol>
-          </Section>
-
-          <Section title={`Match day · ${istDay(cfg.dates.firstMatch).replace(',', '')}`}>
-            <ol className="relative">
-              <span className="absolute bottom-3 left-[5px] top-3 w-px bg-gradient-to-b from-[#F2C94C] via-[#D0463C] to-[#2A2530]" aria-hidden />
-              {cfg.timeline.map((t, i) => (
-                <li key={t.time} className="relative grid grid-cols-[11px_92px_1fr] items-baseline gap-x-4 py-2">
-                  <span className={`relative top-[-2px] h-[11px] w-[11px] rotate-45 ${i === 0 ? 'bg-[#F2C94C]' : 'border border-[#D0463C] bg-[#0A0809]'}`} aria-hidden />
-                  <span className={`${fightFont.className} text-[25px] font-semibold leading-none tabular-nums text-[#F2C94C]`}>{t.time}</span>
-                  <span className="text-[16px] font-semibold">{t.text}</span>
-                </li>
-              ))}
-            </ol>
-          </Section>
         </div>
 
-        {/* ── Instagram ───────────────────────────────────────────── */}
-        <Section title="Follow us on Instagram">
-          <div className="grid gap-6 md:grid-cols-[1fr_auto] md:items-end">
-            <ul className="flex flex-col gap-2.5">
-              {cfg.instagramReasons.map((r) => (
-                <li key={r} className="flex items-start gap-3 text-[16px]">
-                  <Check className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F2C94C]" aria-hidden />
-                  {r}
-                </li>
-              ))}
-            </ul>
-            <div className="flex flex-col gap-2 md:w-[300px]">
-              <FollowButton handle={cfg.links.kheloInstagramHandle} label={`Follow @${cfg.links.kheloInstagramHandle}`} slug={cfg.slug} />
-              {cfg.venue.instagramHandle && <FollowButton handle={cfg.venue.instagramHandle} label={`Follow @${cfg.venue.instagramHandle}`} slug={cfg.slug} />}
+        {/* ── How it works + match day + Skirmish + Instagram ─────── */}
+        <div role="tabpanel" id="panel-how" aria-labelledby="tab-how" hidden={tab !== 'how'}>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-8 md:grid-cols-2 md:gap-14">
+            <div>
+              <PanelTitle>How it works</PanelTitle>
+              <ol className="flex flex-col">
+                {cfg.howItWorks.map((st, i) => (
+                  <li key={st.text} className="flex items-start gap-4 border-b border-[#2A2530] py-3 first:pt-0 last:border-0">
+                    <span className={`${fightFont.className} w-6 flex-shrink-0 text-[28px] font-bold leading-[0.9] text-[#E8675D]`}>{i + 1}</span>
+                    <span className="pt-0.5 text-[15.5px] leading-snug">{st.text}</span>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-5 grid gap-2.5 rounded-2xl border border-[#2A2530] bg-[#141017] p-4">
+                <p className="text-[14.5px] text-[#DCD7E0]">
+                  <b className="text-white">Follow @{cfg.links.kheloInstagramHandle}.</b> The draw, your match time and live scores are posted there first.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <FollowButton handle={cfg.links.kheloInstagramHandle} label={`Follow @${cfg.links.kheloInstagramHandle}`} slug={cfg.slug} />
+                  {cfg.venue.instagramHandle && <FollowButton handle={cfg.venue.instagramHandle} label={`Follow @${cfg.venue.instagramHandle}`} slug={cfg.slug} />}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <PanelTitle>{`Match day · ${istDay(cfg.dates.firstMatch).replace(',', '')}`}</PanelTitle>
+              {/* Phones: a strip you slide sideways. Wide screens: the full timeline. */}
+              <ol className="-mx-4 grid auto-cols-[104px] grid-flow-col gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:thin] md:hidden">
+                {cfg.timeline.map((t) => (
+                  <li key={t.time} className="rounded-xl border border-[#2A2530] bg-[#141017] p-2.5">
+                    <span className={`${fightFont.className} block text-[24px] font-semibold leading-none tabular-nums text-[#F2C94C]`}>{t.time}</span>
+                    <span className="mt-1 block text-[13px] font-semibold leading-tight">{t.text}</span>
+                  </li>
+                ))}
+              </ol>
+              <ol className="relative hidden md:block">
+                <span className="absolute bottom-3 left-[5px] top-3 w-px bg-gradient-to-b from-[#F2C94C] via-[#D0463C] to-[#2A2530]" aria-hidden />
+                {cfg.timeline.map((t, i) => (
+                  <li key={t.time} className="relative grid grid-cols-[11px_92px_1fr] items-baseline gap-x-4 py-2">
+                    <span className={`relative top-[-2px] h-[11px] w-[11px] rotate-45 ${i === 0 ? 'bg-[#F2C94C]' : 'border border-[#D0463C] bg-[#0A0809]'}`} aria-hidden />
+                    <span className={`${fightFont.className} text-[25px] font-semibold leading-none tabular-nums text-[#F2C94C]`}>{t.time}</span>
+                    <span className="text-[16px] font-semibold">{t.text}</span>
+                  </li>
+                ))}
+              </ol>
+
+              <PanelTitle className="mt-7">What is Skirmish?</PanelTitle>
+              <p className="text-[15px] text-[#DCD7E0]">A short Valorant mode for small teams. Easy to learn, fast to play.</p>
+              <ul className="mt-3 grid border-t border-[#2A2530]">
+                {cfg.skirmish.map((sk) => (
+                  <li key={sk.text} className="flex items-start gap-3 border-b border-[#2A2530] py-2.5">
+                    <span className="mt-0.5 text-[#E8675D]"><TeamIconGlyph icon={sk.icon} className="h-5 w-5" /></span>
+                    <span className="text-[15px] font-semibold leading-snug">{sk.text}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
-        </Section>
+        </div>
 
         {/* ── Rules ───────────────────────────────────────────────── */}
-        <Section title="Rules" id="rules">
-          <p className="mb-4 flex items-start gap-3 rounded-xl bg-[#F2C94C] p-4 text-[16px] font-bold text-[#1A1306]">
-            <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0" aria-hidden />
-            {cfg.lateRule}
-          </p>
-          <div className="border-t border-[#2A2530]">
-            {cfg.rules.map((g, gi) => (
-              <details key={g.group} className="group border-b border-[#2A2530]" open={gi === 0}>
-                <summary className="flex min-h-[58px] cursor-pointer list-none items-center justify-between gap-3 text-[17px] font-bold transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/60 [&::-webkit-details-marker]:hidden">
-                  {g.group}
-                  <ChevronDown className="h-5 w-5 text-[#B4B0B8] transition-transform duration-200 group-open:rotate-180" aria-hidden />
-                </summary>
-                <ol className="flex max-w-[68ch] flex-col gap-2 pb-5 text-[15px] leading-relaxed text-[#DCD7E0]">
-                  {g.items.map((r) => (
-                    <li key={r} className="flex gap-3">
-                      <span className="mt-[9px] h-1.5 w-1.5 flex-shrink-0 rotate-45 bg-[#E8675D]" aria-hidden />
-                      {r}
-                    </li>
-                  ))}
-                </ol>
-              </details>
-            ))}
+        <div role="tabpanel" id="panel-rules" aria-labelledby="tab-rules" hidden={tab !== 'rules'}>
+          <div className="mx-auto max-w-3xl">
+            <p className="mb-4 flex items-start gap-3 rounded-xl bg-[#F2C94C] p-4 text-[15.5px] font-bold text-[#1A1306]">
+              <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0" aria-hidden />
+              {cfg.lateRule}
+            </p>
+            <div className="border-t border-[#2A2530]">
+              {cfg.rules.map((g, gi) => (
+                <details key={g.group} className="group border-b border-[#2A2530]" open={gi === 0}>
+                  <summary className="flex min-h-[54px] cursor-pointer list-none items-center justify-between gap-3 text-[16.5px] font-bold transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/60 [&::-webkit-details-marker]:hidden">
+                    {g.group}
+                    <ChevronDown className="h-5 w-5 text-[#B4B0B8] transition-transform duration-200 group-open:rotate-180" aria-hidden />
+                  </summary>
+                  <ol className="flex max-w-[68ch] flex-col gap-2 pb-4 text-[14.5px] leading-relaxed text-[#DCD7E0]">
+                    {g.items.map((r) => (
+                      <li key={r} className="flex gap-3">
+                        <span className="mt-[9px] h-1.5 w-1.5 flex-shrink-0 rotate-45 bg-[#E8675D]" aria-hidden />
+                        {r}
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              ))}
+            </div>
           </div>
-        </Section>
+        </div>
 
-        <MidCta cta={cta} choice={choice} slug={cfg.slug} where="after_rules" line={choice ? 'Read the rules? Lock your spot.' : null} />
-
-        {/* ── Where: the café leads ───────────────────────────────── */}
-        <Section title="Where">
-          <div className="grid gap-5 md:grid-cols-[1.4fr_1fr] md:items-end">
+        {/* ── Where ───────────────────────────────────────────────── */}
+        <div role="tabpanel" id="panel-where" aria-labelledby="tab-where" hidden={tab !== 'where'}>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-[1.4fr_1fr] md:items-end md:gap-10">
             <div className="grid aspect-[4/3] grid-cols-3 grid-rows-2 gap-2 md:aspect-[16/10]">
-              {cfg.media.photos.slice(0, 3).map((p, i) => (
+              {cfg.media.photos.slice(0, 3).map((ph, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img key={p.src} src={p.srcSmall} alt={p.alt} loading="lazy" decoding="async"
+                <img key={ph.src} src={ph.srcSmall} alt={ph.alt} loading="lazy" decoding="async"
                   className={`h-full w-full rounded-2xl object-cover ${i === 0 ? 'col-span-2 row-span-2' : ''}`} />
               ))}
             </div>
             <div>
-              <p className={`${fightFont.className} text-[clamp(34px,9vw,44px)] font-bold uppercase leading-none`}>{cfg.venue.name}</p>
-              <p className="mt-2 max-w-[40ch] text-[15px] leading-snug text-[#B4B0B8]">{cfg.venue.address}</p>
+              <p className={`${fightFont.className} text-[clamp(32px,9vw,42px)] font-bold uppercase leading-none`}>{cfg.venue.name}</p>
+              <p className="mt-2 max-w-[40ch] text-[14.5px] leading-snug text-[#B4B0B8]">{cfg.venue.address}</p>
               <a
                 href={cfg.venue.googleMapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => trackAction('challenge_map_click', { challenge: cfg.slug })}
-                className="mt-4 flex min-h-[56px] items-center justify-center gap-2.5 rounded-xl bg-[#F4F1EC] px-4 text-[16px] font-bold text-[#0A0809] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                className="mt-4 flex min-h-[52px] items-center justify-center gap-2.5 rounded-xl bg-[#F4F1EC] px-4 text-[16px] font-bold text-[#0A0809] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
               >
                 <MapPin className="h-5 w-5 text-[#D0463C]" aria-hidden /> Open in Google Maps
               </a>
               {cfg.venue.bookingSlug && (
                 <Link
                   href={`/cafe/${cfg.venue.bookingSlug}`}
-                  className="mt-2 flex min-h-[56px] items-center gap-3 rounded-xl border border-[#2A2530] px-4 transition-colors hover:border-[#4A4352] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  className="mt-2 flex min-h-[52px] items-center gap-3 rounded-xl border border-[#2A2530] px-4 transition-colors hover:border-[#4A4352] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
                   <Gamepad2 className="h-5 w-5 flex-shrink-0 text-[#E8675D]" aria-hidden />
-                  <span className="flex-1 text-[15px] leading-snug">
+                  <span className="flex-1 text-[14.5px] leading-snug">
                     <b>Want practice first?</b> Book a scrim at {cfg.venue.shortName}, 1 to 4 Dec.
                   </span>
                   <ChevronRight className="h-5 w-5 text-[#B4B0B8]" aria-hidden />
@@ -340,35 +401,19 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               )}
             </div>
           </div>
-        </Section>
+        </div>
 
         {/* ── Questions ───────────────────────────────────────────── */}
-        <Section title="Questions">
+        <div role="tabpanel" id="panel-faq" aria-labelledby="tab-faq" hidden={tab !== 'faq'}>
           <dl className="grid border-t border-[#2A2530] md:grid-cols-2 md:gap-x-14">
             {cfg.faq.map((f) => (
-              <div key={f.q} className="border-b border-[#2A2530] py-4">
-                <dt className="text-[16px] font-bold">{f.q}</dt>
-                <dd className="mt-1 text-[15px] leading-relaxed text-[#C4BFC8]">{f.a}</dd>
+              <div key={f.q} className="border-b border-[#2A2530] py-3.5">
+                <dt className="text-[15.5px] font-bold">{f.q}</dt>
+                <dd className="mt-1 text-[14.5px] leading-relaxed text-[#C4BFC8]">{f.a}</dd>
               </div>
             ))}
           </dl>
-        </Section>
-
-        {/* ── Last call ───────────────────────────────────────────── */}
-        {!inIt && open && (
-          <section className="mt-16 border-t border-[#2A2530] pt-10">
-            <p className={`${fightFont.className} text-[clamp(40px,11vw,64px)] font-bold uppercase leading-[0.85]`}>
-              {full ? 'All spots are taken' : <>{left} {left === 1 ? 'spot' : 'spots'} left<span className="text-[#E8675D]">.</span></>}
-            </p>
-            <p className="mt-2 text-[16px] text-[#B4B0B8]">
-              {full ? 'Join the waitlist free. We message you first if a team drops out.' : `Sign-ups close ${istDay(cfg.dates.registrationCloses)}, ${istTime(cfg.dates.registrationCloses)}.`}
-            </p>
-            <div className="mt-5 md:max-w-[640px]">
-              <SignUpCta cta={cta} choice={choice} where="bottom" slug={cfg.slug} />
-            </div>
-          </section>
-        )}
-        <div className="h-14" />
+        </div>
       </main>
 
       <TeamFooter cfg={cfg} wide />
@@ -415,15 +460,21 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
   );
 }
 
-function Section({ title, children, id }: { title: string; children: ReactNode; id?: string }) {
+const TABS = [
+  { key: 'rewards', label: 'Rewards' },
+  { key: 'how', label: 'How it works' },
+  { key: 'rules', label: 'Rules' },
+  { key: 'where', label: 'Where' },
+  { key: 'faq', label: 'Questions' },
+] as const;
+type TabKey = (typeof TABS)[number]['key'];
+
+function PanelTitle({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <section id={id} className="scroll-mt-4 pt-16">
-      <h2 className={`${fightFont.className} mb-5 flex items-center gap-4 text-[clamp(32px,8.6vw,40px)] font-semibold uppercase leading-none tracking-[0.03em]`}>
-        <span className="min-w-0">{title}</span>
-        <span className="h-px flex-1 translate-y-[-3px] bg-gradient-to-r from-[#3A3340] to-transparent" aria-hidden />
-      </h2>
-      {children}
-    </section>
+    <h2 className={`${fightFont.className} mb-3 flex items-center gap-4 text-[28px] font-semibold uppercase leading-none tracking-[0.04em] ${className}`}>
+      <span className="min-w-0">{children}</span>
+      <span className="h-px flex-1 translate-y-[-2px] bg-gradient-to-r from-[#3A3340] to-transparent" aria-hidden />
+    </h2>
   );
 }
 
@@ -599,19 +650,6 @@ function SignUpCta({ cta, choice, where, slug, heroRef }: {
         <span className="text-[16px] font-bold">No team? Join solo</span>
         <span className={`${fightFont.className} text-[26px] font-bold leading-none sm:text-[22px]`}>{rupees(choice.solo.price)}</span>
       </Link>
-    </div>
-  );
-}
-
-/** A sign-up moment between sections, right after the parts that persuade. */
-function MidCta({ cta, choice, slug, where, line }: { cta: Cta; choice: Choice; slug: string; where: string; line: string | null }) {
-  if (!choice && cta.label !== 'Join the waitlist') return null;
-  return (
-    <div className="mt-8 flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
-      {line && <p className="text-[15px] font-semibold text-[#F2C94C] md:w-56 md:flex-shrink-0">{line}</p>}
-      <div className="md:flex-1">
-        <SignUpCta cta={cta} choice={choice} where={where} slug={slug} />
-      </div>
     </div>
   );
 }

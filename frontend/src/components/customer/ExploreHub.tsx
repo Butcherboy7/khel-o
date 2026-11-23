@@ -206,7 +206,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
               </span>
               <div className="absolute inset-x-0 bottom-0 p-3.5 text-white">
                 <p className="font-heading text-h3 font-bold leading-tight">{challenge?.title ?? 'Valorant 3v3 Challenge'}</p>
-                <p className="mt-0.5 text-caption text-white/80">{challengeUpcoming ? (teamPrices(challenge) ? `Team of 3 · ₹${teamPrices(challenge)!.team.toLocaleString('en-IN')} · ₹5,000 prizes` : 'Free to enter') : 'See the photos and who won'}</p>
+                <p className="mt-0.5 text-caption text-white/80">{challengeUpcoming ? (teamPrices(challenge) ? `Team of 3 · ₹${teamPrices(challenge)!.team.toLocaleString('en-IN')} · ₹5,000 rewards` : 'Free to enter') : 'See the photos and who won'}</p>
                 <span className="mt-2.5 inline-flex min-h-[40px] items-center rounded-full bg-white px-4 text-caption font-extrabold text-[#1c1c1e]">
                   {challengeUpcoming ? 'Sign up' : 'See recap'}
                 </span>

@@ -152,7 +152,7 @@ export function ChallengePopup() {
         <div className="mt-3 flex items-start justify-between gap-3">
           <p className="pt-1 text-[11px] font-bold uppercase tracking-[0.1em] text-[#E8675D]">
             <span className="mr-2 rounded bg-[#F2C94C] px-1.5 py-0.5 text-[10px] text-[#1A1114]">NEW</span>
-            {prices ? `Cash prize · ${ch.game}` : `Free challenge · ${ch.game}`}
+            {prices ? `Challenge · ${ch.game}` : `Free challenge · ${ch.game}`}
           </p>
           <button
             type="button"
@@ -186,8 +186,8 @@ export function ChallengePopup() {
 
         {prices ? (
           <>
-            <p className="mt-3 font-heading text-[2.2rem] font-bold leading-none text-[#F2C94C]">₹5,000 in prizes</p>
-            <p className="mt-1 text-sm text-[#DADCE3]">Winners get ₹3,000. Runner-up gets ₹2,000. Semi-finalists and finalists also get 1 hour of free play.</p>
+            <p className="mt-3 font-heading text-[2.2rem] font-bold leading-none text-[#F2C94C]">₹5,000 in rewards</p>
+            <p className="mt-1 text-sm text-[#DADCE3]">Top team gets ₹3,000. Second team gets ₹2,000. Semi-finalists and finalists also get 1 hour of free play.</p>
             <p className="mt-2 text-base font-bold text-white">Team of 3 · {rupee(prices.team)} <span className="font-medium text-[#A3A6B1]">({rupee(Math.round(prices.team / 3))} each)</span></p>
           </>
         ) : (
