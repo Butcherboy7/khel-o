@@ -330,15 +330,19 @@ export function UpNextStrip({ b, tone = 'dark', big = false }: { b: Bracket; ton
   const nos = matchNumbers(b);
   const list = b.ready.slice(0, big ? 3 : 2);
   if (!list.length) return null;
+  const side = (s: BracketSide | null) => (s ? `#${(s as Side).number ?? ''} ${s.name}` : 'TBD');
   return (
-    <div className={`flex flex-wrap gap-2 ${big ? 'text-[min(2vw,3.2vh)]' : 'text-[14px]'}`}>
+    <div className={`grid gap-2 ${big ? 'grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
       {list.map((m, i) => (
-        <div key={m.id} className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl border px-3 py-2 ${i === 0 ? 'border-[#D0463C] bg-[#D0463C]/10' : t.chip}`}>
-          <Swords className="h-4 w-4 shrink-0 text-[#D0463C]" aria-hidden />
-          <span className={`shrink-0 text-[11px] font-bold uppercase tracking-wider ${i === 0 ? 'text-[#D0463C]' : t.muted}`}>{i === 0 ? 'Up next' : 'Then'} · M{nos.get(m.id)}{m.lobby ? ` · ${m.lobby}` : ''}</span>
-          <span className={`min-w-0 truncate font-semibold ${t.text}`}>
-            #{(m.a as Side | null)?.number} {m.a?.name} <span className={t.muted}>vs</span> #{(m.b as Side | null)?.number} {m.b?.name}
-          </span>
+        <div key={m.id} className={`min-w-0 rounded-xl border ${big ? 'px-[1.2vw] py-[1.2vh]' : 'px-3 py-2'} ${i === 0 ? 'border-[#D0463C] bg-[#D0463C]/10' : t.chip}`}>
+          <p className={`flex items-center gap-1.5 font-bold uppercase tracking-wider ${big ? 'text-[min(1vw,1.7vh)]' : 'text-[11px]'} ${i === 0 ? 'text-[#E8675D]' : t.muted}`}>
+            <Swords className={big ? 'h-[1.8vh] w-[1.8vh]' : 'h-3.5 w-3.5'} aria-hidden />
+            {i === 0 ? 'Up next' : 'Then'} · M{nos.get(m.id)}{m.lobby ? ` · Lobby ${m.lobby}` : ''}{time(m.startsAt) ? ` · ${time(m.startsAt)}` : ''}
+          </p>
+          <p className={`mt-0.5 font-semibold leading-tight ${t.text} ${big ? 'text-[min(1.7vw,3vh)]' : 'text-[15px]'}`}>
+            <span className="block truncate">{side(m.a)}</span>
+            <span className={`block truncate ${big ? '' : ''}`}><span className={`${t.muted} font-normal`}>vs</span> {side(m.b)}</span>
+          </p>
         </div>
       ))}
     </div>

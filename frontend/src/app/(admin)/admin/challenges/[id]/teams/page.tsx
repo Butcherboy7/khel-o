@@ -536,9 +536,9 @@ function DrawDesk({ desk, bracket, busy, onDraw, onTime, onResult, onClear }: {
       )}
 
       {picked && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-stretch md:justify-end" onClick={() => setPick(null)}>
+        <div className="fixed inset-0 z-[300] flex items-end justify-center bg-black/50 md:items-stretch md:justify-end" onClick={() => setPick(null)}>
           <div role="dialog" aria-modal="true" aria-label={`Match ${nos.get(picked.id)}`}
-            className="max-h-[88vh] w-full overflow-y-auto rounded-t-2xl bg-background p-4 shadow-xl md:max-h-none md:w-[460px] md:rounded-none"
+            className="max-h-[88vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-card p-4 pb-8 shadow-2xl md:max-h-none md:w-[460px] md:rounded-none"
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
