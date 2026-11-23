@@ -149,7 +149,7 @@ async def main() -> None:
             checkin_opens_at=datetime(2026, 12, 5, 11, 0, tzinfo=IST),
             checkin_closes_at=datetime(2026, 12, 5, 11, 45, tzinfo=IST),
             capacity=16, min_age=0, rules_md=RULES_MD,
-            prizes_md="- Top team: Rs 3,000\n- Second team: Rs 2,000\n- Semi-finalists and finalists also get 1 hour of free play at XQZ.",
+            prizes_md="- Exciting rewards worth Rs 5,000 for the top teams\n- Semi-finalists get Khelo coupons",
             community_url="https://chat.whatsapp.com/FWVq1Iv7EgaDlyspNkS3ps", instagram_handle="khelo.journey",
         )
         if ch is None:

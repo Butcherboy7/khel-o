@@ -21,7 +21,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   title: 'Khelo Valorant 3v3 Challenge',
   titleTop: 'Valorant',
   titleBottom: '3v3 Challenge',
-  subtitle: 'Form your team of 3. Play at XQZ. Top teams share ₹5,000 in rewards.',
+  subtitle: 'Form your team of 3. Play at XQZ. Exciting rewards worth ₹5,000.',
   game: 'Valorant',
   mode: 'Skirmish 3v3',
   prizeTotal: 5000,
@@ -59,7 +59,9 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     { place: 1, label: 'Top team', cash: 3000 },
     { place: 2, label: 'Second team', cash: 2000 },
   ],
-  prizeExtra: 'Semi-finalists and finalists also get 1 hour of free play at XQZ.',
+  prizeExtra: 'Semi-finalists also get Khelo coupons.',
+  // The split below is for the admin screens only. The public pages say "rewards worth" the total.
+  // (Payment partners read the site, so no cash words in public.)
   sponsorLine: 'Rewards from XQZ and Team Khelo.',
 
   media: {

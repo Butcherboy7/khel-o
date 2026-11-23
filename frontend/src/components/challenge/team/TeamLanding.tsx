@@ -12,7 +12,7 @@ import { rememberUtm } from '@/lib/challenge';
 import { useAuthStore } from '@/store/authStore';
 import type { TeamChallengeConfig } from '@/challenges/types';
 import { LiveBackdrop } from './LiveBackdrop';
-import { TeamFooter, TeamIconGlyph, countdownParts, instaUrl, istDay, istTime, rupees, useNow } from './ui';
+import { Opener, SoundToggle, TeamFooter, TeamIconGlyph, countdownParts, instaUrl, istDay, istTime, rupees, useNow, useVxClickSounds } from './ui';
 
 const REFRESH_MS = 30_000;
 
@@ -101,8 +101,10 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
       }
     : null;
 
+  useVxClickSounds();
   return (
     <div className="min-h-screen bg-[#0A0809] text-[#F4F1EC] selection:bg-[#D0463C] selection:text-white">
+      <Opener />
       {ch?.status === 'draft' && (
         <p className="relative z-30 bg-[#E8A33D] px-4 py-1.5 text-center text-xs font-bold text-[#1A1306]">Draft: only admins can see this page.</p>
       )}
@@ -127,9 +129,12 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={cfg.venue.logo} alt={cfg.venue.shortName} className="h-[17px] w-auto" />
           </Link>
-          <span className="inline-flex h-9 items-center gap-2 rounded-full bg-black/60 px-3.5 text-[12px] font-bold uppercase tracking-[0.16em] backdrop-blur-md">
-            <span className="vx-live-dot h-2 w-2 rounded-full bg-[#FF4A4A]" aria-hidden />
-            Live at {cfg.venue.shortName}
+          <span className="flex items-center gap-2">
+            <span className="inline-flex h-9 items-center gap-2 rounded-full bg-black/60 px-3.5 text-[12px] font-bold uppercase tracking-[0.16em] backdrop-blur-md">
+              <span className="vx-live-dot h-2 w-2 rounded-full bg-[#FF4A4A]" aria-hidden />
+              Live at {cfg.venue.shortName}
+            </span>
+            <SoundToggle />
           </span>
         </header>
 
@@ -228,16 +233,9 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
           <div className="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-[1.05fr_1fr] md:items-start md:gap-10">
             <div>
               <div className="vx-corner bg-[#F2C94C] px-5 pb-4 pt-4 text-[#1A1306]">
-                <div className="grid grid-cols-[1.2fr_1fr] divide-x divide-[#1A1306]/25">
-                  {cfg.prizes.map((p, i) => (
-                    <div key={p.place} className={i === 0 ? 'pr-4' : 'pl-4'}>
-                      <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#1A1306]/70">{p.label}</p>
-                      <p className={`${fightFont.className} mt-0.5 font-bold leading-[0.82] ${i === 0 ? 'text-[clamp(52px,15vw,84px)]' : 'text-[clamp(38px,11vw,60px)] text-[#1A1306]/80'}`}>
-                        {rupees(p.cash)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#1A1306]/70">Exciting rewards worth</p>
+                <p className={`${fightFont.className} mt-0.5 font-bold leading-[0.82] text-[clamp(64px,19vw,104px)]`}>{rupees(cfg.prizeTotal)}</p>
+                <p className="mt-2 text-[14.5px] font-semibold text-[#1A1306]/80">For the Top team and the Second team.</p>
                 <p className="mt-3 border-t border-[#1A1306]/25 pt-3 text-[14.5px] font-semibold">{cfg.prizeExtra}</p>
               </div>
               <p className="mt-2.5 text-[13px] text-[#B4B0B8]">{cfg.sponsorLine}</p>

@@ -15,6 +15,7 @@ import {
 } from '@/lib/api/teamChallenges';
 import type { TeamChallengeConfig } from '@/challenges/types';
 import { Labelled, RIOT_RE, cleanRiot, phoneDigits } from './PlayerFields';
+import { sfx } from '@/lib/vxSound';
 import { StoryCardButton } from './StoryCard';
 import { TapButton, TeamShell, field, instaUrl, istDay, istTime, rupees } from './ui';
 
@@ -37,6 +38,11 @@ export function TeamMe({ cfg, isNew }: { cfg: TeamChallengeConfig; isNew: boolea
   }, [load]);
 
   const p = data?.player;
+  const chimeNow = isNew && p?.status === 'active';
+  // The success chime, once, when the "You're in!" screen first shows.
+  useEffect(() => {
+    if (chimeNow) sfx('success');
+  }, [chimeNow]);
   const team = data?.team;
 
   const tap = (which: 'community' | 'instaKhelo' | 'instaVenue') => () => {

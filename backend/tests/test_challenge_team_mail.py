@@ -236,3 +236,20 @@ async def test_invite_peek_works_logged_out_and_gives_no_personal_details(async_
     assert not ({"phonePrefill", "namePrefill", "phone"} & set(data))
     bad = await async_client.get(f"/api/v1/challenges/{ch['slug']}/team/invite/NOPE1234/peek")
     assert bad.status_code in (404, 409, 400), bad.text
+
+
+@pytest.mark.asyncio
+async def test_practice_fills_whole_teams_and_clears_again(async_client, db_session):
+    ch, admin = await _team_challenge(async_client, db_session, maxTeams=16)
+    url = f"/api/v1/admin/challenges/{ch['id']}/teams/practice"
+    res = await async_client.post(url, headers=auth_headers(admin))
+    assert res.status_code == 200, res.text
+    d = res.json()["data"]
+    assert d["made"] == {"teams": 8, "short": 1, "solos": 2}
+    full = [t for t in d["teams"] if len(t["members"]) == 3]
+    assert len(full) == 8 and all(m["riotId"] and m["college"] is not None for t in full for m in t["members"])
+    assert len(d["solos"]) == 2 and d["practicePlayers"] == 8 * 3 + 2 + 2
+    again = await async_client.post(url, headers=auth_headers(admin))  # twice adds nothing new
+    assert again.json()["data"]["made"] == {"teams": 0, "short": 0, "solos": 0}
+    gone = await async_client.delete(url, headers=auth_headers(admin))
+    assert gone.json()["data"]["teams"] == [] and gone.json()["data"]["practicePlayers"] == 0

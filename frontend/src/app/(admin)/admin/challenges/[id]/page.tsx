@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Download, ExternalLink, MessageCircle, Pencil, Projector, Search, UserMinus, UserX, ArrowUp, RotateCcw, FlaskConical, Check, BellRing,
@@ -66,6 +66,12 @@ export default function AdminChallengeDetailPage() {
     queryFn: () => adminGetChallenge(id),
     refetchInterval: 20_000,
   });
+  const router = useRouter();
+  const isTeam = !!data && !!teamChallengeConfig(data.challenge.slug);
+  useEffect(() => {
+    // This page is for one-player challenges (Tekken). A team challenge has its own desk.
+    if (isTeam) router.replace(`/admin/challenges/${id}/teams`);
+  }, [isTeam, id, router]);
   const [tab, setTab] = useState<Tab>('confirmed');
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -154,7 +160,7 @@ export default function AdminChallengeDetailPage() {
     }
   };
 
-  if (isLoading) return <PageSpinner label="Loading the challenge" />;
+  if (isLoading || isTeam) return <PageSpinner label={isTeam ? 'Opening the team desk' : 'Loading the challenge'} />;
   if (isError || !data) return <ErrorState message={(error as Error)?.message} onRetry={() => refetch()} />;
 
   const { challenge: c, stats } = data;

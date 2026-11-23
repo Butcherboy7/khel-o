@@ -210,6 +210,11 @@ export interface TeamDesk {
   removed: DeskTeam[];
   solos: (Member & { paid: boolean; refunded: boolean })[];
   money: { paid: number; refunded: number; payments: number };
+  /** Dev only: practice teams can be added. */
+  practiceAllowed: boolean;
+  practicePlayers: number;
+  /** Read from the bracket once the final has a result. */
+  rewards: { ready: false } | { ready: true; top: { id: string; name: string } | null; second: { id: string; name: string } | null; semis: { id: string; name: string }[] };
 }
 
 const admin = (id: string) => `/api/v1/admin/challenges/${id}/teams`;
@@ -228,6 +233,8 @@ export const adminTeams = {
   result: (id: string, matchId: string, winner: 'a' | 'b', games: { a: number | null; b: number | null }[]) =>
     call<void>(() => apiClient.post(`${admin(id)}/matches/${matchId}/result`, { winner, games })),
   remindCaptains: (id: string) => call<TeamDesk & { remindResult: { sent: number; skipped: number } }>(() => apiClient.post(`${admin(id)}/remind-captains`)),
+  fillPractice: (id: string) => call<TeamDesk & { made: { teams: number; short: number; solos: number } }>(() => apiClient.post(`${admin(id)}/practice`)),
+  clearPractice: (id: string) => call<TeamDesk & { removed: number }>(() => apiClient.delete(`${admin(id)}/practice`)),
   remindOne: (id: string, entryId: string) => call<TeamDesk & { remindResult: { sent: number; skipped: number } }>(() => apiClient.post(`${admin(id)}/${entryId}/remind`)),
   csvUrl: (id: string) => `${admin(id)}.csv`,
 };

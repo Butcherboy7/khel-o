@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { AlertTriangle, Check, Copy, Download, ExternalLink, Mail, Search, Shuffle, Users } from 'lucide-react';
 import { getBracket, type Bracket, type BracketMatch } from '@/lib/api/challenges';
+import { teamChallengeConfig } from '@/challenges';
 import { adminTeams, downloadTeamsCsv, type DeskTeam, type Member, type TeamDesk } from '@/lib/api/teamChallenges';
 
-type Tab = 'teams' | 'solos' | 'waitlist' | 'checkin' | 'draw' | 'removed';
+type Tab = 'teams' | 'solos' | 'waitlist' | 'checkin' | 'draw' | 'rewards' | 'removed';
 
 const btn = 'inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 text-caption font-semibold text-text-primary hover:bg-surface disabled:opacity-50';
 const btnPrimary = 'inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-caption font-semibold text-white hover:bg-primary/90 disabled:opacity-50';
@@ -63,6 +64,7 @@ export default function TeamDeskPage() {
     ['waitlist', `Waitlist ${desk.waitlist.length + stats.solosWaitlist}`],
     ['checkin', 'Check-in'],
     ['draw', c.drawnAt ? 'Bracket & results' : 'Draw'],
+    ['rewards', 'Rewards'],
     ['removed', `Removed ${desk.removed.length}`],
   ];
 
@@ -85,6 +87,19 @@ export default function TeamDeskPage() {
         <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-body-sm text-text-primary">
           {desk.config.minTeams - stats.teams} more teams needed for the minimum of {desk.config.minTeams}. Below that, cancel and refund everyone (bottom of Teams).
         </p>
+      )}
+
+      {desk.practiceAllowed && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-dashed border-primary/40 p-3">
+          <p className="mr-auto text-body-sm text-text-primary">
+            <b>Practice run (dev only).</b>{' '}
+            {desk.practicePlayers > 0 ? `${desk.practicePlayers} practice players are in. Run the day, then clear them.` : 'Add made-up teams to rehearse check-in, the draw and rewards.'}
+          </p>
+          <button type="button" className={btnPrimary} disabled={busy === 'pfill'}
+            onClick={() => act('pfill', () => adminTeams.fillPractice(id), 'Added 8 full teams, 1 team of 2 and 2 solo players.')}>Add practice teams</button>
+          <button type="button" className={btn} disabled={busy === 'pclear' || desk.practicePlayers === 0}
+            onClick={() => act('pclear', () => adminTeams.clearPractice(id), 'Practice teams removed.')}>Clear practice teams</button>
+        </div>
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -115,6 +130,7 @@ export default function TeamDeskPage() {
           </>
         )}
         {tab === 'solos' && <Solos desk={desk} busy={busy} act={act} id={id} />}
+        {tab === 'rewards' && <RewardsDesk desk={desk} slug={c.slug} />}
         {tab === 'waitlist' && (
           <>
             <TeamList list={desk.waitlist} empty="No teams on the waitlist." render={(t) => (
@@ -143,6 +159,34 @@ export default function TeamDeskPage() {
         {tab === 'removed' && <TeamList list={desk.removed} empty="Nobody removed." render={(t) => <span className="text-caption text-text-secondary">{t.refunded ? 'Refunded' : t.status}</span>} />}
       </div>
     </div>
+  );
+}
+
+/** Who earned what. The amounts are for the admin only: the public pages say "rewards worth ₹5,000". */
+function RewardsDesk({ desk, slug }: { desk: TeamDesk; slug: string }) {
+  const cfg = teamChallengeConfig(slug);
+  const r = desk.rewards;
+  const [top, second] = cfg?.prizes ?? [];
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4">
+      <h2 className="text-body font-bold text-text-primary">Rewards (admin only)</h2>
+      <p className="mt-1 text-body-sm text-text-secondary">
+        Public pages say “exciting rewards worth {rupees(cfg?.prizeTotal ?? 0)}”. Nobody sees the split but you.
+      </p>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+        <li className="rounded-xl bg-surface p-3"><span className="block text-caption text-text-secondary">Top team · {top ? rupees(top.cash) : ''}</span>
+          <b className="text-text-primary">{r.ready && r.top ? r.top.name : 'After the final'}</b></li>
+        <li className="rounded-xl bg-surface p-3"><span className="block text-caption text-text-secondary">Second team · {second ? rupees(second.cash) : ''}</span>
+          <b className="text-text-primary">{r.ready && r.second ? r.second.name : 'After the final'}</b></li>
+        <li className="rounded-xl bg-surface p-3"><span className="block text-caption text-text-secondary">Semi-finalists · Khelo coupons</span>
+          <b className="text-text-primary">{r.ready && r.semis.length ? r.semis.map((t) => t.name).join(', ') : 'After the semi-finals'}</b></li>
+      </ul>
+      <p className="mt-3 text-body-sm text-text-secondary">
+        {r.ready
+          ? 'Pay the two cash rewards by hand and give the coupons from Khelo. Message each team captain from the Teams tab.'
+          : 'This fills in by itself when the final has a result (Draw tab → Bracket & results).'}
+      </p>
+    </section>
   );
 }
 

@@ -511,6 +511,9 @@ async def _desk(db: AsyncSession, ch: Challenge) -> dict:
                       "drawnAt": _iso(ch.drawn_at), "startsAt": _iso(ch.starts_at), "cafe": cafe.name,
                       "drawSeed": (teams.config(ch) or {}).get("drawSeed")},
         "stats": await teams.stats(db, ch),
+        "practiceAllowed": _practice_ok(),
+        "practicePlayers": sum(1 for p in ppl if p.is_test),
+        "rewards": await _rewards(db, ch, entries),
         "config": {k: cfg[k] for k in ("size", "maxSubs", "priceTeam", "priceSolo", "maxTeams", "minTeams")},
         "teams": [team_out(e) for e in entries if e.status == "confirmed"],
         "waitlist": [team_out(e) for e in entries if e.status == "waitlist"],
@@ -527,10 +530,67 @@ async def _desk(db: AsyncSession, ch: Challenge) -> dict:
     }
 
 
+def _practice_ok() -> bool:
+    from app.api.v1.challenges import _practice_allowed
+    return _practice_allowed()
+
+
+async def _rewards(db: AsyncSession, ch: Challenge, entries: list[ChallengeEntry]) -> dict:
+    """Who earned what, read from the bracket: the final decides Top and Second team, the other
+    two semi-finalists (the teams that lost in the semi-finals) are the coupon teams. Empty until
+    the final has a result."""
+    rows = (await db.execute(select(ChallengeMatch).where(ChallengeMatch.challenge_id == ch.id))).scalars().all()
+    real = [m for m in rows if not m.bye and not m.is_third_place]
+    if not real:
+        return {"ready": False}
+    last = max(m.round for m in real)
+    final = next((m for m in real if m.round == last), None)
+    by_id = {e.id: e for e in entries}
+
+    def team(eid):
+        e = by_id.get(eid)
+        return {"id": str(e.id), "name": e.name} if e else None
+
+    if final is None or final.winner_entry_id is None:
+        return {"ready": False}
+    second_id = final.entry_b_id if final.winner_entry_id == final.entry_a_id else final.entry_a_id
+    semis = []
+    for m in real:
+        if m.round == last - 1 and m.winner_entry_id:
+            loser = m.entry_b_id if m.winner_entry_id == m.entry_a_id else m.entry_a_id
+            if loser:
+                semis.append(team(loser))
+    return {"ready": True, "top": team(final.winner_entry_id), "second": team(second_id), "semis": [t for t in semis if t]}
+
+
 @admin_router.get("/{challenge_id}/teams")
 async def admin_desk(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
     ch = await _admin_challenge(db, challenge_id)
     return {"success": True, "data": await _desk(db, ch)}
+
+
+@admin_router.post("/{challenge_id}/teams/practice")
+async def admin_fill_practice_teams(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    """Dev only: whole made-up teams (3 players with Riot IDs), one short team and two solos."""
+    from app.api.v1.challenges import _refuse_practice_on_prod
+    from app.services import challenge_team_practice as practice
+    _refuse_practice_on_prod()
+    ch = await _admin_challenge(db, challenge_id)
+    if ch.drawn_at is not None:
+        raise AppException(message="The draw is done. Clear the practice teams first to start again.", error_code="ALREADY_DRAWN", status_code=400)
+    made = await practice.fill(db, ch)
+    logger.info("challenge_team_practice_fill", challenge=str(challenge_id), **made)
+    return {"success": True, "data": {**await _desk(db, ch), "made": made}}
+
+
+@admin_router.delete("/{challenge_id}/teams/practice")
+async def admin_clear_practice_teams(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    from app.api.v1.challenges import _refuse_practice_on_prod
+    from app.services import challenge_team_practice as practice
+    _refuse_practice_on_prod()
+    ch = await _admin_challenge(db, challenge_id)
+    removed = await practice.clear(db, ch)
+    return {"success": True, "data": {**await _desk(db, ch), "removed": removed}}
 
 
 @admin_router.get("/{challenge_id}/teams.csv")

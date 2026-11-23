@@ -2,7 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, CreditCard, Crosshair, Instagram, LifeBuoy, MapPin, Timer, Trophy, Users } from 'lucide-react';
+import { ArrowLeft, Check, CreditCard, Crosshair, Instagram, LifeBuoy, MapPin, Timer, Trophy, Users, Volume2, VolumeX } from 'lucide-react';
+import { onSoundChange, setSound, sfx, soundOn } from '@/lib/vxSound';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import type { TeamChallengeConfig, TeamIcon } from '@/challenges/types';
 
@@ -73,11 +74,76 @@ export function TeamIconGlyph({ icon, className = 'h-5 w-5' }: { icon: TeamIcon;
 }
 
 /** The page frame: back to KHEL-O, the content, and the footer every page of the challenge carries. */
+/** Sound on/off. Remembered; the first tap anywhere on the page is what lets the browser play sound. */
+export function SoundToggle() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const sync = () => setOn(soundOn());
+    sync();
+    return onSoundChange(sync);
+  }, []);
+  return (
+    <button
+      type="button"
+      onClick={() => setSound(!on)}
+      aria-pressed={on}
+      aria-label={on ? 'Sound on. Tap to turn off' : 'Sound off. Tap to turn on'}
+      className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/55 text-white backdrop-blur hover:bg-black/80"
+    >
+      {on ? <Volume2 className="h-5 w-5" aria-hidden /> : <VolumeX className="h-5 w-5" aria-hidden />}
+    </button>
+  );
+}
+
+/** A red slash sweeps across once when the challenge opens (once per visit, never with reduced motion). */
+export function Opener() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || sessionStorage.getItem('khelo_vx_open')) return;
+      sessionStorage.setItem('khelo_vx_open', '1');
+    } catch {
+      return;
+    }
+    setShow(true);
+    const t = window.setTimeout(() => setShow(false), 1100);
+    return () => window.clearTimeout(t);
+  }, []);
+  if (!show) return null;
+  return (
+    <div className="vx-opener pointer-events-none fixed inset-0 z-[60] overflow-hidden" aria-hidden>
+      <span className="vx-opener-bar vx-opener-a" />
+      <span className="vx-opener-bar vx-opener-b" />
+    </div>
+  );
+}
+
+/** One listener gives every button, link, tab and tick box its click sound. */
+export function useVxClickSounds() {
+  useEffect(() => {
+    let first = true;
+    const onDown = (e: PointerEvent) => {
+      const el = (e.target as HTMLElement | null)?.closest('a[href], button, [role="tab"], input[type="checkbox"], input[type="radio"], label');
+      if (!el || (el as HTMLButtonElement).disabled) return;
+      if (first) {
+        first = false;
+        sfx('slash');
+        return;
+      }
+      sfx(el.matches('[role="tab"], input, label') ? 'select' : el.matches('button[type="submit"], .btn-depth') ? 'next' : 'tap');
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, []);
+}
+
 export function TeamShell({ cfg, children, back = '/', backLabel = 'Home', wide = false }: {
   cfg: TeamChallengeConfig; children: ReactNode; back?: string; backLabel?: string; wide?: boolean;
 }) {
+  useVxClickSounds();
   return (
     <div className="min-h-screen bg-[#0A0809] text-[#F4F1EC] selection:bg-[#D0463C] selection:text-white [&_a]:underline-offset-4">
+      <Opener />
       <header className={`relative z-20 mx-auto flex items-center justify-between px-4 pt-4 ${wide ? 'max-w-6xl' : 'max-w-xl'}`}>
         <Link
           href={back}
@@ -85,6 +151,7 @@ export function TeamShell({ cfg, children, back = '/', backLabel = 'Home', wide 
         >
           <ArrowLeft className="h-4 w-4" aria-hidden /> {backLabel}
         </Link>
+        <SoundToggle />
       </header>
       {children}
       <TeamFooter cfg={cfg} wide={wide} />

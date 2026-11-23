@@ -878,3 +878,17 @@ html[data-hints-seen~='pass'] [data-hint='pass'] {
 .vx-step-in { animation: vx-step-in .45s cubic-bezier(.16, 1, .3, 1) both; }
 @keyframes vx-step-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .vx-slot-lit::after, .vx-scan { display: none; } .vx-cut { clip-path: none; } }
+
+/* ── Valorant look: the red slash opener, angled glints and the tap press ── */
+.vx-opener-bar { position: absolute; top: -10%; height: 120%; width: 60%; background: #D0463C; transform: skewX(-18deg) translateX(-160%); }
+.vx-opener-a { animation: vx-slash-a 1s cubic-bezier(.7, 0, .2, 1) both; }
+.vx-opener-b { background: #F4F1EC; animation: vx-slash-b 1s .06s cubic-bezier(.7, 0, .2, 1) both; }
+@keyframes vx-slash-a { 0% { transform: skewX(-18deg) translateX(-160%); } 45% { transform: skewX(-18deg) translateX(40%); } 100% { transform: skewX(-18deg) translateX(260%); } }
+@keyframes vx-slash-b { 0% { transform: skewX(-18deg) translateX(-190%); } 45% { transform: skewX(-18deg) translateX(10%); } 100% { transform: skewX(-18deg) translateX(250%); } }
+.vx-opener { animation: vx-opener-out .25s .85s ease-in both; }
+@keyframes vx-opener-out { to { opacity: 0; } }
+/* Press: every challenge button sinks a little, like a game key. */
+.vx-corner:active, .btn-depth:active { transform: translateY(1px) scale(.995); }
+/* A slow red edge-glint on the main cards. */
+.vx-corner { position: relative; }
+@media (prefers-reduced-motion: reduce) { .vx-opener { display: none; } }
