@@ -66,7 +66,7 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
 
   const full = !!info && info.signupsOpen && info.spotsLeft <= 0;
   const waitlist = full || query.get('waitlist') === '1';
-  const price = kind === 'solo' ? info?.priceSolo ?? 300 : info?.priceTeam ?? 750;
+  const price = kind === 'solo' ? info?.priceSolo ?? 250 : info?.priceTeam ?? 1250;
 
   // Live counts: a full challenge turns Pay into "Join the waitlist".
   useEffect(() => {
@@ -318,16 +318,16 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
             <KindCard
               icon={<Users className="h-6 w-6" aria-hidden />}
               title="Team of 5"
-              price={info?.priceTeam ?? 750}
-              line={`${rupees(Math.round((info?.priceTeam ?? 750) / (info?.size ?? 3)))} per player. You pay for the team, your 2 friends join free with your link.`}
+              price={info?.priceTeam ?? 1250}
+              line={`${rupees(Math.round((info?.priceTeam ?? 1250) / (info?.size ?? 5)))} per player. You pay for the team, your {(info?.size ?? 5) - 1} friends join free with your link.`}
               badge="Best value"
               onClick={() => { setKind('team'); go('details'); }}
             />
             <KindCard
               icon={<User className="h-6 w-6" aria-hidden />}
               title="Solo"
-              price={info?.priceSolo ?? 300}
-              line="No team? We put you with 2 other solo players. Full refund if we can't."
+              price={info?.priceSolo ?? 250}
+              line="No team? We put you in a team that needs players. Full refund if we can't."
               onClick={() => { setKind('solo'); go('details'); }}
             />
             <p className="text-center text-sm text-[#A49EA9]">No booking fee. Nothing added on top.</p>
@@ -367,7 +367,7 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
             />
             {kind === 'team' && (
               <div className="rounded-2xl border border-[#2C2530] bg-[#141017] p-4">
-                <p className="text-[15px] font-bold">Your 2 teammates</p>
+                <p className="text-[15px] font-bold">Your {(info?.size ?? 5) - 1} teammates</p>
                 <p className="mt-1 text-[14px] leading-snug text-[#B4B0B8]">
                   After you pay, you get a link. Send it to them on WhatsApp and they fill their own details. Free for them.
                 </p>

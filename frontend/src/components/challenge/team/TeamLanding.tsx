@@ -96,8 +96,8 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
   // While spots are open, every big button offers the two real choices with their prices.
   const choice: Choice = open && !full && !inIt
     ? {
-        team: { href: `${joinHref}?kind=team`, price: team?.priceTeam ?? 750, note: `${rupees(perPlayer)} per player · friends join free` },
-        solo: { href: `${joinHref}?kind=solo`, price: team?.priceSolo ?? 300 },
+        team: { href: `${joinHref}?kind=team`, price: team?.priceTeam ?? 1250, note: `${rupees(perPlayer)} per player · friends join free` },
+        solo: { href: `${joinHref}?kind=solo`, price: team?.priceSolo ?? 250 },
       }
     : null;
 
@@ -266,15 +266,15 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
                   href={open ? (full ? `${joinHref}?waitlist=1&kind=team` : `${joinHref}?kind=team`) : undefined}
                   badge="Best value"
                   title="Team of 5"
-                  price={team?.priceTeam ?? 750}
+                  price={team?.priceTeam ?? 1250}
                   line={`Just ${rupees(perPlayer)} per player`}
-                  note="One person books. Your 2 teammates join free with your link."
+                  note="One person books. Your 4 teammates join free with your link."
                   strong
                 />
                 <PriceCard
                   href={open ? (full ? `${joinHref}?waitlist=1&kind=solo` : `${joinHref}?kind=solo`) : undefined}
                   title="Solo"
-                  price={team?.priceSolo ?? 300}
+                  price={team?.priceSolo ?? 250}
                   line="We put you in a team with other solo players."
                   note="If we can't make a team, you get your full money back by 4 December."
                 />

@@ -354,3 +354,32 @@ async def test_payment_that_lands_after_the_draw_is_refunded_not_left_outside_th
     desk = (await async_client.get(f"/api/v1/admin/challenges/{ch['id']}/teams", headers=auth_headers(admin))).json()["data"]
     assert len(desk["teams"]) == 2  # not added to a drawn bracket
     assert refunded and "drawn" in refunded[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("n", [2, 3, 5, 8, 9, 12, 16])
+async def test_full_day_at_every_team_count(async_client, db_session, n):
+    ch, admin = await _team_challenge(async_client, db_session, maxTeams=16)
+    for _ in range(n):
+        await _paid_team(async_client, db_session, ch["slug"])
+    base = f"/api/v1/admin/challenges/{ch['id']}/teams"
+    H = auth_headers(admin)
+    assert (await async_client.post(f"{base}/draw", json={"earlyOk": True}, headers=H)).status_code == 200
+    bk = (await async_client.get(f"/api/v1/challenges/{ch['slug']}/bracket")).json()["data"]
+    nums = sorted({s["number"] for r in bk["rounds"] for m in r["matches"] for s in (m["a"], m["b"]) if s})
+    assert nums == list(range(1, n + 1))
+    for r in bk["rounds"]:
+        real = [m for m in r["matches"] if not m["bye"]]
+        times = {}
+        for m in real:
+            times.setdefault(m["startsAt"], []).append(m["lobby"])
+        assert all(sorted(v) in (["A"], ["A", "B"]) for v in times.values()), (r["name"], times)
+    for _ in range(40):
+        bk = (await async_client.get(f"/api/v1/challenges/{ch['slug']}/bracket")).json()["data"]
+        if not bk["ready"]:
+            break
+        m = bk["ready"][0]
+        games = [{"a": 10, "b": 6}] if m["bestOf"] == 1 else [{"a": 10, "b": 6}, {"a": 10, "b": 7}]
+        res = await async_client.post(f"{base}/matches/{m['id']}/result", json={"winner": "a", "games": games}, headers=H)
+        assert res.status_code == 200, res.text
+    assert [s["place"] for s in bk["standings"]][:2] == [1, 2]

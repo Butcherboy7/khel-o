@@ -11,7 +11,7 @@ Spots (team slots):
   payment row, status 'created', until expires_at). Holds and paid teams
   together can never pass `maxTeams`: every slot change runs under the
   challenge row lock (challenge_service.change_spots).
-- Solo players don't take a slot. KHEL-O puts three of them into a team later,
+- Solo players don't take a slot. KHEL-O puts them into a team that needs players later,
   only while a slot is free.
 - When the slots are all taken, people join the waitlist for free. A
   waitlisted team is never moved up by itself (it hasn't paid): KHEL-O offers
@@ -376,7 +376,7 @@ async def start_payment(db: AsyncSession, ch: Challenge, user: User, payload: di
     cfg = config(ch)
     kind = payload.get("kind")
     if kind not in ("team", "solo"):
-        raise TeamError("Pick Team of 3 or Solo.", "BAD_KIND")
+        raise TeamError("Pick Team of 5 or Solo.", "BAD_KIND")
     if not payload.get("agreed"):
         raise TeamError("Tick the box to agree before paying.", "NOT_AGREED")
     captain = clean_player(payload.get("player") or {}, solo=(kind == "solo"))
@@ -623,7 +623,7 @@ async def join_waitlist(db: AsyncSession, ch: Challenge, user: User, payload: di
     """All slots taken: the same details, no payment. A team waits as one entry."""
     kind = payload.get("kind")
     if kind not in ("team", "solo"):
-        raise TeamError("Pick Team of 3 or Solo.", "BAD_KIND")
+        raise TeamError("Pick Team of 5 or Solo.", "BAD_KIND")
     captain = clean_player(payload.get("player") or {}, solo=(kind == "solo"))
     team_name = clean_team_name(payload.get("teamName") or "") if kind == "team" else None
     taps = _taps(payload.get("taps"))
@@ -1136,7 +1136,7 @@ async def send_confirmation(db: AsyncSession, p: ChallengePayment) -> bool:
         lines.append("<p style='font-size:15px;'>You signed up solo. We are finding your team and will tell you by WhatsApp.</p>")
     if invite:
         lines.append(
-            f"<p style='font-size:15px;'><b>Send this link to your 2 teammates.</b> They log in and fill their details. They don't pay.</p>"
+            f"<p style='font-size:15px;'><b>Send this link to your {config(ch)['size'] - 1} teammates.</b> They log in and fill their details. They don't pay.</p>"
             f"<p style='font-size:15px;'><a href='{invite}'>{invite}</a></p>"
         )
     lines.append(
