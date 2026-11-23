@@ -18,7 +18,7 @@ export function GamePoster({ game, platform }: { game: string; platform: string 
     >
       {art && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={art} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" decoding="async" />
+        <img src={art} alt={`${game} game artwork`} className="absolute inset-0 h-full w-full object-cover" loading="lazy" decoding="async" />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" aria-hidden />
       {ready && (

@@ -289,7 +289,7 @@ function CafeTile({ c, tall = false, className = '' }: { c: CafeListItem; tall?:
     >
       {photo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={photo.url} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+        <img src={photo.url} alt={`${c.name}, gaming café in ${c.city}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-[#5B1A2A] to-[#D0463C]" aria-hidden />
       )}
