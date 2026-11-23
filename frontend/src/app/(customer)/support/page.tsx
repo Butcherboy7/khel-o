@@ -1,5 +1,6 @@
 'use client';
 
+import { CopyPhoneButton } from '@/components/ui/PhoneInline';
 import Link from 'next/link';
 import { LifeBuoy, Mail, Phone } from 'lucide-react';
 import { SupportView } from '@/components/support/SupportView';
@@ -42,14 +43,17 @@ export default function SupportPage() {
           <span className="text-caption font-semibold text-text-primary">Email us</span>
           <span className="break-all text-caption text-text-secondary">hello@khel-o.com</span>
         </a>
+        <div className="flex flex-col gap-1">
         <a
           href="tel:+918142128389"
           className="flex min-h-[44px] flex-col gap-1 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/40"
         >
           <Phone className="h-4 w-4 text-primary" aria-hidden />
           <span className="text-caption font-semibold text-text-primary">Call us</span>
-          <span className="text-caption text-text-secondary">+91 81421 28389</span>
+          <span className="text-caption text-text-secondary">+918142128389</span>
         </a>
+        <CopyPhoneButton where="support" label className="self-start" />
+        </div>
       </div>
       <p className="-mt-2 text-caption text-text-tertiary">Mon–Sat, 10 AM–7 PM. We usually reply within 1–2 working days.</p>
 

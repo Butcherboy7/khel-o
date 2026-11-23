@@ -6,6 +6,7 @@ import { FreePlayCard } from '@/components/gta6/FreePlayCard';
 import { ContactBlock } from '@/components/gta6/ContactBlock';
 import { CafeTable } from '@/components/gta6/CafeTable';
 import { KHELO_CONTACT } from '@/constants/contact';
+import { withPhone } from '@/components/ui/phoneText';
 import { InviteCard } from '@/components/customer/InviteCard';
 import { GTA6_INTENTS, type Gta6Sort } from '@/constants/gta6Intents';
 import { GTA6_PLACES, GTA6_RELEASE, GTA6_TOP_CITY_SLUGS } from '@/constants/gta6';
@@ -131,7 +132,7 @@ export async function Gta6SearchPage(p: Gta6SearchPageProps) {
       <section aria-labelledby="gta6-answer-h" className="flex max-w-[68ch] flex-col gap-3">
         <h2 id="gta6-answer-h" className="font-heading text-h2 text-text-primary text-balance">{p.answerTitle}</h2>
         {p.answer.map((t) => (
-          <p key={t.slice(0, 32)} className="text-body text-text-secondary">{t}</p>
+          <p key={t.slice(0, 32)} className="text-body text-text-secondary">{withPhone(t, p.source)}</p>
         ))}
       </section>
 
@@ -153,7 +154,7 @@ export async function Gta6SearchPage(p: Gta6SearchPageProps) {
                   <h3 className="text-body font-semibold">{q.question}</h3>
                   <span aria-hidden="true" className="text-h3 text-text-secondary transition-transform group-open:rotate-45">+</span>
                 </summary>
-                <p className="pb-1 pt-1 text-body text-text-secondary">{q.answer}</p>
+                <p className="pb-1 pt-1 text-body text-text-secondary">{withPhone(q.answer, p.source)}</p>
               </details>
             ))}
           </div>

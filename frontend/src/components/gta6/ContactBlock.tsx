@@ -3,6 +3,7 @@
 import { MessageCircle, Phone } from 'lucide-react';
 import { KHELO_CONTACT, telHref, whatsappHref } from '@/constants/contact';
 import { trackAction } from '@/lib/api/analyticsEvents';
+import { CopyPhoneButton } from '@/components/ui/PhoneInline';
 
 /**
  * "Contact KHEL-O to find a GTA 6 slot": the main conversion on every GTA 6 page.
@@ -19,7 +20,7 @@ export function ContactBlock({ where, source }: { where: string; source: string 
           Not sure which café has a free PS5? Ask KHEL-O.
         </h2>
         <p className="text-body text-text-secondary">
-          Call or message the KHEL-O team on <strong className="font-semibold text-text-primary">{KHELO_CONTACT.phoneDisplay}</strong>{' '}
+          Call or message the KHEL-O team on <strong className="select-all font-semibold text-text-primary">{KHELO_CONTACT.phoneDisplay}</strong>{' '}
           (one number for calls and WhatsApp). We reply fastest {KHELO_CONTACT.hours}.
         </p>
       </div>
@@ -43,6 +44,7 @@ export function ContactBlock({ where, source }: { where: string; source: string 
           <MessageCircle className="h-5 w-5" aria-hidden="true" />
           WhatsApp us
         </a>
+        <CopyPhoneButton where={where || 'all'} label className="h-12 self-stretch border border-primary/40 sm:self-auto" />
       </div>
 
       <div className="flex flex-col gap-2">

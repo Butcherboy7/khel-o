@@ -206,7 +206,7 @@ export const GTA6_INTENTS: Gta6Intent[] = [
       },
       {
         question: 'Can I rent a PS5 to play GTA 6?',
-        answer: 'KHEL-O does not rent consoles to take home. You rent PS5 time by the hour at a partner gaming café, which has the console and the game ready. Book on KHEL-O or call or WhatsApp +91 81421 28389 and we will help you find a free slot.',
+        answer: 'KHEL-O does not rent consoles to take home. You rent PS5 time by the hour at a partner gaming café, which has the console and the game ready. Book on KHEL-O or call or WhatsApp +918142128389 and we will help you find a free slot.',
       },
       {
         question: 'What is the cheapest way to play GTA 6?',
@@ -214,7 +214,7 @@ export const GTA6_INTENTS: Gta6Intent[] = [
       },
       {
         question: 'How can I contact KHEL-O to find a GTA 6 café?',
-        answer: 'Call or WhatsApp +91 81421 28389 (Monday to Saturday, 10:00 AM to 7:00 PM IST), or email hello@khel-o.com. Tell us your area and time, and we check which partner café has a PS5 free.',
+        answer: 'Call or WhatsApp +918142128389 (Monday to Saturday, 10:00 AM to 7:00 PM IST), or email hello@khel-o.com. Tell us your area and time, and we check which partner café has a PS5 free.',
       },
     ],
   },
@@ -267,7 +267,7 @@ export const GTA6_INTENTS: Gta6Intent[] = [
       },
       {
         question: 'How do I find a GTA 6 gaming café near me?',
-        answer: 'Open the list on this page, pick the café closest to you, and check its hours and price. Use the GTA 6 near me page to sort by distance, or call or WhatsApp +91 81421 28389 and we will suggest a café with a free PS5.',
+        answer: 'Open the list on this page, pick the café closest to you, and check its hours and price. Use the GTA 6 near me page to sort by distance, or call or WhatsApp +918142128389 and we will suggest a café with a free PS5.',
       },
       {
         question: 'Are these cafés KHEL-O branches?',

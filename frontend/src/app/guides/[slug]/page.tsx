@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { CustomerShell } from '@/components/layout/CustomerShell';
 import { ContactBlock } from '@/components/gta6/ContactBlock';
+import { withPhone } from '@/components/ui/phoneText';
 import { GUIDES, GUIDE_BY_SLUG, withGuidePrice } from '@/constants/guides';
 import { getGta6Cafes } from '@/lib/gta6Live';
 import { getPublicEnv } from '@/lib/runtimeEnv';
@@ -92,7 +93,7 @@ export default async function GuidePage({ params }: PageProps) {
             <section key={s.h2} className="flex max-w-[68ch] flex-col gap-2">
               <h2 className="font-heading text-h2 text-balance text-text-primary">{s.h2}</h2>
               {s.p.map((t) => (
-                <p key={t.slice(0, 40)} className="text-body text-text-secondary">{withGuidePrice(t, min)}</p>
+                <p key={t.slice(0, 40)} className="text-body text-text-secondary">{withPhone(withGuidePrice(t, min), `guide-${slug}`)}</p>
               ))}
             </section>
           ))}

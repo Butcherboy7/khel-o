@@ -56,7 +56,7 @@ export const GUIDES: Guide[] = [
         h2: 'What to do on the day',
         p: [
           'Pick a café and a time, pay online, and go. At the café, show the QR pass from your booking at the desk. If you are going with friends, book the time for the whole group, since one PS5 is one booking.',
-          'Not sure which café is free? Call or WhatsApp KHEL-O on +91 81421 28389 (Monday to Saturday, 10:00 AM to 7:00 PM IST) and we will check which partner café has a PS5 free.',
+          'Not sure which café is free? Call or WhatsApp KHEL-O on +918142128389 (Monday to Saturday, 10:00 AM to 7:00 PM IST) and we will check which partner café has a PS5 free.',
         ],
       },
     ],
@@ -128,7 +128,7 @@ export const GUIDES: Guide[] = [
       {
         h2: 'Not sure? Ask us',
         p: [
-          'Call or WhatsApp KHEL-O on +91 81421 28389 and tell us your area and time. We will check which partner café has a PS5 free.',
+          'Call or WhatsApp KHEL-O on +918142128389 and tell us your area and time. We will check which partner café has a PS5 free.',
         ],
       },
     ],
@@ -228,7 +228,7 @@ export const GUIDES: Guide[] = [
       {
         h2: 'Use KHEL-O\'s near-me page',
         p: [
-          'The GTA 6 near me page lists the cafés taking GTA 6 bookings, with price, hours and a Book button. If your city has no café yet, you can ask us to bring one, or message +91 81421 28389 on WhatsApp.',
+          'The GTA 6 near me page lists the cafés taking GTA 6 bookings, with price, hours and a Book button. If your city has no café yet, you can ask us to bring one, or message +918142128389 on WhatsApp.',
         ],
       },
     ],

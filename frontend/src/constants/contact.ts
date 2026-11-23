@@ -6,7 +6,7 @@
 export const KHELO_CONTACT = {
   /** One number for calls and WhatsApp. */
   phoneE164: '+918142128389',
-  phoneDisplay: '+91 81421 28389',
+  phoneDisplay: '+918142128389',
   email: 'hello@khel-o.com',
   /** Support hours stated on the Contact page. */
   hours: 'Monday to Saturday, 10:00 AM to 7:00 PM IST',

@@ -1,3 +1,4 @@
+import { CopyPhoneButton } from '@/components/ui/PhoneInline';
 import type { Metadata } from 'next';
 import { PlayGta6Cta } from '@/components/customer/PlayGta6Cta';
 import { Mail, Phone, MapPin } from 'lucide-react';
@@ -34,6 +35,7 @@ export default function ContactPage() {
           <span className="text-caption text-text-secondary break-all">hello@khel-o.com</span>
         </a>
 
+        <div className="flex flex-col gap-1">
         <a
           href="tel:+918142128389"
           className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-card p-5 hover:border-primary/40 transition-colors"
@@ -42,8 +44,10 @@ export default function ContactPage() {
             <Phone className="h-5 w-5" />
           </div>
           <span className="text-caption font-semibold text-text-primary">Phone</span>
-          <span className="text-caption text-text-secondary">+91 81421 28389</span>
+          <span className="text-caption text-text-secondary">+918142128389</span>
         </a>
+        <CopyPhoneButton where="contact" label className="self-start" />
+        </div>
 
         <div className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-card p-5">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
