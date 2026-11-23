@@ -90,8 +90,10 @@ export function BracketClient({ slug, projector }: { slug: string; projector: bo
         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#E8675D]">{finished ? 'Results' : 'Live bracket'}</p>
         <h1 className="mt-1 font-heading text-2xl font-bold">{ch.title}</h1>
         <p className="mt-1 text-sm text-[#A3A6B1]">
-          {ch.game} at {ch.cafe.name}. Best of {ch.bestOf}
-          {ch.finalBestOf !== ch.bestOf ? `, final best of ${ch.finalBestOf}` : ''}.
+          {ch.game} at {ch.cafe.name}.{' '}
+          {isTeam
+            ? 'One game per match. Semi-finals and final: best of 3.'
+            : `Best of ${ch.bestOf}${ch.finalBestOf !== ch.bestOf ? `, final best of ${ch.finalBestOf}` : ''}.`}
         </p>
 
         {!data.drawn ? (

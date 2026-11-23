@@ -123,8 +123,8 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
       'Mode: Skirmish, 3v3. First team to win 10 rounds wins the game.',
       'Round of 16 and quarterfinals: 1 game.',
       'Semifinals and final: best of 3 games. First to win 2 games wins.',
-      '1-game matches: coin toss. The winner picks the map.',
-      'Best of 3: the coin toss winner picks the first map. The team that lost game 1 picks the second map. The last map is game 3.',
+      '1-game matches: coin toss. The team that wins the toss picks the map.',
+      'Best of 3: the team that wins the coin toss picks the first map. The team that lost game 1 picks the second map. The last map is game 3.',
     ] },
     { group: 'Time', items: [
       'Report at XQZ by 11:00 AM. Check-in closes at 11:45 AM.',
@@ -141,7 +141,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     ] },
     { group: 'Rewards', items: [
       'Before rewards are given, we check the players match the sign-up names.',
-      'Rewards are sent by UPI to the team captain on the same day. The team shares them.',
+      'Rewards go to the team captain on the same day. The team shares them.',
     ] },
   ],
 
