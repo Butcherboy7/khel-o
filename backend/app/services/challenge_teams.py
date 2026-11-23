@@ -566,6 +566,11 @@ async def confirm(db: AsyncSession, order_id: str, payment_id: str) -> Optional[
         p.status = "paid"
         await db.commit()
         await refund(db, p, "We could not create your entry, so the money is returned")
+        try:
+            from app.services import challenge_team_mail
+            await challenge_team_mail.notify_unmade_entry(db, await db.get(Challenge, challenge_id), p.user_id, p.amount)
+        except Exception as exc:  # the refund already happened; the email is a courtesy
+            logger.warning("challenge_unmade_mail_failed", error=str(exc)[:200])
         return Confirmed("refunded", p)
     if result.get("outcome") == "refund":
         await refund(db, p, "No team spot was free when the payment arrived")

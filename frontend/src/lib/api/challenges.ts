@@ -211,6 +211,9 @@ export interface MyActiveChallenge {
   coming: Coming | null;
   /** A team captain whose team isn't full: how many are in, and the link to send. */
   teamNeeds?: { players: number; size: number; inviteUrl: string };
+  /** Teammates and solo players (no entry of their own): their team, or null while we find one. */
+  teamName?: string | null;
+  soloWaiting?: boolean;
 }
 
 /** One of the player's own sign-ups, coming up or past (My challenges). */

@@ -37,6 +37,7 @@ async def _team_challenge(async_client, db_session, max_teams=2, **team):
 
 
 _n = 0
+_names = __import__("itertools").count(1000 + int(uuid.uuid4().int % 5000))  # digits only: random letters can spell a filtered word
 
 
 def _person(**over):
@@ -49,7 +50,7 @@ def _person(**over):
 
 
 def _entry(kind="team", **over):
-    body = {"kind": kind, "teamName": f"Squad {uuid.uuid4().hex[:4]}" if kind == "team" else None,
+    body = {"kind": kind, "teamName": f"Squad {next(_names):04d}" if kind == "team" else None,
             "player": _person(), "taps": {"community": True, "instaKhelo": True, "instaVenue": True}, "agreed": True}
     body.update(over)
     return body

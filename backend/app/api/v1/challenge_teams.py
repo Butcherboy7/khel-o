@@ -28,7 +28,7 @@ from app.core.exceptions import BaseAppException as AppException
 from app.core.logging import logger
 from app.database import get_db
 from app.models.cafe import Cafe
-from app.models.challenge import Challenge, ChallengeEntry, ChallengeMail, ChallengePayment, ChallengePlayer
+from app.models.challenge import Challenge, ChallengeEntry, ChallengeMail, ChallengeMatch, ChallengePayment, ChallengePlayer
 from app.models.user import User
 from app.services import challenge_bracket as bracket
 from app.services import challenge_day as day
@@ -289,6 +289,14 @@ class JoinTeamIn(_Camel):
     agreed: bool = False
 
 
+async def _safe(coro) -> None:
+    """Run a notification; a mail problem never undoes what the admin just did."""
+    try:
+        await coro
+    except Exception as exc:
+        logger.warning("challenge_team_mail_failed", error=str(exc)[:200])
+
+
 async def _tell_team(db: AsyncSession, ch: Challenge, joined: ChallengePlayer) -> None:
     """Welcome + 'a teammate joined' emails. A mail problem never undoes the join."""
     try:
@@ -532,6 +540,7 @@ async def admin_make_team(challenge_id: UUID, body: MakeTeamIn, db: AsyncSession
         await teams.make_solo_team(db, ch, body.player_ids, body.name)
     except teams.TeamError as e:
         raise _err(e)
+    await _safe(team_mail.notify_placed(db, ch, body.player_ids))
     return {"success": True, "data": await _desk(db, ch)}
 
 
@@ -547,6 +556,7 @@ async def admin_place_solo(challenge_id: UUID, body: PlaceIn, db: AsyncSession =
         await teams.place_solo(db, ch, body.player_id, body.entry_id)
     except teams.TeamError as e:
         raise _err(e)
+    await _safe(team_mail.notify_placed(db, ch, [body.player_id]))
     return {"success": True, "data": await _desk(db, ch)}
 
 
@@ -561,6 +571,8 @@ async def admin_offer(challenge_id: UUID, entry_id: UUID, body: OfferIn, db: Asy
         await teams.offer_slot(db, ch, entry_id, body.on)
     except teams.TeamError as e:
         raise _err(e)
+    if body.on:
+        await _safe(team_mail.notify_offer(db, ch, entry_id))
     return {"success": True, "data": await _desk(db, ch)}
 
 
@@ -590,6 +602,9 @@ async def admin_refund_solo(challenge_id: UUID, player_id: UUID, body: ReasonIn,
         await teams.refund_player(db, ch, player_id, body.reason)
     except teams.TeamError as e:
         raise _err(e)
+    gone = await db.get(ChallengePlayer, player_id)
+    if gone is not None:
+        await _safe(team_mail.notify_refunded_player(db, ch, gone, body.reason))
     return {"success": True, "data": await _desk(db, ch)}
 
 
@@ -600,6 +615,7 @@ async def admin_refund_team(challenge_id: UUID, entry_id: UUID, body: ReasonIn, 
         await teams.refund_team(db, ch, entry_id, body.reason)
     except teams.TeamError as e:
         raise _err(e)
+    await _safe(team_mail.notify_refunded_entry(db, ch, entry_id, body.reason))
     return {"success": True, "data": await _desk(db, ch)}
 
 
@@ -614,6 +630,7 @@ async def admin_cancel_all(challenge_id: UUID, body: CancelIn, db: AsyncSession 
     result = await teams.cancel_and_refund_all(db, ch, body.reason)
     logger.warning("challenge_team_cancelled", challenge=str(challenge_id), **result)
     ch = await _admin_challenge(db, challenge_id)
+    await _safe(team_mail.notify_cancelled(db, ch, body.reason))
     return {"success": True, "data": {**await _desk(db, ch), "cancelResult": result}}
 
 
@@ -644,6 +661,7 @@ async def admin_draw(challenge_id: UUID, body: DrawIn, db: AsyncSession = Depend
         await db.rollback()
         raise _err(e)
     logger.info("challenge_team_draw", challenge=str(challenge_id), teams=n)
+    await _safe(team_mail.notify_draw(db, ch))
     return {"success": True, "data": {"teams": n}}
 
 
@@ -659,6 +677,9 @@ async def admin_match_time(challenge_id: UUID, match_id: UUID, body: TimeIn, db:
         await teams.set_match_time(db, ch, match_id, body.starts_at, body.lobby)
     except teams.TeamError as e:
         raise _err(e)
+    changed = await db.get(ChallengeMatch, match_id)
+    if changed is not None:
+        await _safe(team_mail.notify_match(db, ch, changed))
     return {"success": True}
 
 

@@ -126,7 +126,11 @@ export function MyChallengeCard() {
               <span className="block truncate text-caption text-[#A3A6B1]">
                 {c.status === 'live' ? 'On now' : `${challengeDay(c.startsAt)}, ${challengeTime(c.startsAt)}`} · {c.cafeName} ·{' '}
                 <span className={c.entryStatus === 'confirmed' ? 'font-semibold text-[#7BD88F]' : 'font-semibold text-[#F2C94C]'}>
-                  {c.entryStatus === 'confirmed' ? 'Confirmed' : 'Waitlist'} #{c.rank}
+                  {c.soloWaiting
+                    ? 'Solo · finding your team'
+                    : c.teamName
+                      ? `Team ${c.teamName}`
+                      : `${c.entryStatus === 'confirmed' ? 'Confirmed' : 'Waitlist'}${c.rank ? ` #${c.rank}` : ''}`}
                 </span>
               </span>
             </span>

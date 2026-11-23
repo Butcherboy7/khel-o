@@ -212,6 +212,34 @@ async def _team_needs(db: AsyncSession, ch: Challenge, e: ChallengeEntry, user: 
     return {"players": main, "size": cfg["size"], "inviteUrl": f"{base}/challenge/{ch.slug}/invite/{e.invite_code}"}
 
 
+async def _team_player_cards(db: AsyncSession, user: User, seen: set) -> list[dict]:
+    """Teammates and solo players have no entry of their own (the captain does), so the entry
+    query below misses them. They still get the Home card: their team, or 'finding your team'."""
+    from app.models.challenge import ChallengePlayer
+    from app.services import challenge_teams as teams
+    rows = (await db.execute(
+        select(Challenge, Cafe, ChallengePlayer)
+        .join(Cafe, Cafe.id == Challenge.cafe_id)
+        .join(ChallengePlayer, ChallengePlayer.challenge_id == Challenge.id)
+        .where(ChallengePlayer.user_id == user.id, ChallengePlayer.status.in_(("active", "waitlist")),
+               Challenge.status.in_(("open", "closed", "live")), Challenge.ends_at > svc.now())
+        .order_by(Challenge.starts_at)
+    )).all()
+    out = []
+    for ch, cafe, pl in rows:
+        if ch.id in seen or not teams.is_team(ch):
+            continue
+        entry = await svc.entry_for(db, ch.id, entry_id=pl.entry_id) if pl.entry_id else None
+        out.append({
+            "slug": ch.slug, "title": ch.title, "game": ch.game, "status": ch.status,
+            "startsAt": _iso(ch.starts_at), "cafeName": cafe.name,
+            "entryStatus": "waitlist" if pl.status == "waitlist" else "confirmed",
+            "rank": None, "coming": "yes",  # no RSVP prompt: the check-in QR is their answer
+            "teamName": entry.name if entry else None, "soloWaiting": entry is None,
+        })
+    return out
+
+
 @public_router.get("/mine/active")
 async def my_active_challenges(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
     """Challenges this player is in that haven't ended: for the home screen card."""
@@ -228,6 +256,8 @@ async def my_active_challenges(db: AsyncSession = Depends(get_db), user: User = 
         .order_by(Challenge.starts_at)
     )).all()
     out = []
+    seen = {ch.id for ch, _, _ in rows}
+    out += await _team_player_cards(db, user, seen)
     for ch, cafe, e in rows:
         everyone = await svc.entries(db, ch.id)
         item = {

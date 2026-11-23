@@ -63,9 +63,10 @@ def _button(url: str, label: str) -> str:
 
 
 async def _deliver(db: AsyncSession, ch: Challenge, player: ChallengePlayer, kind: str, subject: str, body: str,
-                   *, dry_run: bool = False) -> bool:
-    """Send once per (player, kind). True if sent (or, in a dry run, would be)."""
-    if player.status != "active" or player.user_id is None:
+                   *, dry_run: bool = False, allow_inactive: bool = False) -> bool:
+    """Send once per (player, kind). True if sent (or, in a dry run, would be).
+    allow_inactive: refund and cancel notices go to people who are no longer 'active'."""
+    if player.user_id is None or (player.status != "active" and not allow_inactive):
         return False
     user = await db.get(User, player.user_id)
     if user is None or not _can_email(user.email):
@@ -257,3 +258,134 @@ async def run_all(db: AsyncSession, *, dry_run: bool = False) -> dict:
         out["nudges"] += await run_nudges(db, ch, dry_run=dry_run)
         out["day"] += await run_day_mail(db, ch, dry_run=dry_run)
     return out
+
+
+# ── Changes KHEL-O makes to someone's entry: they are always told ─────────────────
+
+
+def _when(dt: Optional[datetime]) -> str:
+    return f"{dt.astimezone(IST):%a %d %b, %I:%M %p}" if dt else "to be announced"
+
+
+async def _entry_players(db: AsyncSession, ch: Challenge, entry_id) -> list[ChallengePlayer]:
+    return [p for p in await teams.players(db, ch.id) if p.entry_id == entry_id]
+
+
+async def notify_refunded_entry(db: AsyncSession, ch: Challenge, entry_id, reason: str) -> None:
+    """A team was removed and its payment refunded: the captain and every teammate hear it."""
+    entry = await svc.entry_for(db, ch.id, entry_id=entry_id)
+    name = entry.name if entry else "your team"
+    for p in await _entry_players(db, ch, entry_id):
+        await _deliver(db, ch, p, "refunded", f"Your entry was refunded: {name}", _frame("Your team was removed and refunded", [
+            f"<p style='font-size:15px;'>Your team <b>{html.escape(name)}</b> is no longer in {html.escape(ch.title)}.</p>",
+            f"<p style='font-size:15px;'>Reason: {html.escape(reason)}</p>",
+            "<p style='font-size:15px;'>The captain's payment is refunded to the same account. It reaches them in 5 to 7 days.</p>",
+        ]), allow_inactive=True)
+
+
+async def notify_refunded_player(db: AsyncSession, ch: Challenge, player: ChallengePlayer, reason: str) -> None:
+    await _deliver(db, ch, player, "refunded", f"Your entry was refunded: {ch.title}", _frame("Your entry was refunded", [
+        f"<p style='font-size:15px;'>We could not put you in a team for {html.escape(ch.title)}, so your payment is refunded in full.</p>",
+        f"<p style='font-size:15px;'>Reason: {html.escape(reason)}</p>",
+        "<p style='font-size:15px;'>The money reaches you in 5 to 7 days. Sorry about this. You are welcome to sign up with a team next time.</p>",
+    ]), allow_inactive=True)
+
+
+async def notify_cancelled(db: AsyncSession, ch: Challenge, reason: str) -> int:
+    n = 0
+    for p in await teams.players(db, ch.id):
+        if await _deliver(db, ch, p, "cancelled", f"Cancelled: {ch.title}", _frame("The challenge was cancelled", [
+            f"<p style='font-size:15px;'>{html.escape(ch.title)} is cancelled. Everyone who paid is refunded in full.</p>",
+            f"<p style='font-size:15px;'>Reason: {html.escape(reason)}</p>",
+            "<p style='font-size:15px;'>The money reaches the payer in 5 to 7 days. Thank you for signing up. We will tell you about the next one.</p>",
+        ]), allow_inactive=True):
+            n += 1
+    return n
+
+
+async def notify_placed(db: AsyncSession, ch: Challenge, player_ids: list) -> None:
+    """Solo players put into a team by KHEL-O."""
+    wanted = set(player_ids)
+    ppl = await teams.players(db, ch.id)
+    for p in ppl:
+        if p.id not in wanted or p.entry_id is None:
+            continue
+        entry = await svc.entry_for(db, ch.id, entry_id=p.entry_id)
+        mates = [x.full_name for x in ppl if x.entry_id == p.entry_id and x.id != p.id and x.status == "active"]
+        who = f" with {html.escape(', '.join(mates))}" if mates else ""
+        await _deliver(db, ch, p, "placed", f"You have a team: {entry.name}", _frame("We found your team!", [
+            f"<p style='font-size:15px;'>You are in <b>{html.escape(entry.name)}</b>{who} for {html.escape(ch.title)}.</p>",
+            "<p style='font-size:15px;'>Open My entry to see your team, your check-in QR and your match time. Say hi to your teammates before match day.</p>",
+            _button(_page(ch), "Open My entry"),
+        ]))
+
+
+async def notify_offer(db: AsyncSession, ch: Challenge, entry_id) -> None:
+    """A waitlisted team was offered a spot: the captain has to pay to take it."""
+    entry = await svc.entry_for(db, ch.id, entry_id=entry_id)
+    if entry is None:
+        return
+    captain = next((p for p in await _entry_players(db, ch, entry_id) if p.role == "captain"), None)
+    if captain is None:
+        return
+    await _deliver(db, ch, captain, f"offer:{teams.now():%Y%m%d%H%M}", f"A spot is free for {entry.name}", _frame("A spot is free!", [
+        f"<p style='font-size:15px;'>A team spot opened up in {html.escape(ch.title)}. It is offered to <b>{html.escape(entry.name)}</b> first.</p>",
+        "<p style='font-size:15px;'>Open My entry and pay to take it. Spots go to whoever pays first, so do it soon.</p>",
+        _button(_page(ch), "Take the spot"),
+    ]), allow_inactive=True)
+
+
+async def notify_match(db: AsyncSession, ch: Challenge, match, *, names: Optional[dict] = None, total: Optional[int] = None) -> None:
+    """Both teams hear their match time and lobby. Re-sent if the time changes."""
+    from app.services import challenge_bracket as bracket
+    from app.services import challenge_day as day
+    if match.bye or match.starts_at is None:
+        return
+    if names is None or total is None:
+        rows = await day.matches(db, ch.id)
+        total = teams.rounds_of(rows)
+        names = {e.id: e.name for e in await svc.entries(db, ch.id)}
+    start = teams._aware(match.starts_at)
+    for mine, other in ((match.entry_a_id, match.entry_b_id), (match.entry_b_id, match.entry_a_id)):
+        if mine is None:
+            continue
+        vs = names.get(other) if other else None
+        lobby = f" in lobby {match.lobby}" if match.lobby else ""
+        for p in await _entry_players(db, ch, mine):
+            await _deliver(db, ch, p, f"match:{match.id}:{start:%Y%m%d%H%M}", f"Your match time: {_when(start)}", _frame("Your match time", [
+                f"<p style='font-size:15px;'><b>{html.escape(bracket.round_name(match.round, total))}</b>: {_when(start)}{lobby}.</p>",
+                f"<p style='font-size:15px;'>Against: <b>{html.escape(vs) if vs else 'to be decided'}</b>.</p>",
+                "<p style='font-size:15px;'>If your team is not ready 5 minutes after your match time, you lose the match. Come early.</p>",
+                _button(_page(ch), "Open My entry"),
+            ]))
+
+
+async def notify_draw(db: AsyncSession, ch: Challenge) -> int:
+    """After the draw: every team with a first-round match is told when and who."""
+    from app.services import challenge_day as day
+    rows = await day.matches(db, ch.id)
+    total = teams.rounds_of(rows)
+    names = {e.id: e.name for e in await svc.entries(db, ch.id)}
+    n = 0
+    for m in rows:
+        if m.round == 0 and not m.bye and m.starts_at is not None:
+            await notify_match(db, ch, m, names=names, total=total)
+            n += 1
+    return n
+
+
+async def notify_unmade_entry(db: AsyncSession, ch: Challenge, user_id, amount) -> None:
+    """The payment arrived but the entry could not be made (for example the number is on another
+    team), so it was refunded. Goes straight to the payer; there is no player row to log it on."""
+    user = await db.get(User, user_id)
+    if user is None or not _can_email(user.email):
+        return
+    from app.services.notification_service import NotificationService
+    body = _frame("We could not make your entry, so we refunded you", [
+        f"<p style='font-size:15px;'>Your payment of Rs {int(amount)} for {html.escape(ch.title)} came through, but we could not create "
+        "your entry (details on it, like the WhatsApp number, are already on another team).</p>",
+        "<p style='font-size:15px;'>The money is refunded to you in full. It reaches you in 5 to 7 days. "
+        "You can sign up again with a different WhatsApp number.</p>",
+        _button(_page(ch, "join"), "Sign up again"),
+    ])
+    await NotificationService()._send_resend_email(user.email, f"Refunded: {ch.title}", body, f"CH-{str(user_id)[:8]}")
