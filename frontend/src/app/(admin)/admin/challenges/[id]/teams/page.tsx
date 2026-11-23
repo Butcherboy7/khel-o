@@ -216,18 +216,27 @@ function NeedsAttention({ desk, busy, id, act, goSolos }: {
   const short = desk.teams.filter((t) => t.kind === 'team' && t.paid && t.players < size);
   const [refunding, setRefunding] = useState<string | null>(null);
   const [reason, setReason] = useState('Team did not get enough players');
-  if (short.length === 0) return null;
+  const waitingSolos = desk.solos.filter((x) => x.status === 'active' && x.paid).length;
+  if (short.length === 0 && waitingSolos === 0) return null;
   return (
     <section className="mb-5 rounded-2xl border border-warning/50 bg-warning/10 p-4" aria-label="Teams that need attention">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-body font-bold text-text-primary">
-          <AlertTriangle className="h-5 w-5 text-warning" aria-hidden /> {short.length} {short.length === 1 ? 'team needs' : 'teams need'} more players
+          <AlertTriangle className="h-5 w-5 text-warning" aria-hidden />{' '}
+          {short.length === 0 ? 'Solo players are waiting' : `${short.length} ${short.length === 1 ? 'team needs' : 'teams need'} more players`}
         </h2>
-        <button type="button" className={btnPrimary} disabled={busy === 'remind-all'}
+        {short.length > 0 && <button type="button" className={btnPrimary} disabled={busy === 'remind-all'}
           onClick={() => act('remind-all', () => adminTeams.remindCaptains(id), 'Reminder emails sent to the captains (a captain gets one every 6 hours at most).')}>
           <Mail className="h-4 w-4" /> Email all captains
-        </button>
+        </button>}
       </div>
+      {waitingSolos > 0 && (
+        <p className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-card px-3 py-2 text-body-sm text-text-primary">
+          <b>{waitingSolos} solo {waitingSolos === 1 ? 'player has' : 'players have'} no team yet.</b>
+          Put them in a short team, group them into a new one, or refund them by 4 Dec, 10 AM.
+          <button type="button" className={btn} onClick={goSolos}>Open Solos</button>
+        </p>
+      )}
       <p className="mt-1 text-body-sm text-text-secondary">
         Chase them by WhatsApp or email. Still short on match day? Place a paid solo player into the team, let them play with 2 (a team is
         here once 2 players check in), or remove the team and refund it.

@@ -222,3 +222,17 @@ async def test_home_card_also_shows_for_teammates_and_solo_players(async_client,
     assert card(mine)["soloWaiting"] is True
     mine = await async_client.get("/api/v1/challenges/mine/active", headers=auth_headers(cap))
     assert card(mine)["teamNeeds"]["players"] == 2 and card(mine)["teamNeeds"]["size"] == 3
+
+
+@pytest.mark.asyncio
+async def test_invite_peek_works_logged_out_and_gives_no_personal_details(async_client, db_session):
+    ch, _ = await _team_challenge(async_client, db_session)
+    cap, me = await _paid_team(async_client, db_session, ch["slug"])
+    code = me["team"]["inviteUrl"].rsplit("/", 1)[1]
+    res = await async_client.get(f"/api/v1/challenges/{ch['slug']}/team/invite/{code}/peek")  # no login
+    assert res.status_code == 200, res.text
+    data = res.json()["data"]
+    assert data["teamName"] and data["players"] == 1 and data["size"] == 3 and data["full"] is False
+    assert not ({"phonePrefill", "namePrefill", "phone"} & set(data))
+    bad = await async_client.get(f"/api/v1/challenges/{ch['slug']}/team/invite/NOPE1234/peek")
+    assert bad.status_code in (404, 409, 400), bad.text

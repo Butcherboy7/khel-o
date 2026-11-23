@@ -253,6 +253,29 @@ async def join_waitlist(slug: str, body: EntryIn, db: AsyncSession = Depends(get
     return {"success": True, "data": await _me(db, ch, user)}
 
 
+@public_router.get("/{slug}/team/invite/{code}/peek")
+async def invite_peek(slug: str, code: str, db: AsyncSession = Depends(get_db)):
+    """What a teammate sees BEFORE logging in: the team, the captain's first name, how many are in.
+    No personal details. A bad or dead link says so here instead of after the login."""
+    ch = await _team_challenge(db, slug)
+    try:
+        entry = await teams.entry_by_code(db, ch, code)
+    except teams.TeamError as e:
+        raise _err(e)
+    cfg = teams.config(ch)
+    team = [p for p in await teams.players(db, ch.id) if p.entry_id == entry.id and p.status in ("active", "waitlist")]
+    main, subs = teams._team_counts(cfg, team)
+    captain = next((p for p in team if p.role == "captain"), None)
+    return {"success": True, "data": {
+        "teamName": entry.name,
+        "captain": captain.full_name.split()[0] if captain else None,
+        "players": main,
+        "size": cfg["size"],
+        "full": main >= cfg["size"] and subs >= cfg["maxSubs"],
+        "mainFull": main >= cfg["size"],
+    }}
+
+
 @public_router.get("/{slug}/team/invite/{code}")
 async def invite_info(slug: str, code: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user)):
     """Who invited them: the team name, the captain, and how many are in."""

@@ -149,6 +149,13 @@ export function getInvite(slug: string, code: string) {
   return call<InviteInfo>(() => apiClient.get(`${base(slug)}/invite/${encodeURIComponent(code)}`));
 }
 
+export type InvitePeek = Pick<InviteInfo, 'teamName' | 'captain' | 'players' | 'size' | 'full' | 'mainFull'>;
+
+/** The team behind an invite link, before the visitor has logged in. */
+export function peekInvite(slug: string, code: string) {
+  return call<InvitePeek>(() => apiClient.get(`${base(slug)}/invite/${encodeURIComponent(code)}/peek`));
+}
+
 export function joinWithInvite(slug: string, code: string, body: { player: PlayerForm; asSub: boolean; taps: Taps; agreed: boolean }) {
   return call<MyTeamEntry>(() => apiClient.post(`${base(slug)}/invite/${encodeURIComponent(code)}`, body));
 }

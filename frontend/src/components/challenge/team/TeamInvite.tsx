@@ -8,7 +8,7 @@ import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { fightFont } from '@/components/challenge/ChallengeHero';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { ApiError } from '@/lib/api/errors';
-import { getInvite, joinWithInvite, type InviteInfo, type PlayerForm, type Taps } from '@/lib/api/teamChallenges';
+import { getInvite, joinWithInvite, peekInvite, type InviteInfo, type InvitePeek, type PlayerForm, type Taps } from '@/lib/api/teamChallenges';
 import { useAuthStore } from '@/store/authStore';
 import type { TeamChallengeConfig } from '@/challenges/types';
 import { AccountStep } from './AccountStep';
@@ -22,6 +22,7 @@ export function TeamInvite({ cfg, code }: { cfg: TeamChallengeConfig; code: stri
   const router = useRouter();
   const { isAuthenticated, isHydrated, user } = useAuthStore();
   const [info, setInfo] = useState<InviteInfo | null>(null);
+  const [peek, setPeek] = useState<InvitePeek | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [me, setMe] = useState<PlayerForm>(EMPTY);
   const [taps, setTaps] = useState<Taps>({ community: false, instaKhelo: false, instaVenue: false });
@@ -30,6 +31,12 @@ export function TeamInvite({ cfg, code }: { cfg: TeamChallengeConfig; code: stri
   const [serverErr, setServerErr] = useState<PlayerErrors>({});
   const [banner, setBanner] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Before login: show the team and captain, and a dead link right away.
+  useEffect(() => {
+    if (!isHydrated || isAuthenticated) return;
+    peekInvite(cfg.slug, code).then(setPeek).catch((e) => setLoadError((e as Error).message || 'This invite link isn’t working.'));
+  }, [cfg.slug, code, isHydrated, isAuthenticated]);
 
   useEffect(() => {
     if (!isHydrated || !isAuthenticated) return;
@@ -80,14 +87,14 @@ export function TeamInvite({ cfg, code }: { cfg: TeamChallengeConfig; code: stri
       <main className="mx-auto flex max-w-xl flex-col gap-5 px-4 pb-12 pt-6">
         <section className="vx-rise vx-corner relative overflow-hidden bg-gradient-to-br from-[#2A1214] to-[#141017] p-5">
           <Users className="h-8 w-8 text-[#E8675D]" aria-hidden />
-          <p className="mt-3 text-[15px] font-semibold text-[#DCD7E0]">{info?.captain ? `${info.captain} added you to` : 'You’re invited to'}</p>
-          <h1 className={`${fightFont.className} text-[50px] font-bold uppercase leading-[0.85]`}>{info?.teamName ?? 'a team'}</h1>
+          <p className="mt-3 text-[15px] font-semibold text-[#DCD7E0]">{(info ?? peek)?.captain ? `${(info ?? peek)!.captain} added you to` : 'You’re invited to'}</p>
+          <h1 className={`${fightFont.className} text-[50px] font-bold uppercase leading-[0.85]`}>{(info ?? peek)?.teamName ?? 'a team'}</h1>
           <p className="mt-2 text-[15px] text-[#DCD7E0]">
             {cfg.title} · {cfg.venue.shortName} · Sat 5 Dec. <b className="text-white">Free for you.</b> Your captain paid.
           </p>
-          {info && (
+          {(info ?? peek) && (
             <p className="mt-3 text-[14px] font-semibold text-[#F2C94C]">
-              {info.full ? 'This team is full.' : asSub ? 'The 3 players are in. You can join as the substitute.' : `${info.players} of ${info.size} players in`}
+              {(info ?? peek)!.full ? 'This team is full.' : (info ?? peek)!.mainFull ? 'The 3 players are in. You can join as the substitute.' : `${(info ?? peek)!.players} of ${(info ?? peek)!.size} players in`}
             </p>
           )}
         </section>

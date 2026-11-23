@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, CreditCard, Crosshair, Instagram, MapPin, Timer, Trophy, Users } from 'lucide-react';
+import { ArrowLeft, Check, CreditCard, Crosshair, Instagram, LifeBuoy, MapPin, Timer, Trophy, Users } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import type { TeamChallengeConfig, TeamIcon } from '@/challenges/types';
 
@@ -115,6 +115,12 @@ export function TeamFooter({ cfg, wide = false }: { cfg: TeamChallengeConfig; wi
               icon={<WhatsAppIcon className="h-4 w-4 text-[#25D366]" aria-hidden />}
             >
               Ask us on WhatsApp
+            </FooterLink>
+          )}
+          {/* No help number yet: payments and refunds still need somewhere to ask. */}
+          {!cfg.links.supportWhatsApp && (
+            <FooterLink href="/support" icon={<LifeBuoy className="h-4 w-4" aria-hidden />}>
+              Need help?
             </FooterLink>
           )}
         </div>
