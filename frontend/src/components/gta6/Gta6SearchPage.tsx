@@ -3,6 +3,9 @@ import { CustomerShell } from '@/components/layout/CustomerShell';
 import { ExploreScreen, loadExplore } from '@/components/customer/ExploreScreen';
 import { Gta6Block } from '@/components/gta6/Gta6Block';
 import { FreePlayCard } from '@/components/gta6/FreePlayCard';
+import { ContactBlock } from '@/components/gta6/ContactBlock';
+import { CafeTable } from '@/components/gta6/CafeTable';
+import { KHELO_CONTACT } from '@/constants/contact';
 import { InviteCard } from '@/components/customer/InviteCard';
 import { GTA6_INTENTS, type Gta6Sort } from '@/constants/gta6Intents';
 import { GTA6_PLACES, GTA6_RELEASE, GTA6_TOP_CITY_SLUGS } from '@/constants/gta6';
@@ -38,6 +41,9 @@ export interface Gta6SearchPageProps {
 export async function Gta6SearchPage(p: Gta6SearchPageProps) {
   const { cafes: allCafes, cities } = await loadExplore();
   const url = `${SITE_URL}${p.path}`;
+  // The café list is read live on every request, so "checked" is today's date in India.
+  const checkedOn = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' }).format(new Date());
+  const where = p.place ?? '';
   const jsonLd = [
     {
       '@context': 'https://schema.org',
@@ -49,6 +55,24 @@ export async function Gta6SearchPage(p: Gta6SearchPageProps) {
       dateModified: new Date().toISOString().slice(0, 10),
       about: { '@type': 'VideoGame', name: 'Grand Theft Auto VI', gamePlatform: ['PlayStation 5', 'Xbox Series X|S'], datePublished: GTA6_RELEASE.iso },
       isPartOf: { '@type': 'WebSite', name: 'KHEL-O', url: SITE_URL },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Service',
+      '@id': `${url}#service`,
+      name: where ? `Book a PS5 café slot to play GTA 6 in ${where}` : 'Book a PS5 café slot to play GTA 6',
+      serviceType: 'Gaming café booking',
+      description: 'KHEL-O lists partner gaming cafés with a PS5, shows live prices and hours, and lets you book and pay online. The cafés are independent partners.',
+      url,
+      areaServed: where ? { '@type': 'Place', name: where } : { '@type': 'Country', name: 'India' },
+      provider: {
+        '@type': 'Organization',
+        name: 'KHEL-O',
+        url: SITE_URL,
+        telephone: KHELO_CONTACT.phoneE164,
+        email: KHELO_CONTACT.email,
+        contactPoint: { '@type': 'ContactPoint', telephone: KHELO_CONTACT.phoneE164, contactType: 'customer support', areaServed: 'IN' },
+      },
     },
     p.cafes.length > 0 && {
       '@context': 'https://schema.org',
@@ -110,6 +134,10 @@ export async function Gta6SearchPage(p: Gta6SearchPageProps) {
           <p key={t.slice(0, 32)} className="text-body text-text-secondary">{t}</p>
         ))}
       </section>
+
+      <CafeTable cafes={p.cafes} where={where} checkedOn={checkedOn} />
+
+      <ContactBlock where={where} source={p.source} />
 
       {p.freePlay && <FreePlayCard utmCampaign={p.source} />}
 

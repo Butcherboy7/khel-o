@@ -105,6 +105,9 @@ const nextConfig = {
     // The page was called Rewards before it became Achievements.
     return [
       { source: '/rewards', destination: '/achievements', permanent: true },
+      // Search-friendly names for the two GTA 6 questions people ask most; the real pages keep one URL each.
+      { source: '/play-gta-6-in-hyderabad', destination: '/gta6/hyderabad', permanent: true },
+      { source: '/play-gta-6-without-ps5', destination: '/gta6/without-ps5', permanent: true },
     ];
   },
   async rewrites() {

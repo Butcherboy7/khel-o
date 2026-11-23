@@ -286,7 +286,7 @@ export function Gta6Client() {
 
   const share = async () => {
     const url = `${window.location.origin}/gta6`;
-    const text = 'GTA 6 drops 19 Nov. No PS5? Join the KHEL-O launch list, we play it at a café on launch week 🎮';
+    const text = 'GTA 6 is out. No PS5? Play it at a PS5 café you can book on KHEL-O 🎮';
     trackAction('launch_list_share', { launch: LAUNCH_KEY });
     if (navigator.share) {
       try {
@@ -638,8 +638,8 @@ export function Gta6Client() {
       </main>
 
       <footer className="relative mx-auto max-w-5xl px-5 pb-10 text-xs leading-relaxed text-[#8A8E99] md:px-8">
-        GTA 6 is a trademark of Take-Two Interactive. KHEL-O isn’t affiliated with Rockstar Games. Launch date as announced
-        by Rockstar; it can change.
+        GTA 6 is a trademark of Take-Two Interactive. KHEL-O isn’t affiliated with Rockstar Games. GTA 6 released on
+        19 November 2026 for PS5 and Xbox Series X|S.
       </footer>
     </div>
   );

@@ -64,7 +64,7 @@ export const GTA6_INTENTS: Gta6Intent[] = [
     faq: [
       {
         question: 'Can I play GTA 6 on PC or online without a PS5?',
-        answer: 'Not at launch. GTA 6 is announced for PS5 and Xbox Series X|S only. Without a console, book a PS5 at a gaming café on KHEL-O.',
+        answer: 'Not at launch. GTA 6 is out on PS5 and Xbox Series X|S only, with no PC release. Without a console, book a PS5 at a gaming café on KHEL-O.',
       },
       {
         question: 'How do I book a GTA 6 slot online?',
@@ -204,6 +204,18 @@ export const GTA6_INTENTS: Gta6Intent[] = [
         question: 'Does GTA 6 run on PS4 or PC?',
         answer: 'No. At launch GTA 6 is on PS5 and Xbox Series X|S only.',
       },
+      {
+        question: 'Can I rent a PS5 to play GTA 6?',
+        answer: 'KHEL-O does not rent consoles to take home. You rent PS5 time by the hour at a partner gaming café, which has the console and the game ready. Book on KHEL-O or call or WhatsApp +91 81421 28389 and we will help you find a free slot.',
+      },
+      {
+        question: 'What is the cheapest way to play GTA 6?',
+        answer: 'If you do not own a PS5, paying by the hour at a gaming café is usually cheaper than buying a console and the game for a few sessions. Cafés on KHEL-O start from ₹{price} an hour, and your first KHEL-O booking has no booking fee.',
+      },
+      {
+        question: 'How can I contact KHEL-O to find a GTA 6 café?',
+        answer: 'Call or WhatsApp +91 81421 28389 (Monday to Saturday, 10:00 AM to 7:00 PM IST), or email hello@khel-o.com. Tell us your area and time, and we check which partner café has a PS5 free.',
+      },
     ],
   },
   {
@@ -227,6 +239,10 @@ export const GTA6_INTENTS: Gta6Intent[] = [
         question: 'Is it cheaper than buying the game?',
         answer: 'For a few sessions, yes. You pay only for the hours you play, with no console or game to buy.',
       },
+      {
+        question: 'What is the cheapest way to experience GTA 6?',
+        answer: 'Paying by the hour at a PS5 gaming café. Cafés on KHEL-O start from ₹{price} an hour and show their price before you pay, so you can pick the cheapest one near you. Your first KHEL-O booking has no booking fee.',
+      },
     ],
   },
   {
@@ -248,6 +264,14 @@ export const GTA6_INTENTS: Gta6Intent[] = [
       {
         question: 'Do I need to book before going?',
         answer: 'Booking keeps a console for you for the time you picked. Walk-ins depend on what is free.',
+      },
+      {
+        question: 'How do I find a GTA 6 gaming café near me?',
+        answer: 'Open the list on this page, pick the café closest to you, and check its hours and price. Use the GTA 6 near me page to sort by distance, or call or WhatsApp +91 81421 28389 and we will suggest a café with a free PS5.',
+      },
+      {
+        question: 'Are these cafés KHEL-O branches?',
+        answer: 'No. They are independent partner cafés. KHEL-O is the booking platform: you book and pay on KHEL-O and play at the café own address.',
       },
     ],
   },
