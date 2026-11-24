@@ -14,7 +14,7 @@ import { getChallenge } from '@/lib/api/challenges';
 import { getThisWeek } from '@/lib/api/community';
 import { listBookings } from '@/lib/api/bookings';
 import { listActivities, cafePath } from '@/lib/api/cafes';
-import { FEATURED_CHALLENGE_SLUG, challengePoster, isUpcoming, teamPrices } from '@/lib/challenge';
+import { COMMUNITY_MEMBERS_FLOOR, FEATURED_CHALLENGE_SLUG, challengePoster, isUpcoming, teamPrices } from '@/lib/challenge';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { useAuthStore } from '@/store/authStore';
 import type { CafeListItem } from '@/types';
@@ -97,7 +97,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
     return cafes.filter((c) => norm(`${c.name} ${c.addressLine2 ?? ''} ${c.city}`).includes(t));
   }, [cafes, q]);
 
-  const members = week?.members ?? 0;
+  const members = Math.max(week?.members ?? 0, COMMUNITY_MEMBERS_FLOOR);
   const challengeUpcoming = challenge ? isUpcoming(challenge) : false;
 
   return (
@@ -179,7 +179,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
               </span>
               <div className="absolute inset-x-0 bottom-0 p-3.5 text-white">
                 <p className="font-heading text-h3 font-bold leading-tight">{challenge?.title ?? 'Valorant 5v5 Challenge'}</p>
-                <p className="mt-0.5 text-caption text-white/80">{challengeUpcoming ? (teamPrices(challenge) ? `Team of 5 · ₹${teamPrices(challenge)!.team.toLocaleString('en-IN')} · ₹5,000 rewards` : 'Free to enter') : 'See the photos and who won'}</p>
+                <p className="mt-0.5 text-caption text-white/80">{challengeUpcoming ? (teamPrices(challenge) ? `Team of 5 · ₹${Math.round(teamPrices(challenge)!.team / 5)} per person · ₹5,000 rewards` : 'Free to enter') : 'See the photos and who won'}</p>
                 <span className="mt-2.5 inline-flex min-h-[40px] items-center rounded-full bg-white px-4 text-caption font-extrabold text-[#1c1c1e]">
                   {challengeUpcoming ? 'Sign up' : 'See recap'}
                 </span>
@@ -224,7 +224,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
                 <Users className="h-3 w-3" aria-hidden /> Community
               </span>
               <div className="absolute inset-x-0 bottom-0 p-3.5 text-white">
-                <p className="font-heading text-h3 font-bold leading-tight">{members >= 10 ? `${members} gamers are in` : 'Play with people, not alone'}</p>
+                <p className="font-heading text-h3 font-bold leading-tight">{members >= 10 ? `${members}${members <= COMMUNITY_MEMBERS_FLOOR ? '+' : ''} gamers are in` : 'Play with people, not alone'}</p>
                 <p className="mt-0.5 text-caption text-white/80">New drops and challenges land here first</p>
                 <span className="mt-2.5 inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#25D366] px-4 text-caption font-extrabold text-[#06210F]">
                   <MessageCircle className="h-4 w-4" aria-hidden /> Join

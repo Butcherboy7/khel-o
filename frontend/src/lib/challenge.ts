@@ -209,4 +209,4 @@ export function introCookie(slug: string): string {
 }
 
 /** Real size of the WhatsApp group (founder, 2026-11-16). Our own join-tap count is lower, so show the larger. Bump when the group grows. */
-export const COMMUNITY_MEMBERS_FLOOR = 98;
+export const COMMUNITY_MEMBERS_FLOOR = 100;

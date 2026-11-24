@@ -18,7 +18,7 @@ import { SocialLinks } from '@/components/layout/SocialLinks';
 import { CommunityButton } from '@/components/customer/CommunityInvite';
 import { useAuthStore } from '@/store/authStore';
 import { recordJoin } from '@/lib/communityJoin';
-import { COMMUNITY_URL } from '@/lib/challenge';
+import { COMMUNITY_MEMBERS_FLOOR, COMMUNITY_URL } from '@/lib/challenge';
 import { useLocationStore } from '@/store/locationStore';
 import { CafeCard } from '@/components/customer/CafeCard';
 import { SearchBarWithSuggestions } from '@/components/customer/SearchBarWithSuggestions';
@@ -605,7 +605,7 @@ export function ExploreClient({ initialCafes, initialActivities, children }: Exp
             onClick={() => recordJoin('home_pill')}
             className="mb-1.5 hidden flex-none items-center gap-2 rounded-full border border-border bg-card py-1 pl-3 pr-1 text-caption font-bold text-text-primary md:inline-flex"
           >
-            {weekData && weekData.members >= 10 ? `${weekData.members} gamers in the community` : 'Join the community'}
+            {weekData && weekData.members >= 10 ? `${Math.max(weekData.members, COMMUNITY_MEMBERS_FLOOR)}${weekData.members <= COMMUNITY_MEMBERS_FLOOR ? '+' : ''} gamers in the community` : 'Join the community'}
             <span className="inline-flex items-center gap-1 rounded-full bg-[#25D366] px-3 py-1 text-[#06210F]">
               <MessageCircle className="h-3.5 w-3.5" aria-hidden /> Join
             </span>

@@ -39,30 +39,38 @@ async def _load(db_session, ch):
     return (await db_session.execute(select(Challenge).where(Challenge.id == uuid.UUID(ch["id"])))).scalar_one()
 
 
+def _day_at(base, days: int, hour: int):
+    """A moment in the daytime window (IST) `days` after `base`."""
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return (base.astimezone(ist) + timedelta(days=days)).replace(hour=hour, minute=0, second=0, microsecond=0)
+
+
 @pytest.mark.asyncio
-async def test_captain_is_nudged_at_24h_and_72h_once_each(async_client, db_session, _outbox):
+async def test_captain_is_nudged_once_a_day_in_the_daytime(async_client, db_session, _outbox):
     ch, _ = await _team_challenge(async_client, db_session)
     await _paid_team(async_client, db_session, ch["slug"])
     _outbox.clear()  # the sign-up confirmation isn't what's tested here
     row = await _load(db_session, ch)
     now = teams.now()
-    assert await mail.run_nudges(db_session, row, at=now + timedelta(hours=2)) == 0
-    assert await mail.run_nudges(db_session, row, at=now + timedelta(hours=25), dry_run=True) == 1
+    assert await mail.run_nudges(db_session, row, at=now + timedelta(hours=2)) == 0  # signed up today: no nudge
+    d1 = _day_at(now, 1, 11)
+    assert await mail.run_nudges(db_session, row, at=d1, dry_run=True) == 1
     assert _outbox == []  # a dry run sends nothing
-    assert await mail.run_nudges(db_session, row, at=now + timedelta(hours=25)) == 1
-    assert await mail.run_nudges(db_session, row, at=now + timedelta(hours=26)) == 0  # once only
-    assert await mail.run_nudges(db_session, row, at=now + timedelta(hours=73)) == 1
+    assert await mail.run_nudges(db_session, row, at=d1) == 1
+    assert await mail.run_nudges(db_session, row, at=d1.replace(hour=15)) == 0  # once a day only
+    assert await mail.run_nudges(db_session, row, at=_day_at(now, 2, 3)) == 0  # never at night
+    assert await mail.run_nudges(db_session, row, at=_day_at(now, 2, 11)) == 1  # the next day, again
     assert [s for _, s in _outbox] and all("more player" in s for _, s in _outbox)
     assert len(_outbox) == 2
 
 
 @pytest.mark.asyncio
-async def test_last_day_nudge_and_nothing_after_signups_close(async_client, db_session, _outbox):
+async def test_nothing_after_signups_close(async_client, db_session, _outbox):
     close = datetime.now(timezone.utc) + timedelta(days=10)
     ch, _ = await _team_challenge(async_client, db_session, registrationClosesAt=close.isoformat())
     await _paid_team(async_client, db_session, ch["slug"])
     row = await _load(db_session, ch)
-    assert await mail.run_nudges(db_session, row, at=close - timedelta(hours=5)) == 1
+    assert await mail.run_nudges(db_session, row, at=_day_at(close, -1, 11)) == 1
     assert await mail.run_nudges(db_session, row, at=close + timedelta(minutes=1)) == 0
 
 

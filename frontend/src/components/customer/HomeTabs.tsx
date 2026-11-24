@@ -168,7 +168,7 @@ function ChallengeCard({ c }: { c: Challenge }) {
         <span className="absolute inset-x-3 bottom-3 text-white">
           <span className="block font-heading text-h3 font-bold leading-tight">{c.title}</span>
           <span className="block text-caption text-white/80">
-            {c.cafe.name} · {challengeDay(c.startsAt)} · {upcoming ? (teamSpots(c) ? `${teamSpots(c)!.left} of ${teamSpots(c)!.max} team spots left` : openToAll(c.capacity) ? 'Free to play' : `${c.spotsLeft} of ${c.capacity} spots left`) : `${c.confirmed} players`}
+            {c.cafe.name} · {challengeDay(c.startsAt)} · {upcoming ? (teamSpots(c) ? `${teamSpots(c)!.left} of ${teamSpots(c)!.max} team spots left` : teamPrices(c) ? '₹5,000 in rewards' : openToAll(c.capacity) ? 'Free to play' : `${c.spotsLeft} of ${c.capacity} spots left`) : `${c.confirmed} players`}
           </span>
         </span>
       </Link>
@@ -179,7 +179,7 @@ function ChallengeCard({ c }: { c: Challenge }) {
             onClick={() => trackAction('challenge_teaser_click', { challenge: c.slug, where: 'home_tab' })}
             className="btn-depth inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-caption font-bold text-white"
           >
-            {teamPrices(c) ? `Sign up your team · ₹${teamPrices(c)!.team.toLocaleString('en-IN')}` : 'Sign up to play'} <ArrowRight className="h-4 w-4" aria-hidden />
+            {teamPrices(c) ? `Sign up your team · ₹${Math.round(teamPrices(c)!.team / 5)} per person` : 'Sign up to play'} <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         ) : (
           <Link href={`/challenge/${c.slug}`} className="btn-depth inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-5 text-caption font-bold text-white">

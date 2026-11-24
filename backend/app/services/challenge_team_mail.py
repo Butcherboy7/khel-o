@@ -11,6 +11,7 @@ this on dev is safe: nothing leaves unless an address is allowed.
 from __future__ import annotations
 
 import html
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -33,7 +34,7 @@ _NO_EMAIL = ("example.com", "example", "test", "invalid")
 
 # Captain nudges: how long after the captain paid, or before sign-ups close.
 NUDGE_STEPS = (("nudge_24h", timedelta(hours=24)), ("nudge_72h", timedelta(hours=72)))
-NUDGE_LAST_BEFORE_CLOSE = timedelta(hours=24)
+NUDGE_FROM_HOUR, NUDGE_TO_HOUR = 10, 21
 ADMIN_REMIND_GAP = timedelta(hours=6)
 
 
@@ -71,8 +72,8 @@ def _frame(title: str, lines: list[str]) -> str:
 
 
 def _button(url: str, label: str) -> str:
-    return (f"<p style='margin:16px 0;'><a href='{html.escape(url)}' style='background:#D0463C;color:#fff;padding:12px 20px;"
-            f"text-decoration:none;font-weight:bold;border-radius:6px;display:inline-block;'>{html.escape(label)}</a></p>")
+    return (f"<p style='font-size:15px;margin:14px 0;'>{html.escape(label)}: "
+            f"<a href='{html.escape(url)}'>{html.escape(url)}</a></p>")
 
 
 async def _deliver(db: AsyncSession, ch: Challenge, player: ChallengePlayer, kind: str, subject: str, body: str,
@@ -97,6 +98,16 @@ async def _deliver(db: AsyncSession, ch: Challenge, player: ChallengePlayer, kin
         await db.rollback()
         return False
     from app.services.notification_service import NotificationService
+    try:
+        from app.models.notification import Notification, NotificationType
+        async with db.begin_nested():  # a savepoint: a clash here must not undo the mail log row
+          db.add(Notification(
+            user_id=user.id, title=subject[:200], message=re.sub(r"<[^>]+>", " ", re.sub(r"\s+", " ", body))[:240].strip(),
+            notification_type=NotificationType.SYSTEM, link=f"/challenge/{ch.slug}/me",
+            dedupe_key=f"challenge:{kind}:{player.id}"[:128],
+          ))
+    except Exception:  # the bell is a bonus; the email is what matters
+        pass
     try:
         ok = await NotificationService()._send_resend_email(user.email, subject, body, f"CH-{str(player.id)[:8]}")
     except Exception as exc:  # an email problem never breaks the caller
@@ -161,11 +172,12 @@ async def notify_teammate_joined(db: AsyncSession, ch: Challenge, new_player: Ch
     if captain is None or captain.id == new_player.id:
         return
     if main >= size:
-        await _deliver(db, ch, captain, "team_complete", f"{entry.name} is complete", _frame("Your team is complete!", [
-            f"<p style='font-size:15px;'>{e(first)} joined. <b>{e(entry.name)}</b> now has all {size} players.</p>",
-            "<p style='font-size:15px;'>Next: join the Khelo community on WhatsApp and watch Instagram for the draw and your match time.</p>",
-            _button(_page(ch), "Open My entry"),
-        ]))
+        for member in (await _team(db, ch, entry))[1]:
+            await _deliver(db, ch, member, "team_complete", f"{entry.name} is complete", _frame("Your team is complete!", [
+                f"<p style='font-size:15px;'>{e(first)} joined. <b>{e(entry.name)}</b> now has all {size} players.</p>",
+                "<p style='font-size:15px;'>Next: join the Khelo community on WhatsApp and watch Instagram for the draw and your match time.</p>",
+                _button(_page(ch), "Open My entry"),
+            ]))
     elif entry.invite_code:
         await _deliver(db, ch, captain, f"joined:{new_player.id}", f"{first} joined {entry.name}", _frame(f"{first} joined your team", [
             f"<p style='font-size:15px;'><b>{e(entry.name)}</b> has {main} of {size} players. {size - main} more to go.</p>",
@@ -198,18 +210,16 @@ async def remind_captains(db: AsyncSession, ch: Challenge, entry_id=None) -> dic
 
 
 def _due_nudge(ch: Challenge, captain: ChallengePlayer, at: datetime) -> Optional[str]:
-    """The nudge that is due now: 'last' in the final day before sign-ups close, else 24h / 72h after paying."""
+    """One nudge a day (a new kind each IST day) while the team is short and sign-ups are open."""
     close = teams.closes_at(ch)
     if close is not None and at >= close:
         return None
-    if close is not None and close - at <= NUDGE_LAST_BEFORE_CLOSE:
-        return "nudge_last"
-    age = at - teams._aware(captain.created_at)
-    due = None
-    for kind, wait in NUDGE_STEPS:
-        if age >= wait:
-            due = kind
-    return due
+    local = at.astimezone(IST)
+    if not (NUDGE_FROM_HOUR <= local.hour < NUDGE_TO_HOUR):
+        return None  # one calm message in the daytime, never at night
+    if teams._aware(captain.created_at).astimezone(IST).date() >= local.date():
+        return None  # the day they sign up, they already know
+    return f"nudge_day:{local:%Y%m%d}"
 
 
 async def run_nudges(db: AsyncSession, ch: Challenge, *, at: Optional[datetime] = None, dry_run: bool = False) -> int:
