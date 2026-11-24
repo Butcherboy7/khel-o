@@ -762,6 +762,9 @@ function BookingWizardContent() {
     if (close <= open) close += 1440;
     const start = Math.max(open, close - long);
     if (start + long > close) return null;
+    // Today after the pass's start (11 AM): it can't be sold for today any more.
+    const now = new Date();
+    if (selectedDate === getTodayString() && now.getHours() * 60 + now.getMinutes() >= start) return null;
     const hhmm = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     const label = (m: number) => { const h = Math.floor(m / 60) % 24; return `${h % 12 || 12}${m % 60 ? `:${String(m % 60).padStart(2, '0')}` : ''} ${h < 12 ? 'AM' : 'PM'}`; };
     return { start: hhmm(start), minutes: long, price: lp[String(long)], text: `${label(start)} – ${label(start + long)}` };

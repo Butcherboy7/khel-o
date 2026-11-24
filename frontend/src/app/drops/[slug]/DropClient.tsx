@@ -242,6 +242,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     const end = timeToMinutes(block.endTime) <= timeToMinutes(block.startTime) ? timeToMinutes(block.endTime) + 1440 : timeToMinutes(block.endTime);
     const start = end - p.hours * 60;
     if (start < timeToMinutes(block.startTime)) return null;
+    // Once the day has started (today after 11 AM), there is no day pass to sell for it.
+    if (atMinutes(block.date, start).getTime() <= Date.now()) return null;
     return { ...p, start: hhmm(start), end: hhmm(end % 1440) };
   })();
   const fullDayOn = !!fullDay && startTime === fullDay.start && hours === fullDay.hours;
