@@ -223,6 +223,7 @@ export interface TeamDesk {
 const admin = (id: string) => `/api/v1/admin/challenges/${id}/teams`;
 
 export const adminTeams = {
+  links: (id: string) => call<{ links: { link: string; opened: number; tapped: number; paid: number }[] }>(() => apiClient.get(`/api/v1/admin/challenges/${id}/links`)),
   desk: (id: string) => call<TeamDesk>(() => apiClient.get(admin(id))),
   makeTeam: (id: string, playerIds: string[], name?: string) => call<TeamDesk>(() => apiClient.post(`${admin(id)}/solo-team`, { playerIds, name: name || null })),
   placeSolo: (id: string, playerId: string, entryId: string) => call<TeamDesk>(() => apiClient.post(`${admin(id)}/place-solo`, { playerId, entryId })),

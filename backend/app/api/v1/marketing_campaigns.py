@@ -5,7 +5,7 @@ The short link forwards to the campaign's landing page stamped with UTM tags
 café view and booking to it. The admin list shows only these campaigns.
 """
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal, Optional
 from uuid import UUID
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -146,7 +146,7 @@ def _out(c: MarketingCampaign, summary: Optional[dict] = None) -> dict:
     return data
 
 
-async def _summary(db: AsyncSession, c: MarketingCampaign) -> dict:
+async def _summary(db: AsyncSession, c: MarketingCampaign, events: Optional[list] = None) -> dict:
     start, end = _window(c)
     next_step = None
     if start > end:
@@ -155,7 +155,11 @@ async def _summary(db: AsyncSession, c: MarketingCampaign) -> dict:
         from datetime import datetime as _dt
         from app.services.campaign_advisor import advise
 
-        report = await growth_report_service.campaign_report(db, c.utm_source, c.slug, start, end, also=tag_pairs(c))
+        mine = None
+        if events is not None:  # the list loaded every event once; take this campaign's window
+            lo, hi = growth_report_service._utc(start), growth_report_service._utc(end + timedelta(days=1))
+            mine = [r for r in events if lo <= (r[5] if r[5].tzinfo else r[5].replace(tzinfo=timezone.utc)) < hi]
+        report = await growth_report_service.campaign_report(db, c.utm_source, c.slug, start, end, also=tag_pairs(c), rows=mine)
         t = report["totals"]
         steps = advise(
             report, spend=c.spend_inr or None, paid=c.paid, live=c.status == "live",
@@ -200,8 +204,16 @@ async def list_campaigns(
         select(MarketingCampaign).order_by(MarketingCampaign.started_on.desc(), MarketingCampaign.created_at.desc())
     )).scalars().all()
     out = []
+    # One read of the events for all campaigns (it used to be one read per campaign: ~30 s on prod).
+    shown = [c for c in rows if c.status != "archived" and _window(c)[0] <= _window(c)[1]]
+    events = None
+    if shown:
+        lo = min(_window(c)[0] for c in shown)
+        hi = max(_window(c)[1] for c in shown)
+        events = await growth_report_service._events(
+            db, growth_report_service._utc(lo), growth_report_service._utc(hi + timedelta(days=1)))
     for c in rows:
-        out.append(_out(c, await _summary(db, c) if c.status != "archived" else None))
+        out.append(_out(c, await _summary(db, c, events) if c.status != "archived" else None))
     return {"success": True, "data": {"campaigns": out}}
 
 

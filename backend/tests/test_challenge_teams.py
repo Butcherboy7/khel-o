@@ -295,3 +295,29 @@ def test_input_checks():
     with pytest.raises(teams.TeamError):
         teams.clean_team_name("Team Chutiya")
     assert teams.clean_team_name("  Night   Owls ") == "Night Owls"
+
+
+@pytest.mark.asyncio
+async def test_admin_links_count_opened_tapped_and_paid_per_link(async_client, db_session):
+    from app.models.analytics_event import AnalyticsEvent
+
+    ch, admin = await _team_challenge(async_client, db_session)
+    cap, _ = await _paid_team(async_client, db_session, ch["slug"])
+
+    def ev(sid, action, user=None, camp="valorant-whatsapp", **extra):
+        return AnalyticsEvent(session_id=sid, user_id=user, event_type="ui_action", event_metadata={
+            "action": action, "challenge": ch["slug"], "utm": {"s": "whatsapp", "c": camp}, **extra})
+
+    db_session.add_all([
+        ev("s1", "challenge_page_view"), ev("s1", "challenge_signup_started"),
+        ev("s2", "challenge_page_view"),
+        ev("s3", "challenge_page_view", camp=None), ev("s3", "challenge_signup_started", user=cap.id, camp=None),
+        ev("s4", "challenge_page_view", internal=True),  # our own device: left out
+    ])
+    await db_session.commit()
+    h = auth_headers(admin, is_admin=True)
+    links = (await async_client.get(f"/api/v1/admin/challenges/{ch['id']}/links", headers=h)).json()["data"]["links"]
+    by = {r["link"]: r for r in links}
+    assert by["valorant-whatsapp"] == {"link": "valorant-whatsapp", "opened": 2, "tapped": 1, "paid": 0}
+    assert by["whatsapp"] == {"link": "whatsapp", "opened": 1, "tapped": 1, "paid": 1}
+    assert "direct" not in by

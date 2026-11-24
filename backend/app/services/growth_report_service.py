@@ -129,11 +129,14 @@ async def campaign_options(db: AsyncSession, days: int = 90) -> list[dict]:
 
 async def campaign_report(
     db: AsyncSession, source: str, campaign: Optional[str], start_day: date, end_day: date,
-    include_internal: bool = False, also: Optional[list] = None,
+    include_internal: bool = False, also: Optional[list] = None, rows: Optional[list] = None,
 ) -> dict:
-    """`also`: extra (source, campaign) tag pairs that count as this campaign."""
+    """`also`: extra (source, campaign) tag pairs that count as this campaign.
+    `rows`: the events for this window when the caller already loaded them (the campaigns list
+    loads them once for every campaign instead of once each)."""
     start, end = _utc(start_day), _utc(end_day + timedelta(days=1))
-    rows = await _events(db, start, end)
+    if rows is None:
+        rows = await _events(db, start, end)
     internal = _internal_sessions(rows)
     internal_rows = [r for r in rows if r[0] in internal]
     if not include_internal:

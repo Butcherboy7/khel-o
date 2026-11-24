@@ -577,6 +577,67 @@ async def admin_desk(challenge_id: UUID, db: AsyncSession = Depends(get_db), _ad
     return {"success": True, "data": await _desk(db, ch)}
 
 
+@admin_router.get("/{challenge_id}/links")
+async def admin_links(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    """Per posted link: people who opened this challenge page, who tapped Sign up,
+    and who paid. A visit is tagged with the link it came from (utm), so this
+    groups by campaign (or source, or 'direct'). Our own devices are left out."""
+    from app.models.analytics_event import AnalyticsEvent
+    from app.models.challenge import ChallengePlayer
+
+    ch = await _admin_challenge(db, challenge_id)
+    rows = (await db.execute(
+        select(AnalyticsEvent.session_id, AnalyticsEvent.user_id, AnalyticsEvent.event_metadata)
+        .where(
+            AnalyticsEvent.event_type == "ui_action",
+            AnalyticsEvent.event_metadata["challenge"].as_string() == ch.slug,
+            AnalyticsEvent.created_at >= ch.created_at,
+        ).order_by(AnalyticsEvent.created_at)
+    )).all()
+    internal = {sid for sid, _u, m in rows if isinstance(m, dict) and m.get("internal")}
+    label_of: dict[str, str] = {}
+    sessions: dict[str, dict] = {}
+    user_label: dict = {}
+    for sid, uid, m in rows:
+        if sid in internal or not isinstance(m, dict):
+            continue
+        u = m.get("utm") if isinstance(m.get("utm"), dict) else {}
+        label = u.get("c") or u.get("s") or "direct"
+        label_of.setdefault(sid, label)  # first tag seen wins
+        st = sessions.setdefault(sid, {"opened": False, "tapped": False})
+        action = m.get("action")
+        if action == "challenge_page_view":
+            st["opened"] = True
+        if action == "challenge_signup_started":
+            st["tapped"] = True
+        if uid:
+            user_label.setdefault(uid, label_of[sid])
+
+    pays = (await db.execute(select(ChallengePayment).where(
+        ChallengePayment.challenge_id == ch.id, ChallengePayment.status == "paid"))).scalars().all()
+    paid_entries = {p.entry_id for p in pays if p.entry_id}
+    paid_players = {p.player_id for p in pays if p.player_id}
+    ppl = (await db.execute(select(ChallengePlayer).where(
+        ChallengePlayer.challenge_id == ch.id, ChallengePlayer.status.in_(("active", "waitlist")),
+        ChallengePlayer.role.in_(("captain", "solo"))))).scalars().all()
+
+    out: dict[str, dict] = {}
+
+    def row(label: str) -> dict:
+        return out.setdefault(label, {"link": label, "opened": 0, "tapped": 0, "paid": 0})
+
+    for sid, st in sessions.items():
+        r = row(label_of[sid])
+        r["opened"] += 1 if st["opened"] else 0
+        r["tapped"] += 1 if st["tapped"] else 0
+    for pl in ppl:
+        if pl.user_id is None or not (pl.entry_id in paid_entries or pl.id in paid_players):
+            continue
+        row(user_label.get(pl.user_id, "not tracked"))["paid"] += 1
+    links = sorted(out.values(), key=lambda r: (-r["opened"], -r["paid"]))
+    return {"success": True, "data": {"links": links}}
+
+
 @admin_router.post("/{challenge_id}/teams/practice")
 async def admin_fill_practice_teams(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
     """Dev only: whole made-up teams (3 players with Riot IDs), one short team and two solos."""
