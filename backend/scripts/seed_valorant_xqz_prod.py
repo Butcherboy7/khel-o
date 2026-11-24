@@ -5,6 +5,9 @@ XQZ café and refuses if it can't find exactly one. A second run refreshes the c
 Run it only after the release is live, and only when told to:
 
     bash scripts/ops/prod_python.sh backend/scripts/seed_valorant_xqz_prod.py --yes
+
+Add --test-price to charge Rs 1 per team and Rs 1 per solo while testing on prod.
+Run again WITHOUT --test-price to put the real prices back (Rs 1,250 / Rs 250).
 """
 import asyncio
 import sys
@@ -24,6 +27,14 @@ from app.models.challenge import Challenge  # noqa: E402
 from seed_valorant_xqz import RULES_MD, SLUG, TEAM  # noqa: E402
 
 IST = timezone(timedelta(hours=5, minutes=30))
+TEST_PRICE = "--test-price" in sys.argv
+
+
+def _team() -> dict:
+    t = dict(TEAM)
+    if TEST_PRICE:
+        t["priceTeam"], t["priceSolo"] = 1, 1
+    return t
 
 
 async def main() -> None:
@@ -48,14 +59,14 @@ async def main() -> None:
         )
         ch = (await db.execute(select(Challenge).where(Challenge.slug == SLUG))).scalar_one_or_none()
         if ch is None:
-            ch = Challenge(slug=SLUG, status="open", plan_config={"team": TEAM}, **fields)
+            ch = Challenge(slug=SLUG, status="open", plan_config={"team": _team()}, **fields)
             db.add(ch)
             print("will create challenge", SLUG)
         else:
             for k, v in fields.items():
                 setattr(ch, k, v)
             cfg = dict(ch.plan_config or {})
-            cfg["team"] = {**TEAM, **{k: v for k, v in (cfg.get("team") or {}).items() if k == "drawSeed"}}
+            cfg["team"] = {**_team(), **{k: v for k, v in (cfg.get("team") or {}).items() if k == "drawSeed"}}
             ch.plan_config = cfg
             print("will refresh challenge", SLUG)
         if "--yes" in sys.argv:
