@@ -34,6 +34,7 @@ git fetch /tmp/kprod$N.bundle prod$N:refs/remotes/origin/prod$N
 git reset --hard origin/prod$N
 git log -1 --oneline
 bash scripts/deploy_remote.sh prod > /tmp/prod-deploy.log 2>&1 && echo deploy_ok || { echo deploy_FAILED; grep -n -i error /tmp/prod-deploy.log | tr -cd '[:print:]\n' | head -8; }
+rm -f /tmp/kprod*.b64 /tmp/kprod*.bundle
 sleep 5
 for u in / /login /admin/bookings; do echo "\$u \$(curl -s -o /dev/null -w '%{http_code}' https://khel-o.com\$u)"; done
 docker exec khel_o_postgres sh -c 'psql -U "\$POSTGRES_USER" -d "\$POSTGRES_DB" -tAc "select version_num from alembic_version"'

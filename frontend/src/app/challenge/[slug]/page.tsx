@@ -23,6 +23,8 @@ const load = cache(async (slug: string): Promise<Challenge | null> => {
   }
 });
 
+const SHARE_IMAGE = '/challenges/valorant-3v3-xqz/poster-og.jpg';
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const ch = await load(slug);
@@ -35,8 +37,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       keywords: ['Valorant 5v5 Hyderabad', 'Valorant Hyderabad', 'Valorant Gachibowli', 'gaming cafe Hyderabad', 'Valorant team challenge', 'XQZ Hyderabad'],
       description,
       alternates: { canonical: `/challenge/${slug}` },
-      openGraph: { title: team.title, description, url: `/challenge/${slug}`, type: 'website', images: [team.media.photos[0].src] },
-      twitter: { card: 'summary_large_image', title: team.title, description },
+      openGraph: { title: team.title, description, url: `/challenge/${slug}`, type: 'website', images: [{ url: SHARE_IMAGE, width: 1200, height: 630, alt: team.title }] },
+      twitter: { card: 'summary_large_image', title: team.title, description, images: [SHARE_IMAGE] },
     };
   }
   if (!ch) return { title: 'Challenge', robots: { index: false } };

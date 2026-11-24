@@ -16,7 +16,7 @@ import { getBracket, getChallenge } from '@/lib/api/challenges';
 import { QuickSignIn } from '@/components/auth/QuickSignIn';
 import { useAuthStore } from '@/store/authStore';
 import { DEFAULT_SETTINGS, getThisWeek, leaveContact, removeVote, sendContribution, voteInPoll, type CommunityPost } from '@/lib/api/community';
-import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengeDay, isUpcoming, openToAll, teamPrices, COMMUNITY_MEMBERS_FLOOR } from '@/lib/challenge';
+import { COMMUNITY_URL, FEATURED_CHALLENGE_SLUG, challengePoster, challengeDay, isUpcoming, openToAll, teamPrices, COMMUNITY_MEMBERS_FLOOR } from '@/lib/challenge';
 import {
   SEEN_POST_KEY,
   joinedHere,
@@ -216,6 +216,26 @@ export function CommunityPage() {
 
       {tab === 'week' && (
         <div className="grid gap-4 md:grid-cols-2">
+          {nextChallenge && (
+            <Link
+              href={`/challenge/${nextChallenge.slug}?join=1`}
+              onClick={() => trackAction('community_challenge_hero_tap', { challenge: nextChallenge.slug })}
+              className="group relative isolate block overflow-hidden rounded-2xl bg-[#0b0708] shadow-card md:col-span-2"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={challengePoster(nextChallenge)} alt="" className="aspect-[8/5] w-full object-cover md:aspect-[16/6]" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 text-white">
+                <div>
+                  <p className="text-[10.5px] font-extrabold uppercase tracking-wider text-[#F2C94C]">Next challenge · {challengeDay(nextChallenge.startsAt)}</p>
+                  <p className="font-heading text-h3 font-bold leading-tight">{nextChallenge.title}</p>
+                </div>
+                <span className="inline-flex min-h-[44px] flex-none items-center gap-1 rounded-full bg-white px-4 text-caption font-extrabold text-[#1c1c1e]">
+                  Sign up <ArrowRight className="h-4 w-4" aria-hidden />
+                </span>
+              </div>
+            </Link>
+          )}
           {data?.post ? <WeekPost post={data.post} /> : st.showRecap ? <RecapCard recap={recap ?? null} /> : <QuietCard />}
           {st.showMembersCode && <MembersCode code={data?.poll?.code ?? null} hasCode={Boolean(data?.poll?.hasCode)} note={data?.poll?.codeNote ?? null} member={member} />}
           {(data?.earlierPosts?.length ?? 0) > 0 && <EarlierPosts posts={data!.earlierPosts!} />}

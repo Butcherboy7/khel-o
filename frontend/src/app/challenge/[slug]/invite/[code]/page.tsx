@@ -17,8 +17,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title,
     description,
     robots: { index: false, follow: false },
-    openGraph: { title, description, type: 'website', siteName: 'KHEL-O' },
-    twitter: { card: 'summary_large_image', title, description },
+    openGraph: { title, description, type: 'website', siteName: 'KHEL-O', images: [{ url: '/challenges/valorant-3v3-xqz/poster-og.jpg', width: 1200, height: 630 }] },
+    twitter: { card: 'summary_large_image', title, description, images: ['/challenges/valorant-3v3-xqz/poster-og.jpg'] },
   };
 }
 
