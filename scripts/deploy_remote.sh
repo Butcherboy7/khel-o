@@ -50,7 +50,7 @@ echo "== cleanup build cache =="
 # Keep the layer + package caches warm: wiping them (the old `prune -af`) made
 # every deploy reinstall apt/pip/npm and rebuild from scratch (~5 min). Cap the
 # cache instead so the disk can't fill, and drop only dangling images.
-docker builder prune -f --keep-storage 8GB >/dev/null
+docker builder prune -f --keep-storage 12GB >/dev/null
 docker image prune -f >/dev/null
 
 echo "== health check =="

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, Check, Copy, Download, ExternalLink, Mail, Search, Shuffle, Users } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Download, ExternalLink, Mail, ScanLine, Search, Shuffle, Users } from 'lucide-react';
 import { getBracket, type Bracket, type BracketMatch } from '@/lib/api/challenges';
 import { teamChallengeConfig } from '@/challenges';
 import { Roster, TeamBracket, matchNumbers } from '@/components/challenge/team/TeamBracket';
@@ -116,6 +116,7 @@ export default function TeamDeskPage() {
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" className={btn} onClick={() => downloadTeamsCsv(id, c.slug)}><Download className="h-4 w-4" /> CSV</button>
+        <a className={`${btn} !bg-primary !text-white`} href={`/challenge/${c.slug}/scan`}><ScanLine className="h-4 w-4" /> Scan QR</a>
         <a className={btn} href={`/challenge/${c.slug}`} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /> Public page</a>
         <a className={btn} href={`/challenge/${c.slug}/bracket?projector=1`} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /> Projector</a>
       </div>
