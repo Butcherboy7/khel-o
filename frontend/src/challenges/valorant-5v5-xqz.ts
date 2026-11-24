@@ -34,7 +34,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     logo: '/challenges/valorant-3v3-xqz/xqz-logo.png',
     googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=XQZ+Hyderabad+Sri+Thirumala+Platinum+Gachibowli',
     instagramHandle: null, // TODO: XQZ's Instagram username
-    bookingSlug: 'xqz-hyderabad',
+    bookingSlug: 'xqz-hyderabad-gachibowli',
   },
 
   links: {
