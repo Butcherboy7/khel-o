@@ -49,20 +49,13 @@ class CheckoutMoney:
     booking_fee: Decimal       # the booking fee actually charged
     total: Decimal             # what the customer pays in all
     first_booking_offer: bool
-    credit: Decimal = Decimal('0.00')  # KHEL-O credit (welcome / community / friend), off the total
-
-    @property
-    def khelo_paid(self) -> Decimal:
-        """Everything KHEL-O pays the café on the customer's behalf: stored as bookings.khelo_discount."""
-        return self.khelo_discount + self.credit
 
     @property
     def fee_saved(self) -> Decimal:
         return self.fee_before_offer - self.booking_fee
 
 
-def checkout_money(cafe_price: Decimal, fee_percent: Decimal, first_booking_offer: bool, credit: Decimal = Decimal('0.00')) -> CheckoutMoney:
-    """`credit` comes from services/referrals.credits_for, already capped to leave at least ₹1 to pay."""
+def checkout_money(cafe_price: Decimal, fee_percent: Decimal, first_booking_offer: bool) -> CheckoutMoney:
     drop = price_drop(cafe_price)
     session = cafe_price - drop
     fee = (session * fee_percent / Decimal('100')).quantize(Decimal('0.01'))
@@ -73,9 +66,8 @@ def checkout_money(cafe_price: Decimal, fee_percent: Decimal, first_booking_offe
         session_price=session,
         fee_before_offer=fee,
         booking_fee=charged_fee,
-        total=session + charged_fee - credit,
+        total=session + charged_fee,
         first_booking_offer=first_booking_offer,
-        credit=credit,
     )
 
 

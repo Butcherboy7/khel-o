@@ -29,9 +29,6 @@ export interface Booking {
   /** KHEL-O's ₹1 off a round price (₹150 -> ₹149). The customer paid it less;
    *  KHEL-O pays it to the café, so the café's share is unchanged. */
   kheloDiscount?: number;
-  /** The part of kheloDiscount that is a KHEL-O credit, and what it was ("welcome+community"). */
-  kheloCredit?: number;
-  creditNote?: string | null;
   /** First booking during the launch offer: no booking fee. */
   firstBookingOffer?: boolean;
   status: BookingStatus;

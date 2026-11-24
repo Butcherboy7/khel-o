@@ -37,7 +37,6 @@ from app.models.challenge import Challenge, ChallengeEntry, ChallengeMail, Chall
 from app.models.drop import Drop, DropBlock, DropReservation, DropWaitlist
 from app.models.instagram_reel import InstagramReel
 from app.models.community import CommunityPoll, CommunityPollVote, CommunityMember, CommunityContribution
-from app.models.referral import Referral, ReferralCredit
 
 __all__ = [
     "User",
@@ -88,6 +87,4 @@ __all__ = [
     "DropBlock",
     "DropReservation",
     "DropWaitlist",
-    "Referral",
-    "ReferralCredit",
 ]

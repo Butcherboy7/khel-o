@@ -1,6 +1,5 @@
 'use client';
 
-import { COMMUNITY_URL } from '@/lib/challenge';
 import { WhatsAppHelp } from '@/components/support/WhatsAppHelp';
 import { InfoTip } from '@/components/shared/InfoTip';
 import { CUSTOMER_INFO } from '@/lib/customerGuideCopy';
@@ -743,10 +742,7 @@ function BookingWizardContent() {
   // First booking (launch offer): the fee is waived. Shown struck through.
   const feeWaived = quote?.firstBookingOffer ? quote.platformFeeBeforeOffer : 0;
   // Whole rupees, rounded down: "You save ₹69", never paise, never more than is true.
-  // KHEL-O credits (welcome / community code / friend reward), already taken off quote.total.
-  const creditLines = quote?.creditLines ?? [];
-  const kheloCredit = quote?.kheloCredit ?? 0;
-  const youSave = Math.floor(discountAmount + feeWaived + kheloCredit + 1e-6);
+  const youSave = Math.floor(discountAmount + feeWaived + 1e-6);
 
   const cancelBy = cancelByLabel(effectiveSessionDate, selectedTime);
   totalRef.current = finalTotal;
@@ -1363,39 +1359,6 @@ function BookingWizardContent() {
           )}
         </div>
 
-        {creditLines.map((l) => (
-          <div key={l.kind} className="flex items-center justify-between gap-3 text-emerald-700">
-            <span className="min-w-0 truncate font-semibold">{l.label}</span>
-            <span className="flex-shrink-0 font-bold tabular-nums">−<span className="rupee-symbol">₹</span>{money(l.amount)}</span>
-          </div>
-        ))}
-        {(quote?.communityHint ?? 0) > 0 && (
-          // First booking, code not typed yet: the extra ₹ lives in the WhatsApp community.
-          <div className="-mx-1.5 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-[#25D366]/10 px-2 py-1.5 text-caption">
-            <span className="min-w-0 flex-1 text-text-primary">
-              <b>₹{quote!.communityHint} more off</b> with the code from our WhatsApp community.
-            </span>
-            <span className="flex flex-shrink-0 items-center gap-3">
-              <a
-                href={COMMUNITY_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => fireAnalyticsEvent('ui_action', { cafeId, metadata: { action: 'community_code_get', where: 'checkout' } })}
-                className="inline-flex min-h-[32px] items-center font-semibold text-[#128C4B] hover:underline"
-              >
-                Get the code
-              </a>
-              <button
-                type="button"
-                onClick={() => setOffersOpen(true)}
-                className="inline-flex min-h-[32px] items-center font-semibold text-primary-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                Enter it
-              </button>
-            </span>
-          </div>
-        )}
-
         <div className="mt-1 flex items-center justify-between gap-3 border-t border-border/60 pt-2">
           <span className="flex min-w-0 items-center gap-2">
             <span className="font-heading text-body font-bold text-text-primary">Total</span>
@@ -1547,7 +1510,7 @@ function BookingWizardContent() {
               </span>
             ) : (
               <span className="block truncate text-caption text-text-secondary">
-                ₹{money(subtotal)} session + ₹{money(serviceFee)} platform fee{kheloCredit > 0 && ` − ₹${money(kheloCredit)} off`}
+                ₹{money(subtotal)} session + ₹{money(serviceFee)} platform fee
               </span>
             )}
           </div>

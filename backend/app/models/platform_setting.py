@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, timezone
-from sqlalchemy import String, Boolean, Date, DateTime, Integer, Numeric, ForeignKey
+from sqlalchemy import String, Boolean, Date, DateTime, Numeric, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -35,13 +35,6 @@ class PlatformSetting(Base):
     gta6_requests_on: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
     gta6_requests_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     gta6_whatsapp: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    # Referrals + first-booking credits (KHEL-O pays; see services/referrals.py). Whole rupees.
-    referrals_on: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
-    welcome_credit: Mapped[int] = mapped_column(Integer, default=15, nullable=False, server_default="15")
-    # Posted only in WhatsApp community announcements; typed in checkout's code box. Null = off.
-    community_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    community_credit: Mapped[int] = mapped_column(Integer, default=15, nullable=False, server_default="15")
-    referral_reward: Mapped[int] = mapped_column(Integer, default=15, nullable=False, server_default="15")
     updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

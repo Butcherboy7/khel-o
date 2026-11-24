@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { fireAnalyticsEvent } from '@/lib/api/analyticsEvents';
 import { recordShareOpen } from '@/lib/share';
-import { rememberInvite } from '@/lib/referral';
 import { useAnalyticsStore } from '@/store/analyticsStore';
 
 // Records one first-party page_view per client-side route change, feeding the
@@ -45,10 +44,7 @@ export function PageViewTracker() {
     // A friend's invite link (?inv=<code>) credits them when this browser signs up or books.
     const inv = params.get('inv');
     const meta: Record<string, unknown> = ref ? { path: pathname, ref, land: 1 } : { path: pathname };
-    if (inv && /^[0-9a-f]{10}$/.test(inv)) {
-      meta.inv = inv;
-      rememberInvite(inv);
-    }
+    if (inv && /^[0-9a-f]{10}$/.test(inv)) meta.inv = inv;
     fireAnalyticsEvent('page_view', { metadata: meta });
   }, [pathname]);
 

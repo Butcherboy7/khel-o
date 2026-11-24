@@ -68,11 +68,6 @@ class Booking(Base):
     # by KHEL-O: total_amount already has it taken off, the café's share
     # (PlatformFee.owner_settlement_amount) does not. See services/checkout_maths.py.
     khelo_discount: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, server_default='0', nullable=False)
-    # The part of khelo_discount that is a KHEL-O credit (welcome / community code / friend reward),
-    # what it was made of ("welcome+community"), and the referral credit it reserved.
-    khelo_credit: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, server_default='0', nullable=False)
-    credit_note: Mapped[str | None] = mapped_column(String(60), nullable=True)
-    referral_credit_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     # Booking fee waived: the customer's first booking during the launch offer.
     first_booking_offer: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false', nullable=False)
     status: Mapped[BookingStatus] = mapped_column(
