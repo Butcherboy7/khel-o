@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Gamepad2, Instagram, MapPin } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Gamepad2, Instagram, MapPin, Share2 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { fightFont } from '@/components/challenge/ChallengeHero';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, type Challenge } from '@/lib/api/challenges';
 import { getMyTeamEntry, type MyTeamEntry, type TeamInfo } from '@/lib/api/teamChallenges';
 import { rememberUtm } from '@/lib/challenge';
+import { ShareModal } from '@/components/customer/ShareModal';
 import { useAuthStore } from '@/store/authStore';
 import type { TeamChallengeConfig } from '@/challenges/types';
 import { LiveBackdrop } from './LiveBackdrop';
@@ -78,6 +79,8 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
   const max: number | null = team ? team.maxTeams : 16; // null = no limit
   const joined = team?.teams ?? 0;
   const solos = team?.solosWaiting ?? 0;
+  const [shareOpen, setShareOpen] = useState(false);
+  const openShare = (where: string) => { trackAction('challenge_share_open', { challenge: cfg.slug, where }); setShareOpen(true); };
   const registering = joined + solos; // teams plus solo players waiting for a team
   const left = max === null ? Infinity : team?.spotsLeft ?? max;
   // Before the counts arrive (or if the API is down) the page assumes open: the join page re-checks.
@@ -202,6 +205,13 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               >
                 <WhatsAppIcon className="h-5 w-5 text-[#25D366]" aria-hidden /> Join the Khelo community <ChevronRight className="h-4 w-4 text-white/50" aria-hidden />
               </a>
+              <button
+                type="button"
+                onClick={() => openShare('hero')}
+                className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 text-[15px] font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                <Share2 className="h-5 w-5" aria-hidden /> Share with friends
+              </button>
             </div>
             {inIt && (
               <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#13221A] px-3 py-1.5 text-sm font-semibold text-[#9BF0B9]">
@@ -435,7 +445,29 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
         </div>
       </main>
 
+      <section className="border-t border-[#2A2530] bg-[#0A0809] px-4 py-8 text-center">
+        <p className="text-[17px] font-bold">Know someone who plays Valorant?</p>
+        <p className="mx-auto mt-1 max-w-sm text-[14.5px] text-[#C4BFC8]">Don&apos;t play yourself? Send this page to a friend who does. They can sign up as a team or solo.</p>
+        <button
+          type="button"
+          onClick={() => openShare('footer')}
+          className="mx-auto mt-4 flex h-12 items-center justify-center gap-2 rounded-xl bg-[#D0463C] px-6 text-[15px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          <Share2 className="h-5 w-5" aria-hidden /> Share this page
+        </button>
+      </section>
+
       <TeamFooter cfg={cfg} wide />
+
+      <ShareModal
+        isOpen={shareOpen}
+        onClose={() => setShareOpen(false)}
+        heading="Share the Valorant challenge"
+        message="Valorant 5v5 at XQZ Hyderabad on Sat 5 Dec. Teams of 5, rewards worth ₹5,000. Sign up here:"
+        path={`/challenge/${cfg.slug}`}
+        context="campaign"
+        campaign="valorant-share"
+      />
 
       {/* ── Sticky bar once the hero buttons scroll away (phones and desktop) ─ */}
       <div className="hidden h-24 md:block" aria-hidden />
