@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore, markRoleSwitch, type UserActiveRole } from '@/store/authStore';
 import { Gamepad2, Store, Shield, Headset, RefreshCw, AlertCircle, ArrowLeftRight } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
@@ -32,6 +32,7 @@ const BADGE_VARIANT: Record<string, 'success' | 'warning' | 'secondary' | 'error
 
 export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
+  const pathname = usePathname() || '/';
   const user = useAuthStore((s) => s.user);
   const activeRole = useAuthStore((s) => s.activeRole);
   const switchActiveRole = useAuthStore((s) => s.switchActiveRole);
@@ -58,8 +59,11 @@ export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
   // vanished for accounts that hold only gamer + admin while in admin mode, leaving no way out.)
   // An admin only ever needs Gamer and Admin: Owner/Staff pills are noise for them.
   const isAdmin = availableRoles.includes('admin');
+  // Where the person is standing decides what to offer (not the token's role: an admin token browsing the customer
+  // site must still be offered Admin).
+  const here: UserActiveRole = pathname.startsWith('/admin') ? 'admin' : pathname.startsWith('/owner') ? (activeRole === 'staff' ? 'staff' : 'cafe_owner') : 'gamer';
   const targets = (['gamer', 'cafe_owner', 'staff', 'admin'] as UserActiveRole[]).filter(
-    (r) => availableRoles.includes(r) && r !== activeRole && !(isAdmin && (r === 'cafe_owner' || r === 'staff')),
+    (r) => availableRoles.includes(r) && r !== here && !(isAdmin && (r === 'cafe_owner' || r === 'staff')),
   );
 
   if (!user || targets.length === 0) {
@@ -73,7 +77,7 @@ export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
     setIsSwitching(true);
     markRoleSwitch();
     try {
-      await switchActiveRole(role);
+      if (role !== activeRole) await switchActiveRole(role);
       router.push(ROLE_META[role].route);
     } catch (err: any) {
       setError(err?.message || "You don't have permission to switch to that mode");
