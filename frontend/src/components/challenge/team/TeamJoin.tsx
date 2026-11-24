@@ -327,7 +327,7 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
               icon={<User className="h-6 w-6" aria-hidden />}
               title="Solo"
               price={info?.priceSolo ?? 250}
-              line="No team? We put you in a team that needs players. Full refund if we can't."
+              line="No team? We put you in a team that needs players."
               onClick={() => { setKind('solo'); go('details'); }}
             />
             <p className="text-center text-sm text-[#A49EA9]">No booking fee. Nothing added on top.</p>

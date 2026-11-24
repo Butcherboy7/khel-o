@@ -153,11 +153,10 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     { q: 'Can I use my own account?', a: 'Yes, you must. Bring your phone, Riot may send a login code to your email.' },
     { q: 'What rank do I need?', a: 'All ranks can join. You may play against much stronger players.' },
     { q: 'What if my team is late?', a: 'You lose that match. Matches do not wait.' },
-    { q: 'Can I get a refund?', a: 'No refund after 3 December. Full refund if the challenge is cancelled, or if you signed up solo and we could not find you a team.' },
-    { q: 'What if fewer teams join?', a: 'We need at least 4 teams. If fewer join, the challenge is cancelled and everyone gets a full refund.' },
+    { q: 'What if fewer teams join?', a: 'We need at least 4 teams to run it. If fewer join, we will message you straight away.' },
   ],
 
-  agreeLine: 'I joined the Khelo community, I follow Khelo and XQZ on Instagram, I read the rules (if my team is late, we lose the match), I know there is no refund after 3 December (except if the challenge is cancelled or I am a solo player without a team), and I am OK with my photos and videos from the challenge being posted on Instagram.',
+  agreeLine: 'I joined the Khelo community, I follow Khelo and XQZ on Instagram, I read the rules (if my team is late, we lose the match), and I am OK with my photos and videos from the challenge being posted on Instagram.',
 
   // {link} is replaced with the captain's invite link.
   shareText: 'I signed us up for the Khelo Valorant 5v5 Challenge at XQZ on 5 Dec. Tap this link, log in, and fill your details: {link}',
