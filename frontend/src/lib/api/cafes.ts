@@ -9,9 +9,15 @@ import type {
   ActivityFacet,
 } from '@/types';
 import type { Taxonomy } from '@/types/taxonomy';
+import type { GameCafe } from '@/lib/gameSearch';
 
 export async function listCafes(params: CafeListParams): Promise<PaginatedResponse<CafeListItem>> {
   return call(() => apiClient.get('/api/v1/cafes', { params }));
+}
+
+/** Cafés that list games, with the titles each lists. Small; drives the game search. */
+export async function listGameCafes(): Promise<GameCafe[]> {
+  return call(() => apiClient.get('/api/v1/cafes/games'));
 }
 
 /** Activities on offer in a city (all cities when omitted), gaming first. */

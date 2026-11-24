@@ -4,7 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import { Search, MapPin, Monitor, ChevronRight, X, Flame, Swords, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { listCafes, cafePath } from '@/lib/api/cafes';
+import { listCafes, listGameCafes, cafePath } from '@/lib/api/cafes';
+import { matchGames, startsWords } from '@/lib/gameSearch';
+import { GameResults } from '@/components/customer/GameResults';
+import { FEATURED_CHALLENGE_SLUG } from '@/lib/challenge';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useDebounce } from '@/hooks/useDebounce';
 import type { CafeListItem } from '@/types';
@@ -31,26 +34,12 @@ const ACTIVITY_SEARCH_ALIASES: Record<string, string> = {
 /** Pages people type a name for: GTA 6, the challenge, the community. */
 const PAGE_RESULTS: { id: string; group: string; title: string; subtitle: string; href: string; keywords: string }[] = [
   { id: 'gta6', group: 'Drops', title: 'GTA 6 Launch Drop', subtitle: 'Reserve your seat now · PS5 on a big screen', href: '/gta6', keywords: 'gta gta6 6 launch drop early access rockstar ps5 playstation book reserve play now' },
-  { id: 'challenge', group: 'Happening', title: 'Tekken challenge', subtitle: 'Free fight night at a café', href: '/challenge/tekken-01', keywords: 'tekken challenge tournament fight event competition' },
+  { id: 'challenge', group: 'Happening', title: 'Valorant 5v5 Challenge', subtitle: 'Team of 5 · Sat 5 Dec · XQZ Hyderabad', href: `/challenge/${FEATURED_CHALLENGE_SLUG}`, keywords: 'valorant 5v5 5 v 5 challenge xqz team event competition' },
   { id: 'community', group: 'Community', title: 'KHEL-O Community', subtitle: 'Join the group, vote, get first dibs', href: '/community', keywords: 'community whatsapp group join vote gamers' },
 ];
 
 /** Shown in turn in the empty search bar so a visitor sees what lives here. */
-const HINT_PHRASES = ['games', 'challenges', 'GTA 6', 'cafés', 'PS5 cafés', 'Tekken #02'];
-
-const words = (text: string) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-
-/** Every typed word starts a word of the text ("dg" matches "DG Gaming", not
- *  "Budget"), or the whole query does with spaces dropped, because phone
- *  keyboards turn "Rockstar" into "Rock star". */
-function startsWords(text: string, query: string): boolean {
-  const qWords = words(query);
-  if (qWords.length === 0) return false;
-  const tWords = words(text);
-  if (qWords.every((q) => tWords.some((t) => t.startsWith(q)))) return true;
-  const compact = qWords.join('');
-  return tWords.some((_, i) => tWords.slice(i).join('').startsWith(compact));
-}
+const HINT_PHRASES = ['games', 'challenges', 'GTA 6', 'cafés', 'PS5 cafés', 'Valorant'];
 
 function cafeArea(cafe: CafeListItem): string {
   return [cafe.addressLine2, cafe.city].filter(Boolean).join(', ');
@@ -88,6 +77,15 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
         .sort((a, b) => Number(startsWords(b.name, value)) - Number(startsWords(a.name, value)))
         .slice(0, MAX_CAFE_SUGGESTIONS)
     : [];
+  // Which cafés list which game: tiny, loaded once, only when someone types.
+  const { data: gameCafes } = useQuery({
+    queryKey: queryKeys.cafes.games,
+    queryFn: listGameCafes,
+    enabled: value.trim().length > 0,
+    staleTime: 300_000,
+    retry: false,
+  });
+  const gameMatches = value.trim() ? matchGames(value, gameCafes ?? []) : [];
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -230,7 +228,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
       {/* Dropdown — only when there's something to suggest. Search itself
           is already live against the café grid below, which owns the result
           count and the empty state. */}
-      {isOpen && (cafeSuggestions.length > 0 || suggestions.length > 0) && (
+      {isOpen && (cafeSuggestions.length > 0 || suggestions.length > 0 || gameMatches.length > 0) && (
         <div className="absolute top-[calc(100%+8px)] left-0 right-0 z-overlay rounded-3xl bg-card border border-border/80 shadow-overlay p-2 flex flex-col gap-0.5 max-h-[22rem] overflow-y-auto animate-in fade-in">
           {suggestions.filter((s) => s.type === 'page').map((s, i, arr) => (
             <div key={s.id}>
@@ -238,6 +236,7 @@ export function SearchBarWithSuggestions({ value, onChange, onSelectCity, onSele
               {renderSuggestion(s)}
             </div>
           ))}
+          {gameMatches.length > 0 && <GameResults matches={gameMatches} showPage={false} onPick={() => setIsOpen(false)} />}
           {cafeSuggestions.length > 0 && <p className="px-2 pb-0.5 pt-1.5 text-[11px] font-bold uppercase tracking-wider text-text-secondary">Cafés</p>}
           {cafeSuggestions.map((cafe) => {
             const photo = cafe.photos?.[0]?.url;

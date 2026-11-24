@@ -3,6 +3,7 @@ import type { CafeListParams, BookingListParams, OwnerBookingParams } from '@/ty
 export const queryKeys = {
   cafes: {
     all: ['cafes'] as const,
+    games: ['cafes', 'games'] as const,
     list: (params: CafeListParams) => ['cafes', 'list', params] as const,
     detail: (id: string) => ['cafes', 'detail', id] as const,
     tiers: (cafeId: string) => ['cafes', 'tiers', cafeId] as const,

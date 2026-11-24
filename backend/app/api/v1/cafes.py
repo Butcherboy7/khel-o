@@ -102,6 +102,12 @@ async def list_activities(
     return {"success": True, "data": await CafeRepository(db).activity_counts(city)}
 
 
+@router.get("/games", status_code=status.HTTP_200_OK)
+async def list_games(db: AsyncSession = Depends(get_db)):
+    """Which cafés list which games (only cafés that list any). Small and cacheable: drives the game search."""
+    return {"success": True, "data": await CafeRepository(db).games_by_cafe()}
+
+
 @router.get("/taxonomy", status_code=status.HTTP_200_OK)
 async def get_taxonomy():
     """Category -> Activity -> Style -> Attributes tree (static, cacheable)."""

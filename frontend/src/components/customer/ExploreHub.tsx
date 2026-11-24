@@ -13,7 +13,9 @@ import { dropDestination } from '@/lib/drops';
 import { getChallenge } from '@/lib/api/challenges';
 import { getThisWeek } from '@/lib/api/community';
 import { listBookings } from '@/lib/api/bookings';
-import { listActivities, cafePath } from '@/lib/api/cafes';
+import { listActivities, listGameCafes, cafePath } from '@/lib/api/cafes';
+import { matchGames } from '@/lib/gameSearch';
+import { GameResults } from '@/components/customer/GameResults';
 import { COMMUNITY_MEMBERS_FLOOR, FEATURED_CHALLENGE_SLUG, challengePoster, isUpcoming, teamPrices } from '@/lib/challenge';
 import { trackAction } from '@/lib/api/analyticsEvents';
 import { useAuthStore } from '@/store/authStore';
@@ -24,8 +26,7 @@ const RECENT_KEY = 'khelo.explore.recent';
 /** What people usually look for. Each chip goes straight there. */
 const POPULAR: { label: string; href: string }[] = [
   { label: 'GTA 6', href: '/gta6' },
-  { label: 'Challenges', href: '/challenge/tekken-01' },
-  { label: 'Tekken', href: '/challenge/tekken-01' },
+  { label: 'Valorant', href: `/challenge/${FEATURED_CHALLENGE_SLUG}` },
   { label: 'PS5', href: '/?activity=console' },
   { label: 'Snooker', href: '/?activity=snooker' },
 ];
@@ -91,11 +92,16 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
     return ids.map((id) => cafes.find((c) => c.id === id)).filter((c): c is CafeListItem => Boolean(c)).slice(0, 6);
   }, [myBookings, cafes]);
 
+  const { data: gameCafes } = useQuery({ queryKey: ['cafes', 'games'], queryFn: listGameCafes, enabled: q.trim().length > 0, staleTime: 300_000, retry: false });
+  const gameMatches = useMemo(() => (q.trim() ? matchGames(q, gameCafes ?? []) : []), [q, gameCafes]);
+
   const shown = useMemo(() => {
     const t = norm(q);
     if (!t) return cafes;
-    return cafes.filter((c) => norm(`${c.name} ${c.addressLine2 ?? ''} ${c.city}`).includes(t));
-  }, [cafes, q]);
+    // A game also brings in the cafés that list it, never a guess from PC / PS5.
+    const withGame = new Set(gameMatches.flatMap((m) => m.cafes.map((c) => c.id)));
+    return cafes.filter((c) => withGame.has(c.id) || norm(`${c.name} ${c.addressLine2 ?? ''} ${c.city}`).includes(t));
+  }, [cafes, q, gameMatches]);
 
   const members = Math.max(week?.members ?? 0, COMMUNITY_MEMBERS_FLOOR);
   const challengeUpcoming = challenge ? isUpcoming(challenge) : false;
@@ -258,6 +264,8 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
         </section>
       )}
 
+      {q.trim() && gameMatches.length > 0 && <GameResults matches={gameMatches} />}
+
       <section className="flex flex-col gap-3" aria-label="Cafés">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="font-heading text-h3 font-bold text-text-primary">{q ? `Cafés for “${q.trim()}”` : 'Cafés'}</h2>
@@ -265,7 +273,7 @@ export function ExploreHub({ cafes, cities }: { cafes: CafeListItem[]; cities: s
             Filters and map view <ArrowRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
         </div>
-        {shown.length === 0 ? (
+        {shown.length === 0 && gameMatches.length > 0 ? null : shown.length === 0 ? (
           <p className="rounded-2xl border border-border bg-card p-4 text-center text-body text-text-secondary">No café by that name yet. Try a city or a game.</p>
         ) : (
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4 xl:grid-cols-5 2xl:grid-cols-6" onClick={() => q && saveRecent(q)}>

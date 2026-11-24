@@ -73,6 +73,8 @@ export default function OwnerDashboardPage() {
   const [cafeSettings, setCafeSettings] = useState<{
     isEmergencyMode: boolean;
     bookingsPaused: boolean;
+    /** True once the café has listed at least one game (drives the "add your games" nudge). */
+    hasGames?: boolean;
   } | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionIsError, setActionIsError] = useState(false);
@@ -156,6 +158,7 @@ export default function OwnerDashboardPage() {
           setCafeSettings({
             isEmergencyMode: settingsRes.cafe.isEmergencyMode,
             bookingsPaused: settingsRes.cafe.bookingsPaused,
+            hasGames: Object.values(settingsRes.cafe.supportedGames ?? {}).some((g) => Array.isArray(g) && g.length > 0),
           });
         }
       }
@@ -508,6 +511,17 @@ export default function OwnerDashboardPage() {
           <Button variant="primary" size="sm" onClick={() => handleUpdateSeatCap(totalSeatsCount)} disabled={isUpdatingCap} className="w-full flex-shrink-0 sm:w-auto">
             Open all {totalSeatsCount} seats
           </Button>
+        </div>
+      )}
+      {/* Gamers can now search a game and see which cafés have it. */}
+      {!isStaff && cafeSettings && cafeSettings.hasGames === false && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-card sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-body text-text-primary">
+            <strong>Add the games you have.</strong> Gamers search for a game, and your café shows up when you list it.
+          </p>
+          <Link href="/owner/settings?edit=games" className="btn-depth inline-flex min-h-[44px] flex-shrink-0 items-center justify-center rounded-xl bg-primary px-4 text-caption font-bold text-white">
+            Add games
+          </Link>
         </div>
       )}
       {!isStaff && isPaused && !cafeSettings?.isEmergencyMode && (

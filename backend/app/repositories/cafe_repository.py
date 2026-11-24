@@ -151,6 +151,40 @@ class CafeRepository(BaseRepository[Cafe]):
             out.append({"key": key, "label": d.label, "group": d.group, "count": counts[key]})
         return out
 
+    async def games_by_cafe(self) -> List[Dict[str, Any]]:
+        """Every visible café that LISTS games, with the titles it lists.
+
+        Only what the owner typed into "supported games" counts: nothing is
+        guessed from PC / PS5, so a game search never names the wrong café.
+        """
+        rows = (await self.db.execute(self._visible_cafes())).scalars().all()
+        out: List[Dict[str, Any]] = []
+        for c in rows:
+            raw = c.supported_games if isinstance(c.supported_games, dict) else {}
+            titles: List[str] = []
+            seen: set[str] = set()
+            for games in raw.values():
+                if not isinstance(games, list):
+                    continue
+                for g in games:
+                    if not isinstance(g, str):
+                        continue
+                    t = g.strip()
+                    if t and t.lower() not in seen:
+                        seen.add(t.lower())
+                        titles.append(t)
+            if titles:
+                out.append({
+                    "id": str(c.id),
+                    "slug": c.slug,
+                    "name": c.name,
+                    "addressLine2": c.address_line2,
+                    "city": c.city,
+                    "isLeadListing": c.is_lead_listing,
+                    "games": titles,
+                })
+        return out
+
     async def flex_search_verified(
         self,
         city: Optional[str] = None,
