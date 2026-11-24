@@ -56,8 +56,10 @@ export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
 
   // One button for every other mode this account holds, labelled with where it goes. (The old single "cycle" button
   // vanished for accounts that hold only gamer + admin while in admin mode, leaving no way out.)
+  // An admin only ever needs Gamer and Admin: Owner/Staff pills are noise for them.
+  const isAdmin = availableRoles.includes('admin');
   const targets = (['gamer', 'cafe_owner', 'staff', 'admin'] as UserActiveRole[]).filter(
-    (r) => availableRoles.includes(r) && r !== activeRole,
+    (r) => availableRoles.includes(r) && r !== activeRole && !(isAdmin && (r === 'cafe_owner' || r === 'staff')),
   );
 
   if (!user || targets.length === 0) {

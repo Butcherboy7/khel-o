@@ -77,6 +77,8 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
   const team = ch?.team;
   const max: number | null = team ? team.maxTeams : 16; // null = no limit
   const joined = team?.teams ?? 0;
+  const solos = team?.solosWaiting ?? 0;
+  const registering = joined + solos; // teams plus solo players waiting for a team
   const left = max === null ? Infinity : team?.spotsLeft ?? max;
   // Before the counts arrive (or if the API is down) the page assumes open: the join page re-checks.
   const open = team ? team.signupsOpen : ch ? ch.status === 'open' : true;
@@ -184,6 +186,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
                 full={full}
                 max={max}
                 joined={joined}
+                solos={solos}
                 closesAt={team?.registrationClosesAt ?? cfg.dates.registrationCloses}
               />
             </div>
@@ -448,7 +451,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               <>
                 <span className="hidden md:inline">{cfg.title} · </span>
                 {rupees(perPlayer)} per player
-                <span className="block text-[#F2C94C] md:ml-2 md:inline">{max === null ? `${joined} teams in` : `${left} of ${max} spots left`}</span>
+                <span className="block text-[#F2C94C] md:ml-2 md:inline">{max === null ? (registering > 0 ? 'People are registering' : 'Sign-ups are open') : `${left} of ${max} spots left`}</span>
               </>
             )}
           </p>
@@ -530,7 +533,7 @@ function Readout({ label, value, sub, href, onClick }: { label: string; value: s
 }
 
 /** Countdown and the 16 slots in one panel: how long, and how many are left. */
-function StatusPanel({ open, full, max, joined, closesAt }: { open: boolean; full: boolean; max: number | null; joined: number; closesAt: string }) {
+function StatusPanel({ open, full, max, joined, solos, closesAt }: { open: boolean; full: boolean; max: number | null; joined: number; solos: number; closesAt: string }) {
   const now = useNow();
   const { d, h, m, s, over, ready } = countdownParts(closesAt, now);
   const filled = max === null ? joined : Math.min(joined, max);
@@ -563,7 +566,7 @@ function StatusPanel({ open, full, max, joined, closesAt }: { open: boolean; ful
         ))}
       </div>}
       <p className="mt-2 flex justify-between text-[14px] font-semibold">
-        <span>{max === null ? `${filled} ${filled === 1 ? 'team is' : 'teams are'} in` : full ? `All ${max} team spots are full` : `${filled} of ${max} teams in`}</span>
+        <span>{max === null ? (filled + solos > 0 ? 'People are registering' : 'Sign-ups are open') : full ? `All ${max} team spots are full` : `${filled} of ${max} teams in`}</span>
         <span className="text-[#F2C94C]">{max === null ? 'Your team can join' : full ? 'Waitlist open' : `${max - filled} spots left`}</span>
       </p>
     </div>
