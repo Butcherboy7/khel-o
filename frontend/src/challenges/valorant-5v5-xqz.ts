@@ -33,7 +33,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     address: 'Third Floor, Sri Thirumala Platinum, Janardana Hills, Lumbini Avenue, Gachibowli, Hyderabad, Telangana 500032',
     logo: '/challenges/valorant-3v3-xqz/xqz-logo.png',
     googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=XQZ+Hyderabad+Sri+Thirumala+Platinum+Gachibowli',
-    instagramHandle: null, // TODO: XQZ's Instagram username
+    instagramHandle: 'xqz.hyderabad',
     bookingSlug: 'xqz-hyderabad-gachibowli',
   },
 
