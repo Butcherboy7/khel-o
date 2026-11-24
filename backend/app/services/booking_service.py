@@ -443,7 +443,7 @@ class BookingService:
 
         prices_by_minutes = {
             m: float(base_price_for_minutes(tier, m, players=players, is_coop=is_coop, seats=seats_requested))
-            for m in allowed if m <= 480
+            for m in allowed
         }
 
         return QuoteResponse(

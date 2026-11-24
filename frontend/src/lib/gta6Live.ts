@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { listDrops, type DropListItem } from '@/lib/api/drops';
-import { PREORDERED_CAFE_IDS } from '@/constants/gta6';
+import { PREORDERED_CAFE_IDS, GTA6_PINNED_ORDER, GTA6_CARD_PHOTOS } from '@/constants/gta6';
 import { cleanName } from '@/lib/venueKind';
 
 /** One café you can play GTA 6 at today, as the GTA 6 block on the home screen shows it. */
@@ -39,7 +39,7 @@ function toCafe(d: DropListItem): Gta6Cafe {
     name: cleanName(d.cafe.name),
     area: areaFrom(d.cafe.address, d.cafe.city),
     city: d.cafe.city,
-    photo: d.cafe.photo ?? d.coverImageUrl ?? null,
+    photo: GTA6_CARD_PHOTOS[d.cafe.id] ?? d.cafe.photo ?? d.coverImageUrl ?? null,
     price: Math.round(d.pricePerHour),
     opens: hhmm(d.cafe.openingTime),
     closes: hhmm(d.cafe.closingTime),
@@ -50,6 +50,11 @@ function toCafe(d: DropListItem): Gta6Cafe {
   };
 }
 
+const pinRank = (id: string) => {
+  const i = GTA6_PINNED_ORDER.indexOf(id);
+  return i < 0 ? GTA6_PINNED_ORDER.length : i;
+};
+
 /** Cafés taking GTA 6 bookings right now, read from the live listings (never typed in by hand). */
 export const getGta6Cafes = cache(async (): Promise<Gta6Cafe[]> => {
   try {
@@ -59,7 +64,7 @@ export const getGta6Cafes = cache(async (): Promise<Gta6Cafe[]> => {
       .filter((d) => /gta\s*6/i.test(d.game) && (d.state === 'open' || d.state === 'early'))
       .map(toCafe)
       .filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)))
-      .sort((a, b) => Number(b.preordered) - Number(a.preordered) || a.price - b.price);
+      .sort((a, b) => pinRank(a.id) - pinRank(b.id) || Number(b.preordered) - Number(a.preordered) || a.price - b.price);
   } catch {
     return [];
   }

@@ -102,7 +102,7 @@ export function Gta6Block({ cafes, heading, headingAs = 'h2', line, place = null
                       )}
                       {c.preordered && (
                         <span className="absolute bottom-1 left-1 hidden rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-white md:inline-block">
-                          Pre-ordered
+                          Has GTA 6
                         </span>
                       )}
                     </span>

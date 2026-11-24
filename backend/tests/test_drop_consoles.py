@@ -294,3 +294,29 @@ async def test_one_console_per_booking_everywhere():
         ok = await _pick(c, d, blk, "14:00", 2, "9876543202", [f"{ps5.id}:1"])
         assert ok.status_code == 201
         assert ok.json()["data"]["reservation"]["blockPrice"] == d["pricePerHour"] * 2
+
+
+@pytest.mark.asyncio
+async def test_a_setup_with_its_own_price_also_sells_its_full_day_pass():
+    """XQZ: bean bags 200 an hour, or 999 for the 11-hour day (the setup's own length price)."""
+    from datetime import time
+    from uuid import UUID
+    from sqlalchemy import update
+    from app.models.hardware_tier import HardwareTier
+    async with _client() as c:
+        _owner, ps5, xbox, pub = await _sofa_and_beanbags(c)
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(HardwareTier).where(HardwareTier.id == xbox.id).values(
+                length_prices={"660": 999}, max_booking_minutes=660))
+            await db.commit()
+            from app.models.drop import Drop
+            drop = await db.get(Drop, UUID(pub["id"]))
+            bean = await db.get(HardwareTier, xbox.id)
+            sofa = await db.get(HardwareTier, ps5.id)
+            packs = svc.setup_packs(drop, bean)
+            assert packs and svc.seat_price(drop, 11 * 60, 660, DAY, str(xbox.id), packs) == 999
+            assert svc.seat_price(drop, 11 * 60, 120, DAY, str(xbox.id), packs) == 400  # hourly as before
+            assert svc.setup_packs(drop, sofa) == {}
+        pub = (await c.get(f"/api/v1/drops/{pub['slug']}")).json()["data"]
+        by = {x["label"]: x["packs"] for x in pub["consoles"]}
+        assert by["Xbox Series X (Bean bags)"] == [{"hours": 11, "price": 999}] and by["PS5 (Sofa 1)"] == []

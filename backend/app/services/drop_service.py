@@ -89,6 +89,28 @@ def setup_price(drop: Drop, tier) -> Optional[Decimal]:
     return Decimal(str(opt["price"]))
 
 
+def setup_packs(drop: Drop, tier_row) -> dict[int, Decimal]:
+    """{minutes: price} the setup sells as set lengths (XQZ: 11 hr full-day pass = 999), only for a setup with its own
+    price on the drop. Same prices the café page charges (hardware tier length_prices)."""
+    if tier_row is None or setup_price(drop, tier_row.id) is None:
+        return {}
+    from app.services.pricing_service import length_prices_of
+    return length_prices_of(tier_row)
+
+
+def own_length_price(own: Decimal, length: int, packs: Optional[dict]) -> Decimal:
+    """Same rule as a normal booking (pricing_service): the package for that length, else the nearest shorter
+    package plus the hourly price for the rest, else hourly x hours."""
+    packs = packs or {}
+    if length in packs:
+        return money(packs[length])
+    shorter = [m for m in packs if m < length]
+    if shorter:
+        b = max(shorter)
+        return money(packs[b] + own * Decimal(length - b) / Decimal(60))
+    return money(max(own * Decimal(length) / Decimal(60), Decimal("0")))
+
+
 def block_price_per_seat(drop: Drop, block: DropBlock, tier=None) -> Decimal:
     own = setup_price(drop, tier)
     return money((own if own is not None else Decimal(str(drop.price_per_hour))) * block_hours(block))
@@ -660,7 +682,9 @@ async def console_list(db: AsyncSession, drop: Drop) -> list[dict]:
             label, setup = f"{name} {num}", name
         out.append({"key": k, "label": label, "tierId": key_tier(k), "setup": setup,
                     "platform": t.platform.value if t is not None and t.platform else None,
-                    "price": float(price) if price is not None else None})
+                    "price": float(price) if price is not None else None,
+                    # Set lengths this setup sells (XQZ full-day pass: 11 hr), for the drop page.
+                    "packs": [{"hours": m / 60, "price": float(v)} for m, v in sorted(setup_packs(drop, t).items())]})
     return out
 
 
@@ -876,14 +900,15 @@ def min_minutes(drop: Drop, day: Optional[date], begin: int) -> int:
     return 60
 
 
-def seat_price(drop: Drop, begin: int, length: int, day: Optional[date] = None, tier=None) -> Decimal:
+def seat_price(drop: Drop, begin: int, length: int, day: Optional[date] = None, tier=None,
+               packs: Optional[dict] = None) -> Decimal:
     """Price of one seat for `length` minutes from minute `begin` of the session day.
     Package price (or hourly price x hours), then each half hour inside a time band moves
     by the difference between that band's hourly price and the normal one.
     A setup with its own price on the drop (setup_options) is simply that price x hours."""
     own = setup_price(drop, tier)
     if own is not None:
-        return money(max(own * Decimal(length) / Decimal(60), Decimal("0")))
+        return own_length_price(own, length, packs)
     base = Decimal(str(drop.price_per_hour))
     packs = {int(x["hours"]): Decimal(str(x["price"])) for x in drop.length_prices or []}
     total = packs[length // 60] if length % 60 == 0 and length // 60 in packs else base * Decimal(length) / Decimal(60)
@@ -902,7 +927,9 @@ async def gta6_price_for(db: AsyncSession, cafe_id: UUID, tier_id: UUID, session
     for d in await _cafe_drops(db, cafe_id, session_date, session_date):
         if (d.game or "").strip().lower() == "gta6" or (d.game or "").replace(" ", "").lower() == "gta6":
             if tier_seats(d, tier_id) > 0 and casual(d):
-                return money(seat_price(d, _mins(start), round(hours * 60), session_date, tier_id) * seats)
+                from app.models.hardware_tier import HardwareTier
+                packs = setup_packs(d, await db.get(HardwareTier, tier_id))
+                return money(seat_price(d, _mins(start), round(hours * 60), session_date, tier_id, packs) * seats)
     return None
 
 
@@ -914,12 +941,15 @@ async def gta6_packages(db: AsyncSession, cafe_id: UUID, tier_id: UUID, session_
     for d in await _cafe_drops(db, cafe_id, session_date, session_date):
         if (d.game or "").replace(" ", "").lower() == "gta6" and tier_seats(d, tier_id) > 0 and casual(d):
             begin = _mins(start)
-            one = seat_price(d, begin, 60, session_date, tier_id)
+            from app.models.hardware_tier import HardwareTier
+            packs = setup_packs(d, await db.get(HardwareTier, tier_id))
+            one = seat_price(d, begin, 60, session_date, tier_id, packs)
             out = []
-            for h in lengths(d):
+            # The setup's own set lengths (a full-day pass) are offered too, when the window is that long.
+            for h in sorted(set(lengths(d)) | {m // 60 for m in packs if m % 60 == 0}):
                 if h > max_hours + 0.01:
                     continue
-                price = seat_price(d, begin, h * 60, session_date, tier_id)
+                price = seat_price(d, begin, h * 60, session_date, tier_id, packs)
                 save = (one * h - price).quantize(Decimal("1"))
                 out.append({"hours": h, "price": float(money(price * seats)), "save": float(save * seats) if save > 0 else 0.0})
             return out
@@ -1194,7 +1224,9 @@ async def reserve(
 
     tier_of = key_tier(units[0]) if units else None
     if r_start is not None:
-        per_seat = seat_price(drop, begin, length, block.session_date, tier_of)
+        from app.models.hardware_tier import HardwareTier
+        packs = setup_packs(drop, await db.get(HardwareTier, UUID(tier_of))) if tier_of and tier_of != "_" else {}
+        per_seat = seat_price(drop, begin, length, block.session_date, tier_of, packs)
         base_fee = money(fee_per_seat(drop, hours) * seats)
     else:
         per_seat = block_price_per_seat(drop, block, tier_of)

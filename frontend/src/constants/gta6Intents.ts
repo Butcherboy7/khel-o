@@ -253,7 +253,7 @@ export const GTA6_INTENTS: Gta6Intent[] = [
     h1: 'Gaming cafés with GTA 6',
     line: 'PS5 cafés with GTA 6 ready to play. Photos, hours and price on every card.',
     body: [
-      'These gaming cafés have GTA 6 on PS5 and take bookings on KHEL-O. Cafés marked "Pre-ordered" had the game on launch day.',
+      'These gaming cafés have GTA 6 on PS5 and take bookings on KHEL-O. Cafés marked "Has GTA 6" are confirmed to have the game installed.',
       'Don\'t see a café near you? Tap "Your city not listed?" and we\'ll bring one on.',
     ],
     faq: [

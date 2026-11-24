@@ -16,7 +16,7 @@ import type { CafeListItem } from '@/types';
 import { customerPrice } from '@/lib/format';
 import { firstBookingOfferLive } from '@/lib/pricing';
 import { Gta6Scene } from './Gta6Scene';
-import { PREORDERED_CAFE_IDS } from '@/constants/gta6';
+import { PREORDERED_CAFE_IDS, GTA6_PINNED_ORDER, GTA6_CARD_PHOTOS } from '@/constants/gta6';
 
 const LAUNCH_KEY = 'gta6';
 // 19 Nov 2026, midnight in Hyderabad.
@@ -68,6 +68,11 @@ interface PlayCafe {
   preordered: boolean;
 }
 
+const pinRank = (id: string) => {
+  const i = GTA6_PINNED_ORDER.indexOf(id);
+  return i < 0 ? GTA6_PINNED_ORDER.length : i;
+};
+
 function toPlayCafe(c: CafeListItem): PlayCafe {
   const ps5 = c.tierNames.find((t) => /ps ?5|playstation ?5/i.test(t));
   return {
@@ -77,8 +82,8 @@ function toPlayCafe(c: CafeListItem): PlayCafe {
     area: c.addressLine2 || c.city,
     console: ps5 && /pro/i.test(ps5) ? 'PS5 Pro' : 'PS5',
     price: (() => { const p = c.bestOffer?.fromPrice ?? c.startingPrice; return p == null ? null : customerPrice(p); })(),
-    photo: c.photos[0]?.url ?? null,
-    photoColor: c.photos[0]?.color,
+    photo: GTA6_CARD_PHOTOS[c.id] ?? c.photos[0]?.url ?? null,
+    photoColor: GTA6_CARD_PHOTOS[c.id] ? undefined : c.photos[0]?.color,
     rating: c.totalReviews > 0 ? c.averageRating : null,
     preordered: PREORDERED_CAFE_IDS.has(c.id),
   };
@@ -94,7 +99,7 @@ function usePs5Cafes(): PlayCafe[] | null {
           res.items
             .filter((c) => !c.isLeadListing && c.platforms?.includes('playstation'))
             .map(toPlayCafe)
-            .sort((a, b) => Number(b.preordered) - Number(a.preordered))
+            .sort((a, b) => pinRank(a.id) - pinRank(b.id) || Number(b.preordered) - Number(a.preordered))
             .slice(0, 6),
         ),
       )
@@ -345,7 +350,7 @@ export function Gta6Client() {
             </p>
           </section>
 
-          {/* The pre-ordered cafés, folded into one row so they cost a line until
+          {/* The cafés with GTA 6, folded into one row so they cost a line until
               someone asks. The arrow nudges a few times to say "open me", then
               rests. With none confirmed yet it lists bookable PS5 cafés instead. */}
           {(cafes === null || cafes.length > 0) && (
@@ -359,7 +364,7 @@ export function Gta6Client() {
                   const n = shown.length;
                   const title =
                     preordered.length > 0
-                      ? `${n} ${n === 1 ? 'café has' : 'cafés have'} pre-ordered GTA 6`
+                      ? `${n} ${n === 1 ? 'café has' : 'cafés have'} GTA 6 now`
                       : `${n} PS5 ${n === 1 ? 'café' : 'cafés'} you can book`;
                   return (
                     <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">

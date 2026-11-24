@@ -228,14 +228,27 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   // A console whose setup has its own price on the drop (sofa vs bean bags) costs that price an hour, with no
   // packages or time bands; the server prices it the same way.
   // No exact console picked: the server places it on the chosen setup, else the drop's main setup, so price it the same.
-  const ownPrice =
-    (picked.length
-      ? allConsoles.find((c) => c.key === picked[0])?.price
-      : allConsoles.find((c) => c.tierId === (setup ?? raw?.tierId))?.price) ?? null;
+  const ownConsole = picked.length
+    ? allConsoles.find((c) => c.key === picked[0])
+    : allConsoles.find((c) => c.tierId === (setup ?? raw?.tierId));
+  const ownPrice = ownConsole?.price ?? null;
+  // That setup's set lengths (XQZ: an 11 hr full-day pass), on top of the drop's hourly lengths.
+  const packs = ownPrice != null ? ownConsole?.packs ?? [] : [];
+  const allLengths = Array.from(new Set([...lengths, ...packs.map((p) => p.hours)])).sort((a, b) => a - b);
+  // Full day: the longest set length of 9 hours or more, ending when the session ends (XQZ 11 AM - 10 PM).
+  const fullDay = (() => {
+    const p = [...packs].filter((x) => x.hours >= 9).sort((a, b) => b.hours - a.hours)[0];
+    if (!p || !block) return null;
+    const end = timeToMinutes(block.endTime) <= timeToMinutes(block.startTime) ? timeToMinutes(block.endTime) + 1440 : timeToMinutes(block.endTime);
+    const start = end - p.hours * 60;
+    if (start < timeToMinutes(block.startTime)) return null;
+    return { ...p, start: hhmm(start), end: hhmm(end % 1440) };
+  })();
+  const fullDayOn = !!fullDay && startTime === fullDay.start && hours === fullDay.hours;
   const bands = ownPrice != null ? [] : block?.timePrices ?? drop?.timePrices ?? [];
   const priced = drop
     ? ownPrice != null
-      ? { ...drop, pricePerHour: ownPrice, lengthPrices: [], timePrices: [] }
+      ? { ...drop, pricePerHour: ownPrice, lengthPrices: packs, timePrices: [] }
       : { ...drop, timePrices: bands }
     : null;
   const minH = block && startTime ? minHoursAt(bands, inBlock(startTime, block)) : 1;
@@ -845,6 +858,33 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           </div>
         )}
 
+        {canReserve && block && flex && fullDay && (
+          <button
+            type="button"
+            aria-pressed={fullDayOn}
+            onClick={() => {
+              pickedByHand.current = true;
+              setStartTime(fullDay.start);
+              setHours(fullDay.hours);
+              setError(null);
+              track('drop_full_day_pass', { hours: fullDay.hours });
+            }}
+            className={`flex min-h-[52px] w-full items-center justify-between gap-3 rounded-2xl border px-4 py-2 text-left transition-colors ${
+              fullDayOn ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'
+            }`}
+          >
+            <span className="min-w-0">
+              <span className="block font-heading text-body font-bold text-text-primary">Day pass</span>
+              <span className="block text-caption text-text-secondary">
+                {clock(fullDay.start)} – {clock(fullDay.end)} · {fullDay.hours} hr
+              </span>
+            </span>
+            <span className={`flex-shrink-0 font-heading text-body font-bold tabular-nums ${fullDayOn ? 'text-primary' : 'text-text-primary'}`}>
+              {fullDayOn ? 'Picked · ' : ''}{rupees(fullDay.price)}
+            </span>
+          </button>
+        )}
+
         {/* Time and length: the same slider as a normal booking */}
         {canReserve && block && flex && startTime && (
           <TimelineRangePicker
@@ -865,8 +905,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             unitName={exact ? 'console' : 'seat'}
             skipCoachmark={false}
             minDurationMinutes={minH * 60}
-            maxDurationMinutes={(lengths[lengths.length - 1] ?? drop.maxHours ?? 5) * 60}
-            onlyDurationsMinutes={lengths.map((h) => h * 60)}
+            maxDurationMinutes={(allLengths[allLengths.length - 1] ?? drop.maxHours ?? 5) * 60}
+            onlyDurationsMinutes={allLengths.map((h) => h * 60)}
             stepMinutes={30}
             priceBands={bands}
             bookableUntilMin={limitMin(block)}
