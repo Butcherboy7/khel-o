@@ -23,10 +23,11 @@ from app.services import community_mailer as cm
 
 logger = structlog.get_logger()
 
-SUBJECT = "Valorant on 5 Dec?"
+SUBJECT = "Can I ask you a small favour?"
 LINK = "https://khel-o.com/challenge/valorant-5v5-xqz?utm_source=email&utm_medium=announce&utm_campaign=valorant-email"
-BELL_TITLE = "Are you playing Valorant on 5 Dec?"
-BELL_TEXT = "We would love to have you at our 5v5 at XQZ, Hyderabad. Bring your team, or come solo and we will find you one. Please take a look."
+BELL_TITLE = "A small favour?"
+BELL_TEXT = ("We are hosting a Valorant 5v5 on 5 Dec at XQZ. If you play, join us. "
+             "If you don't, could you send it to a friend who does? It would mean a lot.")
 _GAP = 0.08
 
 
@@ -34,11 +35,14 @@ def _lines(first_name: str | None) -> list[str]:
     name = first_name or "there"
     return [
         f"Hi {name},",
-        "Abdullah here from KHEL-O. We are putting together a Valorant 5v5 at XQZ in Gachibowli, Hyderabad, "
-        "on Saturday 5 December. Teams of five.",
-        "I thought of you. Are you in? If you don't play, do you know a team that would be?",
-        f"Details are here: {LINK}",
-        "Any questions, message me on WhatsApp at +91 81421 28389 or just reply to this email.",
+        "Abdullah from KHEL-O. I'll keep this short, because I'm asking for a favour.",
+        "On Saturday 5 December we are hosting a Valorant 5v5 at XQZ in Gachibowli, Hyderabad. Teams of five, ten gaming PCs, "
+        "a real match day. It is one of the first events we have run, and I would love it to be full of people who show up "
+        "and have a great day.",
+        "You may not play Valorant, and that is completely fine. But you probably know someone who does. If you could forward "
+        "this to that one friend, or drop it in a group where people game, it would honestly mean a lot.",
+        f"Everything they need is here: {LINK} (the page has a share button too).",
+        "Thank you for reading this far.",
         "Abdullah",
         "P.S. If you'd rather not get mail like this, reply with the word stop and I won't send another.",
     ]
