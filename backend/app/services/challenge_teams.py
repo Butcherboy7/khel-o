@@ -1146,6 +1146,8 @@ async def send_confirmation(db: AsyncSession, p: ChallengePayment) -> bool:
         f"<p><img src='{qr}' width='200' height='200' alt='Your check-in QR code'></p>"
         f"<p style='font-size:15px;'><a href='{page}'>Open My entry</a> to see your team, your QR and your match time.</p>"
         f"<p style='font-size:13px;color:#6A6F7C;'>Amount paid: Rs {int(Decimal(str(p.amount)))}. Payment ID {e(p.razorpay_payment_id or '')}.</p>"
+        "<p style='font-size:14px;'><b>Need help?</b> WhatsApp or call <a href='https://wa.me/918142128389'>+91 81421 28389</a>"
+        " or email <a href='mailto:founder@khel-o.com'>founder@khel-o.com</a>.</p>"
         f"<p style='font-size:12px;color:#8A8F9C;'>This challenge is not made, run or supported by Riot Games.</p>"
     )
     body = "<div style='font-family:Arial,sans-serif;max-width:520px;'>" + "".join(lines) + "</div>"

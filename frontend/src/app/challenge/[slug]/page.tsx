@@ -28,9 +28,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const ch = await load(slug);
   const team = teamChallengeConfig(slug);
   if (team) {
-    const description = `${team.subtitle} ${team.mode} at ${team.venue.name}, ${team.venue.city}. Sat 5 Dec.`;
+    // Search words people use: Valorant 5v5, Hyderabad, Gachibowli, team of 5, gaming cafe. Never "tournament".
+    const description = `Valorant 5v5 in Hyderabad: bring your team of 5 to ${team.venue.name}, Gachibowli on Sat 5 Dec. ${team.mode}, knockout bracket, exciting rewards worth ₹5,000. Solo players welcome, we find you a team.`;
     return {
-      title: team.title,
+      title: `Valorant 5v5 Challenge in Hyderabad · ${team.venue.shortName} Gachibowli, Sat 5 Dec`,
+      keywords: ['Valorant 5v5 Hyderabad', 'Valorant Hyderabad', 'Valorant Gachibowli', 'gaming cafe Hyderabad', 'Valorant team challenge', 'XQZ Hyderabad'],
       description,
       alternates: { canonical: `/challenge/${slug}` },
       openGraph: { title: team.title, description, url: `/challenge/${slug}`, type: 'website', images: [team.media.photos[0].src] },
@@ -52,7 +54,38 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ChallengePage({ params, searchParams }: PageProps) {
   const { slug } = await params;
   const team = teamChallengeConfig(slug);
-  if (team) return <TeamLanding cfg={team} initial={await load(slug)} />;
+  if (team) {
+    const initial = await load(slug);
+    const t = (initial as { team?: { priceTeam?: number } } | null)?.team;
+    // Event details for search results (date, place, price). Plain words: a challenge, never a tournament.
+    const event = {
+      '@context': 'https://schema.org',
+      '@type': 'Event',
+      name: team.title,
+      description: team.subtitle,
+      startDate: initial?.startsAt ?? team.dates.firstMatch,
+      endDate: initial?.endsAt ?? undefined,
+      eventStatus: 'https://schema.org/EventScheduled',
+      eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+      image: [`https://khel-o.com/challenges/valorant-3v3-xqz/poster-og.jpg`],
+      location: {
+        '@type': 'Place',
+        name: team.venue.name,
+        address: { '@type': 'PostalAddress', streetAddress: team.venue.address, addressLocality: team.venue.city, addressRegion: 'Telangana', postalCode: '500032', addressCountry: 'IN' },
+      },
+      organizer: { '@type': 'Organization', name: 'KHEL-O', url: 'https://khel-o.com' },
+      offers: t?.priceTeam ? {
+        '@type': 'Offer', price: t.priceTeam, priceCurrency: 'INR', availability: 'https://schema.org/InStock',
+        url: `https://khel-o.com/challenge/${slug}`, validThrough: team.dates.registrationCloses,
+      } : undefined,
+    };
+    return (
+      <>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(event).replace(/</g, '\\u003c') }} />
+        <TeamLanding cfg={team} initial={initial} />
+      </>
+    );
+  }
   const query = await searchParams;
   // The short intro is for people arriving from an ad, reel or shared link,
   // once per device. Decided here so it is in the first paint.

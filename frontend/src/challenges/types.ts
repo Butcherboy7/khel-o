@@ -29,6 +29,9 @@ export interface TeamChallengeConfig {
     communityInvite: string;
     /** Digits with country code, e.g. 919876543210. */
     supportWhatsApp: string | null;
+    /** Shown with WhatsApp: a number to call and an email for any problem. */
+    supportPhone?: string | null;
+    supportEmail?: string | null;
   };
   sponsors: { name: string; logo: string; url: string | null }[];
   dates: {

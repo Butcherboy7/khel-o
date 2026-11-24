@@ -165,8 +165,17 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
             {/* The facts as a readout, not a row of pills. */}
             <dl className="vx-rise mt-5 grid grid-cols-3 border-y border-white/15 [animation-delay:.55s]">
               <Readout label="When" value={istDay(cfg.dates.firstMatch).replace(',', '')} sub={`from ${istTime(cfg.dates.firstMatch)}`} />
-              <Readout label="Where" value={cfg.venue.shortName} sub="Gachibowli" />
-              <Readout label="Format" value="5v5" sub={cfg.mode.replace(' 5v5', '')} />
+              <Readout label="Where" value={cfg.venue.shortName} sub="See the café" href={`/cafe/${cfg.venue.bookingSlug}`} />
+              <Readout
+                label="Format"
+                value="5v5"
+                sub="See the rules"
+                onClick={() => {
+                  setTab('rules');
+                  trackAction('challenge_tab', { challenge: cfg.slug, tab: 'rules', from: 'format' });
+                  setTimeout(() => tabsRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
+                }}
+              />
             </dl>
 
             <div className="vx-rise mt-4 [animation-delay:.65s]">
@@ -485,12 +494,37 @@ function PanelTitle({ children, className = '' }: { children: ReactNode; classNa
   );
 }
 
-function Readout({ label, value, sub }: { label: string; value: string; sub: string }) {
+function Readout({ label, value, sub, href, onClick }: { label: string; value: string; sub: string; href?: string; onClick?: () => void }) {
+  const tappable = Boolean(href || onClick);
+  const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.16em] text-white/60';
+  const valueCls = `${fightFont.className} mt-0.5 block text-[28px] font-semibold uppercase leading-none ${tappable ? 'underline decoration-white/40 decoration-2 underline-offset-4' : ''}`;
+  const subCls = `mt-0.5 block truncate text-[13px] ${tappable ? 'font-semibold text-[#F2C94C]' : 'text-white/70'}`;
+  const box = 'border-l border-white/15 first:border-l-0';
+  const hit = 'block min-h-[44px] w-full py-2.5 pl-3 text-left transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70';
+  if (!tappable) {
+    return (
+      <div className={`${box} py-2.5 pl-3 first:pl-0`}>
+        <dt className={labelCls}>{label}</dt>
+        <dd className={valueCls}>{value}</dd>
+        <dd className={subCls}>{sub}</dd>
+      </div>
+    );
+  }
+  // Tappable tile: a real link or button. The label is read out as part of it.
+  const body = (
+    <>
+      <span className={labelCls}>{label}</span>
+      <span className={valueCls}>{value}</span>
+      <span className={subCls}>{sub} ›</span>
+    </>
+  );
   return (
-    <div className="border-l border-white/15 py-2.5 pl-3 first:border-l-0 first:pl-0">
-      <dt className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/60">{label}</dt>
-      <dd className={`${fightFont.className} mt-0.5 text-[28px] font-semibold uppercase leading-none`}>{value}</dd>
-      <dd className="mt-0.5 truncate text-[13px] text-white/70">{sub}</dd>
+    <div className={box}>
+      {href ? (
+        <a href={href} className={hit}>{body}</a>
+      ) : (
+        <button type="button" onClick={onClick} className={hit}>{body}</button>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, CreditCard, Crosshair, Instagram, LifeBuoy, MapPin, Timer, Trophy, Users, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Check, CreditCard, Crosshair, Instagram, LifeBuoy, MapPin, Timer, Trophy, Users, Volume2, VolumeX, Phone, Mail } from 'lucide-react';
 import { onSoundChange, setSound, sfx, soundOn } from '@/lib/vxSound';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import type { TeamChallengeConfig, TeamIcon } from '@/challenges/types';
@@ -176,14 +176,6 @@ export function TeamFooter({ cfg, wide = false }: { cfg: TeamChallengeConfig; wi
           <FooterLink href={cfg.links.communityInvite} icon={<WhatsAppIcon className="h-4 w-4 text-[#25D366]" aria-hidden />}>
             Join the Khelo community
           </FooterLink>
-          {cfg.links.supportWhatsApp && (
-            <FooterLink
-              href={`https://wa.me/${cfg.links.supportWhatsApp}?text=${encodeURIComponent(`Hi Khelo, I have a question about the ${cfg.title}.`)}`}
-              icon={<WhatsAppIcon className="h-4 w-4 text-[#25D366]" aria-hidden />}
-            >
-              Ask us on WhatsApp
-            </FooterLink>
-          )}
           {/* No help number yet: payments and refunds still need somewhere to ask. */}
           {!cfg.links.supportWhatsApp && (
             <FooterLink href="/support" icon={<LifeBuoy className="h-4 w-4" aria-hidden />}>
@@ -191,6 +183,33 @@ export function TeamFooter({ cfg, wide = false }: { cfg: TeamChallengeConfig; wi
             </FooterLink>
           )}
         </div>
+        {(cfg.links.supportWhatsApp || cfg.links.supportPhone || cfg.links.supportEmail) && (
+          <section aria-label="Need help?" className="rounded-2xl border border-[#2C2530] bg-[#141017] p-4">
+            <p className="text-[16px] font-bold text-white">Need help? Talk to us.</p>
+            <p className="mt-0.5 text-[14px] text-[#B4B0B8]">Payment, team or match problems. We reply fast.</p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {cfg.links.supportWhatsApp && (
+                <a href={`https://wa.me/${cfg.links.supportWhatsApp}?text=${encodeURIComponent(`Hi Khelo, I need help with the ${cfg.title}.`)}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="flex min-h-[48px] items-center gap-2 rounded-xl bg-[#25D366] px-4 text-[15px] font-bold text-[#08140C]">
+                  <WhatsAppIcon className="h-5 w-5" aria-hidden /> WhatsApp us
+                </a>
+              )}
+              {cfg.links.supportPhone && (
+                <a href={`tel:${cfg.links.supportPhone}`}
+                  className="flex min-h-[48px] items-center gap-2 rounded-xl border border-[#3A3340] px-4 text-[15px] font-bold text-white">
+                  <Phone className="h-5 w-5" aria-hidden /> Call {cfg.links.supportPhone.replace(/^\+91/, '+91 ').replace(/(\d{5})(\d{5})$/, '$1 $2')}
+                </a>
+              )}
+              {cfg.links.supportEmail && (
+                <a href={`mailto:${cfg.links.supportEmail}?subject=${encodeURIComponent(cfg.title)}`}
+                  className="flex min-h-[48px] items-center gap-2 rounded-xl border border-[#3A3340] px-4 text-[15px] font-bold text-white">
+                  <Mail className="h-5 w-5" aria-hidden /> {cfg.links.supportEmail}
+                </a>
+              )}
+            </div>
+          </section>
+        )}
         <p className="text-sm text-[#9A94A0]">{cfg.disclaimer}</p>
       </div>
     </footer>

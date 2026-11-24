@@ -44,6 +44,18 @@ def _can_email(email: Optional[str]) -> bool:
     return not any(domain == d or domain.endswith("." + d) for d in _NO_EMAIL)
 
 
+HELP_HTML = ("<p style='font-size:14px;margin-top:16px;'><b>Need help?</b> WhatsApp or call "
+             "<a href='https://wa.me/918142128389'>+91 81421 28389</a> or email "
+             "<a href='mailto:founder@khel-o.com'>founder@khel-o.com</a>.</p>")
+
+
+def _qr(ch: Challenge, p: ChallengePlayer) -> str:
+    """This player's own check-in QR. Staff scan it at the desk on match day."""
+    src = f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/challenges/{ch.slug}/players/{teams.player_token(p.id)}/qr.png"
+    return ("<p style='font-size:15px;'><b>Your check-in QR.</b> Show it at the desk on match day. Every player has their own.</p>"
+            f"<p><img src='{html.escape(src)}' width='200' height='200' alt='Your check-in QR code'></p>")
+
+
 def _page(ch: Challenge, tail: str = "me") -> str:
     return f"{settings.FRONTEND_URL.rstrip('/')}/challenge/{ch.slug}/{tail}".rstrip("/")
 
@@ -53,6 +65,7 @@ def _frame(title: str, lines: list[str]) -> str:
         "<div style='font-family:Arial,sans-serif;max-width:520px;'>"
         f"<h1 style='margin:0 0 10px;font-size:22px;'>{html.escape(title)}</h1>"
         + "".join(lines)
+        + HELP_HTML
         + f"<p style='font-size:12px;color:#8A8F9C;margin-top:18px;'>{DISCLAIMER}</p></div>"
     )
 
@@ -142,7 +155,7 @@ async def notify_teammate_joined(db: AsyncSession, ch: Challenge, new_player: Ch
     first = new_player.full_name.split()[0]
     await _deliver(db, ch, new_player, "welcome", f"You are in team {entry.name}", _frame("You are in the team!", [
         f"<p style='font-size:15px;'>Hi {e(first)}, you joined <b>{e(entry.name)}</b> for {e(ch.title)}. You did not need to pay.</p>",
-        "<p style='font-size:15px;'>Open My entry to see your team and your check-in QR for match day.</p>",
+        _qr(ch, new_player),
         _button(_page(ch), "Open My entry"),
     ]))
     if captain is None or captain.id == new_player.id:
@@ -244,7 +257,7 @@ async def run_day_mail(db: AsyncSession, ch: Challenge, *, at: Optional[datetime
             lines = [f"<p style='font-size:15px;'>Be at {html.escape(cafe_name)} by <b>{report:%I:%M %p}</b>. "
                      "Late teams lose their match, so come early.</p>",
                      "<p style='font-size:15px;'>Open My entry for your QR and your match time.</p>"]
-        if await _deliver(db, ch, p, kind, subject, _frame(title, lines + [_button(_page(ch), "Open My entry")]), dry_run=dry_run):
+        if await _deliver(db, ch, p, kind, subject, _frame(title, lines + [_qr(ch, p), _button(_page(ch), "Open My entry")]), dry_run=dry_run):
             n += 1
     return n
 
@@ -315,7 +328,8 @@ async def notify_placed(db: AsyncSession, ch: Challenge, player_ids: list) -> No
         who = f" with {html.escape(', '.join(mates))}" if mates else ""
         await _deliver(db, ch, p, "placed", f"You have a team: {entry.name}", _frame("We found your team!", [
             f"<p style='font-size:15px;'>You are in <b>{html.escape(entry.name)}</b>{who} for {html.escape(ch.title)}.</p>",
-            "<p style='font-size:15px;'>Open My entry to see your team, your check-in QR and your match time. Say hi to your teammates before match day.</p>",
+            "<p style='font-size:15px;'>Open My entry to see your team and your match time. Say hi to your teammates before match day.</p>",
+            _qr(ch, p),
             _button(_page(ch), "Open My entry"),
         ]))
 

@@ -9,10 +9,16 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const cfg = teamChallengeConfig((await params).slug);
+  const title = cfg ? `Join my team · ${cfg.title.replace(/^Khelo\s+/i, '')}` : 'Join your team';
+  const description = cfg
+    ? `Your captain already paid for the team. Tap to join free: add your name and Riot ID. ${cfg.venue.name}, Sat 5 Dec.`
+    : undefined;
   return {
-    title: cfg ? `Join your team · ${cfg.title}` : 'Join your team',
-    description: cfg ? `Your captain signed your team up. Free for you. ${cfg.venue.name}, Sat 5 Dec.` : undefined,
+    title,
+    description,
     robots: { index: false, follow: false },
+    openGraph: { title, description, type: 'website', siteName: 'KHEL-O' },
+    twitter: { card: 'summary_large_image', title, description },
   };
 }
 

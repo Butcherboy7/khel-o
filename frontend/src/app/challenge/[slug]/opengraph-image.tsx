@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ImageResponse } from 'next/og';
 import { getChallenge } from '@/lib/api/challenges';
-import { challengeDay, challengeTimeRange } from '@/lib/challenge';
+import { challengeDay, challengeTimeRange, challengePoster } from '@/lib/challenge';
 
 // The link preview on WhatsApp / Instagram: built from the challenge's own
 // fields, so the next challenge gets its own card without new code. Same
@@ -24,6 +24,22 @@ async function logo(): Promise<string | null> {
 // Next 14 passes params as an object, Next 15 as a promise: awaiting works for both.
 export default async function Image({ params }: { params: { slug: string } | Promise<{ slug: string }> }) {
   const { slug } = await params;
+  // A team challenge with its own poster: the share card IS the poster (dark, the same art as Home).
+  const poster = challengePoster({ slug });
+  if (poster.startsWith('/challenges/')) {
+    try {
+      const buf = await readFile(join(process.cwd(), 'public', poster.replace(/poster\.webp$/, 'poster-og.jpg')));
+      return new ImageResponse(
+        (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`data:image/jpeg;base64,${buf.toString('base64')}`} width={1200} height={630} alt="" />
+        ),
+        { ...size },
+      );
+    } catch {
+      /* no share image on disk: fall through to the plain card */
+    }
+  }
   let title = 'KHEL-O Challenge';
   let kicker = 'Free challenge';
   let when = '';

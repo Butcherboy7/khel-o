@@ -24,6 +24,8 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/gta6/cities`, changeFrequency: 'daily', priority: 0.8 },
   { url: `${SITE_URL}/gta6/india`, changeFrequency: 'daily', priority: 0.9 },
   { url: `${SITE_URL}/community`, changeFrequency: 'weekly', priority: 0.5 },
+  { url: `${SITE_URL}/challenge/valorant-5v5-xqz`, changeFrequency: 'daily', priority: 0.8 },
+  { url: `${SITE_URL}/challenge/valorant-5v5-xqz/rules`, changeFrequency: 'weekly', priority: 0.4 },
   { url: `${SITE_URL}/contact`, changeFrequency: 'yearly', priority: 0.3 },
   { url: `${SITE_URL}/terms`, changeFrequency: 'yearly', priority: 0.2 },
   { url: `${SITE_URL}/privacy`, changeFrequency: 'yearly', priority: 0.2 },

@@ -40,7 +40,9 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   links: {
     kheloInstagramHandle: 'khelo.journey',
     communityInvite: 'https://chat.whatsapp.com/FWVq1Iv7EgaDlyspNkS3ps',
-    supportWhatsApp: null, // TODO: '91XXXXXXXXXX'
+    supportWhatsApp: '918142128389',
+    supportPhone: '+918142128389',
+    supportEmail: 'founder@khel-o.com',
   },
 
   // Rewards come from XQZ and Team Khelo (a partnership). No sponsor logos yet; the page names them in text.
