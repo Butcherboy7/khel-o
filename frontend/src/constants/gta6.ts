@@ -1,11 +1,23 @@
-// Cafés that told us they have pre-ordered GTA 6 (confirmed by KHEL-O).
-// Only these get the "Pre-ordered" stamp; a PS5 café that joins later shows
-// without it until it's confirmed and added here.
+// Cafés confirmed (by KHEL-O) to have GTA 6 installed. Only these get the "Has GTA 6" stamp;
+// a PS5 café that joins later shows without it until it's confirmed and added here.
+// (The name is from before launch, when the stamp said "Pre-ordered".)
 export const PREORDERED_CAFE_IDS = new Set([
   '73484598-b6a8-4118-82b9-7df16d03ed05', // DG Gaming Cafe
   '69a24177-fc5f-4c07-a792-dacf7c2d147b', // Rockstar Gaming Cafe
   '596ebec6-7dd5-480a-bf40-327d7f4c1e7e', // AdamsDen Gaming Lounge (told KHEL-O 2026-10-18)
+  '5141f3a6-f144-418b-96b6-c26d516664c1', // XQZ Hyderabad, Gachibowli: all 4 PS5s have GTA 6 (owner, 2026-11-24)
 ]);
+
+/** Shown first, in this order, in every GTA 6 café list; the rest follow by price. */
+export const GTA6_PINNED_ORDER = [
+  '596ebec6-7dd5-480a-bf40-327d7f4c1e7e', // AdamsDen Gaming Lounge
+  '5141f3a6-f144-418b-96b6-c26d516664c1', // XQZ Hyderabad
+];
+
+/** Real GTA 6 photos taken at the café, used on its GTA 6 card instead of the café's cover photo. */
+export const GTA6_CARD_PHOTOS: Record<string, string> = {
+  '5141f3a6-f144-418b-96b6-c26d516664c1': '/gta6/xqz-2.jpg', // XQZ: GTA 6 on the PS5 couch zone
+};
 
 export const GTA6_RELEASE = { iso: '2026-11-19', label: '19 November 2026' };
 

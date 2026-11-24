@@ -139,6 +139,16 @@ const organizationJsonLd = {
     addressCountry: 'IN',
   },
   email: 'hello@khel-o.com',
+  telephone: '+918142128389',
+  // One number for calls and WhatsApp (constants/contact.ts). Support hours as on the Contact page.
+  contactPoint: [{
+    '@type': 'ContactPoint',
+    telephone: '+918142128389',
+    email: 'hello@khel-o.com',
+    contactType: 'customer support',
+    areaServed: 'IN',
+    hoursAvailable: { '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '10:00', closes: '19:00' },
+  }],
 };
 
 const websiteJsonLd = {

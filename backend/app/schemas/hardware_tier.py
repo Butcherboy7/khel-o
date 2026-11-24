@@ -4,7 +4,7 @@ from uuid import UUID
 from datetime import datetime
 from app.models.hardware_tier import PlatformType, TierType
 from app.core.fps_estimate import expected_fps as _expected_fps, console_info as _console_info
-from app.core.duration import allowed_minutes as _allowed_minutes, MAX_BOOKING_CHOICES, PACKAGE_LENGTHS
+from app.core.duration import allowed_minutes as _allowed_minutes, DEFAULT_LONGEST, MAX_BOOKING_CHOICES, PACKAGE_LENGTHS
 
 
 def check_length_rules(
@@ -17,13 +17,13 @@ def check_length_rules(
     and update (re-checked on the merged row in HardwareTierService).
     Returns the problem in plain words, or None when it all fits."""
     if max_booking_minutes is not None and max_booking_minutes not in MAX_BOOKING_CHOICES:
-        return "Longest booking must be between 1 and 8 hours, in 30-minute steps"
-    longest = max_booking_minutes or MAX_BOOKING_CHOICES[-1]
+        return "Longest booking must be between 1 and 12 hours, in 30-minute steps"
+    longest = max_booking_minutes or DEFAULT_LONGEST
     if default_booking_minutes is not None and default_booking_minutes > longest:
         return "Checkout can't start on a length longer than the longest booking"
     for minutes, price in (length_prices or {}).items():
         if minutes not in PACKAGE_LENGTHS:
-            return "Package prices can be set for 1 hr 30 up to 8 hours, in 30-minute steps"
+            return "Package prices can be set for 1 hr 30 up to 12 hours, in 30-minute steps"
         if minutes > longest:
             return "A package price is set for a length longer than the longest booking"
         if price is None or price <= 0 or price > 1_000_000:
@@ -63,7 +63,7 @@ class HardwareTierBase(BaseModel):
     # Only 15/30/60 are valid "shortest booking" values now — above 1 hour,
     # every setup allows 30-minute steps regardless of this field.
     min_booking_minutes: int = Field(60, ge=15, le=60)
-    default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
+    default_booking_minutes: Optional[int] = Field(None, ge=15, le=720)
     price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
     price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price30m", "price30M", "price_30m"), serialization_alias="price30m")
     coop_price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("coopPrice30m", "coopPrice30M", "coop_price_30m"), serialization_alias="coopPrice30m")
@@ -71,7 +71,7 @@ class HardwareTierBase(BaseModel):
     # Empty = every length is the hourly rate x length.
     length_prices: Dict[int, float] = Field(default_factory=dict)
     # Longest session customers can book; None = 8 hours.
-    max_booking_minutes: Optional[int] = Field(None, ge=60, le=480)
+    max_booking_minutes: Optional[int] = Field(None, ge=60, le=720)
 
     @model_validator(mode='after')
     def validate_seats(self) -> 'HardwareTierBase':
@@ -149,14 +149,14 @@ class HardwareTierUpdate(BaseModel):
     # Send [] to clear; at most 8 photos of this setup. Checked against the café in the service.
     photos: Optional[List[str]] = Field(None, max_length=8)
     min_booking_minutes: Optional[int] = Field(None, ge=15, le=60)
-    default_booking_minutes: Optional[int] = Field(None, ge=15, le=480)
+    default_booking_minutes: Optional[int] = Field(None, ge=15, le=720)
     price_15m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price15m", "price15M", "price_15m"), serialization_alias="price15m")
     price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("price30m", "price30M", "price_30m"), serialization_alias="price30m")
     coop_price_30m: Optional[float] = Field(None, gt=0.0, validation_alias=AliasChoices("coopPrice30m", "coopPrice30M", "coop_price_30m"), serialization_alias="coopPrice30m")
     # Send {} to clear every package price; leave out to keep them.
     length_prices: Optional[Dict[int, float]] = None
     # Send null to go back to 8 hours; leave out to keep it.
-    max_booking_minutes: Optional[int] = Field(None, ge=60, le=480)
+    max_booking_minutes: Optional[int] = Field(None, ge=60, le=720)
     # Activity tiers only: switch between named units ("Table 1, 2…", True)
     # and one pooled count (False). Not a column — it adds or removes the
     # tier's hardware_tier_units rows. Units are never tied to bookings, so

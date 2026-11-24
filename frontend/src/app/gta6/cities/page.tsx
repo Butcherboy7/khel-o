@@ -7,7 +7,7 @@ import { getPublicEnv } from '@/lib/runtimeEnv';
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 const TITLE = 'Play GTA 6 in Your City: PS5 Cafés Across India';
-const DESCRIPTION = `GTA 6 releases ${GTA6_RELEASE.label} on PS5 and Xbox. Pick your city to find PS5 gaming cafés on KHEL-O, pre-book a slot, or ask us to bring your local café on.`;
+const DESCRIPTION = `GTA 6 came out on ${GTA6_RELEASE.label} on PS5 and Xbox. Pick your city to find PS5 gaming cafés on KHEL-O, pre-book a slot, or ask us to bring your local café on.`;
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -34,7 +34,7 @@ export default function Gta6CitiesPage() {
       <header className="flex flex-col gap-3">
         <h1 className="font-heading text-h1 font-bold text-balance">GTA 6 in your city</h1>
         <p className="text-body-lg">
-          GTA 6 releases {GTA6_RELEASE.label} on PS5 and Xbox, not PC. Pick your city to see PS5 cafés you can book on KHEL-O. If your city has none yet, you can still join the launch list and tell us which café to bring on.
+          GTA 6 came out on {GTA6_RELEASE.label} on PS5 and Xbox, not PC. Pick your city to see PS5 cafés you can book on KHEL-O. If your city has none yet, you can still join the launch list and tell us which café to bring on.
         </p>
       </header>
 

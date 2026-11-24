@@ -22,8 +22,10 @@ const DEFAULT_OPTIONS = [15, 30, 60, 90, 120, 180];
 export const fmtDuration = (m: number) => (m < 60 ? `${m} min` : m % 60 === 0 ? `${m / 60} hr` : `${Math.floor(m / 60)} hr ${m % 60}`);
 const fmt = fmtDuration;
 
-const MAX_MINUTES = 480;
-/** Choices for "Longest a customer can book": 1 hr to 8 hr in 30-minute steps. */
+const MAX_MINUTES = 720;
+/** A setup with no longest booking set stays at 8 hours; up to 12 for a full-day pass. */
+const DEFAULT_LONGEST = 480;
+/** Choices for "Longest a customer can book": 1 hr to 12 hr in 30-minute steps. */
 const LONGEST_OPTIONS = Array.from({ length: (MAX_MINUTES - 60) / 30 + 1 }, (_, i) => 60 + i * 30);
 /** With no limit set, the price table shows up to this length until the
  *  owner asks for the rest (8 hours of rows is a lot on a phone). */
@@ -33,7 +35,7 @@ const TABLE_FOLD = 240;
  *  longest is `max` (null = 8 hours) — mirrors app/core/duration.py's
  *  allowed_minutes exactly. */
 export function allowedMinutes(min: 15 | 30 | 60, max?: number | null): number[] {
-  const longest = Math.min(max ?? MAX_MINUTES, MAX_MINUTES);
+  const longest = Math.min(max ?? DEFAULT_LONGEST, MAX_MINUTES);
   const lengths = [15, 30].filter((m) => m >= min);
   for (let m = 60; m <= MAX_MINUTES; m += 30) lengths.push(m);
   return lengths.filter((m) => m <= longest);
@@ -320,8 +322,8 @@ export function SetupBookingOptions({ config, onChange }: Props) {
             value={o.maxBookingMinutes ?? ''}
             onChange={(e) => setLongest(e.target.value ? Number(e.target.value) : null)}
           >
-            <option value="">No limit (8 hr)</option>
-            {LONGEST_OPTIONS.filter((m) => m < MAX_MINUTES).map((m) => (
+            <option value="">8 hr (standard)</option>
+            {LONGEST_OPTIONS.filter((m) => m !== DEFAULT_LONGEST).map((m) => (
               <option key={m} value={m}>{fmt(m)}</option>
             ))}
           </select>

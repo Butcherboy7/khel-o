@@ -415,7 +415,7 @@ function BookingWizardContent() {
   const maxPlayers = isActivity ? Math.min(6, windowRemainingSeats) : (isRoom ? coopMax : Math.min(6, Math.max(windowRemainingSeats, coopMax)));
   const minDurationMin = Math.max(15, activeTier?.minBookingMinutes ?? 60);
   // The owner's longest booking for this setup (8 hours when unset).
-  const maxDurationMin = Math.max(minDurationMin, Math.min(480, activeTier?.maxBookingMinutes ?? 480));
+  const maxDurationMin = Math.max(minDurationMin, Math.min(720, activeTier?.maxBookingMinutes ?? 480));
   const durationStep = minDurationMin % 30 === 0 ? 30 : 15;
   // Today, after the last possible start (same rule as the time picker):
   // nothing can be booked, so say so instead of showing an impossible slot.
@@ -753,6 +753,27 @@ function BookingWizardContent() {
 
   // ₹187.2 -> "187.20", ₹180 -> "180": rupees with paise only when present.
   const money = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+
+  // A setup that sells a full day (an owner price for 9 hours or more, e.g. XQZ 11 hr = ₹999): one tap books the
+  // whole day, ending at closing time. Priced by the server from the same owner price.
+  const dayPass = (() => {
+    const lp = activeTier?.lengthPrices ?? {};
+    const long = Object.keys(lp).map(Number).filter((m) => m >= 540 && m <= maxDurationMin).sort((a, b) => b - a)[0];
+    if (!long || !cafe?.openingTime || !cafe?.closingTime) return null;
+    const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+    const open = toMin(cafe.openingTime);
+    let close = toMin(cafe.closingTime);
+    if (close <= open) close += 1440;
+    const start = Math.max(open, close - long);
+    if (start + long > close) return null;
+    // Today after the pass's start (11 AM): it can't be sold for today any more.
+    const now = new Date();
+    if (selectedDate === getTodayString() && now.getHours() * 60 + now.getMinutes() >= start) return null;
+    const hhmm = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const label = (m: number) => { const h = Math.floor(m / 60) % 24; return `${h % 12 || 12}${m % 60 ? `:${String(m % 60).padStart(2, '0')}` : ''} ${h < 12 ? 'AM' : 'PM'}`; };
+    return { start: hhmm(start), minutes: long, price: lp[String(long)], text: `${label(start)} – ${label(start + long)}` };
+  })();
+  const dayPassOn = !!dayPass && selectedTime.slice(0, 5) === dayPass.start && Math.round(durationHours * 60) === dayPass.minutes;
 
   const handleTimelineChange = (newStartTime: string, newDurationHours: number, dayOffset: number, auto = false) => {
     if (!auto) userHasSelectedSlot.current = true;
@@ -1102,6 +1123,30 @@ function BookingWizardContent() {
           <span className="flex-shrink-0 font-bold text-primary">Reserve it</span>
         </a>
       ))}
+
+      {dayPass && !offerOpenHere && (
+        <button
+          type="button"
+          aria-pressed={dayPassOn}
+          onClick={() => {
+            userHasSelectedSlot.current = true;
+            setSelectedTime(dayPass.start);
+            setDurationHours(dayPass.minutes / 60);
+            setSelectedDateOffset(0);
+          }}
+          className={`flex min-h-[52px] w-full items-center justify-between gap-3 rounded-2xl border px-4 py-2 text-left transition-colors ${
+            dayPassOn ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'
+          }`}
+        >
+          <span className="min-w-0">
+            <span className="block font-heading text-body font-bold text-text-primary">Day pass</span>
+            <span className="block text-caption text-text-secondary">{dayPass.text} · {dayPass.minutes / 60} hr</span>
+          </span>
+          <span className={`flex-shrink-0 font-heading text-body font-bold tabular-nums ${dayPassOn ? 'text-primary' : 'text-text-primary'}`}>
+            {dayPassOn ? 'Picked · ' : ''}₹{Number(dayPass.price).toLocaleString('en-IN')}
+          </span>
+        </button>
+      )}
 
       {/* Time + duration + availability — one unified component (the
           Playo-style drag slider already combines all of these). */}

@@ -7,7 +7,7 @@ Create Date: 2026-11-21
 import sqlalchemy as sa
 from alembic import op
 
-revision = '097'
+revision = '097r'
 down_revision = '096'
 branch_labels = None
 depends_on = None

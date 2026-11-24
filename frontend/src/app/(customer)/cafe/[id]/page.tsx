@@ -164,7 +164,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const plays6 = !cafe.isLeadListing && (cafe.tiers ?? []).some((t) => t.runsGta6);
   const title = cafe.isLeadListing
     ? `${place} — ${kind.label} in ${city}`
-    : `${place} — Pre-Book${plays6 ? ' GTA 6' : ''}${headlinePrice ? ` from ₹${headlinePrice.price}/hr` : minPrice ? ` from ₹${minPrice}/hr` : ''}`;
+    : `${place} — ${plays6 ? 'Book GTA 6' : 'Pre-Book'}${headlinePrice ? ` from ₹${headlinePrice.price}/hr` : minPrice ? ` from ₹${minPrice}/hr` : ''}`;
   // A Booking Soon listing can't be booked yet; never say it can.
   const description = `${kind.label} at ${name}, ${where}.${factLine}${offerLine} ${
     cafe.isLeadListing

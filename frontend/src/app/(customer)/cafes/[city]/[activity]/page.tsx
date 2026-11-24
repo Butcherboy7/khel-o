@@ -55,7 +55,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const bookable = cafes.filter((c) => !c.isLeadListing).length;
   // A page whose cafés include a PS5 / Xbox Series setup also answers "GTA 6 near me" and "pre-book PS5" searches.
   const gta6 = cafes.some((c) => c.hasGta6 && !c.isLeadListing);
-  const title = `${pageHeading(facet, page.city.name)}: ${gta6 ? 'Pre-Book GTA 6 & PS5' : 'Prices & Timings'}`;
+  const title = `${pageHeading(facet, page.city.name)}: ${gta6 ? 'Book GTA 6 & PS5' : 'Prices & Timings'}`;
   const description = `${stats.cafeCount} place${stats.cafeCount === 1 ? '' : 's'}: ${cafes
     .slice(0, 3)
     .map((c) => cleanName(c.name))

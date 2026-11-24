@@ -59,7 +59,8 @@ interface AvailabilityBadge {
 // rejected with a 422 at submit, so both bounds must match on both sides.
 const MIN_DURATION_HOURS = 1;
 const MIN_DURATION_MIN = MIN_DURATION_HOURS * 60;
-const MAX_DURATION_HOURS = 8;
+// The ceiling; each caller passes its own longest (8 hr unless a setup sells a full-day pass).
+const MAX_DURATION_HOURS = 12;
 const MAX_DURATION_MIN = MAX_DURATION_HOURS * 60;
 
 // Only 15, 30, then 30-minute steps up to 8h are bookable lengths — 45 min,

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Bell, Check, Clock, KeyRound, MapPin, Minus, Plus, Ticket } from 'lucide-react';
+import { Bell, Check, Clock, KeyRound, MapPin, Ticket } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useRazorpay } from '@/hooks/useRazorpay';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
@@ -68,7 +68,6 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const [notice, setNotice] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [blockId, setBlockId] = useState<string | null>(params.get('block'));
-  const [seats, setSeats] = useState(Math.max(1, Number(params.get('seats')) || 1));
   const [startTime, setStartTime] = useState<string | null>(params.get('start'));
   const [hours, setHours] = useState(Number(params.get('hours')) || 1);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -179,6 +178,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const freeAt = (k: string) =>
     !block?.byConsole || !win || !(block.byConsole[k] ?? []).some((x) => timeToMinutes(x.startTime) < win.e && timeToMinutes(x.endTime) > win.s);
   const nameOf = (k: string) => allConsoles.find((c) => c.key === k)?.label ?? 'That console';
+  // Setups with their own price on this drop (PS5 (Sofa) 300, PS5 (Bean bags) 200), cheapest first.
+  const setupPrices = Array.from(new Map(allConsoles.filter((c) => c.price != null).map((c) => [c.setup, c.price as number])).entries()).sort((x, y) => x[1] - y[1]);
   const pickedNames = picked.map(nameOf).join(' and ');
   const pickedKey = picked.join(',');
   // The game is out: times inside the café's normal hours are booked as a normal booking (paid in full),
@@ -224,8 +225,34 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   const limitMin = (b: DropBlock) => (limitMs == null ? null : Math.floor((limitMs - atMinutes(b.date, 0).getTime()) / 60000));
   const anyBeyond = Boolean(drop && limitMs != null && (drop.blocks.some(beyond) || (drop.endsOn && atMinutes(drop.endsOn, 0).getTime() > limitMs)));
   // This date's own price windows, and the shortest booking the window you start in allows.
-  const bands = block?.timePrices ?? drop?.timePrices ?? [];
-  const priced = drop ? { ...drop, timePrices: bands } : null;
+  // A console whose setup has its own price on the drop (sofa vs bean bags) costs that price an hour, with no
+  // packages or time bands; the server prices it the same way.
+  // No exact console picked: the server places it on the chosen setup, else the drop's main setup, so price it the same.
+  const ownConsole = picked.length
+    ? allConsoles.find((c) => c.key === picked[0])
+    : allConsoles.find((c) => c.tierId === (setup ?? raw?.tierId));
+  const ownPrice = ownConsole?.price ?? null;
+  // That setup's set lengths (XQZ: an 11 hr full-day pass), on top of the drop's hourly lengths.
+  const packs = ownPrice != null ? ownConsole?.packs ?? [] : [];
+  const allLengths = Array.from(new Set([...lengths, ...packs.map((p) => p.hours)])).sort((a, b) => a - b);
+  // Full day: the longest set length of 9 hours or more, ending when the session ends (XQZ 11 AM - 10 PM).
+  const fullDay = (() => {
+    const p = [...packs].filter((x) => x.hours >= 9).sort((a, b) => b.hours - a.hours)[0];
+    if (!p || !block) return null;
+    const end = timeToMinutes(block.endTime) <= timeToMinutes(block.startTime) ? timeToMinutes(block.endTime) + 1440 : timeToMinutes(block.endTime);
+    const start = end - p.hours * 60;
+    if (start < timeToMinutes(block.startTime)) return null;
+    // Once the day has started (today after 11 AM), there is no day pass to sell for it.
+    if (atMinutes(block.date, start).getTime() <= Date.now()) return null;
+    return { ...p, start: hhmm(start), end: hhmm(end % 1440) };
+  })();
+  const fullDayOn = !!fullDay && startTime === fullDay.start && hours === fullDay.hours;
+  const bands = ownPrice != null ? [] : block?.timePrices ?? drop?.timePrices ?? [];
+  const priced = drop
+    ? ownPrice != null
+      ? { ...drop, pricePerHour: ownPrice, lengthPrices: packs, timePrices: [] }
+      : { ...drop, timePrices: bands }
+    : null;
   const minH = block && startTime ? minHoursAt(bands, inBlock(startTime, block)) : 1;
   // The cap is per day: seats on one night never stop you booking another night.
   const seatsHeld = (drop?.myReservations ?? [])
@@ -253,13 +280,13 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
   }, [block, booked, startTime, hours, exact, pickedKey]);
   const sessionLeft = (b: DropBlock) =>
     flex && b.bookedSlots ? Math.max(0, ...hourRange(b).map((m) => b.seatsTotal - peakAt(b, m))) : b.seatsLeft;
-  const maxSeats = Math.max(1, Math.min(seatsAllowed, flex ? windowFree : block?.seatsLeft ?? 1));
-  const seatCount = exact ? Math.max(1, picked.length) : Math.min(seats, maxSeats);
+  // One console per booking, at every café: a friend's console is a second booking.
+  const seatCount = 1;
 
   const feePerSeat = !drop ? 0 : flex ? (hours <= 3 ? drop.deposit : drop.depositLong) : drop.deposit;
   const priceAt = (h: number) => (priced && block && startTime ? dropSeatPrice(priced, inBlock(startTime, block), h) : 0);
   const split = priced && block && startTime && flex ? priceSplit(priced, inBlock(startTime, block), hours) : [];
-  const totalPerSeat = !drop || !block ? 0 : flex ? priceAt(hours) : block.pricePerSeat;
+  const totalPerSeat = !drop || !block ? 0 : flex ? priceAt(hours) : ownPrice != null ? ownPrice * block.hours : block.pricePerSeat;
   const total = totalPerSeat * seatCount;
   // Pre-booking takes half the price up front (never less than the owner's fee, never more than the price): people were
   // booking and not turning up, and the held seat was lost.
@@ -338,7 +365,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     if (current.length && (consoleByHand.current || current.every(freeAt))) return;
     const free = pool.filter((c) => freeAt(c.key));
     if (!free.length) return;
-    const next = free.slice(0, Math.max(1, Math.min(current.length || 1, free.length)));
+    const next = free.slice(0, 1);
     setConsolePick(next.map((c) => c.key));
     if (multi && next[0].tierId !== setup) setSetupPick(next[0].tierId);
     if (free.length < pool.length) {
@@ -361,8 +388,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
     setError(null);
     setConsolePick((cur) => {
       const mine = cur.filter((x) => allConsoles.some((c) => c.key === x));
-      if (mine.includes(k)) return mine.length > 1 ? mine.filter((x) => x !== k) : mine;
-      if (mine.length < seatsAllowed && seatsAllowed > 1 && mine.length > 0) return [...mine, k];
+      // One console at a time: tapping another switches to it.
+      if (mine.length === 1 && mine[0] === k) return mine;
       return [k];
     });
     track('drop_console_selected', { console: nameOf(k) });
@@ -541,7 +568,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           {/* One quiet line of facts on phones; the chips come back on desktop */}
           <p className="mt-2 text-caption text-text-secondary tabular-nums lg:hidden">
             {[
-              drop.lengthPrices?.length ? drop.lengthPrices.map((p) => `${p.hours} hr ${rupees(p.price)}`).join(' · ') : `${rupees(drop.pricePerHour)} an hour`,
+              setupPrices.length > 1
+                ? `${rupees(setupPrices[0][1])} – ${rupees(setupPrices[setupPrices.length - 1][1])} an hour`
+                : drop.lengthPrices?.length ? drop.lengthPrices.map((p) => `${p.hours} hr ${rupees(p.price)}`).join(' · ') : `${rupees(drop.pricePerHour)} an hour`,
               drop.endsOn && drop.state !== 'ended'
                 ? `until ${new Date(`${drop.endsOn}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}`
                 : null,
@@ -585,8 +614,10 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 {drop.lengthPrices.map((p) => `${p.hours} hr ${rupees(p.price)}`).join(' · ')}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
-                {rupees(drop.pricePerHour)} an hour
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 tabular-nums">
+                {setupPrices.length
+                  ? `${setupPrices.map(([name, p]) => `${name} ${rupees(p)}`).join(' · ')} an hour`
+                  : `${rupees(drop.pricePerHour)} an hour`}
               </span>
             )}
             {(drop.timePrices ?? []).map((t) => (
@@ -689,7 +720,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                       }`}
                     >
                       <span className="truncate font-heading text-body font-bold text-text-primary">{s.name}</span>
-                      <span className="flex-none text-caption text-text-secondary">×{s.count}</span>
+                      <span className="flex-none text-caption tabular-nums text-text-secondary">
+                        {setupPrices.find(([n]) => n === s.name) ? `${rupees(setupPrices.find(([n]) => n === s.name)![1])}/hr · ` : ''}×{s.count}
+                      </span>
                     </button>
                   );
                 })}
@@ -799,14 +832,13 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                   >
                     <span className={`h-2 w-2 flex-none rounded-full ${ok ? 'bg-success' : 'bg-error'}`} aria-hidden />
                     {c.label}
+                    {c.price != null && <span className="text-caption font-normal tabular-nums text-text-secondary">{rupees(c.price)}/hr</span>}
                     {!ok && <span className="text-caption font-normal text-error">taken then</span>}
                   </button>
                 );
               })}
             </div>
-            {seatsAllowed > 1 && shownConsoles.length > 1 && (
-              <p className="mt-1 text-caption text-text-secondary">Bringing a friend? Tap a second console.</p>
-            )}
+            <p className="mt-1 text-caption text-text-secondary">One console per booking. Bringing a friend? Book their console after this one.</p>
           </section>
         )}
 
@@ -826,6 +858,33 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
               Book a normal slot instead
             </Link>
           </div>
+        )}
+
+        {canReserve && block && flex && fullDay && (
+          <button
+            type="button"
+            aria-pressed={fullDayOn}
+            onClick={() => {
+              pickedByHand.current = true;
+              setStartTime(fullDay.start);
+              setHours(fullDay.hours);
+              setError(null);
+              track('drop_full_day_pass', { hours: fullDay.hours });
+            }}
+            className={`flex min-h-[52px] w-full items-center justify-between gap-3 rounded-2xl border px-4 py-2 text-left transition-colors ${
+              fullDayOn ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'
+            }`}
+          >
+            <span className="min-w-0">
+              <span className="block font-heading text-body font-bold text-text-primary">Day pass</span>
+              <span className="block text-caption text-text-secondary">
+                {clock(fullDay.start)} – {clock(fullDay.end)} · {fullDay.hours} hr
+              </span>
+            </span>
+            <span className={`flex-shrink-0 font-heading text-body font-bold tabular-nums ${fullDayOn ? 'text-primary' : 'text-text-primary'}`}>
+              {fullDayOn ? 'Picked · ' : ''}{rupees(fullDay.price)}
+            </span>
+          </button>
         )}
 
         {/* Time and length: the same slider as a normal booking */}
@@ -848,8 +907,8 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             unitName={exact ? 'console' : 'seat'}
             skipCoachmark={false}
             minDurationMinutes={minH * 60}
-            maxDurationMinutes={(lengths[lengths.length - 1] ?? drop.maxHours ?? 5) * 60}
-            onlyDurationsMinutes={lengths.map((h) => h * 60)}
+            maxDurationMinutes={(allLengths[allLengths.length - 1] ?? drop.maxHours ?? 5) * 60}
+            onlyDurationsMinutes={allLengths.map((h) => h * 60)}
             stepMinutes={30}
             priceBands={bands}
             bookableUntilMin={limitMin(block)}
@@ -861,33 +920,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                   : `${picked.filter((k) => !freeAt(k)).map(nameOf).join(' and ') || 'That console'} is taken then. Move the time or pick another console.`}
               </p>
             ) : (
-            <div className="flex items-center justify-between gap-3 py-1.5">
-              <div className="min-w-0">
-                <span className="font-heading text-body font-bold text-text-primary">How many seats?</span>
-                <p className="truncate text-caption text-text-secondary">Up to {drop.maxSeatsPerUser} a day · {windowFree} free at this time</p>
-              </div>
-              <span className="flex items-center gap-3">
-                <button
-                  type="button"
-                  aria-label="One seat less"
-                  onClick={() => setSeats(Math.max(1, seatCount - 1))}
-                  disabled={seatCount <= 1}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card disabled:opacity-40"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <span className="w-6 text-center text-lg font-bold text-text-primary" aria-live="polite">{seatCount}</span>
-                <button
-                  type="button"
-                  aria-label="One seat more"
-                  onClick={() => setSeats(Math.min(maxSeats, seatCount + 1))}
-                  disabled={seatCount >= maxSeats}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card disabled:opacity-40"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </span>
-            </div>
+            <p className={`py-1.5 text-caption ${windowFree ? 'text-text-secondary' : 'font-semibold text-error'}`}>
+              {windowFree ? 'One console per booking. Bringing a friend? Book their console after this one.' : 'No console is free then. Move the time.'}
+            </p>
             )}
           </TimelineRangePicker>
         )}
@@ -918,16 +953,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
             <p className="flex items-center gap-1.5 text-body text-text-secondary">
               <Clock className="h-4 w-4" /> {blockTimes(block)}
             </p>
-            <div className="mt-3 flex items-center justify-between">
-              <span className="font-semibold text-text-primary">Seats</span>
-              <span className="flex items-center gap-3">
-                <button type="button" aria-label="One seat less" onClick={() => setSeats(Math.max(1, seatCount - 1))} disabled={seatCount <= 1}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-border disabled:opacity-40"><Minus className="h-4 w-4" /></button>
-                <span className="w-6 text-center text-lg font-bold" aria-live="polite">{seatCount}</span>
-                <button type="button" aria-label="One seat more" onClick={() => setSeats(Math.min(maxSeats, seatCount + 1))} disabled={seatCount >= maxSeats}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-border disabled:opacity-40"><Plus className="h-4 w-4" /></button>
-              </span>
-            </div>
+            <p className="mt-2 text-caption text-text-secondary">One console per booking. Bringing a friend? Book their console after this one.</p>
           </section>
         )}
 
@@ -1052,7 +1078,7 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                 : `Half the price (50%) in advance. It holds your seat and comes off your bill. You pay the rest at the café on the day.`}
             />
             <Faq q="How do I get in?" a="After you pay, you get a QR pass here. Show it at the café." />
-            <Faq q="Can I bring friends?" a={`Yes. You can reserve up to ${drop.maxSeatsPerUser} seats a day, on as many days as you like. Friends can also reserve their own.`} />
+            <Faq q="Can I bring friends?" a={`Yes. Each booking is one console, so book a second console for a friend, up to ${drop.maxSeatsPerUser} a day. Friends can also book their own.`} />
             <Faq q="Can I use a coupon?" a="No. Drop prices are fixed. Coupons and café offers don’t work on drops." />
             <Faq q="What if the café cancels?" a="You get your advance back in full." />
             {flex && (

@@ -24,7 +24,7 @@ class BookingBase(BaseModel):
     start_time: time
     # Floor is the global 15-minute minimum; each setup's own
     # min_booking_minutes is enforced in booking_service.
-    duration_hours: float = Field(..., ge=0.25, le=8.0)
+    duration_hours: float = Field(..., ge=0.25, le=12.0)
     seats_count: int = Field(1, ge=1, le=6, description="Number of seats (consoles/units) this booking holds (1 to 6)")
     # People playing. Greater than seats_count = co-op on one console.
     players_count: Optional[int] = Field(None, ge=1, le=60)
@@ -150,7 +150,7 @@ class QuoteRequest(BaseModel):
     hardware_tier_id: UUID
     session_date: date
     start_time: time
-    duration_hours: float = Field(..., ge=0.25, le=8.0)
+    duration_hours: float = Field(..., ge=0.25, le=12.0)
     seats_count: int = Field(1, ge=1, le=6)
     players_count: Optional[int] = Field(None, ge=1, le=60)
     promotion_id: Optional[UUID] = None

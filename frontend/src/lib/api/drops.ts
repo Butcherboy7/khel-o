@@ -40,7 +40,8 @@ export interface DropBlock {
 }
 
 /** One console of a drop, e.g. PS5 Pro 2. key = "<setup id>:<number>". */
-export interface DropConsole { key: string; label: string; tierId: string; setup: string; platform: string | null }
+/** `price`: this setup's own hourly price on the drop (sofa vs bean bags), or null for the drop's price. */
+export interface DropConsole { key: string; label: string; tierId: string; setup: string; platform: string | null; price?: number | null; packs?: { hours: number; price: number }[] }
 /** A console type in a drop (or at the café), with how many there are. */
 export interface DropSetup { tierId: string; name: string; platform: string | null; count: number; runsGame?: boolean }
 

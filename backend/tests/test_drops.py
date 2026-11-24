@@ -152,15 +152,15 @@ async def test_reserve_pay_and_get_a_qr_pass(fake_razorpay):
     drop, block, _, _, _ = await _drop()
     gamer = await _user()
     async with _client() as c:
-        r = await _reserve(c, drop, block, gamer, seats=2)
+        r = await _reserve(c, drop, block, gamer, seats=1)
         assert r.status_code == 201, r.text
         data = r.json()["data"]
-        assert data["order"]["amount"] == 1250  # half of the 2 x 1250 price, paid up front
-        assert fake_razorpay[0][1]["amount"] == 125000  # paise
+        assert data["order"]["amount"] == 625  # half of the 1250 price, paid up front
+        assert fake_razorpay[0][1]["amount"] == 62500  # paise
         res = data["reservation"]
         assert res["status"] == "pending_payment" and res["qr"] is None
-        assert res["blockPrice"] == 2500 and res["balanceDue"] == 1250
-        assert await _taken(block.id) == 2
+        assert res["blockPrice"] == 1250 and res["balanceDue"] == 625
+        assert await _taken(block.id) == 1
 
         r = await _pay(c, gamer, data["order"]["orderId"])
         assert r.status_code == 200, r.text
@@ -168,7 +168,7 @@ async def test_reserve_pay_and_get_a_qr_pass(fake_razorpay):
         assert out["outcome"] == "confirmed"
         assert out["reservation"]["status"] == "confirmed" and out["reservation"]["qr"].startswith("data:image/png")
         page = (await c.get(f"/api/v1/drops/{drop.slug}", headers=_h(gamer))).json()["data"]
-        assert page["blocks"][0]["seatsLeft"] == 2 and page["myReservations"][0]["passUrl"]
+        assert page["blocks"][0]["seatsLeft"] == 3 and page["myReservations"][0]["passUrl"]
 
 
 @pytest.mark.asyncio
@@ -190,12 +190,13 @@ async def test_two_seats_per_person_per_day():
     drop, block, block2, *_ = await _drop()
     gamer = await _user()
     async with _client() as c:
-        assert (await _reserve(c, drop, block, gamer, seats=3)).status_code == 400
+        r = await _reserve(c, drop, block, gamer, seats=2)  # one console per booking, at every café
+        assert r.status_code == 400 and r.json()["error"]["code"] == "ONE_CONSOLE"
         assert (await _reserve(c, drop, block, gamer, seats=1)).status_code == 201
         assert (await _reserve(c, drop, block, gamer, seats=1)).status_code == 201
         r = await _reserve(c, drop, block, gamer, seats=1)  # a third seat the same day
         assert r.status_code == 400 and r.json()["error"]["code"] == "SEAT_LIMIT"
-        assert (await _reserve(c, drop, block2, gamer, seats=2)).status_code == 201  # another day is fine
+        assert (await _reserve(c, drop, block2, gamer, seats=1)).status_code == 201  # another day is fine
 
 
 @pytest.mark.asyncio
@@ -443,15 +444,16 @@ async def test_owner_creates_a_drop_and_blocks_must_end_before_midnight():
         # seats can't go below what's reserved
         gamer = await _user()
         drop = (await c.get(f"/api/v1/drops/{d['slug']}")).json()["data"]
-        await c.post(f"/api/v1/drops/{d['slug']}/reserve", headers=_h(gamer),
-                     json={"blockId": drop["blocks"][0]["id"], "seats": 2, "code": "KHELO6"})
+        for _ in range(2):  # two bookings, one console each
+            await c.post(f"/api/v1/drops/{d['slug']}/reserve", headers=_h(gamer),
+                         json={"blockId": drop["blocks"][0]["id"], "seats": 1, "code": "KHELO6"})
         r = await c.patch(f"/api/v1/owner/drops/{d['id']}/blocks/{drop['blocks'][0]['id']}", json={"seats": 1}, headers=_h(owner))
         assert r.status_code == 400
         # Prices can change while live; the existing reservation keeps the price it was made at.
         r = await c.patch(f"/api/v1/owner/drops/{d['id']}", json={"pricePerHour": 200}, headers=_h(owner))
         assert r.status_code == 200, r.text
         mine = (await c.get(f"/api/v1/drops/{d['slug']}", headers=_h(gamer))).json()["data"]
-        assert mine["pricePerHour"] == 200 and mine["myReservations"][0]["blockPrice"] == 3000  # made at 300 an hour
+        assert mine["pricePerHour"] == 200 and mine["myReservations"][0]["blockPrice"] == 1500  # one console, made at 300 an hour
 
 
 # ---------------------------------------------------------------- refunds

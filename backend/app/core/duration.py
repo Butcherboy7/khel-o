@@ -3,7 +3,10 @@ hour steps by 30 min. Used by hardware tier validation, promotion
 validation, booking creation, and the pricing/quote calculators so all
 four agree on what a "valid length" is."""
 
-MAX_MINUTES = 480  # 8 hours, matches BookingCreateRequest.duration_hours le=8.0
+MAX_MINUTES = 720  # 12 hours: the ceiling, matches BookingCreateRequest.duration_hours le=12.0
+# A setup with no longest booking set stays at 8 hours. Only a setup whose owner picks a longer
+# longest booking (a full-day pass, e.g. XQZ 11 AM to 10 PM) can be booked past 8 hours.
+DEFAULT_LONGEST = 480
 
 
 # Lengths an owner can pick as a setup's longest booking, and set a package
@@ -15,10 +18,10 @@ PACKAGE_LENGTHS = list(range(90, MAX_MINUTES + 1, 30))
 def allowed_minutes(min_booking_minutes: int, max_booking_minutes: int | None = None) -> list[int]:
     """Every bookable length (in minutes) for a setup whose shortest
     booking is `min_booking_minutes` (15, 30, or 60) and whose longest is
-    `max_booking_minutes` (None = 8 hours)."""
+    `max_booking_minutes` (None = 8 hours, DEFAULT_LONGEST)."""
     if min_booking_minutes not in (15, 30, 60):
         raise ValueError("min_booking_minutes must be 15, 30, or 60")
-    longest = min(max_booking_minutes or MAX_MINUTES, MAX_MINUTES)
+    longest = min(max_booking_minutes or DEFAULT_LONGEST, MAX_MINUTES)
     lengths = [m for m in (15, 30) if m >= min_booking_minutes]
     lengths += list(range(60, MAX_MINUTES + 1, 30))
     return [m for m in lengths if m <= longest]

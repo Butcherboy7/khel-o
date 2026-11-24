@@ -70,7 +70,7 @@ class RequestIn(BaseModel):
     hardware_tier_id: UUID
     session_date: date
     start_time: time
-    duration_hours: float = Field(..., ge=0.25, le=8.0)
+    duration_hours: float = Field(..., ge=0.25, le=12.0)
     seats_count: int = Field(1, ge=1, le=6)
     phone: Optional[str] = Field(None, max_length=20)
     # "gta6": priced from the café's GTA 6 listing. "other": any other game on the same console.
@@ -371,7 +371,7 @@ class OfferIn(BaseModel):
     hardware_tier_id: UUID
     session_date: date
     start_time: time
-    duration_hours: float = Field(..., ge=0.25, le=8.0)
+    duration_hours: float = Field(..., ge=0.25, le=12.0)
     seats_count: int = Field(1, ge=1, le=6)
     game: Literal["gta6", "other"] = "gta6"
     minutes_open: int = Field(30, ge=10, le=24 * 60)
@@ -463,7 +463,7 @@ async def view_offer(token: str, db: AsyncSession = Depends(get_db)):
 class ClaimIn(BaseModel):
     """Optional: take a shorter, whole-hour part of the confirmed window instead of all of it."""
     start_time: Optional[time] = None
-    duration_hours: Optional[float] = Field(None, ge=1.0, le=8.0)
+    duration_hours: Optional[float] = Field(None, ge=1.0, le=12.0)
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
