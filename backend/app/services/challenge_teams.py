@@ -184,7 +184,7 @@ def clean_player(raw: dict, *, solo: bool = False, by_someone_else: bool = False
     if not 2 <= len(name) <= 50:
         raise TeamError("Full name: 2 to 50 letters.", "BAD_NAME")
     riot, key = clean_riot(str(raw.get("riotId") or ""))
-    rank = raw.get("rank") or "Unrated"
+    rank = raw.get("rank") or ("Unrated" if by_someone_else else None)
     if rank not in RANKS:
         raise TeamError("Pick your current rank.", "BAD_RANK")
     college = re.sub(r"\s+", " ", str(raw.get("college") or "").strip())[:80] or None

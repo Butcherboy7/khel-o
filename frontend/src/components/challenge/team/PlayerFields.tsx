@@ -31,6 +31,7 @@ export function checkPlayer(p: PlayerForm, { needInsta = false }: { needInsta?: 
   if (name.length < 2 || name.length > 50) e.fullName = 'Write your full name.';
   if (!/^[6-9]\d{9}$/.test(phoneDigits(p.phone))) e.phone = 'WhatsApp number: 10 digits, like 9876543210.';
   if (!RIOT_RE.test(cleanRiot(p.riotId))) e.riotId = 'Riot ID looks like Name#TAG, for example Uzair#KHL1.';
+  if (!p.rank) e.rank = 'Pick your current rank. Choose Unrated if you have none.';
   const insta = cleanInsta(p.instagram);
   if (needInsta && !insta) e.instagram = 'Add your Instagram username.';
   else if (insta && !INSTA_RE.test(insta)) e.instagram = 'Letters, numbers, dots and _ only.';
@@ -101,22 +102,22 @@ export function PlayerFields({
           {...aria('riotId', true)}
         />
       </Labelled>
-      <details className="group rounded-xl border border-[#2C2530] bg-[#0F0C12] px-3.5 py-1">
-        <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between text-[15px] font-semibold text-[#DCD7E0] [&::-webkit-details-marker]:hidden">
-          More about you (optional)
-          <span className="text-[13px] font-normal text-[#A49EA9] group-open:hidden">Rank, Instagram, college</span>
-        </summary>
-        <div className="flex flex-col gap-4 pb-3 pt-1">
-      <Labelled id={`${idPrefix}-rank`} label="Current rank (optional)" hint="Only for fun stats. Not checked." error={errors.rank}>
+      <Labelled id={`${idPrefix}-rank`} label="Current rank" hint="Only for fun stats. Not checked." error={errors.rank}>
         <select id={`${idPrefix}-rank`} className={`${field} appearance-none bg-[length:18px] bg-[right_12px_center] bg-no-repeat`} value={value.rank} onChange={set('rank')} {...aria('rank', true)}
           style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23B4B0B8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")" }}
         >
-          <option value="">Skip</option>
+          <option value="">Pick your rank</option>
           {RANKS.map((r) => (
             <option key={r} value={r}>{r}</option>
           ))}
         </select>
       </Labelled>
+      <details className="group rounded-xl border border-[#2C2530] bg-[#0F0C12] px-3.5 py-1">
+        <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between text-[15px] font-semibold text-[#DCD7E0] [&::-webkit-details-marker]:hidden">
+          More about you (optional)
+          <span className="text-[13px] font-normal text-[#A49EA9] group-open:hidden">Instagram, college</span>
+        </summary>
+        <div className="flex flex-col gap-4 pb-3 pt-1">
       <Labelled id={`${idPrefix}-instagram`} label="Instagram username (optional)" hint="Skip it if you like. We tag you in the reels." error={errors.instagram}>
         <div className="relative">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A49EA9]">@</span>
