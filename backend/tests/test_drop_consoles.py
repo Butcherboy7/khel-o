@@ -241,3 +241,56 @@ def test_fitting_keeps_picked_consoles_and_moves_the_rest():
     assert svc.fit_consoles(keys, items) == {"y": ["a:1"], "x": ["a:2"]}
     items.append({"id": "z", "s": 30, "e": 90, "n": 1, "fixed": None, "cur": [], "allowed": keys})
     assert svc.fit_consoles(keys, items) is None
+
+
+async def _sofa_and_beanbags(c):
+    """XQZ's case: the same game on two kinds of seat, each with its own price and name on the drop."""
+    from uuid import UUID
+    from sqlalchemy import update
+    from app.models.drop import Drop
+    owner, ps5, xbox, d = await _setup(c)
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(Drop).where(Drop.id == UUID(d["id"])).values(setup_options={
+            str(ps5.id): {"price": 300, "label": "Sofa"}, str(xbox.id): {"price": 200, "label": "Bean bags"}}))
+        await db.commit()
+    pub = (await c.get(f"/api/v1/drops/{d['slug']}")).json()["data"]
+    return owner, ps5, xbox, pub
+
+
+@pytest.mark.asyncio
+async def test_each_setup_has_its_own_name_and_price():
+    async with _client() as c:
+        _owner, ps5, xbox, pub = await _sofa_and_beanbags(c)
+        assert [x["label"] for x in pub["consoles"]] == ["PS5 (Sofa 1)", "PS5 (Sofa 2)", "PS5 (Sofa 3)", "Xbox Series X (Bean bags)"]
+        assert [x["price"] for x in pub["consoles"]] == [300, 300, 300, 200]
+        assert {s["name"] for s in pub["setups"]} == {"PS5 (Sofa)", "Xbox Series X (Bean bags)"}
+
+
+@pytest.mark.asyncio
+async def test_the_price_follows_the_console_booked():
+    async with _client() as c:
+        _owner, ps5, xbox, pub = await _sofa_and_beanbags(c)
+        blk = _on(pub, DAY)[0]["id"]
+        sofa = await _pick(c, pub, blk, "14:00", 2, "9876543101", [f"{ps5.id}:1"])
+        bean = await _pick(c, pub, blk, "14:00", 2, "9876543102", [f"{xbox.id}:1"])
+        assert sofa.status_code == 201 and bean.status_code == 201, (sofa.text, bean.text)
+        assert sofa.json()["data"]["reservation"]["blockPrice"] == 600  # 2 hr x 300
+        assert bean.json()["data"]["reservation"]["blockPrice"] == 400  # 2 hr x 200
+        async with AsyncSessionLocal() as db:
+            from app.models.drop import Drop
+            from uuid import UUID
+            drop = await db.get(Drop, UUID(pub["id"]))
+            assert svc.setup_price(drop, ps5.id) == 300 and svc.setup_price(drop, uuid4()) is None
+
+
+@pytest.mark.asyncio
+async def test_one_console_per_booking_everywhere():
+    async with _client() as c:
+        _owner, ps5, xbox, d = await _setup(c)
+        blk = _on(d, DAY)[0]["id"]
+        r = await _pick(c, d, blk, "14:00", 2, "9876543201", [f"{ps5.id}:1", f"{ps5.id}:2"])
+        assert r.status_code == 400 and r.json()["error"]["code"] == "ONE_CONSOLE"
+        # Without setup prices, a console costs the drop's own price as before.
+        ok = await _pick(c, d, blk, "14:00", 2, "9876543202", [f"{ps5.id}:1"])
+        assert ok.status_code == 201
+        assert ok.json()["data"]["reservation"]["blockPrice"] == d["pricePerHour"] * 2

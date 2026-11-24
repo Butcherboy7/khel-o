@@ -63,6 +63,9 @@ class Drop(Base):
     # The consoles the drop uses, any mix of the café's setups: ["<tier id>:1", "<tier id>:2", "<xbox tier id>:1"].
     # Null = the first daily_seats consoles of hardware_tier_id. daily_seats is kept equal to its length.
     consoles: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Optional, per setup of the drop: {"<tier id>": {"price": 300, "label": "Sofa"}}. A setup listed here charges its
+    # own hourly price (no package or time-band prices) and its consoles read "PS5 (Sofa 1)". Unlisted setups use the drop's price.
+    setup_options: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     starts_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     ends_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     max_seats_per_user: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
