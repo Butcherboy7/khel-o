@@ -71,7 +71,7 @@ export default function TeamDeskPage() {
   const teamCount = stats.teamsWithTest;
 
   const tabs: [Tab, string][] = [
-    ['teams', `Teams ${teamCount}/${stats.maxTeams}`],
+    ['teams', stats.maxTeams === null ? `Teams ${teamCount}` : `Teams ${teamCount}/${stats.maxTeams}`],
     ['solos', `Solos ${desk.solos.filter((s) => s.status === 'active').length}`],
     ['waitlist', `Waitlist ${desk.waitlist.length + stats.solosWaitlist}`],
     ['checkin', 'Check-in'],
@@ -89,7 +89,7 @@ export default function TeamDeskPage() {
       <p className="text-body-sm text-text-secondary">{c.cafe} · {new Date(c.startsAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} · status {c.status}</p>
 
       <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <Stat label={practiceTeams > 0 ? `Teams (${practiceTeams} practice)` : 'Paid teams'} value={`${teamCount} / ${stats.maxTeams}`} />
+        <Stat label={practiceTeams > 0 ? `Teams (${practiceTeams} practice)` : 'Paid teams'} value={stats.maxTeams === null ? String(teamCount) : `${teamCount} / ${stats.maxTeams}`} />
         <Stat label="Paying now (held)" value={String(stats.holding)} />
         <Stat label="Solos without team" value={String(stats.solosWaiting)} />
         <Stat label="Waitlist teams" value={String(stats.waitlistTeams)} />
@@ -150,7 +150,7 @@ export default function TeamDeskPage() {
         {tab === 'waitlist' && (
           <>
             <TeamList list={desk.waitlist} empty="No teams on the waitlist." render={(t) => (
-              <button type="button" className={t.offered ? btn : btnPrimary} disabled={busy === `o${t.id}` || (!t.offered && stats.spotsLeft <= 0)}
+              <button type="button" className={t.offered ? btn : btnPrimary} disabled={busy === `o${t.id}` || (!t.offered && (stats.spotsLeft ?? 1) <= 0)}
                 onClick={() => act(`o${t.id}`, () => adminTeams.offer(id, t.id, !t.offered), t.offered ? 'Offer taken back.' : `Offered a slot to ${t.name}. Message the captain to pay on “My entry”.`)}>
                 {t.offered ? 'Take back offer' : 'Offer slot'}
               </button>
@@ -231,7 +231,7 @@ function TeamList({ list, empty, render }: { list: DeskTeam[]; empty: string; re
                 {t.isTest && <span className="ml-2 rounded-full bg-warning/15 px-2 py-0.5 text-caption font-semibold">test</span>}
               </p>
               <p className="text-caption text-text-secondary">
-                {t.players}/3 players{t.subs ? ` + ${t.subs} sub` : ''} · {t.paid ? `paid ${rupees(t.amount ?? 0)}` : t.refunded ? 'refunded' : 'not paid'}
+                {t.players}/{t.size} players{t.subs ? ` + ${t.subs} sub` : ''} · {t.paid ? `paid ${rupees(t.amount ?? 0)}${t.paidAt ? ` on ${new Date(t.paidAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}` : ''}` : t.refunded ? 'refunded' : 'not paid'}{t.captain?.email ? ` · ${t.captain.email}` : ''}
                 {t.checkedIn ? ` · ${t.checkedIn} checked in` : ''}{t.present ? ' · PRESENT' : ''}
               </p>
             </div>
@@ -254,7 +254,7 @@ function MemberLine({ m }: { m: Member }) {
       <span className="ml-1.5 text-caption text-text-secondary">{m.role}{m.checkedIn ? ' · ✓ in' : ''}</span>
       <span className="block text-caption text-text-secondary">
         {m.riotId} · {m.rank ?? '–'} · <a className="underline" href={`https://wa.me/${(m.phone ?? '').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">{m.phone}</a>
-        {m.instagram ? ` · @${m.instagram}` : ''}{m.addedBy && m.addedBy !== 'self' ? ` · added by ${m.addedBy}` : ''}
+        {m.instagram ? ` · @${m.instagram}` : ''}{m.college ? ` · ${m.college}` : ''}{m.playStyle ? ` · ${m.playStyle}` : ''}{m.email ? ` · ${m.email}` : ''}{m.addedBy && m.addedBy !== 'self' ? ` · added by ${m.addedBy}` : ''}
       </span>
       <span className="block text-caption text-text-secondary">
         Community {m.tappedCommunity ? '✓' : '–'} · IG Khelo {m.tappedInstaKhelo ? '✓' : '–'} · IG venue {m.tappedInstaVenue ? '✓' : '–'}
@@ -300,8 +300,8 @@ function NeedsAttention({ desk, busy, id, act, goSolos }: {
         </p>
       )}
       <p className="mt-1 text-body-sm text-text-secondary">
-        Chase them by WhatsApp or email. Still short on match day? Place a paid solo player into the team, let them play with 2 (a team is
-        here once 2 players check in), or remove the team and refund it.
+        Chase them by WhatsApp or email. Still short on match day? Place a paid solo player into the team, let them play a player short (a team is
+        here once most of its players check in), or remove the team and refund it.
       </p>
       <ul className="mt-3 flex flex-col gap-2">
         {short.map((t) => (
@@ -376,7 +376,7 @@ function CancelAll({ busy, onCancel }: { busy: boolean; onCancel: (reason: strin
   return (
     <div className="mt-8 rounded-2xl border border-error/40 p-4">
       <p className="text-body font-bold text-text-primary">Cancel the challenge</p>
-      <p className="text-body-sm text-text-secondary">Refunds every payment in full and emails everyone. Use it if fewer than 8 teams joined.</p>
+      <p className="text-body-sm text-text-secondary">Refunds every payment in full and emails everyone. Use it only if too few teams joined to run the day.</p>
       {!open ? (
         <button type="button" className={`${btn} mt-3 text-error`} onClick={() => setOpen(true)}>Cancel and refund everyone</button>
       ) : (
@@ -454,7 +454,7 @@ function CheckinDesk({ desk, busy, onToggle }: { desk: TeamDesk; busy: string | 
   const present = desk.teams.filter((t) => t.present).length;
   return (
     <div>
-      <p className="text-body-sm text-text-secondary">Scan a QR with the phone camera, or search here. A team counts as present when 2 players are in. {present}/{desk.teams.length} teams present.</p>
+      <p className="text-body-sm text-text-secondary">Scan a QR with the phone camera, or search here. A team counts as present when most of its players are in (3 of 5). {present}/{desk.teams.length} teams present.</p>
       <label className="relative mt-3 block">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" aria-hidden />
         <input className={`${input} w-full pl-9`} placeholder="Name, team, Riot ID or phone" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search players" />

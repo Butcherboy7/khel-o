@@ -75,9 +75,9 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
   }, [ch]);
 
   const team = ch?.team;
-  const max = team?.maxTeams ?? 16;
+  const max: number | null = team ? team.maxTeams : 16; // null = no limit
   const joined = team?.teams ?? 0;
-  const left = team?.spotsLeft ?? max;
+  const left = max === null ? Infinity : team?.spotsLeft ?? max;
   // Before the counts arrive (or if the API is down) the page assumes open: the join page re-checks.
   const open = team ? team.signupsOpen : ch ? ch.status === 'open' : true;
   const full = open && left <= 0;
@@ -91,7 +91,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
       ? { href: `/challenge/${cfg.slug}/bracket`, label: 'See the bracket' }
       : full
         ? { href: `${joinHref}?waitlist=1`, label: 'Join the waitlist' }
-        : { href: joinHref, label: 'Sign up now' };
+        : { href: joinHref, label: 'Register your team' };
 
   // While spots are open, every big button offers the two real choices with their prices.
   const choice: Choice = open && !full && !inIt
@@ -439,7 +439,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               <>
                 <span className="hidden md:inline">{cfg.title} · </span>
                 {rupees(perPlayer)} per player
-                <span className="block text-[#F2C94C] md:ml-2 md:inline">{left} of {max} spots left</span>
+                <span className="block text-[#F2C94C] md:ml-2 md:inline">{max === null ? `${joined} teams in` : `${left} of ${max} spots left`}</span>
               </>
             )}
           </p>
@@ -496,10 +496,10 @@ function Readout({ label, value, sub }: { label: string; value: string; sub: str
 }
 
 /** Countdown and the 16 slots in one panel: how long, and how many are left. */
-function StatusPanel({ open, full, max, joined, closesAt }: { open: boolean; full: boolean; max: number; joined: number; closesAt: string }) {
+function StatusPanel({ open, full, max, joined, closesAt }: { open: boolean; full: boolean; max: number | null; joined: number; closesAt: string }) {
   const now = useNow();
   const { d, h, m, s, over, ready } = countdownParts(closesAt, now);
-  const filled = Math.min(joined, max);
+  const filled = max === null ? joined : Math.min(joined, max);
   return (
     <div className="rounded-xl bg-black/55 p-3.5 ring-1 ring-inset ring-white/10 backdrop-blur-md" aria-live="polite">
       {open ? (
@@ -519,7 +519,7 @@ function StatusPanel({ open, full, max, joined, closesAt }: { open: boolean; ful
       ) : (
         <p className="text-[15px] font-semibold">Sign-ups are closed.</p>
       )}
-      <div className="mt-3 grid grid-cols-[repeat(16,minmax(0,1fr))] gap-[3px]" aria-hidden>
+      {max !== null && <div className="mt-3 grid grid-cols-[repeat(16,minmax(0,1fr))] gap-[3px]" aria-hidden>
         {Array.from({ length: max }, (_, i) => (
           <span
             key={i}
@@ -527,10 +527,10 @@ function StatusPanel({ open, full, max, joined, closesAt }: { open: boolean; ful
             style={{ animationDelay: `${0.9 + i * 0.04}s`, clipPath: 'polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%)' }}
           />
         ))}
-      </div>
+      </div>}
       <p className="mt-2 flex justify-between text-[14px] font-semibold">
-        <span>{full ? `All ${max} team spots are full` : `${filled} of ${max} teams in`}</span>
-        <span className="text-[#F2C94C]">{full ? 'Waitlist open' : `${max - filled} spots left`}</span>
+        <span>{max === null ? `${filled} ${filled === 1 ? 'team is' : 'teams are'} in` : full ? `All ${max} team spots are full` : `${filled} of ${max} teams in`}</span>
+        <span className="text-[#F2C94C]">{max === null ? 'Your team can join' : full ? 'Waitlist open' : `${max - filled} spots left`}</span>
       </p>
     </div>
   );

@@ -184,7 +184,7 @@ def clean_player(raw: dict, *, solo: bool = False, by_someone_else: bool = False
     if not 2 <= len(name) <= 50:
         raise TeamError("Full name: 2 to 50 letters.", "BAD_NAME")
     riot, key = clean_riot(str(raw.get("riotId") or ""))
-    rank = raw.get("rank") or ("Unrated" if by_someone_else else None)
+    rank = raw.get("rank") or "Unrated"
     if rank not in RANKS:
         raise TeamError("Pick your current rank.", "BAD_RANK")
     college = re.sub(r"\s+", " ", str(raw.get("college") or "").strip())[:80] or None
@@ -260,11 +260,11 @@ async def stats(db: AsyncSession, ch: Challenge) -> dict[str, int]:
     paid_all = sum(1 for e in rows if e.status == "confirmed")
     holds = len(await live_holds(db, ch.id))
     return {
-        "maxTeams": cfg["maxTeams"],
+        "maxTeams": cfg["maxTeams"],  # None = no limit
         "teams": paid,
         "teamsWithTest": paid_all,
         "holding": holds,
-        "spotsLeft": max(cfg["maxTeams"] - paid_all - holds, 0),
+        "spotsLeft": None if cfg["maxTeams"] is None else max(cfg["maxTeams"] - paid_all - holds, 0),
         "waitlistTeams": sum(1 for e in rows if e.status == "waitlist"),
         "solosWaiting": sum(1 for p in ppl if p.role == "solo" and p.entry_id is None and p.status == "active"),
         "solosWaitlist": sum(1 for p in ppl if p.role == "solo" and p.status == "waitlist"),
@@ -276,6 +276,8 @@ async def _room(db: AsyncSession, ch: Challenge, *, exclude_payment=None) -> int
     cfg = config(ch)
     paid = sum(1 for e in await team_entries(db, ch.id) if e.status == "confirmed")
     holds = len(await live_holds(db, ch.id, exclude_id=exclude_payment))
+    if cfg["maxTeams"] is None:
+        return 10**6
     return cfg["maxTeams"] - paid - holds
 
 
@@ -757,13 +759,13 @@ def checkin_url(ch: Challenge, p: ChallengePlayer) -> str:
 
 
 async def set_checked_in(db: AsyncSession, ch: Challenge, player: ChallengePlayer, on: bool) -> None:
-    """Mark one player here (or not). A team counts as here once 2 of its players are."""
+    """Mark one player here (or not). A team counts as here once most of its players are (3 of 5)."""
     player.checked_in_at = now() if on else None
     await db.flush()
     if player.entry_id:
         entry = await svc.entry_for(db, ch.id, entry_id=player.entry_id)
         here = sum(1 for p in await players(db, ch.id) if p.entry_id == entry.id and p.status == "active" and p.checked_in_at)
-        entry.present = here >= 2
+        entry.present = here >= config(ch)["size"] // 2 + 1
         entry.checked_in_at = now() if entry.present and entry.checked_in_at is None else (entry.checked_in_at if entry.present else None)
     await db.commit()
 

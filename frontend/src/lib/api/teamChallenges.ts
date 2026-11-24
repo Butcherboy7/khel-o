@@ -16,13 +16,13 @@ export interface TeamInfo {
   maxSubs: number;
   priceTeam: number;
   priceSolo: number;
-  maxTeams: number;
+  maxTeams: number | null;
   minTeams: number;
   holdMinutes: number;
   registrationClosesAt: string | null;
   signupsOpen: boolean;
   teams: number;
-  spotsLeft: number;
+  spotsLeft: number | null;
   holding: number;
   waitlistTeams: number;
   solosWaiting: number;
@@ -72,6 +72,7 @@ export interface Member {
   joined: boolean;
   checkedIn: boolean;
   phone?: string;
+  email?: string | null;
   instagram?: string | null;
   college?: string | null;
   playStyle?: string | null;
@@ -185,6 +186,7 @@ export interface DeskTeam {
   kind: 'team' | 'solo_group';
   status: string;
   number: number;
+  size: number;
   players: number;
   subs: number;
   present: boolean;
@@ -195,16 +197,17 @@ export interface DeskTeam {
   refunded: boolean;
   amount: number | null;
   paidAt: string | null;
+  paymentId?: string | null;
   members: Member[];
   checkedIn: number;
-  captain: { name: string; phone: string } | null;
+  captain: { name: string; phone: string; email?: string | null } | null;
   lastRemindedAt: string | null;
 }
 
 export interface TeamDesk {
   challenge: { id: string; slug: string; title: string; status: string; drawnAt: string | null; startsAt: string; cafe: string; drawSeed: number | null };
-  stats: { maxTeams: number; teams: number; teamsWithTest: number; holding: number; spotsLeft: number; waitlistTeams: number; solosWaiting: number; solosWaitlist: number; players: number };
-  config: { size: number; maxSubs: number; priceTeam: number; priceSolo: number; maxTeams: number; minTeams: number };
+  stats: { maxTeams: number | null; teams: number; teamsWithTest: number; holding: number; spotsLeft: number | null; waitlistTeams: number; solosWaiting: number; solosWaitlist: number; players: number };
+  config: { size: number; maxSubs: number; priceTeam: number; priceSolo: number; maxTeams: number | null; minTeams: number };
   teams: DeskTeam[];
   waitlist: DeskTeam[];
   removed: DeskTeam[];

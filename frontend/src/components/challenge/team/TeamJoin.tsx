@@ -64,7 +64,7 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
   const [holdUntil, setHoldUntil] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
-  const full = !!info && info.signupsOpen && info.spotsLeft <= 0;
+  const full = !!info && info.signupsOpen && info.spotsLeft !== null && info.spotsLeft <= 0;
   const waitlist = full || query.get('waitlist') === '1';
   const price = kind === 'solo' ? info?.priceSolo ?? 250 : info?.priceTeam ?? 1250;
 
@@ -257,7 +257,7 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
             <span className="block text-[30px] font-semibold tracking-[0.04em] text-[#E8675D]">{cfg.titleBottom}</span>
           </h1>
           <p className="mt-2 text-[15px] font-semibold text-[#DCD7E0]">
-            {cfg.venue.name} · Sat 5 Dec · {info ? `${info.spotsLeft} of ${info.maxTeams} team spots left` : 'Checking spots…'}
+            {cfg.venue.name} · Sat 5 Dec · {info ? (info.maxTeams === null ? 'Sign-ups open' : `${info.spotsLeft} of ${info.maxTeams} team spots left`) : 'Checking…'}
           </p>
           <ol className="mt-4 grid grid-cols-4 gap-1.5" aria-label={`Step ${stepNo} of 4`}>
             {['Log in', 'Choose', 'Details', 'Pay'].map((label, i) => (
@@ -436,7 +436,7 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
             </Tick>
 
             <PrimaryButton busy={busy} disabled={!agreed || !!signupsClosed} onClick={pay}>
-              {waitlist ? 'Join the waitlist' : `Pay ${rupees(price)}`}
+              {waitlist ? 'Join the waitlist' : kind === 'team' ? `Pay ${rupees(price)} and lock your team` : `Pay ${rupees(price)} and get a team`}
             </PrimaryButton>
             {!agreed && <p className="-mt-2 text-center text-[13px] text-[#A49EA9]">Tick the box to continue.</p>}
             {holdUntil && busy && !waitlist && (

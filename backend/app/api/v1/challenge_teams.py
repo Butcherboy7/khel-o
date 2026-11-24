@@ -488,6 +488,11 @@ async def _desk(db: AsyncSession, ch: Challenge) -> dict:
     last_nudge = {m.player_id: m.sent_at for m in nudges}
 
     numbers = teams.team_numbers(ch, entries)
+    uids = {p.user_id for p in ppl if p.user_id}
+    emails = {u.id: u.email for u in (await db.execute(select(User).where(User.id.in_(uids)))).scalars().all()} if uids else {}
+
+    def pl(p: ChallengePlayer) -> dict:
+        return {**_player_out(p, private=True), "email": emails.get(p.user_id)}
 
     def team_out(e: ChallengeEntry) -> dict:
         mates = [p for p in ppl if p.entry_id == e.id]
@@ -497,13 +502,14 @@ async def _desk(db: AsyncSession, ch: Challenge) -> dict:
         cap = next((p for p in live if p.role == "captain"), None)
         return {
             "id": str(e.id), "name": e.name, "kind": e.kind, "status": e.status, "number": numbers.get(str(e.id)),
-            "players": main, "subs": subs, "present": e.present, "offered": e.offered_at is not None,
+            "size": cfg["size"], "players": main, "subs": subs, "present": e.present, "offered": e.offered_at is not None,
             "inviteCode": e.invite_code, "isTest": e.is_test,
             "paid": pay is not None and pay.status == "paid", "refunded": pay is not None and pay.status == "refunded",
             "amount": float(pay.amount) if pay else None, "paidAt": _iso(pay.paid_at) if pay else None,
-            "members": [_player_out(p, private=True) for p in mates],
+            "paymentId": pay.razorpay_payment_id if pay else None,
+            "members": [pl(p) for p in mates],
             "checkedIn": sum(1 for p in live if p.checked_in_at),
-            "captain": ({"name": cap.full_name, "phone": cap.phone} if cap else None),
+            "captain": ({"name": cap.full_name, "phone": cap.phone, "email": emails.get(cap.user_id)} if cap else None),
             "lastRemindedAt": _iso(last_nudge.get(cap.id)) if cap else None,
         }
 
@@ -520,7 +526,7 @@ async def _desk(db: AsyncSession, ch: Challenge) -> dict:
         "teams": [team_out(e) for e in entries if e.status == "confirmed"],
         "waitlist": [team_out(e) for e in entries if e.status == "waitlist"],
         "removed": [team_out(e) for e in entries if e.status not in ("confirmed", "waitlist")],
-        "solos": [{**_player_out(p, private=True),
+        "solos": [{**pl(p),
                    "paid": (pay_by_player.get(p.id) is not None and pay_by_player[p.id].status == "paid"),
                    "refunded": (pay_by_player.get(p.id) is not None and pay_by_player[p.id].status == "refunded")}
                   for p in solos],
@@ -601,14 +607,27 @@ async def admin_csv(challenge_id: UUID, db: AsyncSession = Depends(get_db), _adm
     entries = {e.id: e for e in await teams.team_entries(db, ch.id)}
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["team", "team status", "role", "status", "name", "phone", "riot id", "rank", "instagram", "college",
-                "play style", "community tapped", "insta khelo tapped", "insta venue tapped", "checked in"])
-    for p in await teams.players(db, ch.id):
+    w.writerow(["team #", "team", "team status", "role", "status", "name", "phone", "email", "riot id", "rank", "instagram",
+                "college", "play style", "community tapped", "insta khelo tapped", "insta venue tapped", "checked in",
+                "team paid (Rs)", "paid at", "payment id"])
+    numbers = teams.team_numbers(ch, list(entries.values()))
+    pays = (await db.execute(select(ChallengePayment).where(ChallengePayment.challenge_id == ch.id,
+                                                            ChallengePayment.status == "paid"))).scalars().all()
+    pay_by_entry = {p.entry_id: p for p in pays if p.entry_id}
+    pay_by_player = {p.player_id: p for p in pays if p.player_id}
+    plist = await teams.players(db, ch.id)
+    uids = {p.user_id for p in plist if p.user_id}
+    emails = {u.id: u.email for u in (await db.execute(select(User).where(User.id.in_(uids)))).scalars().all()} if uids else {}
+    for p in plist:
         e = entries.get(p.entry_id)
-        w.writerow([e.name if e else "(solo, no team)", e.status if e else "", p.role, p.status, p.full_name, p.phone,
-                    p.riot_id, p.rank or "", p.instagram or "", p.college or "", teams.PLAY_STYLES.get(p.play_style or "", ""),
+        pay = pay_by_entry.get(p.entry_id) if (e and p.role == "captain") else pay_by_player.get(p.id)
+        w.writerow([numbers.get(str(e.id), "") if e else "", e.name if e else "(solo, no team)", e.status if e else "", p.role, p.status,
+                    p.full_name, p.phone, emails.get(p.user_id, ""), p.riot_id, p.rank or "", p.instagram or "", p.college or "",
+                    teams.PLAY_STYLES.get(p.play_style or "", ""),
                     "yes" if p.tapped_community_at else "", "yes" if p.tapped_insta_khelo_at else "",
-                    "yes" if p.tapped_insta_venue_at else "", "yes" if p.checked_in_at else ""])
+                    "yes" if p.tapped_insta_venue_at else "", "yes" if p.checked_in_at else "",
+                    int(pay.amount) if pay else "", pay.paid_at.isoformat() if pay and pay.paid_at else "",
+                    pay.razorpay_payment_id if pay else ""])
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
                              headers={"Content-Disposition": f'attachment; filename="{ch.slug}-players.csv"'})
 

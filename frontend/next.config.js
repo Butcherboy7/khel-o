@@ -105,6 +105,9 @@ const nextConfig = {
     // The page was called Rewards before it became Achievements.
     return [
       { source: '/rewards', destination: '/achievements', permanent: true },
+      // The challenge link used to say 3v3; it is a 5v5 now. Old shared links keep working.
+      { source: '/challenge/valorant-3v3-xqz/:path*', destination: '/challenge/valorant-5v5-xqz/:path*', permanent: true },
+      { source: '/challenge/valorant-3v3-xqz', destination: '/challenge/valorant-5v5-xqz', permanent: true },
       // The Valorant brief links /challenges/<slug>; the pages live at /challenge/<slug>.
       // Paths with a dot are files in public/challenges/ (photos, video): never redirected.
       { source: '/challenges/:path([^.]*)', destination: '/challenge/:path', permanent: false },

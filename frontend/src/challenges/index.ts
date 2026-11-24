@@ -1,5 +1,5 @@
 import type { TeamChallengeConfig } from './types';
-import { valorant3v3Xqz } from './valorant-3v3-xqz';
+import { valorant3v3Xqz } from './valorant-5v5-xqz';
 
 export type { TeamChallengeConfig } from './types';
 

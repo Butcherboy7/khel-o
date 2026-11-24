@@ -165,7 +165,7 @@ export function hoursAndMinutes(total: number): string {
 
 /** The challenge the home page and /community point people to. Its link is
  *  printed on reels and posters, so it never changes. */
-export const FEATURED_CHALLENGE_SLUG = 'valorant-3v3-xqz';
+export const FEATURED_CHALLENGE_SLUG = 'valorant-5v5-xqz';
 
 /** Team spots of a paid team challenge, in teams (not players); null for the other kind. */
 export function teamSpots(c: unknown): { left: number; max: number } | null {
@@ -175,7 +175,7 @@ export function teamSpots(c: unknown): { left: number; max: number } | null {
 
 /** The card picture for a challenge: its own poster when it has one, else the community photo. */
 export function challengePoster(c: { slug: string }, tall = false): string {
-  return c.slug === 'valorant-3v3-xqz' ? `/challenges/valorant-3v3-xqz/poster${tall ? '-portrait' : ''}.webp` : '/community/full-house.webp';
+  return c.slug === 'valorant-5v5-xqz' ? `/challenges/valorant-3v3-xqz/poster${tall ? '-portrait' : ''}.webp` : '/community/full-house.webp';
 }
 
 /** Entry prices of a paid team challenge (null for the free, single-player ones). */

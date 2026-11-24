@@ -17,7 +17,7 @@ import type { TeamChallengeConfig } from './types';
  * sponsors (name, logo, link), free play hours for the top teams.
  */
 export const valorant3v3Xqz: TeamChallengeConfig = {
-  slug: 'valorant-3v3-xqz',
+  slug: 'valorant-5v5-xqz',
   title: 'Khelo Valorant 5v5 Challenge',
   titleTop: 'Valorant',
   titleBottom: '5v5 Challenge',

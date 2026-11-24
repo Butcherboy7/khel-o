@@ -5,10 +5,10 @@ Creates (once; a second run only refreshes the challenge settings):
   the real onboarding on prod gives the owner their own login),
 - the café "XQZ Hyderabad" (Gachibowli), verified and bookable, with its PCs,
   PS5s and racing sims from the owner's onboarding form,
-- the challenge `valorant-3v3-xqz`, open, Sat 5 Dec 2026, 8 team slots.
+- the challenge `valorant-5v5-xqz`, open, Sat 5 Dec 2026, 8 team slots.
 
 The page text lives in the frontend config (frontend/src/challenges/
-valorant-3v3-xqz.ts). This row holds what the server must enforce: prices,
+valorant-5v5-xqz.ts). This row holds what the server must enforce: prices,
 slots, hold time, sign-up close time.
 
 Refuses to run on production.
@@ -37,7 +37,7 @@ from app.models.user_role import UserRoleMapping  # noqa: E402
 
 IST = timezone(timedelta(hours=5, minutes=30))
 OWNER_EMAIL = "xqz.hyd@gmail.com"
-SLUG = "valorant-3v3-xqz"
+SLUG = "valorant-5v5-xqz"
 
 RULES_MD = """**Teams**
 1. Each team has 3 players. You can add 1 substitute when you sign up.
@@ -80,7 +80,7 @@ TEAM = {
     "priceTeam": 1250,
     "priceSolo": 250,
     "holdMinutes": 10,
-    "maxTeams": 8,
+    "maxTeams": None,  # no limit; set a number to cap sign-ups
     "minTeams": 4,
     "slotMinutes": 20,
     "bo3Minutes": 50,
@@ -150,7 +150,7 @@ async def main() -> None:
             best_of=1, final_best_of=3, starts_at=start, ends_at=datetime(2026, 12, 5, 15, 45, tzinfo=IST),
             checkin_opens_at=datetime(2026, 12, 5, 11, 0, tzinfo=IST),
             checkin_closes_at=datetime(2026, 12, 5, 11, 45, tzinfo=IST),
-            capacity=16, min_age=0, rules_md=RULES_MD,
+            capacity=1000, min_age=0, rules_md=RULES_MD,
             prizes_md="- Exciting rewards worth Rs 5,000 for the top teams\n- Semi-finalists get Khelo coupons",
             community_url="https://chat.whatsapp.com/FWVq1Iv7EgaDlyspNkS3ps", instagram_handle="khelo.journey",
         )
