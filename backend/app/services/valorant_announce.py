@@ -25,8 +25,8 @@ logger = structlog.get_logger()
 
 SUBJECT = "Valorant on 5 Dec?"
 LINK = "https://khel-o.com/challenge/valorant-5v5-xqz?utm_source=email&utm_medium=announce&utm_campaign=valorant-email"
-BELL_TITLE = "Valorant 5v5 on Sat 5 Dec"
-BELL_TEXT = "Teams of 5 at XQZ Hyderabad, rewards worth ₹5,000. Sign up your team or come solo."
+BELL_TITLE = "Are you playing Valorant on 5 Dec?"
+BELL_TEXT = "We would love to have you at our 5v5 at XQZ, Hyderabad. Bring your team, or come solo and we will find you one. Please take a look."
 _GAP = 0.08
 
 
