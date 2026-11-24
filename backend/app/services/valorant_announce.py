@@ -23,32 +23,47 @@ from app.services import community_mailer as cm
 
 logger = structlog.get_logger()
 
-SUBJECT = "Valorant 5v5 at XQZ on 5 Dec, got a team?"
-LINK = "https://khel-o.com/c/valorant-email"
+SUBJECT = "Valorant on 5 Dec?"
+LINK = "https://khel-o.com/challenge/valorant-5v5-xqz?utm_source=email&utm_medium=announce&utm_campaign=valorant-email"
 BELL_TITLE = "Valorant 5v5 on Sat 5 Dec"
 BELL_TEXT = "Teams of 5 at XQZ Hyderabad, rewards worth ₹5,000. Sign up your team or come solo."
 _GAP = 0.08
 
 
-def email_html(first_name: str | None, user_id) -> str:
-    name = html.escape(first_name or "there")
-    p = "style='margin:0 0 12px;font-size:15px;line-height:1.55;color:#222'"
-    return (
-        "<div style='font-family:Arial,sans-serif;max-width:520px'>"
-        f"<p {p}>Hi {name},</p>"
-        f"<p {p}>On Saturday 5 December we are hosting a Valorant 5v5 at XQZ in Gachibowli, Hyderabad. "
-        "Teams of 5, first to 5 rounds, with rewards worth ₹5,000.</p>"
-        f"<p {p}>It is ₹250 per person. One person pays ₹1,250 for the team and the rest join with a link, no payment needed. "
-        "No team yet? Sign up solo and we will put you in one.</p>"
-        f"<p {p}>Don't play Valorant? Forward this to a friend who does. The page has a share button too.</p>"
-        f"<p {p}>Sign up here: <a href='{LINK}'>{LINK}</a></p>"
-        f"<p {p}>Any question, message me on WhatsApp at +91 81421 28389 or reply to this email.</p>"
-        f"<p {p}>See you there,<br>Abdullah, KHEL-O</p>"
-        "<p style='margin:18px 0 0;font-size:12px;color:#8A8F9C;line-height:1.5'>"
-        "You get this because you have a KHEL-O account. "
-        f"<a href='{cm.unsubscribe_url(user_id)}' style='color:#8A8F9C'>Stop these emails</a>. "
-        "KHEL-O is not endorsed by Riot Games.</p></div>"
-    )
+def _lines(first_name: str | None) -> list[str]:
+    name = first_name or "there"
+    return [
+        f"Hi {name},",
+        "Abdullah here from KHEL-O. We are putting together a Valorant 5v5 at XQZ in Gachibowli, Hyderabad, "
+        "on Saturday 5 December. Teams of five.",
+        "I thought of you. Are you in? If you don't play, do you know a team that would be?",
+        f"Details are here: {LINK}",
+        "Any questions, message me on WhatsApp at +91 81421 28389 or just reply to this email.",
+        "Abdullah",
+        "P.S. If you'd rather not get mail like this, reply with the word stop and I won't send another.",
+    ]
+
+
+def email_text(first_name: str | None) -> str:
+    return (chr(10) * 2).join(_lines(first_name))
+
+
+def email_html(first_name: str | None, user_id=None) -> str:
+    """Plain on purpose: no images, no buttons, one link, so Gmail reads it as a letter from a person."""
+    paras = []
+    for line in _lines(first_name):
+        esc = html.escape(line).replace(html.escape(LINK), f"<a href='{LINK}'>{html.escape(LINK)}</a>")
+        paras.append(f"<p style='margin:0 0 14px'>{esc}</p>")
+    return "<div style='font-family:Arial,sans-serif;font-size:15px;line-height:1.55;color:#222'>" + "".join(paras) + "</div>"
+
+
+async def _send(to: str, first_name: str | None, subject: str, ref: str) -> bool:
+    from app.config import settings
+    from app.services.notification_service import NotificationService
+    return await NotificationService().send_rich_email(
+        to, subject, email_html(first_name), email_text(first_name),
+        from_email=settings.COMMUNITY_EMAIL_FROM, reply_to=settings.COMMUNITY_EMAIL_REPLY_TO or None,
+        unsubscribe_url="", ref=ref)
 
 
 async def _signed_up(db: AsyncSession) -> set:
@@ -69,16 +84,12 @@ async def audience(db: AsyncSession) -> dict:
     return {"bell": bell, "mail": mail}
 
 
-async def send_test(db: AsyncSession, admin: User) -> dict:
-    from app.services.notification_service import NotificationService
+async def send_test(db: AsyncSession, admin: User, to: str | None = None) -> dict:
     first = admin.full_name.split()[0] if admin.full_name else None
-    sent = await NotificationService()._send_resend_email(
-        admin.email, f"[Test] {SUBJECT}", email_html(first, admin.id), "valorant-announce-test")
-    return {"sent": bool(sent)}
+    return {"sent": bool(await _send(to or admin.email, first, f"[Test] {SUBJECT}", "valorant-announce-test"))}
 
 
 async def send_all(db: AsyncSession) -> dict:
-    from app.services.notification_service import NotificationService
     aud = await audience(db)
     mail_ids = {u.id for u in aud["mail"]}
     bells = emails = 0
@@ -97,7 +108,7 @@ async def send_all(db: AsyncSession) -> dict:
             continue
         if u.id in mail_ids:
             first = u.full_name.split()[0] if u.full_name else None
-            if await NotificationService()._send_resend_email(u.email, SUBJECT, email_html(first, u.id), "valorant-announce"):
+            if await _send(u.email, first, SUBJECT, "valorant-announce"):
                 emails += 1
             await asyncio.sleep(_GAP)
     logger.info("valorant_announce_done", bells=bells, emails=emails)
