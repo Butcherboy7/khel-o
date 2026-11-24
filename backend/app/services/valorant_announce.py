@@ -42,6 +42,7 @@ def _lines(first_name: str | None) -> list[str]:
         "You may not play Valorant, and that is completely fine. But you probably know someone who does. If you could forward "
         "this to that one friend, or drop it in a group where people game, it would honestly mean a lot.",
         f"Everything they need is here: {LINK} (the page has a share button too).",
+        "Any question at all, message me on WhatsApp at +91 81421 28389 or just reply to this email.",
         "Thank you for reading this far.",
         "Abdullah",
         "P.S. If you'd rather not get mail like this, reply with the word stop and I won't send another.",

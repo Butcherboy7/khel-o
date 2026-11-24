@@ -8,7 +8,7 @@ def test_email_is_a_plain_personal_letter_that_follows_the_wording_rules():
         assert banned not in low
     assert "<img" not in low and "<button" not in low and "<table" not in low
     assert body.count("href=") == 1  # one link, no unsubscribe link in the body
-    assert "Hi Asha," in body and "reply with the word stop" in text
+    assert "Hi Asha," in body and "81421 28389" in text and "reply with the word stop" in text
 
 
 def test_bell_follows_the_wording_rules():
