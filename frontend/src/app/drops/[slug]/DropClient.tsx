@@ -553,7 +553,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
           {/* One quiet line of facts on phones; the chips come back on desktop */}
           <p className="mt-2 text-caption text-text-secondary tabular-nums lg:hidden">
             {[
-              drop.lengthPrices?.length ? drop.lengthPrices.map((p) => `${p.hours} hr ${rupees(p.price)}`).join(' · ') : `${rupees(drop.pricePerHour)} an hour`,
+              setupPrices.length > 1
+                ? `${rupees(setupPrices[0][1])} – ${rupees(setupPrices[setupPrices.length - 1][1])} an hour`
+                : drop.lengthPrices?.length ? drop.lengthPrices.map((p) => `${p.hours} hr ${rupees(p.price)}`).join(' · ') : `${rupees(drop.pricePerHour)} an hour`,
               drop.endsOn && drop.state !== 'ended'
                 ? `until ${new Date(`${drop.endsOn}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}`
                 : null,
@@ -703,7 +705,9 @@ export function DropClient({ slug, initial }: { slug: string; initial: Drop | nu
                       }`}
                     >
                       <span className="truncate font-heading text-body font-bold text-text-primary">{s.name}</span>
-                      <span className="flex-none text-caption text-text-secondary">×{s.count}</span>
+                      <span className="flex-none text-caption tabular-nums text-text-secondary">
+                        {setupPrices.find(([n]) => n === s.name) ? `${rupees(setupPrices.find(([n]) => n === s.name)![1])}/hr · ` : ''}×{s.count}
+                      </span>
                     </button>
                   );
                 })}
