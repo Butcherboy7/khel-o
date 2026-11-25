@@ -115,7 +115,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
       )}
 
       {/* ── Hero: the café, live ──────────────────────────────────── */}
-      <section className="relative isolate flex min-h-[86svh] flex-col overflow-hidden">
+      <section className="relative isolate flex min-h-[100svh] flex-col overflow-hidden">
         <LiveBackdrop cfg={cfg} />
         <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 pt-4 md:px-8">
           <span className="flex min-w-0 items-center gap-2">
@@ -153,7 +153,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
           </span>
         </header>
 
-        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 items-end gap-12 px-4 pb-6 pt-10 md:items-center md:px-8 md:pb-16">
+        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 items-end gap-12 px-4 pb-4 pt-4 md:items-center md:px-8 md:pb-16">
           <div className="w-full min-w-0 md:max-w-[620px]">
             <h1 className={`${fightFont.className} relative uppercase`}>
               <span className="vx-scan absolute -left-2 top-[18%] h-[64%] w-1/3 bg-gradient-to-r from-transparent via-white/40 to-transparent" aria-hidden />
@@ -164,12 +164,12 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
                 {cfg.titleBottom}
               </span>
             </h1>
-            <p className="vx-rise mt-4 max-w-[30ch] text-balance text-[19px] md:max-w-none font-semibold leading-snug text-white [animation-delay:.45s] md:text-[21px]">
+            <p className="vx-rise mt-3 max-w-[34ch] text-balance text-[17px] md:max-w-none font-semibold leading-snug text-white [animation-delay:.45s] md:text-[21px]">
               {cfg.subtitle}
             </p>
 
             {/* The facts as a readout, not a row of pills. */}
-            <dl className="vx-rise mt-5 grid grid-cols-3 border-y border-white/15 [animation-delay:.55s]">
+            <dl className="vx-rise mt-3 grid grid-cols-3 border-y border-white/15 [animation-delay:.55s]">
               <Readout label="When" value={istDay(cfg.dates.firstMatch).replace(',', '')} sub={`from ${istTime(cfg.dates.firstMatch)}`} />
               <Readout label="Where" value={cfg.venue.shortName} sub="Gachibowli" href={`/cafe/${cfg.venue.bookingSlug}`} />
               <Readout
@@ -184,27 +184,11 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               />
             </dl>
 
-            <a
-              href={cfg.venue.googleMapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => trackAction('challenge_map_click', { challenge: cfg.slug, from: 'hero' })}
-              className="vx-rise mt-3 flex items-start gap-3 rounded-xl border border-[#E8675D]/55 bg-[#D0463C]/15 p-3 transition-colors hover:bg-[#D0463C]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 [animation-delay:.6s]"
-            >
-              <MapPin className="mt-0.5 h-5 w-5 flex-none text-[#E8675D]" aria-hidden />
-              <span className="min-w-0">
-                <span className="block text-[15px] font-bold leading-snug">Played in person at {cfg.venue.name}.</span>
-                <span className="mt-0.5 block text-[13px] leading-snug text-white/70">
-                  Be there by {istTime(cfg.dates.reportingTime)} on {istDay(cfg.dates.firstMatch).replace(',', '')}. Your team plays side by side. Open in Maps ›
-                </span>
-              </span>
-            </a>
-
-            <div className="vx-rise mt-3 [animation-delay:.62s]">
-              <ProvidedCard cfg={cfg} />
+            <div className="vx-rise mt-2.5 [animation-delay:.62s]">
+              <ProvidedCard cfg={cfg} hero />
             </div>
 
-            <div className="vx-rise mt-4 [animation-delay:.65s]">
+            <div className="vx-rise mt-2.5 [animation-delay:.65s]">
               <StatusPanel
                 open={open}
                 full={full}
@@ -215,24 +199,26 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               />
             </div>
 
-            <div className="vx-rise mt-4 [animation-delay:.75s]">
+            <div className="vx-rise mt-2.5 [animation-delay:.75s]">
               <SignUpCta cta={cta} choice={choice} where="hero" slug={cfg.slug} heroRef={heroCta} />
-              <a
-                href={cfg.links.communityInvite}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackAction('challenge_community_click', { challenge: cfg.slug, where: 'hero' })}
-                className="mt-2.5 flex h-12 items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white/90 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-              >
-                <WhatsAppIcon className="h-5 w-5 text-[#25D366]" aria-hidden /> Join the Khelo community <ChevronRight className="h-4 w-4 text-white/50" aria-hidden />
-              </a>
-              <button
-                type="button"
-                onClick={() => openShare('hero')}
-                className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 text-[15px] font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-              >
-                <Share2 className="h-5 w-5" aria-hidden /> Share with friends
-              </button>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <a
+                  href={cfg.links.communityInvite}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => trackAction('challenge_community_click', { challenge: cfg.slug, where: 'hero' })}
+                  className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/15 text-[14px] font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                >
+                  <WhatsAppIcon className="h-5 w-5 text-[#25D366]" aria-hidden /> Join community
+                </a>
+                <button
+                  type="button"
+                  onClick={() => openShare('hero')}
+                  className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/15 text-[14px] font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <Share2 className="h-5 w-5" aria-hidden /> Share
+                </button>
+              </div>
             </div>
             {inIt && (
               <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#13221A] px-3 py-1.5 text-sm font-semibold text-[#9BF0B9]">
@@ -551,22 +537,45 @@ function PanelTitle({ children, className = '' }: { children: ReactNode; classNa
   );
 }
 
-function ProvidedCard({ cfg, full = false }: { cfg: TeamChallengeConfig; full?: boolean }) {
+function ProvidedCard({ cfg, full = false, hero = false }: { cfg: TeamChallengeConfig; full?: boolean; hero?: boolean }) {
   const p = cfg.provided;
   return (
-    <div className="rounded-xl border border-[#F2C94C]/50 bg-[#F2C94C]/10 p-3">
+    <div className="rounded-xl border border-[#F2C94C]/50 bg-black/55 p-3 backdrop-blur-md">
+      {hero && (
+        <p className="mb-1.5 flex items-center gap-1.5 text-[13.5px] font-bold leading-snug">
+          <MapPin className="h-4 w-4 flex-none text-[#E8675D]" aria-hidden />
+          Played in person at {cfg.venue.name}
+        </p>
+      )}
       <p className="flex items-start gap-2.5 text-[15px] font-bold leading-snug">
         <Gamepad2 className="mt-0.5 h-5 w-5 flex-none text-[#F2C94C]" aria-hidden />
-        {p.headline}
+        {hero ? (
+          <span><span className="text-[#F2C94C]">We provide the gaming PCs.</span> Bring nothing but your phone and your Riot ID.</span>
+        ) : (
+          p.headline
+        )}
       </p>
-      <p className="mt-1 text-[13px] leading-snug text-white/75">{p.line}</p>
-      <ul className="mt-2.5 flex flex-wrap gap-1.5">
+      {!hero && <p className="mt-1 text-[13px] leading-snug text-white/75">{p.line}</p>}
+      <ul className="mt-2 flex flex-wrap items-center gap-1.5">
         {(full ? p.specs : p.specs.slice(0, 3)).map((sp) => (
-          <li key={sp.label} className="rounded-lg border border-white/15 bg-black/25 px-2.5 py-1.5 text-[12.5px] leading-tight">
-            <span className="block text-[10.5px] font-semibold uppercase tracking-wider text-[#F2C94C]">{sp.label}</span>
-            <span className="font-bold">{sp.value}</span>
+          <li key={sp.label} className="rounded-lg border border-white/15 bg-black/25 px-2 py-1 text-[12.5px] font-bold leading-tight">
+            {full && <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#F2C94C]">{sp.label}</span>}
+            {sp.value}
           </li>
         ))}
+        {hero && (
+          <li>
+            <a
+              href={cfg.venue.googleMapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackAction('challenge_map_click', { challenge: cfg.slug, from: 'hero' })}
+              className="flex items-center rounded-lg px-1.5 py-1 text-[12.5px] font-semibold text-[#F2C94C] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            >
+              Open in Maps ›
+            </a>
+          </li>
+        )}
       </ul>
       {full && <p className="mt-2 text-[13px] leading-snug text-white/75">{p.extras}</p>}
     </div>
@@ -614,34 +623,27 @@ function StatusPanel({ open, full, max, joined, solos, closesAt }: { open: boole
   const { d, h, m, s, over, ready } = countdownParts(closesAt, now);
   const filled = max === null ? joined : Math.min(joined, max);
   return (
-    <div className="rounded-xl bg-black/55 p-3.5 ring-1 ring-inset ring-white/10 backdrop-blur-md" aria-live="polite">
+    <div className="rounded-xl bg-black/55 px-3 py-2.5 ring-1 ring-inset ring-white/10 backdrop-blur-md" aria-live="polite">
       {open ? (
-        <div className="flex items-end justify-between gap-3">
-          <p className="pb-0.5 text-[13px] font-semibold leading-tight text-white/75">
-            {over ? 'Sign-ups are closing' : <>Sign-ups<br />close in</>}
-          </p>
-          <div className={`${fightFont.className} flex items-end gap-2.5 tabular-nums`} role="timer" aria-live="off">
-            {([[d, 'd'], [h, 'h'], [m, 'm'], [s, 's']] as const).map(([v, u]) => (
-              <span key={u} className="flex items-baseline">
-                <span className="text-[34px] font-bold leading-none">{ready ? String(v).padStart(2, '0') : '--'}</span>
-                <span className="ml-0.5 text-[16px] font-medium text-white/55">{u}</span>
-              </span>
-            ))}
-          </div>
-        </div>
+        <p className="flex items-baseline justify-between gap-2 text-[13px] font-semibold text-white/75">
+          <span>{over ? 'Sign-ups are closing' : 'Sign-ups close in'}</span>
+          <span className={`${fightFont.className} text-[22px] font-bold leading-none tabular-nums text-white`} role="timer" aria-live="off">
+            {ready ? `${String(d).padStart(2, '0')}d ${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s` : '--'}
+          </span>
+        </p>
       ) : (
         <p className="text-[15px] font-semibold">Sign-ups are closed.</p>
       )}
-      {max !== null && <div className="mt-3 grid grid-cols-[repeat(16,minmax(0,1fr))] gap-[3px]" aria-hidden>
+      {max !== null && <div className="mt-2 grid grid-cols-[repeat(16,minmax(0,1fr))] gap-[3px]" aria-hidden>
         {Array.from({ length: max }, (_, i) => (
           <span
             key={i}
-            className={`vx-slot relative h-2.5 overflow-hidden ${i < filled ? 'vx-slot-lit bg-[#D0463C]' : 'bg-white/15'}`}
+            className={`vx-slot relative h-2 overflow-hidden ${i < filled ? 'vx-slot-lit bg-[#D0463C]' : 'bg-white/15'}`}
             style={{ animationDelay: `${0.9 + i * 0.04}s`, clipPath: 'polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%)' }}
           />
         ))}
       </div>}
-      <p className="mt-2 flex justify-between text-[14px] font-semibold">
+      <p className="mt-1.5 flex justify-between text-[13.5px] font-semibold">
         <span>{max === null ? (filled + solos > 0 ? 'People are registering' : 'Sign-ups are open') : full ? `All ${max} team spots are full` : `${filled} of ${max} teams in`}</span>
         <span className="text-[#F2C94C]">{max === null ? 'Your team can join' : full ? 'Waitlist open' : `${max - filled} spots left`}</span>
       </p>
@@ -746,12 +748,12 @@ function SignUpCta({ cta, choice, where, slug, heroRef }: {
     );
   }
   return (
-    <div className="flex flex-col gap-2.5 sm:flex-row">
+    <div className="flex flex-col gap-2 sm:flex-row">
       <Link
         ref={heroRef}
         href={choice.team.href}
         onClick={() => trackAction('challenge_signup_started', { challenge: slug, where, kind: 'team' })}
-        className="vx-corner group flex min-h-[68px] flex-[1.6] items-stretch bg-[#D0463C] text-white shadow-[0_14px_34px_-14px_rgba(208,70,60,0.9)] transition-colors duration-200 hover:bg-[#B93C33] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+        className="vx-corner group flex min-h-[60px] flex-[1.6] items-stretch bg-[#D0463C] text-white shadow-[0_14px_34px_-14px_rgba(208,70,60,0.9)] transition-colors duration-200 hover:bg-[#B93C33] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
       >
         <span className="flex flex-1 flex-col justify-center px-4 py-2">
           <span className={`${fightFont.className} text-[clamp(24px,7vw,30px)] font-bold uppercase leading-[0.9] tracking-[0.04em] whitespace-nowrap`}>Sign up your team</span>
@@ -765,7 +767,7 @@ function SignUpCta({ cta, choice, where, slug, heroRef }: {
       <Link
         href={choice.solo.href}
         onClick={() => trackAction('challenge_signup_started', { challenge: slug, where, kind: 'solo' })}
-        className="flex min-h-[56px] flex-1 items-center justify-between gap-2 rounded-xl border border-white/25 bg-black/40 px-4 text-white backdrop-blur-md transition-colors hover:border-white/45 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:flex-col sm:items-start sm:justify-center sm:gap-0"
+        className="flex min-h-[48px] flex-1 items-center justify-between gap-2 rounded-xl border border-white/25 bg-black/40 px-4 text-white backdrop-blur-md transition-colors hover:border-white/45 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:flex-col sm:items-start sm:justify-center sm:gap-0"
       >
         <span className="text-[16px] font-bold">No team? Join solo</span>
         <span className={`${fightFont.className} text-[26px] font-bold leading-none sm:text-[22px]`}>{rupees(choice.solo.price)}</span>

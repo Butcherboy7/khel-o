@@ -21,7 +21,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   title: 'Khelo Valorant 5v5 Challenge',
   titleTop: 'Valorant',
   titleBottom: '5v5 Challenge',
-  subtitle: 'Form your team of 5. Play side by side at XQZ Gaming Cafe, Gachibowli. Exciting rewards worth ₹5,000.',
+  subtitle: 'A 5v5 Valorant challenge for teams of 5, in person at XQZ Gaming Cafe, Gachibowli. Rewards worth ₹5,000.',
   game: 'Valorant',
   mode: 'Swift Play 5v5',
   prizeTotal: 5000,
