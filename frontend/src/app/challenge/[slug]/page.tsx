@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const team = teamChallengeConfig(slug);
   if (team) {
     // Search words people use: Valorant 5v5, Hyderabad, Gachibowli, team of 5, gaming cafe. Never "tournament".
-    const description = `Valorant 5v5 in Hyderabad: bring your team of 5 to ${team.venue.name}, Gachibowli on Sat 5 Dec. ${team.mode}, knockout bracket, exciting rewards worth ₹5,000. Solo players welcome, we find you a team.`;
+    const description = `Valorant 5v5 in Hyderabad, played in person at ${team.venue.name}, Gachibowli on Sat 5 Dec. Bring your team of 5. ${team.mode}, knockout bracket, exciting rewards worth ₹5,000. Solo players welcome, we find you a team.`;
     return {
       title: `Valorant 5v5 Challenge in Hyderabad · ${team.venue.shortName} Gachibowli, Sat 5 Dec`,
       keywords: ['Valorant 5v5 Hyderabad', 'Valorant Hyderabad', 'Valorant Gachibowli', 'gaming cafe Hyderabad', 'Valorant team challenge', 'XQZ Hyderabad'],

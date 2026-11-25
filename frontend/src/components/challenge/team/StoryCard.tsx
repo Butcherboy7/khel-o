@@ -91,15 +91,15 @@ async function draw(cfg: TeamChallengeConfig, teamName: string | null): Promise<
   g.font = `700 54px system-ui, sans-serif`;
   g.fillText('KHEL-O', 80, 150);
   g.fillStyle = 'rgba(0,0,0,0.55)';
-  roundRect(g, W - 80 - 330, 100, 330, 72, 36);
+  roundRect(g, W - 80 - 470, 100, 470, 72, 36);
   g.fill();
   g.fillStyle = '#FF4A4A';
   g.beginPath();
-  g.arc(W - 80 - 290, 136, 11, 0, Math.PI * 2);
+  g.arc(W - 80 - 430, 136, 11, 0, Math.PI * 2);
   g.fill();
   g.fillStyle = '#F4F1EC';
   g.font = `700 30px system-ui, sans-serif`;
-  g.fillText(`LIVE AT ${cfg.venue.shortName.toUpperCase()}`, W - 80 - 260, 147);
+  g.fillText(`AT ${cfg.venue.name.toUpperCase()}`, W - 80 - 400, 147);
 
   // The line, the title, the team
   const y0 = 1060;

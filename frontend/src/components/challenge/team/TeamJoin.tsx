@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ChevronRight, Hourglass, Instagram, Loader2, ShieldCheck, User, Users } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Hourglass, Instagram, Loader2, MapPin, ShieldCheck, User, Users } from 'lucide-react';
 import { MockPaymentModal } from '@/components/MockPaymentModal';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { fightFont } from '@/components/challenge/ChallengeHero';
@@ -18,7 +18,7 @@ import { useAuthStore } from '@/store/authStore';
 import type { TeamChallengeConfig } from '@/challenges/types';
 import { AccountStep } from './AccountStep';
 import { Labelled, PlayerFields, TEAM_NAME_RE, RIOT_RE, checkPlayer, cleanInsta, cleanRiot, phoneDigits, type PlayerErrors } from './PlayerFields';
-import { TapButton, TeamFooter, Tick, field, instaUrl, rupees } from './ui';
+import { TapButton, TeamFooter, Tick, field, instaUrl, istDay, rupees } from './ui';
 
 type Step = 'account' | 'kind' | 'details' | 'agree';
 type Kind = 'team' | 'solo';
@@ -427,6 +427,11 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
                 {waitlist ? 'Waitlist: you pay only if we offer you a spot.' : 'No booking fee. Nothing added on top.'}
               </p>
             </div>
+
+            <p className="flex items-start gap-2.5 rounded-xl border border-[#E8675D]/50 bg-[#D0463C]/15 p-3 text-[14px] leading-snug">
+              <MapPin className="mt-0.5 h-4 w-4 flex-none text-[#E8675D]" aria-hidden />
+              <span>Played in person at {cfg.venue.name}, Gachibowli. Your whole team needs to be there on {istDay(cfg.dates.firstMatch).replace(',', '')}.</span>
+            </p>
 
             <Tick checked={agreed} onChange={setAgreed}>
               {cfg.agreeLine}{' '}

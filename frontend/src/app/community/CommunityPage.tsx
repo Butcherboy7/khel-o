@@ -223,7 +223,7 @@ export function CommunityPage() {
               className="group relative isolate block overflow-hidden rounded-2xl bg-[#0b0708] shadow-card md:col-span-2"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={challengePoster(nextChallenge)} alt="Valorant 5v5 Challenge, Sat 5 Dec, XQZ Hyderabad" className="aspect-[8/5] w-full object-cover md:aspect-[16/6]" />
+              <img src={challengePoster(nextChallenge)} alt="Valorant 5v5 Challenge, Sat 5 Dec, in person at XQZ Gaming Cafe, Hyderabad" className="aspect-[8/5] w-full object-cover md:aspect-[16/6]" />
               <div className="flex items-center justify-between gap-3 bg-[#14110F] p-3.5 text-white">
                 <div className="min-w-0">
                   <p className="text-[10.5px] font-extrabold uppercase tracking-wider text-[#F2C94C]">Next challenge · {challengeDay(nextChallenge.startsAt)}</p>

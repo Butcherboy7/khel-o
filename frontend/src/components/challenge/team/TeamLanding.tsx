@@ -144,9 +144,10 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
           </Link>
           </span>
           <span className="flex items-center gap-2">
-            <span className="inline-flex h-9 items-center gap-2 rounded-full bg-black/60 px-3.5 text-[12px] font-bold uppercase tracking-[0.16em] backdrop-blur-md">
+            <span className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-full bg-black/60 px-3 text-[11px] font-bold uppercase tracking-[0.1em] backdrop-blur-md sm:px-3.5 sm:text-[12px] sm:tracking-[0.16em]">
               <span className="vx-live-dot h-2 w-2 rounded-full bg-[#FF4A4A]" aria-hidden />
-              Live at {cfg.venue.shortName}
+              <span className="sm:hidden">At {cfg.venue.shortName} Cafe</span>
+              <span className="hidden sm:inline">At {cfg.venue.name}</span>
             </span>
             <SoundToggle />
           </span>
@@ -170,11 +171,11 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
             {/* The facts as a readout, not a row of pills. */}
             <dl className="vx-rise mt-5 grid grid-cols-3 border-y border-white/15 [animation-delay:.55s]">
               <Readout label="When" value={istDay(cfg.dates.firstMatch).replace(',', '')} sub={`from ${istTime(cfg.dates.firstMatch)}`} />
-              <Readout label="Where" value={cfg.venue.shortName} sub="See the café" href={`/cafe/${cfg.venue.bookingSlug}`} />
+              <Readout label="Where" value={cfg.venue.shortName} sub="Gachibowli" href={`/cafe/${cfg.venue.bookingSlug}`} />
               <Readout
                 label="Format"
                 value="5v5"
-                sub="See the rules"
+                sub="In person"
                 onClick={() => {
                   setTab('rules');
                   trackAction('challenge_tab', { challenge: cfg.slug, tab: 'rules', from: 'format' });
@@ -182,6 +183,22 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
                 }}
               />
             </dl>
+
+            <a
+              href={cfg.venue.googleMapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackAction('challenge_map_click', { challenge: cfg.slug, from: 'hero' })}
+              className="vx-rise mt-3 flex items-start gap-3 rounded-xl border border-[#E8675D]/55 bg-[#D0463C]/15 p-3 transition-colors hover:bg-[#D0463C]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 [animation-delay:.6s]"
+            >
+              <MapPin className="mt-0.5 h-5 w-5 flex-none text-[#E8675D]" aria-hidden />
+              <span className="min-w-0">
+                <span className="block text-[15px] font-bold leading-snug">Played in person at {cfg.venue.name}.</span>
+                <span className="mt-0.5 block text-[13px] leading-snug text-white/70">
+                  Be there by {istTime(cfg.dates.reportingTime)} on {istDay(cfg.dates.firstMatch).replace(',', '')}. Your team plays side by side. Open in Maps ›
+                </span>
+              </span>
+            </a>
 
             <div className="vx-rise mt-4 [animation-delay:.65s]">
               <StatusPanel
@@ -463,7 +480,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
         isOpen={shareOpen}
         onClose={() => setShareOpen(false)}
         heading="Share the Valorant challenge"
-        message="Valorant 5v5 at XQZ Hyderabad on Sat 5 Dec. Teams of 5, rewards worth ₹5,000. Sign up here:"
+        message="Valorant 5v5 in person at XQZ Gaming Cafe, Hyderabad on Sat 5 Dec. Teams of 5, rewards worth ₹5,000. Sign up here:"
         path={`/challenge/${cfg.slug}`}
         context="campaign"
         campaign="valorant-share"

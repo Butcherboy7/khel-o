@@ -15,3 +15,11 @@ def test_bell_follows_the_wording_rules():
     low = (va.BELL_TITLE + va.BELL_TEXT).lower()
     for banned in ("tournament", "prize", "cash", "ticket", "upi", "refund", "free"):
         assert banned not in low
+
+
+def test_says_in_person_at_the_cafe():
+    from app.services import valorant_announce as va
+    for text in (va.email_text("A"), va.BELL_TEXT):
+        low = text.lower()
+        assert "in person" in low and "xqz gaming cafe" in low
+        assert "online" not in low

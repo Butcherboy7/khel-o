@@ -21,7 +21,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   title: 'Khelo Valorant 5v5 Challenge',
   titleTop: 'Valorant',
   titleBottom: '5v5 Challenge',
-  subtitle: 'Form your team of 5. Play at XQZ. Exciting rewards worth ₹5,000.',
+  subtitle: 'Form your team of 5. Play side by side at XQZ Gaming Cafe, Gachibowli. Exciting rewards worth ₹5,000.',
   game: 'Valorant',
   mode: 'Swift Play 5v5',
   prizeTotal: 5000,
@@ -148,6 +148,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   ],
 
   faq: [
+    { q: 'Is it online?', a: 'No. Everyone plays in person, on gaming PCs at XQZ Gaming Cafe, Gachibowli, Hyderabad. Your whole team needs to be there on Sat 5 Dec.' },
     { q: 'My team has fewer than 5 players.', a: 'Sign up as a team and share your link. If a player is missing on the day, we will give you someone to play with.' },
     { q: "I don't have a team.", a: 'Sign up as solo. We will find you teammates.' },
     { q: 'Can I use my own account?', a: 'Yes, you must. Bring your phone, Riot may send a login code to your email.' },
@@ -159,7 +160,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   agreeLine: 'I joined the Khelo community, I follow Khelo and XQZ on Instagram, I read the rules (if my team is late, we lose the match), and I am OK with my photos and videos from the challenge being posted on Instagram.',
 
   // {link} is replaced with the captain's invite link.
-  shareText: 'I signed us up for the Khelo Valorant 5v5 Challenge at XQZ on 5 Dec. Tap this link, log in, and fill your details: {link}',
+  shareText: 'I signed us up for the Khelo Valorant 5v5 Challenge in person at XQZ Gaming Cafe, Hyderabad on 5 Dec. Tap this link, log in, and fill your details: {link}',
   storyLine: "I'm playing the Khelo Valorant 5v5 Challenge",
 
   disclaimer: 'This challenge is not made, run or supported by Riot Games.',
