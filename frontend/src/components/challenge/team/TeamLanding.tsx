@@ -200,6 +200,10 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               </span>
             </a>
 
+            <div className="vx-rise mt-3 [animation-delay:.62s]">
+              <ProvidedCard cfg={cfg} />
+            </div>
+
             <div className="vx-rise mt-4 [animation-delay:.65s]">
               <StatusPanel
                 open={open}
@@ -422,6 +426,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               ))}
             </div>
             <div>
+              <div className="mb-4"><ProvidedCard cfg={cfg} full /></div>
               <p className={`${fightFont.className} text-[clamp(32px,9vw,42px)] font-bold uppercase leading-none`}>{cfg.venue.name}</p>
               <p className="mt-2 max-w-[40ch] text-[14.5px] leading-snug text-[#B4B0B8]">{cfg.venue.address}</p>
               <a
@@ -543,6 +548,28 @@ function PanelTitle({ children, className = '' }: { children: ReactNode; classNa
       <span className="min-w-0">{children}</span>
       <span className="h-px flex-1 translate-y-[-2px] bg-gradient-to-r from-[#3A3340] to-transparent" aria-hidden />
     </h2>
+  );
+}
+
+function ProvidedCard({ cfg, full = false }: { cfg: TeamChallengeConfig; full?: boolean }) {
+  const p = cfg.provided;
+  return (
+    <div className="rounded-xl border border-[#F2C94C]/50 bg-[#F2C94C]/10 p-3">
+      <p className="flex items-start gap-2.5 text-[15px] font-bold leading-snug">
+        <Gamepad2 className="mt-0.5 h-5 w-5 flex-none text-[#F2C94C]" aria-hidden />
+        {p.headline}
+      </p>
+      <p className="mt-1 text-[13px] leading-snug text-white/75">{p.line}</p>
+      <ul className="mt-2.5 flex flex-wrap gap-1.5">
+        {(full ? p.specs : p.specs.slice(0, 3)).map((sp) => (
+          <li key={sp.label} className="rounded-lg border border-white/15 bg-black/25 px-2.5 py-1.5 text-[12.5px] leading-tight">
+            <span className="block text-[10.5px] font-semibold uppercase tracking-wider text-[#F2C94C]">{sp.label}</span>
+            <span className="font-bold">{sp.value}</span>
+          </li>
+        ))}
+      </ul>
+      {full && <p className="mt-2 text-[13px] leading-snug text-white/75">{p.extras}</p>}
+    </div>
   );
 }
 

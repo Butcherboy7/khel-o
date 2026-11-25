@@ -76,6 +76,19 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     ],
   },
 
+  provided: {
+    headline: 'We provide the gaming PCs. Bring nothing.',
+    line: 'No laptop, no PC. Show up at the cafe with your phone and your Riot ID, log in and play.',
+    specs: [
+      { label: 'Monitor', value: '540Hz' },
+      { label: 'Graphics', value: 'RTX 5060 Ti 16GB' },
+      { label: 'Processor', value: 'Ryzen 5 9600X' },
+      { label: 'Memory', value: '32GB DDR5 6000' },
+      { label: 'Storage', value: '1TB NVMe Gen4' },
+    ],
+    extras: 'Every seat is the same build. Mouse, keyboard and the rest are provided.',
+  },
+
   skirmish: [
     { icon: 'crosshair', text: 'Swift Play: a short, fast Valorant game.' },
     { icon: 'users', text: 'Your 5 vs their 5.' },
@@ -118,6 +131,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
     ] },
     { group: 'Accounts', items: [
       'Use your own Riot account. All ranks are allowed.',
+      'The gaming PCs and peripherals are provided. Do not bring your own PC or laptop. Bring your phone and your Riot ID.',
       'Keep your phone with you. Riot may send a login code to your email.',
       'Log in before your match time. Login problems do not stop the clock.',
     ] },
@@ -148,6 +162,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   ],
 
   faq: [
+    { q: 'Do I need to bring my own PC or laptop?', a: 'No. We provide top-spec gaming PCs at XQZ (RTX 5060 Ti 16GB, Ryzen 5 9600X, 540Hz monitor, 32GB RAM). Every seat is the same build and the peripherals are provided. Just come with your phone and your Riot ID, log in and play.' },
     { q: 'Is it online?', a: 'No. Everyone plays in person, on gaming PCs at XQZ Gaming Cafe, Gachibowli, Hyderabad. Your whole team needs to be there on Sat 5 Dec.' },
     { q: 'My team has fewer than 5 players.', a: 'Sign up as a team and share your link. If a player is missing on the day, we will give you someone to play with.' },
     { q: "I don't have a team.", a: 'Sign up as solo. We will find you teammates.' },
@@ -160,7 +175,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
   agreeLine: 'I joined the Khelo community, I follow Khelo and XQZ on Instagram, I read the rules (if my team is late, we lose the match), and I am OK with my photos and videos from the challenge being posted on Instagram.',
 
   // {link} is replaced with the captain's invite link.
-  shareText: 'I signed us up for the Khelo Valorant 5v5 Challenge in person at XQZ Gaming Cafe, Hyderabad on 5 Dec. Tap this link, log in, and fill your details: {link}',
+  shareText: 'I signed us up for the Khelo Valorant 5v5 Challenge in person at XQZ Gaming Cafe, Hyderabad on 5 Dec. We provide the gaming PCs, so just bring your phone and Riot ID. Tap this link, log in, and fill your details: {link}',
   storyLine: "I'm playing the Khelo Valorant 5v5 Challenge",
 
   disclaimer: 'This challenge is not made, run or supported by Riot Games.',

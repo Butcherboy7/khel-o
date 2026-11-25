@@ -51,6 +51,8 @@ export interface TeamChallengeConfig {
     heroPoster: string;
     photos: { src: string; srcSmall: string; alt: string }[];
   };
+  /** What the cafe provides, so nobody brings their own setup. */
+  provided: { headline: string; line: string; specs: { label: string; value: string }[]; extras: string };
   skirmish: { icon: TeamIcon; text: string }[];
   howItWorks: { icon: TeamIcon; text: string }[];
   timeline: { time: string; text: string }[];
