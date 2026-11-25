@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
     # The three community emails come from a person, with the title beside the name.
     COMMUNITY_EMAIL_FROM: str = '"Abdullah, Founder of KHEL-O" <abdullah@khel-o.com>'
-    COMMUNITY_EMAIL_REPLY_TO: str = "support.khelo@gmail.com"
+    COMMUNITY_EMAIL_REPLY_TO: str = "khelo.support@gmail.com"
 
     # Outside production, email only reaches these addresses. Dev runs on a copy
     # of prod's users, so without this a test booking or reset emails a real
