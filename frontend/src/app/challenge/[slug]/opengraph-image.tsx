@@ -8,7 +8,7 @@ import { challengeDay, challengeTimeRange, challengePoster } from '@/lib/challen
 // fields, so the next challenge gets its own card without new code. Same
 // look as the site's share card (cream grid, logo, red stamp).
 export const alt = 'KHEL-O challenge';
-export const size = { width: 1200, height: 630 };
+export const size = { width: 1200, height: 1200 };
 export const contentType = 'image/png';
 export const revalidate = 300;
 
@@ -32,7 +32,7 @@ export default async function Image({ params }: { params: { slug: string } | Pro
       return new ImageResponse(
         (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`data:image/jpeg;base64,${buf.toString('base64')}`} width={1200} height={630} alt="" />
+          <img src={`data:image/jpeg;base64,${buf.toString('base64')}`} width={1200} height={1200} alt="" />
         ),
         { ...size },
       );

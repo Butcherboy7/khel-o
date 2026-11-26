@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     'Valorant tournament Hyderabad', 'Valorant competition Hyderabad', 'Valorant team event', 'gaming cafe Hyderabad', 'XQZ Gaming Cafe', 'Valorant Swift Play 5v5',
   ],
   alternates: { canonical: '/valorant/hyderabad', languages: { 'en-IN': `${SITE_URL}/valorant/hyderabad` } },
-  openGraph: { title: TITLE, description: DESCRIPTION, url: `${SITE_URL}/valorant/hyderabad`, type: 'website', locale: 'en_IN', images: [{ url: SHARE, width: 1200, height: 630 }] },
+  openGraph: { title: TITLE, description: DESCRIPTION, url: `${SITE_URL}/valorant/hyderabad`, type: 'website', locale: 'en_IN', images: [{ url: SHARE, width: 1200, height: 1200 }] },
   twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION, images: [SHARE] },
 };
 

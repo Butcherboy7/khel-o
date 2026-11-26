@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       keywords: ['Valorant 5v5 Hyderabad', 'Valorant Hyderabad', 'Valorant Gachibowli', 'Valorant event Hyderabad', 'Valorant LAN Hyderabad', 'Valorant tournament Hyderabad', 'Valorant competition Hyderabad', 'Valorant near me', 'gaming cafe Hyderabad', 'Valorant team challenge', 'XQZ Hyderabad', 'XQZ Gaming Cafe Gachibowli'],
       description,
       alternates: { canonical: `/challenge/${slug}` },
-      openGraph: { title: team.title, description, url: `/challenge/${slug}`, type: 'website', images: [{ url: SHARE_IMAGE, width: 1200, height: 630, alt: team.title }] },
+      openGraph: { title: team.title, description, url: `/challenge/${slug}`, type: 'website', images: [{ url: SHARE_IMAGE, width: 1200, height: 1200, alt: team.title }] },
       twitter: { card: 'summary_large_image', title: team.title, description, images: [SHARE_IMAGE] },
     };
   }
