@@ -63,6 +63,20 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return output;
 }
 
+/**
+ * serviceWorker.ready never settles when nothing registered a worker, which left
+ * the Turn on button stuck on "Turning on…". Register /sw.js ourselves if there
+ * is no registration, and give up with a clear error instead of waiting forever.
+ */
+async function readyRegistration(): Promise<ServiceWorkerRegistration> {
+  const existing = await navigator.serviceWorker.getRegistration();
+  if (!existing) await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('The app worker did not start. Close the app, reopen it and try again.')), 10000),
+  );
+  return Promise.race([navigator.serviceWorker.ready, timeout]);
+}
+
 export async function enablePush(): Promise<
   'granted' | 'denied' | 'unsupported' | 'unconfigured'
 > {
@@ -81,7 +95,7 @@ export async function enablePush(): Promise<
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return 'denied';
 
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await readyRegistration();
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,

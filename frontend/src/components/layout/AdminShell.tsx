@@ -624,8 +624,8 @@ function AdminAlertsPrompt() {
       if (r === 'granted') setState('granted');
       else if (r === 'denied') setState('denied');
       else setNote(r === 'unconfigured' ? 'Alerts are not set up on this server.' : 'This phone cannot receive alerts.');
-    } catch {
-      setNote('Could not turn on alerts. Try again.');
+    } catch (e) {
+      setNote(e instanceof Error && e.message ? e.message : 'Could not turn on alerts. Try again.');
     } finally {
       setBusy(false);
     }

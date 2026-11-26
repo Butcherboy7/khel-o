@@ -585,13 +585,32 @@ async def confirm(db: AsyncSession, order_id: str, payment_id: str) -> Optional[
         return Confirmed("refunded", p)
     if result.get("outcome") == "refund":
         await refund(db, p, result.get("reason") or "No team spot was free when the payment arrived")
+        await _tell_admins(db, p, "refunded")
         return Confirmed("refunded", p)
     if result.get("outcome") == "paid":
         try:
             await send_confirmation(db, p)
         except Exception as exc:  # an email problem never undoes a paid entry
             logger.warning("challenge_confirm_email_failed", error=str(exc)[:200])
+        await _tell_admins(db, p, "paid")
     return Confirmed(result.get("outcome", "already"), p)
+
+
+async def _tell_admins(db: AsyncSession, p: ChallengePayment, what: str) -> None:
+    """Buzz every admin phone. Best effort: the entry is already saved."""
+    try:
+        from app.services.admin_alerts import alert_admins
+        who = ((p.form or {}).get("player") or {}).get("full_name") or "A player"
+        amt = int(p.amount)
+        if what == "paid":
+            title = "Team registered" if p.kind == "team" else "Solo player registered"
+            body = f"{who} paid Rs {amt}."
+        else:
+            title = "Payment auto-refunded"
+            body = f"{who}: Rs {amt} went back (no spot or entry failed)."
+        await alert_admins(db, title, body, "/admin/challenges")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("challenge_admin_alert_failed", error=str(exc)[:200])
 
 
 def _player_cols(d: dict) -> dict:
