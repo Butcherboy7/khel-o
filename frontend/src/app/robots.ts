@@ -4,7 +4,7 @@ import { getPublicEnv } from '@/lib/runtimeEnv';
 
 const SITE_URL = getPublicEnv('NEXT_PUBLIC_APP_URL', 'https://khel-o.online');
 
-const PUBLIC_ALLOW = ['/', '/gta6', '/cafe/', '/cafes/', '/browse', '/guides', '/about', '/terms', '/privacy', '/refund-policy', '/shipping-policy', '/contact'];
+const PUBLIC_ALLOW = ['/', '/gta6', '/valorant', '/challenge/', '/community','/cafe/', '/cafes/', '/browse', '/guides', '/about', '/terms', '/privacy', '/refund-policy', '/shipping-policy', '/contact'];
 const PRIVATE_DISALLOW = [
   '/owner',
   '/admin',
