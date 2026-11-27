@@ -5,12 +5,28 @@
  * WebAudio (no sound files to download), quiet by default, off in one tap, and the choice is
  * remembered. Browsers only allow sound after a tap, so nothing plays before the first one.
  */
-export type Sfx = 'tap' | 'select' | 'next' | 'success' | 'error' | 'slash';
+export type Sfx = 'tap' | 'select' | 'next' | 'success' | 'error' | 'slash' | 'primary' | 'join' | 'share' | 'back' | 'reveal';
 
 const KEY = 'khelo_vx_sound';
 const EVENT = 'khelo:vx-sound';
 let ctx: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
+let bus: AudioNode | null = null;
+let lastAt = 0;
+
+/** Every sound goes through one gentle compressor, so stacked sounds never clip or jump in loudness. */
+function out(c: AudioContext): AudioNode {
+  if (!bus) {
+    const comp = c.createDynamicsCompressor();
+    comp.threshold.value = -20;
+    comp.ratio.value = 4;
+    const g = c.createGain();
+    g.gain.value = 0.9;
+    comp.connect(g).connect(c.destination);
+    bus = comp;
+  }
+  return bus;
+}
 
 export function soundOn(): boolean {
   try {
@@ -59,7 +75,7 @@ function tone(c: AudioContext, type: OscillatorType, from: number, to: number, a
   g.gain.setValueAtTime(0.0001, at);
   g.gain.exponentialRampToValueAtTime(vol, at + 0.008);
   g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-  o.connect(g).connect(c.destination);
+  o.connect(g).connect(out(c));
   o.start(at);
   o.stop(at + dur + 0.02);
 }
@@ -81,17 +97,47 @@ function whoosh(c: AudioContext, at: number, dur: number, vol: number) {
   g.gain.setValueAtTime(0.0001, at);
   g.gain.exponentialRampToValueAtTime(vol, at + dur * 0.4);
   g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-  s.connect(f).connect(g).connect(c.destination);
+  s.connect(f).connect(g).connect(out(c));
   s.start(at);
   s.stop(at + dur + 0.02);
 }
 
 export function sfx(kind: Sfx): void {
   if (!soundOn()) return;
+  // Two taps inside 40 ms are one gesture: play one sound, not a smear.
+  const now = typeof performance !== 'undefined' ? performance.now() : 0;
+  if (now - lastAt < 40) return;
+  lastAt = now;
   const c = audio();
   if (!c) return;
   const t = c.currentTime + 0.005;
   switch (kind) {
+    // The main button (sign up): a low thump with a short bright confirm on top.
+    case 'primary':
+      tone(c, 'sine', 140, 55, t, 0.18, 0.13);
+      tone(c, 'triangle', 880, 1320, t + 0.03, 0.09, 0.05);
+      tone(c, 'triangle', 1320, 1760, t + 0.1, 0.12, 0.045);
+      whoosh(c, t, 0.14, 0.02);
+      break;
+    // Join the community: two soft rising pops, friendly, not a fanfare.
+    case 'join':
+      tone(c, 'sine', 520, 700, t, 0.09, 0.07);
+      tone(c, 'sine', 780, 1040, t + 0.09, 0.12, 0.07);
+      break;
+    // Share: an airy sweep that opens up.
+    case 'share':
+      whoosh(c, t, 0.22, 0.04);
+      tone(c, 'triangle', 700, 1500, t + 0.02, 0.16, 0.04);
+      break;
+    // Back / close: the tap, pitched down.
+    case 'back':
+      tone(c, 'triangle', 760, 460, t, 0.08, 0.05);
+      break;
+    // The sticky sign-up bar sliding in.
+    case 'reveal':
+      tone(c, 'sine', 300, 520, t, 0.12, 0.04);
+      whoosh(c, t, 0.14, 0.015);
+      break;
     case 'tap':
       tone(c, 'triangle', 1300, 850, t, 0.06, 0.05);
       break;

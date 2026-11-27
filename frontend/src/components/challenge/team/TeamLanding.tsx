@@ -9,6 +9,7 @@ import { trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, type Challenge } from '@/lib/api/challenges';
 import { getMyTeamEntry, type MyTeamEntry, type TeamInfo } from '@/lib/api/teamChallenges';
 import { rememberUtm } from '@/lib/challenge';
+import { sfx } from '@/lib/vxSound';
 import { ShareModal } from '@/components/customer/ShareModal';
 import { useAuthStore } from '@/store/authStore';
 import type { TeamChallengeConfig } from '@/challenges/types';
@@ -75,6 +76,11 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
     return () => io.disconnect();
   }, [ch]);
 
+  // The sticky sign-up bar slides in once the hero buttons scroll away: a soft cue (only after the first tap, as browsers require).
+  useEffect(() => {
+    if (heroGone) sfx('reveal');
+  }, [heroGone]);
+
   const team = ch?.team;
   const max: number | null = team ? team.maxTeams : 16; // null = no limit
   const joined = team?.teams ?? 0;
@@ -122,6 +128,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
           <Link
             href="/"
             aria-label="Back to KHEL-O"
+            data-sfx="back"
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/55 backdrop-blur hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
             <ArrowLeft className="h-5 w-5" aria-hidden />
@@ -215,6 +222,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
                   href={cfg.links.communityInvite}
                   target="_blank"
                   rel="noopener noreferrer"
+                  data-sfx="join"
                   onClick={() => trackAction('challenge_community_click', { challenge: cfg.slug, where: 'hero' })}
                   className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-white/15 px-2 text-center text-[13px] font-semibold leading-[1.1] text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                 >
@@ -222,6 +230,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
                 </a>
                 <button
                   type="button"
+                  data-sfx="share"
                   onClick={() => openShare('hero')}
                   className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-white/15 px-2 text-center text-[13px] font-semibold leading-[1.1] text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
@@ -473,6 +482,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               href={cfg.links.communityInvite}
               target="_blank"
               rel="noopener noreferrer"
+              data-sfx="join"
               onClick={() => trackAction('challenge_community_click', { challenge: cfg.slug, where: 'band' })}
               className="mt-4 flex min-h-[52px] items-center justify-center gap-2.5 rounded-xl bg-[#25D366] px-5 text-[16px] font-bold text-[#06210F] transition-colors hover:bg-[#3BE07B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
@@ -480,6 +490,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
             </a>
             <button
               type="button"
+              data-sfx="share"
               onClick={() => openShare('band')}
               className="mt-2 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-white/25 px-5 text-[15px] font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
@@ -545,6 +556,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
           <Link
             href={choice ? choice.team.href : cta.href}
             tabIndex={heroGone ? 0 : -1}
+            data-sfx="primary"
             onClick={() => trackAction('challenge_signup_started', { challenge: cfg.slug, where: 'sticky', kind: choice ? 'team' : '' })}
             className="vx-corner-sm flex h-12 items-center justify-center gap-1.5 bg-[#D0463C] px-5 text-[16px] font-bold text-white transition-colors hover:bg-[#B93C33] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
           >
@@ -776,6 +788,7 @@ function SignUpCta({ cta, choice, where, slug, heroRef }: {
       <Link
         ref={heroRef}
         href={cta.href}
+        data-sfx="primary"
         onClick={() => trackAction('challenge_signup_started', { challenge: slug, where })}
         className="vx-corner group flex h-[62px] w-full items-center justify-center gap-2 bg-[#D0463C] text-white shadow-[0_14px_34px_-14px_rgba(208,70,60,0.9)] transition-colors duration-200 hover:bg-[#B93C33] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
       >
@@ -789,6 +802,7 @@ function SignUpCta({ cta, choice, where, slug, heroRef }: {
       <Link
         ref={heroRef}
         href={choice.team.href}
+        data-sfx="primary"
         onClick={() => trackAction('challenge_signup_started', { challenge: slug, where, kind: 'team' })}
         className="vx-corner group flex min-h-[60px] flex-[1.6] items-stretch bg-[#D0463C] text-white shadow-[0_14px_34px_-14px_rgba(208,70,60,0.9)] transition-colors duration-200 hover:bg-[#B93C33] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
       >

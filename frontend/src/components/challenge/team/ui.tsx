@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Check, CreditCard, Crosshair, Instagram, LifeBuoy, MapPin, Timer, Trophy, Users, Volume2, VolumeX, Phone, Mail } from 'lucide-react';
-import { onSoundChange, setSound, sfx, soundOn } from '@/lib/vxSound';
+import { onSoundChange, setSound, sfx, soundOn, type Sfx } from '@/lib/vxSound';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import type { TeamChallengeConfig, TeamIcon } from '@/challenges/types';
 
@@ -128,6 +128,12 @@ export function useVxClickSounds() {
       if (first) {
         first = false;
         sfx('slash');
+        return;
+      }
+      // A button can name its own sound: data-sfx="primary" | "join" | "share" | "back".
+      const own = (el.closest('[data-sfx]') as HTMLElement | null)?.dataset.sfx as Sfx | undefined;
+      if (own) {
+        sfx(own);
         return;
       }
       sfx(el.matches('[role="tab"], input, label') ? 'select' : el.matches('button[type="submit"], .btn-depth') ? 'next' : 'tap');
