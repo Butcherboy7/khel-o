@@ -155,9 +155,17 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
 
         <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 items-end gap-12 px-4 pb-4 pt-4 md:items-center md:px-8 md:pb-16">
           <div className="w-full min-w-0 md:max-w-[620px]">
+            <Link
+              href="/"
+              onClick={() => trackAction('challenge_khelo_click', { challenge: cfg.slug, where: 'hero' })}
+              className="-my-1 inline-flex min-h-[40px] items-center gap-1.5 text-[13.5px] font-semibold text-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            >
+              <span>KHEL-O is <b className="text-[#F2C94C] underline decoration-[#F2C94C]/50 underline-offset-4">BookMyShow for gaming cafes</b></span>
+              <ChevronRight className="h-4 w-4 text-[#F2C94C]" aria-hidden />
+            </Link>
             <h1 className={`${fightFont.className} relative uppercase`}>
               <span className="vx-scan absolute -left-2 top-[18%] h-[64%] w-1/3 bg-gradient-to-r from-transparent via-white/40 to-transparent" aria-hidden />
-              <span className="vx-cut block text-[clamp(64px,22vw,148px)] font-bold leading-[0.76] tracking-[0.01em] [text-shadow:0_10px_40px_rgba(0,0,0,0.55)]">
+              <span className="vx-cut block text-[clamp(64px,22vw,148px)] font-bold leading-[0.76] tracking-[0.01em] [text-shadow:0_10px_40px_rgba(0,0,0,0.55)] [@media(max-height:780px)]:text-[clamp(52px,17.5vw,120px)]">
                 {cfg.titleTop}
               </span>
               <span className="vx-cut vx-cut-2 mt-2 block text-[clamp(34px,10.2vw,72px)] font-semibold leading-[0.9] tracking-[0.04em] text-[#E8675D] [text-shadow:0_4px_24px_rgba(0,0,0,0.7)]">
@@ -165,12 +173,12 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               </span>
             </h1>
             <p className="vx-rise mt-3 max-w-[34ch] text-balance text-[17px] md:max-w-none font-semibold leading-snug text-white [animation-delay:.45s] md:text-[21px]">
-              {cfg.subtitle}
+              Teams of 5. Rewards worth {rupees(cfg.prizeTotal)}.
             </p>
 
             {/* The facts as a readout, not a row of pills. */}
             <dl className="vx-rise mt-3 grid grid-cols-3 border-y border-white/15 [animation-delay:.55s]">
-              <Readout label="When" value={istDay(cfg.dates.firstMatch).replace(',', '')} sub={`from ${istTime(cfg.dates.firstMatch)}`} />
+              <Readout label="When" value={istDay(cfg.dates.firstMatch).replace(',', '')} sub={`${istTime(cfg.dates.reportingTime).replace(':00', '')} check-in`} />
               <Readout label="Where" value={cfg.venue.shortName} sub="Gachibowli" href={`/cafe/${cfg.venue.bookingSlug}`} />
               <Readout
                 label="Format"
@@ -201,22 +209,23 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
 
             <div className="vx-rise mt-2.5 [animation-delay:.75s]">
               <SignUpCta cta={cta} choice={choice} where="hero" slug={cfg.slug} heroRef={heroCta} />
-              <div className="mt-2 grid grid-cols-2 gap-2">
+              <p className="mt-2 text-[12.5px] leading-tight text-white/70">Not playing this time? Don&apos;t miss the next one.</p>
+              <div className="mt-1.5 grid grid-cols-[1.25fr_1fr] gap-2">
                 <a
                   href={cfg.links.communityInvite}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => trackAction('challenge_community_click', { challenge: cfg.slug, where: 'hero' })}
-                  className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/15 text-[14px] font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                  className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-white/15 px-2 text-center text-[13px] font-semibold leading-[1.1] text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                 >
-                  <WhatsAppIcon className="h-5 w-5 text-[#25D366]" aria-hidden /> Join community
+                  <WhatsAppIcon className="h-[18px] w-[18px] flex-none text-[#25D366]" aria-hidden /> Join KHEL-O community
                 </a>
                 <button
                   type="button"
                   onClick={() => openShare('hero')}
-                  className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/15 text-[14px] font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-white/15 px-2 text-center text-[13px] font-semibold leading-[1.1] text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
-                  <Share2 className="h-5 w-5" aria-hidden /> Share
+                  <Share2 className="h-[18px] w-[18px] flex-none" aria-hidden /> Share with your squad
                 </button>
               </div>
             </div>
@@ -453,16 +462,44 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
         </div>
       </main>
 
-      <section className="border-t border-[#2A2530] bg-[#0A0809] px-4 py-8 text-center">
-        <p className="text-[17px] font-bold">Know someone who plays Valorant?</p>
-        <p className="mx-auto mt-1 max-w-sm text-[14.5px] text-[#C4BFC8]">Don&apos;t play yourself? Send this page to a friend who does. They can sign up as a team or solo.</p>
-        <button
-          type="button"
-          onClick={() => openShare('footer')}
-          className="mx-auto mt-4 flex h-12 items-center justify-center gap-2 rounded-xl bg-[#D0463C] px-6 text-[15px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-        >
-          <Share2 className="h-5 w-5" aria-hidden /> Share this page
-        </button>
+      <section className="border-t border-[#2A2530] bg-[#0A0809] px-4 py-9">
+        <div className="mx-auto grid max-w-xl gap-9 md:max-w-6xl md:grid-cols-2 md:gap-14 md:px-4">
+          <div>
+            <h2 className={`${fightFont.className} text-[clamp(32px,9vw,44px)] font-bold uppercase leading-[0.95]`}>Not playing this time? Don&apos;t miss the next one.</h2>
+            <p className="mt-3 max-w-[46ch] text-[15px] leading-snug text-[#C4BFC8]">
+              Join the KHEL-O community for upcoming challenges, gaming events, deals and updates. Even if you&apos;re not playing this time, there&apos;s always another game.
+            </p>
+            <a
+              href={cfg.links.communityInvite}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackAction('challenge_community_click', { challenge: cfg.slug, where: 'band' })}
+              className="mt-4 flex min-h-[52px] items-center justify-center gap-2.5 rounded-xl bg-[#25D366] px-5 text-[16px] font-bold text-[#06210F] transition-colors hover:bg-[#3BE07B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <WhatsAppIcon className="h-5 w-5" aria-hidden /> Join KHEL-O community
+            </a>
+            <button
+              type="button"
+              onClick={() => openShare('band')}
+              className="mt-2 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-white/25 px-5 text-[15px] font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            >
+              <Share2 className="h-5 w-5" aria-hidden /> Share with your squad
+            </button>
+          </div>
+          <div>
+            <h2 className={`${fightFont.className} text-[clamp(32px,9vw,44px)] font-bold uppercase leading-[0.95]`}>KHEL-O is BookMyShow for gaming cafes.</h2>
+            <p className="mt-3 max-w-[46ch] text-[15px] leading-snug text-[#C4BFC8]">
+              Find gaming cafes and PC gaming sessions near you and book your seat. No calling around. No visiting several cafes. This challenge is one of the events we run with partner cafes.
+            </p>
+            <Link
+              href="/browse"
+              onClick={() => trackAction('challenge_khelo_click', { challenge: cfg.slug, where: 'band' })}
+              className="mt-4 inline-flex min-h-[48px] items-center gap-1.5 text-[15.5px] font-bold text-[#F2C94C] underline decoration-[#F2C94C]/50 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            >
+              Browse gaming cafes near you <ChevronRight className="h-5 w-5" aria-hidden />
+            </Link>
+          </div>
+        </div>
       </section>
 
       <TeamFooter cfg={cfg} wide />
@@ -542,7 +579,7 @@ function ProvidedCard({ cfg, full = false, hero = false }: { cfg: TeamChallengeC
   return (
     <div className="rounded-xl border border-[#F2C94C]/50 bg-black/55 p-3 backdrop-blur-md">
       {hero && (
-        <p className="mb-1.5 flex items-center gap-1.5 text-[13.5px] font-bold leading-snug">
+        <p className="mb-1.5 flex items-center gap-1.5 text-[13.5px] font-bold leading-snug [@media(max-height:780px)]:hidden">
           <MapPin className="h-4 w-4 flex-none text-[#E8675D]" aria-hidden />
           Played in person at {cfg.venue.name}
         </p>
@@ -550,7 +587,7 @@ function ProvidedCard({ cfg, full = false, hero = false }: { cfg: TeamChallengeC
       <p className="flex items-start gap-2.5 text-[15px] font-bold leading-snug">
         <Gamepad2 className="mt-0.5 h-5 w-5 flex-none text-[#F2C94C]" aria-hidden />
         {hero ? (
-          <span><span className="text-[#F2C94C]">We provide the gaming PCs.</span> Bring nothing but your phone and your Riot ID.</span>
+          <span><span className="text-[#F2C94C]">Your PC is already waiting.</span> We provide the gaming PCs and peripherals. Bring your phone and Riot ID.</span>
         ) : (
           p.headline
         )}
@@ -564,7 +601,7 @@ function ProvidedCard({ cfg, full = false, hero = false }: { cfg: TeamChallengeC
           </li>
         ))}
         {hero && (
-          <li>
+          <li className="[@media(max-height:780px)]:hidden">
             <a
               href={cfg.venue.googleMapsUrl}
               target="_blank"
@@ -634,7 +671,7 @@ function StatusPanel({ open, full, max, joined, solos, closesAt }: { open: boole
       ) : (
         <p className="text-[15px] font-semibold">Sign-ups are closed.</p>
       )}
-      {max !== null && <div className="mt-2 grid grid-cols-[repeat(16,minmax(0,1fr))] gap-[3px]" aria-hidden>
+      {max !== null && <div className="mt-2 grid grid-cols-[repeat(16,minmax(0,1fr))] gap-[3px] [@media(max-height:780px)]:hidden" aria-hidden>
         {Array.from({ length: max }, (_, i) => (
           <span
             key={i}
