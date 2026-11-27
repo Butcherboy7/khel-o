@@ -9,6 +9,7 @@ import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { fightFont } from '@/components/challenge/ChallengeHero';
 import { useRazorpay } from '@/hooks/useRazorpay';
 import { trackAction } from '@/lib/api/analyticsEvents';
+import { createCheckoutTracker } from '@/lib/checkoutTracker';
 import { getChallenge } from '@/lib/api/challenges';
 import { ApiError } from '@/lib/api/errors';
 import {
@@ -194,6 +195,9 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
       const order = await startPayment(cfg.slug, body());
       setHoldUntil(order.holdUntil);
       trackAction('challenge_pay_started', { challenge: cfg.slug, kind });
+      // How this checkout ends (failed / closed / could not confirm) is counted once each. Tracking only:
+      // nothing below changes what the person sees or what gets paid.
+      const ending = createCheckoutTracker({ slug: cfg.slug, kind, track: trackAction });
       displayRazorpay({
         order_id: order.orderId,
         amount: Math.round(order.amount * 100),
@@ -202,8 +206,13 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
         name: 'KHEL-O',
         description: `${cfg.title}: ${kind === 'team' ? 'Team of 5' : 'Solo'} entry`,
         prefill: { name: me.fullName, email: user?.email, contact: phoneDigits(me.phone) },
-        onDismiss: () => setBusy(false),
+        onDismiss: () => {
+          setBusy(false);
+          ending.dismissed();
+        },
+        onFailed: (reason) => ending.failed(reason),
         handler: async (rsp) => {
+          ending.paymentReceived();
           try {
             await verifyPayment(cfg.slug, {
               razorpayOrderId: rsp.razorpay_order_id,
@@ -216,11 +225,13 @@ export function TeamJoin({ cfg }: { cfg: TeamChallengeConfig }) {
           } catch (e) {
             const err = e as ApiError;
             setBusy(false);
-            if (err?.code === 'FULL_REFUNDED') {
-              setBanner('Your payment came in after the last spot was taken, so we refunded it in full. It reaches you in 5 to 7 days. You can join the waitlist below.');
-              setInfo((i) => (i ? { ...i, spotsLeft: 0 } : i));
+            ending.verifyError(err?.code || 'unknown');
+            if (err?.code === 'FULL_REFUNDED' || err?.code === 'REFUND_PENDING') {
+              // Whatever the reason, no refund wording: the money is safe and a person will sort it out.
+              const phone = cfg.links.supportPhone ? ` Call or WhatsApp ${cfg.links.supportPhone}.` : '';
+              setBanner(`We couldn’t complete your registration. Your payment is safe and our team will sort it out. Please don’t pay again.${phone}`);
             } else {
-              setBanner(err?.message || 'The payment didn’t go through. No money was taken. Tap Pay to try again.');
+              setBanner(err?.message || 'We couldn’t confirm your payment yet. Please check your registration status before trying again. Contact us if the amount was deducted but your registration isn’t confirmed.');
             }
           }
         },

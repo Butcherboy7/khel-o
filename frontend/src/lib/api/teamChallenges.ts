@@ -102,6 +102,10 @@ export interface MyTeamEntry {
   } | null;
   matches: { round: string; startsAt: string | null; lobby: string | null; bestOf: number; against: string | null; won: boolean | null }[];
   pending: { kind: 'team' | 'solo'; holdUntil: string } | null;
+  /** The solo price from the server's challenge setup. */
+  priceSolo?: number;
+  /** Paid, no entry made, the refund is with our team. */
+  refundPending?: boolean;
   payment?: { amount: number; status: 'paid' | 'refunded'; paymentId: string | null; paidAt: string | null; refundedAt: string | null };
 }
 
@@ -213,6 +217,8 @@ export interface TeamDesk {
   removed: DeskTeam[];
   solos: (Member & { paid: boolean; refunded: boolean })[];
   money: { paid: number; refunded: number; payments: number };
+  /** Paid, but no team or player was made and the automatic refund failed. */
+  refundNeeded: { id: string; kind: string; amount: number; paidAt: string | null; reason: string | null; razorpayPaymentId: string | null; name: string | null; email: string | null }[];
   /** Dev only: practice teams can be added. */
   practiceAllowed: boolean;
   practicePlayers: number;
@@ -222,7 +228,32 @@ export interface TeamDesk {
 
 const admin = (id: string) => `/api/v1/admin/challenges/${id}/teams`;
 
+/** The sign-up funnel: browser events (internal + bot traffic removed) beside the payment records. */
+export interface FunnelRow { name: string; visitors: number; signup: number; payStarted: number; paid: number }
+type ByKind = { team: number; solo: number; unspecified: number; all: number };
+export interface ChallengeFunnel {
+  note: string;
+  visitors: { unique: number; returnedAnotherDay: number };
+  steps: { key: string; label: string; count: number; source: 'browser' | 'database'; ofPrevious: number | null; ofVisitors: number | null }[];
+  signupByKind: ByKind;
+  detailsByKind: ByKind;
+  payStartedByKind: ByKind;
+  checkout: { failedSessions: number; dismissedSessions: number; couldNotConfirmSessions: number; note: string };
+  outcomes: {
+    paid: number; paidTeam: number; paidSolo: number; refunded: number; failedRecorded: number; startedNotPaid: number;
+    registeredPayments: number; registeredTeams: number; registeredSolos: number; paidWithoutEntry: number;
+  };
+  reconciliation: { browserSaidPaid: number; databasePaid: number; match: boolean; note: string };
+  engagement: {
+    communityClicks: number; shareSheetOpened: number; shareLinksCreated: number; shareLinksOpenedByOthers: number;
+    mapClicks: number; kheloLinkClicks: number; note: string;
+  };
+  sources: FunnelRow[];
+  devices: FunnelRow[];
+}
+
 export const adminTeams = {
+  funnel: (id: string) => call<ChallengeFunnel>(() => apiClient.get(`/api/v1/admin/challenges/${id}/funnel`)),
   links: (id: string) => call<{ links: { link: string; opened: number; tapped: number; paid: number }[] }>(() => apiClient.get(`/api/v1/admin/challenges/${id}/links`)),
   desk: (id: string) => call<TeamDesk>(() => apiClient.get(admin(id))),
   makeTeam: (id: string, playerIds: string[], name?: string) => call<TeamDesk>(() => apiClient.post(`${admin(id)}/solo-team`, { playerIds, name: name || null })),
@@ -230,6 +261,8 @@ export const adminTeams = {
   offer: (id: string, entryId: string, on = true) => call<TeamDesk>(() => apiClient.post(`${admin(id)}/${entryId}/offer`, { on })),
   refundSolo: (id: string, playerId: string, reason: string) => call<TeamDesk>(() => apiClient.post(`${admin(id)}/players/${playerId}/refund`, { reason })),
   refundTeam: (id: string, entryId: string, reason: string) => call<TeamDesk>(() => apiClient.post(`${admin(id)}/${entryId}/refund`, { reason })),
+  resolveRefund: (id: string, paymentId: string, refundId: string, note = '') =>
+    call<TeamDesk>(() => apiClient.post(`${admin(id)}/payments/${paymentId}/resolve-refund`, { refundId, confirmed: true, note })),
   cancelAll: (id: string, reason: string) => call<TeamDesk & { cancelResult: { refunded: number; failed: number } }>(() => apiClient.post(`${admin(id)}/cancel-all`, { reason, confirm: 'CANCEL' })),
   checkin: (id: string, playerId: string, present: boolean) => call<TeamDesk>(() => apiClient.post(`${admin(id)}/players/${playerId}/checkin`, { present })),
   draw: (id: string, redo = false, earlyOk = false) => call<{ teams: number }>(() => apiClient.post(`${admin(id)}/draw`, { redo, earlyOk })),

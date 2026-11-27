@@ -486,7 +486,7 @@ async def confirm(db: AsyncSession, order_id: str, payment_id: str) -> Optional[
             select(ChallengePayment).where(ChallengePayment.id == pay_id).with_for_update()
             .execution_options(populate_existing=True)
         )).scalar_one()
-        if p.status in ("paid", "refunded"):
+        if p.status in ("paid", "refunded", "refund_due"):
             result["outcome"] = "already"
             return p
         p.razorpay_payment_id = payment_id
@@ -570,13 +570,14 @@ async def confirm(db: AsyncSession, order_id: str, payment_id: str) -> Optional[
         logger.error("challenge_confirm_failed_refunding", payment=str(pay_id), error=str(exc)[:200])
         p = (await db.execute(select(ChallengePayment).where(ChallengePayment.id == pay_id)
                               .execution_options(populate_existing=True))).scalar_one()
-        if p.status in ("paid", "refunded"):
-            return Confirmed("already", p)
+        if p.status in ("paid", "refunded", "refund_due"):
+            return Confirmed("refund_due" if p.status == "refund_due" else "already", p)
         p.razorpay_payment_id = payment_id
         p.paid_at = now()
         p.status = "paid"
         await db.commit()
-        await refund(db, p, "We could not create your entry, so the money is returned")
+        if await auto_refund(db, p, "We could not create your entry, so the money is returned") == "refund_due":
+            return Confirmed("refund_due", p)
         try:
             from app.services import challenge_team_mail
             await challenge_team_mail.notify_unmade_entry(db, await db.get(Challenge, challenge_id), p.user_id, p.amount)
@@ -584,9 +585,12 @@ async def confirm(db: AsyncSession, order_id: str, payment_id: str) -> Optional[
             logger.warning("challenge_unmade_mail_failed", error=str(exc)[:200])
         return Confirmed("refunded", p)
     if result.get("outcome") == "refund":
-        await refund(db, p, result.get("reason") or "No team spot was free when the payment arrived")
+        if await auto_refund(db, p, result.get("reason") or "No team spot was free when the payment arrived") == "refund_due":
+            return Confirmed("refund_due", p)
         await _tell_admins(db, p, "refunded")
         return Confirmed("refunded", p)
+    if result.get("outcome") == "already" and p.status == "refund_due":
+        return Confirmed("refund_due", p)
     if result.get("outcome") == "paid":
         try:
             await send_confirmation(db, p)
@@ -602,6 +606,12 @@ async def _tell_admins(db: AsyncSession, p: ChallengePayment, what: str) -> None
         from app.services.admin_alerts import alert_admins
         who = ((p.form or {}).get("player") or {}).get("full_name") or "A player"
         amt = int(p.amount)
+        if what == "refund_due":
+            # No name, amount or id here: a lock-screen notification is not the place for them.
+            await alert_admins(db, "Refund needed",
+                               "An automatic refund didn't go through. Open the challenge desk to resolve it.",
+                               "/admin/challenges")
+            return
         if what == "paid":
             title = "Team registered" if p.kind == "team" else "Solo player registered"
             body = f"{who} paid Rs {amt}."
@@ -635,6 +645,28 @@ async def refund(db: AsyncSession, p: ChallengePayment, reason: str) -> Challeng
     p.refund_reason = reason[:120]
     await db.commit()
     return p
+
+
+async def auto_refund(db: AsyncSession, p: ChallengePayment, reason: str) -> str:
+    """Refund for the automatic cases (no spot, entry could not be made). Returns 'refunded'
+    or 'refund_due'. If Razorpay refuses, the payment is parked as 'refund_due' (money held,
+    no entry, an admin must settle it) instead of being left looking paid. Never retried here:
+    a later webhook or verify call sees 'refund_due' and does nothing, so no double refund."""
+    try:
+        await refund(db, p, reason)
+        return "refunded"
+    except TeamError as exc:
+        if exc.code != "REFUND_FAILED":
+            raise
+    await db.rollback()
+    p = (await db.execute(select(ChallengePayment).where(ChallengePayment.id == p.id)
+                          .with_for_update().execution_options(populate_existing=True))).scalar_one()
+    if p.status == "paid":
+        p.status = "refund_due"
+        p.refund_reason = reason[:120]
+        await db.commit()
+    await _tell_admins(db, p, "refund_due")
+    return "refund_due"
 
 
 # ── Free sign-ups: waitlist, teammates ────────────────────────────────────

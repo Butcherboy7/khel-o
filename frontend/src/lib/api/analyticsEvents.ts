@@ -62,6 +62,25 @@ export function fireAnalyticsEvent(
   } catch {}
 }
 
+/**
+ * Reads the link's tags (utm_*, fbclid, ?internal=1) into the analytics store NOW. A page that counts its own
+ * "opened" event as it mounts calls this first: the shared page-view tracker runs after the page's own effects,
+ * so without it that first event went out with no campaign and no test-device mark. Safe to repeat: the tracker
+ * reading the same link afterwards changes nothing (first-touch attribution is never overwritten).
+ */
+export function primeAnalyticsFromUrl(search: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const params = new URLSearchParams(search);
+    const store = useAnalyticsStore.getState();
+    const internal = params.get('internal');
+    if (internal === '1' || internal === '0') store.setInternal(internal === '1');
+    if (params.get('utm_source') || params.get('fbclid')) store.captureAttributionFromUrl(params);
+  } catch {
+    /* tracking must never break the page */
+  }
+}
+
 /** Shorthand for a counted tap: `trackAction('popup_sign_in', { code })`. */
 export function trackAction(action: string, metadata: Record<string, unknown> = {}, cafeId?: string): void {
   fireAnalyticsEvent('ui_action', { cafeId, metadata: { action, ...metadata } });

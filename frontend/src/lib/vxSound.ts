@@ -66,6 +66,26 @@ function audio(): AudioContext | null {
   }
 }
 
+/**
+ * Wakes the audio engine without making a sound. Some phones (iPhone Safari) only allow it inside a
+ * finished tap (touchend / click), so the page calls this on those too. Never throws, never plays.
+ */
+export function unlockAudio(): void {
+  if (!soundOn()) return;
+  try {
+    const c = audio();
+    if (!c) return;
+    // A one-sample silent buffer is the usual way to finish the unlock.
+    const b = c.createBuffer(1, 1, 22050);
+    const s = c.createBufferSource();
+    s.buffer = b;
+    s.connect(c.destination);
+    s.start(0);
+  } catch {
+    /* audio is optional: the tap still works */
+  }
+}
+
 function tone(c: AudioContext, type: OscillatorType, from: number, to: number, at: number, dur: number, vol: number) {
   const o = c.createOscillator();
   const g = c.createGain();

@@ -189,7 +189,7 @@ async def start_payment(slug: str, body: EntryIn, db: AsyncSession = Depends(get
     except teams.TeamError as e:
         raise _err(e)
     except drop_service.DropError as e:
-        raise AppException(message=e.message, error_code=e.code, status_code=503)
+        raise AppException(message=e.message, error_code=e.error_code, status_code=503)
     p = started.payment
     logger.info("challenge_team_pay_started", challenge=slug, kind=p.kind)
     return {"success": True, "data": {
@@ -206,12 +206,18 @@ async def start_offer_payment(slug: str, db: AsyncSession = Depends(get_db), use
     except teams.TeamError as e:
         raise _err(e)
     except drop_service.DropError as e:
-        raise AppException(message=e.message, error_code=e.code, status_code=503)
+        raise AppException(message=e.message, error_code=e.error_code, status_code=503)
     p = started.payment
     return {"success": True, "data": {
         "orderId": p.razorpay_order_id, "amount": float(p.amount), "currency": "INR", "keyId": started.key_id,
         "holdUntil": _iso(p.expires_at), "kind": "team",
     }}
+
+
+VERIFY_PENDING_MSG = (
+    "We couldn't confirm your payment yet. Please check your registration status before trying again. "
+    "Contact us if the amount was deducted but your registration isn't confirmed."
+)
 
 
 class VerifyIn(_Camel):
@@ -230,15 +236,21 @@ async def verify_payment(slug: str, body: VerifyIn, db: AsyncSession = Depends(g
     if not drop_service.signature_ok(body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature):
         pay.status = "failed" if pay.status == "created" else pay.status
         await db.commit()
-        raise AppException(message="The payment didn't go through. No money was taken. Try again.", error_code="PAYMENT_FAILED", status_code=400)
+        raise AppException(message=VERIFY_PENDING_MSG, error_code="PAYMENT_FAILED", status_code=400)
     try:
         done = await teams.confirm(db, body.razorpay_order_id, body.razorpay_payment_id)
     except teams.TeamError as e:
         raise _err(e)
     if done and done.outcome == "refunded":
         raise AppException(
-            message="Sorry, the last team spot was taken while you were paying. Your money is being refunded.",
+            message="We couldn't complete your registration. Your payment is safe and our team will sort it out. Please don't pay again.",
             error_code="FULL_REFUNDED", status_code=409)
+    if done and done.outcome == "refund_due":
+        # Never say "refunded" here: the refund has not happened yet.
+        raise AppException(
+            message="We couldn't complete your registration. Your payment is safe and our team will sort it out with you. "
+                    "Please don't pay again. Contact us if you don't hear from us soon.",
+            error_code="REFUND_PENDING", status_code=409)
     logger.info("challenge_team_paid", challenge=slug, kind=pay.kind)
     return {"success": True, "data": await _me(db, ch, user)}
 
@@ -380,9 +392,14 @@ async def _me(db: AsyncSession, ch: Challenge, user: User) -> dict:
         ChallengePayment.challenge_id == ch.id, ChallengePayment.user_id == user.id,
         ChallengePayment.status == "created", ChallengePayment.expires_at > teams.now(),
     ).order_by(ChallengePayment.created_at.desc()))).scalars().first()
-    out: dict = {"player": None, "team": None, "matches": [], "pending": None}
+    out: dict = {"player": None, "team": None, "matches": [], "pending": None, "priceSolo": cfg["priceSolo"]}
     if pending is not None:
         out["pending"] = {"kind": pending.kind, "holdUntil": _iso(pending.expires_at)}
+    due = (await db.execute(select(ChallengePayment.id).where(
+        ChallengePayment.challenge_id == ch.id, ChallengePayment.user_id == user.id,
+        ChallengePayment.status == "refund_due").limit(1))).first()
+    if due is not None:
+        out["refundPending"] = True
     if me is None:
         return out
     out["player"] = {**_player_out(me, private=True), "qr": None, "checkinUrl": None}
@@ -514,7 +531,17 @@ async def _desk(db: AsyncSession, ch: Challenge) -> dict:
         }
 
     solos = [p for p in ppl if p.role == "solo" and p.entry_id is None]
+    due_users = {p.user_id for p in pays if p.status == "refund_due"}
+    due_who = {u.id: u for u in (await db.execute(select(User).where(User.id.in_(due_users)))).scalars().all()} if due_users else {}
     return {
+        # Paid, but no team or player could be made and Razorpay would not refund. An admin settles these.
+        "refundNeeded": [
+            {"id": str(p.id), "kind": p.kind, "amount": float(p.amount), "paidAt": _iso(p.paid_at),
+             "reason": p.refund_reason, "razorpayPaymentId": p.razorpay_payment_id,
+             "name": ((p.form or {}).get("player") or {}).get("full_name"),
+             "email": getattr(due_who.get(p.user_id), "email", None)}
+            for p in pays if p.status == "refund_due"
+        ],
         "challenge": {"id": str(ch.id), "slug": ch.slug, "title": ch.title, "status": ch.status,
                       "drawnAt": _iso(ch.drawn_at), "startsAt": _iso(ch.starts_at), "cafe": cafe.name,
                       "drawSeed": (teams.config(ch) or {}).get("drawSeed")},
@@ -577,64 +604,96 @@ async def admin_desk(challenge_id: UUID, db: AsyncSession = Depends(get_db), _ad
     return {"success": True, "data": await _desk(db, ch)}
 
 
-@admin_router.get("/{challenge_id}/links")
-async def admin_links(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
-    """Per posted link: people who opened this challenge page, who tapped Sign up,
-    and who paid. A visit is tagged with the link it came from (utm), so this
-    groups by campaign (or source, or 'direct'). Our own devices are left out."""
+async def _funnel(db: AsyncSession, ch: Challenge) -> dict:
+    """The sign-up funnel: browser events (internal and bot traffic left out) beside the payment records."""
     from app.models.analytics_event import AnalyticsEvent
-    from app.models.challenge import ChallengePlayer
+    from app.services import challenge_funnel as fun
 
-    ch = await _admin_challenge(db, challenge_id)
+    path = f"/challenge/{ch.slug}"
     rows = (await db.execute(
-        select(AnalyticsEvent.session_id, AnalyticsEvent.user_id, AnalyticsEvent.event_metadata)
+        select(AnalyticsEvent.session_id, AnalyticsEvent.user_id, AnalyticsEvent.created_at,
+               AnalyticsEvent.event_type, AnalyticsEvent.event_metadata)
         .where(
-            AnalyticsEvent.event_type == "ui_action",
-            AnalyticsEvent.event_metadata["challenge"].as_string() == ch.slug,
             AnalyticsEvent.created_at >= ch.created_at,
+            (
+                (AnalyticsEvent.event_type == "ui_action")
+                & (AnalyticsEvent.event_metadata["challenge"].as_string() == ch.slug)
+            ) | (
+                AnalyticsEvent.event_type.in_(("share_created", "share_opened"))
+                & AnalyticsEvent.event_metadata["path"].as_string().like(f"{path}%")
+            ),
         ).order_by(AnalyticsEvent.created_at)
     )).all()
-    internal = {sid for sid, _u, m in rows if isinstance(m, dict) and m.get("internal")}
-    label_of: dict[str, str] = {}
-    sessions: dict[str, dict] = {}
-    user_label: dict = {}
-    for sid, uid, m in rows:
-        if sid in internal or not isinstance(m, dict):
-            continue
-        u = m.get("utm") if isinstance(m.get("utm"), dict) else {}
-        label = u.get("c") or u.get("s") or "direct"
-        label_of.setdefault(sid, label)  # first tag seen wins
-        st = sessions.setdefault(sid, {"opened": False, "tapped": False})
-        action = m.get("action")
-        if action == "challenge_page_view":
-            st["opened"] = True
-        if action == "challenge_signup_started":
-            st["tapped"] = True
-        if uid:
-            user_label.setdefault(uid, label_of[sid])
+    events = [
+        fun.FEv(session=str(sid), user=str(uid) if uid else None, at=at, type=str(et),
+                meta=m if isinstance(m, dict) else {})
+        for sid, uid, at, et, m in rows
+    ]
+    pays = (await db.execute(select(ChallengePayment).where(ChallengePayment.challenge_id == ch.id))).scalars().all()
+    payments = [
+        fun.FPay(user=str(p.user_id) if p.user_id else None, kind=p.kind, status=p.status,
+                 linked=bool(p.entry_id or p.player_id))
+        for p in pays
+    ]
+    entries = await teams.team_entries(db, ch.id)
+    people = await teams.players(db, ch.id)
+    return fun.build_funnel(
+        events, payments,
+        registered_teams=sum(1 for e in entries if e.status == "confirmed" and not e.is_test),
+        registered_solos=sum(1 for p in people if p.role == "solo" and p.status == "active" and not p.is_test),
+    )
 
-    pays = (await db.execute(select(ChallengePayment).where(
-        ChallengePayment.challenge_id == ch.id, ChallengePayment.status == "paid"))).scalars().all()
-    paid_entries = {p.entry_id for p in pays if p.entry_id}
-    paid_players = {p.player_id for p in pays if p.player_id}
-    ppl = (await db.execute(select(ChallengePlayer).where(
-        ChallengePlayer.challenge_id == ch.id, ChallengePlayer.status.in_(("active", "waitlist")),
-        ChallengePlayer.role.in_(("captain", "solo"))))).scalars().all()
 
-    out: dict[str, dict] = {}
+class ResolveRefundIn(_Camel):
+    refund_id: str = Field(..., min_length=8, max_length=60, pattern=r"^rfnd_[A-Za-z0-9]+$")
+    confirmed: bool = False
+    note: str = Field("", max_length=200)
 
-    def row(label: str) -> dict:
-        return out.setdefault(label, {"link": label, "opened": 0, "tapped": 0, "paid": 0})
 
-    for sid, st in sessions.items():
-        r = row(label_of[sid])
-        r["opened"] += 1 if st["opened"] else 0
-        r["tapped"] += 1 if st["tapped"] else 0
-    for pl in ppl:
-        if pl.user_id is None or not (pl.entry_id in paid_entries or pl.id in paid_players):
-            continue
-        row(user_label.get(pl.user_id, "not tracked"))["paid"] += 1
-    links = sorted(out.values(), key=lambda r: (-r["opened"], -r["paid"]))
+@admin_router.post("/{challenge_id}/payments/{payment_id}/resolve-refund")
+async def admin_resolve_refund(challenge_id: UUID, payment_id: UUID, body: ResolveRefundIn,
+                               db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    """After the admin has refunded this payment by hand in the Razorpay dashboard and seen it there:
+    record the real refund id. Calls nothing at Razorpay. Safe to repeat: a second call changes nothing."""
+    from app.models.admin_audit_log import AdminAuditLog
+    ch = await _admin_challenge(db, challenge_id)
+    if not body.confirmed:
+        raise AppException(message="Confirm that you refunded this payment in Razorpay.", error_code="NOT_CONFIRMED", status_code=400)
+    p = (await db.execute(select(ChallengePayment).where(
+        ChallengePayment.id == payment_id, ChallengePayment.challenge_id == ch.id)
+        .with_for_update().execution_options(populate_existing=True))).scalar_one_or_none()
+    if p is None:
+        raise AppException(message="No such payment", error_code="PAYMENT_NOT_FOUND", status_code=404)
+    if p.status == "refunded":
+        return {"success": True, "data": await _desk(db, ch)}
+    if p.status != "refund_due":
+        raise AppException(message="This payment is not waiting for a refund.", error_code="NOT_REFUND_DUE", status_code=409)
+    p.status = "refunded"
+    p.refund_id = body.refund_id
+    p.refunded_at = teams.now()
+    db.add(AdminAuditLog(
+        admin_id=admin.id, admin_email=admin.email, action="challenge_refund_resolved",
+        entity_type="challenge_payment", entity_id=str(p.id), entity_name=ch.slug,
+        reason=f"Refund {body.refund_id} confirmed in Razorpay by admin. {body.note}".strip(),
+    ))
+    await db.commit()
+    return {"success": True, "data": await _desk(db, ch)}
+
+
+@admin_router.get("/{challenge_id}/funnel")
+async def admin_funnel(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    """People who opened the page, tapped Sign up, paid: events beside the real payment records."""
+    ch = await _admin_challenge(db, challenge_id)
+    return {"success": True, "data": await _funnel(db, ch)}
+
+
+@admin_router.get("/{challenge_id}/links")
+async def admin_links(challenge_id: UUID, db: AsyncSession = Depends(get_db), _admin=Depends(require_admin)):
+    """Per posted link: people who opened this challenge page, who tapped Sign up, and who paid.
+    Same numbers as the funnel (our own devices and bots are left out); kept for the older panel."""
+    ch = await _admin_challenge(db, challenge_id)
+    f = await _funnel(db, ch)
+    links = [{"link": r["name"], "opened": r["visitors"], "tapped": r["signup"], "paid": r["paid"]} for r in f["sources"]]
     return {"success": True, "data": {"links": links}}
 
 

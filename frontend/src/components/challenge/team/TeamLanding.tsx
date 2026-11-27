@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Gamepad2, Instagram, MapPin, Share2 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { fightFont } from '@/components/challenge/ChallengeHero';
-import { trackAction } from '@/lib/api/analyticsEvents';
+import { primeAnalyticsFromUrl, trackAction } from '@/lib/api/analyticsEvents';
 import { getChallenge, type Challenge } from '@/lib/api/challenges';
 import { getMyTeamEntry, type MyTeamEntry, type TeamInfo } from '@/lib/api/teamChallenges';
 import { rememberUtm } from '@/lib/challenge';
@@ -60,6 +60,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
 
   useEffect(() => {
     rememberUtm(window.location.search);
+    primeAnalyticsFromUrl(window.location.search); // so this first event already carries the campaign
     trackAction('challenge_page_view', { challenge: cfg.slug });
   }, [cfg.slug]);
 
@@ -186,7 +187,17 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
             {/* The facts as a readout, not a row of pills. */}
             <dl className="vx-rise mt-3 grid grid-cols-3 border-y border-white/15 [animation-delay:.55s]">
               <Readout label="When" value={istDay(cfg.dates.firstMatch).replace(',', '')} sub={`${istTime(cfg.dates.reportingTime).replace(':00', '')} check-in`} />
-              <Readout label="Where" value={cfg.venue.shortName} sub="Gachibowli" href={`/cafe/${cfg.venue.bookingSlug}`} />
+              {/* The venue tile opens the map, on every phone size. The café's own page is linked lower down. */}
+              <Readout
+                label="Where"
+                value={cfg.venue.shortName}
+                sub="Gachibowli"
+                pin
+                href={cfg.venue.googleMapsUrl}
+                external
+                hint={`Where: ${cfg.venue.name}, Gachibowli. Opens Google Maps`}
+                onClick={() => trackAction('challenge_map_click', { challenge: cfg.slug, from: 'tile' })}
+              />
               <Readout
                 label="Format"
                 value="5v5"
@@ -323,7 +334,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
                   title="Solo"
                   price={team?.priceSolo ?? 250}
                   line="We put you in a team with other solo players."
-                  note="If we can't make a team, you get your full money back by 4 December."
+                  note="Come on your own and play as part of a team."
                 />
               </div>
               <p className="mt-2.5 text-[13px] text-[#B4B0B8]">No booking fee. Nothing added on top.</p>
@@ -458,6 +469,20 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
           </div>
         </div>
 
+        {/* ── PC specs: what every seat has ────────────────────────── */}
+        <div role="tabpanel" id="panel-specs" aria-labelledby="tab-specs" hidden={tab !== 'specs'}>
+          <PanelTitle>What you play on</PanelTitle>
+          <p className="mt-2 max-w-[52ch] text-[15px] leading-snug text-[#C4BFC8]">{cfg.provided.headline} {cfg.provided.extras}</p>
+          <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+            {cfg.provided.specs.map((sp) => (
+              <li key={sp.label} className="rounded-2xl border border-[#2A2530] bg-[#141017] p-4">
+                <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#F2C94C]">{sp.label}</span>
+                <span className="mt-1 block text-[17px] font-bold leading-snug">{sp.value}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
         {/* ── Questions ───────────────────────────────────────────── */}
         <div role="tabpanel" id="panel-faq" aria-labelledby="tab-faq" hidden={tab !== 'faq'}>
           <dl className="grid border-t border-[#2A2530] md:grid-cols-2 md:gap-x-14">
@@ -573,6 +598,7 @@ const TABS = [
   { key: 'how', label: 'How it works' },
   { key: 'rules', label: 'Rules' },
   { key: 'where', label: 'Where' },
+  { key: 'specs', label: 'PC specs' },
   { key: 'faq', label: 'Questions' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
@@ -631,7 +657,15 @@ function ProvidedCard({ cfg, full = false, hero = false }: { cfg: TeamChallengeC
   );
 }
 
-function Readout({ label, value, sub, href, onClick }: { label: string; value: string; sub: string; href?: string; onClick?: () => void }) {
+function Readout({ label, value, sub, href, onClick, external = false, pin = false, hint }: {
+  label: string; value: string; sub: string; href?: string; onClick?: () => void;
+  /** Opens in a new tab (a map), not in this app. */
+  external?: boolean;
+  /** A small map pin before the sub line, so the tile reads as a place. */
+  pin?: boolean;
+  /** Spoken name for assistive tech when the tile does something the words don't say. */
+  hint?: string;
+}) {
   const tappable = Boolean(href || onClick);
   const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.16em] text-white/60';
   const valueCls = `${fightFont.className} mt-0.5 block text-[28px] font-semibold uppercase leading-none ${tappable ? 'underline decoration-white/40 decoration-2 underline-offset-4' : ''}`;
@@ -652,13 +686,24 @@ function Readout({ label, value, sub, href, onClick }: { label: string; value: s
     <>
       <span className={labelCls}>{label}</span>
       <span className={valueCls}>{value}</span>
-      <span className={subCls}>{sub} ›</span>
+      <span className={subCls}>
+        {pin && <MapPin className="-mt-0.5 mr-0.5 inline h-3.5 w-3.5 align-middle" aria-hidden />}
+        {sub} ›
+      </span>
     </>
   );
   return (
     <div className={box}>
       {href ? (
-        <a href={href} className={hit}>{body}</a>
+        <a
+          href={href}
+          onClick={onClick}
+          aria-label={hint}
+          {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+          className={hit}
+        >
+          {body}
+        </a>
       ) : (
         <button type="button" onClick={onClick} className={hit}>{body}</button>
       )}

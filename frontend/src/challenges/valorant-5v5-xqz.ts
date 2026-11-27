@@ -50,7 +50,6 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
 
   dates: {
     registrationCloses: '2026-12-03T21:00:00+05:30',
-    soloRefundBy: '2026-12-04T10:00:00+05:30',
     bracketDraw: '2026-12-04T19:00:00+05:30',
     reportingTime: '2026-12-05T11:00:00+05:30',
     checkInCloses: '2026-12-05T11:45:00+05:30',
@@ -85,8 +84,12 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
       { label: 'Processor', value: 'Ryzen 5 9600X' },
       { label: 'Memory', value: '32GB DDR5 6000' },
       { label: 'Storage', value: '1TB NVMe Gen4' },
+      // Added after these three (the hero only shows the first three chips).
+      { label: 'Mouse', value: 'Logitech Pro X Superlight 2' },
+      { label: 'Keyboard', value: 'Logitech G413 TKL SE' },
+      { label: 'Headset', value: 'Logitech Pro X Wired Gaming Headset' },
     ],
-    extras: 'Every seat is the same build. Mouse, keyboard and the rest are provided.',
+    extras: 'Every seat is the same build, with the same mouse, keyboard and headset.',
   },
 
   skirmish: [
@@ -151,8 +154,8 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
       'Each team gets 1 pause per game, up to 5 minutes, only for a PC or internet problem.',
       'If a player disconnects in the first 2 rounds, the game restarts. After that, the game continues. If they cannot come back in 5 minutes, the team plays 4 vs 5.',
       'If the power or internet goes off for everyone, the game is played again from 0-0.',
-      'No cheats, scripts, macros or changing cafe PC settings. You will be removed with no refund.',
-      'No abuse of players or staff. You will be removed with no refund.',
+      'No cheats, scripts, macros or changing cafe PC settings. You will be removed from the challenge.',
+      'No abuse of players or staff. You will be removed from the challenge.',
       "The admin's decision is final.",
     ] },
     { group: 'Rewards', items: [
@@ -163,6 +166,7 @@ export const valorant3v3Xqz: TeamChallengeConfig = {
 
   faq: [
     { q: 'Do I need to bring my own PC or laptop?', a: 'No. We provide top-spec gaming PCs at XQZ (RTX 5060 Ti 16GB, Ryzen 5 9600X, 540Hz monitor, 32GB RAM). Every seat is the same build and the peripherals are provided. Just come with your phone and your Riot ID, log in and play.' },
+    { q: 'What are the PC specs?', a: '540Hz monitor, RTX 5060 Ti 16GB, Ryzen 5 9600X, 32GB DDR5 6000 memory and 1TB NVMe Gen4 storage. Every seat has a Logitech Pro X Superlight 2 mouse, a Logitech G413 TKL SE keyboard and a Logitech Pro X Wired Gaming Headset.' },
     { q: 'Is it online?', a: 'No. Everyone plays in person, on gaming PCs at XQZ Gaming Cafe, Gachibowli, Hyderabad. Your whole team needs to be there on Sat 5 Dec.' },
     { q: 'My team has fewer than 5 players.', a: 'Sign up as a team and share your link. If a player is missing on the day, we will give you someone to play with.' },
     { q: "I don't have a team.", a: 'Sign up as solo. We will find you teammates.' },

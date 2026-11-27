@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, Copy, MessageCircle, Send, Share2, Facebook, Check, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { createShare, type ShareChannel, type ShareTarget } from '@/lib/share';
@@ -51,6 +51,28 @@ const CHANNELS: { channel: Exclude<ShareChannel, 'copy' | 'native'>; name: strin
  */
 export function ShareModal({ isOpen, onClose, heading = 'Share', message, ...target }: ShareModalProps) {
   const [copied, setCopied] = useState(false);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Escape closes the sheet; focus moves into it, then goes back to the button that opened it.
+  useEffect(() => {
+    if (!isOpen) return;
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onCloseRef.current();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      if (opener && typeof opener.focus === 'function' && document.contains(opener)) opener.focus();
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
@@ -96,6 +118,7 @@ export function ShareModal({ isOpen, onClose, heading = 'Share', message, ...tar
             <h3 className="font-heading text-h3 text-text-primary">{heading}</h3>
           </div>
           <button
+            ref={closeRef}
             onClick={onClose}
             aria-label="Close"
             className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface"

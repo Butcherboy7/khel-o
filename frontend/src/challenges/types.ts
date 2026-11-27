@@ -36,7 +36,6 @@ export interface TeamChallengeConfig {
   sponsors: { name: string; logo: string; url: string | null }[];
   dates: {
     registrationCloses: string;
-    soloRefundBy: string;
     bracketDraw: string;
     reportingTime: string;
     checkInCloses: string;

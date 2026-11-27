@@ -57,8 +57,11 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
       }));
     const open = (d: Row) => (d.state === 'open' || d.state === 'early' ? 0 : 1);
     const inCity = (d: Row) => (city && d.cafe.city?.toLowerCase() === city ? 0 : 1);
+    // GTA 6: XQZ is always the first café in the list.
+    const xqz = (d: Row) => (key === 'gta6' && /xqz/i.test(d.cafe.name) ? 0 : 1);
     return list.sort(
       (a, b) =>
+        xqz(a) - xqz(b) ||
         open(a) - open(b) ||
         (a.km != null && b.km != null ? a.km - b.km : a.km != null ? -1 : b.km != null ? 1 : inCity(a) - inCity(b)) ||
         a.cafe.name.localeCompare(b.cafe.name),
@@ -99,6 +102,8 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
     ? casual ? `Play ${picked.name}: pick your café` : `${picked.name}: pick your café`
     : casual ? (only ? `Play ${only.name} at a café near you` : 'Play it at a café') : 'Launch drops';
   const cafes = rows.length;
+  const xqzFirst = key === 'gta6' && rows.length > 0 && /xqz/i.test(rows[0].cafe.name);
+  const nearestWord = xqzFirst ? 'XQZ first, then nearest to you.' : 'Nearest to you first.';
   // Distances only work for cafés with a map pin. Never promise "nearest first" without one.
   const sorted = rows.some((d) => d.km != null);
   const canSort = rows.some((d) => d.cafe.lat != null && d.cafe.lng != null);
@@ -115,8 +120,8 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
               ? 'No café is taking seats right now.'
               : picked
               ? casual
-                ? `${cafes} ${cafes === 1 ? 'café has' : 'cafés have'} it. ${sorted ? 'Nearest to you first. ' : ''}Tap a café, pick a time and book like any other slot.`
-                : `${cafes} ${cafes === 1 ? 'café is' : 'cafés are'} taking seats. ${sorted ? 'Nearest to you first.' : 'Tap a café to see days and times.'}`
+                ? `${cafes} ${cafes === 1 ? 'café has' : 'cafés have'} it. ${sorted ? `${nearestWord} ` : ''}Tap a café, pick a time and book like any other slot.`
+                : `${cafes} ${cafes === 1 ? 'café is' : 'cafés are'} taking seats. ${sorted ? nearestWord : 'Tap a café to see days and times.'}`
               : casual
               ? `${cafes} ${cafes === 1 ? 'café has' : 'cafés have'} it. Pick a café, pick a time and pay online. Walk in with a QR pass.`
               : 'Reserve a seat by paying 50% in advance. You pay the rest at the café.'}
@@ -190,7 +195,7 @@ export function DropsIndexClient({ initial, game }: { initial: DropListItem[] | 
             // Game is out and the café has a normal booking page: tap goes there, no drop page in between.
             const normal = !!d.casual && !soon && !asking;
             const hours = d.cafe.openingTime && d.cafe.closingTime ? `Open ${clock(d.cafe.openingTime)} – ${clock(d.cafe.closingTime)}` : null;
-            const nearest = i === 0 && d.km != null && cafes > 1;
+            const nearest = i === (xqzFirst ? 1 : 0) && d.km != null && cafes > 1;
             return (
               <li key={d.id}>
                 <Link

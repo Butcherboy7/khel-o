@@ -8,6 +8,8 @@ import { getBracket, type Bracket, type BracketMatch } from '@/lib/api/challenge
 import { teamChallengeConfig } from '@/challenges';
 import { Roster, TeamBracket, matchNumbers } from '@/components/challenge/team/TeamBracket';
 import { adminTeams, downloadTeamsCsv, type DeskTeam, type Member, type TeamDesk } from '@/lib/api/teamChallenges';
+import { FunnelPanel } from './FunnelPanel';
+import { RefundNeeded } from './RefundNeeded';
 
 type Tab = 'teams' | 'solos' | 'waitlist' | 'checkin' | 'draw' | 'rewards' | 'removed';
 
@@ -101,7 +103,13 @@ export default function TeamDeskPage() {
         </p>
       )}
 
-      <LinksPanel id={id} />
+      <RefundNeeded
+        rows={desk.refundNeeded}
+        busy={busy}
+        onResolve={(pid, refundId) => act(`rd${pid}`, () => adminTeams.resolveRefund(id, pid, refundId), 'Marked as refunded. Recorded in the audit log.')}
+      />
+
+      <FunnelPanel id={id} />
 
       {desk.practiceAllowed && (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-dashed border-primary/40 p-3">
@@ -664,43 +672,5 @@ function MatchRow({ m, busy, onTime, onResult }: {
         </div>
       )}
     </li>
-  );
-}
-
-/** Every link posted for this challenge: who opened it, who tapped Sign up, who paid. */
-function LinksPanel({ id }: { id: string }) {
-  const [rows, setRows] = useState<{ link: string; opened: number; tapped: number; paid: number }[] | null>(null);
-  useEffect(() => {
-    adminTeams.links(id).then((d) => setRows(d.links)).catch(() => setRows([]));
-  }, [id]);
-  if (rows === null) return null;
-  return (
-    <section className="mt-4 rounded-2xl border border-border bg-card p-4">
-      <h2 className="text-body font-semibold text-text-primary">Where sign-ups come from</h2>
-      <p className="mt-0.5 text-caption text-text-secondary">
-        Share <span className="font-mono text-text-primary">khel-o.com/c/valorant-whatsapp</span>. Each link: people who opened the page, tapped Sign up, and paid.
-      </p>
-      {rows.length === 0 ? (
-        <p className="mt-3 text-body-sm text-text-secondary">No visits counted yet.</p>
-      ) : (
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-left text-body-sm">
-            <thead className="text-caption text-text-secondary">
-              <tr><th className="py-1 pr-3 font-medium">Link</th><th className="px-2 font-medium">Opened</th><th className="px-2 font-medium">Tapped Sign up</th><th className="px-2 font-medium">Paid</th></tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.link} className="border-t border-border">
-                  <td className="py-2 pr-3 font-medium text-text-primary">{r.link}</td>
-                  <td className="px-2 tabular-nums">{r.opened}</td>
-                  <td className="px-2 tabular-nums">{r.tapped}</td>
-                  <td className="px-2 tabular-nums">{r.paid}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
   );
 }

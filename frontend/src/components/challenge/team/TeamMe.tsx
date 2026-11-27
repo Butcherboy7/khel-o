@@ -87,7 +87,7 @@ export function TeamMe({ cfg, isNew }: { cfg: TeamChallengeConfig; isNew: boolea
   const signedUp = !!p && (p.status === 'active' || p.status === 'waitlist');
   const onWaitlist = p?.status === 'waitlist';
   const soloWaiting = p?.role === 'solo' && !team && p.status === 'active';
-  const refunded = data?.payment?.status === 'refunded';
+  const refundPending = !!data?.refundPending;
 
   return (
     <TeamShell cfg={cfg} back={`/challenge/${cfg.slug}`} backLabel="Challenge">
@@ -97,13 +97,22 @@ export function TeamMe({ cfg, isNew }: { cfg: TeamChallengeConfig; isNew: boolea
 
         {!signedUp && (
           <div className="rounded-3xl border border-[#2A2530] bg-[#141017] p-5">
-            <h1 className="text-[24px] font-bold">{refunded ? 'Your money was refunded' : 'You haven’t signed up yet'}</h1>
+            <h1 className="text-[24px] font-bold">{refundPending ? 'We’re sorting out your payment' : 'You haven’t signed up yet'}</h1>
             <p className="mt-2 text-[15px] text-[#B4B0B8]">
-              {refunded ? `We refunded ${rupees(data!.payment!.amount)}. It reaches you in 5 to 7 days.` : data?.pending ? 'Your payment is still open. Finish it to get your spot.' : 'Team of 3 or solo. It takes 2 minutes.'}
+              {refundPending
+                ? 'We couldn’t complete your registration. Your payment is safe and our team will sort it out with you. Please don’t pay again.'
+                : data?.pending ? 'Your payment is still open. Finish it to get your spot.' : 'Team of 5 or solo. It takes 2 minutes.'}
             </p>
-            <Link href={`/challenge/${cfg.slug}/join`} className="vx-corner mt-4 flex h-14 items-center justify-center bg-[#D0463C] text-[17px] font-bold text-white">
-              Sign up
-            </Link>
+            {refundPending && cfg.links.supportPhone && (
+              <a href={`tel:${cfg.links.supportPhone}`} className="vx-corner mt-4 flex h-14 items-center justify-center bg-[#25D366] text-[17px] font-bold text-[#08140C]">
+                Call or WhatsApp {cfg.links.supportPhone}
+              </a>
+            )}
+            {!refundPending && (
+              <Link href={`/challenge/${cfg.slug}/join`} className="vx-corner mt-4 flex h-14 items-center justify-center bg-[#D0463C] text-[17px] font-bold text-white">
+                Sign up
+              </Link>
+            )}
           </div>
         )}
 
@@ -122,7 +131,7 @@ export function TeamMe({ cfg, isNew }: { cfg: TeamChallengeConfig; isNew: boolea
                 {onWaitlist
                   ? 'All spots are full. If a team drops out, we message you first on WhatsApp. You pay only then.'
                   : soloWaiting
-                    ? `If we can't make a team, you get your full ${rupees(data?.payment?.amount ?? 300)} back by 4 Dec, 10 AM.`
+                    ? 'We will find your teammates and message you.'
                     : data?.payment?.status === 'paid'
                       ? `Paid ${rupees(data.payment.amount)}. We sent your QR to your email.`
                       : 'Your captain paid. Your QR is below.'}

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Check, CreditCard, Crosshair, Instagram, LifeBuoy, MapPin, Timer, Trophy, Users, Volume2, VolumeX, Phone, Mail } from 'lucide-react';
-import { onSoundChange, setSound, sfx, soundOn, type Sfx } from '@/lib/vxSound';
+import { onSoundChange, setSound, sfx, soundOn, unlockAudio, type Sfx } from '@/lib/vxSound';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import type { TeamChallengeConfig, TeamIcon } from '@/challenges/types';
 
@@ -121,25 +121,32 @@ export function Opener() {
 /** One listener gives every button, link, tab and tick box its click sound. */
 export function useVxClickSounds() {
   useEffect(() => {
-    let first = true;
     const onDown = (e: PointerEvent) => {
-      const el = (e.target as HTMLElement | null)?.closest('a[href], button, [role="tab"], input[type="checkbox"], input[type="radio"], label');
-      if (!el || (el as HTMLButtonElement).disabled) return;
-      if (first) {
-        first = false;
-        sfx('slash');
-        return;
+      try {
+        const el = (e.target as HTMLElement | null)?.closest('a[href], button, [role="tab"], input[type="checkbox"], input[type="radio"], label');
+        if (!el || (el as HTMLButtonElement).disabled) return;
+        // One tap, one sound, and the first tap is no different from the rest: a button can name its own
+        // sound with data-sfx ("primary" | "join" | "share" | "back"), the rest are picked by kind.
+        const own = (el.closest('[data-sfx]') as HTMLElement | null)?.dataset.sfx as Sfx | undefined;
+        if (own) {
+          sfx(own);
+          return;
+        }
+        sfx(el.matches('[role="tab"], input, label') ? 'select' : el.matches('button[type="submit"], .btn-depth') ? 'next' : 'tap');
+      } catch {
+        /* sound is an extra: a failure here must never get in the way of the tap */
       }
-      // A button can name its own sound: data-sfx="primary" | "join" | "share" | "back".
-      const own = (el.closest('[data-sfx]') as HTMLElement | null)?.dataset.sfx as Sfx | undefined;
-      if (own) {
-        sfx(own);
-        return;
-      }
-      sfx(el.matches('[role="tab"], input, label') ? 'select' : el.matches('button[type="submit"], .btn-depth') ? 'next' : 'tap');
     };
+    // Phones such as iPhone only let sound start after a finished tap, so wake the engine again then (silently).
+    const wake = () => unlockAudio();
     document.addEventListener('pointerdown', onDown, true);
-    return () => document.removeEventListener('pointerdown', onDown, true);
+    document.addEventListener('touchend', wake, { capture: true, passive: true });
+    document.addEventListener('click', wake, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('touchend', wake, true);
+      document.removeEventListener('click', wake, true);
+    };
   }, []);
 }
 
