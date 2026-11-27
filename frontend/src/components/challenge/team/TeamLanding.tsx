@@ -118,7 +118,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
       <section className="relative isolate flex min-h-[100svh] flex-col overflow-hidden">
         <LiveBackdrop cfg={cfg} />
         <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 pt-4 md:px-8">
-          <span className="flex min-w-0 items-center gap-2">
+          <span className="flex min-w-0 shrink-0 items-center gap-2">
           <Link
             href="/"
             aria-label="Back to KHEL-O"
@@ -144,7 +144,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
           </Link>
           </span>
           <span className="flex items-center gap-2">
-            <span className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-full bg-black/60 px-3 text-[11px] font-bold uppercase tracking-[0.1em] backdrop-blur-md sm:px-3.5 sm:text-[12px] sm:tracking-[0.16em]">
+            <span className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-full min-[430px]:inline-flex bg-black/60 px-3 text-[11px] font-bold uppercase tracking-[0.1em] backdrop-blur-md sm:px-3.5 sm:text-[12px] sm:tracking-[0.16em]">
               <span className="vx-live-dot h-2 w-2 rounded-full bg-[#FF4A4A]" aria-hidden />
               <span className="sm:hidden">At {cfg.venue.shortName} Cafe</span>
               <span className="hidden sm:inline">At {cfg.venue.name}</span>
@@ -163,7 +163,7 @@ export function TeamLanding({ cfg, initial }: { cfg: TeamChallengeConfig; initia
               <span>KHEL-O is <b className="text-[#F2C94C] underline decoration-[#F2C94C]/50 underline-offset-4">BookMyShow for gaming cafes</b></span>
               <ChevronRight className="h-4 w-4 text-[#F2C94C]" aria-hidden />
             </Link>
-            <h1 className={`${fightFont.className} relative uppercase`}>
+            <h1 className={`${fightFont.className} relative mt-1 uppercase`}>
               <span className="vx-scan absolute -left-2 top-[18%] h-[64%] w-1/3 bg-gradient-to-r from-transparent via-white/40 to-transparent" aria-hidden />
               <span className="vx-cut block text-[clamp(64px,22vw,148px)] font-bold leading-[0.76] tracking-[0.01em] [text-shadow:0_10px_40px_rgba(0,0,0,0.55)] [@media(max-height:780px)]:text-[clamp(52px,17.5vw,120px)]">
                 {cfg.titleTop}
